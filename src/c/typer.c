@@ -40,6 +40,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop);
 static const char *type_to_name(TilType type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Expr *src);
+static Expr *make_ns_call(const char *sname, const char *method,
+                           TilType ret_type, Str *ret_sname, Expr *src);
 static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
 
 // Narrow a Dynamic-typed expression to a concrete target type.
@@ -814,9 +816,166 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         break;
     }
+    case NODE_MAP_LIT:
+        for (U32 i = 0; i < e->children.count; i++)
+            infer_expr(scope, expr_child(e, i), in_func);
+        e->til_type = TIL_TYPE_STRUCT;
+        e->struct_name = Str_new("Map");
+        break;
     default:
         e->til_type = TIL_TYPE_UNKNOWN;
         break;
+    }
+}
+
+// --- Map literal desugaring ---
+// Transforms m := {k1: v1, k2: v2} into:
+//   mut m := Map.new(key_type, key_size, val_type, val_size)
+//   Map.set(m, own k1, own v1)
+//   Map.set(m, own k2, own v2)
+
+static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
+    Expr *sdef = tscope_get_struct(scope, Str_new(type_name));
+    if (!sdef) return 0;
+    Expr *body = expr_child(sdef, 0);
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *f = expr_child(body, i);
+        if (f->type == NODE_DECL && f->data.decl.is_namespace &&
+            Str_eq_c(f->data.decl.name, "cmp"))
+            return 1;
+    }
+    return 0;
+}
+
+static void desugar_map_literals(Expr *body, TypeScope *scope) {
+    Vec new_ch = Vec_new(sizeof(Expr *));
+    Bool changed = 0;
+
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *stmt = expr_child(body, i);
+        // Only handle: name := {k: v, ...}
+        if (stmt->type != NODE_DECL || stmt->children.count == 0 ||
+            expr_child(stmt, 0)->type != NODE_MAP_LIT) {
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+        changed = 1;
+        Expr *map_lit = expr_child(stmt, 0);
+        U32 line = map_lit->line, col = map_lit->col;
+        Str *path = map_lit->path;
+        Str *var_name = stmt->data.decl.name;
+        U32 n_pairs = map_lit->children.count / 2;
+
+        if (map_lit->children.count == 0) {
+            type_error(map_lit, "map literal must have at least one entry");
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+        if (map_lit->children.count % 2 != 0) {
+            type_error(map_lit, "map literal has mismatched key/value pairs");
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+
+        // Get key/val types from first entry (already inferred)
+        Expr *first_key = expr_child(map_lit, 0);
+        Expr *first_val = expr_child(map_lit, 1);
+        const char *key_type = type_to_name(first_key->til_type, first_key->struct_name);
+        const char *val_type = type_to_name(first_val->til_type, first_val->struct_name);
+
+        if (!key_type) {
+            type_error(first_key, "map literal: cannot determine key type");
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+        if (!val_type) {
+            type_error(first_val, "map literal: cannot determine value type");
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+
+        // Validate key type has cmp
+        if (!type_has_cmp(scope, key_type)) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "map literal: key type '%s' must implement cmp", key_type);
+            type_error(first_key, buf);
+        }
+
+        // Validate all entries have consistent types
+        for (U32 j = 2; j < map_lit->children.count; j += 2) {
+            Expr *k = expr_child(map_lit, j);
+            Expr *v = expr_child(map_lit, j + 1);
+            const char *kt = type_to_name(k->til_type, k->struct_name);
+            const char *vt = type_to_name(v->til_type, v->struct_name);
+            if (!kt || strcmp(kt, key_type) != 0)
+                type_error(k, "map literal: all keys must be the same type");
+            if (!vt || strcmp(vt, val_type) != 0)
+                type_error(v, "map literal: all values must be the same type");
+        }
+
+        // Build: mut var_name := Map.new(key_type_str, KeyType.size(), val_type_str, ValType.size())
+        Expr *new_call = make_ns_call("Map", "new", TIL_TYPE_STRUCT,
+                                       Str_new("Map"), map_lit);
+        // Arg 1: key_type string
+        Expr *kt_str = expr_new(NODE_LITERAL_STR, line, col, path);
+        kt_str->data.str_val = Str_new(key_type);
+        kt_str->til_type = TIL_TYPE_STRUCT;
+        kt_str->struct_name = Str_new("Str");
+        expr_add_child(new_call, kt_str);
+        // Arg 2: KeyType.size()
+        Expr *ksz = make_ns_call(key_type, "size", TIL_TYPE_I64, NULL, map_lit);
+        expr_add_child(new_call, ksz);
+        // Arg 3: val_type string
+        Expr *vt_str = expr_new(NODE_LITERAL_STR, line, col, path);
+        vt_str->data.str_val = Str_new(val_type);
+        vt_str->til_type = TIL_TYPE_STRUCT;
+        vt_str->struct_name = Str_new("Str");
+        expr_add_child(new_call, vt_str);
+        // Arg 4: ValType.size()
+        Expr *vsz = make_ns_call(val_type, "size", TIL_TYPE_I64, NULL, map_lit);
+        expr_add_child(new_call, vsz);
+
+        // Build declaration node (mut, so .set can work)
+        Expr *decl = expr_new(NODE_DECL, stmt->line, stmt->col, path);
+        decl->data.decl.name = var_name;
+        decl->data.decl.is_mut = true;
+        decl->til_type = TIL_TYPE_STRUCT;
+        expr_add_child(decl, new_call);
+
+        // Register in scope
+        tscope_set(scope, var_name, TIL_TYPE_STRUCT, -1, 1, stmt->line, stmt->col, 0, 0);
+        TypeBinding *vb = tscope_find(scope, var_name);
+        if (vb) vb->struct_name = Str_new("Map");
+
+        Vec_push(&new_ch, &decl);
+
+        // Build .set calls for each key-value pair
+        for (U32 j = 0; j < n_pairs; j++) {
+            Expr *set_call = make_ns_call("Map", "set", TIL_TYPE_NONE, NULL, map_lit);
+            // Arg: self
+            Expr *self_id = expr_new(NODE_IDENT, line, col, path);
+            self_id->data.str_val = var_name;
+            self_id->til_type = TIL_TYPE_STRUCT;
+            self_id->struct_name = Str_new("Map");
+            expr_add_child(set_call, self_id);
+            // Arg: own key
+            Expr *key = expr_child(map_lit, j * 2);
+            key->is_own_arg = true;
+            expr_add_child(set_call, key);
+            // Arg: own val
+            Expr *val = expr_child(map_lit, j * 2 + 1);
+            val->is_own_arg = true;
+            expr_add_child(set_call, val);
+
+            Vec_push(&new_ch, &set_call);
+        }
+    }
+
+    if (changed) {
+        Vec_delete(&body->children);
+        body->children = new_ch;
+    } else {
+        Vec_delete(&new_ch);
     }
 }
 
@@ -2167,6 +2326,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             break;
         }
     }
+    if (owns_scope) desugar_map_literals(body, scope);
     if (owns_scope) desugar_variadic_calls(body, scope);
     if (owns_scope) hoist_fcall_args(body, scope);
     insert_field_deletes(body);

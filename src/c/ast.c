@@ -94,6 +94,7 @@ static const char *node_name(NodeType type) {
     case NODE_NAMED_ARG:   return "named_arg";
     case NODE_BREAK:       return "break";
     case NODE_CONTINUE:    return "continue";
+    case NODE_MAP_LIT:     return "map_lit";
     }
     return "?";
 }

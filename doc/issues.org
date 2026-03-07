@@ -272,6 +272,8 @@
 
    Desugars to Set.new()/Map.new() + add/set calls.
 
+   Map literals: DONE. Set literals: TODO.
+
 *** Map literal details
     Syntax: {key_expr: val_expr, key_expr: val_expr, ...}
 

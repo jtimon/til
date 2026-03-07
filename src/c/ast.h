@@ -26,6 +26,7 @@ typedef enum {
     NODE_NAMED_ARG,     // named argument   (data.str_val = param name, children[0] = value)
     NODE_BREAK,
     NODE_CONTINUE,
+    NODE_MAP_LIT,         // map literal {k:v, ...} (children = [k0, v0, k1, v1, ...])
 } NodeType;
 
 typedef enum {

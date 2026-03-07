@@ -325,6 +325,16 @@ static Expr *parse_expression(Parser *p) {
         return parse_struct_def(p);
     } else if (t->type == TOK_ENUM) {
         return parse_enum_def(p);
+    } else if (t->type == TOK_LBRACE) {
+        advance(p); // consume '{'
+        e = expr_new(NODE_MAP_LIT, t->line, t->col, p->spath);
+        while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+            expr_add_child(e, parse_expression(p));  // key
+            expect(p, TOK_COLON);                     // ':'
+            expr_add_child(e, parse_expression(p));  // value
+            if (check(p, TOK_COMMA)) advance(p);
+        }
+        expect(p, TOK_RBRACE);
     } else {
         fprintf(stderr, "%s:%u:%u: parse error: unexpected token '%.*s'\n",
                 p->path, t->line, t->col, t->len, t->start);

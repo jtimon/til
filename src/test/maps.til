@@ -48,3 +48,46 @@ test_str_map := test() {
     assert_eq(loc(), sa, 1)
     assert_eq(loc(), sb, 2)
 }
+
+// --- Map literal tests ---
+
+test_map_literal_str_i64 := test() {
+    // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+    assert_eq(loc(), Str.cmp("a", "b"), 0.sub(1))
+    assert_eq_str(loc(), "hi".clone(), "hi")
+
+    m := {"a": 1, "b": 2, "c": 3}
+    assert_eq(loc(), m.len(), 3)
+    assert(loc(), m.has("a"))
+    assert(loc(), m.has("b"))
+    assert(loc(), m.has("c"))
+    ref va : I64 = m.get("a")
+    ref vb : I64 = m.get("b")
+    assert_eq(loc(), va, 1)
+    assert_eq(loc(), vb, 2)
+}
+
+test_map_literal_i64_i64 := test() {
+    // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
+    assert_eq(loc(), 1.clone(), 1)
+
+    m := {0: 100, 1: 200, 2: 300}
+    assert_eq(loc(), m.len(), 3)
+    ref v0 : I64 = m.get(0)
+    ref v2 : I64 = m.get(2)
+    assert_eq(loc(), v0, 100)
+    assert_eq(loc(), v2, 300)
+}
+
+test_map_literal_i64_str := test() {
+    // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
+    assert_eq(loc(), 1.clone(), 1)
+    assert_eq_str(loc(), "hi".clone(), "hi")
+
+    m := {1: "one", 2: "two"}
+    assert_eq(loc(), m.len(), 2)
+    ref v1 : Str = m.get(1)
+    assert_eq_str(loc(), v1, "one")
+}
