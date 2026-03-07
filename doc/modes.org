@@ -1,0 +1,27 @@
+* Modes
+
+Set with ~mode <name>~ at the top of a file.
+
+** script
+Default. Top-level code runs directly. No main function needed.
+
+** cli
+Requires a ~main~ function. Declarations only at top level.
+
+** gui
+Like cli but auto-imports the gui module.
+
+** test
+Declarations only. Test functions run automatically. No main needed.
+
+** pure
+Like test but procs are forbidden — only funcs allowed.
+
+** pura
+Like pure but allows ~print~/~println~ inside funcs for debugging.
+
+** lib
+Declarations only. For importable files that may contain procs.
+
+** liba
+Like lib but allows ~print~/~println~ inside funcs for debugging.
