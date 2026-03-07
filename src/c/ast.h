@@ -27,6 +27,7 @@ typedef enum {
     NODE_BREAK,
     NODE_CONTINUE,
     NODE_MAP_LIT,         // map literal {k:v, ...} (children = [k0, v0, k1, v1, ...])
+    NODE_SET_LIT,         // set literal {v, ...} (children = [v0, v1, v2, ...])
 } NodeType;
 
 typedef enum {

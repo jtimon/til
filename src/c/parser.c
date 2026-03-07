@@ -327,12 +327,29 @@ static Expr *parse_expression(Parser *p) {
         return parse_enum_def(p);
     } else if (t->type == TOK_LBRACE) {
         advance(p); // consume '{'
-        e = expr_new(NODE_MAP_LIT, t->line, t->col, p->spath);
-        while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-            expr_add_child(e, parse_expression(p));  // key
-            expect(p, TOK_COLON);                     // ':'
-            expr_add_child(e, parse_expression(p));  // value
+        Expr *first = parse_expression(p);
+        if (check(p, TOK_COLON)) {
+            // Map literal: {key: val, ...}
+            e = expr_new(NODE_MAP_LIT, t->line, t->col, p->spath);
+            expr_add_child(e, first);
+            advance(p); // consume ':'
+            expr_add_child(e, parse_expression(p));
             if (check(p, TOK_COMMA)) advance(p);
+            while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+                expr_add_child(e, parse_expression(p));
+                expect(p, TOK_COLON);
+                expr_add_child(e, parse_expression(p));
+                if (check(p, TOK_COMMA)) advance(p);
+            }
+        } else {
+            // Set literal: {val, val, ...}
+            e = expr_new(NODE_SET_LIT, t->line, t->col, p->spath);
+            expr_add_child(e, first);
+            if (check(p, TOK_COMMA)) advance(p);
+            while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+                expr_add_child(e, parse_expression(p));
+                if (check(p, TOK_COMMA)) advance(p);
+            }
         }
         expect(p, TOK_RBRACE);
     } else {

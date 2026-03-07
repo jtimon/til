@@ -822,17 +822,19 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->til_type = TIL_TYPE_STRUCT;
         e->struct_name = Str_new("Map");
         break;
+    case NODE_SET_LIT:
+        for (U32 i = 0; i < e->children.count; i++)
+            infer_expr(scope, expr_child(e, i), in_func);
+        e->til_type = TIL_TYPE_STRUCT;
+        e->struct_name = Str_new("Set");
+        break;
     default:
         e->til_type = TIL_TYPE_UNKNOWN;
         break;
     }
 }
 
-// --- Map literal desugaring ---
-// Transforms m := {k1: v1, k2: v2} into:
-//   mut m := Map.new(key_type, key_size, val_type, val_size)
-//   Map.set(m, own k1, own v1)
-//   Map.set(m, own k2, own v2)
+// --- Collection literal helpers ---
 
 static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
     Expr *sdef = tscope_get_struct(scope, Str_new(type_name));
@@ -846,6 +848,112 @@ static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
     }
     return 0;
 }
+
+// --- Set literal desugaring ---
+// Transforms s := {v1, v2, v3} into:
+//   mut s := Set.new(elem_type, elem_size)
+//   Set.add(s, own v1)
+//   Set.add(s, own v2)
+//   Set.add(s, own v3)
+
+static void desugar_set_literals(Expr *body, TypeScope *scope) {
+    Vec new_ch = Vec_new(sizeof(Expr *));
+    Bool changed = 0;
+
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *stmt = expr_child(body, i);
+        if (stmt->type != NODE_DECL || stmt->children.count == 0 ||
+            expr_child(stmt, 0)->type != NODE_SET_LIT) {
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+        changed = 1;
+        Expr *set_lit = expr_child(stmt, 0);
+        U32 line = set_lit->line, col = set_lit->col;
+        Str *path = set_lit->path;
+        Str *var_name = stmt->data.decl.name;
+
+        if (set_lit->children.count == 0) {
+            type_error(set_lit, "set literal must have at least one element");
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+
+        // Get element type from first entry
+        Expr *first = expr_child(set_lit, 0);
+        const char *elem_type = type_to_name(first->til_type, first->struct_name);
+        if (!elem_type) {
+            type_error(first, "set literal: cannot determine element type");
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+
+        // Validate element type has cmp
+        if (!type_has_cmp(scope, elem_type)) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "set literal: element type '%s' must implement cmp", elem_type);
+            type_error(first, buf);
+        }
+
+        // Validate all elements have consistent type
+        for (U32 j = 1; j < set_lit->children.count; j++) {
+            Expr *v = expr_child(set_lit, j);
+            const char *vt = type_to_name(v->til_type, v->struct_name);
+            if (!vt || strcmp(vt, elem_type) != 0)
+                type_error(v, "set literal: all elements must be the same type");
+        }
+
+        // Build: mut var_name := Set.new(elem_type_str, ElemType.size())
+        Expr *new_call = make_ns_call("Set", "new", TIL_TYPE_STRUCT,
+                                       Str_new("Set"), set_lit);
+        Expr *et_str = expr_new(NODE_LITERAL_STR, line, col, path);
+        et_str->data.str_val = Str_new(elem_type);
+        et_str->til_type = TIL_TYPE_STRUCT;
+        et_str->struct_name = Str_new("Str");
+        expr_add_child(new_call, et_str);
+        Expr *esz = make_ns_call(elem_type, "size", TIL_TYPE_I64, NULL, set_lit);
+        expr_add_child(new_call, esz);
+
+        Expr *decl = expr_new(NODE_DECL, stmt->line, stmt->col, path);
+        decl->data.decl.name = var_name;
+        decl->data.decl.is_mut = true;
+        decl->til_type = TIL_TYPE_STRUCT;
+        expr_add_child(decl, new_call);
+
+        tscope_set(scope, var_name, TIL_TYPE_STRUCT, -1, 1, stmt->line, stmt->col, 0, 0);
+        TypeBinding *vb = tscope_find(scope, var_name);
+        if (vb) vb->struct_name = Str_new("Set");
+
+        Vec_push(&new_ch, &decl);
+
+        // Build .add calls for each element
+        for (U32 j = 0; j < set_lit->children.count; j++) {
+            Expr *add_call = make_ns_call("Set", "add", TIL_TYPE_NONE, NULL, set_lit);
+            Expr *self_id = expr_new(NODE_IDENT, line, col, path);
+            self_id->data.str_val = var_name;
+            self_id->til_type = TIL_TYPE_STRUCT;
+            self_id->struct_name = Str_new("Set");
+            expr_add_child(add_call, self_id);
+            Expr *val = expr_child(set_lit, j);
+            val->is_own_arg = true;
+            expr_add_child(add_call, val);
+            Vec_push(&new_ch, &add_call);
+        }
+    }
+
+    if (changed) {
+        Vec_delete(&body->children);
+        body->children = new_ch;
+    } else {
+        Vec_delete(&new_ch);
+    }
+}
+
+// --- Map literal desugaring ---
+// Transforms m := {k1: v1, k2: v2} into:
+//   mut m := Map.new(key_type, key_size, val_type, val_size)
+//   Map.set(m, own k1, own v1)
+//   Map.set(m, own k2, own v2)
 
 static void desugar_map_literals(Expr *body, TypeScope *scope) {
     Vec new_ch = Vec_new(sizeof(Expr *));
@@ -2326,6 +2434,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             break;
         }
     }
+    if (owns_scope) desugar_set_literals(body, scope);
     if (owns_scope) desugar_map_literals(body, scope);
     if (owns_scope) desugar_variadic_calls(body, scope);
     if (owns_scope) hoist_fcall_args(body, scope);

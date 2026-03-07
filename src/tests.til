@@ -109,8 +109,8 @@ if ec_ffi2.neq(0).or(ffi_out2.neq(ffi_expected)) {
 run_capture(CTIL.concat(" interpret src/test/typer_errors.til"))
 typer_out := readfile(TMPF)
 errors := count_matches(typer_out, "type error:")
-if errors.neq(40) {
-    println("FAIL: typer_errors expected 40 errors, got ", errors.to_str())
+if errors.neq(42) {
+    println("FAIL: typer_errors expected 42 errors, got ", errors.to_str())
     fail = 1
 }
 

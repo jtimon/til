@@ -175,3 +175,10 @@ type_test(1, 2)
 // cannot call method on Dynamic value (namespace UFCS ambiguous)
 dyn_vec := vec("I64", 10, 20)
 dyn_bad := dyn_vec.get(0).add(35)
+
+// map literal: key type must implement cmp
+NoCmp := struct { x := 0 }
+bad_map := {NoCmp(x=1): "one"}
+
+// set literal: element type must implement cmp
+bad_set := {NoCmp(x=1), NoCmp(x=2)}

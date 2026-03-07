@@ -37,3 +37,31 @@ test_str_set := test() {
     ss.add(own "apple")
     assert_eq(loc(), ss.len(), 3)
 }
+
+// --- Set literal tests ---
+
+test_set_literal_i64 := test() {
+    // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
+    assert_eq(loc(), 1.clone(), 1)
+
+    s := {3, 1, 2}
+    assert_eq(loc(), s.len(), 3)
+    assert(loc(), s.has(1))
+    assert(loc(), s.has(2))
+    assert(loc(), s.has(3))
+    assert(loc(), s.has(4).not())
+}
+
+test_set_literal_str := test() {
+    // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+    assert_eq(loc(), Str.cmp("a", "b"), 0.sub(1))
+    assert_eq_str(loc(), "hi".clone(), "hi")
+
+    s := {"apple", "banana", "cherry"}
+    assert_eq(loc(), s.len(), 3)
+    assert(loc(), s.has("apple"))
+    assert(loc(), s.has("banana"))
+    assert(loc(), s.has("cherry"))
+    assert(loc(), s.has("date").not())
+}

@@ -1,5 +1,47 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #19 Literal syntax for collection initialization
+  Sugar for initializing Array, Vec, Set, Map, and Tuple with values
+  instead of repeated .set()/.push()/.add() calls.
+
+** Phase 1: array() and vec() builtins
+   arr := array("I64", 1, 2, 3)
+   v := vec("I64", 10, 20, 30)
+
+   Implemented as ext_func builtins hardcoded in typer.c (validate first
+   arg is string literal), dispatch.c (C handlers), and ccodegen.c (emit
+   as til_array_of_I64(3, v1, v2, v3)). Requires C-side code in all
+   three places.
+
+** Phase 2: Set and Map literals
+   m := {"a": 1, "b": 2}      // Map[Str, I64]
+   s := {1, 2, 3}              // Set[I64]
+
+   Different approach from array/vec: desugars to pure til code in the
+   typer, so NO new dispatch.c handlers or ccodegen.c special cases.
+
+   Parser: {expr: expr, ...} → NODE_MAP_LIT, {expr, expr, ...} →
+   NODE_SET_LIT. Disambiguation by peeking for ':' after first expr.
+
+   Typer: NODE_MAP_LIT/NODE_SET_LIT inferred in infer_expr (sets
+   til_type=TIL_TYPE_STRUCT, struct_name="Map"/"Set"). Post-pass
+   functions desugar_map_literals() and desugar_set_literals() replace
+   the literal with:
+   - Map: mut m := Map.new(key_type, key_size, val_type, val_size)
+          + Map.set(m, own k, own v) per entry
+   - Set: mut s := Set.new(elem_type, elem_size)
+          + Set.add(s, own v) per element
+
+   Compile-time validation (shared by interpreter and codegen):
+   - All keys/elements same type, all values same type
+   - Key/element type must implement cmp
+   Any type with cmp works as key: I64, Str, Bool, user structs with cmp.
+
+** Phase 3: Tuple literals
+   t := (1, "hello", true)   // Tuple[I64, Str, Bool]
+
+   Deferred to #18 (Tuple type implementation).
+
 * FIXED #27 Test functions and mode test
   New function kind: test (FUNC_TEST). Like proc but auto-run by
   runtime, cannot be called manually, root-scope only, no params,
