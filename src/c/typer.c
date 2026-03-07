@@ -105,7 +105,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 type_error(e, "proc not allowed in pure mode");
             TypeScope *func_scope = tscope_new(scope);
             // Bind parameters
-            for (I32 i = 0; i < e->data.func_def.nparam; i++) {
+            for (U32 i = 0; i < e->data.func_def.nparam; i++) {
                 Str *ptn = e->data.func_def.param_types[i];
                 TilType pt = type_from_name(ptn, scope);
                 if (pt == TIL_TYPE_UNKNOWN) {
@@ -116,7 +116,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Bool pmut = e->data.func_def.param_muts ? e->data.func_def.param_muts[i] : 0;
                 Bool pown = e->data.func_def.param_owns ? e->data.func_def.param_owns[i] : 0;
                 // Variadic param: bind as Array (element type already validated above)
-                if (i == e->data.func_def.variadic_index) {
+                if ((I32)i == e->data.func_def.variadic_index) {
                     if (e->data.func_def.param_owns) e->data.func_def.param_owns[i] = true;
                     tscope_set(func_scope, e->data.func_def.param_names[i], TIL_TYPE_STRUCT, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);
@@ -139,7 +139,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Validate ref returns: every return value must be a param or ref variable
             if (e->data.func_def.return_is_ref) {
                 Expr *body = expr_child(e, 0);
-                for (I32 ri = 0; ri < body->children.count; ri++) {
+                for (U32 ri = 0; ri < body->children.count; ri++) {
                     Expr *s = expr_child(body, ri);
                     if (s->type != NODE_RETURN || s->children.count == 0) continue;
                     Expr *rv = expr_child(s, 0);
@@ -196,7 +196,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Expr *ns_func = NULL;
                 if (sdef) {
                     Expr *body = expr_child(sdef, 0);
-                    for (I32 i = 0; i < body->children.count; i++) {
+                    for (U32 i = 0; i < body->children.count; i++) {
                         Expr *field = expr_child(body, i);
                         if (field->data.decl.is_namespace &&
                             Str_eq(field->data.decl.name, method) &&
@@ -273,7 +273,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Expr *ns_func = NULL;
             if (sdef) {
                 Expr *body = expr_child(sdef, 0);
-                for (I32 i = 0; i < body->children.count; i++) {
+                for (U32 i = 0; i < body->children.count; i++) {
                     Expr *field = expr_child(body, i);
                     if (field->data.decl.is_namespace &&
                         Str_eq(field->data.decl.name, method) &&
@@ -293,17 +293,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             fa->is_ns_field = true;
             // Desugar named/optional args for namespace methods
             {
-                I32 np = ns_func->data.func_def.nparam;
+                U32 np = ns_func->data.func_def.nparam;
                 Expr **new_args = calloc(np, sizeof(Expr *));
-                I32 pos_idx = 0;
+                U32 pos_idx = 0;
                 Bool seen_named = 0;
-                for (I32 i = 1; i < e->children.count; i++) {
+                for (U32 i = 1; i < e->children.count; i++) {
                     Expr *arg = expr_child(e, i);
                     if (arg->type == NODE_NAMED_ARG) {
                         seen_named = 1;
                         Str *aname = arg->data.str_val;
                         I32 slot = -1;
-                        for (I32 j = 0; j < np; j++) {
+                        for (U32 j = 0; j < np; j++) {
                             if (Str_eq(ns_func->data.func_def.param_names[j], aname)) {
                                 slot = j;
                                 break;
@@ -331,7 +331,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                 }
                 // Fill defaults for missing args
-                for (I32 i = 0; i < np; i++) {
+                for (U32 i = 0; i < np; i++) {
                     if (!new_args[i]) {
                         if (ns_func->data.func_def.param_defaults &&
                             ns_func->data.func_def.param_defaults[i]) {
@@ -353,24 +353,24 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Vec new_ch = Vec_new(sizeof(Expr *));
                 Expr *callee = expr_child(e, 0);
                 Vec_push(&new_ch, &callee);
-                for (I32 i = 0; i < np; i++)
+                for (U32 i = 0; i < np; i++)
                     Vec_push(&new_ch, &new_args[i]);
                 Vec_delete(&e->children);
                 e->children = new_ch;
                 free(new_args);
             }
             // Infer arg types
-            for (I32 i = 1; i < e->children.count; i++) {
+            for (U32 i = 1; i < e->children.count; i++) {
                 infer_expr(scope, expr_child(e, i), in_func);
             }
             // Narrow Dynamic args to parameter types
-            for (I32 i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
+            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
                 Str *ptype = ns_func->data.func_def.param_types[i - 1];
                 if (ptype)
                     narrow_dynamic(expr_child(e, i), type_from_name(ptype, scope), ptype);
             }
             // Validate arg types against param types
-            for (I32 i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
+            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
                 Str *ptype_name = ns_func->data.func_def.param_types[i - 1];
                 if (!ptype_name) continue;
                 Expr *arg = expr_child(e, i);
@@ -398,8 +398,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             {
                 bool *po = ns_func->data.func_def.param_owns;
                 if (po) {
-                    I32 np = ns_func->data.func_def.nparam;
-                    for (I32 i = 1; i < e->children.count && i - 1 < np; i++) {
+                    U32 np = ns_func->data.func_def.nparam;
+                    for (U32 i = 1; i < e->children.count && i - 1 < np; i++) {
                         Bool pown = po[i - 1];
                         if (pown && !expr_child(e, i)->is_own_arg) {
                             char buf[128];
@@ -446,8 +446,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
             Expr *body = expr_child(sdef, 0);
             // Count instance fields (skip namespace)
-            I32 nfields = 0;
-            for (I32 i = 0; i < body->children.count; i++) {
+            U32 nfields = 0;
+            for (U32 i = 0; i < body->children.count; i++) {
                 if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
             }
             // Desugar named args into positional (one per instance field)
@@ -455,11 +455,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Map: field_idx[k] = index into body->children for k-th instance field
             I32 *field_idx = malloc(nfields * sizeof(I32));
             { I32 k = 0;
-              for (I32 i = 0; i < body->children.count; i++) {
+              for (U32 i = 0; i < body->children.count; i++) {
                   if (!expr_child(body, i)->data.decl.is_namespace) field_idx[k++] = i;
               }
             }
-            for (I32 i = 1; i < e->children.count; i++) {
+            for (U32 i = 1; i < e->children.count; i++) {
                 Expr *arg = expr_child(e, i);
                 if (arg->type != NODE_NAMED_ARG) {
                     type_error(arg, "struct instantiation requires named arguments");
@@ -467,7 +467,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 Str *aname = arg->data.str_val;
                 I32 slot = -1;
-                for (I32 j = 0; j < nfields; j++) {
+                for (U32 j = 0; j < nfields; j++) {
                     if (Str_eq(expr_child(body, field_idx[j])->data.decl.name, aname)) {
                         slot = j;
                         break;
@@ -486,7 +486,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
             // Fill remaining from struct field defaults (clone to avoid shared ownership)
-            for (I32 i = 0; i < nfields; i++) {
+            for (U32 i = 0; i < nfields; i++) {
                 if (!field_vals[i]) {
                     field_vals[i] = expr_clone(expr_child(expr_child(body, field_idx[i]), 0));
                 }
@@ -495,22 +495,22 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Vec new_ch = Vec_new(sizeof(Expr *));
             Expr *callee = expr_child(e, 0);
             Vec_push(&new_ch, &callee);
-            for (I32 i = 0; i < nfields; i++)
+            for (U32 i = 0; i < nfields; i++)
                 Vec_push(&new_ch, &field_vals[i]);
             Vec_delete(&e->children);
             e->children = new_ch;
             free(field_vals);
             free(field_idx);
             // Type-check args (skip already-inferred defaults)
-            for (I32 i = 1; i < e->children.count; i++) {
+            for (U32 i = 1; i < e->children.count; i++) {
                 if (expr_child(e, i)->til_type == TIL_TYPE_UNKNOWN) {
                     infer_expr(scope, expr_child(e, i), in_func);
                 }
             }
             // Auto-insert clone for constructor args that are identifiers
             // Skip clone for `own` fields — use move semantics instead
-            { I32 fi = 0;
-              for (I32 bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
+            { U32 fi = 0;
+              for (U32 bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
                 Expr *fld = expr_child(body, bi);
                 if (fld->data.decl.is_namespace) continue;
                 I32 ai = fi + 1; // arg index (children[0] is callee)
@@ -541,22 +541,22 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (callee_bind && callee_bind->func_def &&
             (!callee_bind->is_builtin || !callee_bind->func_def->is_core)) {
             Expr *fdef = callee_bind->func_def;
-            I32 nparam = fdef->data.func_def.nparam;
+            U32 nparam = fdef->data.func_def.nparam;
             I32 vi = fdef->data.func_def.variadic_index; // -1 if not variadic
-            I32 fixed_count = (vi >= 0) ? vi : nparam; // params before variadic
+            U32 fixed_count = (vi >= 0) ? (U32)vi : nparam; // params before variadic
             // Collect positional and named args
             Vec va_args = Vec_new(sizeof(Expr *)); // variadic args (only if vi >= 0)
             Expr **new_args = calloc(nparam, sizeof(Expr *));
-            I32 pos_idx = 0;
+            U32 pos_idx = 0;
             Bool seen_named = 0;
-            for (I32 i = 1; i < e->children.count; i++) {
+            for (U32 i = 1; i < e->children.count; i++) {
                 Expr *arg = expr_child(e, i);
                 if (arg->type == NODE_NAMED_ARG) {
                     seen_named = 1;
                     Str *aname = arg->data.str_val;
                     I32 slot = -1;
-                    for (I32 j = 0; j < nparam; j++) {
-                        if (j == vi) continue; // can't name the variadic param
+                    for (U32 j = 0; j < nparam; j++) {
+                        if ((I32)j == vi) continue; // can't name the variadic param
                         if (Str_eq(fdef->data.func_def.param_names[j], aname)) {
                             slot = j;
                             break;
@@ -587,8 +587,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
             // Fill defaults for missing non-variadic params
-            for (I32 i = 0; i < nparam; i++) {
-                if (i == vi) continue; // variadic param handled separately
+            for (U32 i = 0; i < nparam; i++) {
+                if ((I32)i == vi) continue; // variadic param handled separately
                 if (!new_args[i]) {
                     if (fdef->data.func_def.param_defaults &&
                         fdef->data.func_def.param_defaults[i]) {
@@ -611,10 +611,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Vec new_ch = Vec_new(sizeof(Expr *));
             Expr *callee = expr_child(e, 0);
             Vec_push(&new_ch, &callee);
-            for (I32 i = 0; i < nparam; i++) {
-                if (i == vi) {
+            for (U32 i = 0; i < nparam; i++) {
+                if ((I32)i == vi) {
                     e->variadic_index = new_ch.count; // children index of first variadic arg
-                    for (I32 j = 0; j < va_args.count; j++) {
+                    for (U32 j = 0; j < va_args.count; j++) {
                         Expr *va = *(Expr **)Vec_get(&va_args, j);
                         Vec_push(&new_ch, &va);
                     }
@@ -629,17 +629,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Vec_delete(&va_args);
         }
         // Infer types of all arguments
-        for (I32 i = 1; i < e->children.count; i++) {
+        for (U32 i = 1; i < e->children.count; i++) {
             infer_expr(scope, expr_child(e, i), in_func);
         }
         // Narrow Dynamic args to parameter types, then validate arg types
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
             I32 fvi = fdef->data.func_def.variadic_index;
-            I32 fvc = (fvi >= 0) ? e->variadic_count : 0;
-            I32 ci = 1;
-            for (I32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
-                if (fvi >= 0 && pi == fvi) { ci += fvc; continue; }
+            U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
+            U32 ci = 1;
+            for (U32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+                if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
                 Str *ptype = fdef->data.func_def.param_types[pi];
                 if (ptype)
                     narrow_dynamic(expr_child(e, ci), type_from_name(ptype, scope), ptype);
@@ -647,8 +647,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
             // Validate arg types against param types
             ci = 1;
-            for (I32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
-                if (fvi >= 0 && pi == fvi) { ci += fvc; continue; }
+            for (U32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+                if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
                 Str *ptype_name = fdef->data.func_def.param_types[pi];
                 if (!ptype_name) { ci++; continue; }
                 Expr *arg = expr_child(e, ci);
@@ -697,10 +697,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Expr *fdef = callee_bind->func_def;
             bool *po = fdef->data.func_def.param_owns;
             I32 fvi = fdef->data.func_def.variadic_index;
-            I32 fvc = (fvi >= 0) ? e->variadic_count : 0;
-            I32 ci = 1; // children index
-            for (I32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
-                if (fvi >= 0 && pi == fvi) {
+            U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
+            U32 ci = 1; // children index
+            for (U32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+                if (fvi >= 0 && (I32)pi == fvi) {
                     ci += fvc; // skip variadic args
                     continue;
                 }
@@ -761,7 +761,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Expr *body = expr_child(sdef, 0);
                 Str *fname = e->data.str_val;
                 Bool found = 0;
-                for (I32 i = 0; i < body->children.count; i++) {
+                for (U32 i = 0; i < body->children.count; i++) {
                     Expr *field = expr_child(body, i);
                     // Skip variant registry entries (non-namespace) in enum bodies
                     if (sdef->type == NODE_ENUM_DEF && !field->data.decl.is_namespace)
@@ -836,7 +836,7 @@ static Expr *find_variadic_fcall(Expr *e) {
         }
         return e;
     }
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         Expr *found = find_variadic_fcall(expr_child(e, i));
         if (found) return found;
     }
@@ -868,7 +868,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
     Vec new_ch = Vec_new(sizeof(Expr *));
     Bool changed = 0;
 
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         Expr *fcall = find_variadic_fcall(stmt);
         if (!fcall) {
@@ -877,7 +877,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         }
         changed = 1;
         I32 vi = fcall->variadic_index;
-        I32 vc = fcall->variadic_count;
+        U32 vc = fcall->variadic_count;
         I32 line = fcall->line, col = fcall->col;
         Str *path = fcall->path;
 
@@ -897,7 +897,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                 Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
                 if (sdef) {
                     Expr *sbody = expr_child(sdef, 0);
-                    for (I32 j = 0; j < sbody->children.count; j++) {
+                    for (U32 j = 0; j < sbody->children.count; j++) {
                         Expr *f = expr_child(sbody, j);
                         if (f->type == NODE_DECL && f->data.decl.is_namespace &&
                             Str_eq(f->data.decl.name, callee->data.str_val) &&
@@ -956,7 +956,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         Vec_push(&new_ch, &va_decl);
 
         // 2. Array.set calls for each variadic arg
-        for (I32 j = 0; j < vc; j++) {
+        for (U32 j = 0; j < vc; j++) {
             Expr *set_call = make_ns_call("Array", "set", TIL_TYPE_NONE,
                                            NULL, fcall);
             // Arg: self = _va
@@ -988,8 +988,8 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         // 3. Replace variadic args in FCALL with _va ident
         Vec fcall_new_ch = Vec_new(sizeof(Expr *));
         Bool va_inserted = 0;
-        for (I32 j = 0; j < fcall->children.count; j++) {
-            if (j >= vi && j < vi + vc) {
+        for (U32 j = 0; j < fcall->children.count; j++) {
+            if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
                 if (!va_inserted) {
                     Expr *va_id = expr_new(NODE_IDENT, line, col, path);
                     va_id->data.str_val = va_name;
@@ -1002,7 +1002,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                 continue;
             }
             // Insert _va before post-variadic args when vc==0
-            if (j == vi && !va_inserted) {
+            if ((I32)j == vi && !va_inserted) {
                 Expr *va_id = expr_new(NODE_IDENT, line, col, path);
                 va_id->data.str_val = va_name;
                 va_id->til_type = TIL_TYPE_STRUCT;
@@ -1044,7 +1044,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 static Bool expr_contains_fcall(Expr *e) {
     if (e->type == NODE_FCALL) return 1;
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         if (expr_contains_fcall(expr_child(e, i))) return 1;
     }
     return 0;
@@ -1062,7 +1062,7 @@ static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope) {
         Expr *sdef = tscope_get_struct(scope, expr_child(callee, 0)->data.str_val);
         if (!sdef) return 0;
         Expr *body = expr_child(sdef, 0);
-        for (I32 j = 0; j < body->children.count; j++) {
+        for (U32 j = 0; j < body->children.count; j++) {
             Expr *f = expr_child(body, j);
             if (f->type == NODE_DECL && f->data.decl.is_namespace &&
                 Str_eq(f->data.decl.name, callee->data.str_val) &&
@@ -1077,7 +1077,7 @@ static I32 hoist_counter = 0;
 
 // Create a temp decl for an expression, register in scope, return the replacement ident.
 // Adds the decl to the hoisted list.
-static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, I32 *nhoisted, I32 *cap, TypeScope *scope) {
+static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
     char name_buf[32];
     snprintf(name_buf, sizeof(name_buf), "_t%d", hoist_counter++);
     Str *tname = Str_new(name_buf);
@@ -1110,11 +1110,11 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, I32 *nhoisted, I32 *cap, 
 
 // Walk expression tree depth-first. For each NODE_FCALL, hoist any arg that is itself a NODE_FCALL.
 // Does NOT recurse into scope boundaries (func/struct defs, bodies).
-static void hoist_expr(Expr *e, Expr ***hoisted, I32 *nhoisted, I32 *cap, TypeScope *scope) {
+static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
     // Don't recurse into scope boundaries -- those have their own infer_body calls
     if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF || e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return;
     // Recurse into children first (depth-first: inner fcalls hoisted before outer)
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         hoist_expr(expr_child(e, i), hoisted, nhoisted, cap, scope);
     }
     if (e->type != NODE_FCALL) return;
@@ -1141,8 +1141,8 @@ static void hoist_expr(Expr *e, Expr ***hoisted, I32 *nhoisted, I32 *cap, TypeSc
         Str *cn = expr_child(e, 0)->data.str_val;
         is_array_vec = Str_eq_c(cn, "array") || Str_eq_c(cn, "vec");
     }
-    I32 fi = 0; // instance field index for struct constructors
-    for (I32 i = 1; i < e->children.count; i++) {
+    U32 fi = 0; // instance field index for struct constructors
+    for (U32 i = 1; i < e->children.count; i++) {
         if (is_dyn_call && i == 2) continue; // keep method as NODE_LITERAL_STR
         if (is_array_vec && i == 1) continue; // keep type_name as NODE_LITERAL_STR
         if (expr_child(e, i)->type != NODE_FCALL &&
@@ -1174,11 +1174,11 @@ static void hoist_expr(Expr *e, Expr ***hoisted, I32 *nhoisted, I32 *cap, TypeSc
 
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
     Vec new_ch = Vec_new(sizeof(Expr *));
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         // Collect hoisted decls from this statement
         Expr **hoisted = NULL;
-        I32 nhoisted = 0, hcap = 0;
+        U32 nhoisted = 0, hcap = 0;
         // Walk the appropriate expression tree based on statement type
         switch (stmt->type) {
         case NODE_DECL:
@@ -1250,7 +1250,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
         default: break;
         }
         // Insert hoisted decls before the statement
-        for (I32 j = 0; j < nhoisted; j++)
+        for (U32 j = 0; j < nhoisted; j++)
             Vec_push(&new_ch, &hoisted[j]);
         free(hoisted);
         // Add original statement
@@ -1358,7 +1358,7 @@ static void insert_field_deletes(Expr *body) {
     Vec new_ch = Vec_new(sizeof(Expr *));
     Bool changed = 0;
 
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type == NODE_FIELD_ASSIGN) {
             Bool need_delete = 0;
@@ -1414,7 +1414,7 @@ static Bool expr_uses_var(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_IDENT && Str_eq(e->data.str_val, name)) return 1;
     if (e->type == NODE_ASSIGN && Str_eq(e->data.str_val, name)) return 1;
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         if (expr_uses_var(expr_child(e, i), name)) return 1;
     }
     return 0;
@@ -1425,14 +1425,14 @@ static Bool expr_uses_var(Expr *e, Str *name) {
 static Bool expr_used_in_nested_func(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) {
         // Check if name is shadowed by a parameter
-        for (I32 i = 0; i < e->data.func_def.nparam; i++) {
+        for (U32 i = 0; i < e->data.func_def.nparam; i++) {
             if (Str_eq(e->data.func_def.param_names[i], name)) return 0;
         }
         // Not a param — recurse into body to find uses
         if (e->children.count > 0) return expr_uses_var(expr_child(e, 0), name);
         return 0;
     }
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         if (expr_used_in_nested_func(expr_child(e, i), name)) return 1;
     }
     return 0;
@@ -1441,7 +1441,7 @@ static Bool expr_used_in_nested_func(Expr *e, Str *name) {
 static Bool expr_contains_decl(Expr *e, Str *name) {
     if (e->type == NODE_FUNC_DEF) return 0;
     if (e->type == NODE_DECL && Str_eq(e->data.decl.name, name)) return 1;
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         if (expr_contains_decl(expr_child(e, i), name)) return 1;
     }
     return 0;
@@ -1451,8 +1451,8 @@ static Bool expr_contains_decl(Expr *e, Str *name) {
 static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
     bool *po = fdef->data.func_def.param_owns;
     if (!po) return 0;
-    I32 np = fdef->data.func_def.nparam;
-    for (I32 i = 0; i < np && i + 1 < fcall->children.count; i++) {
+    U32 np = fdef->data.func_def.nparam;
+    for (U32 i = 0; i < np && i + 1 < fcall->children.count; i++) {
         if (po[i] && expr_child(fcall, i + 1)->type == NODE_IDENT &&
             Str_eq(expr_child(fcall, i + 1)->data.str_val, var_name)) {
             return 1;
@@ -1469,11 +1469,11 @@ static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
         Expr *sdef = tscope_get_struct(scope, fcall->struct_name);
         if (sdef) {
             Expr *body = expr_child(sdef, 0);
-            I32 fi = 0;
-            for (I32 i = 0; i < body->children.count; i++) {
+            U32 fi = 0;
+            for (U32 i = 0; i < body->children.count; i++) {
                 if (expr_child(body, i)->type != NODE_DECL ||
                     expr_child(body, i)->data.decl.is_namespace) continue;
-                I32 arg_idx = fi + 1;
+                U32 arg_idx = fi + 1;
                 fi++;
                 if (arg_idx < fcall->children.count &&
                     expr_child(fcall, arg_idx)->type == NODE_IDENT &&
@@ -1499,7 +1499,7 @@ static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
         Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
         if (!sdef) return 0;
         Expr *body = expr_child(sdef, 0);
-        for (I32 i = 0; i < body->children.count; i++) {
+        for (U32 i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
             if (field->type == NODE_DECL && field->data.decl.is_namespace &&
                 Str_eq(field->data.decl.name, method) &&
@@ -1520,7 +1520,7 @@ static Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
         Str_eq(expr_child(e, 1)->data.str_val, var_name)) {
         return 1;
     }
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         if (expr_transfers_own(expr_child(e, i), var_name, scope)) return 1;
     }
     return 0;
@@ -1538,12 +1538,12 @@ typedef struct {
 // Insert deletes for live parent-scope locals before early exits in body.
 // return_only=1: only before NODE_RETURN (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
-static void insert_exit_deletes(Expr *body, LocalInfo *live, I32 n_live, Bool return_only) {
+static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool return_only) {
     Vec new_ch = Vec_new(sizeof(Expr *));
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type == NODE_IF) {
-            for (I32 c = 1; c < stmt->children.count; c++)
+            for (U32 c = 1; c < stmt->children.count; c++)
                 insert_exit_deletes(expr_child(stmt, c), live, n_live, return_only);
         }
         if (stmt->type == NODE_WHILE) {
@@ -1551,7 +1551,7 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, I32 n_live, Bool re
         }
         if (stmt->type == NODE_RETURN ||
             (!return_only && (stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE))) {
-            for (I32 j = 0; j < n_live; j++) {
+            for (U32 j = 0; j < n_live; j++) {
                 if (stmt->children.count > 0 &&
                     expr_uses_var(expr_child(stmt, 0), live[j].name)) continue;
                 Expr *del = make_delete_call(
@@ -1575,13 +1575,13 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     // Phase 1: collect locals with lifetime info
     // Start from 0 (not locals_start) to include own params, which are added before the body
     Vec locals_vec = Vec_new(sizeof(LocalInfo));
-    for (I32 i = 0; i < Map_len(&scope->bindings); i++) {
+    for (U32 i = 0; i < Map_len(&scope->bindings); i++) {
         TypeBinding *b = (TypeBinding *)Vec_get(&scope->bindings.vals, i);
         if ((b->is_param && !b->is_own) || b->struct_def || b->func_def || b->is_ref) continue;
 
         // Find decl_index: direct child first, then nested
         I32 decl_idx = -1;
-        for (I32 j = 0; j < body->children.count; j++) {
+        for (U32 j = 0; j < body->children.count; j++) {
             Expr *s = expr_child(body, j);
             if (s->type == NODE_DECL && Str_eq(s->data.decl.name, b->name)) {
                 decl_idx = j;
@@ -1589,7 +1589,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             }
         }
         if (decl_idx == -1) {
-            for (I32 j = 0; j < body->children.count; j++) {
+            for (U32 j = 0; j < body->children.count; j++) {
                 if (expr_contains_decl(expr_child(body, j), b->name)) {
                     decl_idx = j;
                     break;
@@ -1601,7 +1601,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         I32 last_use = -1;
         I32 own_transfer = -1;
         I32 scan_from = decl_idx >= 0 ? decl_idx + 1 : 0;
-        for (I32 j = scan_from; j < body->children.count; j++) {
+        for (U32 j = scan_from; j < body->children.count; j++) {
             if (expr_uses_var(expr_child(body, j), b->name)) {
                 last_use = j;
             }
@@ -1613,7 +1613,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         // If captured by a nested func/proc, don't ASAP-delete — the nested
         // function may be called after this scope's body finishes (e.g. cli mode main)
         Bool captured = 0;
-        for (I32 j = scan_from; j < body->children.count; j++) {
+        for (U32 j = scan_from; j < body->children.count; j++) {
             if (expr_used_in_nested_func(expr_child(body, j), b->name)) {
                 captured = 1;
                 break;
@@ -1626,28 +1626,28 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     }
 
     if (locals_vec.count == 0) { Vec_delete(&locals_vec); return; }
-    I32 n_locals = locals_vec.count;
+    U32 n_locals = locals_vec.count;
     LocalInfo *locals = Vec_take(&locals_vec);
 
     // Extend lifetimes for args to ref-returning calls:
     // If ref m := f(x, y), then x and y must outlive m
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
         Expr *rhs = expr_child(stmt, 0);
         if (rhs->type != NODE_FCALL) continue;
         // Find ref var's last_use (scan forward from decl)
         I32 ref_last = -1;
-        for (I32 j = i + 1; j < body->children.count; j++) {
+        for (U32 j = i + 1; j < body->children.count; j++) {
             if (expr_uses_var(expr_child(body, j), stmt->data.decl.name))
                 ref_last = j;
         }
         if (ref_last == -1) ref_last = i; // at least until the decl itself
         // Extend last_use of all ident args in the fcall
-        for (I32 a = 1; a < rhs->children.count; a++) {
+        for (U32 a = 1; a < rhs->children.count; a++) {
             if (expr_child(rhs, a)->type != NODE_IDENT) continue;
             Str *aname = expr_child(rhs, a)->data.str_val;
-            for (I32 j = 0; j < n_locals; j++) {
+            for (U32 j = 0; j < n_locals; j++) {
                 if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
                     locals[j].last_use = ref_last;
                 }
@@ -1656,7 +1656,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     }
 
     // Check for use after ownership transfer
-    for (I32 j = 0; j < n_locals; j++) {
+    for (U32 j = 0; j < n_locals; j++) {
         if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
             Expr *stmt = expr_child(body, locals[j].last_use);
             char buf[128];
@@ -1673,16 +1673,16 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     // Phase 2: rebuild body with ASAP frees
     Vec new_ch = Vec_new(sizeof(Expr *));
 
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
 
         // Before NODE_RETURN/NODE_BREAK/NODE_CONTINUE: free locals not yet freed
         if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE) {
-            for (I32 j = 0; j < n_locals; j++) {
+            for (U32 j = 0; j < n_locals; j++) {
                 if (stmt->children.count > 0 && expr_uses_var(expr_child(stmt, 0), locals[j].name)) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
-                if (locals[j].decl_index < i &&
-                    (locals[j].last_use >= i || locals[j].last_use == -1)) {
+                if (locals[j].decl_index < (I32)i &&
+                    (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
                     if (del) Vec_push(&new_ch, &del);
                 }
@@ -1692,18 +1692,18 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         // For NODE_IF/NODE_WHILE: insert frees before nested early exits
         if (stmt->type == NODE_IF || stmt->type == NODE_WHILE) {
             Vec live_vec = Vec_new(sizeof(LocalInfo));
-            for (I32 j = 0; j < n_locals; j++) {
+            for (U32 j = 0; j < n_locals; j++) {
                 if (locals[j].own_transfer >= 0) continue;
-                if (locals[j].decl_index < i &&
-                    (locals[j].last_use >= i || locals[j].last_use == -1)) {
+                if (locals[j].decl_index < (I32)i &&
+                    (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
                     Vec_push(&live_vec, &locals[j]);
                 }
             }
             if (live_vec.count > 0) {
-                I32 n_live = live_vec.count;
+                U32 n_live = live_vec.count;
                 LocalInfo *live = Vec_take(&live_vec);
                 if (stmt->type == NODE_IF) {
-                    for (I32 c = 1; c < stmt->children.count; c++)
+                    for (U32 c = 1; c < stmt->children.count; c++)
                         insert_exit_deletes(expr_child(stmt, c), live, n_live, 0);
                 } else {
                     // While: only free before return (break/continue stay in parent scope)
@@ -1718,7 +1718,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         // Before NODE_ASSIGN: delete old compound-type value
         if (stmt->type == NODE_ASSIGN) {
             Str *vname = stmt->data.str_val;
-            for (I32 j = 0; j < n_locals; j++) {
+            for (U32 j = 0; j < n_locals; j++) {
                 if (!Str_eq(locals[j].name, vname)) continue;
                 TilType t = locals[j].type;
                 if (t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
@@ -1734,14 +1734,14 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
 
         // After non-exit statements: free locals whose last use is this statement
         if (stmt->type != NODE_RETURN && stmt->type != NODE_BREAK && stmt->type != NODE_CONTINUE) {
-            for (I32 j = 0; j < n_locals; j++) {
+            for (U32 j = 0; j < n_locals; j++) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
-                if (locals[j].last_use == i) {
+                if (locals[j].last_use == (I32)i) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
                     if (del) Vec_push(&new_ch, &del);
                 }
                 // Never used after declaration: free immediately
-                if (locals[j].last_use == -1 && locals[j].decl_index == i) {
+                if (locals[j].last_use == -1 && locals[j].decl_index == (I32)i) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
                     if (del) Vec_push(&new_ch, &del);
                 }
@@ -1756,7 +1756,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
 
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop) {
     body->til_type = TIL_TYPE_NONE;
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         switch (stmt->type) {
         case NODE_DECL:
@@ -1957,7 +1957,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (sdef) {
                     Expr *body = expr_child(sdef, 0);
                     Bool found = 0;
-                    for (I32 i = 0; i < body->children.count; i++) {
+                    for (U32 i = 0; i < body->children.count; i++) {
                         Expr *field = expr_child(body, i);
                         if (Str_eq(field->data.decl.name, fname)) {
                             found = 1;
@@ -2101,7 +2101,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Vec new_ch = Vec_new(sizeof(Expr *));
                 Vec_push(&new_ch, &decl);
                 Vec_push(&new_ch, &if_node);
-                for (I32 j = 0; j < body->children.count; j++) {
+                for (U32 j = 0; j < body->children.count; j++) {
                     Expr *ch = expr_child(body, j);
                     Vec_push(&new_ch, &ch);
                 }

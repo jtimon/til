@@ -194,7 +194,7 @@ static void *val_to_ptr(Value v);
 // === Variadic handlers ===
 
 static Bool h_println(Scope *s, Expr *e, Value *r) {
-    for (I32 i = 1; i < e->children.count; i++) {
+    for (U32 i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e,i));
         Str sv = str_view(arg);
         fwrite(sv.c_str, 1, sv.cap, stdout);
@@ -204,7 +204,7 @@ static Bool h_println(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_print(Scope *s, Expr *e, Value *r) {
-    for (I32 i = 1; i < e->children.count; i++) {
+    for (U32 i = 1; i < e->children.count; i++) {
         Value arg = eval_expr(s, expr_child(e,i));
         Str sv = str_view(arg);
         fwrite(sv.c_str, 1, sv.cap, stdout);
@@ -213,17 +213,17 @@ static Bool h_print(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_format(Scope *s, Expr *e, Value *r) {
-    I32 nargs = e->children.count - 1;
+    U32 nargs = e->children.count - 1;
     Str strs[64];
     I64 total = 0;
-    for (I32 i = 0; i < nargs; i++) {
+    for (U32 i = 0; i < nargs; i++) {
         Value v = eval_expr(s, expr_child(e,i + 1));
         strs[i] = str_view(v);
         total += strs[i].cap;
     }
     char *buf = malloc(total);
     I64 off = 0;
-    for (I32 i = 0; i < nargs; i++) {
+    for (U32 i = 0; i < nargs; i++) {
         memcpy(buf + off, strs[i].c_str, strs[i].cap);
         off += strs[i].cap;
     }
@@ -316,7 +316,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     fake_call.children = Vec_new(sizeof(Expr *));
     Expr *fa_ptr = &field_access;
     Vec_push(&fake_call.children, &fa_ptr);
-    for (I32 i = 3; i < e->children.count; i++) {
+    for (U32 i = 3; i < e->children.count; i++) {
         Expr *arg = expr_child(e, i);
         Vec_push(&fake_call.children, &arg);
     }
@@ -324,9 +324,9 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Value fn_val = eval_expr(s, &field_access);
     if (fn_val.type == VAL_FUNC && fn_val.func->type == NODE_FUNC_DEF) {
         Expr *fdef = fn_val.func;
-        I32 nparam = fdef->data.func_def.nparam;
-        I32 nargs = fake_call.children.count - 1;
-        for (I32 i = nargs; i < nparam; i++) {
+        U32 nparam = fdef->data.func_def.nparam;
+        U32 nargs = fake_call.children.count - 1;
+        for (U32 i = nargs; i < nparam; i++) {
             if (fdef->data.func_def.param_defaults &&
                 fdef->data.func_def.param_defaults[i]) {
                 Expr *def_arg = fdef->data.func_def.param_defaults[i];
@@ -420,7 +420,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e, 1));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
-    I32 count = e->children.count - 2;
+    U32 count = e->children.count - 2;
     I32 elem_size = get_elem_size(s, type_name, e);
 
     // Allocate array data
@@ -428,7 +428,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     memset(data, 0, count * elem_size);
 
     // Evaluate each element and copy into data buffer
-    for (I32 i = 0; i < count; i++) {
+    for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
         if (src) {
@@ -469,16 +469,16 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     Value type_name_val = eval_expr(s, expr_child(e, 1));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
-    I32 count = e->children.count - 2;
+    U32 count = e->children.count - 2;
     I32 elem_size = get_elem_size(s, type_name, e);
 
     // Allocate vec data with exact capacity
-    I32 cap = count > 0 ? count : 1;
+    U32 cap = count > 0 ? count : 1;
     void *data = malloc(cap * elem_size);
     memset(data, 0, cap * elem_size);
 
     // Evaluate each element and copy into data buffer
-    for (I32 i = 0; i < count; i++) {
+    for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, expr_child(e, i + 2));
         void *src = val_raw_ptr(elem);
         if (src) {
@@ -797,10 +797,10 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     if (ffi_loaded) {
         FFIEntry *fe = Map_get(&ffi_map, &name);
         if (fe) {
-            I32 nargs = e->children.count - 1;
+            U32 nargs = e->children.count - 1;
             void *args[nargs > 0 ? nargs : 1];
             void *arg_ptrs[nargs > 0 ? nargs : 1];
-            for (I32 i = 0; i < nargs; i++) {
+            for (U32 i = 0; i < nargs; i++) {
                 Value v = eval_expr(scope, expr_child(e, i + 1));
                 switch (v.type) {
                     case VAL_I64:    args[i] = v.i64; break;
@@ -940,7 +940,7 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
 
     // Build struct def map for return type lookup
     ffi_struct_defs = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
-    for (I32 i = 0; i < program->children.count; i++) {
+    for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
         if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
@@ -950,7 +950,7 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
 
     // Scan program for non-core ext_func/ext_proc, dlsym each
     ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
-    for (I32 i = 0; i < program->children.count; i++) {
+    for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->is_core) continue;
         if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
@@ -970,9 +970,9 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
                 ffi_handle = NULL;
                 return 1;
             }
-            I32 np = fdef->data.func_def.nparam;
+            U32 np = fdef->data.func_def.nparam;
             ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-            for (I32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
+            for (U32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
             FFIEntry entry = {
                 .fn = fn,
                 .return_type = fdef->data.func_def.return_type,
@@ -988,7 +988,7 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
         if (expr_child(stmt, 0)->type == NODE_STRUCT_DEF && expr_child(stmt, 0)->is_ext) {
             Str *sname = stmt->data.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
-            for (I32 j = 0; j < body->children.count; j++) {
+            for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
                 if (!field->data.decl.is_namespace) continue;
                 if (field->children.count == 0) continue;
@@ -1007,9 +1007,9 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
                     ffi_handle = NULL;
                     return 1;
                 }
-                I32 np = fdef->data.func_def.nparam;
+                U32 np = fdef->data.func_def.nparam;
                 ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-                for (I32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
+                for (U32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
                 FFIEntry entry = {
                     .fn = fn,
                     .return_type = fdef->data.func_def.return_type,

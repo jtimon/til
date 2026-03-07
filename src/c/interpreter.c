@@ -51,7 +51,7 @@ Scope *scope_new(Scope *parent) {
 }
 
 void scope_free(Scope *s) {
-    for (I32 i = 0; i < Map_len(&s->bindings); i++) {
+    for (U32 i = 0; i < Map_len(&s->bindings); i++) {
         Binding *b = (Binding *)Vec_get(&s->bindings.vals, i);
         if (b->cell_is_local)
             free(b->cell);
@@ -98,7 +98,7 @@ Str *cached_vec_name;
 // Find a non-namespace field decl by name in a struct_def
 Expr *find_field_decl(Expr *struct_def, Str *fname) {
     Expr *body = expr_child(struct_def, 0);
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace &&
             Str_eq(f->data.decl.name, fname))
@@ -312,7 +312,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     if (enum_method_dispatch(callee_expr->data.str_val, scope,
                             tc->val.func, parent_sname, e, &eresult)) {
                         // Null cells of own-arg idents
-                        for (I32 i = 1; i < e->children.count; i++) {
+                        for (U32 i = 1; i < e->children.count; i++) {
                             if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
                                 Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
                                 if (c) c->val = val_none();
@@ -360,7 +360,7 @@ Value eval_call(Scope *scope, Expr *e) {
         }
 
         Scope *call_scope = scope_new(scope);
-        for (I32 i = 0; i < func_def->data.func_def.nparam; i++) {
+        for (U32 i = 0; i < func_def->data.func_def.nparam; i++) {
             Expr *arg_expr = expr_child(e, i + 1);
             if (arg_expr->type == NODE_IDENT) {
                 Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
@@ -430,7 +430,7 @@ Value eval_call(Scope *scope, Expr *e) {
     Value ext_result;
     if (ext_function_dispatch(name, scope, e, &ext_result)) {
         // Null cells of own-arg idents (ext dispatch evaluates by value, not borrowed cell)
-        for (I32 i = 1; i < e->children.count; i++) {
+        for (U32 i = 1; i < e->children.count; i++) {
             if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
                 Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
                 if (c) c->val = val_none();
@@ -459,7 +459,7 @@ Value eval_call(Scope *scope, Expr *e) {
         inst->borrowed = 0;
         inst->data = calloc(1, sdef->total_struct_size);
         I32 arg_idx = 1;
-        for (I32 i = 0; i < body->children.count; i++) {
+        for (U32 i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
             if (field->data.decl.is_namespace) continue;
             Expr *arg = expr_child(e, arg_idx++);
@@ -505,8 +505,8 @@ Value eval_call(Scope *scope, Expr *e) {
 
     Scope *call_scope = scope_new(scope);
     // Bind arguments to parameters (borrowed refs for idents, owned for expressions)
-    I32 nparam = func_def->data.func_def.nparam;
-    for (I32 i = 0; i < nparam; i++) {
+    U32 nparam = func_def->data.func_def.nparam;
+    for (U32 i = 0; i < nparam; i++) {
         Expr *arg_expr = expr_child(e, i + 1);
         if (arg_expr->type == NODE_IDENT) {
             Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
@@ -625,7 +625,7 @@ Value eval_expr(Scope *scope, Expr *e) {
 }
 
 static void eval_body(Scope *scope, Expr *body) {
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         if (has_return || has_break || has_continue) return;
         Expr *stmt = expr_child(body, i);
         switch (stmt->type) {
@@ -856,7 +856,7 @@ static void eval_body(Scope *scope, Expr *body) {
 void interpreter_init_ns(Scope *global, Expr *program) {
     ns_fields = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
     ns_keys = Vec_new(sizeof(Str *));
-    for (I32 i = 0; i < program->children.count; i++) {
+    for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
                                         expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
@@ -869,7 +869,7 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                 if (Str_eq_c(sname, "Vec"))   { cached_vec_def = sdef; cached_vec_name = sname; }
             }
             Expr *body = expr_child(sdef, 0);
-            for (I32 j = 0; j < body->children.count; j++) {
+            for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
                 if (field->data.decl.is_namespace) {
                     Value fval = eval_expr(global, expr_child(field, 0));
@@ -963,10 +963,10 @@ static void value_to_buf(void *dest, Value v, Str *type_name) {
     }
 }
 
-static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
+static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
     I32 esz = elem_size_for_type(elem_type);
     void *data = calloc(argc > 0 ? argc : 1, esz);
-    for (I32 i = 0; i < argc; i++) {
+    for (U32 i = 0; i < argc; i++) {
         Value v = parse_cli_arg(argv[i], elem_type);
         value_to_buf((char *)data + i * esz, v, elem_type);
     }
@@ -987,7 +987,7 @@ static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
-I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, I32 user_argc, char **user_argv) {
+I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, U32 user_argc, char **user_argv) {
     // Load user FFI library if provided
     if (user_c_path) {
         I32 rc = ffi_init(program, user_c_path, ext_c_path, link_flags);
@@ -997,7 +997,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
     Scope *global = scope_new(NULL);
 
     // Pre-register all top-level func/proc/struct definitions for forward references
-    for (I32 i = 0; i < program->children.count; i++) {
+    for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL &&
             (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
@@ -1017,7 +1017,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
     // Run test functions if requested
     if (run_tests) {
         I32 test_count = 0, pass_count = 0;
-        for (I32 i = 0; i < program->children.count; i++) {
+        for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);
             if (stmt->type != NODE_DECL) continue;
             Expr *rhs = expr_child(stmt, 0);
@@ -1051,34 +1051,34 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
             return 1;
         }
         Expr *func_def = main_cell->val.func;
-        I32 nparam = func_def->data.func_def.nparam;
+        U32 nparam = func_def->data.func_def.nparam;
         I32 vi = func_def->data.func_def.variadic_index;
         Expr *body = expr_child(func_def, 0);
         Scope *main_scope = scope_new(global);
 
         // Bind CLI args to main params
         if (nparam > 0) {
-            I32 fixed = (vi >= 0) ? nparam - 1 : nparam;
+            U32 fixed = (vi >= 0) ? nparam - 1 : nparam;
             if (vi >= 0) {
                 // Variadic: need at least 'fixed' args
                 if (user_argc < fixed) {
-                    fprintf(stderr, "error: main expects at least %d argument(s), got %d\n", fixed, user_argc);
+                    fprintf(stderr, "error: main expects at least %u argument(s), got %u\n", fixed, user_argc);
                     scope_free(main_scope);
                     scope_free(global);
                     return 1;
                 }
             } else {
                 if (user_argc != nparam) {
-                    fprintf(stderr, "error: main expects %d argument(s), got %d\n", nparam, user_argc);
+                    fprintf(stderr, "error: main expects %u argument(s), got %u\n", nparam, user_argc);
                     scope_free(main_scope);
                     scope_free(global);
                     return 1;
                 }
             }
             I32 argi = 0;
-            for (I32 i = 0; i < nparam; i++) {
-                if (i == vi) {
-                    I32 va_count = user_argc - fixed;
+            for (U32 i = 0; i < nparam; i++) {
+                if ((I32)i == vi) {
+                    U32 va_count = user_argc - fixed;
                     Value arr = build_argv_array(va_count, user_argv + argi, func_def->data.func_def.param_types[vi]);
                     scope_set_owned(main_scope, func_def->data.func_def.param_names[i], arr);
                     argi += va_count;
@@ -1089,7 +1089,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
                 }
             }
         } else if (user_argc > 0) {
-            fprintf(stderr, "error: main expects no arguments, got %d\n", user_argc);
+            fprintf(stderr, "error: main expects no arguments, got %u\n", user_argc);
             scope_free(main_scope);
             scope_free(global);
             return 1;

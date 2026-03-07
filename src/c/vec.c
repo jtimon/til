@@ -14,7 +14,7 @@ void Vec_push(Vec *v, const void *elem) {
     v->count++;
 }
 
-void *Vec_get(Vec *v, I32 i) {
+void *Vec_get(Vec *v, U32 i) {
     return (char *)v->data + i * v->elem_size;
 }
 
@@ -22,7 +22,7 @@ void *Vec_last(Vec *v) {
     return (char *)v->data + (v->count - 1) * v->elem_size;
 }
 
-I32 Vec_len(Vec *v) {
+U32 Vec_len(Vec *v) {
     return v->count;
 }
 

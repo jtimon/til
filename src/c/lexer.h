@@ -58,6 +58,6 @@ const char *tok_name(TokenType type);
 // Tokenize a source string. Returns a malloc'd array of tokens ending with TOK_EOF.
 // The caller owns the returned array. `path` is used for error messages.
 // `count_out` receives the number of tokens (including TOK_EOF).
-Token *tokenize(const char *source, const char *path, I32 *count_out);
+Token *tokenize(const char *source, const char *path, U32 *count_out);
 
 #endif

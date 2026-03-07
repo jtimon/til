@@ -9,7 +9,7 @@
 
 // Interpret a parsed program. Returns 0 on success, non-zero on error.
 // If run_tests is true, ignores main/script body and runs all test functions.
-I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, I32 user_argc, char **user_argv);
+I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, U32 user_argc, char **user_argv);
 
 // --- Values ---
 

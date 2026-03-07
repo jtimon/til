@@ -20,7 +20,7 @@ static Str *gc_str(Str *s) {
 }
 
 static void gc_free_all(void) {
-    for (I32 i = 0; i < gc_strs.count; i++)
+    for (U32 i = 0; i < gc_strs.count; i++)
         Str_delete(*(Str **)Vec_get(&gc_strs, i));
     Vec_delete(&gc_strs);
 }
@@ -58,7 +58,7 @@ static void collect_refs(Expr *e, Vec *refs) {
             vec_push_str(refs, type_name);
             vec_push_str(refs, qualified_name(type_name, method));
             // Recurse into args (skip callee — already handled)
-            for (I32 i = 1; i < e->children.count; i++)
+            for (U32 i = 1; i < e->children.count; i++)
                 collect_refs(expr_child(e, i), refs);
             return;
         }
@@ -93,9 +93,9 @@ static void collect_refs(Expr *e, Vec *refs) {
         break;
 
     case NODE_FUNC_DEF: {
-        I32 np = e->data.func_def.nparam;
+        U32 np = e->data.func_def.nparam;
         I32 fvi = e->data.func_def.variadic_index;
-        for (I32 i = 0; i < np; i++) {
+        for (U32 i = 0; i < np; i++) {
             if (e->data.func_def.param_types[i])
                 vec_push_str(refs, e->data.func_def.param_types[i]);
         }
@@ -140,7 +140,7 @@ static void collect_refs(Expr *e, Vec *refs) {
     }
 
     // Recurse into children
-    for (I32 i = 0; i < e->children.count; i++)
+    for (U32 i = 0; i < e->children.count; i++)
         collect_refs(expr_child(e, i), refs);
 }
 
@@ -151,7 +151,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
 
     // 1. Build top-level declaration map
     Map top = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
-    for (I32 i = 0; i < program->children.count; i++) {
+    for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL) {
             Str *name = stmt->data.decl.name;
@@ -161,13 +161,13 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
 
     // 2. Build namespace method map: "Type.method" → method decl node
     Map methods = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
-    for (I32 i = 0; i < Map_len(&top); i++) {
+    for (U32 i = 0; i < Map_len(&top); i++) {
         Expr *decl = *(Expr **)Vec_get(&top.vals, i);
         if (expr_child(decl, 0)->type != NODE_STRUCT_DEF &&
             expr_child(decl, 0)->type != NODE_ENUM_DEF) continue;
         Str *sname = *(Str **)Vec_get(&top.keys, i);
         Expr *body = expr_child(expr_child(decl, 0), 0);
-        for (I32 j = 0; j < body->children.count; j++) {
+        for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (!field->data.decl.is_namespace) continue;
             Str *qn = qualified_name(sname, field->data.decl.name);
@@ -181,7 +181,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
         vec_push_str(&worklist, gc_str(Str_new("main")));
     } else if (run_tests) {
         // Test execution: seed with all test function names
-        for (I32 i = 0; i < program->children.count; i++) {
+        for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);
             if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF &&
                 expr_child(stmt, 0)->data.func_def.func_type == FUNC_TEST) {
@@ -190,7 +190,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
         }
     } else {
         // Script mode: collect refs from all top-level executable statements
-        for (I32 i = 0; i < program->children.count; i++) {
+        for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);
             if (stmt->type == NODE_DECL &&
                 (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
@@ -203,7 +203,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
 
     // 4. BFS
     Set visited = Set_new(sizeof(Str *), str_ptr_cmp);
-    I32 cursor = 0;
+    U32 cursor = 0;
     while (cursor < worklist.count) {
         Str *name = *(Str **)Vec_get(&worklist, cursor++);
         if (Set_has(&visited, &name)) continue;
@@ -217,7 +217,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
                 // For structs/enums: only walk instance fields, not namespace methods.
                 // Namespace methods are walked individually via qualified names.
                 Expr *body = expr_child(expr_child(decl, 0), 0);
-                for (I32 i = 0; i < body->children.count; i++) {
+                for (U32 i = 0; i < body->children.count; i++) {
                     if (!expr_child(body, i)->data.decl.is_namespace)
                         collect_refs(expr_child(body, i), &worklist);
                 }
@@ -238,7 +238,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
 
     // 5. Filter top-level declarations
     I32 w = 0;
-    for (I32 i = 0; i < program->children.count; i++) {
+    for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL &&
             (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
@@ -252,7 +252,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     program->children.count = w;
 
     // 6. Filter namespace methods in kept structs
-    for (I32 i = 0; i < program->children.count; i++) {
+    for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL || (expr_child(stmt, 0)->type != NODE_STRUCT_DEF &&
                                         expr_child(stmt, 0)->type != NODE_ENUM_DEF))
@@ -260,7 +260,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
         Str *sname = stmt->data.decl.name;
         Expr *body = expr_child(expr_child(stmt, 0), 0);
         I32 bw = 0;
-        for (I32 j = 0; j < body->children.count; j++) {
+        for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (field->data.decl.is_namespace) {
                 Str *qn = qualified_name(sname, field->data.decl.name);

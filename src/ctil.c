@@ -47,7 +47,7 @@ static char *read_file(const char *path) {
 static Vec extract_imports(Expr *body) {
     Vec paths = Vec_new(sizeof(Str *));
     Vec kept = Vec_new(sizeof(Expr *));
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
             expr_child(stmt, 0)->type == NODE_IDENT &&
@@ -76,7 +76,7 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
                            Set *resolved, Vec *stack,
                            Vec *merged, Vec *c_files,
                            const char *lib_dir) {
-    for (I32 i = 0; i < import_paths->count; i++) {
+    for (U32 i = 0; i < import_paths->count; i++) {
         Str *import_path = *(Str **)Vec_get(import_paths, i);
 
         // Try relative to importing file's directory, then lib_dir
@@ -96,11 +96,11 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         Str *abs_str = Str_new(abs);
 
         // Cycle detection: check if this file is on the current import stack
-        for (I32 j = 0; j < stack->count; j++) {
+        for (U32 j = 0; j < stack->count; j++) {
             Str *s = *(Str **)Vec_get(stack, j);
             if (Str_eq(s, abs_str)) {
                 fprintf(stderr, "error: circular import: ");
-                for (I32 k = j; k < stack->count; k++) {
+                for (U32 k = j; k < stack->count; k++) {
                     Str *sk = *(Str **)Vec_get(stack, k);
                     fprintf(stderr, "%s -> ", sk->c_str);
                 }
@@ -122,7 +122,7 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         char *source = read_file(abs);
         if (!source) { free(abs); return 1; }
 
-        I32 tok_count;
+        U32 tok_count;
         Token *toks = tokenize(source, abs, &tok_count);
 
         Str *sub_mode = NULL;
@@ -167,7 +167,7 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         Vec_delete(&sub_imports);
 
         // Append imported file's declarations
-        for (I32 j = 0; j < sub_ast->children.count; j++) {
+        for (U32 j = 0; j < sub_ast->children.count; j++) {
             Expr *ch = expr_child(sub_ast, j);
             Vec_push(merged, &ch);
         }
@@ -193,7 +193,7 @@ static void usage(void) {
 
 static void mark_core(Expr *e) {
     e->is_core = true;
-    for (I32 i = 0; i < e->children.count; i++)
+    for (U32 i = 0; i < e->children.count; i++)
         mark_core(expr_child(e, i));
 }
 
@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
         }
     }
     char *core_source = read_file(core_path);
-    I32 core_count;
+    U32 core_count;
     Token *core_tokens = core_source ? tokenize(core_source, core_path, &core_count) : NULL;
     Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, NULL) : NULL;
 
@@ -266,7 +266,7 @@ int main(int argc, char **argv) {
     char *source = read_file(path);
     if (!source) return 1;
 
-    I32 count;
+    U32 count;
     Token *tokens = tokenize(source, path, &count);
 
     Str *mode_str = NULL;
@@ -294,7 +294,7 @@ int main(int argc, char **argv) {
                     mode->name, mode->auto_import, mode_til_path);
             return 1;
         }
-        I32 mode_count;
+        U32 mode_count;
         Token *mode_tokens = tokenize(mode_source, mode_til_path, &mode_count);
         mode_ast = parse(mode_tokens, mode_count, mode_til_path, NULL);
     }
@@ -336,7 +336,7 @@ int main(int argc, char **argv) {
     }
 
     // Merge core import companion .c files
-    for (I32 i = 0; i < core_import_c_files.count; i++) {
+    for (U32 i = 0; i < core_import_c_files.count; i++) {
         char *cp = *(char **)Vec_get(&core_import_c_files, i);
         Vec_push(&import_c_files, &cp);
     }
@@ -344,27 +344,27 @@ int main(int argc, char **argv) {
     // Prepend core declarations (and mode .til + imports) to program AST
     if (core_ast && core_ast->children.count > 0) {
         Vec merged = Vec_new(sizeof(Expr *));
-        for (I32 i = 0; i < core_ast->children.count; i++) {
+        for (U32 i = 0; i < core_ast->children.count; i++) {
             Expr *ch = expr_child(core_ast, i);
             mark_core(ch);
             Vec_push(&merged, &ch);
         }
-        for (I32 i = 0; i < core_import_decls.count; i++) {
+        for (U32 i = 0; i < core_import_decls.count; i++) {
             Expr *ch = *(Expr **)Vec_get(&core_import_decls, i);
             mark_core(ch);
             Vec_push(&merged, &ch);
         }
         if (mode_ast) {
-            for (I32 i = 0; i < mode_ast->children.count; i++) {
+            for (U32 i = 0; i < mode_ast->children.count; i++) {
                 Expr *ch = expr_child(mode_ast, i);
                 Vec_push(&merged, &ch);
             }
         }
-        for (I32 i = 0; i < import_decls.count; i++) {
+        for (U32 i = 0; i < import_decls.count; i++) {
             Expr *ch = *(Expr **)Vec_get(&import_decls, i);
             Vec_push(&merged, &ch);
         }
-        for (I32 i = 0; i < ast->children.count; i++) {
+        for (U32 i = 0; i < ast->children.count; i++) {
             Expr *ch = expr_child(ast, i);
             Vec_push(&merged, &ch);
         }
@@ -377,7 +377,7 @@ int main(int argc, char **argv) {
     I32 link_pos = 0;
     {
         Vec kept = Vec_new(sizeof(Expr *));
-        for (I32 i = 0; i < ast->children.count; i++) {
+        for (U32 i = 0; i < ast->children.count; i++) {
             Expr *stmt = expr_child(ast, i);
             if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
                 expr_child(stmt, 0)->type == NODE_IDENT &&
@@ -449,7 +449,7 @@ int main(int argc, char **argv) {
             user_c = combined_c_paths;
         }
         I32 pos = (I32)strlen(combined_c_paths);
-        for (I32 i = 0; i < import_c_files.count; i++) {
+        for (U32 i = 0; i < import_c_files.count; i++) {
             char *cp = *(char **)Vec_get(&import_c_files, i);
             pos += snprintf(combined_c_paths + pos, sizeof(combined_c_paths) - pos,
                            "%s%s", pos > 0 ? " " : "", cp);
@@ -458,7 +458,7 @@ int main(int argc, char **argv) {
 
     // Append -l flags from CLI args (argv[3..])
     char *filtered_argv[argc];
-    I32 user_argc = 0;
+    U32 user_argc = 0;
     for (I32 i = 3; i < argc; i++) {
         if (strncmp(argv[i], "-l", 2) == 0) {
             const char *lib = argv[i] + 2;
@@ -497,11 +497,11 @@ int main(int argc, char **argv) {
         if (result == 0 && strcmp(command, "run") == 0) {
             // Build command with user args appended
             I32 cmdlen = (int)strlen(bin_path);
-            for (I32 i = 0; i < user_argc; i++)
+            for (U32 i = 0; i < user_argc; i++)
                 cmdlen += 1 + (I32)strlen(user_argv[i]) + 2; // space + quotes
             char *cmd = malloc(cmdlen + 1);
             I32 pos = snprintf(cmd, cmdlen + 1, "%s", bin_path);
-            for (I32 i = 0; i < user_argc; i++)
+            for (U32 i = 0; i < user_argc; i++)
                 pos += snprintf(cmd + pos, cmdlen + 1 - pos, " '%s'", user_argv[i]);
             int status = system(cmd);
             free(cmd);

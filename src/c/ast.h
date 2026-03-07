@@ -81,7 +81,7 @@ struct Expr {
             Str **param_types;     // type name strings: "I64", "Str", etc.
             bool *param_muts;        // true for mut params
             bool *param_owns;        // true for own params
-            I32 nparam;
+            U32 nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             Str *return_type;      // NULL if none (proc)
             I32 variadic_index;       // index of variadic param, or -1 if none
@@ -96,7 +96,7 @@ struct Expr {
     bool is_core;                   // declaration came from core.til
     I32 total_struct_size;          // NODE_STRUCT_DEF: total byte size of flat buffer
     I32 variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
-    I32 variadic_count;             // NODE_FCALL: number of variadic args
+    U32 variadic_count;             // NODE_FCALL: number of variadic args
     Vec children;                   // Vec of Expr* child pointers
     U32 line;
     U32 col;
@@ -121,7 +121,7 @@ Expr *expr_clone(Expr *e);
 void expr_free(Expr *e);
 
 // Print an AST tree (for debugging)
-void ast_print(Expr *e, I32 indent);
+void ast_print(Expr *e, U32 indent);
 
 // Access child i of expr e (works as lvalue and rvalue)
 #define expr_child(e, i) (*(Expr **)Vec_get(&(e)->children, (i)))
@@ -131,7 +131,7 @@ void ast_print(Expr *e, I32 indent);
 // Check if an enum def has payload variants (any non-namespace decl with explicit_type)
 static inline Bool enum_has_payloads(Expr *enum_def) {
     Expr *body = expr_child(enum_def, 0);
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace && f->data.decl.explicit_type)
             return 1;
@@ -143,7 +143,7 @@ static inline Bool enum_has_payloads(Expr *enum_def) {
 static inline I32 enum_variant_tag(Expr *enum_def, Str *variant_name) {
     Expr *body = expr_child(enum_def, 0);
     I32 tag = 0;
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
             if (Str_eq(f->data.decl.name, variant_name)) return tag;
@@ -157,7 +157,7 @@ static inline I32 enum_variant_tag(Expr *enum_def, Str *variant_name) {
 static inline Str *enum_variant_type(Expr *enum_def, I32 tag) {
     Expr *body = expr_child(enum_def, 0);
     I32 idx = 0;
-    for (I32 i = 0; i < body->children.count; i++) {
+    for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
             if (idx == tag) return f->data.decl.explicit_type;

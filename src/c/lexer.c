@@ -128,7 +128,7 @@ static TokenType lookup_keyword(const char *start, I32 len) {
 
 // --- Tokenizer ---
 
-Token *tokenize(const char *source, const char *path, I32 *count_out) {
+Token *tokenize(const char *source, const char *path, U32 *count_out) {
     Vec tokens = Vec_new(sizeof(Token));
     const char *pos = source;
     U32 line = 1;

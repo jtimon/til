@@ -56,7 +56,7 @@ Expr *expr_clone(Expr *e) {
     Expr *c = calloc(1, sizeof(Expr));
     *c = *e;
     c->children = Vec_new(sizeof(Expr *));
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         Expr *cloned = expr_clone(expr_child(e, i));
         Vec_push(&c->children, &cloned);
     }
@@ -65,7 +65,7 @@ Expr *expr_clone(Expr *e) {
 
 void expr_free(Expr *e) {
     if (!e) return;
-    for (I32 i = 0; i < e->children.count; i++) {
+    for (U32 i = 0; i < e->children.count; i++) {
         expr_free(expr_child(e, i));
     }
     Vec_delete(&e->children);
@@ -110,9 +110,9 @@ static const char *func_type_name(FuncType ft) {
     return "?";
 }
 
-void ast_print(Expr *e, I32 indent) {
+void ast_print(Expr *e, U32 indent) {
     if (!e) return;
-    for (I32 i = 0; i < indent; i++) printf("  ");
+    for (U32 i = 0; i < indent; i++) printf("  ");
     printf("(%s", node_name(e->type));
     if (e->til_type != TIL_TYPE_UNKNOWN) {
         printf(":%s", til_type_name_c(e->til_type));
@@ -140,10 +140,10 @@ void ast_print(Expr *e, I32 indent) {
     }
     if (e->children.count > 0) {
         printf("\n");
-        for (I32 i = 0; i < e->children.count; i++) {
+        for (U32 i = 0; i < e->children.count; i++) {
             ast_print(expr_child(e, i), indent + 1);
         }
-        for (I32 i = 0; i < indent; i++) printf("  ");
+        for (U32 i = 0; i < indent; i++) printf("  ");
     }
     printf(")\n");
 }

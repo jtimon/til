@@ -8,8 +8,8 @@
 
 typedef struct {
     Token *tokens;
-    I32 count;
-    I32 pos;
+    U32 count;
+    U32 pos;
     const char *path;
     Str *spath;  // path as Str* (for Expr nodes)
 } Parser;
@@ -614,7 +614,7 @@ static Expr *parse_statement(Parser *p) {
     }
 }
 
-Expr *parse(Token *tokens, I32 count, const char *path, Str **mode_out) {
+Expr *parse(Token *tokens, U32 count, const char *path, Str **mode_out) {
     Parser p = {tokens, count, 0, path, Str_new(path)};
 
     // Parse optional mode declaration
