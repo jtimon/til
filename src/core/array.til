@@ -1,0 +1,55 @@
+Array := struct {
+    own mut data : U8 = 0
+    cap := 0
+    elem_size := 0
+    elem_type := ""
+
+    namespace:
+    new := func(elem_type: Str, elem_size: I64, cap: I64) returns Array {
+        return Array(data = malloc(cap.mul(elem_size)), cap = cap,
+                     elem_size = elem_size, elem_type = elem_type)
+    }
+
+    len := func(self: Array) returns I64 { return self.cap }
+
+    get := func(self: Array, i: I64) returns ref Dynamic {
+        if i.lt(0).or(i.gte(self.cap)) {
+            panic("Array.get", format("index ", i.to_str(),
+                  " out of bounds (len ", self.cap.to_str(), ")"))
+        }
+        return ptr_add(self.data, i.mul(self.elem_size))
+    }
+
+    set := proc(self: Array, i: I64, own val: Dynamic) {
+        if i.lt(0).or(i.gte(self.cap)) {
+            panic("Array.set", format("index ", i.to_str(),
+                  " out of bounds (len ", self.cap.to_str(), ")"))
+        }
+        dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
+        memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
+        free(own val)
+    }
+
+    delete := proc(own self: Array, call_free: Bool = true) {
+        mut i := 0
+        while i.lt(self.cap) {
+            dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
+            i = i.add(1)
+        }
+        free(own self.data)
+        if call_free { free(own self) }
+    }
+
+    clone := func(self: Array) returns Array {
+        own new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        mut i := 0
+        while i.lt(self.cap) {
+            own cloned : Dynamic = dyn_call1_ret(self.elem_type, "clone", ptr_add(self.data, i.mul(self.elem_size)))
+            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+            free(own cloned)
+            i = i.add(1)
+        }
+        return Array(data = new_data, cap = self.cap,
+                     elem_size = self.elem_size, elem_type = self.elem_type)
+    }
+}
