@@ -1,5 +1,21 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #15 Scavenger doesn't understand dyn_call/dyn_has_method/array/vec
+  Collections (Vec, Set, Map, Array) call methods dynamically via dyn_call
+  with string literal method names, invisible to the scavenger's static
+  analysis. This caused size() and cmp() to be removed as dead code.
+
+  Fix: always keep delete, clone, size, and cmp for every struct/enum that
+  survives scavenging. These are the infrastructure methods used by
+  collections via dyn_call. If a method doesn't exist on a type, the BFS
+  visit is harmless (no entry in the methods map).
+
+  Also simplified the array()/vec() special cases in collect_refs — removed
+  redundant Type.size() extraction and type name refs (now covered by the
+  always-keep logic and ext_func return type).
+
+  File: src/c/scavenger.c
+
 * FIXED #30 Vec-in-struct: mutating an inline struct field operates on a copy
   Accessing a struct field of compound type (Vec, Point, Str, any user-defined
   struct) returned a copy instead of a reference. Mutations to the copy were

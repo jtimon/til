@@ -505,25 +505,6 @@
    - Codegen: emit closure structs or pass captures as hidden parameters
 
 
-* OPEN #15 Scavenger doesn't understand dyn_call/dyn_has_method/array/vec
-  The scavenger removes namespace methods not reachable from used code.
-  But it doesn't recognize dyn_call, dyn_has_method, array(), or vec()
-  as references to namespace methods — the type/method name is a string
-  literal, not a Type.method field access, so collect_refs doesn't pick
-  it up.
-
-  This means dyn_has_method("I64", "cmp") only works if cmp is also
-  referenced directly (e.g. via I64.cmp(...) or dyn_call with cmp
-  elsewhere). Similarly, array("I64", 1, 2, 3) needs I64.size() to be
-  referenced somewhere, or the scavenger removes it.
-
-  Workaround: explicitly reference Type.size() in user code.
-
-  Fix: extend collect_refs in scavenger.c to recognize dyn_call*,
-  dyn_has_method, array, and vec calls. For array/vec, mark
-  "TypeName.size" and "TypeName.clone" and "TypeName.delete" as
-  referenced based on the type_name string literal arg.
-
 * OPEN #14 Function pointers: first-class functions as values
   til currently has no way to pass functions as values. func/proc
   definitions are bound to names and can only be called directly.
@@ -543,7 +524,7 @@
   and many patterns needed for self-hosting (visitor, dispatch tables).
 
 * WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #15 #17
+  :DEPENDENCIES: #1 #2 #17
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
