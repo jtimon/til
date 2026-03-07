@@ -5,8 +5,43 @@ mode gui
 // Shows triad type (M/m/dim) for each scale degree
 // Supports PT/ES/EN language and solfege/american notation
 
-WINDOW_WIDTH := 800
-WINDOW_HEIGHT := 600
+// -- Layout: change only these two --
+WINDOW_WIDTH := 1920
+WINDOW_HEIGHT := 1080
+
+// -- Derived metrics --
+MARGIN := WINDOW_WIDTH.div(48)
+BTN_W := WINDOW_WIDTH.sub(MARGIN.mul(2)).div(7)
+BTN_H := WINDOW_HEIGHT.div(22)
+GAP := WINDOW_HEIGHT.div(60)
+FONT := WINDOW_HEIGHT.div(38)
+FONT_LG := WINDOW_HEIGHT.div(30)
+FONT_SM := WINDOW_HEIGHT.div(45)
+PAD_X := BTN_W.div(25)
+PAD_Y := BTN_H.div(4)
+
+// Row Y positions
+NOTE_ROW_Y := GAP
+MODE_ROW_Y := NOTE_ROW_Y.add(BTN_H.mul(3)).add(GAP)
+RADIO_ROW_Y := MODE_ROW_Y.add(BTN_H).add(GAP)
+TEXT_Y := RADIO_ROW_Y.add(BTN_H).add(GAP.mul(2))
+TRIAD_Y := TEXT_Y.add(FONT_LG).add(GAP)
+TITLE_Y := TRIAD_Y.add(FONT).add(GAP)
+
+// Radio button sizes
+LANG_BTN_W := BTN_W.mul(2).div(5)
+NOTATION_BTN_W := BTN_W.mul(3).div(4)
+NOTATION_X := MARGIN.add(LANG_BTN_W.mul(3)).add(GAP.mul(2))
+
+// Staff/pentagram
+STAFF_BASE_Y := WINDOW_HEIGHT.mul(5).div(6)
+STAFF_SP := WINDOW_HEIGHT.div(30)
+STAFF_X := MARGIN.mul(3)
+STAFF_W := WINDOW_WIDTH.sub(STAFF_X.mul(2))
+NOTE_X0 := WINDOW_WIDTH.div(8)
+NOTE_DX := WINDOW_WIDTH.sub(NOTE_X0.mul(2)).div(7)
+NOTE_R := WINDOW_HEIGHT.div(68)
+HINT_Y := WINDOW_HEIGHT.sub(MARGIN)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music")
@@ -51,13 +86,6 @@ main := proc() {
     mut play_idx := 0
     mut play_timer := 0
 
-    // Button layout
-    btn_w := 105
-    btn_h := 24
-    note_row_y := 10
-    mode_row_y := 90
-    radio_row_y := 120
-
     while window_should_close().not() {
         dt := get_frame_time()
 
@@ -67,10 +95,10 @@ main := proc() {
             my := get_mouse_y()
 
             // Note buttons: 7 cols x 3 rows
-            if my.gte(note_row_y).and(my.lt(note_row_y.add(btn_h.mul(3)))) {
-                col := mx.sub(20).div(btn_w)
-                row := my.sub(note_row_y).div(btn_h)
-                if col.gte(0).and(col.lt(7)).and(row.gte(0)).and(row.lt(3)).and(mx.gte(20)) {
+            if my.gte(NOTE_ROW_Y).and(my.lt(NOTE_ROW_Y.add(BTN_H.mul(3)))) {
+                col := mx.sub(MARGIN).div(BTN_W)
+                row := my.sub(NOTE_ROW_Y).div(BTN_H)
+                if col.gte(0).and(col.lt(7)).and(row.gte(0)).and(row.lt(3)).and(mx.gte(MARGIN)) {
                     sel_diatonic = col
                     if row.eq(0) {
                         sel_accidental = 0.sub(1)
@@ -89,9 +117,9 @@ main := proc() {
             }
 
             // Mode buttons: 7 cols x 1 row
-            if my.gte(mode_row_y).and(my.lt(mode_row_y.add(btn_h))) {
-                col := mx.sub(20).div(btn_w)
-                if col.gte(0).and(col.lt(7)).and(mx.gte(20)) {
+            if my.gte(MODE_ROW_Y).and(my.lt(MODE_ROW_Y.add(BTN_H))) {
+                col := mx.sub(MARGIN).div(BTN_W)
+                if col.gte(0).and(col.lt(7)).and(mx.gte(MARGIN)) {
                     sel_mode = col
                     need_recompute = true
                     playing = true
@@ -101,17 +129,15 @@ main := proc() {
             }
 
             // Radio buttons: lang (PT/ES/EN) + notation (sol/ame)
-            if my.gte(radio_row_y).and(my.lt(radio_row_y.add(btn_h))) {
-                // Lang buttons: 3 x 50px starting at x=20
-                if mx.gte(20).and(mx.lt(170)) {
-                    lang_col := mx.sub(20).div(50)
+            if my.gte(RADIO_ROW_Y).and(my.lt(RADIO_ROW_Y.add(BTN_H))) {
+                if mx.gte(MARGIN).and(mx.lt(MARGIN.add(LANG_BTN_W.mul(3)))) {
+                    lang_col := mx.sub(MARGIN).div(LANG_BTN_W)
                     if lang_col.gte(0).and(lang_col.lt(3)) {
                         sel_lang = lang_col
                     }
                 }
-                // Notation buttons: 2 x 85px starting at x=190
-                if mx.gte(190).and(mx.lt(360)) {
-                    not_col := mx.sub(190).div(85)
+                if mx.gte(NOTATION_X).and(mx.lt(NOTATION_X.add(NOTATION_BTN_W.mul(2)))) {
+                    not_col := mx.sub(NOTATION_X).div(NOTATION_BTN_W)
                     if not_col.gte(0).and(not_col.lt(2)) {
                         sel_notation = not_col
                     }
@@ -209,8 +235,8 @@ main := proc() {
         while row.lt(3) {
             mut col := 0
             while col.lt(7) {
-                bx := 20.add(col.mul(btn_w))
-                by := note_row_y.add(row.mul(btn_h))
+                bx := MARGIN.add(col.mul(BTN_W))
+                by := NOTE_ROW_Y.add(row.mul(BTN_H))
 
                 // Highlight selected
                 mut br := 50
@@ -225,7 +251,7 @@ main := proc() {
                     bg = 150
                     bb = 200
                 }
-                draw_rectangle(bx, by, btn_w.sub(2), btn_h.sub(2), br, bg, bb, 255)
+                draw_rectangle(bx, by, BTN_W.sub(2), BTN_H.sub(2), br, bg, bb, 255)
 
                 // Label
                 mut label := ""
@@ -248,7 +274,7 @@ main := proc() {
                 }
                 if row.eq(0) { label = label.concat("b") }
                 if row.eq(2) { label = label.concat("#") }
-                draw_text(label, bx.add(6), by.add(4), 16, 220, 220, 220, 255)
+                draw_text(label, bx.add(PAD_X), by.add(PAD_Y), FONT, 220, 220, 220, 255)
 
                 col = col.add(1)
             }
@@ -258,8 +284,8 @@ main := proc() {
         // -- Mode buttons --
         mut mi := 0
         while mi.lt(7) {
-            bx := 20.add(mi.mul(btn_w))
-            by := mode_row_y
+            bx := MARGIN.add(mi.mul(BTN_W))
+            by := MODE_ROW_Y
 
             mut mr := 50
             mut mg := 50
@@ -269,14 +295,14 @@ main := proc() {
                 mg = 100
                 mb = 0
             }
-            draw_rectangle(bx, by, btn_w.sub(2), btn_h.sub(2), mr, mg, mb, 255)
+            draw_rectangle(bx, by, BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
 
             mut mlabel := ""
             if sel_lang.eq(0) {
                 // PT
                 if mi.eq(0) { mlabel = "lidio" }
                 if mi.eq(1) { mlabel = "jonio" }
-                if mi.eq(2) { mlabel = "mixolid" }
+                if mi.eq(2) { mlabel = "mixolidio" }
                 if mi.eq(3) { mlabel = "dorico" }
                 if mi.eq(4) { mlabel = "eolio" }
                 if mi.eq(5) { mlabel = "frigio" }
@@ -286,7 +312,7 @@ main := proc() {
                     // ES
                     if mi.eq(0) { mlabel = "lidio" }
                     if mi.eq(1) { mlabel = "jonico" }
-                    if mi.eq(2) { mlabel = "mixolid" }
+                    if mi.eq(2) { mlabel = "mixolidio" }
                     if mi.eq(3) { mlabel = "dorico" }
                     if mi.eq(4) { mlabel = "eolico" }
                     if mi.eq(5) { mlabel = "frigio" }
@@ -295,14 +321,14 @@ main := proc() {
                     // EN
                     if mi.eq(0) { mlabel = "lydian" }
                     if mi.eq(1) { mlabel = "ionian" }
-                    if mi.eq(2) { mlabel = "mixolyd" }
+                    if mi.eq(2) { mlabel = "mixolydian" }
                     if mi.eq(3) { mlabel = "dorian" }
                     if mi.eq(4) { mlabel = "aeolian" }
                     if mi.eq(5) { mlabel = "phrygian" }
                     if mi.eq(6) { mlabel = "locrian" }
                 }
             }
-            draw_text(mlabel, bx.add(6), by.add(4), 16, 220, 220, 220, 255)
+            draw_text(mlabel, bx.add(PAD_X), by.add(PAD_Y), FONT, 220, 220, 220, 255)
 
             mi = mi.add(1)
         }
@@ -311,32 +337,32 @@ main := proc() {
         // Lang: PT ES EN
         mut li := 0
         while li.lt(3) {
-            lx := 20.add(li.mul(50))
+            lx := MARGIN.add(li.mul(LANG_BTN_W))
             mut lr := 40
             mut lg := 40
             mut lb := 40
             if li.eq(sel_lang) { lr = 100 ; lg = 50 ; lb = 120 }
-            draw_rectangle(lx, radio_row_y, 48, btn_h.sub(2), lr, lg, lb, 255)
+            draw_rectangle(lx, RADIO_ROW_Y, LANG_BTN_W.sub(2), BTN_H.sub(2), lr, lg, lb, 255)
             mut ll := ""
             if li.eq(0) { ll = "PT" }
             if li.eq(1) { ll = "ES" }
             if li.eq(2) { ll = "EN" }
-            draw_text(ll, lx.add(12), radio_row_y.add(4), 16, 220, 220, 220, 255)
+            draw_text(ll, lx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 220, 220, 220, 255)
             li = li.add(1)
         }
         // Notation: solfege / american
         mut ni := 0
         while ni.lt(2) {
-            nx := 190.add(ni.mul(85))
+            nx := NOTATION_X.add(ni.mul(NOTATION_BTN_W))
             mut nr := 40
             mut ng := 40
             mut nb := 40
             if ni.eq(sel_notation) { nr = 100 ; ng = 50 ; nb = 120 }
-            draw_rectangle(nx, radio_row_y, 83, btn_h.sub(2), nr, ng, nb, 255)
+            draw_rectangle(nx, RADIO_ROW_Y, NOTATION_BTN_W.sub(2), BTN_H.sub(2), nr, ng, nb, 255)
             mut nl := ""
             if ni.eq(0) { nl = "solfege" }
             if ni.eq(1) { nl = "american" }
-            draw_text(nl, nx.add(6), radio_row_y.add(4), 16, 220, 220, 220, 255)
+            draw_text(nl, nx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 220, 220, 220, 255)
             ni = ni.add(1)
         }
 
@@ -375,7 +401,7 @@ main := proc() {
             scale_text = scale_text.concat(tname)
             sti = sti.add(1)
         }
-        draw_text(scale_text, 20, 155, 20, 255, 255, 0, 255)
+        draw_text(scale_text, MARGIN, TEXT_Y, FONT_LG, 255, 255, 0, 255)
 
         // -- Triad line --
         mut triad_text := ""
@@ -416,7 +442,7 @@ main := proc() {
             triad_text = triad_text.concat(trn)
             tri = tri.add(1)
         }
-        draw_text(triad_text, 20, 182, 18, 200, 200, 100, 255)
+        draw_text(triad_text, MARGIN, TRIAD_Y, FONT, 200, 200, 100, 255)
 
         // -- Mode name --
         mut mode_full := ""
@@ -474,48 +500,45 @@ main := proc() {
         if sel_accidental.eq(1) { root_name = root_name.concat("#") }
 
         mut title := root_name.concat(" ").concat(mode_full)
-        draw_text(title, 20, 210, 18, 150, 150, 150, 255)
+        draw_text(title, MARGIN, TITLE_Y, FONT, 150, 150, 150, 255)
 
         // -- Pentagram --
         // Staff lines at positions: E4=0, G4=2, B4=4, D5=6, F5=8
         // staff_pos for a note = diatonic_idx - 2 + octave*7
-        // Pixel Y = 450 - staff_pos * 15
-        staff_base_y := 490
-        staff_sp := 17
 
         // Draw 5 staff lines
         mut sli := 0
         while sli.lt(5) {
             line_pos := sli.mul(2)
-            ly := staff_base_y.sub(line_pos.mul(staff_sp))
-            draw_rectangle(60, ly, 680, 1, 100, 100, 100, 255)
+            ly := STAFF_BASE_Y.sub(line_pos.mul(STAFF_SP))
+            draw_rectangle(STAFF_X, ly, STAFF_W, 2, 100, 100, 100, 255)
             sli = sli.add(1)
         }
 
         // Draw notes
         mut dni := 0
         while dni.lt(8) {
-            dnx := 110.add(dni.mul(80))
+            dnx := NOTE_X0.add(dni.mul(NOTE_DX))
 
             ref nd : I64 = sc_diat.get(dni)
             ref no : I64 = sc_oct.get(dni)
             staff_pos := nd.sub(2).add(no.mul(7))
-            dny := staff_base_y.sub(staff_pos.mul(staff_sp))
+            dny := STAFF_BASE_Y.sub(staff_pos.mul(STAFF_SP))
 
             // Ledger lines
             if staff_pos.lt(0) {
                 mut lp := 0.sub(2)
                 while lp.gte(staff_pos) {
-                    lly := staff_base_y.sub(lp.mul(staff_sp))
-                    draw_rectangle(dnx.sub(15), lly, 30, 1, 100, 100, 100, 255)
+                    lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
+                    draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
                     lp = lp.sub(2)
                 }
             }
             if staff_pos.gt(8) {
                 mut lp := 10
                 while lp.lte(staff_pos) {
-                    lly := staff_base_y.sub(lp.mul(staff_sp))
-                    draw_rectangle(dnx.sub(15), lly, 30, 1, 100, 100, 100, 255)
+                    lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
+                    draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
                     lp = lp.add(2)
                 }
             }
@@ -535,21 +558,21 @@ main := proc() {
                 ncb = 0
             }
 
-            draw_circle(dnx, dny, 8, ncr, ncg, ncb, 255)
+            draw_circle(dnx, dny, NOTE_R, ncr, ncg, ncb, 255)
 
             // Accidental text
             ref na : I64 = sc_acc.get(dni)
             if na.eq(1) {
-                draw_text("#", dnx.sub(18), dny.sub(8), 16, 255, 255, 255, 255)
+                draw_text("#", dnx.sub(FONT.add(NOTE_R)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
             }
             if na.eq(0.sub(1)) {
-                draw_text("b", dnx.sub(16), dny.sub(8), 16, 255, 255, 255, 255)
+                draw_text("b", dnx.sub(FONT.add(NOTE_R)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
             }
             if na.eq(2) {
-                draw_text("##", dnx.sub(24), dny.sub(8), 14, 255, 255, 255, 255)
+                draw_text("##", dnx.sub(FONT.add(NOTE_R.mul(2))), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
             }
             if na.eq(0.sub(2)) {
-                draw_text("bb", dnx.sub(22), dny.sub(8), 14, 255, 255, 255, 255)
+                draw_text("bb", dnx.sub(FONT.add(NOTE_R.mul(2))), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
             }
 
             // Note name below
@@ -575,13 +598,13 @@ main := proc() {
             ref nna : I64 = sc_acc.get(dni)
             if nna.eq(1) { nn = nn.concat("#") }
             if nna.eq(0.sub(1)) { nn = nn.concat("b") }
-            draw_text(nn, dnx.sub(10), staff_base_y.add(25), 12, 180, 180, 180, 255)
+            draw_text(nn, dnx.sub(NOTE_R), STAFF_BASE_Y.add(STAFF_SP), FONT_SM, 180, 180, 180, 255)
 
             dni = dni.add(1)
         }
 
         // Hint
-        draw_text("click note + mode to play scale", 240, 578, 16, 80, 80, 80, 255)
+        draw_text("click note + mode to play scale", WINDOW_WIDTH.div(3), HINT_Y, FONT, 80, 80, 80, 255)
 
         end_drawing()
     }
