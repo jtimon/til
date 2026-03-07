@@ -3,6 +3,7 @@
 #include <raylib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 void til_init_window(til_I64 *w, til_I64 *h, til_Str *title) {
     char *t = strndup((char *)title->data, title->cap);
@@ -102,4 +103,31 @@ til_Bool *til_is_mouse_button_pressed(til_I64 *button) {
     til_Bool *r = malloc(sizeof(til_Bool));
     *r = IsMouseButtonPressed((int)*button);
     return r;
+}
+
+void til_init_audio_device(void) { InitAudioDevice(); }
+void til_close_audio_device(void) { CloseAudioDevice(); }
+
+static Sound prev_tone = {0};
+static bool tone_loaded = false;
+
+void til_play_tone(til_I64 *freq, til_I64 *duration_ms) {
+    if (tone_loaded) UnloadSound(prev_tone);
+    int sr = 44100;
+    int n = sr * (int)*duration_ms / 1000;
+    if (n < 1) n = 1;
+    float *data = malloc(n * sizeof(float));
+    int attack = sr / 100;  // 10ms
+    int release = sr / 100;
+    for (int i = 0; i < n; i++) {
+        float env = 1.0f;
+        if (i < attack) env = (float)i / attack;
+        if (i > n - release) env = (float)(n - i) / release;
+        data[i] = sinf(2.0f * 3.14159265f * (float)*freq * (float)i / sr) * 0.3f * env;
+    }
+    Wave w = { .frameCount = n, .sampleRate = sr, .sampleSize = 32, .channels = 1, .data = data };
+    prev_tone = LoadSoundFromWave(w);
+    PlaySound(prev_tone);
+    tone_loaded = true;
+    free(data);
 }

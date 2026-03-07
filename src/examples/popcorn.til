@@ -1,0 +1,93 @@
+mode gui
+
+main := proc() {
+    init_window(480, 320, "popcorn")
+    set_target_fps(60)
+    init_audio_device()
+
+    // Popcorn melody (Gershon Kingsley, 1969)
+    // Frequencies in Hz, 0 = rest
+    mut notes := array("I64",
+        // Phrase 1
+        523, 587, 622, 587, 622, 523, 415, 0,
+        // Phrase 1 repeat
+        523, 587, 622, 587, 622, 523, 415, 0,
+        // Phrase 2
+        622, 659, 698, 659, 698, 622, 523, 0,
+        // Phrase 1 again
+        523, 587, 622, 587, 622, 523, 415, 0,
+        // Bridge
+        415, 523, 415, 523, 554, 523, 554, 0,
+        415, 523, 415, 523, 466, 415, 466, 0,
+        // Phrase 1 finale
+        523, 587, 622, 587, 622, 523, 415, 0
+    )
+    num_notes := 56
+    note_dur := 130
+    gap := 150
+
+    mut note_idx := 0
+    mut timer := 0
+    mut done := false
+
+    while window_should_close().not() {
+        dt := get_frame_time()
+
+        if done.not() {
+            timer = timer.add(dt)
+            if timer.gte(gap) {
+                timer = 0
+                if note_idx.lt(num_notes) {
+                    ref freq : I64 = notes.get(note_idx)
+                    if freq.gt(0) {
+                        play_tone(freq, note_dur)
+                    }
+                    note_idx = note_idx.add(1)
+                } else {
+                    done = true
+                }
+            }
+        }
+
+        begin_drawing()
+        clear_background(0, 0, 0, 255)
+
+        // Title
+        draw_text("POPCORN", 150, 30, 30, 255, 255, 0, 255)
+        draw_text("Gershon Kingsley, 1969", 130, 70, 16, 150, 150, 150, 255)
+
+        // Visualizer: bouncing bars for current note
+        if note_idx.gt(0).and(note_idx.lte(num_notes)) {
+            ref cur_freq : I64 = notes.get(note_idx.sub(1))
+            if cur_freq.gt(0) {
+                // Bar height proportional to frequency
+                bar_h := cur_freq.div(4)
+                bar_x := 240.sub(60)
+                bar_y := 280.sub(bar_h)
+                draw_rectangle(bar_x, bar_y, 120, bar_h, 0, 200, 0, 255)
+            }
+        }
+
+        // Note counter
+        if done {
+            draw_text("done!", 200, 140, 20, 0, 255, 0, 255)
+        } else {
+            draw_text(format(note_idx.to_str(), " / ", num_notes.to_str()),
+                      200, 140, 16, 200, 200, 200, 255)
+        }
+
+        // Progress bar
+        if num_notes.gt(0) {
+            prog_w := note_idx.mul(400).div(num_notes)
+            draw_rectangle(40, 290, prog_w, 8, 255, 255, 0, 255)
+            draw_rectangle(40, 290, 400, 8, 80, 80, 80, 128)
+        }
+
+        end_drawing()
+
+        if done { break }
+    }
+
+    close_audio_device()
+    close_window()
+}
