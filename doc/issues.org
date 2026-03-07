@@ -1,8 +1,31 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 33
+# NEXT_ISSUE: 34
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #33 Character literals for U8
+  Currently there's no syntax for character literals. Writing ~U8.from_i64(40)~
+  for ~'('~ is verbose and unreadable, especially in the lexer where every
+  character needs a named constant (~CH_LPAREN := U8.from_i64(40)~).
+
+  Proposed syntax: single-quoted characters, e.g. ~'('~, ~'a'~, ~'\n'~.
+  Type: U8. Same as C char literals but typed as U8 instead of int.
+
+  Escape sequences: ~'\n'~, ~'\t'~, ~'\r'~, ~'\\'~, ~'\''~, ~'\0'~.
+
+  This would simplify lexer.til from:
+  #+begin_src til
+  CH_LPAREN := U8.from_i64(40)
+  if c.eq(CH_LPAREN) { ... }
+  #+end_src
+  To:
+  #+begin_src til
+  if c.eq('(') { ... }
+  #+end_src
+
+  Changes needed: lexer (new token type), parser (literal expr), typer
+  (infer as U8), interpreter (eval to U8), builder (emit as char).
 
 * OPEN #32 Keyword arguments (kwargs) capture and forwarding
   Allow functions to capture named arguments as a map and forward them to
