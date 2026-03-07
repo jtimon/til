@@ -1,9 +1,35 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 29
+# NEXT_ISSUE: 30
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+
+* OPEN #29 Proper strings: separate len/cap, static literals, views
+  See doc/strings.org for full design.
+
+  Str gets a ~len~ field (content length) separate from ~cap~ (allocated
+  capacity or sentinel). Sentinel constants in cap encode ownership:
+  CAP_LIT (-1) for static const data, CAP_VIEW (-2) for borrowed views.
+
+** Phase 1: Add len field (structural, len == cap everywhere)
+   Add ~mut len := 0~ to Str struct. Update all methods, codegen,
+   interpreter, ext.c, dispatch.c to use len for content length and
+   cap for allocated capacity. No semantic change — len always equals cap.
+
+** Phase 2: Static string literals (CAP_LIT)
+   Codegen emits string literal data as static const C strings.
+   til_Str_lit points to static data with cap=CAP_LIT instead of strndup.
+   Str.delete skips free(data) when cap < 0.
+   Eliminates one malloc per string literal in compiled programs.
+
+** Phase 3: String views (CAP_VIEW) — future
+   substr_view returns zero-copy view with cap=CAP_VIEW.
+   Dangling pointer risk accepted (no borrow checker).
+
+** Phase 4: In-place growth (with_capacity, push_str) — future
+   with_capacity(n) creates Str with len=0, cap=n.
+   push_str appends in-place, reallocs when needed.
 
 * OPEN #28 Aliases: implicit ref for comptime-immutable declarations
   When `a := b` and b is provably immutable and comptime, `a` should be

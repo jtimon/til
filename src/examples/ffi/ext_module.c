@@ -10,10 +10,11 @@ til_Str *til_greet(til_Str *name) {
     const char *hello = "hello ";
     int hello_len = 6;
     til_Str *result = malloc(sizeof(til_Str));
-    result->cap = hello_len + name->cap;
-    result->data = malloc(result->cap);
+    result->len = hello_len + name->len;
+    result->cap = result->len;
+    result->data = malloc(result->len);
     memcpy(result->data, hello, hello_len);
-    memcpy(result->data + hello_len, name->data, name->cap);
+    memcpy(result->data + hello_len, name->data, name->len);
     return result;
 }
 
@@ -21,7 +22,7 @@ void til_greet_print(til_Str *name) {
     const char *hello = "hello ";
     int hello_len = 6;
     fwrite(hello, 1, hello_len, stdout);
-    fwrite(name->data, 1, name->cap, stdout);
+    fwrite(name->data, 1, name->len, stdout);
     putchar('\n');
 }
 

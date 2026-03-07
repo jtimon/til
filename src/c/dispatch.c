@@ -1,5 +1,6 @@
 #include "dispatch.h"
 #include "ccore.h"
+#include "ext.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,8 +44,8 @@ static Value eval_arg(Scope *s, Expr *e) {
             case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (til_Bool *)v.ptr};
             case TIL_TYPE_STRUCT:
                 if (e->struct_name && Str_eq_c(e->struct_name, "Str")) {
-                    Str *sp = (Str *)v.ptr;
-                    return make_str_value_own(sp->c_str, sp->cap);
+                    til_Str *sp = (til_Str *)v.ptr;
+                    return make_str_value_own((char *)sp->data, sp->len);
                 }
                 return (Value){.type = VAL_STRUCT, .instance = v.ptr};
             default: break;
@@ -359,8 +360,9 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
             if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
                 // Deep-copy Str: copy flat bytes then strndup the data pointer
                 memcpy((char *)data + i * elem_size, src, elem_size);
-                Str *sp = (Str *)((char *)data + i * elem_size);
-                sp->c_str = strndup(sp->c_str, sp->cap);
+                char **dp = (char **)((char *)data + i * elem_size);
+                I64 slen = *(I64 *)((char *)data + i * elem_size + 8);
+                *dp = strndup(*dp, slen);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
             }
@@ -407,8 +409,9 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
         if (src) {
             if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
                 memcpy((char *)data + i * elem_size, src, elem_size);
-                Str *sp = (Str *)((char *)data + i * elem_size);
-                sp->c_str = strndup(sp->c_str, sp->cap);
+                char **dp = (char **)((char *)data + i * elem_size);
+                I64 slen = *(I64 *)((char *)data + i * elem_size + 8);
+                *dp = strndup(*dp, slen);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
             }
@@ -700,8 +703,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             if (!fe->return_type) {
                 *result = val_none();
             } else if (Str_eq_c(fe->return_type, "Str")) {
-                Str *sp = (Str *)raw;
-                *result = make_str_value_own(sp->c_str, sp->cap);
+                til_Str *sp = (til_Str *)raw;
+                *result = make_str_value_own((char *)sp->data, sp->len);
             } else if (Str_eq_c(fe->return_type, "I64")) {
                 *result = (Value){.type = VAL_I64, .i64 = (til_I64 *)raw};
             } else if (Str_eq_c(fe->return_type, "U8")) {

@@ -173,32 +173,36 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
 }
 
 // Build a Str StructInstance from C string data (copies data via strndup)
-Value make_str_value(const char *data, I64 cap) {
+Value make_str_value(const char *data, I64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
-    inst->data = malloc(16); // Str = {char *c_str, I64 cap}
+    inst->data = malloc(24); // Str = {U8 *data, I64 len, I64 cap}
     inst->borrowed = 0;
-    *(char **)inst->data = strndup(data, cap);
-    *(I64 *)((char *)inst->data + 8) = cap;
+    *(char **)inst->data = strndup(data, len);
+    *(I64 *)((char *)inst->data + 8) = len;
+    *(I64 *)((char *)inst->data + 16) = len;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
 // Build a Str StructInstance taking ownership of buffer (no copy)
-Value make_str_value_own(char *data, I64 cap) {
+Value make_str_value_own(char *data, I64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
     inst->borrowed = 0;
-    inst->data = malloc(16);
+    inst->data = malloc(24);
     *(char **)inst->data = data;
-    *(I64 *)((char *)inst->data + 8) = cap;
+    *(I64 *)((char *)inst->data + 8) = len;
+    *(I64 *)((char *)inst->data + 16) = len;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
 // Extract a C Str view from a Str StructInstance (stack-local, don't free)
 Str str_view(Value v) {
-    return *(Str *)v.instance->data;
+    char *data = *(char **)v.instance->data;
+    I64 len = *(I64 *)((char *)v.instance->data + 8);
+    return (Str){.c_str = data, .cap = len};
 }
 
 // Deep-clone a Value (for payload enum operations and general use)
@@ -874,7 +878,7 @@ static I32 elem_size_for_type(Str *type_name) {
     if (Str_eq_c(type_name, "I64")) return (I32)sizeof(til_I64);
     if (Str_eq_c(type_name, "U8"))  return (I32)sizeof(til_U8);
     if (Str_eq_c(type_name, "Bool")) return (I32)sizeof(til_Bool);
-    if (Str_eq_c(type_name, "Str")) return (I32)sizeof(Str);
+    if (Str_eq_c(type_name, "Str")) return 24; // til Str = {U8*, I64 len, I64 cap}
     return 8;
 }
 

@@ -288,8 +288,8 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         emit_expr(f, e, depth);
         fprintf(f, ")");
     } else if (e->type == NODE_LITERAL_STR) {
-        fprintf(f, "(til_Str){.data=(til_U8*)strndup(\"%s\",%lld), .cap=%lld}",
-                e->data.str_val->c_str, (long long)e->data.str_val->cap, (long long)e->data.str_val->cap);
+        fprintf(f, "(til_Str){.data=(til_U8*)\"%s\", .len=%lld, .cap=TIL_CAP_LIT}",
+                e->data.str_val->c_str, (long long)e->data.str_val->cap);
     } else if (e->type == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
         // Auto-called constructor returns pointer; dereference it
         fprintf(f, "(*");
@@ -1114,15 +1114,17 @@ I32 codegen_c(Expr *program, const Mode *mode, Bool run_tests, const char *path,
 
     // String helper functions (after all struct typedefs so til_Str is complete)
     fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static til_Str *til_Str_lit(const char *s, long long cap) {\n");
+    fprintf(f, "#define TIL_CAP_LIT (-1LL)\n");
+    fprintf(f, "static til_Str *til_Str_lit(const char *s, long long len) {\n");
     fprintf(f, "    til_Str *r = malloc(sizeof(til_Str));\n");
-    fprintf(f, "    r->data = (til_U8 *)strndup(s, (size_t)cap);\n");
-    fprintf(f, "    r->cap = cap;\n");
+    fprintf(f, "    r->data = (til_U8 *)s;\n");
+    fprintf(f, "    r->len = len;\n");
+    fprintf(f, "    r->cap = TIL_CAP_LIT;\n");
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
     fprintf(f, "static void til_print_str(til_Str *s) {\n");
-    fprintf(f, "    fwrite(s->data, 1, (size_t)s->cap, stdout);\n");
+    fprintf(f, "    fwrite(s->data, 1, (size_t)s->len, stdout);\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
     fprintf(f, "static void til_println(int n, ...) {\n");
@@ -1141,12 +1143,12 @@ I32 codegen_c(Expr *program, const Mode *mode, Bool run_tests, const char *path,
     fprintf(f, "    va_list ap; va_start(ap, n);\n");
     fprintf(f, "    long long total = 0;\n");
     fprintf(f, "    til_Str *strs[64];\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, til_Str *); total += strs[i]->cap; }\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) { strs[i] = va_arg(ap, til_Str *); total += strs[i]->len; }\n");
     fprintf(f, "    va_end(ap);\n");
     fprintf(f, "    til_Str *r = malloc(sizeof(til_Str));\n");
-    fprintf(f, "    r->data = malloc(total); r->cap = total;\n");
+    fprintf(f, "    r->data = malloc(total); r->len = total; r->cap = total;\n");
     fprintf(f, "    long long off = 0;\n");
-    fprintf(f, "    for (int i = 0; i < n; i++) { memcpy(r->data + off, strs[i]->data, strs[i]->cap); off += strs[i]->cap; }\n");
+    fprintf(f, "    for (int i = 0; i < n; i++) { memcpy(r->data + off, strs[i]->data, strs[i]->len); off += strs[i]->len; }\n");
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n\n");
 
@@ -1218,17 +1220,17 @@ I32 codegen_c(Expr *program, const Mode *mode, Bool run_tests, const char *path,
                 if (!has_method) continue;
                 if (info->nargs == 2) {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val, arg2);\n",
+                        fprintf(f, "    if (type_name->len == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val, arg2);\n",
                                 (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val, arg2); return; }\n",
+                        fprintf(f, "    if (type_name->len == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val, arg2); return; }\n",
                                 (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                 } else {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val);\n",
+                        fprintf(f, "    if (type_name->len == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val);\n",
                                 (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val); return; }\n",
+                        fprintf(f, "    if (type_name->len == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val); return; }\n",
                                 (long long)tname->cap, tname->c_str, (long long)tname->cap, tname->c_str, method->c_str);
                 }
             }
@@ -1264,7 +1266,7 @@ I32 codegen_c(Expr *program, const Mode *mode, Bool run_tests, const char *path,
                     }
                 }
                 if (!found) continue;
-                fprintf(f, "    if (type_name->cap == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_Bool *r = malloc(sizeof(til_Bool)); *r = 1; return r; }\n",
+                fprintf(f, "    if (type_name->len == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_Bool *r = malloc(sizeof(til_Bool)); *r = 1; return r; }\n",
                         (long long)tname->cap, tname->c_str, (long long)tname->cap);
             }
             fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = 0; return r;\n");

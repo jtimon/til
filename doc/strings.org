@@ -1,0 +1,77 @@
+* String Design in TIL
+
+** Internal Representation
+
+#+begin_src til
+Str := struct {
+    own mut data : U8 = 0   # pointer to buffer
+    mut len := 0             # content length in bytes
+    cap := 0                 # allocated capacity, or sentinel
+}
+#+end_src
+
+The ~cap~ field encodes ownership:
+
+| cap          | meaning                                          |
+|--------------+--------------------------------------------------|
+| cap >= 0     | owned buffer, cap = allocated size               |
+| CAP_LIT (-1) | points to static const C data (string literal)   |
+| CAP_VIEW (-2)| borrowed view into another Str's buffer (future) |
+
+For owned strings, ~len <= cap~. For literals and views, ~len~ is the
+content length and ~cap~ is the sentinel.
+
+** String Creation Patterns
+
+*** Literal Assignment
+#+begin_src til
+s := "hello"   # len=5, cap=CAP_LIT in codegen (points to static const)
+#+end_src
+
+In codegen, literal data lives in static const storage — no malloc for data.
+Only the Str struct is heap-allocated. In interpreter, data is strndup'd.
+
+*** Owned (from operations)
+#+begin_src til
+s := a.concat(b)   # len = a.len + b.len, cap = len (owned)
+s := a.clone()      # owned copy
+s := a.substr(2, 3) # owned copy of substring
+#+end_src
+
+*** Pre-sized with Capacity (future)
+#+begin_src til
+s := Str.with_capacity(100)   # len=0, cap=100
+s.push_str("hello")           # len=5, cap=100 (in-place, no realloc)
+#+end_src
+
+*** View/Substring (future)
+#+begin_src til
+view := s.substr_view(2, 3)   # len=3, cap=CAP_VIEW, points into s.data
+#+end_src
+
+Zero-copy but can dangle if source is freed or realloced.
+
+** Deletion Semantics
+
+#+begin_src til
+delete := proc(own self: Str, call_free: Bool = true) {
+    if self.cap.gte(0) {     # owned — free the buffer
+        free(own self.data)
+    }
+    if call_free { free(own self) }
+}
+#+end_src
+
+Negative cap (CAP_LIT or CAP_VIEW) means data is not owned — skip free.
+
+** Clone
+
+Clone always creates an owned copy regardless of source cap:
+
+#+begin_src til
+clone := func(val: Str) returns Str {
+    own new_data : U8 = malloc(val.len)
+    memcpy(new_data, val.data, val.len)
+    return Str(data = new_data, len = val.len, cap = val.len)
+}
+#+end_src
