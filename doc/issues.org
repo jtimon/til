@@ -1,8 +1,39 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 32
+# NEXT_ISSUE: 33
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #32 Keyword arguments (kwargs) capture and forwarding
+  Allow functions to capture named arguments as a map and forward them to
+  other functions. Similar to Python's ~**kwargs~.
+
+  til already has named args at call sites (~Point(x = 5, y = 10)~), but
+  there's no way to capture arbitrary named args or forward them.
+
+  Possible syntax:
+  #+begin_src til
+  // Capture: **kwargs param collects unmatched named args as Map
+  wrapper := proc(prefix: Str, **opts: Map) {
+      create(prefix, **opts)  // forward as named args
+  }
+  #+end_src
+
+  Language support for reference:
+  | Language   | Kwargs capture     | Kwargs forward     |
+  |------------+--------------------+--------------------|
+  | Python     | ~**kwargs~         | ~f(**kwargs)~      |
+  | Ruby       | ~**kwargs~         | ~f(**kwargs)~      |
+  | Go         | None               | None               |
+  | JavaScript | None (object conv) | None (~{...opts}~) |
+  | Kotlin     | None               | None               |
+  | Swift      | None               | None               |
+
+  Only Python and Ruby have true kwargs with forwarding. Most other languages
+  use map/object passing as a convention instead.
+
+  Low priority — named args already cover most use cases. Kwargs would mainly
+  help with generic wrappers and delegation patterns.
 
 * OPEN #31 Variadic argument forwarding (splat)
   When a variadic function receives args as an Array, there's no way to forward
