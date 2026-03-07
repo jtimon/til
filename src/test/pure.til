@@ -1,0 +1,43 @@
+mode pure
+
+add := func(a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
+
+double := func(x: I64) returns I64 {
+    return x.mul(2)
+}
+
+Point := struct {
+    mut x := 0
+    mut y := 0
+
+    namespace:
+    sum := func(self: Point) returns I64 {
+        return self.x.add(self.y)
+    }
+}
+
+Color := enum {
+    Red
+    Green
+    Blue
+}
+
+test_add := test() {
+    expect(loc(), add(2, 3).eq(5), "2+3=5")
+}
+
+test_double := test() {
+    expect(loc(), double(21).eq(42), "21*2=42")
+}
+
+test_struct_func := test() {
+    p := Point(x=3, y=4)
+    expect(loc(), p.sum().eq(7), "3+4=7")
+}
+
+test_enum := test() {
+    c := Color.Red
+    expect(loc(), c.eq(Color.Red), "Red==Red")
+}

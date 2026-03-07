@@ -417,6 +417,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         default_true->data.str_val = Str_new("true");
 
         Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col, path);
+        proc_def->is_core = true; // auto-generated, not user code
         proc_def->data.func_def.func_type = FUNC_PROC;
         proc_def->data.func_def.nparam = 2;
         proc_def->data.func_def.param_names = malloc(2 * sizeof(Str *));
@@ -758,6 +759,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col, path);
             default_true->data.str_val = Str_new("true");
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
+            fdef->is_core = true; // auto-generated, not user code
             fdef->data.func_def.func_type = FUNC_PROC;
             fdef->data.func_def.nparam = 2;
             fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));

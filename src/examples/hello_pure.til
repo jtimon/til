@@ -1,0 +1,9 @@
+mode pure
+
+greet := func(name: Str) returns Str {
+    return "Hello, ".concat(name).concat("!")
+}
+
+test_greet := test() {
+    expect(loc(), greet("World").eq("Hello, World!"), "greet works")
+}

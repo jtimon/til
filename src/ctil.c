@@ -19,6 +19,7 @@ static const Mode *mode_resolve(const char *name) {
     if (strcmp(name, "cli") == 0)    return &MODE_CLI;
     if (strcmp(name, "gui") == 0)    return &MODE_GUI;
     if (strcmp(name, "test") == 0)   return &MODE_TEST;
+    if (strcmp(name, "pure") == 0)   return &MODE_PURE;
     return NULL;
 }
 
@@ -162,6 +163,12 @@ static void usage(void) {
     printf("  help       Print this message\n");
 }
 
+static void mark_core(Expr *e) {
+    e->is_core = true;
+    for (I32 i = 0; i < e->children.count; i++)
+        mark_core(expr_child(e, i));
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         usage();
@@ -286,8 +293,7 @@ int main(int argc, char **argv) {
         Vec merged = Vec_new(sizeof(Expr *));
         for (I32 i = 0; i < core_ast->children.count; i++) {
             Expr *ch = expr_child(core_ast, i);
-            ch->is_core = true;
-            if (ch->children.count > 0) expr_child(ch, 0)->is_core = true;
+            mark_core(ch);
             Vec_push(&merged, &ch);
         }
         if (mode_ast) {
@@ -335,7 +341,7 @@ int main(int argc, char **argv) {
     init_declarations(ast, scope);
 
     // Type checking and inference
-    I32 type_errors = type_check(ast, scope);
+    I32 type_errors = type_check(ast, scope, mode);
     tscope_free(scope);
     if (type_errors > 0) {
         fprintf(stderr, "%d type error(s) found\n", type_errors);
@@ -345,7 +351,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    Bool run_tests = strcmp(command, "test") == 0 || (mode == &MODE_TEST);
+    Bool run_tests = strcmp(command, "test") == 0 || (mode == &MODE_TEST) || (mode == &MODE_PURE);
 
     precomp(ast);
     scavenge(ast, mode, run_tests);
