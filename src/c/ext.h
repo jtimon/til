@@ -175,5 +175,6 @@ til_I64 *til_check_cmd_status(til_I64 *pid);
 void til_sleep(til_I64 *ms);
 til_I64 *til_file_mtime(til_Str *path);
 til_I64 *til_clock_ms(void);
+til_I64 *til_get_thread_count(void);
 
 #endif

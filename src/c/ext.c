@@ -278,4 +278,9 @@ til_I64 *til_clock_ms(void) {
     return I64_new((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
 }
 
+til_I64 *til_get_thread_count(void) {
+    long count = sysconf(_SC_NPROCESSORS_ONLN);
+    return I64_new(count > 0 ? (I64)count : 1);
+}
+
 

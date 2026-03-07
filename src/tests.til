@@ -159,8 +159,8 @@ cli_test := proc(file: Str, cmd_args: Str, expected: Str, exit_expected: I64, mu
 // --- Main ---
 
 main := proc(args: ..Str) {
-    // Parse -jN from args
-    mut j := 1
+    // Parse -jN from args (default: CPU thread count)
+    mut j := get_thread_count()
     mut i := 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)

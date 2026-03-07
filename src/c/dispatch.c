@@ -669,6 +669,13 @@ static Bool h_clock_ms(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
+static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
+    (void)s; (void)e;
+    long count = sysconf(_SC_NPROCESSORS_ONLN);
+    *r = val_i64(count > 0 ? (I64)count : 1);
+    return 1;
+}
+
 #undef H1
 #undef H2
 #undef HDEL
@@ -780,6 +787,7 @@ static void dispatch_init(void) {
     REG("sleep", h_sleep);
     REG("file_mtime", h_file_mtime);
     REG("clock_ms", h_clock_ms);
+    REG("get_thread_count", h_get_thread_count);
 
     #undef REG
     dispatch_inited = 1;
