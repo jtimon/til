@@ -730,8 +730,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             callee_bind->func_def->data.func_def.return_type) {
             e->struct_name = callee_bind->func_def->data.func_def.return_type;
         }
-        // Check: func cannot call proc (panic is exempt)
-        if (in_func && tscope_is_proc(scope, name) == 1 && !Str_eq_c(name, "panic")) {
+        // Check: func cannot call proc (panic is exempt; print/println exempt in debug_prints modes)
+        Bool debug_exempt = current_mode && current_mode->debug_prints &&
+            (Str_eq_c(name, "print") || Str_eq_c(name, "println"));
+        if (in_func && tscope_is_proc(scope, name) == 1 && !Str_eq_c(name, "panic") && !debug_exempt) {
             char buf[128];
             snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name->c_str);
             type_error(e, buf);

@@ -20,7 +20,9 @@ static const Mode *mode_resolve(const char *name) {
     if (strcmp(name, "gui") == 0)    return &MODE_GUI;
     if (strcmp(name, "test") == 0)   return &MODE_TEST;
     if (strcmp(name, "pure") == 0)   return &MODE_PURE;
+    if (strcmp(name, "pura") == 0)   return &MODE_PURA;
     if (strcmp(name, "lib") == 0)    return &MODE_LIB;
+    if (strcmp(name, "liba") == 0)   return &MODE_LIBA;
     return NULL;
 }
 
@@ -107,7 +109,7 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
 
         if (sub_mode) {
             const Mode *sm = mode_resolve(sub_mode->c_str);
-            if (!sm || !(sm == &MODE_LIB || sm == &MODE_PURE)) {
+            if (!sm || !(sm == &MODE_LIB || sm == &MODE_LIBA || sm == &MODE_PURE || sm == &MODE_PURA)) {
                 fprintf(stderr, "error: imported file '%s' cannot use mode '%s'\n", abs, sub_mode->c_str);
                 free(abs);
                 return 1;
@@ -355,7 +357,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    Bool run_tests = strcmp(command, "test") == 0 || (mode == &MODE_TEST) || (mode == &MODE_PURE);
+    Bool run_tests = strcmp(command, "test") == 0 || (mode == &MODE_TEST) || (mode == &MODE_PURE) || (mode == &MODE_PURA);
 
     precomp(ast);
     scavenge(ast, mode, run_tests);
