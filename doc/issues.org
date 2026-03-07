@@ -14,14 +14,27 @@
   3. macOS
   4. Windows
 
-  Common areas affected across platforms:
-  - Build system (Makefile / platform detection, builder that selects backend)
-  - FFI / dlsym (platform-specific dynamic loading)
-  - System primitives (spawn_cmd, readfile, etc. — POSIX vs platform APIs)
-  - GUI mode (raylib is cross-platform, but linking flags differ per platform)
-  - Audio (miniaudio backend selection)
+  This is not just "til builds natively on each OS." The goal is full
+  cross-compilation: build a til binary for any target from any host.
+  The full matrix is 4×4 = 16 host→target combinations.
+
+  ctil (the C bootstrap compiler) stays Linux-only. Once til is
+  self-hosting (#12), til replaces ctil and handles all platforms.
+  Bootstrap path: ctil on Linux compiles self-hosted til → til can
+  then cross-compile itself and any .til program to any target.
+
+  The C codegen path helps: emit C + invoke the target's C compiler
+  works for most POSIX targets. But TempleOS breaks this pattern
+  (no C compiler), requiring a dedicated HolyC codegen backend.
 
   The builder must select the appropriate codegen backend per target.
+
+  Common areas affected across platforms:
+  - Build system (builder that selects backend per target)
+  - FFI / dlsym (platform-specific dynamic loading)
+  - System primitives (spawn_cmd, readfile, etc. — POSIX vs platform APIs)
+  - GUI mode (raylib on POSIX/Windows, native primitives on TempleOS)
+  - Audio (miniaudio on POSIX/Windows, native on TempleOS)
 
 ** TempleOS
    :DEPENDENCIES: #12
