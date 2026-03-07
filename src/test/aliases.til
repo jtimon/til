@@ -1,0 +1,97 @@
+mode test
+
+# Auto-alias: immutable `y := x` becomes implicit ref (no clone)
+
+test_i64_alias := test() {
+    x := 42
+    y := x
+    assert_eq(loc(), y, 42)
+}
+
+test_str_alias := test() {
+    s := "hello"
+    t := s
+    assert_eq_str(loc(), t, "hello")
+}
+
+test_bool_alias := test() {
+    a := true
+    b := a
+    assert(loc(), b)
+}
+
+# Struct alias: field access through alias
+Point := struct {
+    x := 0
+    y := 0
+}
+
+test_struct_alias := test() {
+    p := Point(x = 10, y = 20)
+    q := p
+    assert_eq(loc(), q.x, 10)
+    assert_eq(loc(), q.y, 20)
+}
+
+# Mut source → clone (not alias): mutating source doesn't affect dest
+test_mut_source_clones := test() {
+    mut x := 42
+    y := x
+    x = 99
+    assert_eq(loc(), y, 42)
+}
+
+# Mut dest → clone (not alias): mutating dest doesn't affect source
+test_mut_dest_clones := test() {
+    x := 42
+    mut y := x
+    y = 99
+    assert_eq(loc(), x, 42)
+}
+
+# Multiple aliases to the same source
+test_multiple_aliases := test() {
+    x := "shared"
+    a := x
+    b := x
+    assert_eq_str(loc(), a, "shared")
+    assert_eq_str(loc(), b, "shared")
+}
+
+# Alias inside if body
+test_alias_in_if := test() {
+    x := 42
+    if true {
+        y := x
+        assert_eq(loc(), y, 42)
+    }
+}
+
+# Alias inside while body
+test_alias_in_while := test() {
+    x := "loop"
+    mut i := 0
+    while i.lt(3) {
+        y := x
+        assert_eq_str(loc(), y, "loop")
+        i = i.add(1)
+    }
+}
+
+# Alias lifetime: alias used after source's last direct mention
+test_alias_lifetime := test() {
+    x := "first"
+    y := x
+    # x is not directly used again, but y (alias of x) is
+    assert_eq_str(loc(), y, "first")
+}
+
+# Alias from function parameter (borrowed, immutable)
+check := func(val: I64) returns I64 {
+    copy := val
+    return copy
+}
+
+test_alias_from_param := test() {
+    assert_eq(loc(), check(77), 77)
+}

@@ -148,7 +148,7 @@ ref bad_ref := 42
 
 // ref: function must return a parameter or ref variable
 bad_ref_fn := func(a: I64) returns ref I64 {
-    b := a
+    mut b := a
     return b
 }
 

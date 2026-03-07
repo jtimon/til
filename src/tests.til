@@ -71,6 +71,7 @@ run_test("src/test/booleans.til")
 run_test("src/test/imports.til")
 run_test("src/test/import_diamond.til")
 run_test("src/test/pure.til")
+run_test("src/test/aliases.til")
 
 // Interpret-only (codegen has simple-enum-in-struct bug)
 ec_lex := run(CTIL.concat(" interpret src/test/lexing.til > /dev/null 2>&1"))

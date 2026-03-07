@@ -1535,6 +1535,20 @@ typedef struct {
     I32 own_transfer;  // index of stmt that transfers ownership, -1 if none
 } LocalInfo;
 
+// Check if any alias (ref decl sourced from 'name') is used in expr
+static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {
+    for (U32 k = 0; k < body->children.count; k++) {
+        Expr *d = expr_child(body, k);
+        if (d->type == NODE_DECL && d->data.decl.is_ref &&
+            expr_child(d, 0)->type == NODE_IDENT &&
+            Str_eq(expr_child(d, 0)->data.str_val, name)) {
+            if (expr_uses_var(expr, d->data.decl.name))
+                return 1;
+        }
+    }
+    return 0;
+}
+
 // Insert deletes for live parent-scope locals before early exits in body.
 // return_only=1: only before NODE_RETURN (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
@@ -1553,7 +1567,8 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool re
             (!return_only && (stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE))) {
             for (U32 j = 0; j < n_live; j++) {
                 if (stmt->children.count > 0 &&
-                    expr_uses_var(expr_child(stmt, 0), live[j].name)) continue;
+                    (expr_uses_var(expr_child(stmt, 0), live[j].name) ||
+                     alias_used_in_expr(body, live[j].name, expr_child(stmt, 0)))) continue;
                 Expr *del = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name, stmt);
                 if (del) Vec_push(&new_ch, &del);
@@ -1635,6 +1650,21 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
         Expr *rhs = expr_child(stmt, 0);
+        if (rhs->type == NODE_IDENT) {
+            // Direct alias: source must outlive alias
+            I32 ref_last = -1;
+            for (U32 j = i + 1; j < body->children.count; j++) {
+                if (expr_uses_var(expr_child(body, j), stmt->data.decl.name))
+                    ref_last = j;
+            }
+            if (ref_last == -1) ref_last = i;
+            Str *src_name = rhs->data.str_val;
+            for (U32 j = 0; j < n_locals; j++) {
+                if (Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last)
+                    locals[j].last_use = ref_last;
+            }
+            continue;
+        }
         if (rhs->type != NODE_FCALL) continue;
         // Find ref var's last_use (scan forward from decl)
         I32 ref_last = -1;
@@ -1679,7 +1709,9 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         // Before NODE_RETURN/NODE_BREAK/NODE_CONTINUE: free locals not yet freed
         if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE) {
             for (U32 j = 0; j < n_locals; j++) {
-                if (stmt->children.count > 0 && expr_uses_var(expr_child(stmt, 0), locals[j].name)) continue;
+                if (stmt->children.count > 0 &&
+                    (expr_uses_var(expr_child(stmt, 0), locals[j].name) ||
+                     alias_used_in_expr(body, locals[j].name, expr_child(stmt, 0)))) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < (I32)i &&
                     (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
@@ -1896,6 +1928,16 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     if (rb && (rb->is_ref || (rb->is_param && !rb->is_own))) ok = 1;
                 }
                 if (!ok) type_error(stmt, "'ref' declaration requires a ref-returning function or ref/param variable");
+            }
+            // Auto-alias: immutable ident → immutable dest becomes ref
+            if (!stmt->data.decl.is_ref && !stmt->data.decl.is_mut &&
+                expr_child(stmt, 0)->type == NODE_IDENT) {
+                TypeBinding *rb = tscope_find(scope, expr_child(stmt, 0)->data.str_val);
+                if (rb && !rb->is_mut && !rb->is_own && !rb->is_ref && !rb->is_param) {
+                    stmt->data.decl.is_ref = true;
+                    TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
+                    if (b) b->is_ref = 1;
+                }
             }
             // Auto-insert clone for declarations from identifiers (skip ref decls)
             if (expr_child(stmt, 0)->type == NODE_IDENT && !stmt->data.decl.is_ref) {
