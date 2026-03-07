@@ -16,7 +16,10 @@
 
   This is not just "til builds natively on each OS." The goal is full
   cross-compilation: build a til binary for any target from any host.
-  The full matrix is 4×4 = 16 host→target combinations.
+  The matrix is 3×4 + 1×1 = 13 combinations: Linux, macOS, and Windows
+  can each target all 4 platforms, but TempleOS as a host only targets
+  itself (cross-compiling from TempleOS would mean replacing gcc/clang,
+  which is out of scope).
 
   ctil (the C bootstrap compiler) stays Linux-only. Once til is
   self-hosting (#12), til replaces ctil and handles all platforms.
