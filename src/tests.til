@@ -1,9 +1,8 @@
-mode script
+mode cli
 
 NL := Str.from_byte(U8.from_i64(10))
 CTIL := "bin/ctil"
 TMPF := "tmp/_test_out"
-mut fail := 0
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -30,89 +29,95 @@ run_capture := proc(cmd: Str) returns I64 {
     return wait_cmd(pid)
 }
 
+// --- Job struct for parallel execution ---
+
+Job := struct {
+    mut file := ""
+    mut tmode := ""
+    mut pid := 0
+}
+
 // --- Section 1: Normal tests (interpret + run, exit 0) ---
 
-run_test := proc(file: Str) {
-    ec := run(CTIL.concat(" interpret '").concat(file).concat("' > /dev/null 2>&1"))
-    if ec.neq(0) {
-        println("FAIL (interpret): ", file)
-        fail = 1
+run_tests_parallel := proc(files: Vec, j: I64, mut fail: I64) {
+    // Build all jobs: each file gets interpret + run
+    jobs := Vec.new("Job", Job.size())
+    mut fi := 0
+    while fi.lt(files.len()) {
+        ref f : Str = files.get(fi)
+        jobs.push(own Job(file = f.clone(), tmode = "interpret"))
+        jobs.push(own Job(file = f.clone(), tmode = "run"))
+        fi = fi.add(1)
     }
-    ec2 := run(CTIL.concat(" run '").concat(file).concat("' > /dev/null 2>&1"))
-    if ec2.neq(0) {
-        println("FAIL (codegen):   ", file)
-        fail = 1
+
+    // Add parsing.til as interpret-only
+    jobs.push(own Job(file = "src/test/parsing.til", tmode = "interpret"))
+
+    mut next := 0
+    mut active := 0
+
+    // Fixed-size slot array for running jobs
+    slots := Array.new("Job", Job.size(), j)
+    mut si := 0
+    while si.lt(j) {
+        slots.set(si, own Job())
+        si = si.add(1)
+    }
+
+    // Spawn initial batch
+    si = 0
+    while si.lt(j).and(next.lt(jobs.len())) {
+        ref job : Job = jobs.get(next)
+        cmd := CTIL.concat(" ").concat(job.tmode).concat(" '").concat(job.file).concat("' > /dev/null 2>&1")
+        pid := spawn_cmd(cmd)
+        slots.set(si, own Job(file = job.file.clone(), tmode = job.tmode.clone(), pid = pid))
+        active = active.add(1)
+        next = next.add(1)
+        si = si.add(1)
+    }
+
+    // Poll loop
+    while active.gt(0) {
+        mut i := 0
+        while i.lt(j) {
+            ref slot : Job = slots.get(i)
+            if slot.pid.gt(0) {
+                status := check_cmd_status(slot.pid)
+                if status.neq(0.sub(1)) {
+                    // Job finished
+                    if status.neq(0) {
+                        mut label := "interpret"
+                        if slot.tmode.eq("run") { label = "codegen" }
+                        println("FAIL (", label, "): ", slot.file)
+                        fail = 1
+                    }
+                    active = active.sub(1)
+
+                    // Spawn next job in this slot
+                    if next.lt(jobs.len()) {
+                        ref nj : Job = jobs.get(next)
+                        cmd := CTIL.concat(" ").concat(nj.tmode).concat(" '").concat(nj.file).concat("' > /dev/null 2>&1")
+                        pid := spawn_cmd(cmd)
+                        slots.set(i, own Job(file = nj.file.clone(), tmode = nj.tmode.clone(), pid = pid))
+                        active = active.add(1)
+                        next = next.add(1)
+                    } else {
+                        slots.set(i, own Job())
+                    }
+                }
+            }
+            i = i.add(1)
+        }
+        if active.gt(0) {
+            sleep(10)
+        }
     }
 }
 
-run_test("src/test/types.til")
-run_test("src/test/operators.til")
-run_test("src/test/functions.til")
-run_test("src/test/structs.til")
-run_test("src/test/optional_args.til")
-run_test("src/test/forward_refs.til")
-run_test("src/test/flow.til")
-run_test("src/test/strings.til")
-run_test("src/test/ref.til")
-run_test("src/test/own_fields.til")
-run_test("src/test/macros.til")
-run_test("src/test/enums.til")
-run_test("src/test/vecs.til")
-run_test("src/test/arrays.til")
-run_test("src/test/sets.til")
-run_test("src/test/maps.til")
-run_test("src/test/globals.til")
-run_test("src/test/globals_cli.til")
-run_test("src/test/misc.til")
-run_test("src/test/array_lit.til")
-run_test("src/test/cmp.til")
-run_test("src/test/ufcs.til")
-run_test("src/test/booleans.til")
-run_test("src/test/imports.til")
-run_test("src/test/import_diamond.til")
-run_test("src/test/pure.til")
-run_test("src/test/aliases.til")
-run_test("src/test/lexing.til")
+// --- CLI test helper ---
 
-// Interpret-only (codegen has runtime double-free in ref field assignment)
-ec_parse := run(CTIL.concat(" interpret src/test/parsing.til > /dev/null 2>&1"))
-if ec_parse.neq(0) {
-    println("FAIL (interpret): src/test/parsing.til")
-    fail = 1
-}
-
-// --- Section 2: FFI test (interpret + codegen, check output) ---
-
-ffi_expected := "hello world".concat(NL).concat("hello universe").concat(NL)
-
-ec_ffi := run_capture(CTIL.concat(" interpret src/examples/ffi/ext_module.til"))
-ffi_out := readfile(TMPF)
-if ec_ffi.neq(0).or(ffi_out.neq(ffi_expected)) {
-    println("FAIL (interpret): ffi/ext_module")
-    fail = 1
-}
-
-ec_ffi2 := run_capture(CTIL.concat(" run src/examples/ffi/ext_module.til"))
-ffi_out2 := readfile(TMPF)
-if ec_ffi2.neq(0).or(ffi_out2.neq(ffi_expected)) {
-    println("FAIL (codegen):   ffi/ext_module")
-    fail = 1
-}
-
-// --- Section 3: Typer errors (count "type error:" occurrences) ---
-
-run_capture(CTIL.concat(" interpret src/test/typer_errors.til"))
-typer_out := readfile(TMPF)
-errors := count_matches(typer_out, "type error:")
-if errors.neq(42) {
-    println("FAIL: typer_errors expected 42 errors, got ", errors.to_str())
-    fail = 1
-}
-
-// --- Section 4: CLI args tests ---
-
-cli_test := proc(file: Str, cmd_args: Str, expected: Str, exit_expected: I64) {
-    // interpret mode
+cli_test := proc(file: Str, cmd_args: Str, expected: Str, exit_expected: I64, mut fail: I64) {
+    // interpret
     mut cmd := CTIL.concat(" interpret ").concat(file)
     if cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(cmd_args)
@@ -131,7 +136,7 @@ cli_test := proc(file: Str, cmd_args: Str, expected: Str, exit_expected: I64) {
         }
     }
 
-    // codegen mode
+    // codegen
     mut cmd2 := CTIL.concat(" run ").concat(file)
     if cmd_args.len().gt(0) {
         cmd2 = cmd2.concat(" ").concat(cmd_args)
@@ -151,30 +156,112 @@ cli_test := proc(file: Str, cmd_args: Str, expected: Str, exit_expected: I64) {
     }
 }
 
-cli_test("src/examples/cli_args.til", "hello world",
-    "hello".concat(NL).concat("world").concat(NL), 0)
-cli_test("src/examples/cli_args.til", "",
-    "", 0)
-cli_test("src/examples/cli_typed.til", "alice 42",
-    "alice 42".concat(NL), 0)
-cli_test("src/examples/hello_cli.til", "",
-    "Hello World!".concat(NL), 0)
-cli_test("src/examples/cli_variadic_i64.til", "add 10 20 30",
-    "60".concat(NL), 0)
-cli_test("src/examples/cli_variadic_i64.til", "mul 2 3 4",
-    "24".concat(NL), 0)
-cli_test("src/examples/cli_variadic_i64.til", "add",
-    "0".concat(NL), 0)
-cli_test("src/examples/cli_variadic_bool.til", "true true false",
-    "false".concat(NL), 0)
-cli_test("src/examples/cli_variadic_bool.til", "true true",
-    "true".concat(NL), 0)
-// Error cases (nonzero exit)
-cli_test("src/examples/cli_typed.til", "alice", "", 1)
-cli_test("src/examples/cli_typed.til", "a b c", "", 1)
-cli_test("src/examples/hello_cli.til", "extra", "", 1)
+// --- Main ---
 
-if fail.eq(0) {
-    println("all tests passed")
+main := proc(args: ..Str) {
+    // Parse -jN from args
+    mut j := 1
+    mut i := 0
+    while i.lt(args.len()) {
+        ref arg : Str = args.get(i)
+        if arg.starts_with("-j") {
+            j = arg.substr(2, arg.len().sub(2)).to_i64()
+            if j.lt(1) { j = 1 }
+        }
+        i = i.add(1)
+    }
+
+    mut fail := 0
+
+    // --- Section 1: Normal tests (interpret + run, exit 0) ---
+
+    files := Vec.new("Str", Str.size())
+    files.push(own "src/test/types.til")
+    files.push(own "src/test/operators.til")
+    files.push(own "src/test/functions.til")
+    files.push(own "src/test/structs.til")
+    files.push(own "src/test/optional_args.til")
+    files.push(own "src/test/forward_refs.til")
+    files.push(own "src/test/flow.til")
+    files.push(own "src/test/strings.til")
+    files.push(own "src/test/ref.til")
+    files.push(own "src/test/own_fields.til")
+    files.push(own "src/test/macros.til")
+    files.push(own "src/test/enums.til")
+    files.push(own "src/test/vecs.til")
+    files.push(own "src/test/arrays.til")
+    files.push(own "src/test/sets.til")
+    files.push(own "src/test/maps.til")
+    files.push(own "src/test/globals.til")
+    files.push(own "src/test/globals_cli.til")
+    files.push(own "src/test/misc.til")
+    files.push(own "src/test/array_lit.til")
+    files.push(own "src/test/cmp.til")
+    files.push(own "src/test/ufcs.til")
+    files.push(own "src/test/booleans.til")
+    files.push(own "src/test/imports.til")
+    files.push(own "src/test/import_diamond.til")
+    files.push(own "src/test/pure.til")
+    files.push(own "src/test/aliases.til")
+    files.push(own "src/test/lexing.til")
+
+    run_tests_parallel(files, j, fail)
+
+    // --- Section 2: FFI test (interpret + codegen, check output) ---
+
+    ffi_expected := "hello world".concat(NL).concat("hello universe").concat(NL)
+
+    ec_ffi := run_capture(CTIL.concat(" interpret src/examples/ffi/ext_module.til"))
+    ffi_out := readfile(TMPF)
+    if ec_ffi.neq(0).or(ffi_out.neq(ffi_expected)) {
+        println("FAIL (interpret): ffi/ext_module")
+        fail = 1
+    }
+
+    ec_ffi2 := run_capture(CTIL.concat(" run src/examples/ffi/ext_module.til"))
+    ffi_out2 := readfile(TMPF)
+    if ec_ffi2.neq(0).or(ffi_out2.neq(ffi_expected)) {
+        println("FAIL (codegen):   ffi/ext_module")
+        fail = 1
+    }
+
+    // --- Section 3: Typer errors (count "type error:" occurrences) ---
+
+    run_capture(CTIL.concat(" interpret src/test/typer_errors.til"))
+    typer_out := readfile(TMPF)
+    errors := count_matches(typer_out, "type error:")
+    if errors.neq(42) {
+        println("FAIL: typer_errors expected 42 errors, got ", errors.to_str())
+        fail = 1
+    }
+
+    // --- Section 4: CLI args tests ---
+
+    cli_test("src/examples/cli_args.til", "hello world",
+        "hello".concat(NL).concat("world").concat(NL), 0, fail)
+    cli_test("src/examples/cli_args.til", "",
+        "", 0, fail)
+    cli_test("src/examples/cli_typed.til", "alice 42",
+        "alice 42".concat(NL), 0, fail)
+    cli_test("src/examples/hello_cli.til", "",
+        "Hello World!".concat(NL), 0, fail)
+    cli_test("src/examples/cli_variadic_i64.til", "add 10 20 30",
+        "60".concat(NL), 0, fail)
+    cli_test("src/examples/cli_variadic_i64.til", "mul 2 3 4",
+        "24".concat(NL), 0, fail)
+    cli_test("src/examples/cli_variadic_i64.til", "add",
+        "0".concat(NL), 0, fail)
+    cli_test("src/examples/cli_variadic_bool.til", "true true false",
+        "false".concat(NL), 0, fail)
+    cli_test("src/examples/cli_variadic_bool.til", "true true",
+        "true".concat(NL), 0, fail)
+    // Error cases (nonzero exit)
+    cli_test("src/examples/cli_typed.til", "alice", "", 1, fail)
+    cli_test("src/examples/cli_typed.til", "a b c", "", 1, fail)
+    cli_test("src/examples/hello_cli.til", "extra", "", 1, fail)
+
+    if fail.eq(0) {
+        println("all tests passed")
+    }
+    exit(fail)
 }
-exit(fail)

@@ -10,7 +10,7 @@ bin/ctil: $(SRCS) $(HDRS)
 	cc -Wall -Wextra -g -Isrc $(SRCS) -rdynamic -ldl -lffi -o bin/ctil
 
 test: bin/ctil
-	@bin/ctil interpret src/tests.til
+	@bin/ctil interpret src/tests.til $(if $(J),-j$(J))
 
 clean:
 	rm -rf bin/*

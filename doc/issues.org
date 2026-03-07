@@ -519,9 +519,26 @@
    non-null-terminated til Str data to C APIs (execl, fopen, stat).
    Fixed with strndup in both ext.c and dispatch.c.
 
-** Phase 2: Parallel execution and timing
-   Spawn interpret + run modes in parallel per test file.
-   Report timing per test. Configurable parallelism.
+** DONE Parallel execution
+   Added -jN flag to tests.til (e.g. -j16). Section 1 (28 test files ×
+   2 modes + parsing.til interpret-only = 57 jobs) runs in parallel with
+   configurable concurrency. Uses spawn_cmd + check_cmd_status polling
+   with fixed-size Array of job slots. Sections 2-4 (FFI, typer errors,
+   CLI tests) stay serial (need output capture).
+
+   Usage: make test J=16, or bin/ctil interpret src/tests.til -j16.
+   Speedup: ~45% faster with -j16 (8.7s → 4.8s on test machine).
+
+   Changed tests.til from mode script to mode cli with main(args: ..Str).
+   Worked around interpreter bug: proc returning I64 produces garbage
+   values when assigned — used mut parameter passing instead.
+
+** TODO Timing per test
+   Report elapsed time per test file. Useful for finding slow tests.
+
+** TODO Output comparison across modes
+   Compare interpreter vs codegen output for each test.
+   Report diffs on mismatch.
 
 ** Phase 3: Output comparison across modes
    Compare interpreter vs codegen output for each test.
