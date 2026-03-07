@@ -42,8 +42,30 @@ static char *read_file(const char *path) {
     return buf;
 }
 
+// Extract import("path") calls from AST body, returning paths as Vec of Str*.
+// Matching nodes are removed from the body.
+static Vec extract_imports(Expr *body) {
+    Vec paths = Vec_new(sizeof(Str *));
+    Vec kept = Vec_new(sizeof(Expr *));
+    for (I32 i = 0; i < body->children.count; i++) {
+        Expr *stmt = expr_child(body, i);
+        if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
+            expr_child(stmt, 0)->type == NODE_IDENT &&
+            Str_eq_c(expr_child(stmt, 0)->data.str_val, "import") &&
+            expr_child(stmt, 1)->type == NODE_LITERAL_STR) {
+            Str *path = expr_child(stmt, 1)->data.str_val;
+            Vec_push(&paths, &path);
+        } else {
+            Vec_push(&kept, &stmt);
+        }
+    }
+    Vec_delete(&body->children);
+    body->children = kept;
+    return paths;
+}
+
 // Recursively resolve imports. Returns 0 on success, 1 on error.
-// - import_paths: Vec of Str* (paths from parser)
+// - import_paths: Vec of Str* (paths extracted from AST)
 // - base_dir: directory of the importing file (for relative resolution)
 // - resolved: Set of Str* (absolute paths already imported, for dedup)
 // - stack: Vec of Str* (current import chain, for cycle detection)
@@ -104,8 +126,8 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         Token *toks = tokenize(source, abs, &tok_count);
 
         Str *sub_mode = NULL;
-        Vec sub_imports = Vec_new(sizeof(Str *));
-        Expr *sub_ast = parse(toks, tok_count, abs, &sub_mode, &sub_imports);
+        Expr *sub_ast = parse(toks, tok_count, abs, &sub_mode);
+        Vec sub_imports = extract_imports(sub_ast);
 
         if (sub_mode) {
             const Mode *sm = mode_resolve(sub_mode->c_str);
@@ -220,7 +242,26 @@ int main(int argc, char **argv) {
     char *core_source = read_file(core_path);
     I32 core_count;
     Token *core_tokens = core_source ? tokenize(core_source, core_path, &core_count) : NULL;
-    Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, NULL, NULL) : NULL;
+    Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, NULL) : NULL;
+
+    // Resolve imports from core.til (relative to src/core/)
+    Vec core_import_decls = Vec_new(sizeof(Expr *));
+    Vec core_import_c_files = Vec_new(sizeof(char *));
+    if (core_ast) {
+        Vec core_imports = extract_imports(core_ast);
+        if (core_imports.count > 0) {
+            char core_dir[PATH_MAX];
+            snprintf(core_dir, sizeof(core_dir), "%s/src/core", bin_dir);
+            Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
+            Vec resolve_stack = Vec_new(sizeof(Str *));
+            int err = resolve_imports(&core_imports, core_dir, &resolved, &resolve_stack,
+                                      &core_import_decls, &core_import_c_files, NULL);
+            Set_delete(&resolved);
+            Vec_delete(&resolve_stack);
+            if (err) return 1;
+        }
+        Vec_delete(&core_imports);
+    }
 
     char *source = read_file(path);
     if (!source) return 1;
@@ -229,8 +270,8 @@ int main(int argc, char **argv) {
     Token *tokens = tokenize(source, path, &count);
 
     Str *mode_str = NULL;
-    Vec imports = Vec_new(sizeof(Str *));
-    Expr *ast = parse(tokens, count, path, &mode_str, &imports);
+    Expr *ast = parse(tokens, count, path, &mode_str);
+    Vec imports = extract_imports(ast);
 
     const Mode *mode = NULL;
     if (mode_str) {
@@ -255,7 +296,7 @@ int main(int argc, char **argv) {
         }
         I32 mode_count;
         Token *mode_tokens = tokenize(mode_source, mode_til_path, &mode_count);
-        mode_ast = parse(mode_tokens, mode_count, mode_til_path, NULL, NULL);
+        mode_ast = parse(mode_tokens, mode_count, mode_til_path, NULL);
     }
 
     // Resolve imports recursively
@@ -294,11 +335,22 @@ int main(int argc, char **argv) {
         if (err) return 1;
     }
 
+    // Merge core import companion .c files
+    for (I32 i = 0; i < core_import_c_files.count; i++) {
+        char *cp = *(char **)Vec_get(&core_import_c_files, i);
+        Vec_push(&import_c_files, &cp);
+    }
+
     // Prepend core declarations (and mode .til + imports) to program AST
     if (core_ast && core_ast->children.count > 0) {
         Vec merged = Vec_new(sizeof(Expr *));
         for (I32 i = 0; i < core_ast->children.count; i++) {
             Expr *ch = expr_child(core_ast, i);
+            mark_core(ch);
+            Vec_push(&merged, &ch);
+        }
+        for (I32 i = 0; i < core_import_decls.count; i++) {
+            Expr *ch = *(Expr **)Vec_get(&core_import_decls, i);
             mark_core(ch);
             Vec_push(&merged, &ch);
         }

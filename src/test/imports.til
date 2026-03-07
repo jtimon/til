@@ -1,5 +1,5 @@
 mode test
-import "import_helper.til"
+import("import_helper.til")
 
 test_import_func := test() {
     result := double(21)

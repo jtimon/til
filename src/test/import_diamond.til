@@ -1,6 +1,6 @@
 mode script
-import "import_diamond_b.til"
-import "import_diamond_c.til"
+import("import_diamond_b.til")
+import("import_diamond_c.til")
 
 // Both B and C import D, but D should only be included once
 expect(loc(), from_b().eq(42), "from_b")

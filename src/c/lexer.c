@@ -36,7 +36,6 @@ const char *tok_name(TokenType type) {
     case TOK_STRING:    return "string";
     case TOK_NUMBER:    return "number";
     case TOK_MODE:      return "mode";
-    case TOK_IMPORT:    return "import";
     case TOK_MUT:       return "mut";
     case TOK_OWN:       return "own";
     case TOK_REF:       return "ref";
@@ -83,7 +82,6 @@ typedef struct {
 
 static const Keyword keywords[] = {
     {"mode",      TOK_MODE},
-    {"import",    TOK_IMPORT},
     {"mut",       TOK_MUT},
     {"own",       TOK_OWN},
     {"ref",       TOK_REF},

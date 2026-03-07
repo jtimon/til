@@ -1,5 +1,5 @@
 mode lib
-import "import_diamond_d.til"
+import("import_diamond_d.til")
 
 from_c := func() returns I64 {
     return SHARED_VAL
