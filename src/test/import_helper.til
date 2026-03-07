@@ -1,0 +1,10 @@
+// Helper file imported by imports.til
+
+double := func(x: I64) returns I64 {
+    return x.add(x)
+}
+
+Point := struct {
+    x := 0
+    y := 0
+}

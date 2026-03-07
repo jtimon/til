@@ -1,0 +1,3 @@
+// Shared dependency for diamond import test
+
+SHARED_VAL := 42

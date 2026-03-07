@@ -1,0 +1,13 @@
+mode script
+import "import_helper.til"
+
+// Use function from imported file
+result := double(21)
+expect(loc(), result.eq(42), "double(21)")
+
+// Use struct from imported file
+p := Point(x = 3, y = 4)
+expect(loc(), p.x.eq(3), "Point.x")
+expect(loc(), p.y.eq(4), "Point.y")
+
+println("imports: ok")

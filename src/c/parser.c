@@ -614,7 +614,7 @@ static Expr *parse_statement(Parser *p) {
     }
 }
 
-Expr *parse(Token *tokens, I32 count, const char *path, Str **mode_out) {
+Expr *parse(Token *tokens, I32 count, const char *path, Str **mode_out, Vec *imports_out) {
     Parser p = {tokens, count, 0, path, Str_new(path)};
 
     // Parse optional mode declaration
@@ -625,6 +625,16 @@ Expr *parse(Token *tokens, I32 count, const char *path, Str **mode_out) {
         Token *mode_name = (check(&p, TOK_IDENT) || check(&p, TOK_TEST))
             ? advance(&p) : expect(&p, TOK_IDENT);
         if (mode_out) *mode_out = tok_str(mode_name);
+    }
+
+    // Parse optional import declarations
+    if (imports_out) {
+        while (check(&p, TOK_IMPORT)) {
+            advance(&p); // consume 'import'
+            Token *path_tok = expect(&p, TOK_STRING);
+            Str *s = tok_str(path_tok);
+            Vec_push(imports_out, &s);
+        }
     }
 
     // Parse body (top-level statements until EOF)
