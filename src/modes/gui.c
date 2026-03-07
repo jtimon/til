@@ -85,3 +85,21 @@ til_I64 *til_get_random_value(til_I64 *min, til_I64 *max) {
     *r = GetRandomValue((int)*min, (int)*max);
     return r;
 }
+
+til_I64 *til_get_mouse_x(void) {
+    til_I64 *r = malloc(sizeof(til_I64));
+    *r = GetMouseX();
+    return r;
+}
+
+til_I64 *til_get_mouse_y(void) {
+    til_I64 *r = malloc(sizeof(til_I64));
+    *r = GetMouseY();
+    return r;
+}
+
+til_Bool *til_is_mouse_button_pressed(til_I64 *button) {
+    til_Bool *r = malloc(sizeof(til_Bool));
+    *r = IsMouseButtonPressed((int)*button);
+    return r;
+}

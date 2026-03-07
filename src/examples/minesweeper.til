@@ -1,0 +1,260 @@
+mode gui
+
+main := proc() {
+    cols := 16
+    rows := 16
+    cell := 30
+    num_mines := 40
+    top_bar := 50
+    grid_w := cols.mul(cell)
+    grid_h := rows.mul(cell)
+    total := cols.mul(rows)
+
+    init_window(grid_w, grid_h.add(top_bar), "minesweeper")
+    set_target_fps(60)
+
+    // State arrays
+    mut mines := Array.new("I64", 8, total)
+    mut counts := Array.new("I64", 8, total)
+    mut state := Array.new("I64", 8, total)
+    // state: 0=hidden, 1=revealed, 2=flagged
+
+    mut game_over := false
+    mut game_won := false
+    mut first_click := true
+    mut flags := 0
+
+    // Flood fill stack
+    mut stack := Vec.new("I64", 8)
+
+    while window_should_close().not() {
+        // Input
+        if is_key_pressed(82) {
+            // R = restart
+            mut ri := 0
+            while ri.lt(total) {
+                mines.set(ri, own 0)
+                counts.set(ri, own 0)
+                state.set(ri, own 0)
+                ri = ri.add(1)
+            }
+            game_over = false
+            game_won = false
+            first_click = true
+            flags = 0
+        }
+
+        if game_over.not().and(game_won.not()) {
+            if is_mouse_button_pressed(0) {
+                // Left click - reveal
+                mx := get_mouse_x().div(cell)
+                my := get_mouse_y().sub(top_bar).div(cell)
+                if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
+                    idx := my.mul(cols).add(mx)
+                    ref st : I64 = state.get(idx)
+                    if st.eq(0) {
+                        if first_click {
+                            // Place mines, avoiding clicked cell + neighbors
+                            first_click = false
+                            mut placed := 0
+                            while placed.lt(num_mines) {
+                                pos := get_random_value(0, total.sub(1))
+                                ref m : I64 = mines.get(pos)
+                                if m.eq(0) {
+                                    // Check not near first click
+                                    px := pos.mod(cols)
+                                    py := pos.div(cols)
+                                    mut diff_x := px.sub(mx)
+                                    if diff_x.lt(0) { diff_x = 0.sub(diff_x) }
+                                    mut diff_y := py.sub(my)
+                                    if diff_y.lt(0) { diff_y = 0.sub(diff_y) }
+                                    if diff_x.gt(1).or(diff_y.gt(1)) {
+                                        mines.set(pos, own 1)
+                                        placed = placed.add(1)
+                                    }
+                                }
+                            }
+                            // Compute neighbor counts
+                            mut ci := 0
+                            while ci.lt(total) {
+                                ref cm : I64 = mines.get(ci)
+                                if cm.eq(0) {
+                                    cx := ci.mod(cols)
+                                    cy := ci.div(cols)
+                                    mut cnt := 0
+                                    mut ny := cy.sub(1)
+                                    while ny.lte(cy.add(1)) {
+                                        mut nx := cx.sub(1)
+                                        while nx.lte(cx.add(1)) {
+                                            if nx.gte(0).and(nx.lt(cols)).and(ny.gte(0)).and(ny.lt(rows)) {
+                                                ni := ny.mul(cols).add(nx)
+                                                ref nm : I64 = mines.get(ni)
+                                                if nm.eq(1) {
+                                                    cnt = cnt.add(1)
+                                                }
+                                            }
+                                            nx = nx.add(1)
+                                        }
+                                        ny = ny.add(1)
+                                    }
+                                    counts.set(ci, own cnt)
+                                }
+                                ci = ci.add(1)
+                            }
+                        }
+
+                        // Check mine
+                        ref is_mine : I64 = mines.get(idx)
+                        if is_mine.eq(1) {
+                            game_over = true
+                            // Reveal all mines
+                            mut ri2 := 0
+                            while ri2.lt(total) {
+                                ref rm : I64 = mines.get(ri2)
+                                if rm.eq(1) {
+                                    state.set(ri2, own 1)
+                                }
+                                ri2 = ri2.add(1)
+                            }
+                        } else {
+                            // Flood fill reveal
+                            stack.push(own idx)
+                            while stack.len().gt(0) {
+                                ref top_ref : I64 = stack.get(stack.len().sub(1))
+                                cur := top_ref
+                                // Pop by reducing count manually
+                                stack.count = stack.count.sub(1)
+
+                                ref cur_st : I64 = state.get(cur)
+                                if cur_st.eq(0) {
+                                    state.set(cur, own 1)
+                                    ref cur_cnt : I64 = counts.get(cur)
+                                    if cur_cnt.eq(0) {
+                                        // Push all neighbors
+                                        cur_x := cur.mod(cols)
+                                        cur_y := cur.div(cols)
+                                        mut py := cur_y.sub(1)
+                                        while py.lte(cur_y.add(1)) {
+                                            mut px := cur_x.sub(1)
+                                            while px.lte(cur_x.add(1)) {
+                                                if px.gte(0).and(px.lt(cols)).and(py.gte(0)).and(py.lt(rows)) {
+                                                    ni := py.mul(cols).add(px)
+                                                    ref ns : I64 = state.get(ni)
+                                                    if ns.eq(0) {
+                                                        stack.push(own ni)
+                                                    }
+                                                }
+                                                px = px.add(1)
+                                            }
+                                            py = py.add(1)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Check win
+                            mut revealed := 0
+                            mut wi := 0
+                            while wi.lt(total) {
+                                ref ws : I64 = state.get(wi)
+                                if ws.eq(1) {
+                                    revealed = revealed.add(1)
+                                }
+                                wi = wi.add(1)
+                            }
+                            if revealed.eq(total.sub(num_mines)) {
+                                game_won = true
+                            }
+                        }
+                    }
+                }
+            }
+
+            if is_mouse_button_pressed(1) {
+                // Right click - toggle flag
+                mx := get_mouse_x().div(cell)
+                my := get_mouse_y().sub(top_bar).div(cell)
+                if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
+                    idx := my.mul(cols).add(mx)
+                    ref st : I64 = state.get(idx)
+                    if st.eq(0) {
+                        state.set(idx, own 2)
+                        flags = flags.add(1)
+                    } else {
+                        if st.eq(2) {
+                            state.set(idx, own 0)
+                            flags = flags.sub(1)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Draw
+        begin_drawing()
+        clear_background(0, 0, 0, 255)
+
+        // Top bar
+        draw_text(format("mines: ", num_mines.sub(flags).to_str()), 10, 15, 20, 255, 255, 0, 255)
+        if game_won {
+            draw_text("WIN!", grid_w.div(2).sub(30), 15, 20, 0, 255, 0, 255)
+        } else {
+            if game_over {
+                draw_text("BOOM!", grid_w.div(2).sub(35), 15, 20, 230, 41, 55, 255)
+            }
+        }
+        draw_text("R=restart", grid_w.sub(120), 15, 16, 150, 150, 150, 255)
+
+        // Grid
+        mut di := 0
+        while di.lt(total) {
+            dx := di.mod(cols)
+            dy := di.div(cols)
+            px := dx.mul(cell)
+            py := dy.mul(cell).add(top_bar)
+
+            ref ds : I64 = state.get(di)
+            if ds.eq(0) {
+                // Hidden
+                draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 60, 60, 60, 255)
+            } else {
+                if ds.eq(2) {
+                    // Flagged
+                    draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 60, 60, 60, 255)
+                    draw_text("F", px.add(9), py.add(5), 20, 255, 255, 0, 255)
+                } else {
+                    // Revealed
+                    ref dm : I64 = mines.get(di)
+                    if dm.eq(1) {
+                        // Mine
+                        draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 30, 30, 30, 255)
+                        draw_circle(px.add(cell.div(2)), py.add(cell.div(2)), 8, 230, 41, 55, 255)
+                    } else {
+                        draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 30, 30, 30, 255)
+                        ref dc : I64 = counts.get(di)
+                        if dc.gt(0) {
+                            // Number colors
+                            mut nr := 200
+                            mut ng := 200
+                            mut nb := 200
+                            if dc.eq(1) { nr = 80  ; ng = 120 ; nb = 255 }
+                            if dc.eq(2) { nr = 0   ; ng = 200 ; nb = 0   }
+                            if dc.eq(3) { nr = 230 ; ng = 41  ; nb = 55  }
+                            if dc.eq(4) { nr = 160 ; ng = 32  ; nb = 240 }
+                            if dc.eq(5) { nr = 160 ; ng = 82  ; nb = 45  }
+                            if dc.eq(6) { nr = 0   ; ng = 200 ; nb = 200 }
+                            if dc.eq(7) { nr = 180 ; ng = 180 ; nb = 180 }
+                            if dc.eq(8) { nr = 100 ; ng = 100 ; nb = 100 }
+                            draw_text(dc.to_str(), px.add(9), py.add(5), 20, nr, ng, nb, 255)
+                        }
+                    }
+                }
+            }
+            di = di.add(1)
+        }
+
+        end_drawing()
+    }
+
+    close_window()
+}
