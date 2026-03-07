@@ -1,6 +1,6 @@
-mode script
+mode test
 
-test_array_new_get_set := proc() {
+test_array_new_get_set := test() {
     a := Array.new("I64", I64.size(), 3)
     a.set(0, own 10)
     a.set(1, own 20)
@@ -16,7 +16,7 @@ test_array_new_get_set := proc() {
     assert_eq(loc(), a.len(), 3)
 }
 
-test_array_strings := proc() {
+test_array_strings := test() {
     a := Array.new("Str", Str.size(), 2)
     a.set(0, own "hello")
     a.set(1, own "world")
@@ -28,7 +28,7 @@ test_array_strings := proc() {
     assert_eq_str(loc(), s1, "world")
 }
 
-test_array_overwrite := proc() {
+test_array_overwrite := test() {
     a := Array.new("I64", I64.size(), 2)
     a.set(0, own 1)
     a.set(1, own 2)
@@ -37,7 +37,3 @@ test_array_overwrite := proc() {
     ref v : I64 = a.get(0)
     assert_eq(loc(), v, 99)
 }
-
-test_array_new_get_set()
-test_array_strings()
-test_array_overwrite()
