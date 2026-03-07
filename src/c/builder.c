@@ -1,4 +1,4 @@
-#include "ccodegen.h"
+#include "builder.h"
 #include "map.h"
 #include "vec.h"
 #include <stdio.h>
@@ -925,7 +925,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     }
 }
 
-I32 codegen_c(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *c_output_path) {
+I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *c_output_path) {
     (void)path;
 
     codegen_program = program;

@@ -1,5 +1,5 @@
-#ifndef TIL_CCODEGEN_H
-#define TIL_CCODEGEN_H
+#ifndef TIL_BUILDER_H
+#define TIL_BUILDER_H
 
 #include "ast.h"
 #include "modes.h"
@@ -7,7 +7,7 @@
 // Generate C source code from a parsed program.
 // Writes the generated C to `c_output_path`.
 // Returns 0 on success, non-zero on error.
-I32 codegen_c(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *c_output_path);
+I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *c_output_path);
 
 // Compile a generated C file to a binary using cc.
 // Returns 0 on success, non-zero on error.

@@ -128,7 +128,7 @@ void ast_print(Expr *e, U32 indent);
 // Access child i of expr e (works as lvalue and rvalue)
 #define expr_child(e, i) (*(Expr **)Vec_get(&(e)->children, (i)))
 
-// --- Enum helpers (shared by interpreter, ccodegen, precomp) ---
+// --- Enum helpers (shared by interpreter, builder, precomp) ---
 
 // Check if an enum def has payload variants (any non-namespace decl with explicit_type)
 static inline Bool enum_has_payloads(Expr *enum_def) {

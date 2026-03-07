@@ -34,7 +34,7 @@
   til has no for loop. Could desugar to while, or add for-in with ranges.
 
 * NEED switch/case or equivalent pattern matching
-  C uses: switch on enum values in parser, interpreter, ccodegen, typer.
+  C uses: switch on enum values in parser, interpreter, builder, typer.
   til has no switch. Could use if/else chains (ugly but works) or add switch.
 
 * HAVE Heap allocation: malloc, free

@@ -8,9 +8,9 @@ The self-hosted file structure mirrors the C one:
 - ~src/c/parser.c~ -> ~src/self/parser.til~
 - ~src/c/typer.c~ -> ~src/self/typer.til~
 - ~src/c/interpreter.c~ -> ~src/self/interpreter.til~
-- ~src/c/ccodegen.c~ -> ~src/self/ccodegen.til~
+- ~src/c/builder.c~ -> ~src/self/builder.til~
 
-The generated C output stays exactly the same — ccodegen string emissions
+The generated C output stays exactly the same — builder string emissions
 just become til string operations that emit the same text.
 
 ** Types

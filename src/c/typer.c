@@ -1432,7 +1432,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
                 }
             }
             if (!is_own && (ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM))
-                continue; // don't hoist — ccodegen handles directly
+                continue; // don't hoist — builder handles directly
         }
 
         expr_child(e, i) = hoist_to_temp(expr_child(e, i), hoisted, nhoisted, cap, scope);
@@ -1472,7 +1472,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             break;
         case NODE_ASSIGN: {
             hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
-            // Skip top-level hoisting for compound-type locals — ccodegen
+            // Skip top-level hoisting for compound-type locals — builder
             // uses pointer-assign (typer inserts delete before reassignment).
             // Keep hoisting for scalars (deref-assign) and params (write-through).
             Bool do_hoist = 1;

@@ -98,7 +98,7 @@
    The most interesting and challenging target. TempleOS has no C compiler,
    no POSIX, no libc — just HolyC and its own kernel/graphics/audio APIs.
 
-   Requires a new holyccodegen backend that emits HolyC instead of C.
+   Requires a new holybuilder backend that emits HolyC instead of C.
    HolyC is C-like enough that the translation should be mostly mechanical
    (similar types, similar control flow), but differences in calling
    conventions, memory management, and string handling will need attention.
@@ -208,7 +208,7 @@
   - AST: flag on FUNC_DEF (e.g. is_shallow)
   - dispatch.c: use ffi_type_sint64/uint8/etc. instead of ffi_type_pointer,
     dereference values before passing, handle Str null-termination
-  - ccodegen.c: emit direct C types instead of til_* wrappers
+  - builder.c: emit direct C types instead of til_* wrappers
   - dlsym: look up function name directly (no til_ prefix)
 
 * OPEN #22 Operator syntax: desugar operators to method calls
@@ -384,7 +384,7 @@
       func calls whose body references variables not in the precomp scope.
       Also made track_literal() populate the precomp interpreter scope
       with known constant values (not just the known map).
-   4. Fixed ccodegen: top-level variable declarations are emitted as
+   4. Fixed builder: top-level variable declarations are emitted as
       file-scope C globals (before function definitions) so they're
       accessible from emitted til functions/procs. This is necessary
       because til functions are emitted as separate C functions, and C
@@ -462,7 +462,7 @@
   - Calling through function pointer variables
   - Type checking: parameter/return types must match at call sites
   - Interpreter: Value variant for function pointers
-  - ccodegen: emit C function pointer types and indirect calls
+  - builder: emit C function pointer types and indirect calls
 
   Blocks Map (needs comparator), generic sort, event handlers,
   and many patterns needed for self-hosting (visitor, dispatch tables).
@@ -474,7 +474,7 @@
   for real systems programming.
 
   The current C implementation is the reference: lexer, parser, initer,
-  typer, interpreter, ccodegen, precomp, scavenger (~6000 lines of C).
+  typer, interpreter, builder, precomp, scavenger (~6000 lines of C).
   Self-hosting means reimplementing all of these in til, using til's own
   features (structs, enums, ownership, FFI for I/O).
 
@@ -496,7 +496,7 @@
 
 ** TODO Parser (src/self/parser.til)
    Plan complete. Parser.c translates to parser.til + ast.til (separate
-   module since typer/interpreter/ccodegen also need AST types).
+   module since typer/interpreter/builder also need AST types).
 
 *** c2til.org gaps found during analysis
     1. C union inside struct → flat struct (all union fields as regular fields)
@@ -599,7 +599,7 @@
    use-after-free.
 
    Interpreter: ref from ident uses scope_set_borrowed (shared cell).
-   ccodegen: ref decl emits pointer assignment (no malloc).
+   builder: ref decl emits pointer assignment (no malloc).
 
 ** ref struct fields
    A ref field stores a pointer to an existing value (not inline).
@@ -615,19 +615,19 @@
    Function args are borrowed (ref) unless explicitly marked own.
    No change needed for args.
 
-* OPEN #1 ccodegen/interpreter consistency: eliminate unnecessary special cases
-  The ccodegen and interpreter should be as similar and minimal as possible.
+* OPEN #1 builder/interpreter consistency: eliminate unnecessary special cases
+  The builder and interpreter should be as similar and minimal as possible.
   The typer/initer should do more AST rewriting so backends can be dumb and uniform.
 
   Architecture has 3 layers:
   - ccore.h/c (168 lines): raw C types (Str, I64, U8, Bool) + raw functions
     with natural C semantics (value params, raw int returns)
   - ext.h/c (131 lines): til_* typedefs + pointer-boxing wrappers for
-    ccodegen's calling convention (all args/returns are heap pointers)
+    builder's calling convention (all args/returns are heap pointers)
   - dispatch.h/c (157 lines): interpreter's ext_function_dispatch, calls
     ccore directly via strcmp chain (47 functions)
 
-  ccodegen (959 lines) links ext.c + ccore.c and emits calls to til_* wrappers.
+  builder (959 lines) links ext.c + ccore.c and emits calls to til_* wrappers.
   The interpreter (725 lines) calls raw ccore functions via dispatch.c.
   core.til uses direct ext_func namespace fields. println/print/format live in
   ext.c as variadic C functions.
@@ -642,7 +642,7 @@
 
 ** FIXED Enum clone/delete/to_str are real til for ALL enums
    The initer now generates real til-level clone/delete/to_str for all
-   enums (both simple and payload). Tagged union structs used in ccodegen
+   enums (both simple and payload). Tagged union structs used in builder
    for all enums. No-payload variants use bare field access syntax
    (Color.Red, Token.Eof — no parens needed).
 
@@ -652,7 +652,7 @@
 
    Clone: payload uses is_/get_/constructor chain, simple uses eq chain.
    Delete: same real til proc for all — free() handles payloads.
-   Eliminated ~120 lines of C generation from ccodegen, clone/delete
+   Eliminated ~120 lines of C generation from builder, clone/delete
    dispatch from dispatch.c.
 
 ** FIXED Enum method dispatch moved from eval_call to dispatch.c
@@ -662,7 +662,7 @@
    "this is an enum" and delegates in ~5 lines.
 
 ** FIXED enum_has_payloads and variant helpers shared via ast.h
-   enum_has_payloads was duplicated in interpreter.c and ccodegen.c.
+   enum_has_payloads was duplicated in interpreter.c and builder.c.
    Moved to ast.h as static inline, along with enum_variant_tag and
    enum_variant_type. Both backends and dispatch.c use the shared versions.
 
@@ -675,7 +675,7 @@
 ** FIXED Interpreter: Str was hardcoded as VAL_STR instead of VAL_STRUCT
    Removed VAL_STR from the interpreter. Str values are now regular
    VAL_STRUCT StructInstances with 2 fields (data: VAL_PTR, cap: VAL_I64),
-   matching how ccodegen treats Str as a normal struct.
+   matching how builder treats Str as a normal struct.
 
    Added make_str_value/make_str_value_own/str_view helpers. String literals
    build StructInstances directly (avoiding bootstrap recursion). All
@@ -690,44 +690,44 @@
    StructInstance which is NOT C-compatible layout. FFI struct marshaling
    still needed (see #4).
 
-** ccodegen: declaration emission branches on RHS type
+** builder: declaration emission branches on RHS type
    3 branches: struct constructor (malloc + fields), fcall/str (pointer-assign),
    literal/ident (malloc + deref-copy). After hoisting, most RHS are NODE_IDENT
    or NODE_FCALL, so branching is minimal. Accepted.
 
 ** Acceptable: struct constructor emission
    Interpreter (eval_call 352-384) allocates StructInstance, iterates fields,
-   move semantics for ident args. ccodegen (emit_ctor_fields 203-259) emits
+   move semantics for ident args. builder (emit_ctor_fields 203-259) emits
    malloc + field-by-field C assignment with own/inline/nested handling.
    Logic is isomorphic but inherently different — one runs, one emits C.
 
 ** Acceptable: ownership tracking
    Interpreter manually tracks ownership via Value types, scope_set_borrowed
-   vs scope_set_owned, free_value on reassignment, val_none guards. ccodegen
+   vs scope_set_owned, free_value on reassignment, val_none guards. builder
    delegates to C calling conventions — pointer-assign for compound types,
    deref-assign for scalars, typer-inserted delete calls handle cleanup.
    Fundamentally different execution models.
 
 ** Acceptable: namespace field initialization
    Both scan struct/enum defs for non-func namespace fields (interpreter:
-   interpreter_init_ns → ns_fields[] array; ccodegen: emit_ns_inits → C
+   interpreter_init_ns → ns_fields[] array; builder: emit_ns_inits → C
    globals). Could extract shared field iterator but minimal benefit.
 
-** FIXED ccodegen: free() and exit() special cases
+** FIXED builder: free() and exit() special cases
    Moved to ext.c as til_free() and til_exit(). Both backends use generic
    call paths — no special-cased emission or dispatch.
 
-** FIXED ccodegen: i64_to_str, u8_to_str, str_eq emitted inline
-   Raw implementations in ccore.c. ccodegen links via ext.c wrappers.
+** FIXED builder: i64_to_str, u8_to_str, str_eq emitted inline
+   Raw implementations in ccore.c. builder links via ext.c wrappers.
    Interpreter calls ccore functions directly via dispatch.c.
 
 ** FIXED bool_to_str was a needless builtin
    Replaced with pure til: if b { return "true" } else { return "false" }.
-   Removed ext_func, C wrapper from ccodegen, and strcmp case from interpreter.
+   Removed ext_func, C wrapper from builder, and strcmp case from interpreter.
 
 ** FIXED type aliases and PascalCase ext naming
    Added typedefs in ext.h: til_I64, til_U8, til_Bool. PascalCase function
-   names (til_I64_add, til_U8_eq) match ccodegen's natural emission.
+   names (til_I64_add, til_U8_eq) match builder's natural emission.
 
 ** FIXED U8 stored as I64 in interpreter
    Interpreter Value union now has a .u8 field (til_U8 *). Clean one-liners.
@@ -738,19 +738,19 @@
 
 ** FIXED println/print/format moved to ext.c
    Was type-aware special cases in both backends. Now variadic C functions
-   in ext.c. ccodegen emits til_println(n, args...). Interpreter simplified
+   in ext.c. builder emits til_println(n, args...). Interpreter simplified
    to printf loop.
 
-** FIXED ccodegen: struct constructors
+** FIXED builder: struct constructors
    Replaced per-struct til_X_new() constructor functions with malloc +
    field-by-field assignment via emit_ctor_fields(). Handles own fields
    (pointer-assign), inline compound fields (deref + free wrapper), and
    nested constructors (recursive). Fieldless structs just malloc.
    Interpreter uses positional args (typer fills all fields with defaults).
 
-** FIXED ccodegen: deref-copy and reassignment
+** FIXED builder: deref-copy and reassignment
    Typer inserts Type.delete() before compound-type variable and field
-   reassignment. ccodegen uses pointer-assign for compound NODE_ASSIGN,
+   reassignment. builder uses pointer-assign for compound NODE_ASSIGN,
    deref + free-wrapper for inline NODE_FIELD_ASSIGN. Hoisting skips
    compound-type locals and inline compound constructor/field-assign args.
    Interpreter: free_value before overwriting, ext dispatch nulls own-arg
@@ -759,7 +759,7 @@
 ** FIXED interpreter: value_deep_copy removed
    Move semantics: NODE_IDENT RHS transfers ownership (copies value, nulls
    source cell). ASAP deletes of moved values are no-ops. Function args
-   use scope_set_borrowed (shared cell), matching ccodegen pointer-passing.
+   use scope_set_borrowed (shared cell), matching builder pointer-passing.
 
 ** FIXED namespace call path
    Full named-arg resolution in both namespace and regular call paths.

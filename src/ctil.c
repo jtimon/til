@@ -8,7 +8,7 @@
 #include "c/initer.h"
 #include "c/typer.h"
 #include "c/interpreter.h"
-#include "c/ccodegen.h"
+#include "c/builder.h"
 #include "c/precomp.h"
 #include "c/scavenger.h"
 #include "c/modes.h"
@@ -487,7 +487,7 @@ int main(int argc, char **argv) {
 
         system("mkdir -p gen/c bin/c");
 
-        result = codegen_c(ast, mode, run_tests, path, c_path);
+        result = build(ast, mode, run_tests, path, c_path);
         if (result == 0 && strcmp(command, "translate") == 0) {
             printf("Generated: %s\n", c_path);
         }

@@ -36,7 +36,7 @@
    v := vec("I64", 10, 20, 30)
 
    Implemented as ext_func builtins hardcoded in typer.c (validate first
-   arg is string literal), dispatch.c (C handlers), and ccodegen.c (emit
+   arg is string literal), dispatch.c (C handlers), and builder.c (emit
    as til_array_of_I64(3, v1, v2, v3)). Requires C-side code in all
    three places.
 
@@ -45,7 +45,7 @@
    s := {1, 2, 3}              // Set[I64]
 
    Different approach from array/vec: desugars to pure til code in the
-   typer, so NO new dispatch.c handlers or ccodegen.c special cases.
+   typer, so NO new dispatch.c handlers or builder.c special cases.
 
    Parser: {expr: expr, ...} → NODE_MAP_LIT, {expr, expr, ...} →
    NODE_SET_LIT. Disambiguation by peeking for ':' after first expr.
@@ -168,7 +168,7 @@
   Declare signatures in til with ext_func/ext_proc, implement in C with til_
   prefix and pointer calling convention.
 
-  Codegen path: ccodegen.c emits forward declarations, compile_c links user .c.
+  Codegen path: builder.c emits forward declarations, compile_c links user .c.
   Non-core ext_structs get typedefs and forward declarations.
 
   Interpreter path: dispatch.c compiles user .c to .so, dlopen/dlsym into
@@ -244,7 +244,7 @@
     h_free calls C free. val_to_ptr() helper extracts void* from any Value.
 
 *** FIXED Dynamic as a real type
-    ccodegen: TIL_TYPE_DYNAMIC → "void *". emit_as_ptr/emit_deref skip
+    builder: TIL_TYPE_DYNAMIC → "void *". emit_as_ptr/emit_deref skip
     indirection for Dynamic. typer: numeric 0 accepted for Dynamic (null).
 
 *** FIXED Parser: ref with explicit type annotation
@@ -294,7 +294,7 @@
 
 *** FIXED Removed TIL_TYPE_STR from type system
     Str is now TIL_TYPE_STRUCT with struct_name="Str" everywhere:
-    ast.h (removed enum value), typer.c, initer.c, precomp.c, ccodegen.c.
+    ast.h (removed enum value), typer.c, initer.c, precomp.c, builder.c.
 
 *** FIXED Interpreter: VAL_STR kept as runtime representation
     Str values use VAL_STR wrapping compiler-internal Str struct (same
@@ -344,7 +344,7 @@
    | src/c/interpreter.c | Str() constructor, VAL_STR field access, PTR→STR reinterpret |
    | src/c/dispatch.c   | Raw pointer handlers, dyn_call, removed Str handlers |
    | src/c/typer.c      | TIL_TYPE_STR→STRUCT, own field clone skip         |
-   | src/c/ccodegen.c   | Split struct typedef/funcs, til_Str_lit, forward decl ordering |
+   | src/c/builder.c   | Split struct typedef/funcs, til_Str_lit, forward decl ordering |
    | src/c/ast.h        | Removed TIL_TYPE_STR                              |
    | src/c/initer.c     | Str as regular struct, size() from fields          |
    | src/c/precomp.c    | Str as TIL_TYPE_STRUCT                            |
@@ -393,7 +393,7 @@
      EnumDef type, enum variant type override in field access
    - Interpreter: enum ext method dispatch (eq/clone/delete), scope
      registration and init_ns for NODE_ENUM_DEF
-   - ccodegen: emit_enum_def (typedef long long, variant value globals,
+   - builder: emit_enum_def (typedef long long, variant value globals,
      eq/clone/delete C implementations), forward declarations, variant
      initialization in main
    - scavenger/precomp: NODE_ENUM_DEF alongside NODE_STRUCT_DEF
@@ -427,7 +427,7 @@
      enum_variant_tag, enum_variant_type, clone_value, free_value,
      values_equal. interpreter_init_ns converts I64 tags to VAL_ENUM
      for no-payload variants in payload enums.
-   - ccodegen: tag enum + struct with union for payload enums. Constructor
+   - builder: tag enum + struct with union for payload enums. Constructor
      functions clone payload. is_/get_ functions, eq/clone/delete with
      switch on tag. Forward declarations for all generated methods.
      Compound literal init for no-payload variant globals.
@@ -493,7 +493,7 @@
 * FIXED #0 Complete basic memory management before extending pointer semantics
   Memory management is now fully automatic. The user never calls free or
   delete explicitly — ASAP destruction and typer-inserted clone/delete handle
-  everything. No shallow copies, no leaks, in both interpreter and ccodegen.
+  everything. No shallow copies, no leaks, in both interpreter and builder.
 
   What was done:
 
@@ -509,7 +509,7 @@
 
    Works for all types — primitives via core.til clone, user structs via
    auto-generated clone. Interpreter uses move semantics (transfer ownership,
-   null source cell) instead of deep copy. ccodegen uses pointer-assign for
+   null source cell) instead of deep copy. builder uses pointer-assign for
    compound types, deref-assign for scalars.
 
    Struct constructors use field-by-field assignment (emit_ctor_fields)
@@ -521,7 +521,7 @@
    Typer inserts Type.delete(obj.field, call_free) before field reassignment:
    call_free=true for own fields, call_free=false for inline compound fields.
    Interpreter also calls free_value before overwriting (handles scalars).
-   ccodegen evaluates RHS before freeing old value to prevent reading freed
+   builder evaluates RHS before freeing old value to prevent reading freed
    memory when RHS references the same variable (e.g. counter = counter.add(1)).
 
 ** FIXED Custom clone/delete: user-defined override for auto-generated
@@ -560,7 +560,7 @@
     (fcall_has_own_arg for struct constructors, expr_transfers_own for field
     assigns). Inserts Type.delete(obj.field, true) before own field
     reassignment to free the old value.
-  - ccodegen.c: struct typedef emits pointer (til_Point *start), compound
+  - builder.c: struct typedef emits pointer (til_Point *start), compound
     literal stores pointer directly (not deref), field access uses -> through
     own fields, emit_as_ptr skips & for own fields, field assign emits
     pointer assign.

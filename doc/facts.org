@@ -4,12 +4,12 @@
 #+TODO: NOT_YET NOT_ANYMORE | TRUE
 
 * TRUE All arguments are passed by reference, both semantically and in both backends
-  ccodegen: all params are C pointers, call sites use emit_as_ptr().
+  builder: all params are C pointers, call sites use emit_as_ptr().
   interpreter: identifier args use scope_set_borrowed (shared Cell).
   No value_deep_copy — removed via move semantics.
 
 * TRUE All values are heap-allocated in both backends
-  ccodegen: all types map to C pointers (til_I64 *, til_U8 *, til_Point *, etc.).
+  builder: all types map to C pointers (til_I64 *, til_U8 *, til_Point *, etc.).
   Declarations malloc+copy, function returns malloc, builtins malloc results.
   interpreter: val_i64(), val_u8(), val_bool(), val_str() all malloc into
   their own union fields (.i64, .u8, .boolean, .str). Struct instances
@@ -17,7 +17,7 @@
 
 * TRUE ext.h defines type aliases shared by both backends
   typedef I64 til_I64; typedef U8 til_U8; typedef Bool til_Bool.
-  Used in ext.c, interpreter.c (directly), and ccodegen output
+  Used in ext.c, interpreter.c (directly), and builder output
   (via #include "ext.h").
 
 * TRUE The typer rewrites the AST, not just type-checks it
@@ -40,13 +40,13 @@
   Declared in core.til — either as direct namespace fields (e.g. I64.add)
   or at top-level (e.g. exit, free). Implementations live in ext.c with
   PascalCase names (til_I64_add, til_Bool_not, etc.). Interpreter dispatches
-  via strcmp chain; ccodegen skips them (ext.c provides the symbol directly).
+  via strcmp chain; builder skips them (ext.c provides the symbol directly).
   Direct namespace ext_funcs eliminated ~50 lines of trivial wrappers in core.til.
 
 * TRUE Variadic parameters (..Type) only work in ext_func and ext_proc
   format (..Str), println (..Str), and print (..Str) use variadic params.
   Regular funcs, procs, and macros cannot use ..Type — the parser, typer,
-  interpreter, and ccodegen don't support it outside ext declarations.
+  interpreter, and builder don't support it outside ext declarations.
 
 * TRUE Everything is immutable by default, mut opts in to mutation
   Applies to variable declarations (mut x := 5), struct fields (mut x := 0),
@@ -94,7 +94,7 @@
   clones recurse into fields, primitive clones produce new values.
   The interpreter uses move semantics (transfer ownership, null source cell)
   for identifier RHS — no copying without an explicit clone call.
-  ccodegen uses pointer-assign for compound types (clone returns fresh pointer),
+  builder uses pointer-assign for compound types (clone returns fresh pointer),
   deref-assign for scalars. Struct constructors use field-by-field assignment
   with deref + free-wrapper for inline compound fields.
 
