@@ -1,4 +1,4 @@
-mode script
+mode test
 
 Point := struct {
     mut x := 0
@@ -11,7 +11,7 @@ Line := struct {
 }
 
 # Test 1: own field access with constructor args
-test_own_field_access := proc() {
+test_own_field_access := test() {
     line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     assert_eq(loc(), line.start.x, 1)
     assert_eq(loc(), line.start.y, 2)
@@ -20,7 +20,7 @@ test_own_field_access := proc() {
 }
 
 # Test 2: default constructor
-test_own_field_defaults := proc() {
+test_own_field_defaults := test() {
     line := Line()
     assert_eq(loc(), line.start.x, 0)
     assert_eq(loc(), line.start.y, 0)
@@ -29,7 +29,7 @@ test_own_field_defaults := proc() {
 }
 
 # Test 3: clone struct with own fields
-test_own_field_clone := proc() {
+test_own_field_clone := test() {
     line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     line2 := line.clone()
     assert_eq(loc(), line2.start.x, 1)
@@ -37,7 +37,7 @@ test_own_field_clone := proc() {
 }
 
 # Test 4: field assignment through own field
-test_own_field_nested_assign := proc() {
+test_own_field_nested_assign := test() {
     line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     line.start.x = 10
     assert_eq(loc(), line.start.x, 10)
@@ -45,7 +45,7 @@ test_own_field_nested_assign := proc() {
 }
 
 # Test 5: own field replacement
-test_own_field_replace := proc() {
+test_own_field_replace := test() {
     line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     line.start = Point(x=100, y=200)
     assert_eq(loc(), line.start.x, 100)
@@ -53,17 +53,10 @@ test_own_field_replace := proc() {
 }
 
 # Test 6: clone independence
-test_own_field_clone_independence := proc() {
+test_own_field_clone_independence := test() {
     line := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     line2 := line.clone()
     line.start.x = 99
     assert_eq(loc(), line2.start.x, 1)
     assert_eq(loc(), line.start.x, 99)
 }
-
-test_own_field_access()
-test_own_field_defaults()
-test_own_field_clone()
-test_own_field_nested_assign()
-test_own_field_replace()
-test_own_field_clone_independence()

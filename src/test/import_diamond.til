@@ -6,5 +6,3 @@ import "import_diamond_c.til"
 expect(loc(), from_b().eq(42), "from_b")
 expect(loc(), from_c().eq(42), "from_c")
 expect(loc(), SHARED_VAL.eq(42), "SHARED_VAL direct")
-
-println("import_diamond: ok")

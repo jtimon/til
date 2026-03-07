@@ -1,49 +1,46 @@
-mode script
+mode test
 
-// dyn_has_method — check method existence on builtin types
-// TODO(#15): methods checked must also be referenced directly so the scavenger
-// keeps them. Remove these dummy calls once scavenger understands dyn_has_method.
-assert_eq(loc(), 1.clone(), 1)
-assert_eq_str(loc(), "hi".clone(), "hi")
-
-expect(loc(), dyn_has_method("I64", "delete"), "I64 has delete")
-expect(loc(), dyn_has_method("I64", "clone"), "I64 has clone")
-expect(loc(), dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
-expect(loc(), dyn_has_method("Str", "delete"), "Str has delete")
-expect(loc(), dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
-expect(loc(), dyn_has_method("Bool", "eq"), "Bool has eq")
-expect(loc(), dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
-
-// Test with a user-defined struct
 Foo := struct {
     x := 0
     namespace:
     bar := func(self: Foo) returns I64 { return self.x }
 }
-f := Foo(x=0)
-assert_eq(loc(), f.bar(), 0)
-expect(loc(), dyn_has_method("Foo", "bar"), "Foo has bar")
-expect(loc(), dyn_has_method("Foo", "baz").not(), "Foo no baz")
 
-println("dyn_has_method: all passed")
+test_dyn_has_method := test() {
+    // TODO(#15): dummy references so scavenger keeps clone
+    assert_eq(loc(), 1.clone(), 1)
+    assert_eq_str(loc(), "hi".clone(), "hi")
 
-// cmp
-assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
-assert_eq(loc(), I64.cmp(5, 5), 0)
-assert_eq(loc(), I64.cmp(3, 1), 1)
-assert_eq(loc(), U8.cmp(U8.from_i64(1), U8.from_i64(2)), 0.sub(1))
-assert_eq(loc(), U8.cmp(U8.from_i64(5), U8.from_i64(5)), 0)
-assert_eq(loc(), U8.cmp(U8.from_i64(3), U8.from_i64(1)), 1)
-assert_eq(loc(), Bool.cmp(false, false), 0)
-assert_eq(loc(), Bool.cmp(true, true), 0)
-assert_eq(loc(), Bool.cmp(false, true), 0.sub(1))
-assert_eq(loc(), Bool.cmp(true, false), 1)
-assert_eq(loc(), Str.cmp("abc", "abd"), 0.sub(1))
-assert_eq(loc(), Str.cmp("hello", "hello"), 0)
-assert_eq(loc(), Str.cmp("b", "a"), 1)
-assert_eq(loc(), Str.cmp("ab", "a"), 1)
-assert_eq(loc(), Str.cmp("a", "ab"), 0.sub(1))
-println("cmp: all passed")
+    expect(loc(), dyn_has_method("I64", "delete"), "I64 has delete")
+    expect(loc(), dyn_has_method("I64", "clone"), "I64 has clone")
+    expect(loc(), dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
+    expect(loc(), dyn_has_method("Str", "delete"), "Str has delete")
+    expect(loc(), dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
+    expect(loc(), dyn_has_method("Bool", "eq"), "Bool has eq")
+    expect(loc(), dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
+    f := Foo(x=0)
+    assert_eq(loc(), f.bar(), 0)
+    expect(loc(), dyn_has_method("Foo", "bar"), "Foo has bar")
+    expect(loc(), dyn_has_method("Foo", "baz").not(), "Foo no baz")
+}
+
+test_cmp := test() {
+    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
+    assert_eq(loc(), I64.cmp(5, 5), 0)
+    assert_eq(loc(), I64.cmp(3, 1), 1)
+    assert_eq(loc(), U8.cmp(U8.from_i64(1), U8.from_i64(2)), 0.sub(1))
+    assert_eq(loc(), U8.cmp(U8.from_i64(5), U8.from_i64(5)), 0)
+    assert_eq(loc(), U8.cmp(U8.from_i64(3), U8.from_i64(1)), 1)
+    assert_eq(loc(), Bool.cmp(false, false), 0)
+    assert_eq(loc(), Bool.cmp(true, true), 0)
+    assert_eq(loc(), Bool.cmp(false, true), 0.sub(1))
+    assert_eq(loc(), Bool.cmp(true, false), 1)
+    assert_eq(loc(), Str.cmp("abc", "abd"), 0.sub(1))
+    assert_eq(loc(), Str.cmp("hello", "hello"), 0)
+    assert_eq(loc(), Str.cmp("b", "a"), 1)
+    assert_eq(loc(), Str.cmp("ab", "a"), 1)
+    assert_eq(loc(), Str.cmp("a", "ab"), 0.sub(1))
+}
 
 // variadic args
 variadic_sum := func(nums: ..I64) returns I64 {
@@ -56,9 +53,12 @@ variadic_sum := func(nums: ..I64) returns I64 {
     }
     return total
 }
-assert_eq(loc(), variadic_sum(1, 2, 3), 6)
-assert_eq(loc(), variadic_sum(10), 10)
-assert_eq(loc(), variadic_sum(), 0)
+
+test_variadic := test() {
+    assert_eq(loc(), variadic_sum(1, 2, 3), 6)
+    assert_eq(loc(), variadic_sum(10), 10)
+    assert_eq(loc(), variadic_sum(), 0)
+}
 
 // proc-based variadic test (not constant-foldable)
 variadic_print := proc(nums: ..I64) {
@@ -71,21 +71,23 @@ variadic_print := proc(nums: ..I64) {
     }
     println("")
 }
-variadic_print(10, 20, 30)
 
-println("variadic: all passed")
+test_variadic_proc := test() {
+    variadic_print(10, 20, 30)
+}
 
 // Dynamic arg narrowing (#20): pass Dynamic where concrete type expected
-my_vec := vec("I64", 10, 20, 30)
-ref x2 : I64 = my_vec.get(0)
-assert_eq(loc(), x2, 10)
-// Dynamic value as typed argument
-assert_eq(loc(), 34.add(my_vec.get(0)), 44)
-// Chaining with typed start: 0.add(Dynamic) returns I64, chain continues
-assert_eq(loc(), 0.add(my_vec.get(0)).add(my_vec.get(1)).add(my_vec.get(2)), 60)
-// Top-level UFCS on Dynamic receiver: and/or/not are unique top-level functions
-my_bvec := vec("Bool", true, false)
-assert(loc(), my_bvec.get(0).and(my_bvec.get(0)))
-assert(loc(), my_bvec.get(1).or(my_bvec.get(0)))
-// TODO: my_bvec.get(1).not() — Bool values in Vec don't round-trip correctly (false→true)
-println("dynamic narrowing: all passed")
+test_dynamic_narrowing := test() {
+    my_vec := vec("I64", 10, 20, 30)
+    ref x2 : I64 = my_vec.get(0)
+    assert_eq(loc(), x2, 10)
+    // Dynamic value as typed argument
+    assert_eq(loc(), 34.add(my_vec.get(0)), 44)
+    // Chaining with typed start: 0.add(Dynamic) returns I64, chain continues
+    assert_eq(loc(), 0.add(my_vec.get(0)).add(my_vec.get(1)).add(my_vec.get(2)), 60)
+    // Top-level UFCS on Dynamic receiver: and/or/not are unique top-level functions
+    my_bvec := vec("Bool", true, false)
+    assert(loc(), my_bvec.get(0).and(my_bvec.get(0)))
+    assert(loc(), my_bvec.get(1).or(my_bvec.get(0)))
+    // TODO: my_bvec.get(1).not() — Bool values in Vec don't round-trip correctly (false→true)
+}

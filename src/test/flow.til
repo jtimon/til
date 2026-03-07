@@ -1,6 +1,6 @@
-mode script
+mode test
 
-test_if_else := proc() {
+test_if_else := test() {
     if true {
         assert(loc(), true)
     }
@@ -19,7 +19,7 @@ test_if_else := proc() {
     }
 }
 
-test_while_loop := proc() {
+test_while_loop := test() {
     while false {
         panic(loc(), "unreachable")
     }
@@ -30,7 +30,7 @@ test_while_loop := proc() {
     assert_eq(loc(), i, 5)
 }
 
-test_break := proc() {
+test_break := test() {
     mut i := 0
     while true {
         if i.eq(3) { break }
@@ -47,7 +47,7 @@ test_break := proc() {
     assert_eq(loc(), sum, 10)
 }
 
-test_continue := proc() {
+test_continue := test() {
     mut k := 0
     mut total := 0
     while k.lt(5) {
@@ -65,7 +65,7 @@ flow_early_ret := func(x: Bool) returns I64 {
     return b
 }
 
-test_early_return := proc() {
+test_early_return := test() {
     assert_eq(loc(), flow_early_ret(true), 10)
     assert_eq(loc(), flow_early_ret(false), 20)
 }
@@ -77,7 +77,7 @@ flow_check := func(n: I64) returns I64 {
     else { return 0 }
 }
 
-test_else_if := proc() {
+test_else_if := test() {
     assert_eq(loc(), flow_check(1), 10)
     assert_eq(loc(), flow_check(2), 20)
     assert_eq(loc(), flow_check(3), 30)
@@ -96,7 +96,7 @@ asap_return_from_while := func(n: I64) returns Str {
     return s
 }
 
-test_asap_while := proc() {
+test_asap_while := test() {
     # Early return path: s must be freed before returning "early"
     assert_eq_str(loc(), asap_return_from_while(5), "early")
     # Normal path: s returned normally
@@ -118,7 +118,7 @@ asap_return_nested := func(n: I64) returns Str {
     return s2
 }
 
-test_asap_nested := proc() {
+test_asap_nested := test() {
     # Return from if-inside-if-inside-while: s2 must be freed, s1 returned
     assert_eq_str(loc(), asap_return_nested(3), "first")
     # Normal path: s1 freed by ASAP, s2 returned
@@ -136,7 +136,7 @@ asap_break_no_leak := func() returns Str {
     return s
 }
 
-test_asap_break := proc() {
+test_asap_break := test() {
     assert_eq_str(loc(), asap_break_no_leak(), "alive")
 }
 
@@ -174,7 +174,7 @@ asap_if_return_branch := func(x: I64) returns Str {
     return t
 }
 
-test_asap_if_else := proc() {
+test_asap_if_else := test() {
     assert_eq_str(loc(), asap_if_both_branches(1), "done")
     assert_eq_str(loc(), asap_if_both_branches(0), "done")
     assert_eq_str(loc(), asap_if_one_branch(1), "done")
@@ -186,36 +186,26 @@ test_asap_if_else := proc() {
 }
 
 # ASAP edge case: mut variable reassignment must free old value
-test_reassign_str := proc() {
+test_reassign_str := test() {
     mut s := "hello"
     s = "world"
     assert_eq_str(loc(), s, "world")
 }
 
-test_reassign_clone := proc(x: Str) {
+reassign_clone_helper := proc(x: Str) {
     mut s := "hello"
     s = x
     assert_eq_str(loc(), s, "from_arg")
 }
 
-test_reassign_multi := proc() {
+test_reassign_clone := test() {
+    reassign_clone_helper("from_arg")
+}
+
+test_reassign_multi := test() {
     mut s := "a"
     s = "b"
     s = "c"
     s = "d"
     assert_eq_str(loc(), s, "d")
 }
-
-test_if_else()
-test_while_loop()
-test_break()
-test_continue()
-test_early_return()
-test_else_if()
-test_asap_while()
-test_asap_nested()
-test_asap_break()
-test_asap_if_else()
-test_reassign_str()
-test_reassign_clone("from_arg")
-test_reassign_multi()

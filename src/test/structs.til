@@ -1,4 +1,4 @@
-mode script
+mode test
 
 Point := struct {
     mut x := 0
@@ -20,7 +20,7 @@ Entity := struct {
     mut name := "unnamed"
 }
 
-test_basic_struct := proc() {
+test_basic_struct := test() {
     p := Point()
     assert_eq(loc(), p.x, 0)
     assert_eq(loc(), p.y, 0)
@@ -30,7 +30,7 @@ test_basic_struct := proc() {
     assert_eq(loc(), p.y, 10)
 }
 
-test_mixed_types := proc() {
+test_mixed_types := test() {
     bob := Person()
     assert_eq_str(loc(), bob.name, "unknown")
     assert_eq(loc(), bob.age, 0)
@@ -40,7 +40,7 @@ test_mixed_types := proc() {
     assert_eq(loc(), bob.age, 30)
 }
 
-test_bool_fields := proc() {
+test_bool_fields := test() {
     f := Flags()
     assert(loc(), f.active.not())
     assert(loc(), f.visible)
@@ -48,7 +48,7 @@ test_bool_fields := proc() {
     assert(loc(), f.active)
 }
 
-test_named_args := proc() {
+test_named_args := test() {
     p2 := Point(x=5)
     assert_eq(loc(), p2.x, 5)
     assert_eq(loc(), p2.y, 0)
@@ -63,7 +63,7 @@ test_named_args := proc() {
     assert_eq(loc(), alice.age, 25)
 }
 
-test_explicit_annotation := proc() {
+test_explicit_annotation := test() {
     p5 : Point = Point()
     assert_eq(loc(), p5.x, 0)
     p6 : Point = Point(x=42, y=99)
@@ -71,7 +71,7 @@ test_explicit_annotation := proc() {
     assert_eq(loc(), p6.y, 99)
 }
 
-test_immutable_fields := proc() {
+test_immutable_fields := test() {
     e1 := Entity(id=1, name="hero")
     assert_eq(loc(), e1.id, 1)
     assert_eq_str(loc(), e1.name, "hero")
@@ -85,7 +85,7 @@ test_immutable_fields := proc() {
     assert_eq(loc(), e3.id, 99)
 }
 
-test_independence := proc() {
+test_independence := test() {
     a := Point()
     b := Point()
     a.x = 1
@@ -98,7 +98,7 @@ Line := struct {
     mut end := Point()
 }
 
-test_nested_structs := proc() {
+test_nested_structs := test() {
     l1 := Line()
     assert_eq(loc(), l1.start.x, 0)
     assert_eq(loc(), l1.start.y, 0)
@@ -127,7 +127,7 @@ Counter := struct {
     default_name := "Counter"
 }
 
-test_namespace := proc() {
+test_namespace := test() {
     assert_eq(loc(), Counter.instance_count, 0)
     assert_eq_str(loc(), Counter.default_name, "Counter")
     Counter.instance_count = 42
@@ -162,7 +162,7 @@ Describable := struct {
     }
 }
 
-test_ufcs := proc() {
+test_ufcs := test() {
     x := 42
     assert_eq_str(loc(), x.to_str(), "42")
     assert_eq_str(loc(), 0.to_str(), "0")
@@ -175,7 +175,7 @@ test_ufcs := proc() {
     assert_eq_str(loc(), Describable.describe(d), "val=42")
 }
 
-test_clone := proc() {
+test_clone := test() {
     // Clone a simple struct
     p := Point(x=3, y=7)
     p2 := p.clone()
@@ -200,7 +200,7 @@ test_clone := proc() {
     assert(loc(), true.clone())
 }
 
-test_delete := proc() {
+test_delete := test() {
     p := Point(x=3, y=7)
     own p.delete()
 
@@ -235,7 +235,7 @@ DeleteCustom := struct {
     }
 }
 
-test_custom_clone := proc() {
+test_custom_clone := test() {
     c := CloneCustom(val=5)
     d := c.clone()
     assert_eq(loc(), d.val, 6)
@@ -243,7 +243,7 @@ test_custom_clone := proc() {
     assert_eq(loc(), e.val, 7)
 }
 
-test_custom_delete := proc() {
+test_custom_delete := test() {
     assert_eq(loc(), DeleteCustom.delete_count, 0)
     t := DeleteCustom(id=1)
     own t.delete()
@@ -253,7 +253,7 @@ test_custom_delete := proc() {
     assert_eq(loc(), DeleteCustom.delete_count, 2)
 }
 
-test_field_reassign := proc() {
+test_field_reassign := test() {
     bob := Person()
     assert_eq_str(loc(), bob.name, "unknown")
     bob.name = "Alice"
@@ -261,19 +261,3 @@ test_field_reassign := proc() {
     bob.name = "Charlie"
     assert_eq_str(loc(), bob.name, "Charlie")
 }
-
-test_basic_struct()
-test_mixed_types()
-test_bool_fields()
-test_named_args()
-test_explicit_annotation()
-test_immutable_fields()
-test_independence()
-test_nested_structs()
-test_namespace()
-test_ufcs()
-test_clone()
-test_delete()
-test_custom_clone()
-test_custom_delete()
-test_field_reassign()

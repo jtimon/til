@@ -1,37 +1,39 @@
-mode script
+mode test
 
-// TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
-assert_eq(loc(), Str.cmp("a", "b"), 0.sub(1))
-assert_eq(loc(), 1.clone(), 1)
-assert_eq_str(loc(), "hi".clone(), "hi")
+test_i64_set := test() {
+    // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
+    assert_eq(loc(), 1.clone(), 1)
 
-// Basic add/has/len
-s := Set.new("I64", I64.size())
-s.add(own 3)
-s.add(own 1)
-s.add(own 2)
-assert_eq(loc(), s.len(), 3)
-assert(loc(), s.has(1))
-assert(loc(), s.has(2))
-assert(loc(), s.has(3))
-assert(loc(), s.has(4).not())
+    s := Set.new("I64", I64.size())
+    s.add(own 3)
+    s.add(own 1)
+    s.add(own 2)
+    assert_eq(loc(), s.len(), 3)
+    assert(loc(), s.has(1))
+    assert(loc(), s.has(2))
+    assert(loc(), s.has(3))
+    assert(loc(), s.has(4).not())
 
-// Duplicates ignored
-s.add(own 2)
-assert_eq(loc(), s.len(), 3)
+    // Duplicates ignored
+    s.add(own 2)
+    assert_eq(loc(), s.len(), 3)
+}
 
-// String set
-ss := Set.new("Str", Str.size())
-ss.add(own "banana")
-ss.add(own "apple")
-ss.add(own "cherry")
-assert_eq(loc(), ss.len(), 3)
-assert(loc(), ss.has("apple"))
-assert(loc(), ss.has("banana"))
-assert(loc(), ss.has("cherry"))
-assert(loc(), ss.has("date").not())
-ss.add(own "apple")
-assert_eq(loc(), ss.len(), 3)
+test_str_set := test() {
+    // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
+    assert_eq(loc(), Str.cmp("a", "b"), 0.sub(1))
+    assert_eq_str(loc(), "hi".clone(), "hi")
 
-println("sets: all passed")
+    ss := Set.new("Str", Str.size())
+    ss.add(own "banana")
+    ss.add(own "apple")
+    ss.add(own "cherry")
+    assert_eq(loc(), ss.len(), 3)
+    assert(loc(), ss.has("apple"))
+    assert(loc(), ss.has("banana"))
+    assert(loc(), ss.has("cherry"))
+    assert(loc(), ss.has("date").not())
+    ss.add(own "apple")
+    assert_eq(loc(), ss.len(), 3)
+}

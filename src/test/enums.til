@@ -1,27 +1,33 @@
-mode script
+mode test
 
 # basic enum
 Color := enum { Red, Green, Blue }
 
-# construction and eq
-c := Color.Red
-expect(loc(), c.eq(Color.Red), "Red eq Red")
-expect(loc(), c.eq(Color.Green).not(), "Red neq Green")
+test_basic_enum := test() {
+    c := Color.Red
+    expect(loc(), c.eq(Color.Red), "Red eq Red")
+    expect(loc(), c.eq(Color.Green).not(), "Red neq Green")
+}
 
-# to_str
-assert_eq_str(loc(), c.to_str(), "Red")
-assert_eq_str(loc(), Color.Blue.to_str(), "Blue")
+test_to_str := test() {
+    assert_eq_str(loc(), Color.Red.to_str(), "Red")
+    assert_eq_str(loc(), Color.Blue.to_str(), "Blue")
+}
 
-# clone
-c2 := Color.Green
-assert_eq_str(loc(), c2.to_str(), "Green")
+test_clone := test() {
+    c2 := Color.Green
+    assert_eq_str(loc(), c2.to_str(), "Green")
+}
 
 # enum in func params
 is_red := func(c: Color) returns Bool {
     return c.eq(Color.Red)
 }
-expect(loc(), is_red(Color.Red), "func: is_red(Red)")
-expect(loc(), is_red(Color.Blue).not(), "func: is_red(Blue)")
+
+test_func_params := test() {
+    expect(loc(), is_red(Color.Red), "func: is_red(Red)")
+    expect(loc(), is_red(Color.Blue).not(), "func: is_red(Blue)")
+}
 
 # enum with namespace section
 Direction := enum {
@@ -33,48 +39,60 @@ Direction := enum {
         return false
     }
 }
-expect(loc(), Direction.Up.is_vertical(), "Up is vertical")
-expect(loc(), Direction.Left.is_vertical().not(), "Left not vertical")
+
+test_namespace := test() {
+    expect(loc(), Direction.Up.is_vertical(), "Up is vertical")
+    expect(loc(), Direction.Left.is_vertical().not(), "Left not vertical")
+}
 
 # --- payload enums ---
 
 Token := enum { Num: I64, Name: Str, Eof }
 
-# construction
-t := Token.Num(42)
-t2 := Token.Eof
-t3 := Token.Name("hello")
+test_payload_construction := test() {
+    t := Token.Num(42)
+    t2 := Token.Eof
+    t3 := Token.Name("hello")
 
-# is_Variant
-expect(loc(), t.is_Num(), "Num is_Num")
-expect(loc(), t.is_Eof().not(), "Num not is_Eof")
-expect(loc(), t2.is_Eof(), "Eof is_Eof")
-expect(loc(), t3.is_Name(), "Name is_Name")
+    expect(loc(), t.is_Num(), "Num is_Num")
+    expect(loc(), t.is_Eof().not(), "Num not is_Eof")
+    expect(loc(), t2.is_Eof(), "Eof is_Eof")
+    expect(loc(), t3.is_Name(), "Name is_Name")
+}
 
-# get_Variant
-assert_eq(loc(), t.get_Num(), 42)
-assert_eq_str(loc(), t3.get_Name(), "hello")
+test_payload_get := test() {
+    t := Token.Num(42)
+    t3 := Token.Name("hello")
+    assert_eq(loc(), t.get_Num(), 42)
+    assert_eq_str(loc(), t3.get_Name(), "hello")
+}
 
-# to_str
-assert_eq_str(loc(), t.to_str(), "Num(42)")
-assert_eq_str(loc(), t2.to_str(), "Eof")
-assert_eq_str(loc(), t3.to_str(), "Name(hello)")
+test_payload_to_str := test() {
+    assert_eq_str(loc(), Token.Num(42).to_str(), "Num(42)")
+    assert_eq_str(loc(), Token.Eof.to_str(), "Eof")
+    assert_eq_str(loc(), Token.Name("hello").to_str(), "Name(hello)")
+}
 
-# eq
-expect(loc(), t.eq(Token.Num(42)), "Num(42) eq Num(42)")
-expect(loc(), t.eq(Token.Num(99)).not(), "Num(42) neq Num(99)")
-expect(loc(), t.eq(Token.Eof).not(), "Num neq Eof")
-expect(loc(), t2.eq(Token.Eof), "Eof eq Eof")
+test_payload_eq := test() {
+    t := Token.Num(42)
+    expect(loc(), t.eq(Token.Num(42)), "Num(42) eq Num(42)")
+    expect(loc(), t.eq(Token.Num(99)).not(), "Num(42) neq Num(99)")
+    expect(loc(), t.eq(Token.Eof).not(), "Num neq Eof")
+    expect(loc(), Token.Eof.eq(Token.Eof), "Eof eq Eof")
+}
 
-# clone
-t4 := Token.Num(7)
-assert_eq(loc(), t4.get_Num(), 7)
+test_payload_clone := test() {
+    t4 := Token.Num(7)
+    assert_eq(loc(), t4.get_Num(), 7)
+}
 
-# payload enum in func params
 get_tag_name := func(tok: Token) returns Str {
     if tok.is_Num() { return "num" }
     if tok.is_Name() { return "name" }
     return "eof"
 }
-assert_eq_str(loc(), get_tag_name(Token.Num(1)), "num")
-assert_eq_str(loc(), get_tag_name(Token.Eof), "eof")
+
+test_payload_func_params := test() {
+    assert_eq_str(loc(), get_tag_name(Token.Num(1)), "num")
+    assert_eq_str(loc(), get_tag_name(Token.Eof), "eof")
+}

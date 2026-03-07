@@ -1,40 +1,28 @@
-mode cli
+mode test
 
 // Test universal UFCS: a.f(b) resolves to top-level f(a, b)
 
 double := func(x: I64) returns I64 { return x.mul(2) }
 
-test_basic := proc() {
+test_basic := test() {
     assert(loc(), 5.double().eq(10))
     assert(loc(), 0.double().eq(0))
-    println("basic: passed")
 }
 
-test_println := proc() {
+test_println := test() {
     "hello from ufcs".println()
-    println("println: passed")
 }
 
-test_format := proc() {
+test_format := test() {
     s := "result: ".format(42.to_str())
     assert(loc(), s.eq("result: 42"))
-    println("format: passed")
 }
 
 greet := func(name: Str) returns Str {
     return "hello, ".format(name)
 }
 
-test_user_func := proc() {
+test_user_func := test() {
     s := "world".greet()
     assert(loc(), s.eq("hello, world"))
-    println("user func: passed")
-}
-
-main := proc() {
-    test_basic()
-    test_println()
-    test_format()
-    test_user_func()
-    println("all ufcs tests passed")
 }

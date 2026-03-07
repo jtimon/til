@@ -1,6 +1,6 @@
-mode cli
+mode test
 
-test_i64 := proc() {
+test_i64 := test() {
     assert(loc(), 1.lt(2))
     assert(loc(), 2.gt(1))
     assert(loc(), 1.lte(1))
@@ -9,10 +9,9 @@ test_i64 := proc() {
     assert(loc(), 2.gte(1))
     assert(loc(), 1.neq(2))
     assert(loc(), 1.eq(1))
-    println("i64: passed")
 }
 
-test_u8 := proc() {
+test_u8 := test() {
     u1 : U8 = U8.from_i64(10)
     u2 : U8 = U8.from_i64(20)
     assert(loc(), u1.lt(u2))
@@ -20,10 +19,9 @@ test_u8 := proc() {
     assert(loc(), u1.lte(u1))
     assert(loc(), u2.gte(u1))
     assert(loc(), u1.neq(u2))
-    println("u8: passed")
 }
 
-test_str := proc() {
+test_str := test() {
     assert(loc(), "apple".lt("banana"))
     assert(loc(), "banana".gt("apple"))
     assert(loc(), "hello".lte("hello"))
@@ -32,16 +30,14 @@ test_str := proc() {
     assert(loc(), "b".gte("a"))
     assert(loc(), "hello".eq("hello"))
     assert(loc(), "hello".neq("world"))
-    println("str: passed")
 }
 
-test_bool := proc() {
+test_bool := test() {
     assert(loc(), true.eq(true))
     assert(loc(), false.eq(false))
     assert(loc(), true.neq(false))
     assert(loc(), true.gt(false))
     assert(loc(), false.lt(true))
-    println("bool: passed")
 }
 
 Point := struct {
@@ -63,7 +59,7 @@ Line := struct {
     }
 }
 
-test_line := proc() {
+test_line := test() {
     s := Line(end=Point(x=3, y=4))    // length_sq = 25
     l := Line(end=Point(x=6, y=8))   // length_sq = 100
     same := Line(end=Point(x=4, y=3))  // length_sq = 25
@@ -76,14 +72,4 @@ test_line := proc() {
     assert(loc(), s.lte(l))
     assert(loc(), l.gte(s))
     assert(loc(), s.neq(l))
-    println("line: passed")
-}
-
-main := proc() {
-    test_i64()
-    test_u8()
-    test_str()
-    test_bool()
-    test_line()
-    println("all cmp tests passed")
 }

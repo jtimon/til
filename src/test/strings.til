@@ -1,39 +1,39 @@
-mode script
+mode test
 
-test_eq := proc() {
+test_eq := test() {
     assert(loc(), "hello".eq("hello"))
     assert(loc(), "hello".eq("world").not())
     assert(loc(), "".eq(""))
     assert(loc(), "a".eq("ab").not())
 }
 
-test_concat := proc() {
+test_concat := test() {
     assert_eq_str(loc(), "hello".concat(" world"), "hello world")
     assert_eq_str(loc(), "".concat("abc"), "abc")
     assert_eq_str(loc(), "abc".concat(""), "abc")
     assert_eq_str(loc(), "".concat(""), "")
 }
 
-test_clone := proc() {
+test_clone := test() {
     s := "hello"
     s2 := s.clone()
     assert_eq_str(loc(), s2, "hello")
     assert_eq_str(loc(), s, "hello")
 }
 
-test_to_str := proc() {
+test_to_str := test() {
     assert_eq_str(loc(), "hello".to_str(), "hello")
     assert_eq_str(loc(), "".to_str(), "")
 }
 
-test_len := proc() {
+test_len := test() {
     assert_eq(loc(), "hello".len(), 5)
     assert_eq(loc(), "".len(), 0)
     assert_eq(loc(), "a".len(), 1)
     assert_eq(loc(), "hello world".len(), 11)
 }
 
-test_substr := proc() {
+test_substr := test() {
     assert_eq_str(loc(), "hello".substr(1, 3), "ell")
     assert_eq_str(loc(), "hello".substr(0, 5), "hello")
     assert_eq_str(loc(), "hello".substr(0, 0), "")
@@ -41,7 +41,7 @@ test_substr := proc() {
     assert_eq_str(loc(), "hello".substr(0, 1), "h")
 }
 
-test_contains := proc() {
+test_contains := test() {
     assert(loc(), "hello world".contains("world"))
     assert(loc(), "hello".contains("hello"))
     assert(loc(), "hello".contains(""))
@@ -51,7 +51,7 @@ test_contains := proc() {
     assert(loc(), "".contains(""))
 }
 
-test_starts_with := proc() {
+test_starts_with := test() {
     assert(loc(), "hello".starts_with("hel"))
     assert(loc(), "hello".starts_with("hello"))
     assert(loc(), "hello".starts_with(""))
@@ -59,7 +59,7 @@ test_starts_with := proc() {
     assert(loc(), "hi".starts_with("hello").not())
 }
 
-test_ends_with := proc() {
+test_ends_with := test() {
     assert(loc(), "hello".ends_with("llo"))
     assert(loc(), "hello".ends_with("hello"))
     assert(loc(), "hello".ends_with(""))
@@ -67,20 +67,20 @@ test_ends_with := proc() {
     assert(loc(), "hi".ends_with("hello").not())
 }
 
-test_neq := proc() {
+test_neq := test() {
     assert(loc(), "hello".neq("world"))
     assert(loc(), "hello".neq("hello").not())
     assert(loc(), "".neq("").not())
     assert(loc(), "a".neq("b"))
 }
 
-test_is_empty := proc() {
+test_is_empty := test() {
     assert(loc(), "".is_empty())
     assert(loc(), "a".is_empty().not())
     assert(loc(), "hello".is_empty().not())
 }
 
-test_find := proc() {
+test_find := test() {
     assert_eq(loc(), "hello world".find("world"), 6)
     assert_eq(loc(), "hello".find("ell"), 1)
     assert_eq(loc(), "hello".find("hello"), 0)
@@ -91,7 +91,7 @@ test_find := proc() {
     assert_eq(loc(), "abcabc".find("bc"), 1)
 }
 
-test_rfind := proc() {
+test_rfind := test() {
     assert_eq(loc(), "abcabc".rfind("bc"), 4)
     assert_eq(loc(), "abcabc".rfind("a"), 3)
     assert_eq(loc(), "hello".rfind("ell"), 1)
@@ -100,7 +100,7 @@ test_rfind := proc() {
     assert_eq(loc(), "aaa".rfind("a"), 2)
 }
 
-test_replace := proc() {
+test_replace := test() {
     assert_eq_str(loc(), "hello world".replace("world", "til"), "hello til")
     assert_eq_str(loc(), "aaa".replace("a", "bb"), "bbbbbb")
     assert_eq_str(loc(), "hello".replace("xyz", "abc"), "hello")
@@ -110,33 +110,33 @@ test_replace := proc() {
     assert_eq_str(loc(), "a.b.c".replace(".", "/"), "a/b/c")
 }
 
-test_get_char := proc() {
+test_get_char := test() {
     assert_eq_str(loc(), "hello".get_char(0), "h")
     assert_eq_str(loc(), "hello".get_char(4), "o")
     assert_eq_str(loc(), "abc".get_char(1), "b")
 }
 
-test_strip_prefix := proc() {
+test_strip_prefix := test() {
     assert_eq_str(loc(), "hello world".strip_prefix("hello "), "world")
     assert_eq_str(loc(), "hello".strip_prefix("xyz"), "hello")
     assert_eq_str(loc(), "hello".strip_prefix(""), "hello")
     assert_eq_str(loc(), "hello".strip_prefix("hello"), "")
 }
 
-test_strip_suffix := proc() {
+test_strip_suffix := test() {
     assert_eq_str(loc(), "hello world".strip_suffix(" world"), "hello")
     assert_eq_str(loc(), "hello".strip_suffix("xyz"), "hello")
     assert_eq_str(loc(), "hello".strip_suffix(""), "hello")
     assert_eq_str(loc(), "hello".strip_suffix("hello"), "")
 }
 
-test_from_byte := proc() {
+test_from_byte := test() {
     assert_eq_str(loc(), Str.from_byte(U8.from_i64(65)), "A")
     assert_eq_str(loc(), Str.from_byte(U8.from_i64(48)), "0")
     assert_eq_str(loc(), Str.from_byte(U8.from_i64(97)), "a")
 }
 
-test_to_i64 := proc() {
+test_to_i64 := test() {
     assert_eq(loc(), "42".to_i64(), 42)
     assert_eq(loc(), "0".to_i64(), 0)
     assert_eq(loc(), "123456".to_i64(), 123456)
@@ -144,7 +144,7 @@ test_to_i64 := proc() {
     assert_eq(loc(), "-100".to_i64(), 0.sub(100))
 }
 
-test_split := proc() {
+test_split := test() {
     parts := split("a,b,c", ",")
     assert_eq(loc(), parts.len(), 3)
     ref p0 : Str = parts.get(0)
@@ -176,7 +176,7 @@ test_split := proc() {
     assert_eq_str(loc(), s2, "")
 }
 
-test_join := proc() {
+test_join := test() {
     parts := split("a,b,c", ",")
     assert_eq_str(loc(), join(parts, ","), "a,b,c")
     assert_eq_str(loc(), join(parts, " - "), "a - b - c")
@@ -188,25 +188,3 @@ test_join := proc() {
     empty := Vec.new("Str", Str.size())
     assert_eq_str(loc(), join(empty, ","), "")
 }
-
-test_eq()
-test_concat()
-test_clone()
-test_to_str()
-test_len()
-test_substr()
-test_contains()
-test_starts_with()
-test_ends_with()
-test_neq()
-test_is_empty()
-test_find()
-test_rfind()
-test_replace()
-test_get_char()
-test_strip_prefix()
-test_strip_suffix()
-test_from_byte()
-test_to_i64()
-test_split()
-test_join()

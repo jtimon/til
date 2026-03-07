@@ -1,6 +1,6 @@
-mode script
+mode test
 
-test_arithmetic := proc() {
+test_arithmetic := test() {
     assert_eq(loc(), 34.add(35), 69)
     assert_eq(loc(), 10.sub(3), 7)
     assert_eq(loc(), 6.mul(7), 42)
@@ -10,7 +10,7 @@ test_arithmetic := proc() {
     assert_eq(loc(), 42.neg(), 0.sub(42))
 }
 
-test_comparison := proc() {
+test_comparison := test() {
     assert(loc(), 1.eq(1))
     assert(loc(), 1.lt(2))
     assert(loc(), 2.gt(1))
@@ -24,7 +24,7 @@ test_comparison := proc() {
     assert(loc(), 2.neq(2).not())
 }
 
-test_boolean := proc() {
+test_boolean := test() {
     assert(loc(), true.and(true))
     assert(loc(), true.and(false).not())
     assert(loc(), false.or(false).not())
@@ -33,13 +33,13 @@ test_boolean := proc() {
     assert(loc(), false.not())
 }
 
-test_bitwise := proc() {
+test_bitwise := test() {
     assert_eq(loc(), 6.and(3), 2)
     assert_eq(loc(), 6.or(3), 7)
     assert_eq(loc(), 6.xor(3), 5)
 }
 
-test_mutation := proc() {
+test_mutation := test() {
     mut counter := 0
     counter = 1
     counter = counter.add(1)
@@ -48,9 +48,3 @@ test_mutation := proc() {
     msg = "world"
     assert_eq_str(loc(), msg, "world")
 }
-
-test_arithmetic()
-test_comparison()
-test_boolean()
-test_bitwise()
-test_mutation()

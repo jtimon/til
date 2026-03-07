@@ -13,6 +13,22 @@
 
   Renamed core.til `test` proc to `expect` to free the keyword.
 
+  Limitations of mode test (decls_only):
+  - Top-level non-decl statements are not executed in codegen mode
+    (scavenger may also remove them). Move workaround refs into tests.
+  - Top-level constant initializers (N := 10) are not run in codegen,
+    causing NULL dereferences. Move constants inside test functions.
+  - Imported top-level constants have the same issue. Tests that depend
+    on imported constants (e.g. import_diamond.til) must stay mode script.
+
+  Files kept as mode script/cli for specific reasons:
+  - typer_errors.til: deliberately triggers type errors, not runnable
+  - globals.til: tests script-mode global variable behavior
+  - globals_cli.til: tests CLI-mode globals
+  - import_diamond.til: uses imported top-level constant (SHARED_VAL)
+  - lexing.til: large file (500+ lines) with full tokenizer impl
+  - parsing.til: large file (1000+ lines) with full parser impl
+
 * FIXED #26 Mode struct: eliminate string-based mode checks
   Replaced ad-hoc strcmp/Str_eq_c mode checks across 5 files with a
   Mode struct in modes.h with properties: name, needs_main, decls_only,
