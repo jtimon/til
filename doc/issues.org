@@ -1,9 +1,45 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 30
+# NEXT_ISSUE: 31
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+
+* OPEN #30 Vec-in-struct: mutating a Vec field on a struct operates on a copy
+  :DEPENDENCIES_OF: #12
+  Accessing a struct field of type Vec (or any ext_struct) returns a clone,
+  not a reference to the original. This means:
+
+    Container := struct { mut items := Vec() }
+    mut c := Container()
+    c.items = Vec.new("I64", I64.size())
+    c.items.push(own 10)    // pushes into a CLONE — original unchanged
+    c.items.len()            // still 0
+
+  The field access `c.items` clones the Vec. The `.push()` mutates the clone,
+  which is then discarded. The original `c.items` is never modified.
+
+  This blocks self-hosting (#12) because the AST Expr struct needs Vec fields
+  (children, param_names, param_types, etc.). Without mutable access to
+  struct fields of compound types, we can't build recursive data structures.
+
+  Workaround (move out + back) partially works but corrupts data:
+    mut tmp := c.items; tmp.push(own 10); c.items = tmp  // len correct, data garbled
+
+** Possible solutions
+*** Option A: Field access returns ref for mut fields
+    When the struct field is `mut` and the access is used as a method receiver
+    or LHS of assignment, return a reference instead of a clone. This is the
+    most natural fix — `c.items.push()` would push into the real Vec.
+
+*** Option B: ref mut field access
+    Explicit syntax: `ref mut items : Vec = c.items` gives a mutable reference
+    to the field. Mutations via the ref affect the original struct.
+
+*** Option C: Arena/pool pattern (workaround)
+    Avoid Vec-in-struct entirely. Use flat arenas (global Vecs) with integer
+    indices instead of nested ownership. Each Expr stores children_start and
+    children_count, referencing into a global children pool.
 
 * OPEN #29 Proper strings: separate len/cap, static literals, views
   See doc/strings.org for full design.
@@ -467,7 +503,7 @@
   and many patterns needed for self-hosting (visitor, dispatch tables).
 
 * WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #1 #2 #15 #17
+  :DEPENDENCIES: #1 #2 #15 #17 #30
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
@@ -491,6 +527,62 @@
    mode lib. TokenType enum (all 62 variants), Token struct, tok_name(),
    lookup_keyword(), tokenize(). Tests in src/test/lexing.til (10 tests).
    Works in both interpret and codegen modes.
+
+** BLOCKED Parser (src/self/parser.til) — needs #30
+   Plan complete, blocked on Vec-in-struct (#30). Parser.c translates to
+   parser.til + ast.til (separate module since typer/interpreter/ccodegen
+   also need AST types).
+
+*** c2til.org gaps found during analysis
+    1. C union inside struct → flat struct (all union fields as regular fields)
+    2. Vec/struct as struct field → BLOCKED by #30
+    3. C arrays (Str**, bool*) as struct fields → Vec fields
+    4. Bool fields in Vec-stored structs → use I64 (known alignment bug)
+    5. NULL Expr* pointers → "" for strings, sentinel indices for optionals
+    6. Returning refs from borrowed data → returns ref Type
+
+*** src/self/ast.til (mode lib)
+    Strict translation of ast.h:
+    - NodeType enum — 20 variants (Body, LiteralStr, LiteralNum, LiteralBool,
+      Ident, Decl, Assign, FCall, FuncDef, StructDef, EnumDef, FieldAccess,
+      FieldAssign, Return, If, While, ForIn, NamedArg, Break, Continue,
+      MapLit, SetLit)
+    - FuncType enum — 6 variants (Func, Proc, Test, Macro, ExtFunc, ExtProc)
+    - Expr struct — flat (union flattened), all fields:
+      - type, str_val, decl_name, decl_explicit_type, decl_is_mut,
+        decl_is_namespace, decl_is_ref, decl_is_own (I64 flags, not Bool)
+      - func_type, nparam, return_type, return_is_ref, variadic_param_index
+      - is_own_arg, is_ext
+      - line, col, path
+      - children: Vec (initialized in expr_new, not struct default)
+      - param_names, param_types: Vec of Str (FUNC_DEF only)
+      - param_muts, param_owns: Vec of I64 (FUNC_DEF only)
+    - expr_new proc — creates Expr, initializes children Vec
+    - expr_add_child proc — pushes child into children Vec
+    - expr_child func — returns ref to child at index
+    - node_type_name func — maps NodeType → debug string
+
+*** src/self/parser.til (mode lib)
+    Strict translation of parser.c, imports lexer.til and ast.til.
+    Parser struct: tokens (Vec), count (I64), pos (I64), path (Str).
+    Functions (same names and variable names as C):
+    - peek, advance, check, expect, tok_str (helpers)
+    - parse_block, parse_func_def, parse_struct_def, parse_enum_def
+    - parse_call, parse_expression, parse_statement_ident, parse_statement
+    - parse (entry point, returns Expr root NODE_BODY)
+
+*** src/test/parsing.til (mode script)
+    10 tests inspired by old rstil test_parser.til:
+    1. test_empty — parse "" → Body with 0 children
+    2. test_declaration — x := 42 → Decl + LiteralNum
+    3. test_typed_decl — x : I64 = 0 → Decl with explicit type
+    4. test_assignment — x = 1 → Assign + LiteralNum
+    5. test_call — foo(1, 2) → FCall with 3 children
+    6. test_method_call — x.foo(1) → FCall with FieldAccess callee
+    7. test_if_else → If with 3 children
+    8. test_while → While with 2 children
+    9. test_func_def → FuncDef with params and body
+    10. test_struct_def → StructDef
 
 
 * OPEN #10 REPL: interactive read-eval-print loop
