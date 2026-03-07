@@ -328,7 +328,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 check_tok := proc(tokens: Vec, i: I64, expected_type: TokenType, expected_text: Str) {
     ref t : Token = tokens.get(i)
     tt := t.type
-    test(loc(), tt.eq(expected_type),
+    expect(loc(), tt.eq(expected_type),
         format("token ", i.to_str(), " type: expected ", expected_type.to_str(),
                " got ", tt.to_str()))
     assert_eq_str(loc(), t.text, expected_text)

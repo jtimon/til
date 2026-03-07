@@ -1161,7 +1161,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
 
         FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
-        Bool callee_is_proc = (ft == FUNC_PROC || ft == FUNC_EXT_PROC);
+        I32 callee_is_proc = (ft == FUNC_TEST) ? 2 : (ft == FUNC_PROC || ft == FUNC_EXT_PROC) ? 1 : 0;
         TilType rt = TIL_TYPE_NONE;
         if (expr_child(stmt, 0)->data.func_def.return_type) {
             rt = type_from_name_init(expr_child(stmt, 0)->data.func_def.return_type, scope);

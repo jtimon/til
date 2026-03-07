@@ -37,8 +37,8 @@ assert_eq(loc(), square_plus_one(0), 50)
 macro_is_big := macro(x: I64) returns Bool {
     return x.gt(100)
 }
-test(loc(), macro_is_big(200), "200 is big")
-test(loc(), macro_is_big(50).not(), "50 is not big")
+expect(loc(), macro_is_big(200), "200 is big")
+expect(loc(), macro_is_big(50).not(), "50 is not big")
 
 # --- constant folding for pure funcs ---
 

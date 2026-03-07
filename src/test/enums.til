@@ -5,8 +5,8 @@ Color := enum { Red, Green, Blue }
 
 # construction and eq
 c := Color.Red
-test(loc(), c.eq(Color.Red), "Red eq Red")
-test(loc(), c.eq(Color.Green).not(), "Red neq Green")
+expect(loc(), c.eq(Color.Red), "Red eq Red")
+expect(loc(), c.eq(Color.Green).not(), "Red neq Green")
 
 # to_str
 assert_eq_str(loc(), c.to_str(), "Red")
@@ -20,8 +20,8 @@ assert_eq_str(loc(), c2.to_str(), "Green")
 is_red := func(c: Color) returns Bool {
     return c.eq(Color.Red)
 }
-test(loc(), is_red(Color.Red), "func: is_red(Red)")
-test(loc(), is_red(Color.Blue).not(), "func: is_red(Blue)")
+expect(loc(), is_red(Color.Red), "func: is_red(Red)")
+expect(loc(), is_red(Color.Blue).not(), "func: is_red(Blue)")
 
 # enum with namespace section
 Direction := enum {
@@ -33,8 +33,8 @@ Direction := enum {
         return false
     }
 }
-test(loc(), Direction.Up.is_vertical(), "Up is vertical")
-test(loc(), Direction.Left.is_vertical().not(), "Left not vertical")
+expect(loc(), Direction.Up.is_vertical(), "Up is vertical")
+expect(loc(), Direction.Left.is_vertical().not(), "Left not vertical")
 
 # --- payload enums ---
 
@@ -46,10 +46,10 @@ t2 := Token.Eof
 t3 := Token.Name("hello")
 
 # is_Variant
-test(loc(), t.is_Num(), "Num is_Num")
-test(loc(), t.is_Eof().not(), "Num not is_Eof")
-test(loc(), t2.is_Eof(), "Eof is_Eof")
-test(loc(), t3.is_Name(), "Name is_Name")
+expect(loc(), t.is_Num(), "Num is_Num")
+expect(loc(), t.is_Eof().not(), "Num not is_Eof")
+expect(loc(), t2.is_Eof(), "Eof is_Eof")
+expect(loc(), t3.is_Name(), "Name is_Name")
 
 # get_Variant
 assert_eq(loc(), t.get_Num(), 42)
@@ -61,10 +61,10 @@ assert_eq_str(loc(), t2.to_str(), "Eof")
 assert_eq_str(loc(), t3.to_str(), "Name(hello)")
 
 # eq
-test(loc(), t.eq(Token.Num(42)), "Num(42) eq Num(42)")
-test(loc(), t.eq(Token.Num(99)).not(), "Num(42) neq Num(99)")
-test(loc(), t.eq(Token.Eof).not(), "Num neq Eof")
-test(loc(), t2.eq(Token.Eof), "Eof eq Eof")
+expect(loc(), t.eq(Token.Num(42)), "Num(42) eq Num(42)")
+expect(loc(), t.eq(Token.Num(99)).not(), "Num(42) neq Num(99)")
+expect(loc(), t.eq(Token.Eof).not(), "Num neq Eof")
+expect(loc(), t2.eq(Token.Eof), "Eof eq Eof")
 
 # clone
 t4 := Token.Num(7)

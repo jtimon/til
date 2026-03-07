@@ -1260,7 +1260,7 @@ parse := proc(source: Str, path: Str) returns I64 {
 
 assert_node_type := proc(idx: I64, expected: NodeType) {
     actual := node_type(idx)
-    test(loc(), actual.eq(expected),
+    expect(loc(), actual.eq(expected),
         format("node type: expected ", expected.to_str(), " got ", actual.to_str()))
 }
 
@@ -1487,7 +1487,7 @@ test_ref_decl := proc() {
     ref dn : Node = nodes.get(decl)
     assert_eq_str(loc(), dn.decl_name, "x")
     assert_eq_str(loc(), dn.decl_type, "I64")
-    test(loc(), dn.is_ref, "is_ref")
+    expect(loc(), dn.is_ref, "is_ref")
 }
 
 // Test: mut decl
@@ -1496,7 +1496,7 @@ test_mut_decl := proc() {
     decl := node_child(root, 0)
     ref dn : Node = nodes.get(decl)
     assert_eq_str(loc(), dn.decl_name, "x")
-    test(loc(), dn.is_mut, "is_mut")
+    expect(loc(), dn.is_mut, "is_mut")
 }
 
 // Test: field assignment
@@ -1528,7 +1528,7 @@ test_own_expr := proc() {
     // arg should have is_own_arg
     arg := node_child(call, 1)
     ref an : Node = nodes.get(arg)
-    test(loc(), an.is_own_arg, "own arg")
+    expect(loc(), an.is_own_arg, "own arg")
 }
 
 // Test: mode declaration

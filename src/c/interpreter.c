@@ -914,7 +914,7 @@ static Value build_argv_array(I32 argc, char **argv, Str *elem_type) {
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
-I32 interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, I32 user_argc, char **user_argv) {
+I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, I32 user_argc, char **user_argv) {
     // Load user FFI library if provided
     if (user_c_path) {
         I32 rc = ffi_init(program, user_c_path, ext_c_path, link_flags);
@@ -941,12 +941,39 @@ I32 interpret(Expr *program, Str *mode, const char *path, const char *user_c_pat
     // Evaluate top-level declarations
     eval_body(global, program);
 
-    // In cli/gui mode, call main()
-    if (mode && (Str_eq_c(mode, "cli") || Str_eq_c(mode, "gui"))) {
+    // Run test functions if requested
+    if (run_tests) {
+        I32 test_count = 0, pass_count = 0;
+        for (I32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type != NODE_DECL) continue;
+            Expr *rhs = expr_child(stmt, 0);
+            if (rhs->type != NODE_FUNC_DEF) continue;
+            if (rhs->data.func_def.func_type != FUNC_TEST) continue;
+            Str *tname = stmt->data.decl.name;
+            test_count++;
+            Scope *test_scope = scope_new(global);
+            eval_body(test_scope, expr_child(rhs, 0));
+            scope_free(test_scope);
+            pass_count++;
+            fprintf(stderr, "  pass: %s\n", tname->c_str);
+        }
+        if (test_count == 0) {
+            fprintf(stderr, "no tests found\n");
+        } else {
+            fprintf(stderr, "%d/%d tests passed\n", pass_count, test_count);
+        }
+        scope_free(global);
+        ffi_cleanup();
+        return (pass_count == test_count) ? 0 : 1;
+    }
+
+    // In needs_main mode, call main()
+    if (mode && mode->needs_main) {
         Str main_name = {.c_str = (char *)"main", .cap = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
-            fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path, mode->c_str);
+            fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path, mode->name);
             scope_free(global);
             return 1;
         }

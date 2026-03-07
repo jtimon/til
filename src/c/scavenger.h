@@ -2,10 +2,11 @@
 #define TIL_SCAVENGER_H
 
 #include "ast.h"
+#include "modes.h"
 
 // Remove top-level declarations and namespace methods not reachable
-// from the program's entry points. CLI mode: main. Script mode: all
+// from the program's entry points. needs_main: main. Otherwise: all
 // top-level executable statements.
-void scavenge(Expr *program, Str *mode);
+void scavenge(Expr *program, const Mode *mode, Bool run_tests);
 
 #endif

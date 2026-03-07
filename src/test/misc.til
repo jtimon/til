@@ -6,13 +6,13 @@ mode script
 assert_eq(loc(), 1.clone(), 1)
 assert_eq_str(loc(), "hi".clone(), "hi")
 
-test(loc(), dyn_has_method("I64", "delete"), "I64 has delete")
-test(loc(), dyn_has_method("I64", "clone"), "I64 has clone")
-test(loc(), dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
-test(loc(), dyn_has_method("Str", "delete"), "Str has delete")
-test(loc(), dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
-test(loc(), dyn_has_method("Bool", "eq"), "Bool has eq")
-test(loc(), dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
+expect(loc(), dyn_has_method("I64", "delete"), "I64 has delete")
+expect(loc(), dyn_has_method("I64", "clone"), "I64 has clone")
+expect(loc(), dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
+expect(loc(), dyn_has_method("Str", "delete"), "Str has delete")
+expect(loc(), dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
+expect(loc(), dyn_has_method("Bool", "eq"), "Bool has eq")
+expect(loc(), dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
 
 // Test with a user-defined struct
 Foo := struct {
@@ -22,8 +22,8 @@ Foo := struct {
 }
 f := Foo(x=0)
 assert_eq(loc(), f.bar(), 0)
-test(loc(), dyn_has_method("Foo", "bar"), "Foo has bar")
-test(loc(), dyn_has_method("Foo", "baz").not(), "Foo no baz")
+expect(loc(), dyn_has_method("Foo", "bar"), "Foo has bar")
+expect(loc(), dyn_has_method("Foo", "baz").not(), "Foo no baz")
 
 println("dyn_has_method: all passed")
 

@@ -84,8 +84,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->til_type = TIL_TYPE_NONE;
         // Type the body
         {
-            Bool is_func = (e->data.func_def.func_type == FUNC_FUNC);
-            Bool is_macro = (e->data.func_def.func_type == FUNC_MACRO);
+            FuncType ftype = e->data.func_def.func_type;
+            Bool is_func = (ftype == FUNC_FUNC);
+            Bool is_macro = (ftype == FUNC_MACRO);
+            // Test function constraints
+            if (ftype == FUNC_TEST) {
+                if (scope->parent != NULL)
+                    type_error(e, "test functions can only be declared in root scope");
+                if (e->data.func_def.return_type)
+                    type_error(e, "test functions cannot have a return type");
+                if (e->data.func_def.nparam > 0)
+                    type_error(e, "test functions cannot have parameters");
+            }
             TypeScope *func_scope = tscope_new(scope);
             // Bind parameters
             for (I32 i = 0; i < e->data.func_def.nparam; i++) {
@@ -720,6 +730,12 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (in_func && tscope_is_proc(scope, name) == 1 && !Str_eq_c(name, "panic")) {
             char buf[128];
             snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name->c_str);
+            type_error(e, buf);
+        }
+        // Check: test functions cannot be called by anyone
+        if (tscope_is_proc(scope, name) == 2) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "test functions cannot be called ('%s')", name->c_str);
             type_error(e, buf);
         }
         break;
@@ -1782,7 +1798,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     }
                 }
                 FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
-                Bool callee_is_proc = (ft == FUNC_PROC || ft == FUNC_EXT_PROC);
+                I32 callee_is_proc = (ft == FUNC_TEST) ? 2 : (ft == FUNC_PROC || ft == FUNC_EXT_PROC) ? 1 : 0;
                 TilType rt = TIL_TYPE_NONE;
                 if (expr_child(stmt, 0)->data.func_def.return_type) {
                     rt = type_from_name(expr_child(stmt, 0)->data.func_def.return_type, scope);

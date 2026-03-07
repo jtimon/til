@@ -99,6 +99,7 @@ static const char *func_type_name(FuncType ft) {
     switch (ft) {
     case FUNC_FUNC:     return "func";
     case FUNC_PROC:     return "proc";
+    case FUNC_TEST:     return "test";
     case FUNC_MACRO:    return "macro";
     case FUNC_EXT_FUNC: return "ext_func";
     case FUNC_EXT_PROC: return "ext_proc";

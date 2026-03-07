@@ -67,6 +67,7 @@ static Expr *parse_func_def(Parser *p) {
     switch (kw->type) {
     case TOK_FUNC:     ft = FUNC_FUNC;     break;
     case TOK_PROC:     ft = FUNC_PROC;     break;
+    case TOK_TEST:     ft = FUNC_TEST;     break;
     case TOK_MACRO:    ft = FUNC_MACRO;    break;
     case TOK_EXT_FUNC: ft = FUNC_EXT_FUNC; break;
     case TOK_EXT_PROC: ft = FUNC_EXT_PROC; break;
@@ -317,8 +318,8 @@ static Expr *parse_expression(Parser *p) {
             e = expr_new(NODE_IDENT, t->line, t->col, p->spath);
             e->data.str_val = name;
         }
-    } else if (t->type == TOK_FUNC || t->type == TOK_PROC || t->type == TOK_MACRO ||
-               t->type == TOK_EXT_FUNC || t->type == TOK_EXT_PROC) {
+    } else if (t->type == TOK_FUNC || t->type == TOK_PROC || t->type == TOK_TEST ||
+               t->type == TOK_MACRO || t->type == TOK_EXT_FUNC || t->type == TOK_EXT_PROC) {
         return parse_func_def(p);
     } else if (t->type == TOK_STRUCT || t->type == TOK_EXT_STRUCT) {
         return parse_struct_def(p);
@@ -620,7 +621,9 @@ Expr *parse(Token *tokens, I32 count, const char *path, Str **mode_out) {
     if (mode_out) *mode_out = NULL;
     if (check(&p, TOK_MODE)) {
         advance(&p); // consume 'mode'
-        Token *mode_name = expect(&p, TOK_IDENT);
+        // Accept TOK_IDENT or TOK_TEST (test is both a keyword and a mode name)
+        Token *mode_name = (check(&p, TOK_IDENT) || check(&p, TOK_TEST))
+            ? advance(&p) : expect(&p, TOK_IDENT);
         if (mode_out) *mode_out = tok_str(mode_name);
     }
 

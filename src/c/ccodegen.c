@@ -585,12 +585,12 @@ static void emit_ns_inits(FILE *f, I32 depth) {
     }
 }
 
-static void emit_func_def(FILE *f, Str *name, Expr *func_def, Str *mode) {
+static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) {
     (void)func_def->data.func_def.func_type;
     Expr *body = expr_child(func_def, 0);
 
-    // In cli mode, main proc becomes C main()
-    Bool is_main = mode && (Str_eq_c(mode, "cli") || Str_eq_c(mode, "gui")) && Str_eq_c(name, "main");
+    // In needs_main mode, main proc becomes C main()
+    Bool is_main = mode && mode->needs_main && Str_eq_c(name, "main");
 
     if (is_main) {
         I32 nparam = func_def->data.func_def.nparam;
@@ -891,7 +891,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     }
 }
 
-I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_path) {
+I32 codegen_c(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *c_output_path) {
     (void)path;
 
     codegen_program = program;
@@ -914,7 +914,7 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
 
     fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
 
-    Bool is_script = mode && Str_eq_c(mode, "script");
+    Bool is_script = mode && !mode->decls_only;
 
     // Forward-declare all structs (skip core ext_structs and Str — ext.h provides)
     for (I32 i = 0; i < program->children.count; i++) {
@@ -1011,7 +1011,7 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
             FuncType fft = func_def->data.func_def.func_type;
             if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
             Str *name = stmt->data.decl.name;
-            Bool is_main = mode && (Str_eq_c(mode, "cli") || Str_eq_c(mode, "gui")) && Str_eq_c(name, "main");
+            Bool is_main = mode && mode->needs_main && Str_eq_c(name, "main");
             if (is_main) continue;
             const char *ret = "void";
             if (func_def->data.func_def.return_type)
@@ -1320,8 +1320,34 @@ I32 codegen_c(Expr *program, Str *mode, const char *path, const char *c_output_p
         Vec_delete(&coll_infos);
     }
 
+    // Test runner: emit main() that calls all test functions
+    if (run_tests) {
+        fprintf(f, "int main(void) {\n");
+        emit_ns_inits(f, 1);
+        I32 test_count = 0;
+        for (I32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type != NODE_DECL) continue;
+            Expr *rhs = expr_child(stmt, 0);
+            if (rhs->type != NODE_FUNC_DEF) continue;
+            if (rhs->data.func_def.func_type != FUNC_TEST) continue;
+            Str *tname = stmt->data.decl.name;
+            fprintf(f, "    til_%s();\n", tname->c_str);
+            fprintf(f, "    fprintf(stderr, \"  pass: %%s\\n\", \"%s\");\n", tname->c_str);
+            test_count++;
+        }
+        if (test_count == 0) {
+            fprintf(f, "    fprintf(stderr, \"no tests found\\n\");\n");
+        } else {
+            fprintf(f, "    fprintf(stderr, \"%d/%d tests passed\\n\");\n",
+                    test_count, test_count);
+        }
+        fprintf(f, "    return 0;\n");
+        fprintf(f, "}\n");
+    }
+
     // Script mode: wrap top-level statements in main()
-    if (is_script) {
+    if (!run_tests && is_script) {
         fprintf(f, "int main(void) {\n");
         emit_ns_inits(f, 1);
         for (I32 i = 0; i < program->children.count; i++) {

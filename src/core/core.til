@@ -760,7 +760,7 @@ assert := func(loc_str: Str, cond: Bool) returns Bool {
     return assertm(loc_str, cond, "")
 }
 
-test := proc(loc_str: Str, cond: Bool, msg: Str) {
+expect := proc(loc_str: Str, cond: Bool, msg: Str) {
     assertm(loc_str, cond, msg)
 }
 

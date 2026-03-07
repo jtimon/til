@@ -45,6 +45,7 @@ const char *tok_name(TokenType type) {
     case TOK_NAMESPACE: return "namespace";
     case TOK_FUNC:      return "func";
     case TOK_PROC:      return "proc";
+    case TOK_TEST:      return "test";
     case TOK_MACRO:     return "macro";
     case TOK_EXT_FUNC:  return "ext_func";
     case TOK_EXT_PROC:  return "ext_proc";
@@ -90,6 +91,7 @@ static const Keyword keywords[] = {
     {"namespace", TOK_NAMESPACE},
     {"func",      TOK_FUNC},
     {"proc",      TOK_PROC},
+    {"test",      TOK_TEST},
     {"macro",     TOK_MACRO},
     {"ext_func",  TOK_EXT_FUNC},
     {"ext_proc",  TOK_EXT_PROC},

@@ -31,6 +31,7 @@ typedef enum {
 typedef enum {
     FUNC_FUNC,
     FUNC_PROC,
+    FUNC_TEST,
     FUNC_MACRO,
     FUNC_EXT_FUNC,
     FUNC_EXT_PROC,

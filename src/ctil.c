@@ -10,6 +10,15 @@
 #include "c/ccodegen.h"
 #include "c/precomp.h"
 #include "c/scavenger.h"
+#include "c/modes.h"
+
+static const Mode *mode_resolve(const char *name) {
+    if (strcmp(name, "script") == 0) return &MODE_SCRIPT;
+    if (strcmp(name, "cli") == 0)    return &MODE_CLI;
+    if (strcmp(name, "gui") == 0)    return &MODE_GUI;
+    if (strcmp(name, "test") == 0)   return &MODE_TEST;
+    return NULL;
+}
 
 static char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
@@ -34,6 +43,7 @@ static void usage(void) {
     printf("  translate  Generate C source (no compilation)\n");
     printf("  build      Compile a .til file to a binary\n");
     printf("  run        Compile and run a .til file\n");
+    printf("  test       Run test functions in a .til file\n");
     printf("  help       Print this message\n");
 }
 
@@ -65,20 +75,18 @@ int main(int argc, char **argv) {
     }
 
     // Resolve paths relative to binary location
-    char core_path[256], ext_c_path[256], gui_til_path[256], gui_c_path[256];
+    char core_path[256], ext_c_path[256], bin_dir[256];
     {
         const char *slash = strrchr(argv[0], '/');
         if (slash) {
             I32 dir_len = (int)(slash - argv[0]);
-            snprintf(core_path, sizeof(core_path), "%.*s/../src/core/core.til", dir_len, argv[0]);
-            snprintf(ext_c_path, sizeof(ext_c_path), "%.*s/../src/c/ext.c", dir_len, argv[0]);
-            snprintf(gui_til_path, sizeof(gui_til_path), "%.*s/../src/modes/gui.til", dir_len, argv[0]);
-            snprintf(gui_c_path, sizeof(gui_c_path), "%.*s/../src/modes/gui.c", dir_len, argv[0]);
+            snprintf(bin_dir, sizeof(bin_dir), "%.*s/..", dir_len, argv[0]);
+            snprintf(core_path, sizeof(core_path), "%s/src/core/core.til", bin_dir);
+            snprintf(ext_c_path, sizeof(ext_c_path), "%s/src/c/ext.c", bin_dir);
         } else {
+            snprintf(bin_dir, sizeof(bin_dir), "..");
             snprintf(core_path, sizeof(core_path), "../src/core/core.til");
             snprintf(ext_c_path, sizeof(ext_c_path), "../src/c/ext.c");
-            snprintf(gui_til_path, sizeof(gui_til_path), "../src/modes/gui.til");
-            snprintf(gui_c_path, sizeof(gui_c_path), "../src/modes/gui.c");
         }
     }
     char *core_source = read_file(core_path);
@@ -92,23 +100,36 @@ int main(int argc, char **argv) {
     I32 count;
     Token *tokens = tokenize(source, path, &count);
 
-    Str *mode = NULL;
-    Expr *ast = parse(tokens, count, path, &mode);
+    Str *mode_str = NULL;
+    Expr *ast = parse(tokens, count, path, &mode_str);
 
-    // If mode is "gui", load gui.til declarations
-    Expr *gui_ast = NULL;
-    if (mode && strcmp(mode->c_str, "gui") == 0) {
-        char *gui_source = read_file(gui_til_path);
-        if (!gui_source) {
-            fprintf(stderr, "error: mode 'gui' requires gui.til (not found at '%s')\n", gui_til_path);
+    const Mode *mode = NULL;
+    if (mode_str) {
+        mode = mode_resolve(mode_str->c_str);
+        if (!mode) {
+            fprintf(stderr, "error: unknown mode '%s'\n", mode_str->c_str);
             return 1;
         }
-        I32 gui_count;
-        Token *gui_tokens = tokenize(gui_source, gui_til_path, &gui_count);
-        gui_ast = parse(gui_tokens, gui_count, gui_til_path, NULL);
     }
 
-    // Prepend core declarations (and gui if mode gui) to program AST
+    // If mode has auto_import, load its .til declarations
+    Expr *mode_ast = NULL;
+    char mode_til_path[256] = "", mode_c_path[256] = "";
+    if (mode && mode->auto_import) {
+        snprintf(mode_til_path, sizeof(mode_til_path), "%s/src/modes/%s.til", bin_dir, mode->auto_import);
+        snprintf(mode_c_path, sizeof(mode_c_path), "%s/src/modes/%s.c", bin_dir, mode->auto_import);
+        char *mode_source = read_file(mode_til_path);
+        if (!mode_source) {
+            fprintf(stderr, "error: mode '%s' requires %s.til (not found at '%s')\n",
+                    mode->name, mode->auto_import, mode_til_path);
+            return 1;
+        }
+        I32 mode_count;
+        Token *mode_tokens = tokenize(mode_source, mode_til_path, &mode_count);
+        mode_ast = parse(mode_tokens, mode_count, mode_til_path, NULL);
+    }
+
+    // Prepend core declarations (and mode .til if auto_import) to program AST
     if (core_ast && core_ast->children.count > 0) {
         Vec merged = Vec_new(sizeof(Expr *));
         for (I32 i = 0; i < core_ast->children.count; i++) {
@@ -117,9 +138,9 @@ int main(int argc, char **argv) {
             if (ch->children.count > 0) expr_child(ch, 0)->is_core = true;
             Vec_push(&merged, &ch);
         }
-        if (gui_ast) {
-            for (I32 i = 0; i < gui_ast->children.count; i++) {
-                Expr *ch = expr_child(gui_ast, i);
+        if (mode_ast) {
+            for (I32 i = 0; i < mode_ast->children.count; i++) {
+                Expr *ch = expr_child(mode_ast, i);
                 Vec_push(&merged, &ch);
             }
         }
@@ -168,8 +189,10 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    Bool run_tests = strcmp(command, "test") == 0 || (mode == &MODE_TEST);
+
     precomp(ast);
-    scavenge(ast, mode);
+    scavenge(ast, mode, run_tests);
 
     I32 result = 0;
 
@@ -185,13 +208,13 @@ int main(int argc, char **argv) {
         }
     }
 
-    // For gui mode: set gui.c as the FFI companion (combine with user .c if present)
+    // For auto_import modes: set mode .c as the FFI companion (combine with user .c if present)
     char combined_c_paths[512];
-    if (mode && strcmp(mode->c_str, "gui") == 0) {
+    if (mode && mode->auto_import) {
         if (user_c) {
-            snprintf(combined_c_paths, sizeof(combined_c_paths), "%s %s", gui_c_path, user_c);
+            snprintf(combined_c_paths, sizeof(combined_c_paths), "%s %s", mode_c_path, user_c);
         } else {
-            snprintf(combined_c_paths, sizeof(combined_c_paths), "%s", gui_c_path);
+            snprintf(combined_c_paths, sizeof(combined_c_paths), "%s", mode_c_path);
         }
         user_c = combined_c_paths;
     }
@@ -212,8 +235,8 @@ int main(int argc, char **argv) {
     char **user_argv = user_argc > 0 ? filtered_argv : NULL;
     const char *lflags = link_flags[0] ? link_flags : NULL;
 
-    if (strcmp(command, "interpret") == 0) {
-        result = interpret(ast, mode, path, user_c, ext_c_path, lflags, user_argc, user_argv);
+    if (strcmp(command, "interpret") == 0 || strcmp(command, "test") == 0) {
+        result = interpret(ast, mode, run_tests, path, user_c, ext_c_path, lflags, user_argc, user_argv);
     } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
         const char *basename = strrchr(path, '/');
@@ -227,7 +250,7 @@ int main(int argc, char **argv) {
 
         system("mkdir -p gen/c bin/c");
 
-        result = codegen_c(ast, mode, path, c_path);
+        result = codegen_c(ast, mode, run_tests, path, c_path);
         if (result == 0 && strcmp(command, "translate") == 0) {
             printf("Generated: %s\n", c_path);
         }
@@ -251,7 +274,7 @@ int main(int argc, char **argv) {
                 result = 1;
         }
     } else if (strcmp(command, "ast") == 0) {
-        printf("mode: %s\n", mode ? mode->c_str : "(none)");
+        printf("mode: %s\n", mode ? mode->name : "(none)");
         ast_print(ast, 0);
     } else {
         fprintf(stderr, "error: unknown command '%s'\n", command);

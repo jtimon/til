@@ -4,11 +4,12 @@
 #include "ast.h"
 #include "ext.h"
 #include "map.h"
+#include "modes.h"
 #include <stdlib.h>
 
-// Interpret a parsed program. `mode` is the mode string (e.g. "cli").
-// Returns 0 on success, non-zero on error.
-I32 interpret(Expr *program, Str *mode, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, I32 user_argc, char **user_argv);
+// Interpret a parsed program. Returns 0 on success, non-zero on error.
+// If run_tests is true, ignores main/script body and runs all test functions.
+I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, I32 user_argc, char **user_argv);
 
 // --- Values ---
 

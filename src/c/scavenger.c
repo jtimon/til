@@ -144,8 +144,8 @@ static void collect_refs(Expr *e, Vec *refs) {
         collect_refs(expr_child(e, i), refs);
 }
 
-void scavenge(Expr *program, Str *mode) {
-    Bool is_cli = mode && (strcmp(mode->c_str, "cli") == 0 || strcmp(mode->c_str, "gui") == 0);
+void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
+    Bool is_cli = mode && mode->needs_main && !run_tests;
 
     gc_strs = Vec_new(sizeof(Str *));
 
@@ -179,6 +179,15 @@ void scavenge(Expr *program, Str *mode) {
     Vec worklist = Vec_new(sizeof(Str *));
     if (is_cli) {
         vec_push_str(&worklist, gc_str(Str_new("main")));
+    } else if (run_tests) {
+        // Test execution: seed with all test function names
+        for (I32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF &&
+                expr_child(stmt, 0)->data.func_def.func_type == FUNC_TEST) {
+                vec_push_str(&worklist, stmt->data.decl.name);
+            }
+        }
     } else {
         // Script mode: collect refs from all top-level executable statements
         for (I32 i = 0; i < program->children.count; i++) {
