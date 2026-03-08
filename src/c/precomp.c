@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "precomp.h"
 #include "interpreter.h"
+#include "dispatch.h"
 #include "map.h"
 
 static Set macros, funcs;
@@ -301,6 +302,9 @@ void precomp(Expr *program) {
         }
     }
     interpreter_init_ns(global, program);
+
+    // 2b. Init FFI so ext_func calls (e.g. auto-delete) work during folding
+    ffi_init(program, NULL, NULL, NULL);
 
     // 3. Process the program body
     known = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);

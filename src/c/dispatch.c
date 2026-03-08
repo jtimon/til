@@ -74,135 +74,39 @@ static Value eval_arg(Scope *s, Expr *e) {
 
 // === Handler macros ===
 
-// 2-arg handler: eval both args, call cfn(xa, xb), wrap result
-#define H2(hname, cfn, xa, xb, w) \
-static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value a = eval_arg(s, expr_child(e,1)); \
-    Value b = eval_arg(s, expr_child(e,2)); \
-    *r = w(cfn(xa, xb)); return 1; }
+// === Remaining handlers (name mismatch or local ext_func — can't use auto-FFI) ===
 
-// 1-arg handler: eval one arg, call cfn(xv), wrap result
-#define H1(hname, cfn, xv, w) \
-static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value v = eval_arg(s, expr_child(e,1)); \
-    *r = w(cfn(xv)); return 1; }
-
-// Delete handler: check VAL_NONE, eval call_free flag, conditionally delete
-#define HDEL(hname, dfn, xv) \
-static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value v = eval_arg(s, expr_child(e,1)); \
-    if (v.type == VAL_NONE) { *r = val_none(); return 1; } \
-    Value cf = eval_arg(s, expr_child(e,2)); \
-    if (*cf.boolean) dfn(xv); \
-    *r = val_none(); return 1; }
-
-// Clone handler: eval one arg, copy raw value
-#define HCLONE(hname, xv, w) \
-static Bool h_##hname(Scope *s, Expr *e, Value *r) { \
-    Value v = eval_arg(s, expr_child(e,1)); \
-    *r = w(xv); return 1; }
-
-// === I64 handlers ===
-H2(I64_add, I64_add, *a.i64, *b.i64, val_i64)
-H2(I64_sub, I64_sub, *a.i64, *b.i64, val_i64)
-H2(I64_mul, I64_mul, *a.i64, *b.i64, val_i64)
-H2(I64_div, I64_div, *a.i64, *b.i64, val_i64)
-H2(I64_mod, I64_mod, *a.i64, *b.i64, val_i64)
-H2(I64_and, I64_and, *a.i64, *b.i64, val_i64)
-H2(I64_or,  I64_or,  *a.i64, *b.i64, val_i64)
-H2(I64_xor, I64_xor, *a.i64, *b.i64, val_i64)
-H2(I64_eq, I64_eq, *a.i64, *b.i64, val_bool)
-H2(I64_cmp, I64_cmp, *a.i64, *b.i64, val_i64)
-HCLONE(I64_clone, *v.i64, val_i64)
-HDEL(I64_delete, I64_delete, v.i64)
-
-// === U8 handlers ===
-H2(U8_add, U8_add, *a.u8, *b.u8, val_u8)
-H2(U8_sub, U8_sub, *a.u8, *b.u8, val_u8)
-H2(U8_mul, U8_mul, *a.u8, *b.u8, val_u8)
-H2(U8_div, U8_div, *a.u8, *b.u8, val_u8)
-H2(U8_mod, U8_mod, *a.u8, *b.u8, val_u8)
-H2(U8_and, U8_and, *a.u8, *b.u8, val_u8)
-H2(U8_or,  U8_or,  *a.u8, *b.u8, val_u8)
-H2(U8_xor, U8_xor, *a.u8, *b.u8, val_u8)
-H2(U8_eq, U8_eq, *a.u8, *b.u8, val_bool)
-H2(U8_cmp, U8_cmp, *a.u8, *b.u8, val_i64)
-H1(U8_to_i64, U8_to_i64, *v.u8, val_i64)
-HCLONE(U8_clone, *v.u8, val_u8)
-HDEL(U8_delete, U8_delete, v.u8)
+static Bool h_Bool_and(Scope *s, Expr *e, Value *r) {
+    Value a = eval_arg(s, expr_child(e,1));
+    Value b = eval_arg(s, expr_child(e,2));
+    *r = val_bool(Bool_and(*a.boolean, *b.boolean)); return 1;
+}
+static Bool h_Bool_or(Scope *s, Expr *e, Value *r) {
+    Value a = eval_arg(s, expr_child(e,1));
+    Value b = eval_arg(s, expr_child(e,2));
+    *r = val_bool(Bool_or(*a.boolean, *b.boolean)); return 1;
+}
+static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
+    Value v = eval_arg(s, expr_child(e,1));
+    *r = val_bool(Bool_not(*v.boolean)); return 1;
+}
 
 static Bool h_U8_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
     *r = val_u8(U8_from_i64(*v.i64)); return 1;
 }
-
-// === I16 handlers ===
-H2(I16_add, I16_add, *a.i16, *b.i16, val_i16)
-H2(I16_sub, I16_sub, *a.i16, *b.i16, val_i16)
-H2(I16_mul, I16_mul, *a.i16, *b.i16, val_i16)
-H2(I16_div, I16_div, *a.i16, *b.i16, val_i16)
-H2(I16_mod, I16_mod, *a.i16, *b.i16, val_i16)
-H2(I16_and, I16_and, *a.i16, *b.i16, val_i16)
-H2(I16_or,  I16_or,  *a.i16, *b.i16, val_i16)
-H2(I16_xor, I16_xor, *a.i16, *b.i16, val_i16)
-H2(I16_eq, I16_eq, *a.i16, *b.i16, val_bool)
-H2(I16_cmp, I16_cmp, *a.i16, *b.i16, val_i64)
-H1(I16_to_i64, I16_to_i64, *v.i16, val_i64)
-HCLONE(I16_clone, *v.i16, val_i16)
-HDEL(I16_delete, I16_delete, v.i16)
-
 static Bool h_I16_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
     *r = val_i16(I16_from_i64(*v.i64)); return 1;
 }
-
-// === I32 handlers ===
-H2(I32_add, I32_add, *a.i32, *b.i32, val_i32)
-H2(I32_sub, I32_sub, *a.i32, *b.i32, val_i32)
-H2(I32_mul, I32_mul, *a.i32, *b.i32, val_i32)
-H2(I32_div, I32_div, *a.i32, *b.i32, val_i32)
-H2(I32_mod, I32_mod, *a.i32, *b.i32, val_i32)
-H2(I32_and, I32_and, *a.i32, *b.i32, val_i32)
-H2(I32_or,  I32_or,  *a.i32, *b.i32, val_i32)
-H2(I32_xor, I32_xor, *a.i32, *b.i32, val_i32)
-H2(I32_eq, I32_eq, *a.i32, *b.i32, val_bool)
-H2(I32_cmp, I32_cmp, *a.i32, *b.i32, val_i64)
-H1(I32_to_i64, I32_to_i64, *v.i32, val_i64)
-HCLONE(I32_clone, *v.i32, val_i32)
-HDEL(I32_delete, I32_delete, v.i32)
-
 static Bool h_I32_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
     *r = val_i32(I32_from_i64(*v.i64)); return 1;
 }
-
-// === U32 handlers ===
-H2(U32_add, U32_add, *a.u32, *b.u32, val_u32)
-H2(U32_sub, U32_sub, *a.u32, *b.u32, val_u32)
-H2(U32_mul, U32_mul, *a.u32, *b.u32, val_u32)
-H2(U32_div, U32_div, *a.u32, *b.u32, val_u32)
-H2(U32_mod, U32_mod, *a.u32, *b.u32, val_u32)
-H2(U32_and, U32_and, *a.u32, *b.u32, val_u32)
-H2(U32_or,  U32_or,  *a.u32, *b.u32, val_u32)
-H2(U32_xor, U32_xor, *a.u32, *b.u32, val_u32)
-H2(U32_eq, U32_eq, *a.u32, *b.u32, val_bool)
-H2(U32_cmp, U32_cmp, *a.u32, *b.u32, val_i64)
-H1(U32_to_i64, U32_to_i64, *v.u32, val_i64)
-HCLONE(U32_clone, *v.u32, val_u32)
-HDEL(U32_delete, U32_delete, v.u32)
-
 static Bool h_U32_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
     *r = val_u32(U32_from_i64(*v.i64)); return 1;
 }
-
-// === Bool handlers ===
-H2(Bool_eq,  Bool_eq,  *a.boolean, *b.boolean, val_bool)
-H2(Bool_and, Bool_and, *a.boolean, *b.boolean, val_bool)
-H2(Bool_or,  Bool_or,  *a.boolean, *b.boolean, val_bool)
-H1(Bool_not, Bool_not, *v.boolean, val_bool)
-HCLONE(Bool_clone, *v.boolean, val_bool)
-HDEL(Bool_delete, Bool_delete, v.boolean)
 
 static void *val_to_ptr(Value v);
 
@@ -635,11 +539,6 @@ static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-#undef H1
-#undef H2
-#undef HDEL
-#undef HCLONE
-
 // === Dispatch init ===
 
 static void dispatch_init(void) {
@@ -651,69 +550,19 @@ static void dispatch_init(void) {
     REG("print_single", h_print_single);
     REG("print_flush", h_print_flush);
 
-    // I64
-    REG("I64_add", h_I64_add); REG("I64_sub", h_I64_sub);
-    REG("I64_mul", h_I64_mul); REG("I64_div", h_I64_div);
-    REG("I64_mod", h_I64_mod);
-    REG("I64_and", h_I64_and); REG("I64_or", h_I64_or); REG("I64_xor", h_I64_xor);
-    REG("I64_eq", h_I64_eq); REG("I64_cmp", h_I64_cmp);
-    REG("I64_clone", h_I64_clone);
-    REG("I64_delete", h_I64_delete);
-
-    // U8
-    REG("U8_add", h_U8_add); REG("U8_sub", h_U8_sub);
-    REG("U8_mul", h_U8_mul); REG("U8_div", h_U8_div);
-    REG("U8_mod", h_U8_mod);
-    REG("U8_and", h_U8_and); REG("U8_or", h_U8_or); REG("U8_xor", h_U8_xor);
-    REG("U8_eq", h_U8_eq); REG("U8_cmp", h_U8_cmp);
-    REG("U8_to_i64", h_U8_to_i64);
-    REG("U8_from_i64", h_U8_from_i64);
-    REG("U8_from_i64_ext", h_U8_from_i64);
-    REG("U8_clone", h_U8_clone);
-    REG("U8_delete", h_U8_delete);
-
-    // I16
-    REG("I16_add", h_I16_add); REG("I16_sub", h_I16_sub);
-    REG("I16_mul", h_I16_mul); REG("I16_div", h_I16_div);
-    REG("I16_mod", h_I16_mod);
-    REG("I16_and", h_I16_and); REG("I16_or", h_I16_or); REG("I16_xor", h_I16_xor);
-    REG("I16_eq", h_I16_eq); REG("I16_cmp", h_I16_cmp);
-    REG("I16_to_i64", h_I16_to_i64);
-    REG("I16_from_i64", h_I16_from_i64);
-    REG("I16_from_i64_ext", h_I16_from_i64);
-    REG("I16_clone", h_I16_clone);
-    REG("I16_delete", h_I16_delete);
-
-    // I32
-    REG("I32_add", h_I32_add); REG("I32_sub", h_I32_sub);
-    REG("I32_mul", h_I32_mul); REG("I32_div", h_I32_div);
-    REG("I32_mod", h_I32_mod);
-    REG("I32_and", h_I32_and); REG("I32_or", h_I32_or); REG("I32_xor", h_I32_xor);
-    REG("I32_eq", h_I32_eq); REG("I32_cmp", h_I32_cmp);
-    REG("I32_to_i64", h_I32_to_i64);
-    REG("I32_from_i64", h_I32_from_i64);
-    REG("I32_from_i64_ext", h_I32_from_i64);
-    REG("I32_clone", h_I32_clone);
-    REG("I32_delete", h_I32_delete);
-
-    // U32
-    REG("U32_add", h_U32_add); REG("U32_sub", h_U32_sub);
-    REG("U32_mul", h_U32_mul); REG("U32_div", h_U32_div);
-    REG("U32_mod", h_U32_mod);
-    REG("U32_and", h_U32_and); REG("U32_or", h_U32_or); REG("U32_xor", h_U32_xor);
-    REG("U32_eq", h_U32_eq); REG("U32_cmp", h_U32_cmp);
-    REG("U32_to_i64", h_U32_to_i64);
-    REG("U32_from_i64", h_U32_from_i64);
-    REG("U32_from_i64_ext", h_U32_from_i64);
-    REG("U32_clone", h_U32_clone);
-    REG("U32_delete", h_U32_delete);
-
-    // Bool
-    REG("Bool_eq", h_Bool_eq);
+    // Bool standalone (name mismatch: "and" → Bool_and in C)
     REG("and", h_Bool_and); REG("or", h_Bool_or);
     REG("not", h_Bool_not);
-    REG("Bool_clone", h_Bool_clone);
-    REG("Bool_delete", h_Bool_delete);
+
+    // from_i64 (local ext_func inside func body — not scanned by ffi_init)
+    REG("U8_from_i64", h_U8_from_i64);
+    REG("U8_from_i64_ext", h_U8_from_i64);
+    REG("I16_from_i64", h_I16_from_i64);
+    REG("I16_from_i64_ext", h_I16_from_i64);
+    REG("I32_from_i64", h_I32_from_i64);
+    REG("I32_from_i64_ext", h_I32_from_i64);
+    REG("U32_from_i64", h_U32_from_i64);
+    REG("U32_from_i64_ext", h_U32_from_i64);
 
     // Misc
     REG("exit", h_exit);
@@ -773,7 +622,22 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         case VAL_I32:  *(I32 *)&args[i] = *v.i32; break;
                         case VAL_U32:  *(U32 *)&args[i] = *v.u32; break;
                         case VAL_BOOL: *(U8 *)&args[i] = *v.boolean ? 1 : 0; break;
-                        default:       args[i] = v.ptr; break; // Dynamic stays as pointer
+                        case VAL_PTR:
+                            // Dynamic/ptr arg to shallow param: dereference as expected type
+                            if (fe->arg_types[i] == &ffi_type_sint64)
+                                *(I64 *)&args[i] = *(I64 *)v.ptr;
+                            else if (fe->arg_types[i] == &ffi_type_uint8)
+                                *(U8 *)&args[i] = *(U8 *)v.ptr;
+                            else if (fe->arg_types[i] == &ffi_type_sint16)
+                                *(I16 *)&args[i] = *(I16 *)v.ptr;
+                            else if (fe->arg_types[i] == &ffi_type_sint32)
+                                *(I32 *)&args[i] = *(I32 *)v.ptr;
+                            else if (fe->arg_types[i] == &ffi_type_uint32)
+                                *(U32 *)&args[i] = *(U32 *)v.ptr;
+                            else
+                                args[i] = v.ptr;
+                            break;
+                        default:       args[i] = v.ptr; break;
                     }
                 } else {
                     // Deep: pass pointer (existing behavior)
@@ -914,6 +778,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
 }
 
 I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, const char *link_flags) {
+    if (ffi_loaded) ffi_cleanup();  // re-init (e.g. precomp then interpret)
     char so_path[256] = "";
 
     // Compile user .c to shared library (if provided)

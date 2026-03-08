@@ -1305,30 +1305,45 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                 Str *tname = stmt->data.decl.name;
                 // Check if this type has the method in its namespace
                 Expr *body = expr_child(def, 0);
-                Bool has_method = 0;
+                Expr *method_fdef = NULL;
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *field = expr_child(body, j);
                     if (field->data.decl.is_namespace &&
-                        Str_eq(field->data.decl.name, method)) {
-                        has_method = 1;
+                        Str_eq(field->data.decl.name, method) &&
+                        field->children.count > 0 &&
+                        expr_child(field, 0)->type == NODE_FUNC_DEF) {
+                        method_fdef = expr_child(field, 0);
                         break;
                     }
                 }
-                if (!has_method) continue;
+                if (!method_fdef) continue;
+                // Build arg expressions with shallow dereference where needed
+                char arg1[64], arg2_str[64];
+                bool *ps = method_fdef->data.func_def.param_shallows;
+                if (ps && ps[0])
+                    snprintf(arg1, sizeof(arg1), "*(%s *)val", tname->c_str);
+                else
+                    snprintf(arg1, sizeof(arg1), "val");
+                if (info->nargs == 2) {
+                    if (ps && method_fdef->data.func_def.nparam > 1 && ps[1])
+                        snprintf(arg2_str, sizeof(arg2_str), "*(%s *)arg2", tname->c_str);
+                    else
+                        snprintf(arg2_str, sizeof(arg2_str), "arg2");
+                }
                 if (info->nargs == 2) {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(val, arg2);\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(%s, %s);\n",
+                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(val, arg2); return; }\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(%s, %s); return; }\n",
+                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                 } else {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(val);\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(%s);\n",
+                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(val); return; }\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(%s); return; }\n",
+                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1);
                 }
             }
             fprintf(f, "    fprintf(stderr, \"dyn_call: unknown type for %s\\n\");\n", method->c_str);

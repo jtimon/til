@@ -31,7 +31,7 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-** FIXED #37 Improved mode lib: library compilation and FFI bindings
+** WIP #37 Improved mode lib: library compilation and FFI bindings
   Running interpret or run on a mode lib file fails with an error.
   translate and build produce library artifacts.
 
@@ -55,6 +55,28 @@
    Scavenger skipped for translate/build on lib/pure targets (all
    declarations are public API). Normal scavenging for test/run and
    when lib files are imported by other programs.
+
+*** DONE Eliminate dispatch.c wrapper handlers via auto-FFI
+   Removed ~60 handwritten h_* wrapper handlers from dispatch.c that were
+   pure boilerplate: dereference pointer args, call ccore.c function, wrap
+   result back as heap pointer. Now auto-FFI (dlsym + libffi) handles them.
+
+   Approach: changed ccore.c/ext.c functions to take value params (matching
+   ~shallow~ keyword) but return pointers (matching existing FFI return
+   handling). Added ~shallow~ to all primitive type arithmetic/comparison/
+   conversion/inc/dec params in core.til. No AST/parser/typer language
+   changes needed.
+
+   Fixes along the way:
+   - precomp.c: added ffi_init() call so auto-delete calls work during
+     constant folding (precomp's mini interpreter had no FFI)
+   - dispatch.c: handle VAL_PTR args to shallow params by dereferencing
+     based on expected ffi_type (needed for dyn_call dispatch)
+   - builder.c: dyn_call dispatch functions dereference void* args for
+     shallow params (e.g. ~I64_cmp(*(I64 *)val, *(I64 *)arg2)~)
+
+   7 handlers remain (name mismatches and local ext_func not scanned):
+   h_Bool_and/or/not, h_U8/I16/I32/U32_from_i64.
 
 *** TODO install (system-wide)
    Same as build, plus copies artifacts to system paths:
@@ -81,7 +103,7 @@
   - #8 (variadic): FIXED
   - #16 (imports): FIXED
   - #30 (Vec-in-struct): FIXED
-  - #37 (mode lib): FIXED
+  - #37 (mode lib): WIP (install TODO)
   - #38 (drop til_ prefix): FIXED
   - #23 (shallow FFI): FIXED
 
