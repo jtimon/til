@@ -100,6 +100,7 @@ struct Expr {
     bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
     bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
     bool is_core;                   // declaration came from core.til
+    bool save_old_delete;           // NODE_ASSIGN: save old value before assigning (RHS uses same var)
     I32 total_struct_size;          // NODE_STRUCT_DEF: total byte size of flat buffer
     I32 variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
     U32 variadic_count;             // NODE_FCALL: number of variadic args

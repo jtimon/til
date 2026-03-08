@@ -507,6 +507,14 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         break;
     case NODE_ASSIGN: {
         Expr *rhs = expr_child(e, 0);
+        if (e->save_old_delete) {
+            // RHS references the variable being assigned — save old, assign new, delete old
+            const char *ctype = c_type_name(e->til_type, e->struct_name);
+            fprintf(f, "{ %s *_old = %s; %s = ", ctype, e->data.str_val->c_str, e->data.str_val->c_str);
+            emit_expr(f, rhs, depth);
+            fprintf(f, "; %s_delete(_old, &(Bool){1}); }\n", ctype);
+            break;
+        }
         if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR ||
             (rhs->type == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
             fprintf(f, "%s = ", e->data.str_val->c_str);

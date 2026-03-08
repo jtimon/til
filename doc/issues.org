@@ -6,30 +6,6 @@
 
 * Pre-self-hosting
 
-** OPEN #41 Typer: ASAP delete before reassignment causes use-after-free
-  When a compound-type local is reassigned in the same body where it was
-  declared, the typer inserts a delete call BEFORE the assignment. If the
-  RHS references the same variable, the old value is freed before it's read.
-
-  Example: ~svg = svg.concat(x)~ generates:
-  #+begin_src c
-  Str_delete(svg, &(Bool){1});     // frees svg
-  svg = Str_concat(svg, _t1240);   // reads freed svg!
-  #+end_src
-
-  This does NOT happen when the variable is from an outer scope (e.g.
-  declared before a while loop, reassigned inside it), because the inner
-  body's ASAP pass doesn't track outer-scope locals.
-
-  Location: src/c/typer.c ~insert_asap_frees~, "Before NODE_ASSIGN" block.
-
-  Fix: when the RHS of a NODE_ASSIGN references the same variable being
-  assigned, either delay the delete until after the RHS is evaluated, or
-  save the old value, compute the new, delete the old, then assign.
-
-  Workaround: use ~Str.with_capacity(n)~ + ~push_str~ to avoid reassignment,
-  or put the reassignment inside a loop where the variable is declared in
-  the outer scope.
 
 ** OPEN #40 Interpreter: func with conditional return returns garbage in mode cli
   Functions with conditional returns return garbage values when called

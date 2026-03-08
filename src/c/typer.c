@@ -2097,8 +2097,16 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].skip_delete) break;
                 TilType t = locals[j].type;
                 if (t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
-                    if (del) Vec_push(&new_ch, &del);
+                    Expr *rhs = expr_child(stmt, 0);
+                    if (expr_uses_var(rhs, vname)) {
+                        // RHS reads this var — can't delete before assignment.
+                        // Flag so builder emits save-old-delete pattern.
+                        stmt->save_old_delete = true;
+                        stmt->struct_name = locals[j].struct_name;
+                    } else {
+                        Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
+                        if (del) Vec_push(&new_ch, &del);
+                    }
                 }
                 break;
             }

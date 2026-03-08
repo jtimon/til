@@ -1,5 +1,12 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #41 Typer: ASAP delete before reassignment causes use-after-free
+  ~x = x.concat(y)~ generated ~Type_delete(x)~ before the assignment,
+  but ~concat~ still needed to read ~x~. Fixed by checking
+  ~expr_uses_var(rhs, vname)~ — when true, the typer sets
+  ~save_old_delete~ on the NODE_ASSIGN and the builder emits:
+  ~{ Type *_old = x; x = RHS; Type_delete(_old, ...); }~
+
 * FIXED #31 Variadic argument forwarding (splat)
   ~..expr~ at call sites spreads an Array into variadic arguments.
   Parser detects ~TOK_DOTDOT~ before args, sets ~is_splat~ flag on AST node.
