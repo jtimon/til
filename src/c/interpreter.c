@@ -132,6 +132,16 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && Str_eq_c(ftype, "I32"))  return val_i32(*(I32 *)ptr);
     if (ftype && Str_eq_c(ftype, "U32"))  return val_u32(*(U32 *)ptr);
     if (ftype && Str_eq_c(ftype, "Bool")) return val_bool(*(Bool *)ptr);
+    // Enum field: tagged enums stored as pointer to EnumInstance, simple enums as I32
+    if (fdecl->data.decl.field_struct_def &&
+        fdecl->data.decl.field_struct_def->type == NODE_ENUM_DEF) {
+        if (enum_has_payloads(fdecl->data.decl.field_struct_def)) {
+            EnumInstance *ei = *(EnumInstance **)ptr;
+            if (ei) return val_enum(ei->enum_name, ei->tag, clone_value(ei->payload));
+            return val_i32(0);
+        }
+        return val_i32(*(I32 *)ptr);
+    }
     // Inline struct: borrow if parent is borrowed, copy otherwise
     if (fdecl->data.decl.field_struct_def) {
         Expr *nested = fdecl->data.decl.field_struct_def;
@@ -167,6 +177,12 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
         if (!val.instance->borrowed) free(val.instance->data);
         free(val.instance);
         break;
+    case VAL_ENUM: {
+        EnumInstance *existing = *(EnumInstance **)ptr;
+        if (existing) { free_value(existing->payload); free(existing); }
+        *(EnumInstance **)ptr = val.enum_inst;
+        break;
+    }
     case VAL_PTR:  *(void **)ptr = val.ptr; break;
     default: break;
     }
@@ -225,10 +241,46 @@ Value clone_value(Value v) {
         I32 sz = src->struct_def->total_struct_size;
         dst->data = malloc(sz);
         memcpy(dst->data, src->data, sz);
-        // Deep-clone Str's data pointer
+        // Deep-clone Str's data pointer (Str is ext_struct, fields not walkable)
         if (Str_eq_c(src->struct_name, "Str")) {
             Str *s = (Str *)src->data;
-            *(char **)dst->data = strndup(s->c_str, s->count);
+            if (s->count > 0 && s->c_str)
+                *(char **)dst->data = strndup(s->c_str, s->count);
+            return (Value){.type = VAL_STRUCT, .instance = dst};
+        }
+        // Deep-clone fields that contain heap pointers
+        Expr *body = expr_child(src->struct_def, 0);
+        for (U32 fi = 0; fi < body->children.count; fi++) {
+            Expr *field = expr_child(body, fi);
+            if (field->data.decl.is_namespace) continue;
+            I32 foff = field->data.decl.field_offset;
+            Str *ftype = field->data.decl.explicit_type;
+            if (field->data.decl.is_own) {
+                // own fields are heap pointers — skip (shallow copy is intentional)
+                continue;
+            }
+            // Str fields: deep-clone the char* data pointer
+            if (ftype && Str_eq_c(ftype, "Str")) {
+                Str *s = (Str *)((char *)src->data + foff);
+                if (s->count > 0 && s->c_str) {
+                    *(char **)((char *)dst->data + foff) = strndup(s->c_str, s->count);
+                }
+                continue;
+            }
+            // Tagged enum fields: clone the EnumInstance pointer
+            if (field->data.decl.field_struct_def &&
+                field->data.decl.field_struct_def->type == NODE_ENUM_DEF &&
+                enum_has_payloads(field->data.decl.field_struct_def)) {
+                EnumInstance *ei = *(EnumInstance **)((char *)src->data + foff);
+                if (ei) {
+                    EnumInstance *clone = malloc(sizeof(EnumInstance));
+                    clone->enum_name = ei->enum_name;
+                    clone->tag = ei->tag;
+                    clone->payload = clone_value(ei->payload);
+                    *(EnumInstance **)((char *)dst->data + foff) = clone;
+                }
+                continue;
+            }
         }
         return (Value){.type = VAL_STRUCT, .instance = dst};
     }
@@ -558,8 +610,9 @@ Value eval_expr(Scope *scope, Expr *e) {
                 ? obj.instance->struct_name : expr_child(e, 0)->data.str_val;
             Value *nsv = ns_get(sname, fname);
             if (nsv) {
-                // Fresh copy of scalar values (simple enum variant safety)
+                // Fresh copy of scalar values (prevents alias to namespace map)
                 if (nsv->type == VAL_I64) return val_i64(*nsv->i64);
+                if (nsv->type == VAL_I32) return val_i32(*nsv->i32);
                 // Auto-call zero-arg enum constructors (Token.Eof without parens)
                 if (nsv->type == VAL_FUNC && nsv->func &&
                     nsv->func->type == NODE_FUNC_DEF &&
@@ -572,7 +625,7 @@ Value eval_expr(Scope *scope, Expr *e) {
                             if (enum_has_payloads(tc->val.func))
                                 return val_enum(sname, tag, val_none());
                             else
-                                return val_i64(tag);
+                                return val_i32(tag);
                         }
                     }
                 }
@@ -781,6 +834,12 @@ static void eval_body(Scope *scope, Expr *body) {
                         free(val.instance->data);
                         free(val.instance);
                         break;
+                    case VAL_ENUM: {
+                        EnumInstance *existing = *(EnumInstance **)ptr;
+                        if (existing) { free_value(existing->payload); free(existing); }
+                        *(EnumInstance **)ptr = val.enum_inst;
+                        break;
+                    }
                     case VAL_PTR: *(void **)ptr = val.ptr; break;
                     default: break;
                     }
@@ -867,6 +926,13 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                 Expr *field = expr_child(body, j);
                 if (field->data.decl.is_namespace) {
                     Value fval = eval_expr(global, expr_child(field, 0));
+                    // Simple enum variant tags: convert I64 literal to I32 (matching C enum)
+                    if (sdef->type == NODE_ENUM_DEF && !enum_has_payloads(sdef) &&
+                        fval.type == VAL_I64) {
+                        I32 tag = (I32)*fval.i64;
+                        free(fval.i64);
+                        fval = val_i32(tag);
+                    }
                     ns_set(sname, field->data.decl.name, fval);
                 }
             }

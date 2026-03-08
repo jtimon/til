@@ -117,9 +117,15 @@
 
 *** WIP Parser (src/self/ast.til, src/self/parser.til, src/test/parsing.til)
    Strict translation of parser.c + ast types. 12 tests in parsing.til.
-   Codegen path works (in test suite). Interpreter fails (tagged enum issue).
+   Works in both interpret and codegen modes (in test suite as common test).
    Compiler bugs fixed along the way:
    - initer: field type inference for enum/Vec defaults in size() functions
+   - initer: size() uses total_struct_size literal (run after compute_all_struct_layouts)
+   - initer: compute_struct_layout detects enum fields (simple=4B I32, tagged=8B ptr)
+   - interpreter: read_field/write_field handle enum struct fields
+   - interpreter: clone_value deep-clones Str and EnumInstance pointers in struct fields
+   - interpreter: simple enum tags stored as VAL_I32 (matching C enum = int)
+   - dispatch: is_Variant uses I32 comparison for simple enums
    - builder: emit sizeof() for struct/enum size() instead of computed sum
    - typer: ASAP ref lifetime extension for UFCS field-access chain args
      and transitive ref chains (fixed-point propagation)

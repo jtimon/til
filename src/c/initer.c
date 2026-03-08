@@ -140,6 +140,10 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                          expr_child(def_val, 0)->type == NODE_FIELD_ACCESS &&
                          expr_child(expr_child(def_val, 0), 0)->type == NODE_IDENT)
                     ftype = expr_child(expr_child(def_val, 0), 0)->data.str_val;
+                // Namespace field access default (e.g. MyEnum.C): type is the parent ident
+                else if (def_val->type == NODE_FIELD_ACCESS && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type == NODE_IDENT)
+                    ftype = expr_child(def_val, 0)->data.str_val;
                 // Store resolved type for interpreter's read_field
                 if (ftype) field->data.decl.explicit_type = ftype;
             }
@@ -151,9 +155,16 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             else if (Str_eq_c(ftype, "U32"))  { fsz = 4; falign = 4; }
             else if (Str_eq_c(ftype, "Bool")) { fsz = 1; falign = 1; }
             else {
-                // Inline struct field — recursively compute its layout
+                // Inline struct/enum field
                 Expr *nested_def = tscope_get_struct(scope, ftype);
-                if (nested_def) {
+                if (nested_def && nested_def->type == NODE_ENUM_DEF) {
+                    if (enum_has_payloads(nested_def)) {
+                        fsz = 8; falign = 8; // tagged enum: pointer to EnumInstance
+                    } else {
+                        fsz = 4; falign = 4; // simple enum: I32 tag (matches C enum)
+                    }
+                    field->data.decl.field_struct_def = nested_def;
+                } else if (nested_def) {
                     compute_struct_layout(nested_def, scope);
                     fsz = nested_def->total_struct_size;
                     falign = 8; // structs are 8-aligned
@@ -1032,7 +1043,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec_delete(&variant_types);
     }
 
-    // Pass 1.9: auto-generate size methods for structs and enums
+    // Pass 1.9: compute flat struct layout (field offsets and sizes)
+    // Must run BEFORE size method synthesis so total_struct_size is available
+    compute_all_struct_layouts(program, scope);
+
+    // Pass 1.92: auto-generate size methods for structs and enums
+    // Uses total_struct_size computed above for correct values (includes alignment padding)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type != NODE_DECL) continue;
@@ -1067,82 +1083,20 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         I32 col = stmt->col;
         Str *path = stmt->path;
 
-        // Collect instance field types for size computation
-        Vec field_types = Vec_new(sizeof(Str *));
-        Vec field_owns = Vec_new(sizeof(I32));
-        for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (field->type != NODE_DECL || field->data.decl.is_namespace) continue;
-            I32 fown = field->data.decl.is_own;
-            Str *ftype = field->data.decl.explicit_type;
-            if (!ftype && field->children.count > 0) {
-                Expr *def_val = expr_child(field, 0);
-                if (def_val->type == NODE_LITERAL_NUM) ftype = Str_new("I64");
-                else if (def_val->type == NODE_LITERAL_STR) ftype = Str_new("Str");
-                else if (def_val->type == NODE_LITERAL_BOOL) ftype = Str_new("Bool");
-                // EnumType.Variant → type is the enum name (child ident)
-                else if (def_val->type == NODE_FIELD_ACCESS && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type == NODE_IDENT)
-                    ftype = Str_clone(expr_child(def_val, 0)->data.str_val);
-                // Type.method(...) → type is the receiver name (e.g. Vec.new(...))
-                else if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type == NODE_FIELD_ACCESS) {
-                    Expr *callee = expr_child(def_val, 0);
-                    if (callee->children.count > 0 && expr_child(callee, 0)->type == NODE_IDENT)
-                        ftype = Str_clone(expr_child(callee, 0)->data.str_val);
-                }
-            }
-            if (!ftype) ftype = Str_new("I64"); // fallback
-            Vec_push(&field_types, &ftype);
-            Vec_push(&field_owns, &fown);
-        }
+        // Use computed total_struct_size for structs, 8 for enums (I64 or pointer)
+        I32 sz = def->type == NODE_ENUM_DEF
+            ? (enum_has_payloads(def) ? 8 : 4)
+            : def->total_struct_size;
+        char sz_buf[16];
+        snprintf(sz_buf, sizeof(sz_buf), "%d", sz);
 
-        // size := func() returns I64 { return F1Type.size().add(F2Type.size())... }
+        // size := func() returns I64 { return <literal> }
         Expr *func_body = expr_new(NODE_BODY, line, col, path);
-        Expr *size_expr = NULL;
-        if (field_types.count == 0) {
-            // No fields: size is 0
-            size_expr = expr_new(NODE_LITERAL_NUM, line, col, path);
-            size_expr->data.str_val = Str_new("0");
-        } else {
-            for (U32 j = 0; j < field_types.count; j++) {
-                I32 fown = *(I32 *)Vec_get(&field_owns, j);
-                Expr *field_size;
-                if (fown) {
-                    // own fields are pointers: always 8
-                    field_size = expr_new(NODE_LITERAL_NUM, line, col, path);
-                    field_size->data.str_val = Str_new("8");
-                } else {
-                    // FieldType.size()
-                    Str *ftype = *(Str **)Vec_get(&field_types, j);
-                    Expr *type_id = expr_new(NODE_IDENT, line, col, path);
-                    type_id->data.str_val = ftype;
-                    Expr *size_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    size_acc->data.str_val = Str_new("size");
-                    size_acc->is_ns_field = true;
-                    expr_add_child(size_acc, type_id);
-                    field_size = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(field_size, size_acc);
-                }
-                if (!size_expr) {
-                    size_expr = field_size;
-                } else {
-                    // size_expr.add(field_size)
-                    Expr *add_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    add_acc->data.str_val = Str_new("add");
-                    expr_add_child(add_acc, size_expr);
-                    Expr *add_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(add_call, add_acc);
-                    expr_add_child(add_call, field_size);
-                    size_expr = add_call;
-                }
-            }
-        }
+        Expr *size_expr = expr_new(NODE_LITERAL_NUM, line, col, path);
+        size_expr->data.str_val = Str_new(sz_buf);
         Expr *ret = expr_new(NODE_RETURN, line, col, path);
         expr_add_child(ret, size_expr);
         expr_add_child(func_body, ret);
-        Vec_delete(&field_types);
-        Vec_delete(&field_owns);
 
         Expr *func_def = expr_new(NODE_FUNC_DEF, line, col, path);
         func_def->data.func_def.func_type = FUNC_FUNC;
@@ -1165,9 +1119,6 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         expr_add_child(body, decl);
     }
-
-    // Pass 1.92: compute flat struct layout (field offsets and sizes)
-    compute_all_struct_layouts(program, scope);
 
     // Pass 1.95: auto-generate comparison methods from cmp
     // Any struct/enum with cmp gets: eq, neq, lt, gt, lte, gte (if missing)

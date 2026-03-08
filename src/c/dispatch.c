@@ -869,7 +869,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         if (v.type == VAL_ENUM)
             *result = val_bool(v.enum_inst->tag == tag);
         else
-            *result = val_bool((I32)*v.i64 == tag);
+            *result = val_bool(*v.i32 == tag);
         return 1;
     }
 
