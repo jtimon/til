@@ -96,6 +96,41 @@
    dereferenced from ~I64 *~ to ~size_t~ at the call site, eliminating
    the wrapper functions entirely.
 
+** OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
+  til's FFI currently uses a pointer calling convention: all args are heap
+  pointers (til_I64 *, til_Str *, etc.) and returns are heap-allocated.
+  External C libraries (raylib, SDL, etc.) use natural C types — int, float,
+  const char *, structs by value. This mismatch forces users to write wrapper
+  .c files that dereference pointers and convert types.
+
+  A `shallow` keyword on ext_func/ext_proc would tell the FFI to use C's
+  native calling convention instead of til's pointer convention. C doesn't
+  distinguish ref from own — it's all just pointers or values — so the user
+  maps til types to C semantics, and the FFI handles the conversion:
+
+    init_window := shallow ext_proc(w: I64, h: I64, title: Str) {}
+    // FFI passes: (int64_t)w, (int64_t)h, null-terminated char* from title
+    // Instead of: til_I64*, til_I64*, til_Str*
+
+  Type mapping for shallow:
+  - I64 → int64_t by value (dereference the pointer)
+  - U8 → uint8_t by value
+  - Bool → bool by value
+  - Str → const char * (null-terminated copy of data)
+  - Struct → pointer to flat buffer (same as current, already C-compatible)
+
+  This eliminates the need for wrapper .c files for most external libraries.
+  The companion .c file (#4 TODO) would only be needed for complex cases
+  (custom memory management, opaque types, callbacks).
+
+  Implementation:
+  - Parser: recognize `shallow` before ext_func/ext_proc
+  - AST: flag on FUNC_DEF (e.g. is_shallow)
+  - dispatch.c: use ffi_type_sint64/uint8/etc. instead of ffi_type_pointer,
+    dereference values before passing, handle Str null-termination
+  - builder.c: emit direct C types instead of til_* wrappers
+  - dlsym: look up function name directly (no til_ prefix)
+
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #2, #37, #38
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
@@ -419,41 +454,6 @@
 *** TODO Piano keyboard visualization
 *** TODO Chord progressions
 *** TODO Key signatures on staff
-
-** OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
-  til's FFI currently uses a pointer calling convention: all args are heap
-  pointers (til_I64 *, til_Str *, etc.) and returns are heap-allocated.
-  External C libraries (raylib, SDL, etc.) use natural C types — int, float,
-  const char *, structs by value. This mismatch forces users to write wrapper
-  .c files that dereference pointers and convert types.
-
-  A `shallow` keyword on ext_func/ext_proc would tell the FFI to use C's
-  native calling convention instead of til's pointer convention. C doesn't
-  distinguish ref from own — it's all just pointers or values — so the user
-  maps til types to C semantics, and the FFI handles the conversion:
-
-    init_window := shallow ext_proc(w: I64, h: I64, title: Str) {}
-    // FFI passes: (int64_t)w, (int64_t)h, null-terminated char* from title
-    // Instead of: til_I64*, til_I64*, til_Str*
-
-  Type mapping for shallow:
-  - I64 → int64_t by value (dereference the pointer)
-  - U8 → uint8_t by value
-  - Bool → bool by value
-  - Str → const char * (null-terminated copy of data)
-  - Struct → pointer to flat buffer (same as current, already C-compatible)
-
-  This eliminates the need for wrapper .c files for most external libraries.
-  The companion .c file (#4 TODO) would only be needed for complex cases
-  (custom memory management, opaque types, callbacks).
-
-  Implementation:
-  - Parser: recognize `shallow` before ext_func/ext_proc
-  - AST: flag on FUNC_DEF (e.g. is_shallow)
-  - dispatch.c: use ffi_type_sint64/uint8/etc. instead of ffi_type_pointer,
-    dereference values before passing, handle Str null-termination
-  - builder.c: emit direct C types instead of til_* wrappers
-  - dlsym: look up function name directly (no til_ prefix)
 
 ** OPEN #22 Operator syntax: desugar operators to method calls
   :DEPENDENCIES: #12
