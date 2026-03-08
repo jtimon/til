@@ -1,10 +1,496 @@
 # Issue tracker for til.
-# New issues go at the top (below the header), numbered from NEXT_ISSUE.
+# New issues go at the top of their section, numbered from NEXT_ISSUE.
 # NEXT_ISSUE: 37
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* OPEN #36 Nested pattern matching in switch
+* Pre-self-hosting
+  Issues that block or are needed for #12 (self-hosting).
+
+** WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
+  Currently all returns are owned by the caller (heap-allocated, caller must
+  delete). This breaks when a function wants to return one of its args:
+
+    min := func(a: I64, b: I64) returns I64 {
+        if a.lt(b) { return a } else { return b }
+    }
+
+  Either a or b would be owned twice and deleted twice (double-free).
+
+*** FIXED ref returns
+   returns ref I64 — the caller does NOT own the returned value and must
+   not delete it. ASAP destruction skips ref return values.
+
+    min := func(a: I64, b: I64) returns ref I64 {
+        if a.lt(b) { return a } else { return b }
+    }
+
+   Typer validates: return value must be a param or ref variable.
+
+*** FIXED ref declarations
+   Required when binding the result of a ref-returning function:
+   ref my_min := min(34, 35). ASAP destruction skips ref variables.
+
+   Typer validates: RHS must be a ref-returning function call or a
+   ref/param variable. Cannot pass ref variable to 'own' parameter.
+
+   ASAP lifetime extension: args to ref-returning calls have their
+   lifetimes extended to at least the ref variable's last use, preventing
+   use-after-free.
+
+   Interpreter: ref from ident uses scope_set_borrowed (shared cell).
+   builder: ref decl emits pointer assignment (no malloc).
+
+*** ref struct fields
+   A ref field stores a pointer to an existing value (not inline).
+   clone does not deep-copy it, delete does not recurse into it —
+   just copies/ignores the pointer.
+
+   Open question: default initialization. Inline fields use literal defaults
+   (x := 0), but ref fields point to external values that may not exist yet
+   at construction time. Options include NULL/nil default, requiring the
+   field at construction, or something else. TBD.
+
+*** args are already ref by default
+   Function args are borrowed (ref) unless explicitly marked own.
+   No change needed for args.
+
+** WIP #17 Global variable access, explicit capture syntax
+  :DEPENDENCIES_OF: #12 #13
+  Variables declared in script-mode root scope (or any outer scope) are
+  invisible at runtime inside function/proc bodies. The typer passes
+  (TypeScope chains via parent pointers and finds the variable), but the
+  interpreter crashes or errors.
+
+  Reproduction: src/test/globals.til, src/test/globals_cli.til
+
+  func case: "error: undefined variable 'x'" — clean error from NODE_IDENT
+  NULL check. proc case: SEGFAULT — NODE_DECL move-semantics path has no
+  NULL check on scope_get result.
+
+*** Root cause
+
+   expr_uses_var() in typer.c (line 1239) returns 0 for NODE_FUNC_DEF,
+   meaning the ASAP pass doesn't see variable references inside nested
+   function/proc bodies. When x is declared at top level and referenced
+   only inside a proc body, ASAP thinks x is unused and inserts
+   I64.delete(x) right after the declaration. When the proc later runs
+   and tries to access x, the value has already been freed/nulled.
+
+   func case: I64.clone(x) inside the function body tries to clone x
+   whose value is val_none → clean "undefined variable" error (from
+   precomp, which also can't find x in its limited scope).
+
+   proc case: I64.clone(x) dereferences v.i64 which is NULL → SEGFAULT.
+   The NODE_DECL move-semantics path also lacks a NULL check on
+   scope_get result, which would be a secondary crash path.
+
+   Secondary issue: precomp creates its own interpreter scope with only
+   func/struct/enum defs (no variable decls), then tries to fold pure
+   func calls. If the func accesses a global variable, precomp's
+   eval_expr hits the error path and exit(1)s before the interpreter
+   even runs.
+
+*** DONE Phase 1: Fix global variable access
+
+   Program-scope globals live for the program's lifetime — they should
+   never be ASAP-deleted. The scavenger handles removing unused globals.
+
+   1. Skip ASAP deletion for program-scope variables: added skip_delete
+      flag to LocalInfo in typer.c. Variables with a declaration at program
+      scope (is_program_scope && decl_idx >= 0) get skip_delete=1. The
+      ownership-transfer check still runs for them (use-after-own errors),
+      but no delete calls are inserted. Variables captured by nested
+      functions also get skip_delete=1 (expr_used_in_nested_func check).
+   2. Added NULL check in interpreter.c NODE_DECL move-semantics path.
+   3. Fixed precomp: added func_uses_unknown_globals() to skip folding
+      func calls whose body references variables not in the precomp scope.
+      Also made track_literal() populate the precomp interpreter scope
+      with known constant values (not just the known map).
+   4. Fixed builder: top-level variable declarations are emitted as
+      file-scope C globals (before function definitions) so they're
+      accessible from emitted til functions/procs. This is necessary
+      because til functions are emitted as separate C functions, and C
+      doesn't support nested functions capturing locals — so top-level
+      vars must be file-scope for functions to reference them. The
+      values are then assigned inside main() where initialization runs.
+      In cli mode, globals are initialized at the start of main()
+      before the user's main body.
+      Note: ref declarations are skipped from file-scope globals since
+      they are pointer aliases (local to main), not owned values that
+      other functions need to access.
+
+   Tests: src/test/globals.til (script mode), src/test/globals_cli.til (cli mode).
+
+*** Phase 2: Explicit capture syntax
+
+   Add syntax for listing captured variables from outer scopes, both for
+   function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
+
+   Function captures (closures):
+     scale := 10
+     f := func(a: I64) returns I64 [scale] { return a.mul(scale) }
+
+   Capture modifiers:
+     [x]      — const reference (default)
+     [mut x]  — mutable reference
+     [copy x] — snapshot (clone at capture time)
+     [own x]  — ownership transfer
+
+   Block captures (restrict access):
+     [total, data] {
+         // can only see total and data, not other locals
+     }
+
+   This enables Jai-inspired mechanical refactoring:
+   inline code -> block with captures -> lambda -> pure function
+
+   Implementation:
+   - Parser: recognize [ident, ...] before { in func defs and bare blocks
+   - AST: store capture list on NODE_FUNC_DEF and NODE_BODY
+   - Typer: validate captures exist in outer scope, enforce modifier rules
+   - Interpreter: bind captured variables in call_scope from definition scope
+   - Codegen: emit closure structs or pass captures as hidden parameters
+
+** WIP #12 Self-hosting: rewrite ctil in til
+  :DEPENDENCIES: #2
+  Rewrite the til compiler/interpreter in til itself. This is the ultimate
+  test of the language — if til can compile itself, it's expressive enough
+  for real systems programming.
+
+  The current C implementation is the reference: lexer, parser, initer,
+  typer, interpreter, builder, precomp, scavenger (~6000 lines of C).
+  Self-hosting means reimplementing all of these in til, using til's own
+  features (structs, enums, ownership, FFI for I/O).
+
+  Depends on:
+  - #1 (consistency): FIXED
+  - #2 (ref): needed for efficient arg passing without clone overhead
+  - #5 (pointers/Vec): FIXED
+  - #8 (variadic): FIXED
+  - #16 (imports): FIXED
+   - #30 (Vec-in-struct): FIXED
+
+  Does NOT depend on #10 (REPL) or #11 (GUI mode).
+
+*** DONE Lexer (src/self/lexer.til)
+   Strict translation of src/c/lexer.c following c2til.org rules.
+   mode lib. TokenType enum (all 62 variants), Token struct, tok_name(),
+   lookup_keyword(), tokenize(). Tests in src/test/lexing.til (10 tests).
+   Works in both interpret and codegen modes.
+
+*** TODO Parser (src/self/parser.til)
+   Plan complete. Parser.c translates to parser.til + ast.til (separate
+   module since typer/interpreter/builder also need AST types).
+
+**** c2til.org gaps found during analysis
+    1. C union inside struct → flat struct (all union fields as regular fields)
+    2. Vec/struct as struct field → FIXED by #30
+    3. C arrays (Str**, bool*) as struct fields → Vec fields
+    4. Bool fields in Vec-stored structs → use I64 (known alignment bug)
+    5. NULL Expr* pointers → "" for strings, sentinel indices for optionals
+    6. Returning refs from borrowed data → returns ref Type
+
+**** src/self/ast.til (mode lib)
+    Strict translation of ast.h:
+    - NodeType enum — 20 variants (Body, LiteralStr, LiteralNum, LiteralBool,
+      Ident, Decl, Assign, FCall, FuncDef, StructDef, EnumDef, FieldAccess,
+      FieldAssign, Return, If, While, ForIn, NamedArg, Break, Continue,
+      MapLit, SetLit)
+    - FuncType enum — 6 variants (Func, Proc, Test, Macro, ExtFunc, ExtProc)
+    - Expr struct — flat (union flattened), all fields:
+      - type, str_val, decl_name, decl_explicit_type, decl_is_mut,
+        decl_is_namespace, decl_is_ref, decl_is_own (I64 flags, not Bool)
+      - func_type, nparam, return_type, return_is_ref, variadic_param_index
+      - is_own_arg, is_ext
+      - line, col, path
+      - children: Vec (initialized in expr_new, not struct default)
+      - param_names, param_types: Vec of Str (FUNC_DEF only)
+      - param_muts, param_owns: Vec of I64 (FUNC_DEF only)
+    - expr_new proc — creates Expr, initializes children Vec
+    - expr_add_child proc — pushes child into children Vec
+    - expr_child func — returns ref to child at index
+    - node_type_name func — maps NodeType → debug string
+
+**** src/self/parser.til (mode lib)
+    Strict translation of parser.c, imports lexer.til and ast.til.
+    Parser struct: tokens (Vec), count (I64), pos (I64), path (Str).
+    Functions (same names and variable names as C):
+    - peek, advance, check, expect, tok_str (helpers)
+    - parse_block, parse_func_def, parse_struct_def, parse_enum_def
+    - parse_call, parse_expression, parse_statement_ident, parse_statement
+    - parse (entry point, returns Expr root NODE_BODY)
+
+**** src/test/parsing.til (mode script)
+    10 tests inspired by old rstil test_parser.til:
+    1. test_empty — parse "" → Body with 0 children
+    2. test_declaration — x := 42 → Decl + LiteralNum
+    3. test_typed_decl — x : I64 = 0 → Decl with explicit type
+    4. test_assignment — x = 1 → Assign + LiteralNum
+    5. test_call — foo(1, 2) → FCall with 3 children
+    6. test_method_call — x.foo(1) → FCall with FieldAccess callee
+    7. test_if_else → If with 3 children
+    8. test_while → While with 2 children
+    9. test_func_def → FuncDef with params and body
+    10. test_struct_def → StructDef
+
+* Undecided
+  Issues not clearly before or after self-hosting.
+
+** OPEN #32 Keyword arguments (kwargs) capture and forwarding
+  Allow functions to capture named arguments as a map and forward them to
+  other functions. Similar to Python's ~**kwargs~.
+
+  til already has named args at call sites (~Point(x = 5, y = 10)~), but
+  there's no way to capture arbitrary named args or forward them.
+
+  Possible syntax:
+  #+begin_src til
+  // Capture: **kwargs param collects unmatched named args as Map
+  wrapper := proc(prefix: Str, **opts: Map) {
+      create(prefix, **opts)  // forward as named args
+  }
+  #+end_src
+
+  Language support for reference:
+  | Language   | Kwargs capture     | Kwargs forward     |
+  |------------+--------------------+--------------------|
+  | Python     | ~**kwargs~         | ~f(**kwargs)~      |
+  | Ruby       | ~**kwargs~         | ~f(**kwargs)~      |
+  | Go         | None               | None               |
+  | JavaScript | None (object conv) | None (~{...opts}~) |
+  | Kotlin     | None               | None               |
+  | Swift      | None               | None               |
+
+  Only Python and Ruby have true kwargs with forwarding. Most other languages
+  use map/object passing as a convention instead.
+
+  Low priority — named args already cover most use cases. Kwargs would mainly
+  help with generic wrappers and delegation patterns.
+
+** OPEN #31 Variadic argument forwarding (splat)
+  When a variadic function receives args as an Array, there's no way to forward
+  them to another variadic function. Need a splat/spread syntax at call sites.
+
+  Example use case:
+  #+begin_src til
+  TODO := proc(parts: ..Str) {
+      panic("TODO", format(..parts))
+  }
+  #+end_src
+
+  Proposed syntax: ~..array_expr~ at call site (mirrors ~..Type~ in declaration).
+
+  Other languages for reference:
+  - Python: ~def f(*args): g(*args)~
+  - Go: ~func f(args ...T) { g(args...) }~
+  - JS: ~function f(...args) { g(...args) }~
+  - Ruby: ~def f(*args); g(*args); end~
+  - Kotlin: ~fun f(vararg args: T) { g(*args) }~
+
+  Would allow TODO, custom logging, and other wrapper functions to forward
+  variadic args without manually iterating.
+
+** OPEN #28 Aliases: implicit ref for comptime-immutable declarations
+  When `a := b` and b is provably immutable and comptime, `a` should be
+  an alias (implicit ref — pointer to same storage) instead of a clone.
+  No new syntax needed: the compiler detects when aliasing is safe.
+
+  A value is alias-eligible when it is:
+  - A literal (42, "hello", true)
+  - Another alias or constant
+  - The result of a pure func or macro call where all args are comptime
+  - NOT a proc call result
+  - NOT a mut variable
+  - NOT a ref to a mutable binding
+
+  The existing is_comptime helper from precomp.c can help identify
+  compile-time-evaluable expressions. The key insight: if the value
+  can never change, there's no reason to copy it — just point to it.
+
+  Benefits:
+  - Zero-cost naming (naming a constant doesn't allocate)
+  - Enables the compiler to share storage for repeated constants
+  - No user-visible behavior change (immutable either way)
+
+  Ownership: only the original value is deleted, aliases are skipped
+  by ASAP (same as ref declarations today). The typer/ASAP already
+  handles ref lifetime correctly — this extends it to auto-detected cases.
+
+** OPEN #24 Music scale viewer: ongoing improvements
+  GUI music theory learning tool (src/examples/music.til). Uses mode gui
+  (raylib). Current features: 7x3 note buttons, 7 Greek mode buttons,
+  scale text + triad line, graphical pentagram with notes on staff,
+  audio playback via play_tone, language radio (PT/ES/EN), notation
+  radio (solfege/american), resolution-independent layout.
+
+*** DONE Initial GUI with note/mode selection and pentagram
+*** DONE Audio playback of scale notes
+*** DONE Triad type line (M/m/dim per degree)
+*** DONE Language and notation radio buttons
+*** DONE Resolution-independent layout (derived from WINDOW_WIDTH/WINDOW_HEIGHT)
+*** TODO Verify modal playback correctness with music teacher
+*** TODO Richer audio (sustain, chords, drone note under scale)
+*** TODO Piano keyboard visualization
+*** TODO Chord progressions
+*** TODO Key signatures on staff
+
+** OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
+  til's FFI currently uses a pointer calling convention: all args are heap
+  pointers (til_I64 *, til_Str *, etc.) and returns are heap-allocated.
+  External C libraries (raylib, SDL, etc.) use natural C types — int, float,
+  const char *, structs by value. This mismatch forces users to write wrapper
+  .c files that dereference pointers and convert types.
+
+  A `shallow` keyword on ext_func/ext_proc would tell the FFI to use C's
+  native calling convention instead of til's pointer convention. C doesn't
+  distinguish ref from own — it's all just pointers or values — so the user
+  maps til types to C semantics, and the FFI handles the conversion:
+
+    init_window := shallow ext_proc(w: I64, h: I64, title: Str) {}
+    // FFI passes: (int64_t)w, (int64_t)h, null-terminated char* from title
+    // Instead of: til_I64*, til_I64*, til_Str*
+
+  Type mapping for shallow:
+  - I64 → int64_t by value (dereference the pointer)
+  - U8 → uint8_t by value
+  - Bool → bool by value
+  - Str → const char * (null-terminated copy of data)
+  - Struct → pointer to flat buffer (same as current, already C-compatible)
+
+  This eliminates the need for wrapper .c files for most external libraries.
+  The companion .c file (#4 TODO) would only be needed for complex cases
+  (custom memory management, opaque types, callbacks).
+
+  Implementation:
+  - Parser: recognize `shallow` before ext_func/ext_proc
+  - AST: flag on FUNC_DEF (e.g. is_shallow)
+  - dispatch.c: use ffi_type_sint64/uint8/etc. instead of ffi_type_pointer,
+    dereference values before passing, handle Str null-termination
+  - builder.c: emit direct C types instead of til_* wrappers
+  - dlsym: look up function name directly (no til_ prefix)
+
+** OPEN #18 Tuple: fixed-size heterogeneous collections
+  Holds a fixed number of elements of different types.
+  Immutable (elements set at construction, no push/pop).
+
+  Syntax:
+    point := (10, 20)              // inferred as (I64, I64)
+    record := (42, "alice", true)  // inferred as (I64, Str, Bool)
+    x := record.0                  // I64, value 42
+    name := record.1               // Str, value "alice"
+    t : (Bool, I64, Str) = (false, 1, "two")  // explicit type annotation
+
+  Literal-only construction (no Tuple() constructor). Minimum 2 elements.
+  Access by numeric index (.0, .1, .N) with compile-time bounds checking.
+  Type annotation uses parenthesized type list: (Bool, I64, Str).
+
+*** Option A: Auto-generated structs (desugared in typer)
+   Each tuple shape generates a hidden struct. The typer rewrites tuple
+   literals into struct constructors before interpreter/codegen runs.
+
+   (I64, Str, Bool) generates:
+     Tuple_I64_Str_Bool := struct { _0 := 0; _1 := ""; _2 := false }
+
+   Pros:
+   - Reuses all existing struct machinery (codegen, interpreter, initer,
+     clone/delete, field access) — very little new code
+   - Zero runtime overhead (typed C struct fields, no offset calcs)
+   - .N becomes field access on _N — works through existing NODE_FIELD_ACCESS
+   - One representation for both interpreter and codegen
+
+   Cons:
+   - Many hidden struct defs (one per unique tuple shape)
+   - Name mangling gets ugly with nesting: Tuple_Tuple_I64_I64_Str
+   - Each shape is a distinct type — can't write generic "any tuple" functions
+
+   Changes needed:
+   - AST: add NODE_TUPLE_LIT
+   - Parser: (expr, expr, ...) syntax; TOK_NUMBER after DOT for .N access;
+     (Type, Type, ...) in type position for annotations
+   - Typer: synthesize struct defs, rewrite NODE_TUPLE_LIT to NODE_FCALL
+   - Interpreter/codegen/initer: no changes (struct machinery handles it)
+
+*** Option B: Single Tuple struct with parallel Vecs (like old rstil List)
+   One Tuple type for all shapes. Raw data buffer + parallel Vecs of
+   type_names and type_sizes as runtime metadata. Compiler validates
+   .N access at compile time using its own type tracking.
+
+   Tuple := struct {
+       mut data : Ptr = Ptr()
+       mut _len : I64 = 0
+       mut type_names : Vec = Vec()  // Vec<Str> per element
+       mut type_sizes : Vec = Vec()  // Vec<I64> per element
+   }
+
+   Pros:
+   - One type for all tuples — simpler type system
+   - Functions can accept any Tuple regardless of shape
+   - Familiar pattern from old rstil List
+
+   Cons:
+   - Runtime overhead (offset calculations, Vec allocations for metadata)
+   - Codegen needs casts: *(int64_t*)(tuple->data + offset)
+   - Clone/delete must iterate Vecs at runtime with dyn_call per element
+   - Doesn't reuse struct machinery — lots of new code needed
+   - .N return type known at compile time but runtime extraction is dynamic
+
+*** Option C: Dynamic list (Lisp-style)
+   Fully dynamic — each element stored as Dynamic, no compile-time type
+   tracking. Like Python lists or Lisp cons cells.
+
+   list := [42, "alice", true]   // all elements are Dynamic
+   x := list.0                   // returns Dynamic, needs cast to use
+
+   Pros:
+   - Simplest implementation — basically a Vec of Dynamic values
+   - Most flexible — can hold anything, mix types freely
+   - No struct generation, no type metadata Vecs
+
+   Cons:
+   - No compile-time type safety — .N returns Dynamic
+   - User must cast/assert types at point of use
+   - Runtime type errors instead of compile-time
+   - Boxing overhead for primitives
+   - Requires allowing Dynamic fields/locals (currently forbidden)
+
+** OPEN #14 Function pointers: first-class functions as values
+  til currently has no way to pass functions as values. func/proc
+  definitions are bound to names and can only be called directly.
+  Function pointers would allow storing and passing functions as
+  arguments — needed for comparators (Map), callbacks, and generic
+  algorithms.
+
+  What's needed:
+  - A function pointer type syntax (e.g. Fn(I64, I64) returns I64)
+  - Storing func/proc references as values
+  - Calling through function pointer variables
+  - Type checking: parameter/return types must match at call sites
+  - Interpreter: Value variant for function pointers
+  - builder: emit C function pointer types and indirect calls
+
+  Blocks Map (needs comparator), generic sort, event handlers,
+  and many patterns needed for self-hosting (visitor, dispatch tables).
+
+** OPEN #10 REPL: interactive read-eval-print loop
+  Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts
+  an interactive session. Each line is parsed, type-checked, and interpreted
+  incrementally, with results printed.
+
+  Use rlwrap for line editing and history (ctil itself just reads stdin).
+  Core.til is loaded once at startup. Declarations persist across lines.
+  Expressions are evaluated and their results printed.
+
+  What's needed:
+  - ctil.c: new "repl" command, read-eval loop
+  - Incremental parsing: parse one statement at a time
+  - Persistent scope: declarations accumulate across inputs
+  - Result display: print expression values (needs to_str for all types)
+
+* Post-self-hosting
+  Issues that depend on #12 (self-hosting) being complete.
+
+** OPEN #36 Nested pattern matching in switch
   Depends on #12 (self-hosting) — not worth implementing before self-hosting.
 
   Full pattern matching as in rstil — nested enum patterns, struct field
@@ -53,88 +539,7 @@
   - Struct field matching
   - Guard clauses (~case X if cond:~)
 
-* OPEN #32 Keyword arguments (kwargs) capture and forwarding
-  Allow functions to capture named arguments as a map and forward them to
-  other functions. Similar to Python's ~**kwargs~.
-
-  til already has named args at call sites (~Point(x = 5, y = 10)~), but
-  there's no way to capture arbitrary named args or forward them.
-
-  Possible syntax:
-  #+begin_src til
-  // Capture: **kwargs param collects unmatched named args as Map
-  wrapper := proc(prefix: Str, **opts: Map) {
-      create(prefix, **opts)  // forward as named args
-  }
-  #+end_src
-
-  Language support for reference:
-  | Language   | Kwargs capture     | Kwargs forward     |
-  |------------+--------------------+--------------------|
-  | Python     | ~**kwargs~         | ~f(**kwargs)~      |
-  | Ruby       | ~**kwargs~         | ~f(**kwargs)~      |
-  | Go         | None               | None               |
-  | JavaScript | None (object conv) | None (~{...opts}~) |
-  | Kotlin     | None               | None               |
-  | Swift      | None               | None               |
-
-  Only Python and Ruby have true kwargs with forwarding. Most other languages
-  use map/object passing as a convention instead.
-
-  Low priority — named args already cover most use cases. Kwargs would mainly
-  help with generic wrappers and delegation patterns.
-
-* OPEN #31 Variadic argument forwarding (splat)
-  When a variadic function receives args as an Array, there's no way to forward
-  them to another variadic function. Need a splat/spread syntax at call sites.
-
-  Example use case:
-  #+begin_src til
-  TODO := proc(parts: ..Str) {
-      panic("TODO", format(..parts))
-  }
-  #+end_src
-
-  Proposed syntax: ~..array_expr~ at call site (mirrors ~..Type~ in declaration).
-
-  Other languages for reference:
-  - Python: ~def f(*args): g(*args)~
-  - Go: ~func f(args ...T) { g(args...) }~
-  - JS: ~function f(...args) { g(...args) }~
-  - Ruby: ~def f(*args); g(*args); end~
-  - Kotlin: ~fun f(vararg args: T) { g(*args) }~
-
-  Would allow TODO, custom logging, and other wrapper functions to forward
-  variadic args without manually iterating.
-
-* OPEN #28 Aliases: implicit ref for comptime-immutable declarations
-  When `a := b` and b is provably immutable and comptime, `a` should be
-  an alias (implicit ref — pointer to same storage) instead of a clone.
-  No new syntax needed: the compiler detects when aliasing is safe.
-
-  A value is alias-eligible when it is:
-  - A literal (42, "hello", true)
-  - Another alias or constant
-  - The result of a pure func or macro call where all args are comptime
-  - NOT a proc call result
-  - NOT a mut variable
-  - NOT a ref to a mutable binding
-
-  The existing is_comptime helper from precomp.c can help identify
-  compile-time-evaluable expressions. The key insight: if the value
-  can never change, there's no reason to copy it — just point to it.
-
-  Benefits:
-  - Zero-cost naming (naming a constant doesn't allocate)
-  - Enables the compiler to share storage for repeated constants
-  - No user-visible behavior change (immutable either way)
-
-  Ownership: only the original value is deleted, aliases are skipped
-  by ASAP (same as ref declarations today). The typer/ASAP already
-  handles ref lifetime correctly — this extends it to auto-detected cases.
-
-
-* OPEN #25 Support for the 4 main operative systems
+** OPEN #25 Support for the 4 main operative systems
   :DEPENDENCIES: #12
   til currently only builds and runs on GNU/Linux. Should support the 4
   main operative systems, in priority order:
@@ -168,7 +573,7 @@
   - GUI mode (raylib on POSIX/Windows, native primitives on TempleOS)
   - Audio (miniaudio on POSIX/Windows, native on TempleOS)
 
-** TempleOS
+*** TempleOS
    :DEPENDENCIES: #12
    The most interesting and challenging target. TempleOS has no C compiler,
    no POSIX, no libc — just HolyC and its own kernel/graphics/audio APIs.
@@ -202,7 +607,7 @@
    files in via a virtual disk, run them, capture output. This is the
    standard way to develop for TempleOS from a modern host.
 
-** macOS
+*** macOS
    Closest to the current GNU/Linux target. All C code (ccore.c, ext.c,
    dispatch.c) is already POSIX-portable — fork, execl, waitpid, dlopen,
    dlsym all work the same on macOS. No cross-compilation needed: ship
@@ -222,7 +627,7 @@
    Makefile and possibly in the codegen output (linker flags when
    compiling .til programs that use mode gui).
 
-** Windows
+*** Windows
    Furthest from POSIX, but possibly dying — don't wait for self-hosting.
    Options: MSVC, MinGW, or cross-compile with zig cc. Dynamic loading
    via LoadLibrary/GetProcAddress instead of dlopen/dlsym. Process
@@ -233,60 +638,7 @@
    Can test from Linux using Wine as a first step before touching a
    real Windows machine.
 
-* OPEN #24 Music scale viewer: ongoing improvements
-  GUI music theory learning tool (src/examples/music.til). Uses mode gui
-  (raylib). Current features: 7x3 note buttons, 7 Greek mode buttons,
-  scale text + triad line, graphical pentagram with notes on staff,
-  audio playback via play_tone, language radio (PT/ES/EN), notation
-  radio (solfege/american), resolution-independent layout.
-
-** DONE Initial GUI with note/mode selection and pentagram
-** DONE Audio playback of scale notes
-** DONE Triad type line (M/m/dim per degree)
-** DONE Language and notation radio buttons
-** DONE Resolution-independent layout (derived from WINDOW_WIDTH/WINDOW_HEIGHT)
-** TODO Verify modal playback correctness with music teacher
-** TODO Richer audio (sustain, chords, drone note under scale)
-** TODO Piano keyboard visualization
-** TODO Chord progressions
-** TODO Key signatures on staff
-
-* OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
-  til's FFI currently uses a pointer calling convention: all args are heap
-  pointers (til_I64 *, til_Str *, etc.) and returns are heap-allocated.
-  External C libraries (raylib, SDL, etc.) use natural C types — int, float,
-  const char *, structs by value. This mismatch forces users to write wrapper
-  .c files that dereference pointers and convert types.
-
-  A `shallow` keyword on ext_func/ext_proc would tell the FFI to use C's
-  native calling convention instead of til's pointer convention. C doesn't
-  distinguish ref from own — it's all just pointers or values — so the user
-  maps til types to C semantics, and the FFI handles the conversion:
-
-    init_window := shallow ext_proc(w: I64, h: I64, title: Str) {}
-    // FFI passes: (int64_t)w, (int64_t)h, null-terminated char* from title
-    // Instead of: til_I64*, til_I64*, til_Str*
-
-  Type mapping for shallow:
-  - I64 → int64_t by value (dereference the pointer)
-  - U8 → uint8_t by value
-  - Bool → bool by value
-  - Str → const char * (null-terminated copy of data)
-  - Struct → pointer to flat buffer (same as current, already C-compatible)
-
-  This eliminates the need for wrapper .c files for most external libraries.
-  The companion .c file (#4 TODO) would only be needed for complex cases
-  (custom memory management, opaque types, callbacks).
-
-  Implementation:
-  - Parser: recognize `shallow` before ext_func/ext_proc
-  - AST: flag on FUNC_DEF (e.g. is_shallow)
-  - dispatch.c: use ffi_type_sint64/uint8/etc. instead of ffi_type_pointer,
-    dereference values before passing, handle Str null-termination
-  - builder.c: emit direct C types instead of til_* wrappers
-  - dlsym: look up function name directly (no til_ prefix)
-
-* OPEN #22 Operator syntax: desugar operators to method calls
+** OPEN #22 Operator syntax: desugar operators to method calls
   :DEPENDENCIES: #12
   Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
   Purely a parser transform — no changes needed in typer, interpreter, or
@@ -316,12 +668,12 @@
   override eq with a faster implementation, neq (and !=) automatically
   benefits since neq is generated as a.eq(b).not().
 
-** Phase 1: Comparison operators
+*** Phase 1: Comparison operators
    < <= > >= == !=
    All same precedence, binary, no chaining ambiguity.
    Desugars: a < b → a.lt(b), a != b → a.neq(b), etc.
 
-** Phase 2: Arithmetic operators
+*** Phase 2: Arithmetic operators
    + - * / %
    Introduces real precedence: * / % bind tighter than + -.
    Desugars: a + b * c → a.add(b.mul(c)).
@@ -330,353 +682,3 @@
    Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
    ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
    ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
-
-* OPEN #18 Tuple: fixed-size heterogeneous collections
-  Holds a fixed number of elements of different types.
-  Immutable (elements set at construction, no push/pop).
-
-  Syntax:
-    point := (10, 20)              // inferred as (I64, I64)
-    record := (42, "alice", true)  // inferred as (I64, Str, Bool)
-    x := record.0                  // I64, value 42
-    name := record.1               // Str, value "alice"
-    t : (Bool, I64, Str) = (false, 1, "two")  // explicit type annotation
-
-  Literal-only construction (no Tuple() constructor). Minimum 2 elements.
-  Access by numeric index (.0, .1, .N) with compile-time bounds checking.
-  Type annotation uses parenthesized type list: (Bool, I64, Str).
-
-** Option A: Auto-generated structs (desugared in typer)
-   Each tuple shape generates a hidden struct. The typer rewrites tuple
-   literals into struct constructors before interpreter/codegen runs.
-
-   (I64, Str, Bool) generates:
-     Tuple_I64_Str_Bool := struct { _0 := 0; _1 := ""; _2 := false }
-
-   Pros:
-   - Reuses all existing struct machinery (codegen, interpreter, initer,
-     clone/delete, field access) — very little new code
-   - Zero runtime overhead (typed C struct fields, no offset calcs)
-   - .N becomes field access on _N — works through existing NODE_FIELD_ACCESS
-   - One representation for both interpreter and codegen
-
-   Cons:
-   - Many hidden struct defs (one per unique tuple shape)
-   - Name mangling gets ugly with nesting: Tuple_Tuple_I64_I64_Str
-   - Each shape is a distinct type — can't write generic "any tuple" functions
-
-   Changes needed:
-   - AST: add NODE_TUPLE_LIT
-   - Parser: (expr, expr, ...) syntax; TOK_NUMBER after DOT for .N access;
-     (Type, Type, ...) in type position for annotations
-   - Typer: synthesize struct defs, rewrite NODE_TUPLE_LIT to NODE_FCALL
-   - Interpreter/codegen/initer: no changes (struct machinery handles it)
-
-** Option B: Single Tuple struct with parallel Vecs (like old rstil List)
-   One Tuple type for all shapes. Raw data buffer + parallel Vecs of
-   type_names and type_sizes as runtime metadata. Compiler validates
-   .N access at compile time using its own type tracking.
-
-   Tuple := struct {
-       mut data : Ptr = Ptr()
-       mut _len : I64 = 0
-       mut type_names : Vec = Vec()  // Vec<Str> per element
-       mut type_sizes : Vec = Vec()  // Vec<I64> per element
-   }
-
-   Pros:
-   - One type for all tuples — simpler type system
-   - Functions can accept any Tuple regardless of shape
-   - Familiar pattern from old rstil List
-
-   Cons:
-   - Runtime overhead (offset calculations, Vec allocations for metadata)
-   - Codegen needs casts: *(int64_t*)(tuple->data + offset)
-   - Clone/delete must iterate Vecs at runtime with dyn_call per element
-   - Doesn't reuse struct machinery — lots of new code needed
-   - .N return type known at compile time but runtime extraction is dynamic
-
-** Option C: Dynamic list (Lisp-style)
-   Fully dynamic — each element stored as Dynamic, no compile-time type
-   tracking. Like Python lists or Lisp cons cells.
-
-   list := [42, "alice", true]   // all elements are Dynamic
-   x := list.0                   // returns Dynamic, needs cast to use
-
-   Pros:
-   - Simplest implementation — basically a Vec of Dynamic values
-   - Most flexible — can hold anything, mix types freely
-   - No struct generation, no type metadata Vecs
-
-   Cons:
-   - No compile-time type safety — .N returns Dynamic
-   - User must cast/assert types at point of use
-   - Runtime type errors instead of compile-time
-   - Boxing overhead for primitives
-   - Requires allowing Dynamic fields/locals (currently forbidden)
-
-* WIP #17 Global variable access, explicit capture syntax
-  :DEPENDENCIES_OF: #12 #13
-  Variables declared in script-mode root scope (or any outer scope) are
-  invisible at runtime inside function/proc bodies. The typer passes
-  (TypeScope chains via parent pointers and finds the variable), but the
-  interpreter crashes or errors.
-
-  Reproduction: src/test/globals.til, src/test/globals_cli.til
-
-  func case: "error: undefined variable 'x'" — clean error from NODE_IDENT
-  NULL check. proc case: SEGFAULT — NODE_DECL move-semantics path has no
-  NULL check on scope_get result.
-
-** Root cause
-
-   expr_uses_var() in typer.c (line 1239) returns 0 for NODE_FUNC_DEF,
-   meaning the ASAP pass doesn't see variable references inside nested
-   function/proc bodies. When x is declared at top level and referenced
-   only inside a proc body, ASAP thinks x is unused and inserts
-   I64.delete(x) right after the declaration. When the proc later runs
-   and tries to access x, the value has already been freed/nulled.
-
-   func case: I64.clone(x) inside the function body tries to clone x
-   whose value is val_none → clean "undefined variable" error (from
-   precomp, which also can't find x in its limited scope).
-
-   proc case: I64.clone(x) dereferences v.i64 which is NULL → SEGFAULT.
-   The NODE_DECL move-semantics path also lacks a NULL check on
-   scope_get result, which would be a secondary crash path.
-
-   Secondary issue: precomp creates its own interpreter scope with only
-   func/struct/enum defs (no variable decls), then tries to fold pure
-   func calls. If the func accesses a global variable, precomp's
-   eval_expr hits the error path and exit(1)s before the interpreter
-   even runs.
-
-** DONE Phase 1: Fix global variable access
-
-   Program-scope globals live for the program's lifetime — they should
-   never be ASAP-deleted. The scavenger handles removing unused globals.
-
-   1. Skip ASAP deletion for program-scope variables: added skip_delete
-      flag to LocalInfo in typer.c. Variables with a declaration at program
-      scope (is_program_scope && decl_idx >= 0) get skip_delete=1. The
-      ownership-transfer check still runs for them (use-after-own errors),
-      but no delete calls are inserted. Variables captured by nested
-      functions also get skip_delete=1 (expr_used_in_nested_func check).
-   2. Added NULL check in interpreter.c NODE_DECL move-semantics path.
-   3. Fixed precomp: added func_uses_unknown_globals() to skip folding
-      func calls whose body references variables not in the precomp scope.
-      Also made track_literal() populate the precomp interpreter scope
-      with known constant values (not just the known map).
-   4. Fixed builder: top-level variable declarations are emitted as
-      file-scope C globals (before function definitions) so they're
-      accessible from emitted til functions/procs. This is necessary
-      because til functions are emitted as separate C functions, and C
-      doesn't support nested functions capturing locals — so top-level
-      vars must be file-scope for functions to reference them. The
-      values are then assigned inside main() where initialization runs.
-      In cli mode, globals are initialized at the start of main()
-      before the user's main body.
-      Note: ref declarations are skipped from file-scope globals since
-      they are pointer aliases (local to main), not owned values that
-      other functions need to access.
-
-   Tests: src/test/globals.til (script mode), src/test/globals_cli.til (cli mode).
-
-** Phase 2: Explicit capture syntax
-
-   Add syntax for listing captured variables from outer scopes, both for
-   function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
-
-   Function captures (closures):
-     scale := 10
-     f := func(a: I64) returns I64 [scale] { return a.mul(scale) }
-
-   Capture modifiers:
-     [x]      — const reference (default)
-     [mut x]  — mutable reference
-     [copy x] — snapshot (clone at capture time)
-     [own x]  — ownership transfer
-
-   Block captures (restrict access):
-     [total, data] {
-         // can only see total and data, not other locals
-     }
-
-   This enables Jai-inspired mechanical refactoring:
-   inline code -> block with captures -> lambda -> pure function
-
-   Implementation:
-   - Parser: recognize [ident, ...] before { in func defs and bare blocks
-   - AST: store capture list on NODE_FUNC_DEF and NODE_BODY
-   - Typer: validate captures exist in outer scope, enforce modifier rules
-   - Interpreter: bind captured variables in call_scope from definition scope
-   - Codegen: emit closure structs or pass captures as hidden parameters
-
-
-* OPEN #14 Function pointers: first-class functions as values
-  til currently has no way to pass functions as values. func/proc
-  definitions are bound to names and can only be called directly.
-  Function pointers would allow storing and passing functions as
-  arguments — needed for comparators (Map), callbacks, and generic
-  algorithms.
-
-  What's needed:
-  - A function pointer type syntax (e.g. Fn(I64, I64) returns I64)
-  - Storing func/proc references as values
-  - Calling through function pointer variables
-  - Type checking: parameter/return types must match at call sites
-  - Interpreter: Value variant for function pointers
-  - builder: emit C function pointer types and indirect calls
-
-  Blocks Map (needs comparator), generic sort, event handlers,
-  and many patterns needed for self-hosting (visitor, dispatch tables).
-
-* WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #2
-  Rewrite the til compiler/interpreter in til itself. This is the ultimate
-  test of the language — if til can compile itself, it's expressive enough
-  for real systems programming.
-
-  The current C implementation is the reference: lexer, parser, initer,
-  typer, interpreter, builder, precomp, scavenger (~6000 lines of C).
-  Self-hosting means reimplementing all of these in til, using til's own
-  features (structs, enums, ownership, FFI for I/O).
-
-  Depends on:
-  - #1 (consistency): FIXED
-  - #2 (ref): needed for efficient arg passing without clone overhead
-  - #5 (pointers/Vec): FIXED
-  - #8 (variadic): FIXED
-  - #16 (imports): FIXED
-   - #30 (Vec-in-struct): FIXED
-
-  Does NOT depend on #10 (REPL) or #11 (GUI mode).
-
-** DONE Lexer (src/self/lexer.til)
-   Strict translation of src/c/lexer.c following c2til.org rules.
-   mode lib. TokenType enum (all 62 variants), Token struct, tok_name(),
-   lookup_keyword(), tokenize(). Tests in src/test/lexing.til (10 tests).
-   Works in both interpret and codegen modes.
-
-** TODO Parser (src/self/parser.til)
-   Plan complete. Parser.c translates to parser.til + ast.til (separate
-   module since typer/interpreter/builder also need AST types).
-
-*** c2til.org gaps found during analysis
-    1. C union inside struct → flat struct (all union fields as regular fields)
-    2. Vec/struct as struct field → FIXED by #30
-    3. C arrays (Str**, bool*) as struct fields → Vec fields
-    4. Bool fields in Vec-stored structs → use I64 (known alignment bug)
-    5. NULL Expr* pointers → "" for strings, sentinel indices for optionals
-    6. Returning refs from borrowed data → returns ref Type
-
-*** src/self/ast.til (mode lib)
-    Strict translation of ast.h:
-    - NodeType enum — 20 variants (Body, LiteralStr, LiteralNum, LiteralBool,
-      Ident, Decl, Assign, FCall, FuncDef, StructDef, EnumDef, FieldAccess,
-      FieldAssign, Return, If, While, ForIn, NamedArg, Break, Continue,
-      MapLit, SetLit)
-    - FuncType enum — 6 variants (Func, Proc, Test, Macro, ExtFunc, ExtProc)
-    - Expr struct — flat (union flattened), all fields:
-      - type, str_val, decl_name, decl_explicit_type, decl_is_mut,
-        decl_is_namespace, decl_is_ref, decl_is_own (I64 flags, not Bool)
-      - func_type, nparam, return_type, return_is_ref, variadic_param_index
-      - is_own_arg, is_ext
-      - line, col, path
-      - children: Vec (initialized in expr_new, not struct default)
-      - param_names, param_types: Vec of Str (FUNC_DEF only)
-      - param_muts, param_owns: Vec of I64 (FUNC_DEF only)
-    - expr_new proc — creates Expr, initializes children Vec
-    - expr_add_child proc — pushes child into children Vec
-    - expr_child func — returns ref to child at index
-    - node_type_name func — maps NodeType → debug string
-
-*** src/self/parser.til (mode lib)
-    Strict translation of parser.c, imports lexer.til and ast.til.
-    Parser struct: tokens (Vec), count (I64), pos (I64), path (Str).
-    Functions (same names and variable names as C):
-    - peek, advance, check, expect, tok_str (helpers)
-    - parse_block, parse_func_def, parse_struct_def, parse_enum_def
-    - parse_call, parse_expression, parse_statement_ident, parse_statement
-    - parse (entry point, returns Expr root NODE_BODY)
-
-*** src/test/parsing.til (mode script)
-    10 tests inspired by old rstil test_parser.til:
-    1. test_empty — parse "" → Body with 0 children
-    2. test_declaration — x := 42 → Decl + LiteralNum
-    3. test_typed_decl — x : I64 = 0 → Decl with explicit type
-    4. test_assignment — x = 1 → Assign + LiteralNum
-    5. test_call — foo(1, 2) → FCall with 3 children
-    6. test_method_call — x.foo(1) → FCall with FieldAccess callee
-    7. test_if_else → If with 3 children
-    8. test_while → While with 2 children
-    9. test_func_def → FuncDef with params and body
-    10. test_struct_def → StructDef
-
-
-* OPEN #10 REPL: interactive read-eval-print loop
-  Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts
-  an interactive session. Each line is parsed, type-checked, and interpreted
-  incrementally, with results printed.
-
-  Use rlwrap for line editing and history (ctil itself just reads stdin).
-  Core.til is loaded once at startup. Declarations persist across lines.
-  Expressions are evaluated and their results printed.
-
-  What's needed:
-  - ctil.c: new "repl" command, read-eval loop
-  - Incremental parsing: parse one statement at a time
-  - Persistent scope: declarations accumulate across inputs
-  - Result display: print expression values (needs to_str for all types)
-
-
-
-* WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
-  Currently all returns are owned by the caller (heap-allocated, caller must
-  delete). This breaks when a function wants to return one of its args:
-
-    min := func(a: I64, b: I64) returns I64 {
-        if a.lt(b) { return a } else { return b }
-    }
-
-  Either a or b would be owned twice and deleted twice (double-free).
-
-** FIXED ref returns
-   returns ref I64 — the caller does NOT own the returned value and must
-   not delete it. ASAP destruction skips ref return values.
-
-    min := func(a: I64, b: I64) returns ref I64 {
-        if a.lt(b) { return a } else { return b }
-    }
-
-   Typer validates: return value must be a param or ref variable.
-
-** FIXED ref declarations
-   Required when binding the result of a ref-returning function:
-   ref my_min := min(34, 35). ASAP destruction skips ref variables.
-
-   Typer validates: RHS must be a ref-returning function call or a
-   ref/param variable. Cannot pass ref variable to 'own' parameter.
-
-   ASAP lifetime extension: args to ref-returning calls have their
-   lifetimes extended to at least the ref variable's last use, preventing
-   use-after-free.
-
-   Interpreter: ref from ident uses scope_set_borrowed (shared cell).
-   builder: ref decl emits pointer assignment (no malloc).
-
-** ref struct fields
-   A ref field stores a pointer to an existing value (not inline).
-   clone does not deep-copy it, delete does not recurse into it —
-   just copies/ignores the pointer.
-
-   Open question: default initialization. Inline fields use literal defaults
-   (x := 0), but ref fields point to external values that may not exist yet
-   at construction time. Options include NULL/nil default, requiring the
-   field at construction, or something else. TBD.
-
-** args are already ref by default
-   Function args are borrowed (ref) unless explicitly marked own.
-   No change needed for args.
-
-
