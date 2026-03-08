@@ -1,8 +1,35 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 34
+# NEXT_ISSUE: 35
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
+
+* OPEN #34 For-in loops over collections
+  Syntax: ~for i in collection { body }~ or ~for i : Type in collection { body }~.
+  Works for any type with ~get()~ and ~len()~ methods (Vec, Array, Map, Set, Str).
+
+  Type inference follows normal declaration rules: if ~get()~ returns a concrete
+  type (e.g. Str.get returns ~ref U8~), the type annotation can be omitted.
+  If ~get()~ returns ~ref Dynamic~ (Vec, Array, Map, Set), explicit type is required.
+
+  Desugars in the typer to a while loop inside an anonymous scope:
+
+  #+begin_src til
+  for i in collection { body }
+  #+end_src
+  →
+  #+begin_src til
+  {
+      mut __idx := 0
+      while __idx.lt(collection.len()) {
+          ref i : Type = collection.get(__idx)
+          body
+          __idx = __idx.add(1)
+      }
+  }
+  #+end_src
+
+  The anonymous scope prevents the index variable from leaking.
 
 * OPEN #33 Character literals for U8
   Currently there's no syntax for character literals. Writing ~U8.from_i64(40)~
