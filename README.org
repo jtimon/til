@@ -1,3 +1,5 @@
+[[https://github.com/jtimon/til/raw/master/img/logo.svg]]
+
 * til
 
 A programming language with ownership semantics, type inference, and compile-time
