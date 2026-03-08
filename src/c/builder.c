@@ -108,13 +108,30 @@ static void emit_expr(FILE *f, Expr *e, I32 depth);
 static void emit_stmt(FILE *f, Expr *e, I32 depth);
 static void emit_body(FILE *f, Expr *body, I32 depth);
 
+// Map til function names to C symbol names (handles stdlib collisions)
+static const char *func_to_c(Str *name) {
+    if (Str_eq_c(name, "exit")) return "exit_program";
+    if (Str_eq_c(name, "sleep")) return "sleep_ms";
+    if (Str_eq_c(name, "and")) return "Bool_and";
+    if (Str_eq_c(name, "or")) return "Bool_or";
+    if (Str_eq_c(name, "not")) return "Bool_not";
+    // C keyword collision
+    if (Str_eq_c(name, "double")) return "double_";
+    // Keep til_ prefix for wrappers that have different signatures than C stdlib
+    if (Str_eq_c(name, "malloc")) return "til_malloc";
+    if (Str_eq_c(name, "realloc")) return "til_realloc";
+    if (Str_eq_c(name, "memcpy")) return "til_memcpy";
+    if (Str_eq_c(name, "memmove")) return "til_memmove";
+    return name->c_str;
+}
+
 // --- Expression emission ---
 
 static void emit_expr(FILE *f, Expr *e, I32 depth) {
     (void)depth;
     switch (e->type) {
     case NODE_LITERAL_STR:
-        fprintf(f, "til_Str_lit(\"%s\", %lld)", e->data.str_val->c_str, (long long)e->data.str_val->count);
+        fprintf(f, "Str_lit(\"%s\", %lld)", e->data.str_val->c_str, (long long)e->data.str_val->count);
         break;
     case NODE_LITERAL_NUM:
         fprintf(f, "%s", e->data.str_val->c_str);
@@ -130,7 +147,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         if (expr_child(e, 0)->type == NODE_FIELD_ACCESS) {
             Str *sname = expr_child(expr_child(e, 0), 0)->struct_name;
             Str *mname = expr_child(e, 0)->data.str_val;
-            fprintf(f, "til_%s_%s(", sname->c_str, mname->c_str);
+            fprintf(f, "%s_%s(", sname->c_str, mname->c_str);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
@@ -141,9 +158,9 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         Str *name = expr_child(e, 0)->data.str_val;
         if (Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
                    Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret")) {
-            // dyn_call*(type_name, "method", val, ...) → til_dyn_call_method(type_name, val, ...)
+            // dyn_call*(type_name, "method", val, ...) → dyn_call_method(type_name, val, ...)
             Str *method = expr_child(e, 2)->data.str_val;
-            fprintf(f, "til_dyn_call_%s(", method->c_str);
+            fprintf(f, "dyn_call_%s(", method->c_str);
             // Emit type_name as first arg
             emit_as_ptr(f, expr_child(e, 1), depth);
             // Emit remaining args (val, and any extra args like call_free)
@@ -153,21 +170,21 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             }
             fprintf(f, ")");
         } else if (Str_eq_c(name, "array") || Str_eq_c(name, "vec")) {
-            // array("I64", 1, 2, 3) → til_array_of_I64(3, v1, v2, v3)
-            // vec("I64", 1, 2, 3)   → til_vec_of_I64(3, v1, v2, v3)
+            // array("I64", 1, 2, 3) → array_of_I64(3, v1, v2, v3)
+            // vec("I64", 1, 2, 3)   → vec_of_I64(3, v1, v2, v3)
             Str *elem_type = expr_child(e, 1)->data.str_val;
             I32 count = e->children.count - 2;
             const char *prefix = Str_eq_c(name, "array") ? "array" : "vec";
-            fprintf(f, "til_%s_of_%s(%d", prefix, elem_type->c_str, count);
+            fprintf(f, "%s_of_%s(%d", prefix, elem_type->c_str, count);
             for (U32 i = 2; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }
             fprintf(f, ")");
         } else if (Str_eq_c(name, "dyn_has_method")) {
-            // dyn_has_method(type_name, "method") → til_dyn_has_method(type_name)
+            // dyn_has_method(type_name, "method") → dyn_has_method(type_name)
             Str *method = expr_child(e, 2)->data.str_val;
-            fprintf(f, "til_dyn_has_%s(", method->c_str);
+            fprintf(f, "dyn_has_%s(", method->c_str);
             emit_as_ptr(f, expr_child(e, 1), depth);
             fprintf(f, ")");
         } else if (e->struct_name && Str_eq(name, e->struct_name)) {
@@ -175,7 +192,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "/* BUG: struct constructor in expr context */");
         } else {
             // User-defined function call
-            fprintf(f, "til_%s(", name->c_str);
+            fprintf(f, "%s(", func_to_c(name));
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
@@ -188,8 +205,8 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         Expr *obj = expr_child(e, 0);
         Str *fname = e->data.str_val;
         if (e->is_ns_field) {
-            fprintf(f, "til_%s_%s", obj->struct_name->c_str, fname->c_str);
-            // Auto-call enum variant constructors (Color.Red → til_Color_Red())
+            fprintf(f, "%s_%s", obj->struct_name->c_str, fname->c_str);
+            // Auto-call enum variant constructors (Color.Red → Color_Red())
             if (e->til_type == TIL_TYPE_ENUM) fprintf(f, "()");
         } else {
             emit_expr(f, obj, depth);
@@ -208,23 +225,23 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
 
 static const char *til_type_to_c(TilType t) {
     switch (t) {
-    case TIL_TYPE_I64:  return "til_I64";
-    case TIL_TYPE_U8:   return "til_U8";
-    case TIL_TYPE_I16:  return "til_I16";
-    case TIL_TYPE_I32:  return "til_I32";
-    case TIL_TYPE_U32:  return "til_U32";
-    case TIL_TYPE_BOOL: return "til_Bool";
+    case TIL_TYPE_I64:  return "I64";
+    case TIL_TYPE_U8:   return "U8";
+    case TIL_TYPE_I16:  return "I16";
+    case TIL_TYPE_I32:  return "I32";
+    case TIL_TYPE_U32:  return "U32";
+    case TIL_TYPE_BOOL: return "Bool";
     case TIL_TYPE_NONE:    return "void";
     case TIL_TYPE_DYNAMIC: return "void *";
-    default:               return "til_I64"; // fallback
+    default:               return "I64"; // fallback
     }
 }
 
-// C type name without pointer — "til_Point" for structs, "til_I64" for I64, etc.
+// C type name without pointer — "Point" for structs, "I64" for I64, etc.
 static const char *c_type_name(TilType t, Str *struct_name) {
     if ((t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) && struct_name) {
         static char buf[128];
-        snprintf(buf, sizeof(buf), "til_%s", struct_name->c_str);
+        snprintf(buf, sizeof(buf), "%s", struct_name->c_str);
         return buf;
     }
     if (t == TIL_TYPE_DYNAMIC) return "void";
@@ -233,29 +250,29 @@ static const char *c_type_name(TilType t, Str *struct_name) {
 
 // Convert a type name string to C type string (handles struct types)
 static const char *type_name_to_c(Str *name) {
-    if (Str_eq_c(name, "I64"))  return "til_I64 *";
-    if (Str_eq_c(name, "U8"))   return "til_U8 *";
-    if (Str_eq_c(name, "I16"))  return "til_I16 *";
-    if (Str_eq_c(name, "I32"))  return "til_I32 *";
-    if (Str_eq_c(name, "U32"))  return "til_U32 *";
-    if (Str_eq_c(name, "Bool")) return "til_Bool *";
+    if (Str_eq_c(name, "I64"))  return "I64 *";
+    if (Str_eq_c(name, "U8"))   return "U8 *";
+    if (Str_eq_c(name, "I16"))  return "I16 *";
+    if (Str_eq_c(name, "I32"))  return "I32 *";
+    if (Str_eq_c(name, "U32"))  return "U32 *";
+    if (Str_eq_c(name, "Bool")) return "Bool *";
     if (Str_eq_c(name, "Dynamic")) return "void *";
     // User-defined struct type — pointer
     static char buf[128];
-    snprintf(buf, sizeof(buf), "til_%s *", name->c_str);
+    snprintf(buf, sizeof(buf), "%s *", name->c_str);
     return buf;
 }
 
 // Like type_name_to_c but without pointer — for inline union fields
 static const char *type_name_to_c_value(Str *name) {
-    if (Str_eq_c(name, "I64"))  return "til_I64";
-    if (Str_eq_c(name, "U8"))   return "til_U8";
-    if (Str_eq_c(name, "I16"))  return "til_I16";
-    if (Str_eq_c(name, "I32"))  return "til_I32";
-    if (Str_eq_c(name, "U32"))  return "til_U32";
-    if (Str_eq_c(name, "Bool")) return "til_Bool";
+    if (Str_eq_c(name, "I64"))  return "I64";
+    if (Str_eq_c(name, "U8"))   return "U8";
+    if (Str_eq_c(name, "I16"))  return "I16";
+    if (Str_eq_c(name, "I32"))  return "I32";
+    if (Str_eq_c(name, "U32"))  return "U32";
+    if (Str_eq_c(name, "Bool")) return "Bool";
     static char buf2[128];
-    snprintf(buf2, sizeof(buf2), "til_%s", name->c_str);
+    snprintf(buf2, sizeof(buf2), "%s", name->c_str);
     return buf2;
 }
 
@@ -273,7 +290,7 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
     } else {
         for (U32 i = 0; i < np; i++) {
             if (i > 0) fprintf(f, ", ");
-            const char *ptype = ((I32)i == fvi) ? "til_Array *"
+            const char *ptype = ((I32)i == fvi) ? "Array *"
                 : type_name_to_c(fdef->data.func_def.param_types[i]);
             if (with_names)
                 fprintf(f, "%s %s", ptype, fdef->data.func_def.param_names[i]->c_str);
@@ -292,7 +309,7 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         emit_expr(f, e, depth);
         fprintf(f, ")");
     } else if (e->type == NODE_LITERAL_STR) {
-        fprintf(f, "(til_Str){.data=(til_U8*)\"%s\", .count=%lld, .cap=TIL_CAP_LIT}",
+        fprintf(f, "(Str){.data=(U8*)\"%s\", .count=%lld, .cap=TIL_CAP_LIT}",
                 e->data.str_val->c_str, (long long)e->data.str_val->count);
     } else if (e->type == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
         // Auto-called constructor returns pointer; dereference it
@@ -468,7 +485,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "%s%s = *_fa; free(_fa); }\n", use_dot ? "." : "->", fname->c_str);
         } else {
             if (e->is_ns_field) {
-                fprintf(f, "til_%s_%s = ", obj->struct_name->c_str, fname->c_str);
+                fprintf(f, "%s_%s = ", obj->struct_name->c_str, fname->c_str);
             } else {
                 emit_expr(f, obj, depth);
                 Bool use_dot = (obj->type == NODE_FIELD_ACCESS && !obj->is_own_field);
@@ -582,7 +599,7 @@ static void emit_ns_inits(FILE *f, I32 depth) {
                 // Skip enum variant literals — handled by constructor functions
                 if (edef->type == NODE_ENUM_DEF) continue;
                 emit_indent(f, depth);
-                fprintf(f, "til_%s_%s = ", sname->c_str, field->data.decl.name->c_str);
+                fprintf(f, "%s_%s = ", sname->c_str, field->data.decl.name->c_str);
                 emit_deref(f, expr_child(field, 0), depth);
                 fprintf(f, ";\n");
             }
@@ -621,52 +638,52 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
                     // Build Array[T] from remaining args
                     const char *et = ptype->c_str;
                     fprintf(f, "    int _va_argc = argc - %d;\n", argi);
-                    fprintf(f, "    til_Str *_va_et = til_Str_lit(\"%s\", %lld);\n", et, (long long)ptype->count);
-                    fprintf(f, "    til_I64 *_va_esz = malloc(sizeof(til_I64)); *_va_esz = sizeof(til_%s);\n", et);
-                    fprintf(f, "    til_I64 *_va_cap = malloc(sizeof(til_I64)); *_va_cap = _va_argc;\n");
-                    fprintf(f, "    til_Array *%s = til_Array_new(_va_et, _va_esz, _va_cap);\n", pname->c_str);
-                    fprintf(f, "    til_Str_delete(_va_et, &(til_Bool){1});\n");
-                    fprintf(f, "    til_I64_delete(_va_esz, &(til_Bool){1});\n");
-                    fprintf(f, "    til_I64_delete(_va_cap, &(til_Bool){1});\n");
+                    fprintf(f, "    Str *_va_et = Str_lit(\"%s\", %lld);\n", et, (long long)ptype->count);
+                    fprintf(f, "    I64 *_va_esz = malloc(sizeof(I64)); *_va_esz = sizeof(%s);\n", et);
+                    fprintf(f, "    I64 *_va_cap = malloc(sizeof(I64)); *_va_cap = _va_argc;\n");
+                    fprintf(f, "    Array *%s = Array_new(_va_et, _va_esz, _va_cap);\n", pname->c_str);
+                    fprintf(f, "    Str_delete(_va_et, &(Bool){1});\n");
+                    fprintf(f, "    I64_delete(_va_esz, &(Bool){1});\n");
+                    fprintf(f, "    I64_delete(_va_cap, &(Bool){1});\n");
                     fprintf(f, "    for (int _i = 0; _i < _va_argc; _i++) {\n");
-                    fprintf(f, "        til_I64 *_idx = malloc(sizeof(til_I64)); *_idx = _i;\n");
+                    fprintf(f, "        I64 *_idx = malloc(sizeof(I64)); *_idx = _i;\n");
                     if (Str_eq_c(ptype, "Str"))
-                        fprintf(f, "        til_Str *_val = til_Str_lit(argv[%d + _i], strlen(argv[%d + _i]));\n", argi, argi);
+                        fprintf(f, "        Str *_val = Str_lit(argv[%d + _i], strlen(argv[%d + _i]));\n", argi, argi);
                     else if (Str_eq_c(ptype, "I64"))
-                        fprintf(f, "        til_I64 *_val = til_cli_parse_i64(argv[%d + _i]);\n", argi);
+                        fprintf(f, "        I64 *_val = cli_parse_i64(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "U8"))
-                        fprintf(f, "        til_U8 *_val = til_cli_parse_u8(argv[%d + _i]);\n", argi);
+                        fprintf(f, "        U8 *_val = cli_parse_u8(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "I16"))
-                        fprintf(f, "        til_I16 *_val = til_cli_parse_i16(argv[%d + _i]);\n", argi);
+                        fprintf(f, "        I16 *_val = cli_parse_i16(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "I32"))
-                        fprintf(f, "        til_I32 *_val = til_cli_parse_i32(argv[%d + _i]);\n", argi);
+                        fprintf(f, "        I32 *_val = cli_parse_i32(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "U32"))
-                        fprintf(f, "        til_U32 *_val = til_cli_parse_u32(argv[%d + _i]);\n", argi);
+                        fprintf(f, "        U32 *_val = cli_parse_u32(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "Bool"))
-                        fprintf(f, "        til_Bool *_val = til_cli_parse_bool(argv[%d + _i]);\n", argi);
-                    fprintf(f, "        til_Array_set(%s, _idx, _val);\n", pname->c_str);
-                    fprintf(f, "        til_I64_delete(_idx, &(til_Bool){1});\n");
+                        fprintf(f, "        Bool *_val = cli_parse_bool(argv[%d + _i]);\n", argi);
+                    fprintf(f, "        Array_set(%s, _idx, _val);\n", pname->c_str);
+                    fprintf(f, "        I64_delete(_idx, &(Bool){1});\n");
                     fprintf(f, "    }\n");
                 } else if (Str_eq_c(ptype, "Str")) {
-                    fprintf(f, "    til_Str *%s = til_Str_lit(argv[%d], strlen(argv[%d]));\n", pname->c_str, argi, argi);
+                    fprintf(f, "    Str *%s = Str_lit(argv[%d], strlen(argv[%d]));\n", pname->c_str, argi, argi);
                     argi++;
                 } else if (Str_eq_c(ptype, "I64")) {
-                    fprintf(f, "    til_I64 *%s = til_cli_parse_i64(argv[%d]);\n", pname->c_str, argi);
+                    fprintf(f, "    I64 *%s = cli_parse_i64(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else if (Str_eq_c(ptype, "U8")) {
-                    fprintf(f, "    til_U8 *%s = til_cli_parse_u8(argv[%d]);\n", pname->c_str, argi);
+                    fprintf(f, "    U8 *%s = cli_parse_u8(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else if (Str_eq_c(ptype, "I16")) {
-                    fprintf(f, "    til_I16 *%s = til_cli_parse_i16(argv[%d]);\n", pname->c_str, argi);
+                    fprintf(f, "    I16 *%s = cli_parse_i16(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else if (Str_eq_c(ptype, "I32")) {
-                    fprintf(f, "    til_I32 *%s = til_cli_parse_i32(argv[%d]);\n", pname->c_str, argi);
+                    fprintf(f, "    I32 *%s = cli_parse_i32(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else if (Str_eq_c(ptype, "U32")) {
-                    fprintf(f, "    til_U32 *%s = til_cli_parse_u32(argv[%d]);\n", pname->c_str, argi);
+                    fprintf(f, "    U32 *%s = cli_parse_u32(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else if (Str_eq_c(ptype, "Bool")) {
-                    fprintf(f, "    til_Bool *%s = til_cli_parse_bool(argv[%d]);\n", pname->c_str, argi);
+                    fprintf(f, "    Bool *%s = cli_parse_bool(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else {
                     fprintf(f, "    // unsupported CLI arg type: %s\n", ptype->c_str);
@@ -697,7 +714,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
             ret = type_name_to_c(func_def->data.func_def.return_type);
         }
         // Signature
-        fprintf(f, "%s til_%s(", ret, name->c_str);
+        fprintf(f, "%s %s(", ret, func_to_c(name));
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
         in_func_def = 1;
@@ -714,7 +731,7 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, Bool is_co
     Bool has_instance_fields = 0;
     for (U32 i = 0; i < body->children.count; i++)
         if (!expr_child(body, i)->data.decl.is_namespace) { has_instance_fields = 1; break; }
-    fprintf(f, "typedef struct til_%s {\n", name->c_str);
+    fprintf(f, "typedef struct %s {\n", name->c_str);
     if (!has_instance_fields) {
         fprintf(f, "    char _;\n"); // padding for empty structs
     }
@@ -722,25 +739,25 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, Bool is_co
         Expr *field = expr_child(body, i);
         if (field->data.decl.is_namespace) continue;
         if (field->data.decl.is_own && (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
-            fprintf(f, "    til_%s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
+            fprintf(f, "    %s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
         } else if (field->data.decl.is_own) {
             fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
         } else if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
-            fprintf(f, "    til_%s %s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
+            fprintf(f, "    %s %s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
         } else {
             fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
         }
     }
-    fprintf(f, "} til_%s;\n\n", name->c_str);
+    fprintf(f, "} %s;\n\n", name->c_str);
     // Emit namespace fields as globals (skip func defs — emitted separately)
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
         if (!field->data.decl.is_namespace) continue;
         if (expr_child(field, 0)->type == NODE_FUNC_DEF) continue;
         if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
-            fprintf(f, "til_%s til_%s_%s;\n", expr_child(field, 0)->struct_name->c_str, name->c_str, field->data.decl.name->c_str);
+            fprintf(f, "%s %s_%s;\n", expr_child(field, 0)->struct_name->c_str, name->c_str, field->data.decl.name->c_str);
         } else {
-            fprintf(f, "%s til_%s_%s;\n", til_type_to_c(field->til_type), name->c_str, field->data.decl.name->c_str);
+            fprintf(f, "%s %s_%s;\n", til_type_to_c(field->til_type), name->c_str, field->data.decl.name->c_str);
         }
     }
 }
@@ -760,9 +777,9 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def) {
             fdef->data.func_def.nparam == 0 &&
             fdef->data.func_def.return_type &&
             Str_eq_c(fdef->data.func_def.return_type, "I64")) {
-            fprintf(f, "til_I64 *til_%s_size(void) {\n", name->c_str);
-            fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64));\n");
-            fprintf(f, "    *r = (til_I64)sizeof(til_%s);\n", name->c_str);
+            fprintf(f, "I64 *%s_size(void) {\n", name->c_str);
+            fprintf(f, "    I64 *r = malloc(sizeof(I64));\n");
+            fprintf(f, "    *r = (I64)sizeof(%s);\n", name->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n\n");
             continue;
@@ -794,9 +811,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // Zero-arg constructors
         for (U32 i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
-            fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
-            fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
-            fprintf(f, "    *r = (til_%s){ .tag = til_%s_TAG_%s };\n", name->c_str, name->c_str, vn->c_str);
+            fprintf(f, "%s *%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
+            fprintf(f, "    %s *r = malloc(sizeof(%s));\n", name->c_str, name->c_str);
+            fprintf(f, "    *r = (%s){ .tag = %s_TAG_%s };\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n");
         }
@@ -804,9 +821,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // is_Variant functions
         for (U32 i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
-            fprintf(f, "til_Bool *til_%s_is_%s(til_%s *self) {\n", name->c_str, vn->c_str, name->c_str);
-            fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
-            fprintf(f, "    *r = (self->tag == til_%s_TAG_%s);\n", name->c_str, vn->c_str);
+            fprintf(f, "Bool *%s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
+            fprintf(f, "    Bool *r = malloc(sizeof(Bool));\n");
+            fprintf(f, "    *r = (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n");
         }
@@ -831,23 +848,23 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             Str *vt = *(Str **)Vec_get(&vtypes, i);
             if (!vt) {
                 // Zero-arg constructor for no-payload variant
-                fprintf(f, "til_%s *til_%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
-                fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
-                fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vn->c_str);
+                fprintf(f, "%s *%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
+                fprintf(f, "    %s *r = malloc(sizeof(%s));\n", name->c_str, name->c_str);
+                fprintf(f, "    r->tag = %s_TAG_%s;\n", name->c_str, vn->c_str);
                 fprintf(f, "    return r;\n");
                 fprintf(f, "}\n");
                 continue;
             }
             const char *ptype = type_name_to_c(vt);
-            fprintf(f, "til_%s *til_%s_%s(%s val) {\n", name->c_str, name->c_str, vn->c_str, ptype);
-            fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
-            fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vn->c_str);
+            fprintf(f, "%s *%s_%s(%s val) {\n", name->c_str, name->c_str, vn->c_str, ptype);
+            fprintf(f, "    %s *r = malloc(sizeof(%s));\n", name->c_str, name->c_str);
+            fprintf(f, "    r->tag = %s_TAG_%s;\n", name->c_str, vn->c_str);
             // Store payload inline (by value)
             if (is_primitive_type(vt)) {
                 fprintf(f, "    r->data.%s = *val;\n", vn->c_str);
             } else {
                 // Struct/enum: clone into inline storage
-                fprintf(f, "    { %s _tmp = til_%s_clone(val); r->data.%s = *_tmp; free(_tmp); }\n",
+                fprintf(f, "    { %s _tmp = %s_clone(val); r->data.%s = *_tmp; free(_tmp); }\n",
                         type_name_to_c(vt), vt->c_str, vn->c_str);
             }
             fprintf(f, "    return r;\n");
@@ -857,9 +874,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // is_Variant functions
         for (U32 i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, i);
-            fprintf(f, "til_Bool *til_%s_is_%s(til_%s *self) {\n", name->c_str, vn->c_str, name->c_str);
-            fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool));\n");
-            fprintf(f, "    *r = (self->tag == til_%s_TAG_%s);\n", name->c_str, vn->c_str);
+            fprintf(f, "Bool *%s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
+            fprintf(f, "    Bool *r = malloc(sizeof(Bool));\n");
+            fprintf(f, "    *r = (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n");
         }
@@ -870,14 +887,14 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             Str *vt = *(Str **)Vec_get(&vtypes, i);
             if (!vt) continue;
             const char *ptype = type_name_to_c(vt);
-            fprintf(f, "%s til_%s_get_%s(til_%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
+            fprintf(f, "%s %s_get_%s(%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
             // Read from inline storage
             if (is_primitive_type(vt)) {
                 fprintf(f, "    %s r = malloc(sizeof(%s)); *r = self->data.%s; return r;\n",
                         ptype, type_name_to_c_value(vt), vn->c_str);
             } else {
                 // Struct/enum: clone from inline address
-                fprintf(f, "    return til_%s_clone(&self->data.%s);\n", vt->c_str, vn->c_str);
+                fprintf(f, "    return %s_clone(&self->data.%s);\n", vt->c_str, vn->c_str);
             }
             fprintf(f, "}\n");
         }
@@ -899,9 +916,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             fdef->data.func_def.nparam == 0 &&
             fdef->data.func_def.return_type &&
             Str_eq_c(fdef->data.func_def.return_type, "I64")) {
-            fprintf(f, "til_I64 *til_%s_size(void) {\n", name->c_str);
-            fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64));\n");
-            fprintf(f, "    *r = (til_I64)sizeof(til_%s);\n", name->c_str);
+            fprintf(f, "I64 *%s_size(void) {\n", name->c_str);
+            fprintf(f, "    I64 *r = malloc(sizeof(I64));\n");
+            fprintf(f, "    *r = (I64)sizeof(%s);\n", name->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n\n");
             continue;
@@ -946,7 +963,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             if (expr_child(stmt, 0)->is_ext && stmt->is_core) continue;
             if (Str_eq_c(stmt->data.decl.name, "Str") || Str_eq_c(stmt->data.decl.name, "Array")) continue;
-            fprintf(f, "typedef struct til_%s til_%s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
+            fprintf(f, "typedef struct %s %s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
         }
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
             Str *ename = stmt->data.decl.name;
@@ -958,12 +975,12 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                 Expr *v = expr_child(ebody, j);
                 if (v->data.decl.is_namespace) continue;
                 if (tag > 0) fprintf(f, ",\n");
-                fprintf(f, "    til_%s_TAG_%s", ename->c_str, v->data.decl.name->c_str);
+                fprintf(f, "    %s_TAG_%s", ename->c_str, v->data.decl.name->c_str);
                 tag++;
             }
-            fprintf(f, "\n} til_%s_tag;\n", ename->c_str);
+            fprintf(f, "\n} %s_tag;\n", ename->c_str);
             // Forward-declare enum struct
-            fprintf(f, "typedef struct til_%s til_%s;\n", ename->c_str, ename->c_str);
+            fprintf(f, "typedef struct %s %s;\n", ename->c_str, ename->c_str);
         }
     }
     fprintf(f, "\n");
@@ -977,18 +994,18 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         FuncType fft = fdef->data.func_def.func_type;
         if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
         if (fdef->data.func_def.return_type)
-            fprintf(f, "%stil_%s(", type_name_to_c(fdef->data.func_def.return_type), stmt->data.decl.name->c_str);
+            fprintf(f, "%s%s(", type_name_to_c(fdef->data.func_def.return_type), func_to_c(stmt->data.decl.name));
         else
-            fprintf(f, "void til_%s(", stmt->data.decl.name->c_str);
+            fprintf(f, "void %s(", func_to_c(stmt->data.decl.name));
         emit_param_list(f, fdef, 0);
         fprintf(f, ");\n");
     }
     fprintf(f, "\n");
 
     // Forward-declare string/print helper functions (implementations after struct defs)
-    fprintf(f, "static til_Str *til_Str_lit(const char *s, long long cap);\n");
-    fprintf(f, "static void til_print_single(til_Str *s);\n");
-    fprintf(f, "static void til_print_flush();\n\n");
+    fprintf(f, "static Str *Str_lit(const char *s, long long cap);\n");
+    fprintf(f, "static void print_single(Str *s);\n");
+    fprintf(f, "static void print_flush();\n\n");
 
     // Forward-declare all functions (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
@@ -1007,7 +1024,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                 const char *ret = "void";
                 if (fdef->data.func_def.return_type)
                     ret = type_name_to_c(fdef->data.func_def.return_type);
-                fprintf(f, "%s til_%s_%s(", ret, sname->c_str, field->data.decl.name->c_str);
+                fprintf(f, "%s %s_%s(", ret, sname->c_str, field->data.decl.name->c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
@@ -1021,7 +1038,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
             const char *ret = "void";
             if (func_def->data.func_def.return_type)
                 ret = type_name_to_c(func_def->data.func_def.return_type);
-            fprintf(f, "%s til_%s(", ret, name->c_str);
+            fprintf(f, "%s %s(", ret, func_to_c(name));
             emit_param_list(f, func_def, 1);
             fprintf(f, ");\n");
         }
@@ -1032,26 +1049,26 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
             Str *sname = stmt->data.decl.name;
             Bool hp = enum_has_payloads(expr_child(stmt, 0));
-            fprintf(f, "til_Bool *til_%s_eq(til_%s *, til_%s *);\n", sname->c_str, sname->c_str, sname->c_str);
+            fprintf(f, "Bool *%s_eq(%s *, %s *);\n", sname->c_str, sname->c_str, sname->c_str);
             Expr *ebody = expr_child(expr_child(stmt, 0), 0);
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *v = expr_child(ebody, j);
                 if (v->data.decl.is_namespace) continue;
                 if (hp) {
                     // is_Variant
-                    fprintf(f, "til_Bool *til_%s_is_%s(til_%s *);\n", sname->c_str, v->data.decl.name->c_str, sname->c_str);
+                    fprintf(f, "Bool *%s_is_%s(%s *);\n", sname->c_str, v->data.decl.name->c_str, sname->c_str);
                 }
                 if (v->data.decl.explicit_type) {
                     // Payload constructor
-                    fprintf(f, "til_%s *til_%s_%s(%s);\n", sname->c_str, sname->c_str,
+                    fprintf(f, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
                             v->data.decl.name->c_str, type_name_to_c(v->data.decl.explicit_type));
                     // get_Variant
-                    fprintf(f, "%s til_%s_get_%s(til_%s *);\n",
+                    fprintf(f, "%s %s_get_%s(%s *);\n",
                             type_name_to_c(v->data.decl.explicit_type),
                             sname->c_str, v->data.decl.name->c_str, sname->c_str);
                 } else {
                     // Zero-arg constructor
-                    fprintf(f, "til_%s *til_%s_%s();\n", sname->c_str, sname->c_str,
+                    fprintf(f, "%s *%s_%s();\n", sname->c_str, sname->c_str,
                             v->data.decl.name->c_str);
                 }
             }
@@ -1067,14 +1084,14 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
             DynCallInfo *info = Vec_get(&dyn_methods, m);
             if (info->returns) {
                 if (info->nargs == 1)
-                    fprintf(f, "void *til_dyn_call_%s(til_Str *type_name, void *val);\n", info->method->c_str);
+                    fprintf(f, "void *dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
                 else
-                    fprintf(f, "void *til_dyn_call_%s(til_Str *type_name, void *val, void *arg2);\n", info->method->c_str);
+                    fprintf(f, "void *dyn_call_%s(Str *type_name, void *val, void *arg2);\n", info->method->c_str);
             } else {
                 if (info->nargs == 1)
-                    fprintf(f, "void til_dyn_call_%s(til_Str *type_name, void *val);\n", info->method->c_str);
+                    fprintf(f, "void dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
                 else
-                    fprintf(f, "void til_dyn_call_%s(til_Str *type_name, void *val, void *arg2);\n", info->method->c_str);
+                    fprintf(f, "void dyn_call_%s(Str *type_name, void *val, void *arg2);\n", info->method->c_str);
             }
         }
         fprintf(f, "\n");
@@ -1087,7 +1104,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method = Vec_get(&has_methods, m);
-            fprintf(f, "til_Bool *til_dyn_has_%s(til_Str *type_name);\n", (*method)->c_str);
+            fprintf(f, "Bool *dyn_has_%s(Str *type_name);\n", (*method)->c_str);
         }
         if (has_methods.count) fprintf(f, "\n");
         Vec_delete(&has_methods);
@@ -1100,8 +1117,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, i);
             const char *prefix = ci->is_vec ? "vec" : "array";
-            const char *ret = ci->is_vec ? "til_Vec" : "til_Array";
-            fprintf(f, "%s *til_%s_of_%s(int count, ...);\n",
+            const char *ret = ci->is_vec ? "Vec" : "Array";
+            fprintf(f, "%s *%s_of_%s(int count, ...);\n",
                     ret, prefix, ci->type_name->c_str);
         }
         if (coll_infos.count) fprintf(f, "\n");
@@ -1119,8 +1136,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
             Str *ename = stmt->data.decl.name;
             Expr *ebody = expr_child(expr_child(stmt, 0), 0);
             Bool hp = enum_has_payloads(expr_child(stmt, 0));
-            fprintf(f, "struct til_%s {\n", ename->c_str);
-            fprintf(f, "    til_%s_tag tag;\n", ename->c_str);
+            fprintf(f, "struct %s {\n", ename->c_str);
+            fprintf(f, "    %s_tag tag;\n", ename->c_str);
             if (hp) {
                 fprintf(f, "    union {\n");
                 for (U32 j = 0; j < ebody->children.count; j++) {
@@ -1138,22 +1155,22 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         }
     }
 
-    // String helper functions (after all struct typedefs so til_Str is complete)
+    // String helper functions (after all struct typedefs so Str is complete)
     fprintf(f, "__attribute__((unused))\n");
     fprintf(f, "#define TIL_CAP_LIT (-1LL)\n");
-    fprintf(f, "static til_Str *til_Str_lit(const char *s, long long len) {\n");
-    fprintf(f, "    til_Str *r = malloc(sizeof(til_Str));\n");
-    fprintf(f, "    r->data = (til_U8 *)s;\n");
+    fprintf(f, "static Str *Str_lit(const char *s, long long len) {\n");
+    fprintf(f, "    Str *r = malloc(sizeof(Str));\n");
+    fprintf(f, "    r->data = (U8 *)s;\n");
     fprintf(f, "    r->count = len;\n");
     fprintf(f, "    r->cap = TIL_CAP_LIT;\n");
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static void til_print_single(til_Str *s) {\n");
+    fprintf(f, "static void print_single(Str *s) {\n");
     fprintf(f, "    fwrite(s->data, 1, (size_t)s->count, stdout);\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static void til_print_flush() {\n");
+    fprintf(f, "static void print_flush() {\n");
     fprintf(f, "    putchar('\\n');\n");
     fprintf(f, "}\n\n");
 
@@ -1201,9 +1218,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
             Str *method = info->method;
             const char *ret_type = info->returns ? "void *" : "void ";
             if (info->nargs == 1)
-                fprintf(f, "%stil_dyn_call_%s(til_Str *type_name, void *val) {\n", ret_type, method->c_str);
+                fprintf(f, "%sdyn_call_%s(Str *type_name, void *val) {\n", ret_type, method->c_str);
             else
-                fprintf(f, "%stil_dyn_call_%s(til_Str *type_name, void *val, void *arg2) {\n", ret_type, method->c_str);
+                fprintf(f, "%sdyn_call_%s(Str *type_name, void *val, void *arg2) {\n", ret_type, method->c_str);
             // Iterate all struct/type defs in AST
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = expr_child(program, i);
@@ -1225,17 +1242,17 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                 if (!has_method) continue;
                 if (info->nargs == 2) {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val, arg2);\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(val, arg2);\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val, arg2); return; }\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(val, arg2); return; }\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
                 } else {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)til_%s_%s(val);\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(val);\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_%s_%s(val); return; }\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(val); return; }\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str);
                 }
             }
@@ -1253,7 +1270,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method_ptr = Vec_get(&has_methods, m);
             Str *method = *method_ptr;
-            fprintf(f, "til_Bool *til_dyn_has_%s(til_Str *type_name) {\n    (void)type_name;\n", method->c_str);
+            fprintf(f, "Bool *dyn_has_%s(Str *type_name) {\n    (void)type_name;\n", method->c_str);
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = expr_child(program, i);
                 if (stmt->type != NODE_DECL) continue;
@@ -1271,10 +1288,10 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                     }
                 }
                 if (!found) continue;
-                fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { til_Bool *r = malloc(sizeof(til_Bool)); *r = 1; return r; }\n",
+                fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n",
                         (long long)tname->count, tname->c_str, (long long)tname->count);
             }
-            fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = 0; return r;\n");
+            fprintf(f, "    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n");
             fprintf(f, "}\n\n");
         }
         Vec_delete(&has_methods);
@@ -1289,35 +1306,35 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
             const char *et = ci->type_name->c_str;
             I64 et_len = ci->type_name->count;
             if (ci->is_vec) {
-                fprintf(f, "til_Vec *til_vec_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
-                fprintf(f, "    til_I64 *_esz = malloc(sizeof(til_I64)); *_esz = sizeof(til_%s);\n", et);
-                fprintf(f, "    til_Vec *_v = til_Vec_new(_et, _esz);\n");
-                fprintf(f, "    til_Str_delete(_et, &(til_Bool){1});\n");
-                fprintf(f, "    til_I64_delete(_esz, &(til_Bool){1});\n");
+                fprintf(f, "Vec *vec_of_%s(int count, ...) {\n", et);
+                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
+                fprintf(f, "    I64 *_esz = malloc(sizeof(I64)); *_esz = sizeof(%s);\n", et);
+                fprintf(f, "    Vec *_v = Vec_new(_et, _esz);\n");
+                fprintf(f, "    Str_delete(_et, &(Bool){1});\n");
+                fprintf(f, "    I64_delete(_esz, &(Bool){1});\n");
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
-                fprintf(f, "        til_%s *_val = til_%s_clone(va_arg(ap, til_%s *));\n", et, et, et);
-                fprintf(f, "        til_Vec_push(_v, _val);\n");
+                fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
+                fprintf(f, "        Vec_push(_v, _val);\n");
                 fprintf(f, "    }\n");
                 fprintf(f, "    va_end(ap);\n");
                 fprintf(f, "    return _v;\n");
                 fprintf(f, "}\n\n");
             } else {
-                fprintf(f, "til_Array *til_array_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    til_Str *_et = til_Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
-                fprintf(f, "    til_I64 *_esz = malloc(sizeof(til_I64)); *_esz = sizeof(til_%s);\n", et);
-                fprintf(f, "    til_I64 *_cap = malloc(sizeof(til_I64)); *_cap = count;\n");
-                fprintf(f, "    til_Array *_a = til_Array_new(_et, _esz, _cap);\n");
-                fprintf(f, "    til_Str_delete(_et, &(til_Bool){1});\n");
-                fprintf(f, "    til_I64_delete(_esz, &(til_Bool){1});\n");
-                fprintf(f, "    til_I64_delete(_cap, &(til_Bool){1});\n");
+                fprintf(f, "Array *array_of_%s(int count, ...) {\n", et);
+                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
+                fprintf(f, "    I64 *_esz = malloc(sizeof(I64)); *_esz = sizeof(%s);\n", et);
+                fprintf(f, "    I64 *_cap = malloc(sizeof(I64)); *_cap = count;\n");
+                fprintf(f, "    Array *_a = Array_new(_et, _esz, _cap);\n");
+                fprintf(f, "    Str_delete(_et, &(Bool){1});\n");
+                fprintf(f, "    I64_delete(_esz, &(Bool){1});\n");
+                fprintf(f, "    I64_delete(_cap, &(Bool){1});\n");
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
-                fprintf(f, "        til_I64 *_idx = malloc(sizeof(til_I64)); *_idx = _i;\n");
-                fprintf(f, "        til_%s *_val = til_%s_clone(va_arg(ap, til_%s *));\n", et, et, et);
-                fprintf(f, "        til_Array_set(_a, _idx, _val);\n");
-                fprintf(f, "        til_I64_delete(_idx, &(til_Bool){1});\n");
+                fprintf(f, "        I64 *_idx = malloc(sizeof(I64)); *_idx = _i;\n");
+                fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
+                fprintf(f, "        Array_set(_a, _idx, _val);\n");
+                fprintf(f, "        I64_delete(_idx, &(Bool){1});\n");
                 fprintf(f, "    }\n");
                 fprintf(f, "    va_end(ap);\n");
                 fprintf(f, "    return _a;\n");
@@ -1350,7 +1367,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
             if (rhs->type != NODE_FUNC_DEF) continue;
             if (rhs->data.func_def.func_type != FUNC_TEST) continue;
             Str *tname = stmt->data.decl.name;
-            fprintf(f, "    til_%s();\n", tname->c_str);
+            fprintf(f, "    %s();\n", tname->c_str);
             fprintf(f, "    fprintf(stderr, \"  pass: %%s\\n\", \"%s\");\n", tname->c_str);
             test_count++;
         }
@@ -1400,17 +1417,14 @@ I32 compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, 
         snprintf(ext_dir, sizeof(ext_dir), ".");
     }
 
-    // Build the cc command — also compile str.c and ccore.c
-    char str_c_path[272], ccore_c_path[272];
-    snprintf(str_c_path, sizeof(str_c_path), "%s/str.c", ext_dir);
-    snprintf(ccore_c_path, sizeof(ccore_c_path), "%s/ccore.c", ext_dir);
+    // Build the cc command
     const char *user_part = user_c_path ? user_c_path : "";
     const char *lf = link_flags ? link_flags : "";
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s%s",
-                       ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part, lf);
+    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s%s",
+                       ext_dir, bin_path, c_path, ext_c_path, user_part, lf);
     char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s %s %s%s",
-             ext_dir, bin_path, c_path, ext_c_path, str_c_path, ccore_c_path, user_part, lf);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s%s",
+             ext_dir, bin_path, c_path, ext_c_path, user_part, lf);
 
     int result = system(cmd);
     free(cmd);

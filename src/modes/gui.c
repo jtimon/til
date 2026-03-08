@@ -1,42 +1,41 @@
-#include "ccore.h"
 #include "ext.h"
 #include <raylib.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-void til_init_window(til_I64 *w, til_I64 *h, til_Str *title) {
+void init_window(I64 *w, I64 *h, Str *title) {
     char *t = strndup((char *)title->data, title->cap);
     InitWindow((int)*w, (int)*h, t);
     free(t);
 }
 
-til_Bool *til_window_should_close(void) {
-    til_Bool *r = malloc(sizeof(til_Bool));
+Bool *window_should_close(void) {
+    Bool *r = malloc(sizeof(Bool));
     *r = WindowShouldClose();
     return r;
 }
 
-void til_begin_drawing(void) { BeginDrawing(); }
-void til_end_drawing(void) { EndDrawing(); }
-void til_close_window(void) { CloseWindow(); }
+void begin_drawing(void) { BeginDrawing(); }
+void end_drawing(void) { EndDrawing(); }
+void close_window(void) { CloseWindow(); }
 
-void til_clear_background(til_I64 *r, til_I64 *g, til_I64 *b, til_I64 *a) {
+void clear_background(I64 *r, I64 *g, I64 *b, I64 *a) {
     ClearBackground((Color){(unsigned char)*r, (unsigned char)*g,
                             (unsigned char)*b, (unsigned char)*a});
 }
 
-void til_set_target_fps(til_I64 *fps) { SetTargetFPS((int)*fps); }
+void set_target_fps(I64 *fps) { SetTargetFPS((int)*fps); }
 
-void til_draw_rectangle(til_I64 *x, til_I64 *y, til_I64 *w, til_I64 *h,
-                        til_I64 *r, til_I64 *g, til_I64 *b, til_I64 *a) {
+void draw_rectangle(I64 *x, I64 *y, I64 *w, I64 *h,
+                        I64 *r, I64 *g, I64 *b, I64 *a) {
     DrawRectangle((int)*x, (int)*y, (int)*w, (int)*h,
                   (Color){(unsigned char)*r, (unsigned char)*g,
                           (unsigned char)*b, (unsigned char)*a});
 }
 
-void til_draw_text(til_Str *text, til_I64 *x, til_I64 *y, til_I64 *font_size,
-                   til_I64 *r, til_I64 *g, til_I64 *b, til_I64 *a) {
+void draw_text(Str *text, I64 *x, I64 *y, I64 *font_size,
+                   I64 *r, I64 *g, I64 *b, I64 *a) {
     char *t = strndup((char *)text->data, text->cap);
     DrawText(t, (int)*x, (int)*y, (int)*font_size,
              (Color){(unsigned char)*r, (unsigned char)*g,
@@ -44,74 +43,74 @@ void til_draw_text(til_Str *text, til_I64 *x, til_I64 *y, til_I64 *font_size,
     free(t);
 }
 
-til_I64 *til_get_screen_width(void) {
-    til_I64 *r = malloc(sizeof(til_I64));
+I64 *get_screen_width(void) {
+    I64 *r = malloc(sizeof(I64));
     *r = GetScreenWidth();
     return r;
 }
 
-til_I64 *til_get_screen_height(void) {
-    til_I64 *r = malloc(sizeof(til_I64));
+I64 *get_screen_height(void) {
+    I64 *r = malloc(sizeof(I64));
     *r = GetScreenHeight();
     return r;
 }
 
-til_I64 *til_get_frame_time(void) {
-    til_I64 *r = malloc(sizeof(til_I64));
-    *r = (til_I64)(GetFrameTime() * 1000);
+I64 *get_frame_time(void) {
+    I64 *r = malloc(sizeof(I64));
+    *r = (I64)(GetFrameTime() * 1000);
     return r;
 }
 
-til_Bool *til_is_key_pressed(til_I64 *key) {
-    til_Bool *r = malloc(sizeof(til_Bool));
+Bool *is_key_pressed(I64 *key) {
+    Bool *r = malloc(sizeof(Bool));
     *r = IsKeyPressed((int)*key);
     return r;
 }
 
-til_Bool *til_is_key_down(til_I64 *key) {
-    til_Bool *r = malloc(sizeof(til_Bool));
+Bool *is_key_down(I64 *key) {
+    Bool *r = malloc(sizeof(Bool));
     *r = IsKeyDown((int)*key);
     return r;
 }
 
-void til_draw_circle(til_I64 *cx, til_I64 *cy, til_I64 *radius,
-                     til_I64 *r, til_I64 *g, til_I64 *b, til_I64 *a) {
+void draw_circle(I64 *cx, I64 *cy, I64 *radius,
+                     I64 *r, I64 *g, I64 *b, I64 *a) {
     DrawCircle((int)*cx, (int)*cy, (float)*radius,
                (Color){(unsigned char)*r, (unsigned char)*g,
                         (unsigned char)*b, (unsigned char)*a});
 }
 
-til_I64 *til_get_random_value(til_I64 *min, til_I64 *max) {
-    til_I64 *r = malloc(sizeof(til_I64));
+I64 *get_random_value(I64 *min, I64 *max) {
+    I64 *r = malloc(sizeof(I64));
     *r = GetRandomValue((int)*min, (int)*max);
     return r;
 }
 
-til_I64 *til_get_mouse_x(void) {
-    til_I64 *r = malloc(sizeof(til_I64));
+I64 *get_mouse_x(void) {
+    I64 *r = malloc(sizeof(I64));
     *r = GetMouseX();
     return r;
 }
 
-til_I64 *til_get_mouse_y(void) {
-    til_I64 *r = malloc(sizeof(til_I64));
+I64 *get_mouse_y(void) {
+    I64 *r = malloc(sizeof(I64));
     *r = GetMouseY();
     return r;
 }
 
-til_Bool *til_is_mouse_button_pressed(til_I64 *button) {
-    til_Bool *r = malloc(sizeof(til_Bool));
+Bool *is_mouse_button_pressed(I64 *button) {
+    Bool *r = malloc(sizeof(Bool));
     *r = IsMouseButtonPressed((int)*button);
     return r;
 }
 
-void til_init_audio_device(void) { InitAudioDevice(); }
-void til_close_audio_device(void) { CloseAudioDevice(); }
+void init_audio_device(void) { InitAudioDevice(); }
+void close_audio_device(void) { CloseAudioDevice(); }
 
 static Sound prev_tone = {0};
 static bool tone_loaded = false;
 
-void til_play_tone(til_I64 *freq, til_I64 *duration_ms) {
+void play_tone(I64 *freq, I64 *duration_ms) {
     if (tone_loaded) UnloadSound(prev_tone);
     int sr = 44100;
     int n = sr * (int)*duration_ms / 1000;

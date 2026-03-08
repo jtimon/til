@@ -1,6 +1,5 @@
 #include "dispatch.h"
 #include "ccore.h"
-#include "ext.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +9,10 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <ffi.h>
+
+// Codegen Str layout (matches ext.h Str: {U8 *data, I64 count, I64 cap})
+// Distinct from compiler-internal Str (str.h: {char *c_str, I64 count, I64 cap})
+typedef struct { U8 *data; I64 count; I64 cap; } ExtStr;
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
@@ -39,15 +42,15 @@ static Value eval_arg(Scope *s, Expr *e) {
     Value v = eval_expr(s, e);
     if (v.type == VAL_PTR && e->til_type != TIL_TYPE_DYNAMIC) {
         switch (e->til_type) {
-            case TIL_TYPE_I64:    return (Value){.type = VAL_I64, .i64 = (til_I64 *)v.ptr};
-            case TIL_TYPE_U8:    return (Value){.type = VAL_U8, .u8 = (til_U8 *)v.ptr};
-            case TIL_TYPE_I16:   return (Value){.type = VAL_I16, .i16 = (til_I16 *)v.ptr};
-            case TIL_TYPE_I32:   return (Value){.type = VAL_I32, .i32 = (til_I32 *)v.ptr};
-            case TIL_TYPE_U32:   return (Value){.type = VAL_U32, .u32 = (til_U32 *)v.ptr};
-            case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (til_Bool *)v.ptr};
+            case TIL_TYPE_I64:    return (Value){.type = VAL_I64, .i64 = (I64 *)v.ptr};
+            case TIL_TYPE_U8:    return (Value){.type = VAL_U8, .u8 = (U8 *)v.ptr};
+            case TIL_TYPE_I16:   return (Value){.type = VAL_I16, .i16 = (I16 *)v.ptr};
+            case TIL_TYPE_I32:   return (Value){.type = VAL_I32, .i32 = (I32 *)v.ptr};
+            case TIL_TYPE_U32:   return (Value){.type = VAL_U32, .u32 = (U32 *)v.ptr};
+            case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (Bool *)v.ptr};
             case TIL_TYPE_STRUCT:
                 if (e->struct_name && Str_eq_c(e->struct_name, "Str")) {
-                    til_Str *sp = (til_Str *)v.ptr;
+                    ExtStr *sp = (ExtStr *)v.ptr;
                     return make_str_value_own((char *)sp->data, sp->count);
                 }
                 return (Value){.type = VAL_STRUCT, .instance = v.ptr};
@@ -210,7 +213,7 @@ static Bool h_print_flush(Scope *s, Expr *e, Value *r) {
 
 static Bool h_exit(Scope *s, Expr *e, Value *r) {
     Value a = eval_expr(s, expr_child(e,1));
-    til_exit(a.i64);
+    exit((int)*a.i64);
     *r = val_none(); return 1;
 }
 
@@ -225,29 +228,29 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
     Cell *cell = scope_get(s, expr_child(e, 1)->data.str_val);
     if (cell->val.type == VAL_STRUCT && cell->val.instance) {
         if (!cell->val.instance->borrowed)
-            til_free(cell->val.instance->data);
-        til_free(cell->val.instance);
+            free(cell->val.instance->data);
+        free(cell->val.instance);
     } else if (cell->val.type == VAL_ENUM && cell->val.enum_inst) {
         Value payload = cell->val.enum_inst->payload;
-        if (payload.type == VAL_I64)  til_free(payload.i64);
-        else if (payload.type == VAL_U8)   til_free(payload.u8);
-        else if (payload.type == VAL_I16)  til_free(payload.i16);
-        else if (payload.type == VAL_I32)  til_free(payload.i32);
-        else if (payload.type == VAL_U32)  til_free(payload.u32);
-        else if (payload.type == VAL_BOOL) til_free(payload.boolean);
-        til_free(cell->val.enum_inst);
+        if (payload.type == VAL_I64)  free(payload.i64);
+        else if (payload.type == VAL_U8)   free(payload.u8);
+        else if (payload.type == VAL_I16)  free(payload.i16);
+        else if (payload.type == VAL_I32)  free(payload.i32);
+        else if (payload.type == VAL_U32)  free(payload.u32);
+        else if (payload.type == VAL_BOOL) free(payload.boolean);
+        free(cell->val.enum_inst);
     } else if (cell->val.type == VAL_I64) {
-        til_free(cell->val.i64);
+        free(cell->val.i64);
     } else if (cell->val.type == VAL_U8) {
-        til_free(cell->val.u8);
+        free(cell->val.u8);
     } else if (cell->val.type == VAL_I16) {
-        til_free(cell->val.i16);
+        free(cell->val.i16);
     } else if (cell->val.type == VAL_I32) {
-        til_free(cell->val.i32);
+        free(cell->val.i32);
     } else if (cell->val.type == VAL_U32) {
-        til_free(cell->val.u32);
+        free(cell->val.u32);
     } else if (cell->val.type == VAL_BOOL) {
-        til_free(cell->val.boolean);
+        free(cell->val.boolean);
     } else if (cell->val.type == VAL_PTR) {
         free(cell->val.ptr);
     }
@@ -802,20 +805,20 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             if (!fe->return_type) {
                 *result = val_none();
             } else if (Str_eq_c(fe->return_type, "Str")) {
-                til_Str *sp = (til_Str *)raw;
+                ExtStr *sp = (ExtStr *)raw;
                 *result = make_str_value_own((char *)sp->data, sp->count);
             } else if (Str_eq_c(fe->return_type, "I64")) {
-                *result = (Value){.type = VAL_I64, .i64 = (til_I64 *)raw};
+                *result = (Value){.type = VAL_I64, .i64 = (I64 *)raw};
             } else if (Str_eq_c(fe->return_type, "U8")) {
-                *result = (Value){.type = VAL_U8, .u8 = (til_U8 *)raw};
+                *result = (Value){.type = VAL_U8, .u8 = (U8 *)raw};
             } else if (Str_eq_c(fe->return_type, "I16")) {
-                *result = (Value){.type = VAL_I16, .i16 = (til_I16 *)raw};
+                *result = (Value){.type = VAL_I16, .i16 = (I16 *)raw};
             } else if (Str_eq_c(fe->return_type, "I32")) {
-                *result = (Value){.type = VAL_I32, .i32 = (til_I32 *)raw};
+                *result = (Value){.type = VAL_I32, .i32 = (I32 *)raw};
             } else if (Str_eq_c(fe->return_type, "U32")) {
-                *result = (Value){.type = VAL_U32, .u32 = (til_U32 *)raw};
+                *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw};
             } else if (Str_eq_c(fe->return_type, "Bool")) {
-                *result = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)raw};
+                *result = (Value){.type = VAL_BOOL, .boolean = (Bool *)raw};
             } else {
                 // Struct return — look up struct def by return type name
                 Expr **sdef = Map_get(&ffi_struct_defs, &fe->return_type);
@@ -933,7 +936,7 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
             if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
 
             char sym_name[256];
-            snprintf(sym_name, sizeof(sym_name), "til_%s", stmt->data.decl.name->c_str);
+            snprintf(sym_name, sizeof(sym_name), "%s", stmt->data.decl.name->c_str);
             void *fn = dlsym(ffi_handle, sym_name);
             if (!fn) {
                 fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());
@@ -970,7 +973,7 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
 
                 char flat_name[256], sym_name[264];
                 snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.decl.name->c_str);
-                snprintf(sym_name, sizeof(sym_name), "til_%s", flat_name);
+                snprintf(sym_name, sizeof(sym_name), "%s", flat_name);
                 void *fn = dlsym(ffi_handle, sym_name);
                 if (!fn) {
                     fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());

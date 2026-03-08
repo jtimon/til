@@ -419,17 +419,17 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = make_str_value_own(sp->c_str, sp->count);
                     }
                     else if (Str_eq_c(ptype, "I64"))
-                        arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
+                        arg = (Value){.type = VAL_I64, .i64 = (I64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U8"))
-                        arg = (Value){.type = VAL_U8, .u8 = (til_U8 *)arg.ptr};
+                        arg = (Value){.type = VAL_U8, .u8 = (U8 *)arg.ptr};
                     else if (Str_eq_c(ptype, "I16"))
-                        arg = (Value){.type = VAL_I16, .i16 = (til_I16 *)arg.ptr};
+                        arg = (Value){.type = VAL_I16, .i16 = (I16 *)arg.ptr};
                     else if (Str_eq_c(ptype, "I32"))
-                        arg = (Value){.type = VAL_I32, .i32 = (til_I32 *)arg.ptr};
+                        arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U32"))
-                        arg = (Value){.type = VAL_U32, .u32 = (til_U32 *)arg.ptr};
+                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
-                        arg = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)arg.ptr};
+                        arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
                     scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
                 } else {
                     scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
@@ -444,17 +444,17 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = make_str_value_own(sp->c_str, sp->count);
                     }
                     else if (Str_eq_c(ptype, "I64"))
-                        arg = (Value){.type = VAL_I64, .i64 = (til_I64 *)arg.ptr};
+                        arg = (Value){.type = VAL_I64, .i64 = (I64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U8"))
-                        arg = (Value){.type = VAL_U8, .u8 = (til_U8 *)arg.ptr};
+                        arg = (Value){.type = VAL_U8, .u8 = (U8 *)arg.ptr};
                     else if (Str_eq_c(ptype, "I16"))
-                        arg = (Value){.type = VAL_I16, .i16 = (til_I16 *)arg.ptr};
+                        arg = (Value){.type = VAL_I16, .i16 = (I16 *)arg.ptr};
                     else if (Str_eq_c(ptype, "I32"))
-                        arg = (Value){.type = VAL_I32, .i32 = (til_I32 *)arg.ptr};
+                        arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U32"))
-                        arg = (Value){.type = VAL_U32, .u32 = (til_U32 *)arg.ptr};
+                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
-                        arg = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)arg.ptr};
+                        arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
                 }
                 scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
             }
@@ -703,17 +703,17 @@ static void eval_body(Scope *scope, Expr *body) {
                 if (val.type == VAL_PTR && stmt->data.decl.explicit_type && stmt->data.decl.is_ref) {
                     Str *etype = stmt->data.decl.explicit_type;
                     if (Str_eq_c(etype, "I64"))
-                        val = (Value){.type = VAL_I64, .i64 = (til_I64 *)val.ptr};
+                        val = (Value){.type = VAL_I64, .i64 = (I64 *)val.ptr};
                     else if (Str_eq_c(etype, "U8"))
-                        val = (Value){.type = VAL_U8, .u8 = (til_U8 *)val.ptr};
+                        val = (Value){.type = VAL_U8, .u8 = (U8 *)val.ptr};
                     else if (Str_eq_c(etype, "I16"))
-                        val = (Value){.type = VAL_I16, .i16 = (til_I16 *)val.ptr};
+                        val = (Value){.type = VAL_I16, .i16 = (I16 *)val.ptr};
                     else if (Str_eq_c(etype, "I32"))
-                        val = (Value){.type = VAL_I32, .i32 = (til_I32 *)val.ptr};
+                        val = (Value){.type = VAL_I32, .i32 = (I32 *)val.ptr};
                     else if (Str_eq_c(etype, "U32"))
-                        val = (Value){.type = VAL_U32, .u32 = (til_U32 *)val.ptr};
+                        val = (Value){.type = VAL_U32, .u32 = (U32 *)val.ptr};
                     else if (Str_eq_c(etype, "Bool"))
-                        val = (Value){.type = VAL_BOOL, .boolean = (til_Bool *)val.ptr};
+                        val = (Value){.type = VAL_BOOL, .boolean = (Bool *)val.ptr};
                     else if (Str_eq_c(etype, "Str")) {
                         Str *sp = (Str *)val.ptr;
                         val = make_str_value_own(sp->c_str, sp->count);
@@ -998,23 +998,23 @@ static Value parse_cli_arg(const char *s, Str *type_name) {
 }
 
 static I32 elem_size_for_type(Str *type_name) {
-    if (Str_eq_c(type_name, "I64")) return (I32)sizeof(til_I64);
-    if (Str_eq_c(type_name, "U8"))  return (I32)sizeof(til_U8);
-    if (Str_eq_c(type_name, "I16")) return (I32)sizeof(til_I16);
-    if (Str_eq_c(type_name, "I32")) return (I32)sizeof(til_I32);
-    if (Str_eq_c(type_name, "U32")) return (I32)sizeof(til_U32);
-    if (Str_eq_c(type_name, "Bool")) return (I32)sizeof(til_Bool);
+    if (Str_eq_c(type_name, "I64")) return (I32)sizeof(I64);
+    if (Str_eq_c(type_name, "U8"))  return (I32)sizeof(U8);
+    if (Str_eq_c(type_name, "I16")) return (I32)sizeof(I16);
+    if (Str_eq_c(type_name, "I32")) return (I32)sizeof(I32);
+    if (Str_eq_c(type_name, "U32")) return (I32)sizeof(U32);
+    if (Str_eq_c(type_name, "Bool")) return (I32)sizeof(Bool);
     if (Str_eq_c(type_name, "Str")) return 24; // til Str = {U8*, I64 len, I64 cap}
     return 8;
 }
 
 static void value_to_buf(void *dest, Value v, Str *type_name) {
-    if (Str_eq_c(type_name, "I64"))       { memcpy(dest, v.i64, sizeof(til_I64)); free(v.i64); }
-    else if (Str_eq_c(type_name, "U8"))   { memcpy(dest, v.u8, sizeof(til_U8)); free(v.u8); }
-    else if (Str_eq_c(type_name, "I16"))  { memcpy(dest, v.i16, sizeof(til_I16)); free(v.i16); }
-    else if (Str_eq_c(type_name, "I32"))  { memcpy(dest, v.i32, sizeof(til_I32)); free(v.i32); }
-    else if (Str_eq_c(type_name, "U32"))  { memcpy(dest, v.u32, sizeof(til_U32)); free(v.u32); }
-    else if (Str_eq_c(type_name, "Bool")) { memcpy(dest, v.boolean, sizeof(til_Bool)); free(v.boolean); }
+    if (Str_eq_c(type_name, "I64"))       { memcpy(dest, v.i64, sizeof(I64)); free(v.i64); }
+    else if (Str_eq_c(type_name, "U8"))   { memcpy(dest, v.u8, sizeof(U8)); free(v.u8); }
+    else if (Str_eq_c(type_name, "I16"))  { memcpy(dest, v.i16, sizeof(I16)); free(v.i16); }
+    else if (Str_eq_c(type_name, "I32"))  { memcpy(dest, v.i32, sizeof(I32)); free(v.i32); }
+    else if (Str_eq_c(type_name, "U32"))  { memcpy(dest, v.u32, sizeof(U32)); free(v.u32); }
+    else if (Str_eq_c(type_name, "Bool")) { memcpy(dest, v.boolean, sizeof(Bool)); free(v.boolean); }
     else if (v.type == VAL_STRUCT) {
         I32 sz = v.instance->struct_def->total_struct_size;
         memcpy(dest, v.instance->data, sz);

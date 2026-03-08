@@ -51,8 +51,8 @@
    The generated .til binding includes ~link("mylib")~ at the top (like
    gui mode does for raylib), so linking is automatic — no manual flags.
 
-** OPEN #38 Drop til_ prefix from generated C symbols
-  :DEPENDENCIES: #37
+** WIP #38 Drop til_ prefix from generated C symbols
+  :DEPENDENCIES: #23, #37
   Currently the builder prefixes all generated symbols with ~til_~ (e.g.
   ~til_I64~, ~til_Token~, ~til_tokenize~). This was to avoid C name
   collisions, but in practice these names don't collide with C stdlib.
@@ -66,12 +66,35 @@
   The generated .c files are compiled independently — they never see the
   original C sources, so no symbol conflicts.
 
-  Changes needed:
-  - builder.c: remove ~til_~ prefix emission for types, functions, enums
-  - ext.h / ext.c: update extern declarations to match (or use typedefs)
-  - Core types (I64, Str, Vec, Bool, etc.) become unprefixed in generated C
+*** Done
+   - builder.c: all ~til_~ prefix emission removed from types, functions,
+     enums, structs, Vec, Array, dyn_call, dyn_has, CLI parsing, etc.
+   - ext.h / ext.c: rewritten with unprefixed names, ext.c now self-contained
+     (inlined ccore logic, no ccore.h dependency)
+   - ext.c excluded from compiler build (Makefile) to avoid symbol conflicts
+     with ccore.c
+   - interpreter.h: removed ext.h dependency, uses bare alias types
+   - interpreter.c, dispatch.c: replaced ~til_~ type casts with bare types;
+     dispatch.c uses local ~ExtStr~ for codegen Str layout (different from
+     compiler's str.h Str)
+   - FFI C files updated: gui.c, ext_module.c, raylib.c
+   - ~func_to_c()~ helper maps C-colliding names: ~exit~ → ~exit_program~,
+     ~sleep~ → ~sleep_ms~, ~double~ → ~double_~
+   - ~and~/~or~/~not~ renamed to ~Bool_and~/~Bool_or~/~Bool_not~ but this
+     may be unnecessary — they're standalone ext_funcs, not Bool namespace
+     methods, and ~and~/~or~/~not~ aren't C reserved words (only iso646.h
+     alternative tokens, which generated code never includes)
 
-  Edge cases: ~Bool~ may conflict with C23's ~bool~. Handle if it arises.
+*** Remaining: til_malloc, til_realloc, til_memcpy, til_memmove
+   These keep the ~til_~ prefix because they have different signatures from
+   C stdlib (they take ~I64 *~ pointer args, dereference them, then call
+   the real C function). Can't emit bare ~malloc()~ because generated code
+   passes ~I64 *~ not ~size_t~.
+
+   Fixing this requires #23 (shallow FFI): with shallow ext_func, the
+   builder could emit direct ~malloc(size)~ calls where ~size~ is
+   dereferenced from ~I64 *~ to ~size_t~ at the call site, eliminating
+   the wrapper functions entirely.
 
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #2, #37, #38

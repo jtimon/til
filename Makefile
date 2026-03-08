@@ -2,7 +2,7 @@
 
 all: bin/ctil
 
-SRCS := $(wildcard src/*.c) $(wildcard src/c/*.c)
+SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c, $(wildcard src/c/*.c))
 HDRS := $(wildcard src/c/*.h)
 
 bin/ctil: $(SRCS) $(HDRS)

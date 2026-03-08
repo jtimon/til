@@ -2,7 +2,6 @@
 #define TIL_INTERPRETER_H
 
 #include "ast.h"
-#include "ext.h"
 #include "map.h"
 #include "modes.h"
 #include <stdlib.h>
@@ -41,12 +40,12 @@ struct StructInstance {
 struct Value {
     ValType type;
     union {
-        til_I64 *i64;
-        til_U8 *u8;
-        til_I16 *i16;
-        til_I32 *i32;
-        til_U32 *u32;
-        til_Bool *boolean;
+        I64 *i64;
+        U8 *u8;
+        I16 *i16;
+        I32 *i32;
+        U32 *u32;
+        Bool *boolean;
         Expr *func;
         StructInstance *instance;
         EnumInstance *enum_inst;
@@ -63,12 +62,12 @@ struct EnumInstance {
 static inline Value val_none(void) {
     return (Value){.type = VAL_NONE};
 }
-static inline Value val_i64(til_I64 v) { til_I64 *p = malloc(sizeof(til_I64)); *p = v; return (Value){.type = VAL_I64, .i64 = p}; }
-static inline Value val_u8(I64 v) { til_U8 *p = malloc(sizeof(til_U8)); *p = (til_U8)(v & 0xFF); return (Value){.type = VAL_U8, .u8 = p}; }
-static inline Value val_i16(I64 v) { til_I16 *p = malloc(sizeof(til_I16)); *p = (til_I16)v; return (Value){.type = VAL_I16, .i16 = p}; }
-static inline Value val_i32(I64 v) { til_I32 *p = malloc(sizeof(til_I32)); *p = (til_I32)v; return (Value){.type = VAL_I32, .i32 = p}; }
-static inline Value val_u32(I64 v) { til_U32 *p = malloc(sizeof(til_U32)); *p = (til_U32)(v & 0xFFFFFFFF); return (Value){.type = VAL_U32, .u32 = p}; }
-static inline Value val_bool(til_Bool v) { til_Bool *p = malloc(sizeof(til_Bool)); *p = v; return (Value){.type = VAL_BOOL, .boolean = p}; }
+static inline Value val_i64(I64 v) { I64 *p = malloc(sizeof(I64)); *p = v; return (Value){.type = VAL_I64, .i64 = p}; }
+static inline Value val_u8(I64 v) { U8 *p = malloc(sizeof(U8)); *p = (U8)(v & 0xFF); return (Value){.type = VAL_U8, .u8 = p}; }
+static inline Value val_i16(I64 v) { I16 *p = malloc(sizeof(I16)); *p = (I16)v; return (Value){.type = VAL_I16, .i16 = p}; }
+static inline Value val_i32(I64 v) { I32 *p = malloc(sizeof(I32)); *p = (I32)v; return (Value){.type = VAL_I32, .i32 = p}; }
+static inline Value val_u32(I64 v) { U32 *p = malloc(sizeof(U32)); *p = (U32)(v & 0xFFFFFFFF); return (Value){.type = VAL_U32, .u32 = p}; }
+static inline Value val_bool(Bool v) { Bool *p = malloc(sizeof(Bool)); *p = v; return (Value){.type = VAL_BOOL, .boolean = p}; }
 static inline Value val_enum(Str *enum_name, I32 tag, Value payload) {
     EnumInstance *ei = malloc(sizeof(EnumInstance));
     ei->enum_name = enum_name;

@@ -1,5 +1,4 @@
 #include "ext.h"
-#include "ccore.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,221 +7,228 @@
 #include <sys/stat.h>
 #include <time.h>
 
-void til_free(void *ptr) { free(ptr); }
-void til_exit(til_I64 *code) { exit((int)*code); }
+// Internal helpers for heap-allocating scalar values (pointer ABI)
+static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
+static U8 *new_u8(U8 v) { U8 *r = malloc(sizeof(U8)); *r = v; return r; }
+static I16 *new_i16(I16 v) { I16 *r = malloc(sizeof(I16)); *r = v; return r; }
+static I32 *new_i32(I32 v) { I32 *r = malloc(sizeof(I32)); *r = v; return r; }
+static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
+static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
+
+void exit_program(I64 *code) { exit((int)*code); }
 
 // I64 clone/delete
-til_I64 *til_I64_clone(til_I64 *v) { return I64_clone(v); }
-void til_I64_delete(til_I64 *v, til_Bool *call_free) { if (*call_free) I64_delete(v); }
+I64 *I64_clone(I64 *v) { return new_i64(*v); }
+void I64_delete(I64 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I64 arithmetic
-til_I64 *til_I64_add(til_I64 *a, til_I64 *b) { return I64_new(I64_add(*a, *b)); }
-til_I64 *til_I64_sub(til_I64 *a, til_I64 *b) { return I64_new(I64_sub(*a, *b)); }
-til_I64 *til_I64_mul(til_I64 *a, til_I64 *b) { return I64_new(I64_mul(*a, *b)); }
-til_I64 *til_I64_div(til_I64 *a, til_I64 *b) { return I64_new(I64_div(*a, *b)); }
-til_I64 *til_I64_mod(til_I64 *a, til_I64 *b) { return I64_new(I64_mod(*a, *b)); }
-til_I64 *til_I64_and(til_I64 *a, til_I64 *b) { return I64_new(I64_and(*a, *b)); }
-til_I64 *til_I64_or(til_I64 *a, til_I64 *b) { return I64_new(I64_or(*a, *b)); }
-til_I64 *til_I64_xor(til_I64 *a, til_I64 *b) { return I64_new(I64_xor(*a, *b)); }
+I64 *I64_add(I64 *a, I64 *b) { return new_i64(*a + *b); }
+I64 *I64_sub(I64 *a, I64 *b) { return new_i64(*a - *b); }
+I64 *I64_mul(I64 *a, I64 *b) { return new_i64(*a * *b); }
+I64 *I64_div(I64 *a, I64 *b) { return new_i64(*a / *b); }
+I64 *I64_mod(I64 *a, I64 *b) { return new_i64(*a % *b); }
+I64 *I64_and(I64 *a, I64 *b) { return new_i64(*a & *b); }
+I64 *I64_or(I64 *a, I64 *b) { return new_i64(*a | *b); }
+I64 *I64_xor(I64 *a, I64 *b) { return new_i64(*a ^ *b); }
 
 // I64 inc/dec
-til_I64 *til_I64_inc(til_I64 *a) { return I64_new(*a + 1); }
-til_I64 *til_I64_dec(til_I64 *a) { return I64_new(*a - 1); }
+I64 *I64_inc(I64 *a) { return new_i64(*a + 1); }
+I64 *I64_dec(I64 *a) { return new_i64(*a - 1); }
 
 // I64 comparisons
-til_Bool *til_I64_eq(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I64_eq(*a, *b); return r; }
-til_I64 *til_I64_cmp(til_I64 *a, til_I64 *b) { return I64_new(I64_cmp(*a, *b)); }
+Bool *I64_eq(I64 *a, I64 *b) { return new_bool(*a == *b); }
+I64 *I64_cmp(I64 *a, I64 *b) { return new_i64((*a > *b) ? 1 : (*a < *b) ? -1 : 0); }
 
 // U8 arithmetic
-til_U8 *til_U8_add(til_U8 *a, til_U8 *b) { return U8_new(U8_add(*a, *b)); }
-til_U8 *til_U8_sub(til_U8 *a, til_U8 *b) { return U8_new(U8_sub(*a, *b)); }
-til_U8 *til_U8_mul(til_U8 *a, til_U8 *b) { return U8_new(U8_mul(*a, *b)); }
-til_U8 *til_U8_div(til_U8 *a, til_U8 *b) { return U8_new(U8_div(*a, *b)); }
-til_U8 *til_U8_mod(til_U8 *a, til_U8 *b) { return U8_new(U8_mod(*a, *b)); }
-til_U8 *til_U8_and(til_U8 *a, til_U8 *b) { return U8_new(U8_and(*a, *b)); }
-til_U8 *til_U8_or(til_U8 *a, til_U8 *b) { return U8_new(U8_or(*a, *b)); }
-til_U8 *til_U8_xor(til_U8 *a, til_U8 *b) { return U8_new(U8_xor(*a, *b)); }
+U8 *U8_add(U8 *a, U8 *b) { return new_u8(*a + *b); }
+U8 *U8_sub(U8 *a, U8 *b) { return new_u8(*a - *b); }
+U8 *U8_mul(U8 *a, U8 *b) { return new_u8(*a * *b); }
+U8 *U8_div(U8 *a, U8 *b) { return new_u8(*a / *b); }
+U8 *U8_mod(U8 *a, U8 *b) { return new_u8(*a % *b); }
+U8 *U8_and(U8 *a, U8 *b) { return new_u8(*a & *b); }
+U8 *U8_or(U8 *a, U8 *b) { return new_u8(*a | *b); }
+U8 *U8_xor(U8 *a, U8 *b) { return new_u8(*a ^ *b); }
 
 // U8 inc/dec
-til_U8 *til_U8_inc(til_U8 *a) { return U8_new(*a + 1); }
-til_U8 *til_U8_dec(til_U8 *a) { return U8_new(*a - 1); }
+U8 *U8_inc(U8 *a) { return new_u8(*a + 1); }
+U8 *U8_dec(U8 *a) { return new_u8(*a - 1); }
 
 // U8 comparisons
-til_Bool *til_U8_eq(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U8_eq(*a, *b); return r; }
-til_I64 *til_U8_cmp(til_U8 *a, til_U8 *b) { return I64_new(U8_cmp(*a, *b)); }
+Bool *U8_eq(U8 *a, U8 *b) { return new_bool(*a == *b); }
+I64 *U8_cmp(U8 *a, U8 *b) { return new_i64((*a > *b) ? 1 : (*a < *b) ? -1 : 0); }
 
 // U8 conversions
-til_I64 *til_U8_to_i64(til_U8 *a) { return I64_new(U8_to_i64(*a)); }
-til_U8 *til_U8_from_i64_ext(til_I64 *a) { return U8_new(U8_from_i64(*a)); }
+I64 *U8_to_i64(U8 *a) { return new_i64((I64)*a); }
+U8 *U8_from_i64_ext(I64 *a) { return new_u8((U8)*a); }
 
 // U8 clone/delete
-til_U8 *til_U8_clone(til_U8 *v) { return U8_clone(v); }
-void til_U8_delete(til_U8 *v, til_Bool *call_free) { if (*call_free) U8_delete(v); }
+U8 *U8_clone(U8 *v) { return new_u8(*v); }
+void U8_delete(U8 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I16 arithmetic
-til_I16 *til_I16_add(til_I16 *a, til_I16 *b) { return I16_new(I16_add(*a, *b)); }
-til_I16 *til_I16_sub(til_I16 *a, til_I16 *b) { return I16_new(I16_sub(*a, *b)); }
-til_I16 *til_I16_mul(til_I16 *a, til_I16 *b) { return I16_new(I16_mul(*a, *b)); }
-til_I16 *til_I16_div(til_I16 *a, til_I16 *b) { return I16_new(I16_div(*a, *b)); }
-til_I16 *til_I16_mod(til_I16 *a, til_I16 *b) { return I16_new(I16_mod(*a, *b)); }
-til_I16 *til_I16_and(til_I16 *a, til_I16 *b) { return I16_new(I16_and(*a, *b)); }
-til_I16 *til_I16_or(til_I16 *a, til_I16 *b) { return I16_new(I16_or(*a, *b)); }
-til_I16 *til_I16_xor(til_I16 *a, til_I16 *b) { return I16_new(I16_xor(*a, *b)); }
+I16 *I16_add(I16 *a, I16 *b) { return new_i16(*a + *b); }
+I16 *I16_sub(I16 *a, I16 *b) { return new_i16(*a - *b); }
+I16 *I16_mul(I16 *a, I16 *b) { return new_i16(*a * *b); }
+I16 *I16_div(I16 *a, I16 *b) { return new_i16(*a / *b); }
+I16 *I16_mod(I16 *a, I16 *b) { return new_i16(*a % *b); }
+I16 *I16_and(I16 *a, I16 *b) { return new_i16(*a & *b); }
+I16 *I16_or(I16 *a, I16 *b) { return new_i16(*a | *b); }
+I16 *I16_xor(I16 *a, I16 *b) { return new_i16(*a ^ *b); }
 
 // I16 inc/dec
-til_I16 *til_I16_inc(til_I16 *a) { return I16_new(*a + 1); }
-til_I16 *til_I16_dec(til_I16 *a) { return I16_new(*a - 1); }
+I16 *I16_inc(I16 *a) { return new_i16(*a + 1); }
+I16 *I16_dec(I16 *a) { return new_i16(*a - 1); }
 
 // I16 comparisons
-til_Bool *til_I16_eq(til_I16 *a, til_I16 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I16_eq(*a, *b); return r; }
-til_I64 *til_I16_cmp(til_I16 *a, til_I16 *b) { return I64_new(I16_cmp(*a, *b)); }
+Bool *I16_eq(I16 *a, I16 *b) { return new_bool(*a == *b); }
+I64 *I16_cmp(I16 *a, I16 *b) { return new_i64((*a > *b) ? 1 : (*a < *b) ? -1 : 0); }
 
 // I16 conversions
-til_I64 *til_I16_to_i64(til_I16 *a) { return I64_new(I16_to_i64(*a)); }
-til_I16 *til_I16_from_i64_ext(til_I64 *a) { return I16_new(I16_from_i64(*a)); }
+I64 *I16_to_i64(I16 *a) { return new_i64((I64)*a); }
+I16 *I16_from_i64_ext(I64 *a) { return new_i16((I16)*a); }
 
 // I16 clone/delete
-til_I16 *til_I16_clone(til_I16 *v) { return I16_clone(v); }
-void til_I16_delete(til_I16 *v, til_Bool *call_free) { if (*call_free) I16_delete(v); }
+I16 *I16_clone(I16 *v) { return new_i16(*v); }
+void I16_delete(I16 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I16 CLI
-til_I16 *til_cli_parse_i16(const char *s) {
+I16 *cli_parse_i16(const char *s) {
     char *end;
     long v = strtol(s, &end, 10);
     if (*end != '\0' || v < -32768 || v > 32767) {
         fprintf(stderr, "error: cannot parse '%s' as I16\n", s);
         exit(1);
     }
-    return I16_new((I16)v);
+    return new_i16((I16)v);
 }
 
 // I32 arithmetic
-til_I32 *til_I32_add(til_I32 *a, til_I32 *b) { return I32_new(I32_add(*a, *b)); }
-til_I32 *til_I32_sub(til_I32 *a, til_I32 *b) { return I32_new(I32_sub(*a, *b)); }
-til_I32 *til_I32_mul(til_I32 *a, til_I32 *b) { return I32_new(I32_mul(*a, *b)); }
-til_I32 *til_I32_div(til_I32 *a, til_I32 *b) { return I32_new(I32_div(*a, *b)); }
-til_I32 *til_I32_mod(til_I32 *a, til_I32 *b) { return I32_new(I32_mod(*a, *b)); }
-til_I32 *til_I32_and(til_I32 *a, til_I32 *b) { return I32_new(I32_and(*a, *b)); }
-til_I32 *til_I32_or(til_I32 *a, til_I32 *b) { return I32_new(I32_or(*a, *b)); }
-til_I32 *til_I32_xor(til_I32 *a, til_I32 *b) { return I32_new(I32_xor(*a, *b)); }
+I32 *I32_add(I32 *a, I32 *b) { return new_i32(*a + *b); }
+I32 *I32_sub(I32 *a, I32 *b) { return new_i32(*a - *b); }
+I32 *I32_mul(I32 *a, I32 *b) { return new_i32(*a * *b); }
+I32 *I32_div(I32 *a, I32 *b) { return new_i32(*a / *b); }
+I32 *I32_mod(I32 *a, I32 *b) { return new_i32(*a % *b); }
+I32 *I32_and(I32 *a, I32 *b) { return new_i32(*a & *b); }
+I32 *I32_or(I32 *a, I32 *b) { return new_i32(*a | *b); }
+I32 *I32_xor(I32 *a, I32 *b) { return new_i32(*a ^ *b); }
 
 // I32 inc/dec
-til_I32 *til_I32_inc(til_I32 *a) { return I32_new(*a + 1); }
-til_I32 *til_I32_dec(til_I32 *a) { return I32_new(*a - 1); }
+I32 *I32_inc(I32 *a) { return new_i32(*a + 1); }
+I32 *I32_dec(I32 *a) { return new_i32(*a - 1); }
 
 // I32 comparisons
-til_Bool *til_I32_eq(til_I32 *a, til_I32 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I32_eq(*a, *b); return r; }
-til_I64 *til_I32_cmp(til_I32 *a, til_I32 *b) { return I64_new(I32_cmp(*a, *b)); }
+Bool *I32_eq(I32 *a, I32 *b) { return new_bool(*a == *b); }
+I64 *I32_cmp(I32 *a, I32 *b) { return new_i64((*a > *b) ? 1 : (*a < *b) ? -1 : 0); }
 
 // I32 conversions
-til_I64 *til_I32_to_i64(til_I32 *a) { return I64_new(I32_to_i64(*a)); }
-til_I32 *til_I32_from_i64_ext(til_I64 *a) { return I32_new(I32_from_i64(*a)); }
+I64 *I32_to_i64(I32 *a) { return new_i64((I64)*a); }
+I32 *I32_from_i64_ext(I64 *a) { return new_i32((I32)*a); }
 
 // I32 clone/delete
-til_I32 *til_I32_clone(til_I32 *v) { return I32_clone(v); }
-void til_I32_delete(til_I32 *v, til_Bool *call_free) { if (*call_free) I32_delete(v); }
+I32 *I32_clone(I32 *v) { return new_i32(*v); }
+void I32_delete(I32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I32 CLI
-til_I32 *til_cli_parse_i32(const char *s) {
+I32 *cli_parse_i32(const char *s) {
     char *end;
     long v = strtol(s, &end, 10);
     if (*end != '\0' || v < -2147483648L || v > 2147483647L) {
         fprintf(stderr, "error: cannot parse '%s' as I32\n", s);
         exit(1);
     }
-    return I32_new((I32)v);
+    return new_i32((I32)v);
 }
 
 // U32 arithmetic
-til_U32 *til_U32_add(til_U32 *a, til_U32 *b) { return U32_new(U32_add(*a, *b)); }
-til_U32 *til_U32_sub(til_U32 *a, til_U32 *b) { return U32_new(U32_sub(*a, *b)); }
-til_U32 *til_U32_mul(til_U32 *a, til_U32 *b) { return U32_new(U32_mul(*a, *b)); }
-til_U32 *til_U32_div(til_U32 *a, til_U32 *b) { return U32_new(U32_div(*a, *b)); }
-til_U32 *til_U32_mod(til_U32 *a, til_U32 *b) { return U32_new(U32_mod(*a, *b)); }
-til_U32 *til_U32_and(til_U32 *a, til_U32 *b) { return U32_new(U32_and(*a, *b)); }
-til_U32 *til_U32_or(til_U32 *a, til_U32 *b) { return U32_new(U32_or(*a, *b)); }
-til_U32 *til_U32_xor(til_U32 *a, til_U32 *b) { return U32_new(U32_xor(*a, *b)); }
+U32 *U32_add(U32 *a, U32 *b) { return new_u32(*a + *b); }
+U32 *U32_sub(U32 *a, U32 *b) { return new_u32(*a - *b); }
+U32 *U32_mul(U32 *a, U32 *b) { return new_u32(*a * *b); }
+U32 *U32_div(U32 *a, U32 *b) { return new_u32(*a / *b); }
+U32 *U32_mod(U32 *a, U32 *b) { return new_u32(*a % *b); }
+U32 *U32_and(U32 *a, U32 *b) { return new_u32(*a & *b); }
+U32 *U32_or(U32 *a, U32 *b) { return new_u32(*a | *b); }
+U32 *U32_xor(U32 *a, U32 *b) { return new_u32(*a ^ *b); }
 
 // U32 inc/dec
-til_U32 *til_U32_inc(til_U32 *a) { return U32_new(*a + 1); }
-til_U32 *til_U32_dec(til_U32 *a) { return U32_new(*a - 1); }
+U32 *U32_inc(U32 *a) { return new_u32(*a + 1); }
+U32 *U32_dec(U32 *a) { return new_u32(*a - 1); }
 
 // U32 comparisons
-til_Bool *til_U32_eq(til_U32 *a, til_U32 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U32_eq(*a, *b); return r; }
-til_I64 *til_U32_cmp(til_U32 *a, til_U32 *b) { return I64_new(U32_cmp(*a, *b)); }
+Bool *U32_eq(U32 *a, U32 *b) { return new_bool(*a == *b); }
+I64 *U32_cmp(U32 *a, U32 *b) { return new_i64((*a > *b) ? 1 : (*a < *b) ? -1 : 0); }
 
 // U32 conversions
-til_I64 *til_U32_to_i64(til_U32 *a) { return I64_new(U32_to_i64(*a)); }
-til_U32 *til_U32_from_i64_ext(til_I64 *a) { return U32_new(U32_from_i64(*a)); }
+I64 *U32_to_i64(U32 *a) { return new_i64((I64)*a); }
+U32 *U32_from_i64_ext(I64 *a) { return new_u32((U32)*a); }
 
 // U32 clone/delete
-til_U32 *til_U32_clone(til_U32 *v) { return U32_clone(v); }
-void til_U32_delete(til_U32 *v, til_Bool *call_free) { if (*call_free) U32_delete(v); }
+U32 *U32_clone(U32 *v) { return new_u32(*v); }
+void U32_delete(U32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // Bool ops
-til_Bool *til_Bool_eq(til_Bool *a, til_Bool *b) { return Bool_new(Bool_eq(*a, *b)); }
-til_Bool *til_and(til_Bool *a, til_Bool *b) { return Bool_new(Bool_and(*a, *b)); }
-til_Bool *til_or(til_Bool *a, til_Bool *b) { return Bool_new(Bool_or(*a, *b)); }
-til_Bool *til_not(til_Bool *a) { return Bool_new(Bool_not(*a)); }
+Bool *Bool_eq(Bool *a, Bool *b) { return new_bool(*a == *b); }
+Bool *Bool_and(Bool *a, Bool *b) { return new_bool(*a && *b); }
+Bool *Bool_or(Bool *a, Bool *b) { return new_bool(*a || *b); }
+Bool *Bool_not(Bool *a) { return new_bool(!*a); }
 
 // Bool clone/delete
-til_Bool *til_Bool_clone(til_Bool *v) { return Bool_clone(v); }
-void til_Bool_delete(til_Bool *v, til_Bool *call_free) { if (*call_free) Bool_delete(v); }
+Bool *Bool_clone(Bool *v) { return new_bool(*v); }
+void Bool_delete(Bool *v, Bool *call_free) { if (*call_free) free(v); }
 
 // Pointer primitives
-void *til_malloc(til_I64 *count) { return calloc(1, (size_t)*count); }
-void *til_realloc(void *buf, til_I64 *count) { return realloc(buf, (size_t)*count); }
-void *til_ptr_add(void *buf, til_I64 *offset) {
+void *til_malloc(I64 *count) { return calloc(1, (size_t)*count); }
+void *til_realloc(void *buf, I64 *count) { return realloc(buf, (size_t)*count); }
+void *ptr_add(void *buf, I64 *offset) {
     return (char *)buf + *offset;
 }
-void til_memcpy(void *dest, void *src, til_I64 *len) {
+void til_memcpy(void *dest, void *src, I64 *len) {
     memcpy(dest, src, (size_t)*len);
 }
-void til_memmove(void *dest, void *src, til_I64 *len) {
+void til_memmove(void *dest, void *src, I64 *len) {
     memmove(dest, src, (size_t)*len);
 }
 
 // CLI arg parsing
-til_I64 *til_cli_parse_i64(const char *s) {
+I64 *cli_parse_i64(const char *s) {
     char *end;
     I64 v = strtoll(s, &end, 10);
     if (*end != '\0') {
         fprintf(stderr, "error: cannot parse '%s' as I64\n", s);
         exit(1);
     }
-    return I64_new(v);
+    return new_i64(v);
 }
-til_U8 *til_cli_parse_u8(const char *s) {
+U8 *cli_parse_u8(const char *s) {
     char *end;
     long v = strtol(s, &end, 10);
     if (*end != '\0' || v < 0 || v > 255) {
         fprintf(stderr, "error: cannot parse '%s' as U8\n", s);
         exit(1);
     }
-    return U8_new((U8)v);
+    return new_u8((U8)v);
 }
-til_U32 *til_cli_parse_u32(const char *s) {
+U32 *cli_parse_u32(const char *s) {
     char *end;
     unsigned long v = strtoul(s, &end, 10);
     if (*end != '\0' || v > 0xFFFFFFFF) {
         fprintf(stderr, "error: cannot parse '%s' as U32\n", s);
         exit(1);
     }
-    return U32_new((U32)v);
+    return new_u32((U32)v);
 }
-til_Bool *til_cli_parse_bool(const char *s) {
-    if (strcmp(s, "true") == 0) return Bool_new(1);
-    if (strcmp(s, "false") == 0) return Bool_new(0);
+Bool *cli_parse_bool(const char *s) {
+    if (strcmp(s, "true") == 0) return new_bool(1);
+    if (strcmp(s, "false") == 0) return new_bool(0);
     fprintf(stderr, "error: cannot parse '%s' as Bool (expected true/false)\n", s);
     exit(1);
 }
 
 // --- System primitives ---
-// These use til_Str (codegen layout: { U8 *data, I64 count, I64 cap }) rather than
-// Str (compiler-internal: { char *c_str, I64 count, I64 cap }).
-// For the interpreter, dispatch.c has its own handlers using Str directly.
+// These use Str (codegen layout: { U8 *data, I64 count, I64 cap }) rather than
+// the compiler-internal Str ({ char *c_str, I64 count, I64 cap }).
+// For the interpreter, dispatch.c has its own handlers using the compiler Str directly.
 
-til_Str *til_readfile(til_Str *path) {
+Str *readfile(Str *path) {
     char *p = strndup((char *)path->data, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
@@ -237,14 +243,14 @@ til_Str *til_readfile(til_Str *path) {
     char *buf = malloc(len);
     fread(buf, 1, len, f);
     fclose(f);
-    til_Str *s = malloc(sizeof(til_Str));
-    s->data = (til_U8 *)buf;
+    Str *s = malloc(sizeof(Str));
+    s->data = (U8 *)buf;
     s->count = len;
     s->cap = len;
     return s;
 }
 
-void til_writefile(til_Str *path, til_Str *content) {
+void writefile(Str *path, Str *content) {
     char *p = strndup((char *)path->data, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
@@ -257,7 +263,7 @@ void til_writefile(til_Str *path, til_Str *content) {
     fclose(f);
 }
 
-til_I64 *til_spawn_cmd(til_Str *cmd) {
+I64 *spawn_cmd(Str *cmd) {
     char *c = strndup((char *)cmd->data, cmd->count);
     pid_t pid = fork();
     if (pid == 0) {
@@ -269,39 +275,37 @@ til_I64 *til_spawn_cmd(til_Str *cmd) {
         fprintf(stderr, "spawn_cmd: fork failed\n");
         exit(1);
     }
-    return I64_new((I64)pid);
+    return new_i64((I64)pid);
 }
 
-til_I64 *til_check_cmd_status(til_I64 *pid) {
+I64 *check_cmd_status(I64 *pid) {
     I32 status;
     pid_t result = waitpid((pid_t)*pid, &status, WNOHANG);
-    if (result == 0) return I64_new(-1);
-    if (WIFEXITED(status)) return I64_new(WEXITSTATUS(status));
-    return I64_new(-1);
+    if (result == 0) return new_i64(-1);
+    if (WIFEXITED(status)) return new_i64(WEXITSTATUS(status));
+    return new_i64(-1);
 }
 
-void til_sleep(til_I64 *ms) {
+void sleep_ms(I64 *ms) {
     usleep((useconds_t)(*ms * 1000));
 }
 
-til_I64 *til_file_mtime(til_Str *path) {
+I64 *file_mtime(Str *path) {
     char *p = strndup((char *)path->data, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
-    if (rc != 0) return I64_new(-1);
-    return I64_new((I64)st.st_mtime);
+    if (rc != 0) return new_i64(-1);
+    return new_i64((I64)st.st_mtime);
 }
 
-til_I64 *til_clock_ms(void) {
+I64 *clock_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return I64_new((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
+    return new_i64((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
 }
 
-til_I64 *til_get_thread_count(void) {
+I64 *get_thread_count(void) {
     long count = sysconf(_SC_NPROCESSORS_ONLN);
-    return I64_new(count > 0 ? (I64)count : 1);
+    return new_i64(count > 0 ? (I64)count : 1);
 }
-
-

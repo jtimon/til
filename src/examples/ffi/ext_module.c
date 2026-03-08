@@ -1,4 +1,3 @@
-#include "ccore.h"
 #include "ext.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,10 +5,10 @@
 
 // Top-level ext functions
 
-til_Str *til_greet(til_Str *name) {
+Str *greet(Str *name) {
     const char *hello = "hello ";
     int hello_len = 6;
-    til_Str *result = malloc(sizeof(til_Str));
+    Str *result = malloc(sizeof(Str));
     result->count = hello_len + name->count;
     result->cap = result->count;
     result->data = malloc(result->count);
@@ -18,7 +17,7 @@ til_Str *til_greet(til_Str *name) {
     return result;
 }
 
-void til_greet_print(til_Str *name) {
+void greet_print(Str *name) {
     const char *hello = "hello ";
     int hello_len = 6;
     fwrite(hello, 1, hello_len, stdout);
@@ -27,21 +26,21 @@ void til_greet_print(til_Str *name) {
 }
 
 // Regular struct used as ext_func arg/return
-typedef struct { til_I64 x; til_I64 y; } til_Point;
+typedef struct { I64 x; I64 y; } Point;
 
-til_Point *til_add_points(til_Point *a, til_Point *b) {
-    til_Point *r = malloc(sizeof(til_Point));
+Point *add_points(Point *a, Point *b) {
+    Point *r = malloc(sizeof(Point));
     r->x = a->x + b->x;
     r->y = a->y + b->y;
     return r;
 }
 
 // Variadic ext_func: sum all I64 args
-til_I64 *til_sum_all(til_Array *args) {
-    til_I64 *r = malloc(sizeof(til_I64));
+I64 *sum_all(Array *args) {
+    I64 *r = malloc(sizeof(I64));
     *r = 0;
-    for (til_I64 i = 0; i < args->cap; i++) {
-        til_I64 *elem = (til_I64 *)til_Array_elem(args, i);
+    for (I64 i = 0; i < args->cap; i++) {
+        I64 *elem = (I64 *)Array_elem(args, i);
         *r += *elem;
     }
     return r;
@@ -49,27 +48,27 @@ til_I64 *til_sum_all(til_Array *args) {
 
 // ext_struct: Pair
 
-typedef struct { til_I64 a; til_I64 b; } til_Pair;
+typedef struct { I64 a; I64 b; } Pair;
 
-til_I64 *til_Pair_sum(til_Pair *self) {
-    til_I64 *r = malloc(sizeof(til_I64));
+I64 *Pair_sum(Pair *self) {
+    I64 *r = malloc(sizeof(I64));
     *r = self->a + self->b;
     return r;
 }
 
-til_Pair *til_Pair_swap(til_Pair *self) {
-    til_Pair *r = malloc(sizeof(til_Pair));
+Pair *Pair_swap(Pair *self) {
+    Pair *r = malloc(sizeof(Pair));
     r->a = self->b;
     r->b = self->a;
     return r;
 }
 
-til_Pair *til_Pair_clone(til_Pair *self) {
-    til_Pair *r = malloc(sizeof(til_Pair));
+Pair *Pair_clone(Pair *self) {
+    Pair *r = malloc(sizeof(Pair));
     *r = *self;
     return r;
 }
 
-void til_Pair_delete(til_Pair *self, til_Bool *call_free) {
+void Pair_delete(Pair *self, Bool *call_free) {
     if (*call_free) free(self);
 }
