@@ -155,14 +155,18 @@ static Expr *parse_func_def(Parser *p) {
     }
     expect(p, TOK_RPAREN);
 
-    // Parse optional 'returns [ref] Type'
+    // Parse optional 'returns [ref|shallow] Type'
     Str *return_type = NULL;
     bool return_is_ref = false;
+    bool return_is_shallow = false;
     if (check(p, TOK_RETURNS)) {
         advance(p);
         if (check(p, TOK_REF)) {
             advance(p);
             return_is_ref = true;
+        } else if (check(p, TOK_SHALLOW)) {
+            advance(p);
+            return_is_shallow = true;
         }
         Token *rt = expect(p, TOK_IDENT);
         return_type = tok_str(rt);
@@ -179,6 +183,7 @@ static Expr *parse_func_def(Parser *p) {
     def->data.func_def.param_defaults = Vec_take(&pdefs);
     def->data.func_def.return_type = return_type;
     def->data.func_def.return_is_ref = return_is_ref;
+    def->data.func_def.return_is_shallow = return_is_shallow;
     def->data.func_def.variadic_index = variadic_index;
 
     expect(p, TOK_LBRACE);

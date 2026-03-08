@@ -1,7 +1,15 @@
 #include "ccore.h"
+#include "lexer.h"
+#include "ast.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// --- Opaque type no-ops (for ext_struct FFI) ---
+Token *Token_clone(Token *t) { return t; }
+void Token_delete(Token *t, Bool *call_free) { (void)t; (void)call_free; }
+Expr *Expr_clone(Expr *e) { return e; }
+void Expr_delete(Expr *e, Bool *call_free) { (void)e; (void)call_free; }
 
 // --- I64 ---
 

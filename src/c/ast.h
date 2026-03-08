@@ -91,6 +91,7 @@ struct Expr {
             Str *return_type;      // NULL if none (proc)
             I32 variadic_index;       // index of variadic param, or -1 if none
             bool return_is_ref;       // true for `returns ref Type`
+            bool return_is_shallow;   // true for `returns shallow Type`
         } func_def;
     } data;
     Str *struct_name;               // for TIL_TYPE_STRUCT: which struct type

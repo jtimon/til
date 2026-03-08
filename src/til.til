@@ -1,5 +1,36 @@
 mode cli
 
-main := proc() {
-    TODO(__LOC__, "Translate ctil.c to til")
+// Opaque C types as ext_struct
+Token := ext_struct {
+    namespace:
+    clone := ext_func(val: Token) returns Token {}
+    delete := ext_proc(own self: Token, call_free: Bool = true) {}
+}
+
+Expr := ext_struct {
+    namespace:
+    clone := ext_func(val: Expr) returns Expr {}
+    delete := ext_proc(own self: Expr, call_free: Bool = true) {}
+}
+
+tokenize := ext_func(source: U8, path: U8, mut count_out: U32) returns Token {}
+parse := ext_func(tokens: Token, shallow count: U32, path: U8, shallow mode_out: I64) returns Expr {}
+ast_print := ext_proc(e: Expr, shallow indent: I32) {}
+
+read_source := func(path: Str) returns Str {
+    raw := readfile(path)
+    nul := U8.from_i64(0)
+    buf : U8 = malloc(raw.len().add(1))
+    memcpy(buf, raw.data, raw.len())
+    memcpy(ptr_add(buf, raw.len()), nul, 1)
+    return Str(data = buf, count = raw.len(), cap = raw.len().add(1))
+}
+
+main := proc(args: ..Str) {
+    src := read_source("tmp/test_hello.til")
+    mut c := U32.from_i64(0)
+    tok := tokenize(src.data, "tmp/test_hello.til".data, c)
+    ast := parse(tok, c, "tmp/test_hello.til".data, 0)
+    ast_print(ast, I32.from_i64(0))
+    println(src.len().to_str())
 }

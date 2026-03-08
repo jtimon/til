@@ -8,26 +8,35 @@ link("dl")
 link("rt")
 link("X11")
 
-init_window := ext_proc(w: I64, h: I64, title: Str) {}
-window_should_close := ext_func() returns Bool {}
-begin_drawing := ext_proc() {}
-end_drawing := ext_proc() {}
-close_window := ext_proc() {}
-clear_background := ext_proc(r: I64, g: I64, b: I64, a: I64) {}
-set_target_fps := ext_proc(fps: I64) {}
-draw_rectangle := ext_proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a: I64) {}
+// Direct raylib FFI — no companion .c needed
+InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: U8) {}
+WindowShouldClose := ext_func() returns shallow Bool {}
+BeginDrawing := ext_proc() {}
+EndDrawing := ext_proc() {}
+CloseWindow := ext_proc() {}
+ClearBackground := ext_proc(shallow color: U32) {}
+SetTargetFPS := ext_proc(shallow fps: I32) {}
+DrawRectangle := ext_proc(shallow x: I32, shallow y: I32, shallow w: I32, shallow h: I32, shallow color: U32) {}
 
-init_window(800, 450, "hello from til!")
-set_target_fps(60)
+// Color: pack r,g,b,a bytes into U32 matching raylib's Color struct layout
+color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
+    return U32.from_i64(r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)))
+}
+
+InitWindow(I32.from_i64(800), I32.from_i64(450), "hello from til!".data)
+SetTargetFPS(I32.from_i64(60))
+
+black := color(0, 0, 0, 255)
+red := color(230, 41, 55, 255)
 
 mut x := 0
 mut y := 0
-while window_should_close().not() {
+while WindowShouldClose().not() {
     x = x.add(2)
     y = y.add(1)
-    begin_drawing()
-    clear_background(0, 0, 0, 255)
-    draw_rectangle(x, y, 50, 50, 230, 41, 55, 255)
-    end_drawing()
+    BeginDrawing()
+    ClearBackground(black)
+    DrawRectangle(I32.from_i64(x), I32.from_i64(y), I32.from_i64(50), I32.from_i64(50), red)
+    EndDrawing()
 }
-close_window()
+CloseWindow()

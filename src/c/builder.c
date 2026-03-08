@@ -129,6 +129,32 @@ static Expr *find_callee_fdef(Str *name) {
     return p ? *p : NULL;
 }
 
+static Bool callee_returns_shallow(Str *callee_name) {
+    Expr *fdef = find_callee_fdef(callee_name);
+    if (!fdef) return 0;
+    return fdef->data.func_def.return_is_shallow;
+}
+
+// Check if an FCALL node's callee returns shallow
+static Bool fcall_is_shallow_return(Expr *fcall) {
+    if (fcall->type != NODE_FCALL) return 0;
+    Expr *callee = expr_child(fcall, 0);
+    if (callee->type == NODE_IDENT) {
+        return callee_returns_shallow(callee->data.str_val);
+    } else if (callee->type == NODE_FIELD_ACCESS) {
+        Str *sname = expr_child(callee, 0)->struct_name;
+        Str *mname = callee->data.str_val;
+        if (!sname) return 0;
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s_%s", sname->c_str, mname->c_str);
+        Str *flat = Str_new(buf);
+        Bool r = callee_returns_shallow(flat);
+        Str_delete(flat);
+        return r;
+    }
+    return 0;
+}
+
 static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
@@ -486,12 +512,23 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             } else if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR ||
                        (rhs->type == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
                 // Function calls / enum constructors already return a fresh heap pointer
-                if (is_global)
-                    fprintf(f, "%s = ", e->data.decl.name->c_str);
-                else
-                    fprintf(f, "%s *%s = ", ctype, e->data.decl.name->c_str);
-                emit_expr(f, rhs, depth);
-                fprintf(f, ";\n");
+                if (rhs->type == NODE_FCALL && fcall_is_shallow_return(rhs)) {
+                    // returns shallow: C function returns value, box into pointer
+                    const char *var = e->data.decl.name->c_str;
+                    if (is_global)
+                        fprintf(f, "%s = malloc(sizeof(%s)); *%s = ", var, ctype, var);
+                    else
+                        fprintf(f, "%s *%s = malloc(sizeof(%s)); *%s = ", ctype, var, ctype, var);
+                    emit_expr(f, rhs, depth);
+                    fprintf(f, ";\n");
+                } else {
+                    if (is_global)
+                        fprintf(f, "%s = ", e->data.decl.name->c_str);
+                    else
+                        fprintf(f, "%s *%s = ", ctype, e->data.decl.name->c_str);
+                    emit_expr(f, rhs, depth);
+                    fprintf(f, ";\n");
+                }
             } else {
                 // Literals and idents: allocate new memory and copy the value
                 if (is_global)
@@ -517,7 +554,12 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         }
         if (rhs->type == NODE_FCALL || rhs->type == NODE_LITERAL_STR ||
             (rhs->type == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
-            fprintf(f, "%s = ", e->data.str_val->c_str);
+            if (rhs->type == NODE_FCALL && fcall_is_shallow_return(rhs)) {
+                // returns shallow: C function returns value, store into existing pointer
+                fprintf(f, "*%s = ", e->data.str_val->c_str);
+            } else {
+                fprintf(f, "%s = ", e->data.str_val->c_str);
+            }
             emit_expr(f, rhs, depth);
         } else {
             fprintf(f, "*%s = ", e->data.str_val->c_str);
@@ -580,6 +622,12 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             } else if (rv->type == NODE_FIELD_ACCESS && !rv->is_own_field &&
                        !rv->is_ns_field && rv->til_type != TIL_TYPE_DYNAMIC) {
                 // Inline field value — must clone to heap pointer for return
+                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
+                emit_expr(f, rv, depth);
+                fprintf(f, "; return _r; }\n");
+            } else if (rv->type == NODE_FCALL && fcall_is_shallow_return(rv)) {
+                // returns shallow: box value return into heap pointer
                 const char *ctype = c_type_name(rv->til_type, rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
@@ -1068,8 +1116,12 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         Expr *fdef = expr_child(stmt, 0);
         FuncType fft = fdef->data.func_def.func_type;
         if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
-        if (fdef->data.func_def.return_type)
-            fprintf(f, "%s%s(", type_name_to_c(fdef->data.func_def.return_type), func_to_c(stmt->data.decl.name));
+        if (fdef->data.func_def.return_type) {
+            const char *rt = fdef->data.func_def.return_is_shallow
+                ? type_name_to_c_value(fdef->data.func_def.return_type)
+                : type_name_to_c(fdef->data.func_def.return_type);
+            fprintf(f, "%s %s(", rt, func_to_c(stmt->data.decl.name));
+        }
         else
             fprintf(f, "void %s(", func_to_c(stmt->data.decl.name));
         emit_param_list(f, fdef, 0);
@@ -1097,8 +1149,11 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                 FuncType fft = fdef->data.func_def.func_type;
                 if ((fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) && stmt->is_core) continue;
                 const char *ret = "void";
-                if (fdef->data.func_def.return_type)
-                    ret = type_name_to_c(fdef->data.func_def.return_type);
+                if (fdef->data.func_def.return_type) {
+                    ret = fdef->data.func_def.return_is_shallow
+                        ? type_name_to_c_value(fdef->data.func_def.return_type)
+                        : type_name_to_c(fdef->data.func_def.return_type);
+                }
                 fprintf(f, "%s %s_%s(", ret, sname->c_str, field->data.decl.name->c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
@@ -1709,6 +1764,7 @@ I32 build_til_binding(Expr *program, const char *til_path, const char *lib_name)
                 if (fdef->data.func_def.return_type) {
                     fprintf(f, " returns ");
                     if (fdef->data.func_def.return_is_ref) fprintf(f, "ref ");
+                    if (fdef->data.func_def.return_is_shallow) fprintf(f, "shallow ");
                     fprintf(f, "%s", fdef->data.func_def.return_type->c_str);
                 }
                 fprintf(f, " {}\n");
@@ -1750,6 +1806,7 @@ I32 build_til_binding(Expr *program, const char *til_path, const char *lib_name)
                 if (fdef->data.func_def.return_type) {
                     fprintf(f, " returns ");
                     if (fdef->data.func_def.return_is_ref) fprintf(f, "ref ");
+                    if (fdef->data.func_def.return_is_shallow) fprintf(f, "shallow ");
                     fprintf(f, "%s", fdef->data.func_def.return_type->c_str);
                 }
                 fprintf(f, " {}\n");
@@ -1775,6 +1832,7 @@ I32 build_til_binding(Expr *program, const char *til_path, const char *lib_name)
             if (rhs->data.func_def.return_type) {
                 fprintf(f, " returns ");
                 if (rhs->data.func_def.return_is_ref) fprintf(f, "ref ");
+                if (rhs->data.func_def.return_is_shallow) fprintf(f, "shallow ");
                 fprintf(f, "%s", rhs->data.func_def.return_type->c_str);
             }
             fprintf(f, " {}\n\n");

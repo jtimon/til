@@ -26,6 +26,7 @@ typedef struct {
     Str *return_type;   // NULL for proc (void return)
     I32 nparam;
     bool *param_shallows; // per-param shallow flags (NULL if none)
+    bool return_is_shallow; // true for `returns shallow Type`
     ffi_cif cif;
     ffi_type **arg_types;
 } FFIEntry;
@@ -659,6 +660,29 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             ffi_call(&fe->cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
             if (!fe->return_type) {
                 *result = val_none();
+            } else if (fe->return_is_shallow) {
+                // Shallow return: C function returned a primitive by value.
+                // 'raw' contains the value in its low bits — box it.
+                if (Str_eq_c(fe->return_type, "I64")) {
+                    *result = (Value){.type = VAL_I64, .i64 = I64_new((I64)(intptr_t)raw)};
+                } else if (Str_eq_c(fe->return_type, "U8")) {
+                    U8 *p = malloc(sizeof(U8)); *p = (U8)(intptr_t)raw;
+                    *result = (Value){.type = VAL_U8, .u8 = p};
+                } else if (Str_eq_c(fe->return_type, "I16")) {
+                    I16 *p = malloc(sizeof(I16)); *p = (I16)(intptr_t)raw;
+                    *result = (Value){.type = VAL_I16, .i16 = p};
+                } else if (Str_eq_c(fe->return_type, "I32")) {
+                    I32 *p = malloc(sizeof(I32)); *p = (I32)(intptr_t)raw;
+                    *result = (Value){.type = VAL_I32, .i32 = p};
+                } else if (Str_eq_c(fe->return_type, "U32")) {
+                    U32 *p = malloc(sizeof(U32)); *p = (U32)(intptr_t)raw;
+                    *result = (Value){.type = VAL_U32, .u32 = p};
+                } else if (Str_eq_c(fe->return_type, "Bool")) {
+                    Bool *p = malloc(sizeof(Bool)); *p = (Bool)(intptr_t)raw;
+                    *result = (Value){.type = VAL_BOOL, .boolean = p};
+                } else {
+                    *result = val_none();
+                }
             } else if (Str_eq_c(fe->return_type, "Str")) {
                 ExtStr *sp = (ExtStr *)raw;
                 *result = make_str_value_own((char *)sp->data, sp->count);
@@ -765,14 +789,19 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
         for (U32 k = 0; k < np; k++)
             pshallows[k] = fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k];
     }
+    bool ret_shallow = fdef->data.func_def.return_is_shallow;
     FFIEntry entry = {
         .fn = fn,
         .return_type = fdef->data.func_def.return_type,
         .nparam = np,
         .param_shallows = pshallows,
+        .return_is_shallow = ret_shallow,
         .arg_types = atypes,
     };
-    ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;
+    ffi_type *rtype = &ffi_type_void;
+    if (entry.return_type) {
+        rtype = ret_shallow ? shallow_ffi_type(entry.return_type) : &ffi_type_pointer;
+    }
     ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
     Map_set(&ffi_map, &name, &entry);
 }
