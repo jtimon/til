@@ -35,6 +35,7 @@ const char *tok_name(TokenType type) {
     case TOK_IDENT:     return "identifier";
     case TOK_STRING:    return "string";
     case TOK_NUMBER:    return "number";
+    case TOK_CHAR:      return "char";
     case TOK_MODE:      return "mode";
     case TOK_MUT:       return "mut";
     case TOK_OWN:       return "own";
@@ -205,6 +206,23 @@ Token *tokenize(const char *source, const char *path, U32 *count_out) {
                 Vec_push(&tokens, &(Token){TOK_STRING, start + 1, (I32)(pos - start - 2), line, col});
             } else {
                 fprintf(stderr, "%s:%u:%u: error: unterminated string\n", path, line, col);
+                Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
+            }
+            continue;
+        }
+
+        // Character literals: 'x' or '\n'
+        if (*pos == '\'') {
+            pos++; // skip opening quote
+            const char *ch_start = pos;
+            if (*pos == '\\' && pos[1]) pos++; // skip escaped char
+            pos++; // skip the character
+            if (*pos == '\'') {
+                I32 ch_len = (I32)(pos - ch_start);
+                pos++; // skip closing quote
+                Vec_push(&tokens, &(Token){TOK_CHAR, ch_start, ch_len, line, col});
+            } else {
+                fprintf(stderr, "%s:%u:%u: error: unterminated character literal\n", path, line, col);
                 Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
             }
             continue;

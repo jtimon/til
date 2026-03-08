@@ -62,7 +62,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->struct_name = Str_new("Str");
         break;
     case NODE_LITERAL_NUM:
-        e->til_type = TIL_TYPE_I64;
+        if (e->til_type != TIL_TYPE_U8)
+            e->til_type = TIL_TYPE_I64;
         break;
     case NODE_LITERAL_BOOL:
         e->til_type = TIL_TYPE_BOOL;

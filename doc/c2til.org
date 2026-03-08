@@ -429,7 +429,7 @@ No ~goto~, ~do-while~, or ternary ~?:~ in til.
 | ~strdup(s)~                   | ~s.clone()~                                  |
 | ~strrchr(s, '/')~             | ~s.rfind("/")~                               |
 | ~strtol(s, &end, 10)~         | ~s.to_i64()~                                 |
-| ~'a'~ (char literal)          | ~U8.from_i64(97)~                            |
+| ~'a'~ (char literal)          | ~'a'~ (same syntax, type U8)                 |
 | ~isdigit(c)~                  | custom func checking U8 range                |
 | ~isalpha(c)~                  | custom func checking U8 range                |
 
@@ -437,12 +437,12 @@ Character classification example:
 
 #+begin_src til
 is_digit := func(c: U8) returns Bool {
-    return c.gte(U8.from_i64(48)).and(c.lte(U8.from_i64(57)))
+    return c.gte('0').and(c.lte('9'))
 }
 is_alpha := func(c: U8) returns Bool {
-    if c.gte(U8.from_i64(65)).and(c.lte(U8.from_i64(90))) { return true }
-    if c.gte(U8.from_i64(97)).and(c.lte(U8.from_i64(122))) { return true }
-    return c.eq(U8.from_i64(95))
+    if c.gte('A').and(c.lte('Z')) { return true }
+    if c.gte('a').and(c.lte('z')) { return true }
+    return c.eq('_')
 }
 #+end_src
 

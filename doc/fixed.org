@@ -1,5 +1,17 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #33 Character literals for U8
+  Single-quoted character syntax: ~'a'~, ~'('~, ~'\n'~. Type is always U8.
+  Escape sequences: ~'\n'~ ~'\t'~ ~'\r'~ ~'\\'~ ~'\''~ ~'\0'~.
+
+  No new AST node — char literals desugar to NODE_LITERAL_NUM with TIL_TYPE_U8
+  at parse time. Lexer stores raw content between quotes (TOK_CHAR), parser
+  resolves escape sequences to byte value and creates numeric literal.
+  Interpreter and builder unchanged (already handle U8 numeric literals).
+
+  Self-hosted lexer.til simplified: removed 34 CH_* constants, replaced all
+  ~U8.from_i64(N)~ with inline char literals. Much closer to lexer.c now.
+
 * FIXED #34 For-in loops over collections
   Syntax: ~for i in collection { body }~ or ~for i : Type in collection { body }~.
   Works for any type with ~get(I64)~ and ~len()~ methods (Vec, Array, Str, Range).

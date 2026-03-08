@@ -49,7 +49,7 @@ test_for_in_continue := test() {
     // Skip 'b' characters
     mut result := Str.with_capacity(10)
     for c in "abcbd" {
-        if c.eq(U8.from_i64(98)) { continue }
+        if c.eq('b') { continue }
         result.push_str(Str.from_byte(c))
     }
     assert_eq_str(loc(), result, "acd")

@@ -25,7 +25,7 @@ TokenType := enum {
     ColonEq,
 
     // Literals
-    Ident, StringTok, Number,
+    Ident, StringTok, Number, Char,
 
     // Keywords
     KwMode,
@@ -55,53 +55,17 @@ Token := struct {
     col := 0
 }
 
-// --- Character constants ---
-
-CH_NL     := U8.from_i64(10)
-CH_CR     := U8.from_i64(13)
-CH_TAB    := U8.from_i64(9)
-CH_SPACE  := U8.from_i64(32)
-CH_SEMI   := U8.from_i64(59)
-CH_HASH   := U8.from_i64(35)
-CH_SLASH  := U8.from_i64(47)
-CH_STAR   := U8.from_i64(42)
-CH_QUOTE  := U8.from_i64(34)
-CH_BSLASH := U8.from_i64(92)
-CH_DOT    := U8.from_i64(46)
-CH_BANG   := U8.from_i64(33)
-CH_EQ     := U8.from_i64(61)
-CH_LT     := U8.from_i64(60)
-CH_GT     := U8.from_i64(62)
-CH_COLON  := U8.from_i64(58)
-CH_LPAREN := U8.from_i64(40)
-CH_RPAREN := U8.from_i64(41)
-CH_LBRACE := U8.from_i64(123)
-CH_RBRACE := U8.from_i64(125)
-CH_LBRACK := U8.from_i64(91)
-CH_RBRACK := U8.from_i64(93)
-CH_COMMA  := U8.from_i64(44)
-CH_QMARK  := U8.from_i64(63)
-CH_PLUS   := U8.from_i64(43)
-CH_MINUS  := U8.from_i64(45)
-CH_UNDER  := U8.from_i64(95)
-CH_0      := U8.from_i64(48)
-CH_9      := U8.from_i64(57)
-CH_A      := U8.from_i64(65)
-CH_Z      := U8.from_i64(90)
-CH_a      := U8.from_i64(97)
-CH_z      := U8.from_i64(122)
-
 // --- Character helpers ---
 // Replaces C's isdigit(), isalpha() from <ctype.h>
 
 is_digit := func(c: U8) returns Bool {
-    return c.gte(CH_0).and(c.lte(CH_9))
+    return c.gte('0').and(c.lte('9'))
 }
 
 is_alpha := func(c: U8) returns Bool {
-    return c.gte(CH_a).and(c.lte(CH_z))
-        .or(c.gte(CH_A).and(c.lte(CH_Z)))
-        .or(c.eq(CH_UNDER))
+    return c.gte('a').and(c.lte('z'))
+        .or(c.gte('A').and(c.lte('Z')))
+        .or(c.eq('_'))
 }
 
 is_alnum := func(c: U8) returns Bool {
@@ -141,6 +105,7 @@ tok_name := func(type: TokenType) returns Str {
     if type.eq(TokenType.Ident) { return "identifier" }
     if type.eq(TokenType.StringTok) { return "string" }
     if type.eq(TokenType.Number) { return "number" }
+    if type.eq(TokenType.Char) { return "char" }
     if type.eq(TokenType.KwMode) { return "mode" }
     if type.eq(TokenType.KwMut) { return "mut" }
     if type.eq(TokenType.KwOwn) { return "own" }
@@ -234,11 +199,11 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         ref c : U8 = source.get(pos)
 
         // Skip whitespace (spaces, tabs, \r, semicolons)
-        if c.eq(CH_SPACE).or(c.eq(CH_TAB)).or(c.eq(CH_CR)).or(c.eq(CH_SEMI)) {
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq(';')) {
             pos = pos.add(1)
             continue
         }
-        if c.eq(CH_NL) {
+        if c.eq('\n') {
             pos = pos.add(1)
             line = line.add(1)
             line_start = pos
@@ -249,24 +214,24 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         start := pos
 
         // Line comments: // or #
-        if c.eq(CH_HASH) {
+        if c.eq('#') {
             while pos.lt(src_len) {
-                if source.get(pos).eq(CH_NL) { break }
+                if source.get(pos).eq('\n') { break }
                 pos = pos.add(1)
             }
             continue
         }
-        if c.eq(CH_SLASH).and(pos.add(1).lt(src_len)) {
+        if c.eq('/').and(pos.add(1).lt(src_len)) {
             ref c2 : U8 = source.get(pos.add(1))
-            if c2.eq(CH_SLASH) {
+            if c2.eq('/') {
                 while pos.lt(src_len) {
-                    if source.get(pos).eq(CH_NL) { break }
+                    if source.get(pos).eq('\n') { break }
                     pos = pos.add(1)
                 }
                 continue
             }
             // Block comments: /* ... */ (nestable)
-            if c2.eq(CH_STAR) {
+            if c2.eq('*') {
                 pos = pos.add(2)
                 mut depth := 1
                 while pos.lt(src_len) {
@@ -274,18 +239,18 @@ tokenize := proc(source: Str, path: Str) returns Vec {
                     if pos.add(1).lt(src_len) {
                         ref b1 : U8 = source.get(pos)
                         ref b2 : U8 = source.get(pos.add(1))
-                        if b1.eq(CH_SLASH).and(b2.eq(CH_STAR)) {
+                        if b1.eq('/').and(b2.eq('*')) {
                             depth = depth.add(1)
                             pos = pos.add(2)
                             continue
                         }
-                        if b1.eq(CH_STAR).and(b2.eq(CH_SLASH)) {
+                        if b1.eq('*').and(b2.eq('/')) {
                             depth = depth.sub(1)
                             pos = pos.add(2)
                             continue
                         }
                     }
-                    if source.get(pos).eq(CH_NL) {
+                    if source.get(pos).eq('\n') {
                         line = line.add(1)
                         line_start = pos.add(1)
                     }
@@ -306,7 +271,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
             }
             // Check for decimal point
             if pos.add(1).lt(src_len) {
-                if source.get(pos).eq(CH_DOT).and(is_digit(source.get(pos.add(1)))) {
+                if source.get(pos).eq('.').and(is_digit(source.get(pos.add(1)))) {
                     pos = pos.add(1)
                     while pos.lt(src_len) {
                         if is_digit(source.get(pos)).not() { break }
@@ -333,20 +298,20 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         }
 
         // Strings
-        if c.eq(CH_QUOTE) {
+        if c.eq('"') {
             pos = pos.add(1)
             while pos.lt(src_len) {
-                if source.get(pos).eq(CH_QUOTE) { break }
-                if source.get(pos).eq(CH_BSLASH).and(pos.add(1).lt(src_len)) {
+                if source.get(pos).eq('"') { break }
+                if source.get(pos).eq('\\').and(pos.add(1).lt(src_len)) {
                     pos = pos.add(1)
                 }
-                if source.get(pos).eq(CH_NL) {
+                if source.get(pos).eq('\n') {
                     line = line.add(1)
                     line_start = pos.add(1)
                 }
                 pos = pos.add(1)
             }
-            if pos.lt(src_len).and(source.get(pos).eq(CH_QUOTE)) {
+            if pos.lt(src_len).and(source.get(pos).eq('"')) {
                 pos = pos.add(1)
                 tokens.push(own Token(type = TokenType.StringTok,
                     text = source.substr(start.add(1), pos.sub(start).sub(2)),
@@ -360,16 +325,38 @@ tokenize := proc(source: Str, path: Str) returns Vec {
             continue
         }
 
+        // Character literals: 'x' or '\x'
+        if c.eq('\'') {
+            pos = pos.add(1)
+            ch_start := pos
+            if pos.lt(src_len).and(source.get(pos).eq('\\').and(pos.add(1).lt(src_len))) {
+                pos = pos.add(1)
+            }
+            pos = pos.add(1)
+            if pos.lt(src_len).and(source.get(pos).eq('\'')) {
+                tokens.push(own Token(type = TokenType.Char,
+                    text = source.substr(ch_start, pos.sub(ch_start)),
+                    line = line, col = col))
+                pos = pos.add(1)
+            } else {
+                println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
+                tokens.push(own Token(type = TokenType.Error,
+                    text = source.substr(start, pos.sub(start)),
+                    line = line, col = col))
+            }
+            continue
+        }
+
         // Two-character tokens
         if pos.add(1).lt(src_len) {
             ref c2 : U8 = source.get(pos.add(1))
             mut two := TokenType.Eof
-            if c.eq(CH_COLON).and(c2.eq(CH_EQ)) { two = TokenType.ColonEq }
-            if c.eq(CH_EQ).and(c2.eq(CH_EQ)) { two = TokenType.EqEq }
-            if c.eq(CH_BANG).and(c2.eq(CH_EQ)) { two = TokenType.Neq }
-            if c.eq(CH_LT).and(c2.eq(CH_EQ)) { two = TokenType.LtEq }
-            if c.eq(CH_GT).and(c2.eq(CH_EQ)) { two = TokenType.GtEq }
-            if c.eq(CH_DOT).and(c2.eq(CH_DOT)) { two = TokenType.DotDot }
+            if c.eq(':').and(c2.eq('=')) { two = TokenType.ColonEq }
+            if c.eq('=').and(c2.eq('=')) { two = TokenType.EqEq }
+            if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
+            if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
+            if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
+            if c.eq('.').and(c2.eq('.')) { two = TokenType.DotDot }
             if two.eq(TokenType.Eof).not() {
                 tokens.push(own Token(type = two,
                     text = source.substr(start, 2),
@@ -381,24 +368,24 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 
         // Single-character tokens
         mut single := TokenType.Eof
-        if c.eq(CH_LPAREN) { single = TokenType.LParen }
-        if c.eq(CH_RPAREN) { single = TokenType.RParen }
-        if c.eq(CH_LBRACE) { single = TokenType.LBrace }
-        if c.eq(CH_RBRACE) { single = TokenType.RBrace }
-        if c.eq(CH_LBRACK) { single = TokenType.LBracket }
-        if c.eq(CH_RBRACK) { single = TokenType.RBracket }
-        if c.eq(CH_COMMA) { single = TokenType.Comma }
-        if c.eq(CH_COLON) { single = TokenType.Colon }
-        if c.eq(CH_DOT) { single = TokenType.Dot }
-        if c.eq(CH_QMARK) { single = TokenType.Question }
-        if c.eq(CH_BANG) { single = TokenType.Bang }
-        if c.eq(CH_PLUS) { single = TokenType.Plus }
-        if c.eq(CH_MINUS) { single = TokenType.Minus }
-        if c.eq(CH_STAR) { single = TokenType.Star }
-        if c.eq(CH_SLASH) { single = TokenType.Slash }
-        if c.eq(CH_EQ) { single = TokenType.Eq }
-        if c.eq(CH_LT) { single = TokenType.Lt }
-        if c.eq(CH_GT) { single = TokenType.Gt }
+        if c.eq('(') { single = TokenType.LParen }
+        if c.eq(')') { single = TokenType.RParen }
+        if c.eq('{') { single = TokenType.LBrace }
+        if c.eq('}') { single = TokenType.RBrace }
+        if c.eq('[') { single = TokenType.LBracket }
+        if c.eq(']') { single = TokenType.RBracket }
+        if c.eq(',') { single = TokenType.Comma }
+        if c.eq(':') { single = TokenType.Colon }
+        if c.eq('.') { single = TokenType.Dot }
+        if c.eq('?') { single = TokenType.Question }
+        if c.eq('!') { single = TokenType.Bang }
+        if c.eq('+') { single = TokenType.Plus }
+        if c.eq('-') { single = TokenType.Minus }
+        if c.eq('*') { single = TokenType.Star }
+        if c.eq('/') { single = TokenType.Slash }
+        if c.eq('=') { single = TokenType.Eq }
+        if c.eq('<') { single = TokenType.Lt }
+        if c.eq('>') { single = TokenType.Gt }
 
         if single.eq(TokenType.Eof).not() {
             tokens.push(own Token(type = single,

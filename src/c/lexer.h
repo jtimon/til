@@ -25,7 +25,7 @@ typedef enum {
     TOK_COLONEQ,   // :=
 
     // Literals
-    TOK_IDENT, TOK_STRING, TOK_NUMBER,
+    TOK_IDENT, TOK_STRING, TOK_NUMBER, TOK_CHAR,
 
     // Keywords
     TOK_MODE,

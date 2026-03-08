@@ -180,3 +180,29 @@ test_u32 := test() {
     // size
     assert_eq(loc(), U32.size(), 4)
 }
+
+test_char_literals := test() {
+    // Basic chars
+    assert_eq(loc(), 'a'.to_i64(), 97)
+    assert_eq(loc(), '0'.to_i64(), 48)
+    assert_eq(loc(), '('.to_i64(), 40)
+
+    // Escape sequences
+    assert_eq(loc(), '\n'.to_i64(), 10)
+    assert_eq(loc(), '\t'.to_i64(), 9)
+    assert_eq(loc(), '\r'.to_i64(), 13)
+    assert_eq(loc(), '\\'.to_i64(), 92)
+    assert_eq(loc(), '\''.to_i64(), 39)
+    assert_eq(loc(), '\0'.to_i64(), 0)
+
+    // Comparison
+    assert(loc(), 'a'.eq('a'))
+    assert(loc(), 'a'.eq('b').not())
+
+    // Arithmetic
+    assert(loc(), 'a'.add('b'.sub('a')).eq('b'))
+
+    // Type is U8
+    c := 'x'
+    assert_eq(loc(), c.to_i64(), 120)
+}

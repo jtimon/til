@@ -304,6 +304,28 @@ static Expr *parse_expression(Parser *p) {
         advance(p);
         e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
         e->data.str_val = tok_str(t);
+    } else if (t->type == TOK_CHAR) {
+        advance(p);
+        const char *ch = t->start;
+        U8 byte_val;
+        if (ch[0] == '\\') {
+            switch (ch[1]) {
+            case 'n':  byte_val = 10; break;
+            case 't':  byte_val = 9;  break;
+            case 'r':  byte_val = 13; break;
+            case '\\': byte_val = 92; break;
+            case '\'': byte_val = 39; break;
+            case '0':  byte_val = 0;  break;
+            default:   byte_val = (U8)ch[1]; break;
+            }
+        } else {
+            byte_val = (U8)ch[0];
+        }
+        e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
+        char buf[4];
+        snprintf(buf, sizeof(buf), "%u", byte_val);
+        e->data.str_val = Str_new(buf);
+        e->til_type = TIL_TYPE_U8;
     } else if (t->type == TOK_TRUE || t->type == TOK_FALSE) {
         advance(p);
         e = expr_new(NODE_LITERAL_BOOL, t->line, t->col, p->spath);

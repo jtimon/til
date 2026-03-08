@@ -85,6 +85,8 @@
     (,(regexp-opt til-types 'symbols) . font-lock-type-face)
     ;; Builtins
     (,(regexp-opt til-builtins 'symbols) . font-lock-builtin-face)
+    ;; Character literals: 'x' or '\x'
+    ("'\\\\?.'" . font-lock-string-face)
     ;; Numeric literals (not part of identifiers)
     ("\\(?:^\\|[^a-zA-Z0-9_]\\)\\([0-9]+\\(?:\\.[0-9]+\\)?\\)\\_>" 1 font-lock-preprocessor-face)
     ;; Type declarations: 'enum' and 'struct'
