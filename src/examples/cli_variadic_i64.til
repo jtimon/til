@@ -27,6 +27,6 @@ main := proc(op: Str, nums: ..I64) {
         println(result.to_str())
     } else {
         usage()
-        panic("main", format("unknown op: ", op))
+        panic("main", "unknown op: ", op)
     }
 }

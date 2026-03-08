@@ -225,7 +225,7 @@ Str := struct {
             ref ch : U8 = self.get(i)
             d := ch.to_i64().sub(48)
             if d.lt(0).or(d.gt(9)) {
-                panic("Str.to_i64", format("invalid char in '", self, "'"))
+                panic("Str.to_i64", "invalid char in '", self, "'")
             }
             result = result.mul(10).add(d)
             i = i.add(1)

@@ -11,7 +11,7 @@ Map := struct {
     namespace:
     new := func(key_type: Str, key_size: I64, val_type: Str, val_size: I64) returns Map {
         if dyn_has_method(key_type, "cmp").not() {
-            panic("Map.new", format("type ", key_type, " must implement cmp"))
+            panic("Map.new", "type ", key_type, " must implement cmp")
         }
         return Map(key_data = malloc(key_size), val_data = malloc(val_size),
                    cap = 1, key_size = key_size, key_type = key_type,

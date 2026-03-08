@@ -313,13 +313,13 @@ import("set.til")
 
 import("map.til")
 
-panic := proc(loc_str: Str, msg: Str) {
-    println(loc_str, ": panic: ", msg)
+panic := proc(loc_str: Str, parts: ..Str) {
+    println(loc_str, ": panic: ", format(..parts))
     exit(1)
 }
 
-TODO := proc(loc_str: Str, msg: Str) {
-    panic(loc_str, format("TODO: ", msg))
+TODO := proc(loc_str: Str, parts: ..Str) {
+    panic(loc_str, "TODO: ", format(..parts))
 }
 
 UNREACHABLE := proc(loc_str: Str) {
@@ -328,7 +328,7 @@ UNREACHABLE := proc(loc_str: Str) {
 
 assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
     if cond.not() {
-        panic(loc_str, format("assert failed: ", msg))
+        panic(loc_str, "assert failed: ", msg)
     }
     return true
 }
