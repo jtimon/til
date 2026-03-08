@@ -170,10 +170,10 @@
    clone does not deep-copy it, delete does not recurse into it —
    just copies/ignores the pointer.
 
-   Open question: default initialization. Inline fields use literal defaults
-   (x := 0), but ref fields point to external values that may not exist yet
-   at construction time. Options include NULL/nil default, requiring the
-   field at construction, or something else. TBD.
+   Default initialization: ref fields default to NULL. This is the only
+   place NULL exists in til — ref locals and ref argument defaults cannot
+   be NULL (at least for now). Typer should check for NULL before
+   dereferencing ref fields (or provide an is_set/is_null check).
 
 *** ref tagged enum variants
    Currently tagged enum payloads are stored inline (by value).
