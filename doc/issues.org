@@ -5,55 +5,132 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
-  Issues that block or are needed for #12 (self-hosting).
 
-** WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
-  Currently all returns are owned by the caller (heap-allocated, caller must
-  delete). This breaks when a function wants to return one of its args:
+** OPEN #22 Operator syntax: desugar operators to method calls
+  :DEPENDENCIES: #12
+  Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
+  Purely a parser transform — no changes needed in typer, interpreter, or
+  codegen. The parser rewrites operator expressions into method call AST
+  nodes before anything downstream sees them.
 
-    min := func(a: I64, b: I64) returns I64 {
-        if a.lt(b) { return a } else { return b }
-    }
+  Operator → method mapping:
+  - Comparison: < → lt, <= → lte, > → gt, >= → gte, == → eq, != → neq
+  - Arithmetic: + → add, - → sub, * → mul, / → div, % → mod
 
-  Either a or b would be owned twice and deleted twice (double-free).
+  Precedence (low to high):
+  - == != < <= > >=
+  - + -
+  - * / %
 
-*** FIXED ref returns
-   returns ref I64 — the caller does NOT own the returned value and must
-   not delete it. ASAP destruction skips ref return values.
+  Parenthesized expressions (a + b) * c override precedence. The parser
+  must disambiguate grouping parens from function call parens: ( after an
+  identifier/field-access is a call, otherwise it's grouping.
 
-    min := func(a: I64, b: I64) returns ref I64 {
-        if a.lt(b) { return a } else { return b }
-    }
+  Parsing approach: Pratt parsing (precedence climbing) or one function
+  per precedence level (mutually recursive descent). Both work; Pratt is
+  more compact and easier to extend.
 
-   Typer validates: return value must be a param or ref variable.
+  The cmp/initer synergy makes this especially nice for comparisons:
+  implement cmp once, the initer auto-generates eq, neq, lt, gt, lte, gte,
+  and operator desugaring gives you <, <=, >, >=, ==, != for free. If you
+  override eq with a faster implementation, neq (and !=) automatically
+  benefits since neq is generated as a.eq(b).not().
 
-*** FIXED ref declarations
-   Required when binding the result of a ref-returning function:
-   ref my_min := min(34, 35). ASAP destruction skips ref variables.
+*** Phase 1: Comparison operators
+   < <= > >= == !=
+   All same precedence, binary, no chaining ambiguity.
+   Desugars: a < b → a.lt(b), a != b → a.neq(b), etc.
 
-   Typer validates: RHS must be a ref-returning function call or a
-   ref/param variable. Cannot pass ref variable to 'own' parameter.
+*** Phase 2: Arithmetic operators
+   + - * / %
+   Introduces real precedence: * / % bind tighter than + -.
+   Desugars: a + b * c → a.add(b.mul(c)).
+   Requires grouping parentheses support.
 
-   ASAP lifetime extension: args to ref-returning calls have their
-   lifetimes extended to at least the ref variable's last use, preventing
-   use-after-free.
+   Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
+   ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
+   ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
+** WIP #12 Self-hosting: rewrite ctil in til
+  :DEPENDENCIES: #2
+  Rewrite the til compiler/interpreter in til itself. This is the ultimate
+  test of the language — if til can compile itself, it's expressive enough
+  for real systems programming.
 
-   Interpreter: ref from ident uses scope_set_borrowed (shared cell).
-   builder: ref decl emits pointer assignment (no malloc).
+  The current C implementation is the reference: lexer, parser, initer,
+  typer, interpreter, builder, precomp, scavenger (~6000 lines of C).
+  Self-hosting means reimplementing all of these in til, using til's own
+  features (structs, enums, ownership, FFI for I/O).
 
-*** ref struct fields
-   A ref field stores a pointer to an existing value (not inline).
-   clone does not deep-copy it, delete does not recurse into it —
-   just copies/ignores the pointer.
+  Depends on:
+  - #1 (consistency): FIXED
+  - #2 (ref): needed for efficient arg passing without clone overhead
+  - #5 (pointers/Vec): FIXED
+  - #8 (variadic): FIXED
+  - #16 (imports): FIXED
+   - #30 (Vec-in-struct): FIXED
 
-   Open question: default initialization. Inline fields use literal defaults
-   (x := 0), but ref fields point to external values that may not exist yet
-   at construction time. Options include NULL/nil default, requiring the
-   field at construction, or something else. TBD.
+  Does NOT depend on #10 (REPL) or #11 (GUI mode).
 
-*** args are already ref by default
-   Function args are borrowed (ref) unless explicitly marked own.
-   No change needed for args.
+*** DONE Lexer (src/self/lexer.til)
+   Strict translation of src/c/lexer.c following c2til.org rules.
+   mode lib. TokenType enum (all 62 variants), Token struct, tok_name(),
+   lookup_keyword(), tokenize(). Tests in src/test/lexing.til (10 tests).
+   Works in both interpret and codegen modes.
+
+*** TODO Parser (src/self/parser.til)
+   Plan complete. Parser.c translates to parser.til + ast.til (separate
+   module since typer/interpreter/builder also need AST types).
+
+**** c2til.org gaps found during analysis
+    1. C union inside struct → flat struct (all union fields as regular fields)
+    2. Vec/struct as struct field → FIXED by #30
+    3. C arrays (Str**, bool*) as struct fields → Vec fields
+    4. Bool fields in Vec-stored structs → use I64 (known alignment bug)
+    5. NULL Expr* pointers → "" for strings, sentinel indices for optionals
+    6. Returning refs from borrowed data → returns ref Type
+
+**** src/self/ast.til (mode lib)
+    Strict translation of ast.h:
+    - NodeType enum — 20 variants (Body, LiteralStr, LiteralNum, LiteralBool,
+      Ident, Decl, Assign, FCall, FuncDef, StructDef, EnumDef, FieldAccess,
+      FieldAssign, Return, If, While, ForIn, NamedArg, Break, Continue,
+      MapLit, SetLit)
+    - FuncType enum — 6 variants (Func, Proc, Test, Macro, ExtFunc, ExtProc)
+    - Expr struct — flat (union flattened), all fields:
+      - type, str_val, decl_name, decl_explicit_type, decl_is_mut,
+        decl_is_namespace, decl_is_ref, decl_is_own (I64 flags, not Bool)
+      - func_type, nparam, return_type, return_is_ref, variadic_param_index
+      - is_own_arg, is_ext
+      - line, col, path
+      - children: Vec (initialized in expr_new, not struct default)
+      - param_names, param_types: Vec of Str (FUNC_DEF only)
+      - param_muts, param_owns: Vec of I64 (FUNC_DEF only)
+    - expr_new proc — creates Expr, initializes children Vec
+    - expr_add_child proc — pushes child into children Vec
+    - expr_child func — returns ref to child at index
+    - node_type_name func — maps NodeType → debug string
+
+**** src/self/parser.til (mode lib)
+    Strict translation of parser.c, imports lexer.til and ast.til.
+    Parser struct: tokens (Vec), count (I64), pos (I64), path (Str).
+    Functions (same names and variable names as C):
+    - peek, advance, check, expect, tok_str (helpers)
+    - parse_block, parse_func_def, parse_struct_def, parse_enum_def
+    - parse_call, parse_expression, parse_statement_ident, parse_statement
+    - parse (entry point, returns Expr root NODE_BODY)
+
+**** src/test/parsing.til (mode script)
+    10 tests inspired by old rstil test_parser.til:
+    1. test_empty — parse "" → Body with 0 children
+    2. test_declaration — x := 42 → Decl + LiteralNum
+    3. test_typed_decl — x : I64 = 0 → Decl with explicit type
+    4. test_assignment — x = 1 → Assign + LiteralNum
+    5. test_call — foo(1, 2) → FCall with 3 children
+    6. test_method_call — x.foo(1) → FCall with FieldAccess callee
+    7. test_if_else → If with 3 children
+    8. test_while → While with 2 children
+    9. test_func_def → FuncDef with params and body
+    10. test_struct_def → StructDef
 
 ** WIP #17 Global variable access, explicit capture syntax
   :DEPENDENCIES_OF: #12 #13
@@ -152,90 +229,104 @@
    - Interpreter: bind captured variables in call_scope from definition scope
    - Codegen: emit closure structs or pass captures as hidden parameters
 
-** WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #2
-  Rewrite the til compiler/interpreter in til itself. This is the ultimate
-  test of the language — if til can compile itself, it's expressive enough
-  for real systems programming.
+** WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
+  Currently all returns are owned by the caller (heap-allocated, caller must
+  delete). This breaks when a function wants to return one of its args:
 
-  The current C implementation is the reference: lexer, parser, initer,
-  typer, interpreter, builder, precomp, scavenger (~6000 lines of C).
-  Self-hosting means reimplementing all of these in til, using til's own
-  features (structs, enums, ownership, FFI for I/O).
+    min := func(a: I64, b: I64) returns I64 {
+        if a.lt(b) { return a } else { return b }
+    }
 
-  Depends on:
-  - #1 (consistency): FIXED
-  - #2 (ref): needed for efficient arg passing without clone overhead
-  - #5 (pointers/Vec): FIXED
-  - #8 (variadic): FIXED
-  - #16 (imports): FIXED
-   - #30 (Vec-in-struct): FIXED
+  Either a or b would be owned twice and deleted twice (double-free).
 
-  Does NOT depend on #10 (REPL) or #11 (GUI mode).
+*** FIXED ref returns
+   returns ref I64 — the caller does NOT own the returned value and must
+   not delete it. ASAP destruction skips ref return values.
 
-*** DONE Lexer (src/self/lexer.til)
-   Strict translation of src/c/lexer.c following c2til.org rules.
-   mode lib. TokenType enum (all 62 variants), Token struct, tok_name(),
-   lookup_keyword(), tokenize(). Tests in src/test/lexing.til (10 tests).
-   Works in both interpret and codegen modes.
+    min := func(a: I64, b: I64) returns ref I64 {
+        if a.lt(b) { return a } else { return b }
+    }
 
-*** TODO Parser (src/self/parser.til)
-   Plan complete. Parser.c translates to parser.til + ast.til (separate
-   module since typer/interpreter/builder also need AST types).
+   Typer validates: return value must be a param or ref variable.
 
-**** c2til.org gaps found during analysis
-    1. C union inside struct → flat struct (all union fields as regular fields)
-    2. Vec/struct as struct field → FIXED by #30
-    3. C arrays (Str**, bool*) as struct fields → Vec fields
-    4. Bool fields in Vec-stored structs → use I64 (known alignment bug)
-    5. NULL Expr* pointers → "" for strings, sentinel indices for optionals
-    6. Returning refs from borrowed data → returns ref Type
+*** FIXED ref declarations
+   Required when binding the result of a ref-returning function:
+   ref my_min := min(34, 35). ASAP destruction skips ref variables.
 
-**** src/self/ast.til (mode lib)
-    Strict translation of ast.h:
-    - NodeType enum — 20 variants (Body, LiteralStr, LiteralNum, LiteralBool,
-      Ident, Decl, Assign, FCall, FuncDef, StructDef, EnumDef, FieldAccess,
-      FieldAssign, Return, If, While, ForIn, NamedArg, Break, Continue,
-      MapLit, SetLit)
-    - FuncType enum — 6 variants (Func, Proc, Test, Macro, ExtFunc, ExtProc)
-    - Expr struct — flat (union flattened), all fields:
-      - type, str_val, decl_name, decl_explicit_type, decl_is_mut,
-        decl_is_namespace, decl_is_ref, decl_is_own (I64 flags, not Bool)
-      - func_type, nparam, return_type, return_is_ref, variadic_param_index
-      - is_own_arg, is_ext
-      - line, col, path
-      - children: Vec (initialized in expr_new, not struct default)
-      - param_names, param_types: Vec of Str (FUNC_DEF only)
-      - param_muts, param_owns: Vec of I64 (FUNC_DEF only)
-    - expr_new proc — creates Expr, initializes children Vec
-    - expr_add_child proc — pushes child into children Vec
-    - expr_child func — returns ref to child at index
-    - node_type_name func — maps NodeType → debug string
+   Typer validates: RHS must be a ref-returning function call or a
+   ref/param variable. Cannot pass ref variable to 'own' parameter.
 
-**** src/self/parser.til (mode lib)
-    Strict translation of parser.c, imports lexer.til and ast.til.
-    Parser struct: tokens (Vec), count (I64), pos (I64), path (Str).
-    Functions (same names and variable names as C):
-    - peek, advance, check, expect, tok_str (helpers)
-    - parse_block, parse_func_def, parse_struct_def, parse_enum_def
-    - parse_call, parse_expression, parse_statement_ident, parse_statement
-    - parse (entry point, returns Expr root NODE_BODY)
+   ASAP lifetime extension: args to ref-returning calls have their
+   lifetimes extended to at least the ref variable's last use, preventing
+   use-after-free.
 
-**** src/test/parsing.til (mode script)
-    10 tests inspired by old rstil test_parser.til:
-    1. test_empty — parse "" → Body with 0 children
-    2. test_declaration — x := 42 → Decl + LiteralNum
-    3. test_typed_decl — x : I64 = 0 → Decl with explicit type
-    4. test_assignment — x = 1 → Assign + LiteralNum
-    5. test_call — foo(1, 2) → FCall with 3 children
-    6. test_method_call — x.foo(1) → FCall with FieldAccess callee
-    7. test_if_else → If with 3 children
-    8. test_while → While with 2 children
-    9. test_func_def → FuncDef with params and body
-    10. test_struct_def → StructDef
+   Interpreter: ref from ident uses scope_set_borrowed (shared cell).
+   builder: ref decl emits pointer assignment (no malloc).
 
-* Undecided
-  Issues not clearly before or after self-hosting.
+*** ref struct fields
+   A ref field stores a pointer to an existing value (not inline).
+   clone does not deep-copy it, delete does not recurse into it —
+   just copies/ignores the pointer.
+
+   Open question: default initialization. Inline fields use literal defaults
+   (x := 0), but ref fields point to external values that may not exist yet
+   at construction time. Options include NULL/nil default, requiring the
+   field at construction, or something else. TBD.
+
+*** args are already ref by default
+   Function args are borrowed (ref) unless explicitly marked own.
+   No change needed for args.
+
+* Post-self-hosting
+
+** OPEN #36 Nested pattern matching in switch
+  Depends on #12 (self-hosting) — not worth implementing before self-hosting.
+
+  Full pattern matching as in rstil — nested enum patterns, struct field
+  matching, wildcard ~_~. Phases 1-4 of #35 cover most practical use cases;
+  this adds the remaining rstil features.
+
+  Examples from ~../rstil/src/test/enums.til~:
+
+  Nested payload extraction (currently requires nested switch):
+  #+begin_src til
+  // rstil supported this in a single switch:
+  switch outer {
+  case OuterEnum.WrapperA(inner):
+      switch inner {
+      case InnerEnum.ValueA(val):
+          // use val
+      case InnerEnum.ValueB(s):
+          // use s
+      }
+  case OuterEnum.WrapperB(i):
+      // use i
+  }
+  #+end_src
+
+  Multi-variant function with payload (rstil test_color_match):
+  #+begin_src til
+  test_color_match := func(c: Color) returns Str {
+      switch c {
+      case Color.Unknown: return "unknown"
+      case Color.Green(is_olive):
+          if is_olive { return "olive" }
+          return "dark green"
+      case Color.Number(code):
+          if code.gt(0) { return "positive" }
+          return "negative"
+      case Color.Name(name): return format("named: ", name)
+      case Color.Rgb(rgb):
+          return format("rgb(", rgb.r.to_str(), ",", rgb.g.to_str(), ",", rgb.b.to_str(), ")")
+      }
+  }
+  #+end_src
+
+  Potential Phase 5 features:
+  - Wildcard ~_~ in case patterns (match anything, discard value)
+  - Nested enum destructuring in a single case arm
+  - Struct field matching
+  - Guard clauses (~case X if cond:~)
 
 ** OPEN #32 Keyword arguments (kwargs) capture and forwarding
   Allow functions to capture named arguments as a map and forward them to
@@ -317,6 +408,104 @@
   by ASAP (same as ref declarations today). The typer/ASAP already
   handles ref lifetime correctly — this extends it to auto-detected cases.
 
+** OPEN #25 Support for the 4 main operative systems
+  :DEPENDENCIES: #12
+  til currently only builds and runs on GNU/Linux. Should support the 4
+  main operative systems, in priority order:
+  1. GNU/Linux/BSD (current, done)
+  2. TempleOS
+  3. macOS
+  4. Windows
+
+  This is not just "til builds natively on each OS." The goal is full
+  cross-compilation: build a til binary for any target from any host.
+  The matrix is 3×4 + 1×1 = 13 combinations: Linux, macOS, and Windows
+  can each target all 4 platforms, but TempleOS as a host only targets
+  itself (cross-compiling from TempleOS would mean replacing gcc/clang,
+  which is out of scope).
+
+  ctil (the C bootstrap compiler) stays Linux-only. Once til is
+  self-hosting (#12), til replaces ctil and handles all platforms.
+  Bootstrap path: ctil on Linux compiles self-hosted til → til can
+  then cross-compile itself and any .til program to any target.
+
+  The C codegen path helps: emit C + invoke the target's C compiler
+  works for most POSIX targets. But TempleOS breaks this pattern
+  (no C compiler), requiring a dedicated HolyC codegen backend.
+
+  The builder must select the appropriate codegen backend per target.
+
+  Common areas affected across platforms:
+  - Build system (builder that selects backend per target)
+  - FFI / dlsym (platform-specific dynamic loading)
+  - System primitives (spawn_cmd, readfile, etc. — POSIX vs platform APIs)
+  - GUI mode (raylib on POSIX/Windows, native primitives on TempleOS)
+  - Audio (miniaudio on POSIX/Windows, native on TempleOS)
+
+*** TempleOS
+   :DEPENDENCIES: #12
+   The most interesting and challenging target. TempleOS has no C compiler,
+   no POSIX, no libc — just HolyC and its own kernel/graphics/audio APIs.
+
+   Requires a new holybuilder backend that emits HolyC instead of C.
+   HolyC is C-like enough that the translation should be mostly mechanical
+   (similar types, similar control flow), but differences in calling
+   conventions, memory management, and string handling will need attention.
+
+   For mode gui: raylib doesn't exist on TempleOS, so we need to recreate
+   raylib's interface using TempleOS graphics primitives (GrBlot, GrLine,
+   GrRect, etc.) and audio primitives. This is likely easier than most
+   people would expect — TempleOS has direct framebuffer access and simple
+   audio APIs, and raylib's 2D API surface is not that large. The hard
+   part is the impedance mismatch (TempleOS is cooperative multitasking,
+   640x480 16-color default, etc.), not the drawing primitives themselves.
+
+   Running the same mode gui program (e.g. music.til) on both GNU/Linux
+   via raylib AND TempleOS via native HolyC primitives would be a serious
+   language flex — proving til programs are truly platform-independent.
+
+   For mode server: TempleOS docker containers could be extremely small
+   (no libc, no userland, minimal kernel), making til a compelling choice
+   for lightweight server deployments on TempleOS-based containers.
+
+   Self-hosting (#12) is a hard dependency: TempleOS has no C compiler,
+   so til must be able to compile itself to bring its own compiler onto
+   the platform. There's no way to cross-compile C for TempleOS from Linux.
+
+   Can test from Linux using QEMU with a TempleOS VM image. Copy til
+   files in via a virtual disk, run them, capture output. This is the
+   standard way to develop for TempleOS from a modern host.
+
+*** macOS
+   Closest to the current GNU/Linux target. All C code (ccore.c, ext.c,
+   dispatch.c) is already POSIX-portable — fork, execl, waitpid, dlopen,
+   dlsym all work the same on macOS. No cross-compilation needed: ship
+   source, user runs `make` with clang natively.
+
+   Makefile changes needed:
+   - `-ldl` not needed on macOS (dlopen is in libc)
+   - `-lffi` needs `brew install libffi` + Homebrew `-I`/`-L` paths
+   - `-rdynamic` works with clang
+   - Platform detection to conditionally apply the above
+
+   Runtime differences:
+   - `.dylib` instead of `.so` for dynamic libraries (mode gui, FFI)
+   - Homebrew paths for raylib headers and libs
+
+   No `#ifdef __APPLE__` needed in the C source itself — only in the
+   Makefile and possibly in the codegen output (linker flags when
+   compiling .til programs that use mode gui).
+
+*** Windows
+   Furthest from POSIX, but possibly dying — don't wait for self-hosting.
+   Options: MSVC, MinGW, or cross-compile with zig cc. Dynamic loading
+   via LoadLibrary/GetProcAddress instead of dlopen/dlsym. Process
+   spawning via CreateProcess instead of fork/exec. raylib supports
+   Windows natively, so mode gui should work once the build system
+   handles .dll and Windows linking.
+
+   Can test from Linux using Wine as a first step before touching a
+   real Windows machine.
 ** OPEN #24 Music scale viewer: ongoing improvements
   GUI music theory learning tool (src/examples/music.til). Uses mode gui
   (raylib). Current features: 7x3 note buttons, 7 Greek mode buttons,
@@ -486,199 +675,3 @@
   - Incremental parsing: parse one statement at a time
   - Persistent scope: declarations accumulate across inputs
   - Result display: print expression values (needs to_str for all types)
-
-* Post-self-hosting
-  Issues that depend on #12 (self-hosting) being complete.
-
-** OPEN #36 Nested pattern matching in switch
-  Depends on #12 (self-hosting) — not worth implementing before self-hosting.
-
-  Full pattern matching as in rstil — nested enum patterns, struct field
-  matching, wildcard ~_~. Phases 1-4 of #35 cover most practical use cases;
-  this adds the remaining rstil features.
-
-  Examples from ~../rstil/src/test/enums.til~:
-
-  Nested payload extraction (currently requires nested switch):
-  #+begin_src til
-  // rstil supported this in a single switch:
-  switch outer {
-  case OuterEnum.WrapperA(inner):
-      switch inner {
-      case InnerEnum.ValueA(val):
-          // use val
-      case InnerEnum.ValueB(s):
-          // use s
-      }
-  case OuterEnum.WrapperB(i):
-      // use i
-  }
-  #+end_src
-
-  Multi-variant function with payload (rstil test_color_match):
-  #+begin_src til
-  test_color_match := func(c: Color) returns Str {
-      switch c {
-      case Color.Unknown: return "unknown"
-      case Color.Green(is_olive):
-          if is_olive { return "olive" }
-          return "dark green"
-      case Color.Number(code):
-          if code.gt(0) { return "positive" }
-          return "negative"
-      case Color.Name(name): return format("named: ", name)
-      case Color.Rgb(rgb):
-          return format("rgb(", rgb.r.to_str(), ",", rgb.g.to_str(), ",", rgb.b.to_str(), ")")
-      }
-  }
-  #+end_src
-
-  Potential Phase 5 features:
-  - Wildcard ~_~ in case patterns (match anything, discard value)
-  - Nested enum destructuring in a single case arm
-  - Struct field matching
-  - Guard clauses (~case X if cond:~)
-
-** OPEN #25 Support for the 4 main operative systems
-  :DEPENDENCIES: #12
-  til currently only builds and runs on GNU/Linux. Should support the 4
-  main operative systems, in priority order:
-  1. GNU/Linux/BSD (current, done)
-  2. TempleOS
-  3. macOS
-  4. Windows
-
-  This is not just "til builds natively on each OS." The goal is full
-  cross-compilation: build a til binary for any target from any host.
-  The matrix is 3×4 + 1×1 = 13 combinations: Linux, macOS, and Windows
-  can each target all 4 platforms, but TempleOS as a host only targets
-  itself (cross-compiling from TempleOS would mean replacing gcc/clang,
-  which is out of scope).
-
-  ctil (the C bootstrap compiler) stays Linux-only. Once til is
-  self-hosting (#12), til replaces ctil and handles all platforms.
-  Bootstrap path: ctil on Linux compiles self-hosted til → til can
-  then cross-compile itself and any .til program to any target.
-
-  The C codegen path helps: emit C + invoke the target's C compiler
-  works for most POSIX targets. But TempleOS breaks this pattern
-  (no C compiler), requiring a dedicated HolyC codegen backend.
-
-  The builder must select the appropriate codegen backend per target.
-
-  Common areas affected across platforms:
-  - Build system (builder that selects backend per target)
-  - FFI / dlsym (platform-specific dynamic loading)
-  - System primitives (spawn_cmd, readfile, etc. — POSIX vs platform APIs)
-  - GUI mode (raylib on POSIX/Windows, native primitives on TempleOS)
-  - Audio (miniaudio on POSIX/Windows, native on TempleOS)
-
-*** TempleOS
-   :DEPENDENCIES: #12
-   The most interesting and challenging target. TempleOS has no C compiler,
-   no POSIX, no libc — just HolyC and its own kernel/graphics/audio APIs.
-
-   Requires a new holybuilder backend that emits HolyC instead of C.
-   HolyC is C-like enough that the translation should be mostly mechanical
-   (similar types, similar control flow), but differences in calling
-   conventions, memory management, and string handling will need attention.
-
-   For mode gui: raylib doesn't exist on TempleOS, so we need to recreate
-   raylib's interface using TempleOS graphics primitives (GrBlot, GrLine,
-   GrRect, etc.) and audio primitives. This is likely easier than most
-   people would expect — TempleOS has direct framebuffer access and simple
-   audio APIs, and raylib's 2D API surface is not that large. The hard
-   part is the impedance mismatch (TempleOS is cooperative multitasking,
-   640x480 16-color default, etc.), not the drawing primitives themselves.
-
-   Running the same mode gui program (e.g. music.til) on both GNU/Linux
-   via raylib AND TempleOS via native HolyC primitives would be a serious
-   language flex — proving til programs are truly platform-independent.
-
-   For mode server: TempleOS docker containers could be extremely small
-   (no libc, no userland, minimal kernel), making til a compelling choice
-   for lightweight server deployments on TempleOS-based containers.
-
-   Self-hosting (#12) is a hard dependency: TempleOS has no C compiler,
-   so til must be able to compile itself to bring its own compiler onto
-   the platform. There's no way to cross-compile C for TempleOS from Linux.
-
-   Can test from Linux using QEMU with a TempleOS VM image. Copy til
-   files in via a virtual disk, run them, capture output. This is the
-   standard way to develop for TempleOS from a modern host.
-
-*** macOS
-   Closest to the current GNU/Linux target. All C code (ccore.c, ext.c,
-   dispatch.c) is already POSIX-portable — fork, execl, waitpid, dlopen,
-   dlsym all work the same on macOS. No cross-compilation needed: ship
-   source, user runs `make` with clang natively.
-
-   Makefile changes needed:
-   - `-ldl` not needed on macOS (dlopen is in libc)
-   - `-lffi` needs `brew install libffi` + Homebrew `-I`/`-L` paths
-   - `-rdynamic` works with clang
-   - Platform detection to conditionally apply the above
-
-   Runtime differences:
-   - `.dylib` instead of `.so` for dynamic libraries (mode gui, FFI)
-   - Homebrew paths for raylib headers and libs
-
-   No `#ifdef __APPLE__` needed in the C source itself — only in the
-   Makefile and possibly in the codegen output (linker flags when
-   compiling .til programs that use mode gui).
-
-*** Windows
-   Furthest from POSIX, but possibly dying — don't wait for self-hosting.
-   Options: MSVC, MinGW, or cross-compile with zig cc. Dynamic loading
-   via LoadLibrary/GetProcAddress instead of dlopen/dlsym. Process
-   spawning via CreateProcess instead of fork/exec. raylib supports
-   Windows natively, so mode gui should work once the build system
-   handles .dll and Windows linking.
-
-   Can test from Linux using Wine as a first step before touching a
-   real Windows machine.
-
-** OPEN #22 Operator syntax: desugar operators to method calls
-  :DEPENDENCIES: #12
-  Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
-  Purely a parser transform — no changes needed in typer, interpreter, or
-  codegen. The parser rewrites operator expressions into method call AST
-  nodes before anything downstream sees them.
-
-  Operator → method mapping:
-  - Comparison: < → lt, <= → lte, > → gt, >= → gte, == → eq, != → neq
-  - Arithmetic: + → add, - → sub, * → mul, / → div, % → mod
-
-  Precedence (low to high):
-  - == != < <= > >=
-  - + -
-  - * / %
-
-  Parenthesized expressions (a + b) * c override precedence. The parser
-  must disambiguate grouping parens from function call parens: ( after an
-  identifier/field-access is a call, otherwise it's grouping.
-
-  Parsing approach: Pratt parsing (precedence climbing) or one function
-  per precedence level (mutually recursive descent). Both work; Pratt is
-  more compact and easier to extend.
-
-  The cmp/initer synergy makes this especially nice for comparisons:
-  implement cmp once, the initer auto-generates eq, neq, lt, gt, lte, gte,
-  and operator desugaring gives you <, <=, >, >=, ==, != for free. If you
-  override eq with a faster implementation, neq (and !=) automatically
-  benefits since neq is generated as a.eq(b).not().
-
-*** Phase 1: Comparison operators
-   < <= > >= == !=
-   All same precedence, binary, no chaining ambiguity.
-   Desugars: a < b → a.lt(b), a != b → a.neq(b), etc.
-
-*** Phase 2: Arithmetic operators
-   + - * / %
-   Introduces real precedence: * / % bind tighter than + -.
-   Desugars: a + b * c → a.add(b.mul(c)).
-   Requires grouping parentheses support.
-
-   Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
-   ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
-   ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
