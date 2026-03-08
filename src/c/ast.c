@@ -96,6 +96,8 @@ static const char *node_name(NodeType type) {
     case NODE_CONTINUE:    return "continue";
     case NODE_MAP_LIT:     return "map_lit";
     case NODE_SET_LIT:     return "set_lit";
+    case NODE_SWITCH:      return "switch";
+    case NODE_CASE:        return "case";
     }
     return "?";
 }

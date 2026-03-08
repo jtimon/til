@@ -650,6 +650,28 @@ static Expr *parse_statement(Parser *p) {
         expr_add_child(node, parse_block(p));       // body
         return node;
     }
+    case TOK_SWITCH: {
+        advance(p); // consume 'switch'
+        Expr *node = expr_new(NODE_SWITCH, t->line, t->col, p->spath);
+        expr_add_child(node, parse_expression(p)); // switch expression
+        expect(p, TOK_LBRACE);
+        while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+            expect(p, TOK_CASE);
+            Expr *cn = expr_new(NODE_CASE, peek(p)->line, peek(p)->col, p->spath);
+            if (!check(p, TOK_COLON)) {
+                expr_add_child(cn, parse_expression(p)); // match value
+            }
+            expect(p, TOK_COLON);
+            Expr *cb = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
+            while (!check(p, TOK_CASE) && !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+                expr_add_child(cb, parse_statement(p));
+            }
+            expr_add_child(cn, cb);
+            expr_add_child(node, cn);
+        }
+        expect(p, TOK_RBRACE);
+        return node;
+    }
     case TOK_OWN: {
         advance(p); // consume 'own'
         // own field declaration: own name := value  or  own mut name := value

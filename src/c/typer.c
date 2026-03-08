@@ -2450,6 +2450,88 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             stmt->til_type = TIL_TYPE_NONE;
             break;
+        case NODE_SWITCH: {
+            // Desugar: switch expr { case v1: B1  case v2: B2  case: B3 }
+            // Into:   { _swN := expr; if _swN.eq(v1) { B1 } else if _swN.eq(v2) { B2 } else { B3 } }
+            Expr *sw_expr = expr_child(stmt, 0);
+            I32 sw_line = stmt->line, sw_col = stmt->col;
+            Str *sw_path = stmt->path;
+
+            // Unique switch variable name
+            char sw_buf[32];
+            snprintf(sw_buf, sizeof(sw_buf), "_sw%d", hoist_counter++);
+            Str *sw_name = Str_new(sw_buf);
+
+            // Outer anonymous scope
+            Expr *block = expr_new(NODE_BODY, sw_line, sw_col, sw_path);
+
+            // _swN := expr
+            Expr *decl = expr_new(NODE_DECL, sw_line, sw_col, sw_path);
+            decl->data.decl.name = sw_name;
+            decl->data.decl.explicit_type = NULL;
+            decl->data.decl.is_mut = false;
+            decl->data.decl.is_namespace = false;
+            decl->data.decl.is_ref = false;
+            decl->data.decl.is_own = false;
+            expr_add_child(decl, sw_expr);
+            expr_add_child(block, decl);
+
+            // Build if/else chain from cases (children[1..])
+            Expr *first_if = NULL;
+            Expr *last_if = NULL;
+            Expr *default_body = NULL;
+
+            for (U32 ci = 1; ci < stmt->children.count; ci++) {
+                Expr *case_node = expr_child(stmt, ci);
+                if (case_node->children.count == 1) {
+                    // Default case — just body, no match expr
+                    default_body = expr_child(case_node, 0);
+                    continue;
+                }
+                // case EXPR: BODY → if _swN.eq(EXPR) { BODY }
+                Expr *match_expr = expr_child(case_node, 0);
+                Expr *case_body = expr_child(case_node, 1);
+
+                // Build _swN.eq(match_expr)
+                Expr *sw_ident = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
+                sw_ident->data.str_val = sw_name;
+                Expr *eq_access = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
+                eq_access->data.str_val = Str_new("eq");
+                expr_add_child(eq_access, sw_ident);
+                Expr *eq_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
+                expr_add_child(eq_call, eq_access);
+                expr_add_child(eq_call, match_expr);
+
+                Expr *if_node = expr_new(NODE_IF, case_node->line, case_node->col, sw_path);
+                expr_add_child(if_node, eq_call);    // condition
+                expr_add_child(if_node, case_body);  // then body
+
+                if (!first_if) {
+                    first_if = if_node;
+                } else {
+                    // Chain as else-if
+                    Expr *else_body = expr_new(NODE_BODY, case_node->line, case_node->col, sw_path);
+                    expr_add_child(else_body, if_node);
+                    expr_add_child(last_if, else_body);
+                }
+                last_if = if_node;
+            }
+
+            // Attach default as final else
+            if (default_body && last_if) {
+                expr_add_child(last_if, default_body);
+            } else if (default_body && !first_if) {
+                // Only a default case — just emit the body
+                first_if = default_body;
+            }
+
+            if (first_if) expr_add_child(block, first_if);
+
+            // Replace NODE_SWITCH with desugared block
+            expr_child(body, i) = block;
+            i--; // re-visit to type-check
+            break;
+        }
         case NODE_FOR_IN: {
             // Validate iterable and desugar to while loop in anonymous scope
             Expr *iter = expr_child(stmt, 0);

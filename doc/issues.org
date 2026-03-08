@@ -15,8 +15,9 @@
   rstil had full switch with enum pattern matching (see ../rstil/src/test/enums.til).
   This reimplements the same feature set in phases.
 
-** Phase 1: Simple value matching
+** DONE Phase 1: Simple value matching
    Switch on I64, U8, Str, Bool — cases compare with ~.eq()~.
+   Also works for enums since ~.eq()~ is auto-generated.
 
    #+begin_src til
    switch x {

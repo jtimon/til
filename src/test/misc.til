@@ -206,3 +206,119 @@ test_char_literals := test() {
     c := 'x'
     assert_eq(loc(), c.to_i64(), 120)
 }
+
+test_switch_i64 := test() {
+    mut result := 0
+    switch 2 {
+    case 1: result = 10
+    case 2: result = 20
+    case 3: result = 30
+    case: result = 99
+    }
+    assert_eq(loc(), result, 20)
+
+    // Default case
+    switch 99 {
+    case 1: result = 10
+    case: result = 0.sub(1)
+    }
+    assert_eq(loc(), result, 0.sub(1))
+}
+
+test_switch_str := test() {
+    mut result := ""
+    switch "bob" {
+    case "alice": result = "a"
+    case "bob": result = "b"
+    case: result = "?"
+    }
+    assert_eq_str(loc(), result, "b")
+}
+
+test_switch_char := test() {
+    mut result := 0
+    switch 'b' {
+    case 'a': result = 1
+    case 'b': result = 2
+    case 'c': result = 3
+    }
+    assert_eq(loc(), result, 2)
+}
+
+test_switch_bool := test() {
+    mut result := 0
+    switch true {
+    case true: result = 1
+    case false: result = 2
+    }
+    assert_eq(loc(), result, 1)
+}
+
+test_switch_default_only := test() {
+    mut result := 0
+    switch 42 {
+    case: result = 99
+    }
+    assert_eq(loc(), result, 99)
+}
+
+test_switch_no_default := test() {
+    mut result := 0
+    switch 1 {
+    case 1: result = 10
+    case 2: result = 20
+    }
+    assert_eq(loc(), result, 10)
+
+    // No match, no default — nothing happens
+    result = 0
+    switch 5 {
+    case 1: result = 10
+    }
+    assert_eq(loc(), result, 0)
+}
+
+test_switch_nested := test() {
+    mut result := 0
+    switch 1 {
+    case 1:
+        switch "a" {
+        case "a": result = 11
+        case "b": result = 12
+        }
+    case 2: result = 20
+    }
+    assert_eq(loc(), result, 11)
+}
+
+test_switch_in_loop := test() {
+    // break inside switch body should exit enclosing loop, not the switch
+    mut total := 0
+    for i in 0..10 {
+        switch i.mod(3) {
+        case 0: total = total.add(i)
+        case 1: total = total.add(1)
+        case: total = total.add(0)
+        }
+    }
+    // i=0: +0, i=1: +1, i=2: +0, i=3: +3, i=4: +1, i=5: +0, i=6: +6, i=7: +1, i=8: +0, i=9: +9
+    assert_eq(loc(), total, 21)
+}
+
+test_switch_multi_stmt := test() {
+    mut a := 0
+    mut b := 0
+    switch 2 {
+    case 1:
+        a = 1
+        b = 10
+    case 2:
+        a = 2
+        b = 20
+    case:
+        a = 0
+        b = 0
+    }
+    assert_eq(loc(), a, 2)
+    assert_eq(loc(), b, 20)
+}
