@@ -181,7 +181,7 @@ Value make_str_value(const char *data, I64 len) {
     inst->borrowed = 0;
     *(char **)inst->data = strndup(data, len);
     *(I64 *)((char *)inst->data + 8) = len;
-    *(I64 *)((char *)inst->data + 16) = len;
+    *(I64 *)((char *)inst->data + 16) = -1;  // CAP_LIT: data not freed by til delete
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 

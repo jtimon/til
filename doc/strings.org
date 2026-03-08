@@ -5,8 +5,8 @@
 #+begin_src til
 Str := struct {
     own mut data : U8 = 0   # pointer to buffer
-    mut len := 0             # content length in bytes
-    cap := 0                 # allocated capacity, or sentinel
+    mut count := 0           # content length in bytes
+    mut cap := 0             # allocated capacity, or sentinel
 }
 #+end_src
 
@@ -16,40 +16,45 @@ The ~cap~ field encodes ownership:
 |--------------+--------------------------------------------------|
 | cap >= 0     | owned buffer, cap = allocated size               |
 | CAP_LIT (-1) | points to static const C data (string literal)   |
-| CAP_VIEW (-2)| borrowed view into another Str's buffer (future) |
+| CAP_VIEW (-2)| borrowed view into another Str's buffer          |
 
-For owned strings, ~len <= cap~. For literals and views, ~len~ is the
+For owned strings, ~count <= cap~. For literals and views, ~count~ is the
 content length and ~cap~ is the sentinel.
+
+Named constants ~CAP_LIT~ and ~CAP_VIEW~ are defined in str.til (globally
+available via core import).
 
 ** String Creation Patterns
 
 *** Literal Assignment
 #+begin_src til
-s := "hello"   # len=5, cap=CAP_LIT in codegen (points to static const)
+s := "hello"   # count=5, cap=CAP_LIT in codegen (points to static const)
 #+end_src
 
 In codegen, literal data lives in static const storage — no malloc for data.
-Only the Str struct is heap-allocated. In interpreter, data is strndup'd.
+Only the Str struct is heap-allocated. In interpreter, data is strndup'd
+with cap=CAP_LIT (also not freed by til delete).
 
 *** Owned (from operations)
 #+begin_src til
-s := a.concat(b)   # len = a.len + b.len, cap = len (owned)
+s := a.concat(b)   # count = a.count + b.count, cap = count (owned)
 s := a.clone()      # owned copy
-s := a.substr(2, 3) # owned copy of substring
 #+end_src
 
-*** Pre-sized with Capacity (future)
+*** View (from substr)
 #+begin_src til
-s := Str.with_capacity(100)   # len=0, cap=100
-s.push_str("hello")           # len=5, cap=100 (in-place, no realloc)
+view := s.substr(2, 3)   # count=3, cap=CAP_VIEW, points into s.data
+owned := view.clone()     # materializes view into owned string
 #+end_src
 
-*** View/Substring (future)
+Zero-copy but can dangle if source is freed or realloced. No borrow checker —
+accepted risk. Call ~.clone()~ when you need ownership.
+
+*** Pre-sized with Capacity
 #+begin_src til
-view := s.substr_view(2, 3)   # len=3, cap=CAP_VIEW, points into s.data
+s := Str.with_capacity(100)   # count=0, cap=100
+s.push_str("hello")           # count=5, cap=100 (in-place, no realloc)
 #+end_src
-
-Zero-copy but can dangle if source is freed or realloced.
 
 ** Deletion Semantics
 
@@ -70,8 +75,14 @@ Clone always creates an owned copy regardless of source cap:
 
 #+begin_src til
 clone := func(val: Str) returns Str {
-    own new_data : U8 = malloc(val.len)
-    memcpy(new_data, val.data, val.len)
-    return Str(data = new_data, len = val.len, cap = val.len)
+    own new_data : U8 = malloc(val.count)
+    memcpy(new_data, val.data, val.count)
+    return Str(data = new_data, count = val.count, cap = val.count)
 }
 #+end_src
+
+** push_str on views/literals
+
+~push_str~ panics when ~cap < 0~ (view or literal). Views and literals are
+borrowed/static data — mutating them is not allowed. Call ~.clone()~ first
+to get an owned copy, then push_str on that.

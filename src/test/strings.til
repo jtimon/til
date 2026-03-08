@@ -176,6 +176,36 @@ test_split := test() {
     assert_eq_str(loc(), s2, "")
 }
 
+test_substr_view := test() {
+    // substr returns a view, not a copy
+    s := "hello world"
+    view := s.substr(6, 5)
+    assert_eq_str(loc(), view, "world")
+
+    // clone materializes a view into an owned string
+    owned := view.clone()
+    assert_eq_str(loc(), owned, "world")
+
+    // views work with comparison
+    assert(loc(), view.eq("world"))
+
+    // views work with concat
+    assert_eq_str(loc(), "say ".concat(view), "say world")
+
+    // get_char returns a 1-byte view
+    assert_eq_str(loc(), "abc".get_char(1), "b")
+
+    // strip_prefix/suffix return views
+    assert_eq_str(loc(), "hello world".strip_prefix("hello "), "world")
+    assert_eq_str(loc(), "hello world".strip_suffix(" world"), "hello")
+
+    // push_str on a with_capacity buffer works
+    mut v := Str.with_capacity(11)
+    v.push_str("hello")
+    v.push_str(" world")
+    assert_eq_str(loc(), v, "hello world")
+}
+
 test_join := test() {
     parts := split("a,b,c", ",")
     assert_eq_str(loc(), join(parts, ","), "a,b,c")

@@ -3,6 +3,9 @@
 
 #include "aliases.h"
 
+#define CAP_LIT  (-1)
+#define CAP_VIEW (-2)
+
 typedef struct {
     char *c_str;
     I64 count;

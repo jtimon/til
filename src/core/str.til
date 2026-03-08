@@ -1,3 +1,6 @@
+CAP_LIT := 0.sub(1)
+CAP_VIEW := 0.sub(2)
+
 Str := struct {
     own mut data : U8 = 0
     mut count := 0
@@ -41,11 +44,12 @@ Str := struct {
     }
 
     push_str := proc(mut self: Str, s: Str) {
+        if self.cap.lt(0) {
+            panic("Str.push_str", "cannot mutate a string view or literal")
+        }
         new_len := self.count.add(s.count)
         if new_len.gt(self.cap) {
-            new_cap := new_len.mul(2)
-            self.data = realloc(own self.data, new_cap)
-            self.cap = new_cap
+            panic("Str.push_str", "capacity exceeded")
         }
         memcpy(ptr_add(self.data, self.count), s.data, s.count)
         self.count = new_len
@@ -71,9 +75,7 @@ Str := struct {
         if st.gt(s.count) { st = s.count }
         if ln.lt(0) { ln = 0 }
         if st.add(ln).gt(s.count) { ln = s.count.sub(st) }
-        own new_data : U8 = malloc(ln)
-        memcpy(new_data, ptr_add(s.data, st), ln)
-        return Str(data = new_data, count = ln, cap = ln)
+        return Str(data = ptr_add(s.data, st), count = ln, cap = CAP_VIEW)
     }
 
     contains := func(a: Str, b: Str) returns Bool {

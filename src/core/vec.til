@@ -65,14 +65,14 @@ split := func(s: Str, delim: Str) returns Vec {
     mut pos := 0
     while pos.lte(s.len().sub(delim.len())) {
         if s.substr(pos, delim.len()).eq(delim) {
-            parts.push(own s.substr(start, pos.sub(start)))
+            parts.push(own s.substr(start, pos.sub(start)).clone())
             start = pos.add(delim.len())
             pos = start
         } else {
             pos = pos.add(1)
         }
     }
-    parts.push(own s.substr(start, s.len().sub(start)))
+    parts.push(own s.substr(start, s.len().sub(start)).clone())
     return parts
 }
 

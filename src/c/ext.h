@@ -1,7 +1,7 @@
 #ifndef TIL_EXT_H
 #define TIL_EXT_H
 
-#include "ccore.h"
+#include "aliases.h"
 
 typedef I64 til_I64;
 typedef U8 til_U8;

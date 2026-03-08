@@ -9,6 +9,7 @@ static Expr *codegen_program; // set during codegen for ns_init lookups
 static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
 static Set script_globals; // names of top-level vars emitted as file-scope globals
 static Bool has_script_globals; // whether script_globals is initialized
+static Bool in_func_def; // true while emitting a function/proc body
 
 // Collect unique array/vec builtin type names from AST
 typedef struct { Str *type_name; I32 is_vec; } CollectionInfo;
@@ -390,7 +391,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         } else {
             const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
             Expr *rhs = expr_child(e, 0);
-            Bool is_global = has_script_globals && Set_has(&script_globals, &e->data.decl.name);
+            Bool is_global = has_script_globals && !in_func_def && Set_has(&script_globals, &e->data.decl.name);
             if (rhs->type == NODE_FCALL && rhs->struct_name &&
                 Str_eq(expr_child(rhs, 0)->data.str_val, rhs->struct_name)) {
                 // Struct constructor — malloc + field-by-field assignment
@@ -681,7 +682,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
         fprintf(f, "%s til_%s(", ret, name->c_str);
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
+        in_func_def = 1;
         emit_body(f, body, 1);
+        in_func_def = 0;
         fprintf(f, "}\n");
     }
 }
@@ -907,9 +910,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ccore.h\"\n#include \"ext.h\"\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ext.h\"\n\n");
 
-    Bool is_script = mode && !mode->decls_only;
+    Bool is_script = !mode || !mode->decls_only;
 
     // Forward-declare all structs (skip core ext_structs and Str — ext.h provides)
     for (U32 i = 0; i < program->children.count; i++) {
@@ -1298,6 +1301,17 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
     if (run_tests) {
         fprintf(f, "int main(void) {\n");
         emit_ns_inits(f, 1);
+        // Initialize top-level core variables (e.g. CAP_VIEW)
+        if (has_script_globals) {
+            for (U32 i = 0; i < codegen_program->children.count; i++) {
+                Expr *gs = expr_child(codegen_program, i);
+                if (gs->type != NODE_DECL) continue;
+                Expr *rhs = expr_child(gs, 0);
+                if (rhs->type == NODE_FUNC_DEF || rhs->type == NODE_STRUCT_DEF ||
+                    rhs->type == NODE_ENUM_DEF) continue;
+                emit_stmt(f, gs, 1);
+            }
+        }
         I32 test_count = 0;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);

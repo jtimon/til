@@ -1,5 +1,39 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #29 Proper strings: separate count/cap, static literals, views
+  See doc/strings.org for full design.
+
+  Str has ~count~ (content length) and ~cap~ (allocated capacity or sentinel).
+  Named constants ~CAP_LIT~ (-1) and ~CAP_VIEW~ (-2) in str.til encode ownership.
+
+** DONE Phase 1: Add count field (structural, count == cap everywhere)
+   Str struct has ~mut count := 0~ and ~mut cap := 0~.
+
+** DONE Phase 2: Static string literals (CAP_LIT)
+   Builder emits string literal data inline with cap=TIL_CAP_LIT (-1).
+   Interpreter also uses cap=-1 for literals.
+   Str.delete skips free(data) when cap < 0.
+
+** DONE Phase 3: String views (CAP_VIEW)
+   ~substr~ returns zero-copy view with cap=CAP_VIEW (-2). Data points into
+   source buffer, no malloc/memcpy. Call ~.clone()~ to materialize ownership.
+   Dangling pointer risk accepted (no borrow checker).
+   ~push_str~ panics on views/literals (cap < 0) — clone first to mutate.
+   ~split()~ clones substr results before storing in Vec.
+   Include chain fix: ext.h → aliases.h, builder drops ccore.h from generated
+   includes. Test mode initializes top-level core variables in main().
+   Builder: in_func_def flag prevents script globals shadowing function locals.
+   Builder: no-mode files default to script mode (is_script = !mode || !mode->decls_only).
+   C Str (str.c) mirrors view changes: substr returns view, delete checks cap,
+   push_str panics on cap < 0, to_i64 uses stack buffer for non-null-terminated views.
+   Interpreter string literals use cap=-1 (CAP_LIT) so views into them don't dangle.
+
+** DONE Phase 4: In-place mutation (with_capacity, push_str)
+   ~Str.with_capacity(n)~ creates Str with count=0, cap=n.
+   ~Str.push_str(s)~ appends in-place, panics if capacity exceeded (no realloc —
+   buffers never move so views stay valid).
+   format() rewritten to use single malloc + memcpy (O(n) vs O(n²) concat).
+
 * FIXED #1 builder/interpreter consistency: eliminate unnecessary special cases
   Two changes to eliminate backend special cases:
 

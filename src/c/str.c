@@ -31,7 +31,7 @@ Str *Str_clone(Str *s) {
 }
 
 void Str_delete(Str *s) {
-    free(s->c_str);
+    if (s->cap >= 0) free(s->c_str);
     free(s);
 }
 
@@ -78,7 +78,11 @@ Str *Str_substr(Str *s, I64 start, I64 len) {
     if (start > s->count) start = s->count;
     if (len < 0) len = 0;
     if (start + len > s->count) len = s->count - start;
-    return Str_new_len(s->c_str + start, len);
+    Str *v = malloc(sizeof(Str));
+    v->c_str = s->c_str + start;
+    v->count = len;
+    v->cap = CAP_VIEW;
+    return v;
 }
 
 Bool Str_contains(Str *a, Str *b) {
@@ -189,9 +193,13 @@ I64 Str_to_i64(Str *s) {
         fprintf(stderr, "Str.to_i64: empty string\n");
         exit(1);
     }
+    char buf[32];
+    I64 n = s->count < 31 ? s->count : 31;
+    memcpy(buf, s->c_str, n);
+    buf[n] = '\0';
     char *end;
-    I64 v = strtoll(s->c_str, &end, 10);
-    if (end != s->c_str + s->count) {
+    I64 v = strtoll(buf, &end, 10);
+    if (end != buf + s->count) {
         fprintf(stderr, "Str.to_i64: invalid char in '%.*s'\n", (int)s->count, s->c_str);
         exit(1);
     }
@@ -208,10 +216,14 @@ Str *Str_with_capacity(I64 n) {
 }
 
 void Str_push_str(Str *s, Str *other) {
+    if (s->cap < 0) {
+        fprintf(stderr, "Str.push_str: cannot mutate a string view or literal\n");
+        exit(1);
+    }
     I64 new_len = s->count + other->count;
     if (new_len > s->cap) {
-        s->cap = new_len * 2;
-        s->c_str = realloc(s->c_str, s->cap + 1);
+        fprintf(stderr, "Str.push_str: capacity exceeded\n");
+        exit(1);
     }
     memcpy(s->c_str + s->count, other->c_str, other->count);
     s->count = new_len;
