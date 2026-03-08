@@ -31,50 +31,36 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-** OPEN #37 Improved mode lib: library compilation and FFI bindings
-  Running interpret or run on a mode lib file should fail with an error
-  (libraries aren't executable). translate and build should work, with
-  enhanced output for libraries.
+** FIXED #37 Improved mode lib: library compilation and FFI bindings
+  Running interpret or run on a mode lib file fails with an error.
+  translate and build produce library artifacts.
 
-*** translate (code generation)
-   For mode lib files, translate generates three files:
-   - ~gen/c/mylib.c~ — C implementation (already works)
-   - ~gen/c/mylib.h~ — C header declaring the public interface (structs,
-     functions, procs) so C programs can ~#include~ and link against it
-   - ~gen/til/mylib.til~ — FFI binding file with ~ext_struct~, ~ext_func~,
-     ~ext_proc~ declarations so other til programs can use the compiled
-     library without reimporting the source
+*** DONE Error gating
+   ~interpret~ and ~run~ blocked for mode lib/liba with error message.
+   ~test~ still works. Mode pure/pura not blocked (they auto-run tests).
 
-   Public interface = everything at top-level scope. Namespace methods
-   are part of the struct's ext_struct declaration.
+*** DONE translate (code generation)
+   For mode lib/liba/pure/pura, translate generates three files:
+   - ~gen/c/mylib.c~ — C implementation
+   - ~gen/c/mylib.h~ — C header (structs, enums, function prototypes)
+   - ~gen/til/mylib.til~ — FFI binding (~ext_struct~, ~ext_func~, ~ext_proc~,
+     ~link("mylib")~)
 
-*** build (compilation)
-   Same as translate, plus compiles the C output into both:
-   - ~gen/lib/libmylib.so~ — shared library (dynamic linking)
-   - ~gen/lib/libmylib.a~ — static library (static linking)
+*** DONE build (compilation)
+   Same as translate, plus compiles to:
+   - ~gen/lib/libmylib.so~ — shared library
+   - ~gen/lib/libmylib.a~ — static library
 
-   Consumers choose which to link: ~-lmylib~ (dynamic) or link the .a
-   directly (static).
+*** DONE Scavenger skip
+   Scavenger skipped for translate/build on lib/pure targets (all
+   declarations are public API). Normal scavenging for test/run and
+   when lib files are imported by other programs.
 
-*** install (system-wide)
+*** TODO install (system-wide)
    Same as build, plus copies artifacts to system paths:
    - ~.so~ / ~.a~ → system lib path (e.g. ~/usr/local/lib~)
    - ~.h~ → system include path (e.g. ~/usr/local/include~)
    - ~.til~ → til lib path (TBD — e.g. ~~/.til/lib/~ or similar)
-
-*** Usage from C
-   #+begin_src c
-   #include "mylib.h"
-   // link with -lmylib
-   #+end_src
-
-*** Usage from til (FFI)
-   #+begin_src til
-   import("mylib.til")  // the generated binding, not the source
-   #+end_src
-
-   The generated .til binding includes ~link("mylib")~ at the top (like
-   gui mode does for raylib), so linking is automatic — no manual flags.
 
 ** WIP #38 Drop til_ prefix from generated C symbols
   :DEPENDENCIES: #23, #37

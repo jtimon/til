@@ -1482,6 +1482,391 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
     return 0;
 }
 
+I32 build_header(Expr *program, const char *h_path) {
+    FILE *f = fopen(h_path, "w");
+    if (!f) {
+        fprintf(stderr, "error: could not open '%s' for writing\n", h_path);
+        return 1;
+    }
+
+    fprintf(f, "#pragma once\n#include \"ext.h\"\n\n");
+
+    // Forward-declare structs
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
+            fprintf(f, "typedef struct %s %s;\n", stmt->data.decl.name->c_str, stmt->data.decl.name->c_str);
+        }
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
+            Str *ename = stmt->data.decl.name;
+            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+            fprintf(f, "typedef enum {\n");
+            I32 tag = 0;
+            for (U32 j = 0; j < ebody->children.count; j++) {
+                Expr *v = expr_child(ebody, j);
+                if (v->data.decl.is_namespace) continue;
+                if (tag > 0) fprintf(f, ",\n");
+                fprintf(f, "    %s_TAG_%s", ename->c_str, v->data.decl.name->c_str);
+                tag++;
+            }
+            fprintf(f, "\n} %s_tag;\n", ename->c_str);
+            fprintf(f, "typedef struct %s %s;\n", ename->c_str, ename->c_str);
+        }
+    }
+    fprintf(f, "\n");
+
+    // Struct definitions with fields
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
+            emit_struct_typedef(f, stmt->data.decl.name, expr_child(stmt, 0), 0);
+            fprintf(f, "\n");
+        }
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
+            Str *ename = stmt->data.decl.name;
+            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+            Bool hp = enum_has_payloads(expr_child(stmt, 0));
+            fprintf(f, "struct %s {\n", ename->c_str);
+            fprintf(f, "    %s_tag tag;\n", ename->c_str);
+            if (hp) {
+                fprintf(f, "    union {\n");
+                for (U32 j = 0; j < ebody->children.count; j++) {
+                    Expr *v = expr_child(ebody, j);
+                    if (v->data.decl.is_namespace) continue;
+                    if (v->data.decl.explicit_type) {
+                        fprintf(f, "        %s %s;\n",
+                                type_name_to_c_value(v->data.decl.explicit_type),
+                                v->data.decl.name->c_str);
+                    }
+                }
+                fprintf(f, "    } data;\n");
+            }
+            fprintf(f, "};\n\n");
+        }
+    }
+
+    // Function forward declarations (namespace methods + top-level)
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
+                                         expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
+            Str *sname = stmt->data.decl.name;
+            Expr *body = expr_child(expr_child(stmt, 0), 0);
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = expr_child(body, j);
+                if (!field->data.decl.is_namespace) continue;
+                if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
+                Expr *fdef = expr_child(field, 0);
+                FuncType fft = fdef->data.func_def.func_type;
+                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                const char *ret = "void";
+                if (fdef->data.func_def.return_type)
+                    ret = type_name_to_c(fdef->data.func_def.return_type);
+                fprintf(f, "%s %s_%s(", ret, sname->c_str, field->data.decl.name->c_str);
+                emit_param_list(f, fdef, 1);
+                fprintf(f, ");\n");
+            }
+        } else if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
+            Expr *func_def = expr_child(stmt, 0);
+            FuncType fft = func_def->data.func_def.func_type;
+            if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+            const char *ret = "void";
+            if (func_def->data.func_def.return_type)
+                ret = type_name_to_c(func_def->data.func_def.return_type);
+            fprintf(f, "%s %s(", ret, func_to_c(stmt->data.decl.name));
+            emit_param_list(f, func_def, 1);
+            fprintf(f, ");\n");
+        }
+    }
+
+    // Enum auto-helper forward declarations (eq, constructors, is_Variant, get_Variant)
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
+            Str *sname = stmt->data.decl.name;
+            Bool hp = enum_has_payloads(expr_child(stmt, 0));
+            fprintf(f, "Bool *%s_eq(%s *, %s *);\n", sname->c_str, sname->c_str, sname->c_str);
+            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+            for (U32 j = 0; j < ebody->children.count; j++) {
+                Expr *v = expr_child(ebody, j);
+                if (v->data.decl.is_namespace) continue;
+                if (hp) {
+                    fprintf(f, "Bool *%s_is_%s(%s *);\n", sname->c_str, v->data.decl.name->c_str, sname->c_str);
+                }
+                if (v->data.decl.explicit_type) {
+                    fprintf(f, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
+                            v->data.decl.name->c_str, type_name_to_c(v->data.decl.explicit_type));
+                    fprintf(f, "%s %s_get_%s(%s *);\n",
+                            type_name_to_c(v->data.decl.explicit_type),
+                            sname->c_str, v->data.decl.name->c_str, sname->c_str);
+                } else {
+                    fprintf(f, "%s *%s_%s();\n", sname->c_str, sname->c_str,
+                            v->data.decl.name->c_str);
+                }
+            }
+        }
+    }
+    fprintf(f, "\n");
+
+    fclose(f);
+    return 0;
+}
+
+// Emit a til type default value for binding generation
+static void emit_til_default(FILE *f, TilType t, Str *struct_name) {
+    switch (t) {
+    case TIL_TYPE_I64: case TIL_TYPE_I16: case TIL_TYPE_I32:
+    case TIL_TYPE_U32: fprintf(f, "0"); break;
+    case TIL_TYPE_U8:   fprintf(f, "0"); break;
+    case TIL_TYPE_BOOL: fprintf(f, "false"); break;
+    case TIL_TYPE_STRUCT:
+    case TIL_TYPE_ENUM:
+        if (struct_name && strcmp(struct_name->c_str, "Str") == 0)
+            fprintf(f, "\"\"");
+        else if (struct_name)
+            fprintf(f, "%s()", struct_name->c_str);
+        else
+            fprintf(f, "0");
+        break;
+    default: fprintf(f, "0"); break;
+    }
+}
+
+I32 build_til_binding(Expr *program, const char *til_path, const char *lib_name) {
+    FILE *f = fopen(til_path, "w");
+    if (!f) {
+        fprintf(stderr, "error: could not open '%s' for writing\n", til_path);
+        return 1;
+    }
+
+    fprintf(f, "// Auto-generated FFI binding for %s\n", lib_name);
+    fprintf(f, "link(\"%s\")\n\n", lib_name);
+
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->is_core) continue;
+        if (stmt->type != NODE_DECL) continue;
+        Expr *rhs = expr_child(stmt, 0);
+        Str *name = stmt->data.decl.name;
+
+        if (rhs->type == NODE_STRUCT_DEF) {
+            Expr *body = expr_child(rhs, 0);
+            fprintf(f, "%s := ext_struct {\n", name->c_str);
+            // Instance fields
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = expr_child(body, j);
+                if (field->data.decl.is_namespace) continue;
+                fprintf(f, "    ");
+                if (field->data.decl.is_mut) fprintf(f, "mut ");
+                if (field->data.decl.is_own) fprintf(f, "own ");
+                fprintf(f, "%s", field->data.decl.name->c_str);
+                if (field->data.decl.explicit_type) {
+                    fprintf(f, " : %s", field->data.decl.explicit_type->c_str);
+                }
+                fprintf(f, " := ");
+                emit_til_default(f, field->til_type, expr_child(field, 0)->struct_name);
+                fprintf(f, "\n");
+            }
+            // Namespace methods
+            Bool has_ns = 0;
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = expr_child(body, j);
+                if (!field->data.decl.is_namespace) continue;
+                if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
+                Expr *fdef = expr_child(field, 0);
+                FuncType fft = fdef->data.func_def.func_type;
+                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                if (!has_ns) { fprintf(f, "    namespace:\n"); has_ns = 1; }
+                const char *kw = (fft == FUNC_PROC || fft == FUNC_TEST) ? "ext_proc" : "ext_func";
+                fprintf(f, "    %s := %s(", field->data.decl.name->c_str, kw);
+                for (U32 p = 0; p < fdef->data.func_def.nparam; p++) {
+                    if (p > 0) fprintf(f, ", ");
+                    if (fdef->data.func_def.param_owns && fdef->data.func_def.param_owns[p])
+                        fprintf(f, "own ");
+                    fprintf(f, "%s: %s", fdef->data.func_def.param_names[p]->c_str,
+                            fdef->data.func_def.param_types[p]->c_str);
+                }
+                fprintf(f, ")");
+                if (fdef->data.func_def.return_type) {
+                    fprintf(f, " returns ");
+                    if (fdef->data.func_def.return_is_ref) fprintf(f, "ref ");
+                    fprintf(f, "%s", fdef->data.func_def.return_type->c_str);
+                }
+                fprintf(f, " {}\n");
+            }
+            fprintf(f, "}\n\n");
+
+        } else if (rhs->type == NODE_ENUM_DEF) {
+            Expr *body = expr_child(rhs, 0);
+            fprintf(f, "%s := enum {\n", name->c_str);
+            // Variants
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *v = expr_child(body, j);
+                if (v->data.decl.is_namespace) continue;
+                fprintf(f, "    %s", v->data.decl.name->c_str);
+                if (v->data.decl.explicit_type)
+                    fprintf(f, ": %s", v->data.decl.explicit_type->c_str);
+                fprintf(f, ",\n");
+            }
+            // Namespace methods (user-defined, not auto-generated)
+            Bool has_ns = 0;
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = expr_child(body, j);
+                if (!field->data.decl.is_namespace) continue;
+                if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
+                Expr *fdef = expr_child(field, 0);
+                FuncType fft = fdef->data.func_def.func_type;
+                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                if (!has_ns) { fprintf(f, "    namespace:\n"); has_ns = 1; }
+                const char *kw = (fft == FUNC_PROC || fft == FUNC_TEST) ? "ext_proc" : "ext_func";
+                fprintf(f, "    %s := %s(", field->data.decl.name->c_str, kw);
+                for (U32 p = 0; p < fdef->data.func_def.nparam; p++) {
+                    if (p > 0) fprintf(f, ", ");
+                    if (fdef->data.func_def.param_owns && fdef->data.func_def.param_owns[p])
+                        fprintf(f, "own ");
+                    fprintf(f, "%s: %s", fdef->data.func_def.param_names[p]->c_str,
+                            fdef->data.func_def.param_types[p]->c_str);
+                }
+                fprintf(f, ")");
+                if (fdef->data.func_def.return_type) {
+                    fprintf(f, " returns ");
+                    if (fdef->data.func_def.return_is_ref) fprintf(f, "ref ");
+                    fprintf(f, "%s", fdef->data.func_def.return_type->c_str);
+                }
+                fprintf(f, " {}\n");
+            }
+            fprintf(f, "}\n\n");
+
+        } else if (rhs->type == NODE_FUNC_DEF) {
+            FuncType fft = rhs->data.func_def.func_type;
+            if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+            if (fft == FUNC_TEST) continue;
+            const char *kw = (fft == FUNC_PROC) ? "ext_proc" : "ext_func";
+            fprintf(f, "%s := %s(", name->c_str, kw);
+            for (U32 p = 0; p < rhs->data.func_def.nparam; p++) {
+                if (p > 0) fprintf(f, ", ");
+                if (rhs->data.func_def.param_owns && rhs->data.func_def.param_owns[p])
+                    fprintf(f, "own ");
+                I32 vi = rhs->data.func_def.variadic_index;
+                if ((I32)p == vi) fprintf(f, "..");
+                fprintf(f, "%s: %s", rhs->data.func_def.param_names[p]->c_str,
+                        rhs->data.func_def.param_types[p]->c_str);
+            }
+            fprintf(f, ")");
+            if (rhs->data.func_def.return_type) {
+                fprintf(f, " returns ");
+                if (rhs->data.func_def.return_is_ref) fprintf(f, "ref ");
+                fprintf(f, "%s", rhs->data.func_def.return_type->c_str);
+            }
+            fprintf(f, " {}\n\n");
+        }
+    }
+
+    fclose(f);
+    return 0;
+}
+
+I32 compile_lib(const char *c_path, const char *lib_name,
+                const char *ext_c_path, const char *user_c_path,
+                const char *link_flags) {
+    // Extract directory from ext_c_path for -I flag
+    char ext_dir[256];
+    const char *last_slash = strrchr(ext_c_path, '/');
+    if (last_slash) {
+        I32 dlen = (I32)(last_slash - ext_c_path);
+        snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
+    } else {
+        snprintf(ext_dir, sizeof(ext_dir), ".");
+    }
+
+    const char *user_part = user_c_path ? user_c_path : "";
+    const char *lf = link_flags ? link_flags : "";
+
+    // Compile library .c to object
+    char obj_path[256];
+    snprintf(obj_path, sizeof(obj_path), "gen/lib/%s.o", lib_name);
+    int len = snprintf(NULL, 0, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
+                       ext_dir, c_path, obj_path);
+    char *cmd = malloc(len + 1);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
+             ext_dir, c_path, obj_path);
+    int result = system(cmd);
+    free(cmd);
+    if (result != 0) {
+        fprintf(stderr, "error: library compilation failed\n");
+        return 1;
+    }
+
+    // Compile ext.c to object
+    char ext_obj[256];
+    snprintf(ext_obj, sizeof(ext_obj), "gen/lib/ext.o");
+    len = snprintf(NULL, 0, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
+                   ext_dir, ext_c_path, ext_obj);
+    cmd = malloc(len + 1);
+    snprintf(cmd, len + 1, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
+             ext_dir, ext_c_path, ext_obj);
+    result = system(cmd);
+    free(cmd);
+    if (result != 0) {
+        fprintf(stderr, "error: ext.c compilation failed\n");
+        return 1;
+    }
+
+    // Compile user .c to object if present
+    char user_obj[256] = "";
+    if (user_c_path) {
+        snprintf(user_obj, sizeof(user_obj), "gen/lib/user.o");
+        len = snprintf(NULL, 0, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
+                       ext_dir, user_c_path, user_obj);
+        cmd = malloc(len + 1);
+        snprintf(cmd, len + 1, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
+                 ext_dir, user_c_path, user_obj);
+        result = system(cmd);
+        free(cmd);
+        if (result != 0) {
+            fprintf(stderr, "error: user .c compilation failed\n");
+            return 1;
+        }
+    }
+
+    // Create shared library
+    char so_path[256];
+    snprintf(so_path, sizeof(so_path), "gen/lib/lib%s.so", lib_name);
+    len = snprintf(NULL, 0, "cc -shared -o %s %s %s %s%s",
+                   so_path, obj_path, ext_obj, user_obj, lf);
+    cmd = malloc(len + 1);
+    snprintf(cmd, len + 1, "cc -shared -o %s %s %s %s%s",
+             so_path, obj_path, ext_obj, user_obj, lf);
+    result = system(cmd);
+    free(cmd);
+    if (result != 0) {
+        fprintf(stderr, "error: shared library creation failed\n");
+        return 1;
+    }
+
+    // Create static library
+    char a_path[256];
+    snprintf(a_path, sizeof(a_path), "gen/lib/lib%s.a", lib_name);
+    len = snprintf(NULL, 0, "ar rcs %s %s %s %s",
+                   a_path, obj_path, ext_obj, user_obj);
+    cmd = malloc(len + 1);
+    snprintf(cmd, len + 1, "ar rcs %s %s %s %s",
+             a_path, obj_path, ext_obj, user_obj);
+    result = system(cmd);
+    free(cmd);
+    if (result != 0) {
+        fprintf(stderr, "error: static library creation failed\n");
+        return 1;
+    }
+
+    (void)user_part;
+    return 0;
+}
+
 I32 compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, const char *user_c_path, const char *link_flags) {
     // Extract directory from ext_c_path for -I flag
     char ext_dir[256];

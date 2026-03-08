@@ -412,7 +412,12 @@ int main(int argc, char **argv) {
     Bool run_tests = strcmp(command, "test") == 0 || (mode == &MODE_TEST) || (mode == &MODE_PURE) || (mode == &MODE_PURA);
 
     precomp(ast);
-    scavenge(ast, mode, run_tests);
+    // Skip scavenging for lib/pure translate/build — all declarations are public API
+    Bool is_lib_target = mode && (strcmp(mode->name, "lib") == 0 || strcmp(mode->name, "liba") == 0 ||
+                                  strcmp(mode->name, "pure") == 0 || strcmp(mode->name, "pura") == 0)
+                              && (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0);
+    if (!is_lib_target)
+        scavenge(ast, mode, run_tests);
 
     I32 result = 0;
 
@@ -472,9 +477,22 @@ int main(int argc, char **argv) {
     char **user_argv = user_argc > 0 ? filtered_argv : NULL;
     const char *lflags = link_flags[0] ? link_flags : NULL;
 
+    Bool is_lib_mode = mode && (strcmp(mode->name, "lib") == 0 || strcmp(mode->name, "liba") == 0);
+    Bool is_lib_output = is_lib_mode || (mode && (strcmp(mode->name, "pure") == 0 || strcmp(mode->name, "pura") == 0));
+
     if (strcmp(command, "interpret") == 0 || strcmp(command, "test") == 0) {
+        if (is_lib_mode && strcmp(command, "interpret") == 0) {
+            fprintf(stderr, "error: cannot interpret a library — use translate or build\n");
+            expr_free(ast); free(tokens); free(source);
+            return 1;
+        }
         result = interpret(ast, mode, run_tests, path, user_c, ext_c_path, lflags, user_argc, user_argv);
     } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
+        if (is_lib_mode && strcmp(command, "run") == 0) {
+            fprintf(stderr, "error: cannot run a library — use translate or build\n");
+            expr_free(ast); free(tokens); free(source);
+            return 1;
+        }
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
         const char *basename = strrchr(path, '/');
         basename = basename ? basename + 1 : path;
@@ -485,16 +503,48 @@ int main(int argc, char **argv) {
         snprintf(c_path, sizeof(c_path), "gen/c/%.*s.c", name_len, basename);
         snprintf(bin_path, sizeof(bin_path), "bin/c/%.*s", name_len, basename);
 
-        system("mkdir -p gen/c bin/c");
+        Bool do_lib = is_lib_output && strcmp(command, "run") != 0;
+
+        if (do_lib)
+            system("mkdir -p gen/c gen/til gen/lib");
+        else
+            system("mkdir -p gen/c bin/c");
 
         result = build(ast, mode, run_tests, path, c_path);
-        if (result == 0 && strcmp(command, "translate") == 0) {
+
+        // For lib/pure translate/build: generate .h header and .til binding
+        if (result == 0 && do_lib) {
+            char h_path[256], til_path[256], lib_name[256];
+            snprintf(h_path, sizeof(h_path), "gen/c/%.*s.h", name_len, basename);
+            snprintf(til_path, sizeof(til_path), "gen/til/%.*s.til", name_len, basename);
+            snprintf(lib_name, sizeof(lib_name), "%.*s", name_len, basename);
+            result = build_header(ast, h_path);
+            if (result == 0)
+                result = build_til_binding(ast, til_path, lib_name);
+            if (result == 0 && strcmp(command, "translate") == 0) {
+                printf("Generated: %s\n", c_path);
+                printf("Generated: %s\n", h_path);
+                printf("Generated: %s\n", til_path);
+            }
+            if (result == 0 && strcmp(command, "build") == 0) {
+                result = compile_lib(c_path, lib_name, ext_c_path, user_c, lflags);
+                if (result == 0) {
+                    printf("Generated: %s\n", c_path);
+                    printf("Generated: %s\n", h_path);
+                    printf("Generated: %s\n", til_path);
+                    printf("Generated: gen/lib/lib%s.so\n", lib_name);
+                    printf("Generated: gen/lib/lib%s.a\n", lib_name);
+                }
+            }
+        }
+
+        if (result == 0 && !do_lib && strcmp(command, "translate") == 0) {
             printf("Generated: %s\n", c_path);
         }
-        if (result == 0 && strcmp(command, "translate") != 0) {
+        if (result == 0 && !do_lib && strcmp(command, "translate") != 0) {
             result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags);
         }
-        if (result == 0 && strcmp(command, "run") == 0) {
+        if (result == 0 && !do_lib && strcmp(command, "run") == 0) {
             // Build command with user args appended
             I32 cmdlen = (int)strlen(bin_path);
             for (U32 i = 0; i < user_argc; i++)
