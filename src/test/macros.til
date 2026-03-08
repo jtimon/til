@@ -52,8 +52,8 @@ macro_is_big := macro(x: I64) returns Bool {
 }
 
 test_macro_bool := test() {
-    expect(__LOC__, macro_is_big(200), "200 is big")
-    expect(__LOC__, macro_is_big(50).not(), "50 is not big")
+    test_expect(__LOC__, macro_is_big(200), "200 is big")
+    test_expect(__LOC__, macro_is_big(50).not(), "50 is not big")
 }
 
 # --- constant folding for pure funcs ---

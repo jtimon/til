@@ -84,6 +84,10 @@ ref val : I64 = vec.get(0)
 *** NULL
 
 No null in til. Use sentinels:
+- Optional strings: ~""~ (empty string)
+- Optional indices: ~0.sub(1)~ (i.e. -1)
+- Optional struct pointers: not stored (use Vec/children length to
+  check presence, e.g. Return has 0 or 1 children)
 
 #+begin_src c
 Expr *def_val = NULL;
@@ -94,7 +98,6 @@ if (def_val != NULL) { ... }
 NONE := 0.sub(1)
 mut def_val := NONE
 if def_val.neq(NONE) { ... }
-// for optional strings, use ""
 #+end_src
 
 *** Low-level memory
@@ -224,6 +227,9 @@ Point := struct {
 // access: Point.count
 #+end_src
 
+UFCS chains work naturally: ~obj.field.method(args)~ desugars to
+~Type.method(obj.field, args)~. The receiver becomes the first argument.
+
 *** Auto-generated methods
 
 Structs automatically get ~.clone()~, ~.delete()~, ~.to_str()~, ~.eq()~
@@ -269,6 +275,10 @@ if t.is_Num() { println(t.get_Num().to_str()) }
 #+end_src
 
 Auto-generated: ~.is_Variant()~, ~.get_Variant()~, ~.to_str()~, ~.eq()~.
+
+Note: tagged enums store payloads inline (like C unions — uses
+~max(variant sizes)~ plus alignment padding). ~get_Variant()~ returns
+an owned clone of the payload, not a reference into the enum's data.
 
 *** Enum with methods
 
@@ -468,9 +478,12 @@ v.count;
 #+begin_src til
 v := Vec.new("I64", I64.size())
 v.push(own val)
-ref elem : I64 = v.get(i)
+ref elem : I64 = v.get(i)   // ref + type annotation required
 v.len()
 #+end_src
+
+~Vec.get~ returns ~ref Dynamic~ — the result must be bound with ~ref~
+and a type annotation so the typer knows the concrete type.
 
 *** Map (sorted key-value)
 

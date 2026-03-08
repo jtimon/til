@@ -25,19 +25,19 @@ Color := enum {
 }
 
 test_add := test() {
-    expect(__LOC__, add(2, 3).eq(5), "2+3=5")
+    test_expect(__LOC__, add(2, 3).eq(5), "2+3=5")
 }
 
 test_double := test() {
-    expect(__LOC__, double(21).eq(42), "21*2=42")
+    test_expect(__LOC__, double(21).eq(42), "21*2=42")
 }
 
 test_struct_func := test() {
     p := Point(x=3, y=4)
-    expect(__LOC__, p.sum().eq(7), "3+4=7")
+    test_expect(__LOC__, p.sum().eq(7), "3+4=7")
 }
 
 test_enum := test() {
     c := Color.Red
-    expect(__LOC__, c.eq(Color.Red), "Red==Red")
+    test_expect(__LOC__, c.eq(Color.Red), "Red==Red")
 }

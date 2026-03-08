@@ -245,6 +245,9 @@ main := proc(args: ..Str) {
     c_common.push(own "src/test/splat.til")
     c_common.push(own "src/test/lexing.til")
 
+    c_codegen := Vec.new("Str", Str.size())
+    c_codegen.push(own "src/test/parsing.til")
+
     c_interpreted := Vec.new("Str", Str.size())
 
     // Build results Vec (one TestFile per file)
@@ -253,6 +256,12 @@ main := proc(args: ..Str) {
     while ri.lt(c_common.len()) {
         ref f : Str = c_common.get(ri)
         results.push(own TestFile(file = f.clone(), has_interp = 1, has_run = 1))
+        ri = ri.add(1)
+    }
+    ri = 0
+    while ri.lt(c_codegen.len()) {
+        ref f : Str = c_codegen.get(ri)
+        results.push(own TestFile(file = f.clone(), has_run = 1))
         ri = ri.add(1)
     }
     ri = 0
@@ -274,10 +283,18 @@ main := proc(args: ..Str) {
         ji = ji.add(1)
         fi = fi.add(1)
     }
+    mut cgi := 0
+    while cgi.lt(c_codegen.len()) {
+        ref f : Str = c_codegen.get(cgi)
+        ridx := c_common.len().add(cgi)
+        jobs.push(own Job(file = f.clone(), tmode = "run", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = ridx))
+        ji = ji.add(1)
+        cgi = cgi.add(1)
+    }
     mut ii := 0
     while ii.lt(c_interpreted.len()) {
         ref f : Str = c_interpreted.get(ii)
-        ridx := c_common.len().add(ii)
+        ridx := c_common.len().add(c_codegen.len()).add(ii)
         jobs.push(own Job(file = f.clone(), tmode = "interpret", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = ridx))
         ji = ji.add(1)
         ii = ii.add(1)

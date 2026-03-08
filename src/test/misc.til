@@ -3,10 +3,10 @@ mode test
 test_loc_directives := test() {
     // __LOC__ returns "file:line:col" string
     loc := __LOC__
-    expect(__LOC__, loc.find("misc.til").neq(0.sub(1)), "__LOC__ contains filename")
+    test_expect(__LOC__, loc.find("misc.til").neq(0.sub(1)), "__LOC__ contains filename")
 
     // __FILE__ returns file path string
-    expect(__LOC__, __FILE__.find("misc.til").neq(0.sub(1)), "__FILE__ contains filename")
+    test_expect(__LOC__, __FILE__.find("misc.til").neq(0.sub(1)), "__FILE__ contains filename")
 
     // __LINE__ returns I64
     line := __LINE__
@@ -28,17 +28,17 @@ test_dyn_has_method := test() {
     assert_eq(__LOC__, 1.clone(), 1)
     assert_eq_str(__LOC__, "hi".clone(), "hi")
 
-    expect(__LOC__, dyn_has_method("I64", "delete"), "I64 has delete")
-    expect(__LOC__, dyn_has_method("I64", "clone"), "I64 has clone")
-    expect(__LOC__, dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
-    expect(__LOC__, dyn_has_method("Str", "delete"), "Str has delete")
-    expect(__LOC__, dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
-    expect(__LOC__, dyn_has_method("Bool", "eq"), "Bool has eq")
-    expect(__LOC__, dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
+    test_expect(__LOC__, dyn_has_method("I64", "delete"), "I64 has delete")
+    test_expect(__LOC__, dyn_has_method("I64", "clone"), "I64 has clone")
+    test_expect(__LOC__, dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
+    test_expect(__LOC__, dyn_has_method("Str", "delete"), "Str has delete")
+    test_expect(__LOC__, dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
+    test_expect(__LOC__, dyn_has_method("Bool", "eq"), "Bool has eq")
+    test_expect(__LOC__, dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
     f := Foo(x=0)
     assert_eq(__LOC__, f.bar(), 0)
-    expect(__LOC__, dyn_has_method("Foo", "bar"), "Foo has bar")
-    expect(__LOC__, dyn_has_method("Foo", "baz").not(), "Foo no baz")
+    test_expect(__LOC__, dyn_has_method("Foo", "bar"), "Foo has bar")
+    test_expect(__LOC__, dyn_has_method("Foo", "baz").not(), "Foo no baz")
 }
 
 test_cmp := test() {

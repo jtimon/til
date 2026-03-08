@@ -337,7 +337,7 @@ assert := func(loc_str: Str, cond: Bool) returns Bool {
     return assertm(loc_str, cond)
 }
 
-expect := proc(loc_str: Str, cond: Bool, parts: ..Str) {
+test_expect := proc(loc_str: Str, cond: Bool, parts: ..Str) {
     assertm(loc_str, cond, ..parts)
 }
 

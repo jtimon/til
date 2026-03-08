@@ -1080,6 +1080,17 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 if (def_val->type == NODE_LITERAL_NUM) ftype = Str_new("I64");
                 else if (def_val->type == NODE_LITERAL_STR) ftype = Str_new("Str");
                 else if (def_val->type == NODE_LITERAL_BOOL) ftype = Str_new("Bool");
+                // EnumType.Variant → type is the enum name (child ident)
+                else if (def_val->type == NODE_FIELD_ACCESS && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type == NODE_IDENT)
+                    ftype = Str_clone(expr_child(def_val, 0)->data.str_val);
+                // Type.method(...) → type is the receiver name (e.g. Vec.new(...))
+                else if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type == NODE_FIELD_ACCESS) {
+                    Expr *callee = expr_child(def_val, 0);
+                    if (callee->children.count > 0 && expr_child(callee, 0)->type == NODE_IDENT)
+                        ftype = Str_clone(expr_child(callee, 0)->data.str_val);
+                }
             }
             if (!ftype) ftype = Str_new("I64"); // fallback
             Vec_push(&field_types, &ftype);

@@ -1,0 +1,168 @@
+mode lib
+
+// --- NodeType enum ---
+// Matches ast.h NodeType (NODE_* → PascalCase)
+
+NodeType := enum {
+    Body,
+    LiteralStr, LiteralNum, LiteralBool,
+    Ident,
+    Decl, Assign,
+    FCall, FuncDef,
+    StructDef, EnumDef,
+    FieldAccess, FieldAssign,
+    Return, If, While, ForIn,
+    NamedArg,
+    Break, Continue,
+    MapLit, SetLit,
+    Switch, Case,
+}
+
+node_type_name := func(t: NodeType) returns Str {
+    switch t {
+    case NodeType.Body: return "body"
+    case NodeType.LiteralStr: return "str"
+    case NodeType.LiteralNum: return "num"
+    case NodeType.LiteralBool: return "bool"
+    case NodeType.Ident: return "ident"
+    case NodeType.Decl: return "decl"
+    case NodeType.Assign: return "assign"
+    case NodeType.FCall: return "fcall"
+    case NodeType.FuncDef: return "func_def"
+    case NodeType.StructDef: return "struct_def"
+    case NodeType.EnumDef: return "enum_def"
+    case NodeType.FieldAccess: return "field_access"
+    case NodeType.FieldAssign: return "field_assign"
+    case NodeType.Return: return "return"
+    case NodeType.If: return "if"
+    case NodeType.While: return "while"
+    case NodeType.ForIn: return "for_in"
+    case NodeType.NamedArg: return "named_arg"
+    case NodeType.Break: return "break"
+    case NodeType.Continue: return "continue"
+    case NodeType.MapLit: return "map_lit"
+    case NodeType.SetLit: return "set_lit"
+    case NodeType.Switch: return "switch"
+    case NodeType.Case: return "case"
+    case: return "?"
+    }
+}
+
+// --- FuncType enum ---
+
+FuncType := enum {
+    Func, Proc, Test, Macro, ExtFunc, ExtProc,
+}
+
+func_type_name := func(ft: FuncType) returns Str {
+    switch ft {
+    case FuncType.Func: return "func"
+    case FuncType.Proc: return "proc"
+    case FuncType.Test: return "test"
+    case FuncType.Macro: return "macro"
+    case FuncType.ExtFunc: return "ext_func"
+    case FuncType.ExtProc: return "ext_proc"
+    case: return "?"
+    }
+}
+
+// --- TilType enum ---
+// Resolved type annotation (filled in by typer pass)
+
+TilType := enum {
+    Unknown, None,
+    TypeI64, TypeU8, TypeI16, TypeI32, TypeU32, TypeBool,
+    TypeStruct, TypeStructDef,
+    TypeEnum, TypeEnumDef,
+    TypeFuncDef, TypeDynamic,
+}
+
+// --- DeclData struct ---
+// Fields from C's data.decl union member
+
+DeclData := struct {
+    mut name := ""
+    mut explicit_type := ""
+    mut is_mut := false
+    mut is_namespace := false
+    mut is_ref := false
+    mut is_own := false
+    mut field_offset := 0
+    mut field_size := 0
+    namespace:
+    eq := func(a: DeclData, b: DeclData) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: DeclData) returns Str { return self.name }
+}
+
+// --- FuncDefData struct ---
+// Fields from C's data.func_def union member
+
+FuncDefData := struct {
+    mut func_type := FuncType.Func
+    mut return_type := ""
+    mut return_is_ref := false
+    mut variadic_index := 0.sub(1)
+    mut param_names := Vec.new("Str", Str.size())
+    mut param_types := Vec.new("Str", Str.size())
+    mut param_muts := Vec.new("Bool", Bool.size())
+    mut param_owns := Vec.new("Bool", Bool.size())
+    // param_defaults: Vec of I64, each entry is index into Expr children
+    // or -1 if no default. Actual default Expr nodes stored as children
+    // of the FuncDef node after the body child.
+    mut param_defaults := Vec.new("I64", I64.size())
+    namespace:
+    eq := func(a: FuncDefData, b: FuncDefData) returns Bool { return a.return_type.eq(b.return_type) }
+    to_str := func(self: FuncDefData) returns Str { return self.return_type }
+}
+
+// --- ExprData tagged enum ---
+// Replaces C union { str_val, decl, func_def }
+
+NONE := 0.sub(1)
+
+ExprData := enum {
+    StrVal: Str,
+    Decl: DeclData,
+    FuncDef: FuncDefData,
+    None,
+}
+
+// --- Expr struct ---
+
+Expr := struct {
+    mut type := NodeType.Body
+    mut til_type := TilType.Unknown
+    mut data := ExprData.None
+
+    mut struct_name := ""
+    mut is_own_arg := false
+    mut is_splat := false
+    mut is_own_field := false
+    mut is_ns_field := false
+    mut is_ext := false
+    mut is_core := false
+
+    mut total_struct_size := 0
+    mut variadic_index := 0.sub(1)
+    mut variadic_count := 0
+
+    mut children := Vec.new("Expr", Expr.size())
+    mut line := 0
+    mut col := 0
+    mut path := ""
+}
+
+// --- Expr helpers ---
+
+expr_new := proc(type: NodeType, line: I64, col: I64, path: Str) returns Expr {
+    return Expr(type = type, line = line, col = col, path = path)
+}
+
+expr_add_child := proc(mut parent: Expr, own child: Expr) {
+    parent.children.push(own child)
+}
+
+expr_child := func(parent: Expr, i: I64) returns ref Expr {
+    ref c : Expr = parent.children.get(i)
+    return c
+}

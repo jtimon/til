@@ -161,6 +161,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     case NODE_STRUCT_DEF:
     case NODE_ENUM_DEF: {
         e->til_type = TIL_TYPE_NONE;
+        // Reject ref payloads in tagged enum variants
+        if (e->type == NODE_ENUM_DEF) {
+            Expr *body = expr_child(e, 0);
+            for (U32 vi = 0; vi < body->children.count; vi++) {
+                Expr *v = expr_child(body, vi);
+                if (v->type == NODE_DECL && !v->data.decl.is_namespace &&
+                    v->data.decl.explicit_type && v->data.decl.is_ref) {
+                    type_error(v, "ref payloads in tagged enum variants are not supported");
+                }
+            }
+        }
         // Type-check field declarations in a child scope so fields
         // don't leak into outer scope's locals for free-call insertion
         TypeScope *inner = tscope_new(scope);
@@ -1889,7 +1900,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     Vec locals_vec = Vec_new(sizeof(LocalInfo));
     for (U32 i = 0; i < Map_len(&scope->bindings); i++) {
         TypeBinding *b = (TypeBinding *)Vec_get(&scope->bindings.vals, i);
-        if ((b->is_param && !b->is_own) || b->struct_def || b->func_def || b->is_ref) continue;
+        if ((b->is_param && !b->is_own) || b->struct_def || b->func_def) continue;
 
         // Find decl_index: direct child first, then nested
         I32 decl_idx = -1;
@@ -1936,6 +1947,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 }
             }
         }
+        // Ref bindings don't own their data — never delete, but track for lifetime extension
+        if (b->is_ref) skip_delete = 1;
 
         LocalInfo li = {b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer, skip_delete};
         Vec_push(&locals_vec, &li);
@@ -1946,41 +1959,55 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     LocalInfo *locals = Vec_take(&locals_vec);
 
     // Extend lifetimes for args to ref-returning calls:
-    // If ref m := f(x, y), then x and y must outlive m
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = expr_child(body, i);
-        if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
-        Expr *rhs = expr_child(stmt, 0);
-        if (rhs->type == NODE_IDENT) {
-            // Direct alias: source must outlive alias
+    // If ref m := f(x, y), then x and y must outlive m.
+    // Use fixed-point iteration to propagate through ref chains:
+    // ref a = f(owner.x) → owner extended to a's last use
+    // ref b = g(a.y)     → a extended to b's last use → owner extended too
+    Bool ref_changed = 1;
+    while (ref_changed) {
+        ref_changed = 0;
+        for (U32 i = 0; i < body->children.count; i++) {
+            Expr *stmt = expr_child(body, i);
+            if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
+            Expr *rhs = expr_child(stmt, 0);
+
+            // Compute ref_last: max of AST uses and extended last_use in locals
             I32 ref_last = -1;
             for (U32 j = i + 1; j < body->children.count; j++) {
                 if (expr_uses_var(expr_child(body, j), stmt->data.decl.name))
                     ref_last = j;
             }
             if (ref_last == -1) ref_last = i;
-            Str *src_name = rhs->data.str_val;
             for (U32 j = 0; j < n_locals; j++) {
-                if (Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last)
-                    locals[j].last_use = ref_last;
+                if (Str_eq(locals[j].name, stmt->data.decl.name) && locals[j].last_use > ref_last)
+                    ref_last = locals[j].last_use;
             }
-            continue;
-        }
-        if (rhs->type != NODE_FCALL) continue;
-        // Find ref var's last_use (scan forward from decl)
-        I32 ref_last = -1;
-        for (U32 j = i + 1; j < body->children.count; j++) {
-            if (expr_uses_var(expr_child(body, j), stmt->data.decl.name))
-                ref_last = j;
-        }
-        if (ref_last == -1) ref_last = i; // at least until the decl itself
-        // Extend last_use of all ident args in the fcall
-        for (U32 a = 1; a < rhs->children.count; a++) {
-            if (expr_child(rhs, a)->type != NODE_IDENT) continue;
-            Str *aname = expr_child(rhs, a)->data.str_val;
-            for (U32 j = 0; j < n_locals; j++) {
-                if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
-                    locals[j].last_use = ref_last;
+
+            if (rhs->type == NODE_IDENT) {
+                // Direct alias: source must outlive alias
+                Str *src_name = rhs->data.str_val;
+                for (U32 j = 0; j < n_locals; j++) {
+                    if (Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last) {
+                        locals[j].last_use = ref_last;
+                        ref_changed = 1;
+                    }
+                }
+                continue;
+            }
+            if (rhs->type != NODE_FCALL) continue;
+            // Extend last_use of all ident args in the fcall
+            // Walk field-access chains to find root ident (e.g. root.children → root)
+            for (U32 a = 1; a < rhs->children.count; a++) {
+                Expr *arg = expr_child(rhs, a);
+                while (arg->type == NODE_FIELD_ACCESS && arg->children.count > 0)
+                    arg = expr_child(arg, 0);
+                if (arg->type != NODE_IDENT) continue;
+                Str *aname = arg->data.str_val;
+                for (U32 j = 0; j < n_locals; j++) {
+                    if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
+                        locals[j].last_use = ref_last;
+                        ref_changed = 1;
+                    }
                 }
             }
         }

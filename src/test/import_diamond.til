@@ -3,6 +3,6 @@ import("import_diamond_b.til")
 import("import_diamond_c.til")
 
 // Both B and C import D, but D should only be included once
-expect(__LOC__, from_b().eq(42), "from_b")
-expect(__LOC__, from_c().eq(42), "from_c")
-expect(__LOC__, SHARED_VAL.eq(42), "SHARED_VAL direct")
+test_expect(__LOC__, from_b().eq(42), "from_b")
+test_expect(__LOC__, from_c().eq(42), "from_c")
+test_expect(__LOC__, SHARED_VAL.eq(42), "SHARED_VAL direct")

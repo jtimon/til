@@ -246,6 +246,24 @@ static const char *type_name_to_c(Str *name) {
     return buf;
 }
 
+// Like type_name_to_c but without pointer — for inline union fields
+static const char *type_name_to_c_value(Str *name) {
+    if (Str_eq_c(name, "I64"))  return "til_I64";
+    if (Str_eq_c(name, "U8"))   return "til_U8";
+    if (Str_eq_c(name, "I16"))  return "til_I16";
+    if (Str_eq_c(name, "I32"))  return "til_I32";
+    if (Str_eq_c(name, "U32"))  return "til_U32";
+    if (Str_eq_c(name, "Bool")) return "til_Bool";
+    static char buf2[128];
+    snprintf(buf2, sizeof(buf2), "til_%s", name->c_str);
+    return buf2;
+}
+
+static Bool is_primitive_type(Str *name) {
+    return Str_eq_c(name, "I64") || Str_eq_c(name, "U8") || Str_eq_c(name, "I16") ||
+           Str_eq_c(name, "I32") || Str_eq_c(name, "U32") || Str_eq_c(name, "Bool");
+}
+
 // Emit a function parameter list (with variadic support)
 static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
     U32 np = fdef->data.func_def.nparam;
@@ -736,6 +754,19 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def) {
         Expr *fdef = expr_child(field, 0);
         FuncType fft = fdef->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+        // Emit size() as sizeof — the initer's computed sum doesn't account for
+        // C alignment padding or union semantics in tagged enums
+        if (Str_eq_c(field->data.decl.name, "size") &&
+            fdef->data.func_def.nparam == 0 &&
+            fdef->data.func_def.return_type &&
+            Str_eq_c(fdef->data.func_def.return_type, "I64")) {
+            fprintf(f, "til_I64 *til_%s_size(void) {\n", name->c_str);
+            fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64));\n");
+            fprintf(f, "    *r = (til_I64)sizeof(til_%s);\n", name->c_str);
+            fprintf(f, "    return r;\n");
+            fprintf(f, "}\n\n");
+            continue;
+        }
         char full_name_buf[256];
         snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->data.decl.name->c_str);
         Str *full_name = Str_new(full_name_buf);
@@ -811,21 +842,13 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             fprintf(f, "til_%s *til_%s_%s(%s val) {\n", name->c_str, name->c_str, vn->c_str, ptype);
             fprintf(f, "    til_%s *r = malloc(sizeof(til_%s));\n", name->c_str, name->c_str);
             fprintf(f, "    r->tag = til_%s_TAG_%s;\n", name->c_str, vn->c_str);
-            // Clone the payload to take ownership
-            if (Str_eq_c(vt, "I64")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_I64)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
-            } else if (Str_eq_c(vt, "U8")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_U8)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
-            } else if (Str_eq_c(vt, "I16")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_I16)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
-            } else if (Str_eq_c(vt, "I32")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_I32)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
-            } else if (Str_eq_c(vt, "U32")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_U32)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
-            } else if (Str_eq_c(vt, "Bool")) {
-                fprintf(f, "    r->data.%s = malloc(sizeof(til_Bool)); *r->data.%s = *val;\n", vn->c_str, vn->c_str);
+            // Store payload inline (by value)
+            if (is_primitive_type(vt)) {
+                fprintf(f, "    r->data.%s = *val;\n", vn->c_str);
             } else {
-                fprintf(f, "    r->data.%s = til_%s_clone(val);\n", vn->c_str, vt->c_str);
+                // Struct/enum: clone into inline storage
+                fprintf(f, "    { %s _tmp = til_%s_clone(val); r->data.%s = *_tmp; free(_tmp); }\n",
+                        type_name_to_c(vt), vt->c_str, vn->c_str);
             }
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n");
@@ -848,22 +871,13 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             if (!vt) continue;
             const char *ptype = type_name_to_c(vt);
             fprintf(f, "%s til_%s_get_%s(til_%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
-            // Clone the payload
-            if (Str_eq_c(vt, "I64")) {
-                fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64)); *r = *self->data.%s; return r;\n", vn->c_str);
-            } else if (Str_eq_c(vt, "U8")) {
-                fprintf(f, "    til_U8 *r = malloc(sizeof(til_U8)); *r = *self->data.%s; return r;\n", vn->c_str);
-            } else if (Str_eq_c(vt, "I16")) {
-                fprintf(f, "    til_I16 *r = malloc(sizeof(til_I16)); *r = *self->data.%s; return r;\n", vn->c_str);
-            } else if (Str_eq_c(vt, "I32")) {
-                fprintf(f, "    til_I32 *r = malloc(sizeof(til_I32)); *r = *self->data.%s; return r;\n", vn->c_str);
-            } else if (Str_eq_c(vt, "U32")) {
-                fprintf(f, "    til_U32 *r = malloc(sizeof(til_U32)); *r = *self->data.%s; return r;\n", vn->c_str);
-            } else if (Str_eq_c(vt, "Bool")) {
-                fprintf(f, "    til_Bool *r = malloc(sizeof(til_Bool)); *r = *self->data.%s; return r;\n", vn->c_str);
+            // Read from inline storage
+            if (is_primitive_type(vt)) {
+                fprintf(f, "    %s r = malloc(sizeof(%s)); *r = self->data.%s; return r;\n",
+                        ptype, type_name_to_c_value(vt), vn->c_str);
             } else {
-                // Struct/enum type — call clone
-                fprintf(f, "    return til_%s_clone(self->data.%s);\n", vt->c_str, vn->c_str);
+                // Struct/enum: clone from inline address
+                fprintf(f, "    return til_%s_clone(&self->data.%s);\n", vt->c_str, vn->c_str);
             }
             fprintf(f, "}\n");
         }
@@ -880,6 +894,18 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         Expr *fdef = expr_child(field, 0);
         FuncType fft = fdef->data.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+        // Emit size() as sizeof (same as struct_funcs)
+        if (Str_eq_c(field->data.decl.name, "size") &&
+            fdef->data.func_def.nparam == 0 &&
+            fdef->data.func_def.return_type &&
+            Str_eq_c(fdef->data.func_def.return_type, "I64")) {
+            fprintf(f, "til_I64 *til_%s_size(void) {\n", name->c_str);
+            fprintf(f, "    til_I64 *r = malloc(sizeof(til_I64));\n");
+            fprintf(f, "    *r = (til_I64)sizeof(til_%s);\n", name->c_str);
+            fprintf(f, "    return r;\n");
+            fprintf(f, "}\n\n");
+            continue;
+        }
         char full_name_buf[256];
         snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->data.decl.name->c_str);
         Str *full_name = Str_new(full_name_buf);
@@ -924,37 +950,20 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         }
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
             Str *ename = stmt->data.decl.name;
-            {
-                // All enums: tag enum + struct
-                Expr *ebody = expr_child(expr_child(stmt, 0), 0);
-                Bool hp = enum_has_payloads(expr_child(stmt, 0));
-                fprintf(f, "typedef enum {\n");
-                I32 tag = 0;
-                for (U32 j = 0; j < ebody->children.count; j++) {
-                    Expr *v = expr_child(ebody, j);
-                    if (v->data.decl.is_namespace) continue;
-                    if (tag > 0) fprintf(f, ",\n");
-                    fprintf(f, "    til_%s_TAG_%s", ename->c_str, v->data.decl.name->c_str);
-                    tag++;
-                }
-                fprintf(f, "\n} til_%s_tag;\n", ename->c_str);
-                fprintf(f, "typedef struct til_%s {\n", ename->c_str);
-                fprintf(f, "    til_%s_tag tag;\n", ename->c_str);
-                if (hp) {
-                    fprintf(f, "    union {\n");
-                    for (U32 j = 0; j < ebody->children.count; j++) {
-                        Expr *v = expr_child(ebody, j);
-                        if (v->data.decl.is_namespace) continue;
-                        if (v->data.decl.explicit_type) {
-                            fprintf(f, "        %s %s;\n",
-                                    type_name_to_c(v->data.decl.explicit_type),
-                                    v->data.decl.name->c_str);
-                        }
-                    }
-                    fprintf(f, "    } data;\n");
-                }
-                fprintf(f, "} til_%s;\n", ename->c_str);
+            // Emit tag enum only; struct definition deferred to after struct typedefs
+            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+            fprintf(f, "typedef enum {\n");
+            I32 tag = 0;
+            for (U32 j = 0; j < ebody->children.count; j++) {
+                Expr *v = expr_child(ebody, j);
+                if (v->data.decl.is_namespace) continue;
+                if (tag > 0) fprintf(f, ",\n");
+                fprintf(f, "    til_%s_TAG_%s", ename->c_str, v->data.decl.name->c_str);
+                tag++;
             }
+            fprintf(f, "\n} til_%s_tag;\n", ename->c_str);
+            // Forward-declare enum struct
+            fprintf(f, "typedef struct til_%s til_%s;\n", ename->c_str, ename->c_str);
         }
     }
     fprintf(f, "\n");
@@ -1099,12 +1108,33 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
         Vec_delete(&coll_infos);
     }
 
-    // Emit struct typedefs only (no function bodies)
+    // Emit struct + enum struct typedefs in source order (so payload types are defined first)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             emit_struct_typedef(f, stmt->data.decl.name, expr_child(stmt, 0), stmt->is_core);
             fprintf(f, "\n");
+        }
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
+            Str *ename = stmt->data.decl.name;
+            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+            Bool hp = enum_has_payloads(expr_child(stmt, 0));
+            fprintf(f, "struct til_%s {\n", ename->c_str);
+            fprintf(f, "    til_%s_tag tag;\n", ename->c_str);
+            if (hp) {
+                fprintf(f, "    union {\n");
+                for (U32 j = 0; j < ebody->children.count; j++) {
+                    Expr *v = expr_child(ebody, j);
+                    if (v->data.decl.is_namespace) continue;
+                    if (v->data.decl.explicit_type) {
+                        fprintf(f, "        %s %s;\n",
+                                type_name_to_c_value(v->data.decl.explicit_type),
+                                v->data.decl.name->c_str);
+                    }
+                }
+                fprintf(f, "    } data;\n");
+            }
+            fprintf(f, "};\n\n");
         }
     }
 

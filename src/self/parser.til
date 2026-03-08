@@ -1,0 +1,786 @@
+mode lib
+
+import("lexer.til")
+import("ast.til")
+
+// --- Parser state ---
+
+Parser := struct {
+    mut tokens := Vec.new("Token", Token.size())
+    mut count := 0
+    mut pos := 0
+    mut path := ""
+}
+
+peek := func(p: Parser) returns ref Token {
+    ref t : Token = p.tokens.get(p.pos)
+    return t
+}
+
+advance := proc(mut p: Parser) returns ref Token {
+    ref t : Token = p.tokens.get(p.pos)
+    if t.type.eq(TokenType.Eof).not() {
+        p.pos = p.pos.add(1)
+    }
+    return t
+}
+
+check := func(p: Parser, type: TokenType) returns Bool {
+    return peek(p).type.eq(type)
+}
+
+expect := proc(mut p: Parser, type: TokenType) {
+    ref t : Token = peek(p)
+    if t.type.eq(type).not() {
+        panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
+            ": expected '", tok_name(type), "', found '", t.text, "'")
+    }
+    advance(p)
+}
+
+// Like expect but returns the text of the consumed token
+expect_text := proc(mut p: Parser, type: TokenType) returns Str {
+    ref t : Token = peek(p)
+    if t.type.eq(type).not() {
+        panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
+            ": expected '", tok_name(type), "', found '", t.text, "'")
+    }
+    text := t.text.clone()
+    advance(p)
+    return text
+}
+
+// Save line/col before advancing
+peek_line := func(p: Parser) returns I64 { return peek(p).line }
+peek_col := func(p: Parser) returns I64 { return peek(p).col }
+
+// --- Parsing functions ---
+
+// parse_block: expects '{' already consumed, reads statements until '}'
+parse_block := proc(mut p: Parser) returns Expr {
+    mut body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        expr_add_child(body, own parse_statement(p))
+    }
+    expect(p, TokenType.RBrace)
+    return body
+}
+
+// parse_func_def: current token is func/proc/etc keyword
+parse_func_def := proc(mut p: Parser) returns Expr {
+    kw_line := peek_line(p)
+    kw_col := peek_col(p)
+    ref kw : Token = advance(p)
+    mut ft := FuncType.Func
+    switch kw.type {
+    case TokenType.KwFunc: ft = FuncType.Func
+    case TokenType.KwProc: ft = FuncType.Proc
+    case TokenType.KwTest: ft = FuncType.Test
+    case TokenType.KwMacro: ft = FuncType.Macro
+    case TokenType.KwExtFunc: ft = FuncType.ExtFunc
+    case TokenType.KwExtProc: ft = FuncType.ExtProc
+    case: panic(__LOC__, "expected function keyword")
+    }
+
+    expect(p, TokenType.LParen)
+
+    mut fd := FuncDefData()
+    fd.func_type = ft
+    mut def_exprs := Vec.new("Expr", Expr.size())
+
+    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+        mut is_own := false
+        if check(p, TokenType.KwOwn) { advance(p); is_own = true }
+        mut is_mut := false
+        if check(p, TokenType.KwMut) { advance(p); is_mut = true }
+
+        pname := expect_text(p, TokenType.Ident)
+        expect(p, TokenType.Colon)
+
+        mut is_variadic := false
+        if check(p, TokenType.DotDot) {
+            advance(p)
+            if is_own { panic(__LOC__, "variadic param cannot be 'own'") }
+            if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
+            if fd.variadic_index.neq(0.sub(1)) { panic(__LOC__, "only one variadic param allowed") }
+            fd.variadic_index = fd.param_names.len()
+            is_variadic = true
+        }
+
+        ptype := expect_text(p, TokenType.Ident)
+        fd.param_names.push(own pname)
+        fd.param_types.push(own ptype)
+        fd.param_muts.push(own is_mut)
+        fd.param_owns.push(own is_own)
+
+        // Optional default value
+        mut has_default := 0.sub(1)
+        if check(p, TokenType.Eq) {
+            advance(p)
+            has_default = def_exprs.len()
+            def_expr := parse_expression(p)
+            def_exprs.push(own def_expr)
+        }
+        if fd.variadic_index.neq(0.sub(1)).and(is_variadic.not()).and(has_default.eq(0.sub(1))) {
+            panic(__LOC__, "positional param not allowed after variadic")
+        }
+        fd.param_defaults.push(own has_default)
+        if check(p, TokenType.Comma) { advance(p) }
+    }
+    expect(p, TokenType.RParen)
+
+    // Parse optional 'returns [ref] Type'
+    if check(p, TokenType.KwReturns) {
+        advance(p)
+        if check(p, TokenType.KwRef) {
+            advance(p)
+            fd.return_is_ref = true
+        }
+        fd.return_type = expect_text(p, TokenType.Ident)
+    }
+
+    mut def := expr_new(NodeType.FuncDef, kw_line, kw_col, p.path)
+    def.data = ExprData.FuncDef(fd)
+
+    expect(p, TokenType.LBrace)
+    expr_add_child(def, own parse_block(p))
+
+    // Append default value expressions as additional children
+    for i in 0..def_exprs.len() {
+        ref de : Expr = def_exprs.get(i)
+        expr_add_child(def, own de.clone())
+    }
+
+    return def
+}
+
+// parse_struct_def: current token is 'struct' or 'ext_struct'
+parse_struct_def := proc(mut p: Parser) returns Expr {
+    kw_line := peek_line(p)
+    kw_col := peek_col(p)
+    is_ext := check(p, TokenType.KwExtStruct)
+    advance(p)
+
+    mut def := expr_new(NodeType.StructDef, kw_line, kw_col, p.path)
+    def.is_ext = is_ext
+    expect(p, TokenType.LBrace)
+
+    mut body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+    mut in_namespace := false
+    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        if check(p, TokenType.KwNamespace) {
+            advance(p)
+            expect(p, TokenType.Colon)
+            in_namespace = true
+            continue
+        }
+        mut stmt := parse_statement(p)
+        if in_namespace.and(stmt.type.eq(NodeType.Decl)) {
+            if stmt.data.is_Decl() {
+                mut dd := stmt.data.get_Decl()
+                dd.is_namespace = true
+                stmt.data = ExprData.Decl(dd)
+            }
+        }
+        expr_add_child(body, own stmt)
+    }
+    expect(p, TokenType.RBrace)
+    expr_add_child(def, own body)
+    return def
+}
+
+// parse_enum_def: current token is 'enum'
+parse_enum_def := proc(mut p: Parser) returns Expr {
+    kw_line := peek_line(p)
+    kw_col := peek_col(p)
+    advance(p)
+
+    mut def := expr_new(NodeType.EnumDef, kw_line, kw_col, p.path)
+    expect(p, TokenType.LBrace)
+
+    mut body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+    mut in_namespace := false
+    while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+        if check(p, TokenType.KwNamespace) {
+            advance(p)
+            expect(p, TokenType.Colon)
+            in_namespace = true
+            continue
+        }
+        if in_namespace {
+            mut stmt := parse_statement(p)
+            if stmt.type.eq(NodeType.Decl) {
+                if stmt.data.is_Decl() {
+                    mut dd := stmt.data.get_Decl()
+                    dd.is_namespace = true
+                    stmt.data = ExprData.Decl(dd)
+                }
+            }
+            expr_add_child(body, own stmt)
+        } else {
+            // Variant: bare identifier or Variant: Type, comma-separated
+            v_line := peek_line(p)
+            v_col := peek_col(p)
+            vname := expect_text(p, TokenType.Ident)
+            mut dd := DeclData(name = vname)
+            if check(p, TokenType.Colon) {
+                advance(p)
+                dd.explicit_type = expect_text(p, TokenType.Ident)
+            }
+            mut variant := expr_new(NodeType.Decl, v_line, v_col, p.path)
+            variant.data = ExprData.Decl(dd)
+            expr_add_child(body, own variant)
+            if check(p, TokenType.Comma) { advance(p) }
+        }
+    }
+    expect(p, TokenType.RBrace)
+    expr_add_child(def, own body)
+    return def
+}
+
+// parse_call: identifier name already consumed, current token is '('
+parse_call := proc(mut p: Parser, name: Str, call_line: I64, call_col: I64) returns Expr {
+    advance(p) // consume '('
+
+    mut call := expr_new(NodeType.FCall, call_line, call_col, p.path)
+
+    // first child is the callee identifier
+    mut callee := expr_new(NodeType.Ident, call_line, call_col, p.path)
+    callee.data = ExprData.StrVal(name.clone())
+    expr_add_child(call, own callee)
+
+    // parse arguments
+    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+        // Named arg: IDENT '=' expr
+        if check(p, TokenType.Ident) {
+            if p.pos.add(1).lt(p.count) {
+                ref next_tok : Token = p.tokens.get(p.pos.add(1))
+                if next_tok.type.eq(TokenType.Eq) {
+                    na_line := peek_line(p)
+                    na_col := peek_col(p)
+                    aname := expect_text(p, TokenType.Ident)
+                    advance(p) // consume '='
+                    mut na := expr_new(NodeType.NamedArg, na_line, na_col, p.path)
+                    na.data = ExprData.StrVal(aname)
+                    expr_add_child(na, own parse_expression(p))
+                    expr_add_child(call, own na)
+                    if check(p, TokenType.Comma) { advance(p) }
+                    continue
+                }
+            }
+        }
+        // Splat arg: ..expr
+        mut is_splat := false
+        if check(p, TokenType.DotDot) {
+            advance(p)
+            is_splat = true
+        }
+        // Own arg: own expr
+        mut is_own_arg := false
+        if check(p, TokenType.KwOwn) {
+            advance(p)
+            is_own_arg = true
+        }
+        mut arg := parse_expression(p)
+        arg.is_own_arg = is_own_arg
+        arg.is_splat = is_splat
+        expr_add_child(call, own arg)
+        if check(p, TokenType.Comma) { advance(p) }
+    }
+    expect(p, TokenType.RParen)
+    return call
+}
+
+// parse_expression
+parse_expression := proc(mut p: Parser) returns Expr {
+    t_line := peek_line(p)
+    t_col := peek_col(p)
+    ref t : Token = peek(p)
+    mut e := expr_new(NodeType.Body, 0, 0, p.path) // placeholder
+    mut e_set := false
+
+    if t.type.eq(TokenType.StringTok) {
+        advance(p)
+        e = expr_new(NodeType.LiteralStr, t_line, t_col, p.path)
+        e.data = ExprData.StrVal(t.text.clone())
+        e_set = true
+    }
+    if e_set.not().and(t.type.eq(TokenType.Number)) {
+        advance(p)
+        e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
+        e.data = ExprData.StrVal(t.text.clone())
+        e_set = true
+    }
+    if e_set.not().and(t.type.eq(TokenType.Char)) {
+        advance(p)
+        // Parse char literal to byte value
+        ch := t.text
+        mut byte_val := 0
+        if ch.len().gt(0).and(ch.get(0).eq('\\')) {
+            if ch.len().gt(1) {
+                ref c2 : U8 = ch.get(1)
+                if c2.eq('n') { byte_val = 10 }
+                else if c2.eq('t') { byte_val = 9 }
+                else if c2.eq('r') { byte_val = 13 }
+                else if c2.eq('\\') { byte_val = 92 }
+                else if c2.eq('\'') { byte_val = 39 }
+                else if c2.eq('0') { byte_val = 0 }
+                else { byte_val = c2.to_i64() }
+            }
+        } else {
+            if ch.len().gt(0) { byte_val = ch.get(0).to_i64() }
+        }
+        e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
+        e.data = ExprData.StrVal(byte_val.to_str())
+        e.til_type = TilType.TypeU8
+        e_set = true
+    }
+    if e_set.not().and(t.type.eq(TokenType.KwTrue).or(t.type.eq(TokenType.KwFalse))) {
+        advance(p)
+        e = expr_new(NodeType.LiteralBool, t_line, t_col, p.path)
+        e.data = ExprData.StrVal(t.text.clone())
+        e_set = true
+    }
+    if e_set.not().and(t.type.eq(TokenType.Ident)) {
+        advance(p)
+        name := t.text.clone()
+        // Compile-time directives
+        if name.eq("__LOC__") {
+            e = expr_new(NodeType.LiteralStr, t_line, t_col, p.path)
+            e.data = ExprData.StrVal(format(p.path, ":", t_line.to_str(), ":", t_col.to_str()))
+            e_set = true
+        } else if name.eq("__FILE__") {
+            e = expr_new(NodeType.LiteralStr, t_line, t_col, p.path)
+            e.data = ExprData.StrVal(p.path.clone())
+            e_set = true
+        } else if name.eq("__LINE__") {
+            e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
+            e.data = ExprData.StrVal(t_line.to_str())
+            e_set = true
+        } else if name.eq("__COL__") {
+            e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
+            e.data = ExprData.StrVal(t_col.to_str())
+            e_set = true
+        } else if check(p, TokenType.LParen) {
+            e = parse_call(p, name, t_line, t_col)
+            e_set = true
+        } else {
+            e = expr_new(NodeType.Ident, t_line, t_col, p.path)
+            e.data = ExprData.StrVal(name)
+            e_set = true
+        }
+    }
+    if e_set.not().and(t.type.eq(TokenType.KwFunc).or(t.type.eq(TokenType.KwProc))
+        .or(t.type.eq(TokenType.KwTest)).or(t.type.eq(TokenType.KwMacro))
+        .or(t.type.eq(TokenType.KwExtFunc)).or(t.type.eq(TokenType.KwExtProc))) {
+        return parse_func_def(p)
+    }
+    if e_set.not().and(t.type.eq(TokenType.KwStruct).or(t.type.eq(TokenType.KwExtStruct))) {
+        return parse_struct_def(p)
+    }
+    if e_set.not().and(t.type.eq(TokenType.KwEnum)) {
+        return parse_enum_def(p)
+    }
+    if e_set.not().and(t.type.eq(TokenType.LBrace)) {
+        advance(p)
+        mut first := parse_expression(p)
+        if check(p, TokenType.Colon) {
+            // Map literal
+            e = expr_new(NodeType.MapLit, t_line, t_col, p.path)
+            expr_add_child(e, own first)
+            advance(p) // consume ':'
+            expr_add_child(e, own parse_expression(p))
+            if check(p, TokenType.Comma) { advance(p) }
+            while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+                expr_add_child(e, own parse_expression(p))
+                expect(p, TokenType.Colon)
+                expr_add_child(e, own parse_expression(p))
+                if check(p, TokenType.Comma) { advance(p) }
+            }
+        } else {
+            // Set literal
+            e = expr_new(NodeType.SetLit, t_line, t_col, p.path)
+            expr_add_child(e, own first)
+            if check(p, TokenType.Comma) { advance(p) }
+            while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+                expr_add_child(e, own parse_expression(p))
+                if check(p, TokenType.Comma) { advance(p) }
+            }
+        }
+        expect(p, TokenType.RBrace)
+        e_set = true
+    }
+
+    if e_set.not() {
+        panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+            ": unexpected token '", t.text, "'")
+    }
+
+    // Field access chain: e.field or e.method(args)
+    while check(p, TokenType.Dot) {
+        advance(p) // consume '.'
+        f_line := peek_line(p)
+        f_col := peek_col(p)
+        fname := expect_text(p, TokenType.Ident)
+        if check(p, TokenType.LParen) {
+            // Method call: e.method(args)
+            advance(p) // consume '('
+            mut callee := expr_new(NodeType.FieldAccess, f_line, f_col, p.path)
+            callee.data = ExprData.StrVal(fname)
+            expr_add_child(callee, own e.clone())
+            mut mcall := expr_new(NodeType.FCall, f_line, f_col, p.path)
+            expr_add_child(mcall, own callee)
+            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+                // Named arg check
+                if check(p, TokenType.Ident) {
+                    if p.pos.add(1).lt(p.count) {
+                        ref nt : Token = p.tokens.get(p.pos.add(1))
+                        if nt.type.eq(TokenType.Eq) {
+                            na_line := peek_line(p)
+                            na_col := peek_col(p)
+                            aname := expect_text(p, TokenType.Ident)
+                            advance(p) // consume '='
+                            mut na := expr_new(NodeType.NamedArg, na_line, na_col, p.path)
+                            na.data = ExprData.StrVal(aname)
+                            expr_add_child(na, own parse_expression(p))
+                            expr_add_child(mcall, own na)
+                            if check(p, TokenType.Comma) { advance(p) }
+                            continue
+                        }
+                    }
+                }
+                mut is_own_arg := false
+                if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
+                mut marg := parse_expression(p)
+                marg.is_own_arg = is_own_arg
+                expr_add_child(mcall, own marg)
+                if check(p, TokenType.Comma) { advance(p) }
+            }
+            expect(p, TokenType.RParen)
+            e = mcall
+        } else {
+            mut access := expr_new(NodeType.FieldAccess, f_line, f_col, p.path)
+            access.data = ExprData.StrVal(fname)
+            expr_add_child(access, own e.clone())
+            e = access
+        }
+    }
+
+    // Range expression: e..rhs → Range.new(e, rhs)
+    if check(p, TokenType.DotDot) {
+        dt_line := peek_line(p)
+        dt_col := peek_col(p)
+        advance(p)
+        mut rhs := parse_expression(p)
+        mut range_ident := expr_new(NodeType.Ident, dt_line, dt_col, p.path)
+        range_ident.data = ExprData.StrVal("Range".clone())
+        mut new_access := expr_new(NodeType.FieldAccess, dt_line, dt_col, p.path)
+        new_access.data = ExprData.StrVal("new".clone())
+        expr_add_child(new_access, own range_ident)
+        mut rcall := expr_new(NodeType.FCall, dt_line, dt_col, p.path)
+        expr_add_child(rcall, own new_access)
+        expr_add_child(rcall, own e.clone())
+        expr_add_child(rcall, own rhs)
+        e = rcall
+    }
+
+    return e
+}
+
+// parse_statement_ident: identifier is current token
+parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns Expr {
+    t_line := peek_line(p)
+    t_col := peek_col(p)
+    name := expect_text(p, TokenType.Ident)
+
+    // Declaration: name := value
+    if check(p, TokenType.ColonEq) {
+        advance(p)
+        mut dd := DeclData(name = name, is_mut = is_mut, is_own = is_own)
+        mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
+        decl.data = ExprData.Decl(dd)
+        expr_add_child(decl, own parse_expression(p))
+        return decl
+    }
+
+    // Declaration with explicit type: name : Type = value
+    if check(p, TokenType.Colon) {
+        advance(p)
+        type_name := expect_text(p, TokenType.Ident)
+        expect(p, TokenType.Eq)
+        mut dd := DeclData(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
+        mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
+        decl.data = ExprData.Decl(dd)
+        expr_add_child(decl, own parse_expression(p))
+        return decl
+    }
+
+    // Field access/assign or method call: name.field...
+    if check(p, TokenType.Dot) {
+        mut obj := expr_new(NodeType.Ident, t_line, t_col, p.path)
+        obj.data = ExprData.StrVal(name.clone())
+        mut last_field := ""
+        mut last_line := 0
+        mut last_col := 0
+        while check(p, TokenType.Dot) {
+            advance(p) // consume '.'
+            last_line = peek_line(p)
+            last_col = peek_col(p)
+            last_field = expect_text(p, TokenType.Ident)
+            if check(p, TokenType.Dot) {
+                // More dots — intermediate access
+                mut access := expr_new(NodeType.FieldAccess, last_line, last_col, p.path)
+                access.data = ExprData.StrVal(last_field.clone())
+                expr_add_child(access, own obj.clone())
+                obj = access
+            }
+        }
+        // Method call: name.method(args)
+        if check(p, TokenType.LParen) {
+            advance(p) // consume '('
+            mut callee := expr_new(NodeType.FieldAccess, last_line, last_col, p.path)
+            callee.data = ExprData.StrVal(last_field)
+            expr_add_child(callee, own obj.clone())
+            mut mcall := expr_new(NodeType.FCall, last_line, last_col, p.path)
+            expr_add_child(mcall, own callee)
+            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+                // Named arg check
+                if check(p, TokenType.Ident) {
+                    if p.pos.add(1).lt(p.count) {
+                        ref nt : Token = p.tokens.get(p.pos.add(1))
+                        if nt.type.eq(TokenType.Eq) {
+                            na_line := peek_line(p)
+                            na_col := peek_col(p)
+                            aname := expect_text(p, TokenType.Ident)
+                            advance(p) // consume '='
+                            mut na := expr_new(NodeType.NamedArg, na_line, na_col, p.path)
+                            na.data = ExprData.StrVal(aname)
+                            expr_add_child(na, own parse_expression(p))
+                            expr_add_child(mcall, own na)
+                            if check(p, TokenType.Comma) { advance(p) }
+                            continue
+                        }
+                    }
+                }
+                mut is_own_arg := false
+                if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
+                mut marg := parse_expression(p)
+                marg.is_own_arg = is_own_arg
+                expr_add_child(mcall, own marg)
+                if check(p, TokenType.Comma) { advance(p) }
+            }
+            expect(p, TokenType.RParen)
+            return mcall
+        }
+        // Field assignment: name.field = value
+        expect(p, TokenType.Eq)
+        mut fa := expr_new(NodeType.FieldAssign, t_line, t_col, p.path)
+        fa.data = ExprData.StrVal(last_field)
+        expr_add_child(fa, own obj.clone())
+        expr_add_child(fa, own parse_expression(p))
+        return fa
+    }
+
+    // Assignment: name = value
+    if check(p, TokenType.Eq) {
+        advance(p)
+        mut assign := expr_new(NodeType.Assign, t_line, t_col, p.path)
+        assign.data = ExprData.StrVal(name.clone())
+        expr_add_child(assign, own parse_expression(p))
+        return assign
+    }
+
+    // Function call: name(...)
+    if check(p, TokenType.LParen) {
+        return parse_call(p, name, t_line, t_col)
+    }
+
+    panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+        ": expected ':=', ':', '=' or '(' after identifier '", name, "'")
+    return expr_new(NodeType.Body, 0, 0, p.path) // unreachable
+}
+
+// parse_statement
+parse_statement := proc(mut p: Parser) returns Expr {
+    t_line := peek_line(p)
+    t_col := peek_col(p)
+    ref t : Token = peek(p)
+
+    if t.type.eq(TokenType.Ident) {
+        return parse_statement_ident(p, false, false)
+    }
+    if t.type.eq(TokenType.KwRef) {
+        advance(p)
+        mut ref_mut := false
+        if check(p, TokenType.KwMut) { advance(p); ref_mut = true }
+        i_line := peek_line(p)
+        i_col := peek_col(p)
+        iname := expect_text(p, TokenType.Ident)
+        mut dd := DeclData(name = iname, is_ref = true)
+        if ref_mut { dd.is_mut = true }
+        if check(p, TokenType.Colon) {
+            advance(p)
+            dd.explicit_type = expect_text(p, TokenType.Ident)
+            expect(p, TokenType.Eq)
+        } else {
+            expect(p, TokenType.ColonEq)
+        }
+        mut decl := expr_new(NodeType.Decl, i_line, i_col, p.path)
+        decl.data = ExprData.Decl(dd)
+        expr_add_child(decl, own parse_expression(p))
+        return decl
+    }
+    if t.type.eq(TokenType.KwMut) {
+        advance(p)
+        return parse_statement_ident(p, true, false)
+    }
+    if t.type.eq(TokenType.KwReturn) {
+        advance(p)
+        mut ret := expr_new(NodeType.Return, t_line, t_col, p.path)
+        if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+            expr_add_child(ret, own parse_expression(p))
+        }
+        return ret
+    }
+    if t.type.eq(TokenType.KwIf) {
+        advance(p)
+        mut node := expr_new(NodeType.If, t_line, t_col, p.path)
+        expr_add_child(node, own parse_expression(p))
+        expect(p, TokenType.LBrace)
+        expr_add_child(node, own parse_block(p))
+        if check(p, TokenType.KwElse) {
+            advance(p)
+            if check(p, TokenType.KwIf) {
+                mut else_body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+                expr_add_child(else_body, own parse_statement(p))
+                expr_add_child(node, own else_body)
+            } else {
+                expect(p, TokenType.LBrace)
+                expr_add_child(node, own parse_block(p))
+            }
+        }
+        return node
+    }
+    if t.type.eq(TokenType.StringTok).or(t.type.eq(TokenType.Number))
+        .or(t.type.eq(TokenType.KwTrue)).or(t.type.eq(TokenType.KwFalse)) {
+        return parse_expression(p)
+    }
+    if t.type.eq(TokenType.LBrace) {
+        advance(p)
+        return parse_block(p)
+    }
+    if t.type.eq(TokenType.KwWhile) {
+        advance(p)
+        mut node := expr_new(NodeType.While, t_line, t_col, p.path)
+        expr_add_child(node, own parse_expression(p))
+        expect(p, TokenType.LBrace)
+        expr_add_child(node, own parse_block(p))
+        return node
+    }
+    if t.type.eq(TokenType.KwFor) {
+        advance(p)
+        i_line := peek_line(p)
+        i_col := peek_col(p)
+        iname := expect_text(p, TokenType.Ident)
+        mut node := expr_new(NodeType.ForIn, i_line, i_col, p.path)
+        node.data = ExprData.StrVal(iname)
+        if check(p, TokenType.Colon) {
+            advance(p)
+            node.struct_name = expect_text(p, TokenType.Ident)
+        }
+        expect(p, TokenType.KwIn)
+        expr_add_child(node, own parse_expression(p))
+        expect(p, TokenType.LBrace)
+        expr_add_child(node, own parse_block(p))
+        return node
+    }
+    if t.type.eq(TokenType.KwSwitch) {
+        advance(p)
+        mut node := expr_new(NodeType.Switch, t_line, t_col, p.path)
+        expr_add_child(node, own parse_expression(p))
+        expect(p, TokenType.LBrace)
+        while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+            expect(p, TokenType.KwCase)
+            mut cn := expr_new(NodeType.Case, peek_line(p), peek_col(p), p.path)
+            if check(p, TokenType.Colon).not() {
+                expr_add_child(cn, own parse_expression(p))
+            }
+            expect(p, TokenType.Colon)
+            mut cb := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+            while check(p, TokenType.KwCase).not().and(check(p, TokenType.RBrace).not()).and(check(p, TokenType.Eof).not()) {
+                expr_add_child(cb, own parse_statement(p))
+            }
+            expr_add_child(cn, own cb)
+            expr_add_child(node, own cn)
+        }
+        expect(p, TokenType.RBrace)
+        return node
+    }
+    if t.type.eq(TokenType.KwOwn) {
+        advance(p)
+        if check(p, TokenType.Ident).or(check(p, TokenType.KwMut)) {
+            mut own_mut := false
+            if check(p, TokenType.KwMut) { advance(p); own_mut = true }
+            if check(p, TokenType.Ident) {
+                if p.pos.add(1).lt(p.count) {
+                    ref nt : Token = p.tokens.get(p.pos.add(1))
+                    if nt.type.eq(TokenType.ColonEq).or(nt.type.eq(TokenType.Colon)) {
+                        return parse_statement_ident(p, own_mut, true)
+                    }
+                }
+            }
+            if own_mut {
+                panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+                    ": expected identifier after 'own mut'")
+            }
+        }
+        // own expression (call-site ownership marker)
+        mut expr := parse_expression(p)
+        // Walk down to the primary (leftmost leaf) to set is_own_arg
+        mut primary_idx := 0.sub(1)
+        // Find the deepest child[0] that is FCALL or FIELD_ACCESS
+        mut cur := expr
+        while cur.children.len().gt(0).and(
+            cur.type.eq(NodeType.FCall).or(cur.type.eq(NodeType.FieldAccess))) {
+            ref ch : Expr = cur.children.get(0)
+            cur = ch
+        }
+        cur.is_own_arg = true
+        return expr
+    }
+    if t.type.eq(TokenType.KwBreak) {
+        advance(p)
+        return expr_new(NodeType.Break, t_line, t_col, p.path)
+    }
+    if t.type.eq(TokenType.KwContinue) {
+        advance(p)
+        return expr_new(NodeType.Continue, t_line, t_col, p.path)
+    }
+
+    panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+        ": expected statement, found '", t.text, "'")
+    return expr_new(NodeType.Body, 0, 0, p.path) // unreachable
+}
+
+// parse: entry point
+parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
+    mut p := Parser(tokens = tokens, count = tokens.len(), pos = 0, path = path)
+
+    // Parse optional mode declaration
+    if check(p, TokenType.KwMode) {
+        advance(p)
+        if check(p, TokenType.Ident).or(check(p, TokenType.KwTest)) {
+            mode_out = peek(p).text.clone()
+            advance(p)
+        } else {
+            expect(p, TokenType.Ident)
+        }
+    }
+
+    // Parse body
+    mut root := expr_new(NodeType.Body, 1, 1, p.path)
+    while check(p, TokenType.Eof).not() {
+        expr_add_child(root, own parse_statement(p))
+    }
+    return root
+}
