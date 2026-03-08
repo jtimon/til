@@ -1,0 +1,22 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  linux-x64:
+    name: linux-x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install libffi
+        run: sudo apt-get update && sudo apt-get install -y libffi-dev
+      - name: Create test tmp directory
+        run: mkdir -p tmp
+      - name: Build
+        run: make
+      - name: Run tests
+        run: make test
