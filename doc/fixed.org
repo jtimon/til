@@ -1,5 +1,25 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #34 For-in loops over collections
+  Syntax: ~for i in collection { body }~ or ~for i : Type in collection { body }~.
+  Works for any type with ~get(I64)~ and ~len()~ methods (Vec, Array, Str, Range).
+  Type inference: if ~get()~ returns concrete type, annotation optional; if
+  ~ref Dynamic~ (Vec, Array), explicit type required.
+
+  Desugars in the typer to a while loop inside an anonymous scope. Index
+  increment placed before user body so ~continue~ doesn't cause infinite loop.
+  Typer validates iterable interface (len/get signatures).
+
+  Range iteration: ~for i in 0..10 { body }~ — parser desugars ~0..10~ to
+  ~Range.new(0, 10)~. Range struct in core.til with start/end I64 fields.
+  Ascending and descending ranges supported. ~get()~ returns I64 directly
+  (not ref), for-in handles both ref and non-ref get() returns.
+
+  Also added ~inc()~/~dec()~ ext_func to all integer types (I64, U8, I16,
+  I32, U32) as prerequisite for future ~++~/~--~ sugar (#22).
+
+  Tests: src/test/loops.til (16 tests), 3 typer error cases.
+
 * FIXED #29 Proper strings: separate count/cap, static literals, views
   See doc/strings.org for full design.
 

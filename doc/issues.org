@@ -4,63 +4,6 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* WIP #34 For-in loops over collections
-
-** DONE Phase 1: Collection iteration
-   Syntax: ~for i in collection { body }~ or ~for i : Type in collection { body }~.
-   Works for any type with ~get(I64)~ and ~len()~ methods (Vec, Array, Str).
-
-   Type inference follows normal declaration rules: if ~get()~ returns a concrete
-   type (e.g. Str.get returns ~ref U8~), the type annotation can be omitted.
-   If ~get()~ returns ~ref Dynamic~ (Vec, Array, Map, Set), explicit type is required.
-
-   Desugars in the typer to a while loop inside an anonymous scope:
-
-   #+begin_src til
-   for i in collection { body }
-   #+end_src
-   →
-   #+begin_src til
-   {
-       mut _fiN := 0
-       while _fiN.lt(collection.len()) {
-           ref i : Type = collection.get(_fiN)
-           _fiN = _fiN.add(1)
-           body
-       }
-   }
-   #+end_src
-
-   Index increment placed before user body so ~continue~ doesn't cause infinite loop.
-   The anonymous scope prevents the index variable from leaking.
-
-   Typer validates iterable interface: ~len()~ must return I64 with 1 param,
-   ~get()~ must take 2 params with second being I64. Type errors for missing
-   methods or wrong signatures.
-
-   Parser: TOK_FOR case in parse_statement() (parser.c).
-   Typer: NODE_FOR_IN desugaring inline in infer_body() (typer.c).
-   Tests: src/test/loops.til (9 tests), 3 new typer error cases.
-
-** DONE Phase 2: Range iteration
-   Syntax: ~for i in 0..10 { body }~ — iterates i = 0, 1, 2, ..., 9 (end excluded).
-   Ascending (~0..10~) and descending (~10..0~) ranges.
-
-   ~0..10~ parses directly as ~Range.new(0, 10)~ — no new AST node needed.
-   Range is a simple I64 struct in core.til with start/end fields.
-   ~len()~ returns abs(end - start). ~get(i)~ returns ~start + i~ (ascending)
-   or ~start - i~ (descending) as I64 directly (not ref).
-
-   For-in desugaring updated to handle non-ref ~get()~ returns: if ~get()~
-   returns a concrete type (not ref), the loop variable is a regular
-   declaration instead of ref.
-
-   Also added ~inc()~ and ~dec()~ ext_func methods to all integer types
-   (I64, U8, I16, I32, U32) as prerequisite for future ~++~/~--~ sugar (#22).
-
-   Parser: TOK_DOTDOT handling after field access chain in parse_expression().
-   Tests: 7 range tests in src/test/loops.til (ascending, descending, empty,
-   single element, break, continue, nested).
 
 * OPEN #33 Character literals for U8
   Currently there's no syntax for character literals. Writing ~U8.from_i64(40)~
