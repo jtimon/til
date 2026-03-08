@@ -6,25 +6,74 @@ link("dl")
 link("rt")
 link("X11")
 
-init_window := ext_proc(w: I64, h: I64, title: Str) {}
-window_should_close := ext_func() returns Bool {}
-begin_drawing := ext_proc() {}
-end_drawing := ext_proc() {}
-close_window := ext_proc() {}
-clear_background := ext_proc(r: I64, g: I64, b: I64, a: I64) {}
-set_target_fps := ext_proc(fps: I64) {}
-draw_rectangle := ext_proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a: I64) {}
-draw_text := ext_proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: I64, a: I64) {}
-get_screen_width := ext_func() returns I64 {}
-get_screen_height := ext_func() returns I64 {}
-get_frame_time := ext_func() returns I64 {}
-is_key_pressed := ext_func(key: I64) returns Bool {}
-is_key_down := ext_func(key: I64) returns Bool {}
-draw_circle := ext_proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {}
-get_random_value := ext_func(min: I64, max: I64) returns I64 {}
-get_mouse_x := ext_func() returns I64 {}
-get_mouse_y := ext_func() returns I64 {}
-is_mouse_button_pressed := ext_func(button: I64) returns Bool {}
-init_audio_device := ext_proc() {}
-close_audio_device := ext_proc() {}
+// Direct raylib FFI declarations
+InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: U8) {}
+WindowShouldClose := ext_func() returns shallow Bool {}
+BeginDrawing := ext_proc() {}
+EndDrawing := ext_proc() {}
+CloseWindow := ext_proc() {}
+SetTargetFPS := ext_proc(shallow fps: I32) {}
+ClearBackground := ext_proc(shallow color: U32) {}
+DrawRectangle := ext_proc(shallow x: I32, shallow y: I32, shallow w: I32, shallow h: I32, shallow color: U32) {}
+DrawText := ext_proc(text: U8, shallow x: I32, shallow y: I32, shallow font_size: I32, shallow color: U32) {}
+DrawCircle := ext_proc(shallow cx: I32, shallow cy: I32, shallow radius: F32, shallow color: U32) {}
+GetScreenWidth := ext_func() returns shallow I32 {}
+GetScreenHeight := ext_func() returns shallow I32 {}
+GetFrameTime := ext_func() returns shallow F32 {}
+IsKeyPressed := ext_func(shallow key: I32) returns shallow Bool {}
+IsKeyDown := ext_func(shallow key: I32) returns shallow Bool {}
+IsMouseButtonPressed := ext_func(shallow button: I32) returns shallow Bool {}
+GetRandomValue := ext_func(shallow min: I32, shallow max: I32) returns shallow I32 {}
+GetMouseX := ext_func() returns shallow I32 {}
+GetMouseY := ext_func() returns shallow I32 {}
+InitAudioDevice := ext_proc() {}
+CloseAudioDevice := ext_proc() {}
+
+// play_tone remains in gui.c (complex wave generation logic)
 play_tone := ext_proc(freq: I64, duration_ms: I64) {}
+
+// Color helper: pack r,g,b,a into a U32
+color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
+    return U32.from_i64(r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)))
+}
+
+// Backward-compatible snake_case API
+init_window := proc(w: I64, h: I64, title: Str) {
+    InitWindow(I32.from_i64(w), I32.from_i64(h), title.data)
+}
+window_should_close := func() returns Bool {
+    return WindowShouldClose()
+}
+begin_drawing := proc() { BeginDrawing() }
+end_drawing := proc() { EndDrawing() }
+close_window := proc() { CloseWindow() }
+set_target_fps := proc(fps: I64) { SetTargetFPS(I32.from_i64(fps)) }
+
+clear_background := proc(r: I64, g: I64, b: I64, a: I64) {
+    ClearBackground(color(r, g, b, a))
+}
+draw_rectangle := proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a: I64) {
+    DrawRectangle(I32.from_i64(x), I32.from_i64(y), I32.from_i64(w), I32.from_i64(h), color(r, g, b, a))
+}
+draw_text := proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: I64, a: I64) {
+    DrawText(text.data, I32.from_i64(x), I32.from_i64(y), I32.from_i64(font_size), color(r, g, b, a))
+}
+draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {
+    DrawCircle(I32.from_i64(cx), I32.from_i64(cy), F32.from_i64(radius), color(r, g, b, a))
+}
+
+get_screen_width := func() returns I64 { return GetScreenWidth().to_i64() }
+get_screen_height := func() returns I64 { return GetScreenHeight().to_i64() }
+get_frame_time := func() returns I64 {
+    return GetFrameTime().mul(F32.from_i64(1000)).to_i64()
+}
+is_key_pressed := func(key: I64) returns Bool { return IsKeyPressed(I32.from_i64(key)) }
+is_key_down := func(key: I64) returns Bool { return IsKeyDown(I32.from_i64(key)) }
+is_mouse_button_pressed := func(button: I64) returns Bool { return IsMouseButtonPressed(I32.from_i64(button)) }
+get_random_value := func(min: I64, max: I64) returns I64 {
+    return GetRandomValue(I32.from_i64(min), I32.from_i64(max)).to_i64()
+}
+get_mouse_x := func() returns I64 { return GetMouseX().to_i64() }
+get_mouse_y := func() returns I64 { return GetMouseY().to_i64() }
+init_audio_device := proc() { InitAudioDevice() }
+close_audio_device := proc() { CloseAudioDevice() }

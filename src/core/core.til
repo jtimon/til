@@ -142,8 +142,9 @@ I64 : StructDef = ext_struct {
     namespace:
     to_str := func(val: I64) returns Str {
         if val.eq(0) {
-            own buf : U8 = malloc(1)
+            own buf : U8 = malloc(2)
             memcpy(buf, U8.from_i64(48), 1)
+            memcpy(ptr_add(buf, 1), U8.from_i64(0), 1)
             return Str(data = buf, count = 1, cap = 1)
         }
         mut is_neg := false
@@ -160,7 +161,7 @@ I64 : StructDef = ext_struct {
         }
         mut total := ndigits
         if is_neg { total = total.add(1) }
-        own buf : U8 = malloc(total)
+        own buf : U8 = malloc(total.add(1))
         if is_neg {
             memcpy(buf, U8.from_i64(45), 1)
         }
@@ -170,6 +171,7 @@ I64 : StructDef = ext_struct {
             v = v.div(10)
             i = i.sub(1)
         }
+        memcpy(ptr_add(buf, total), U8.from_i64(0), 1)
         return Str(data = buf, count = total, cap = total)
     }
     add := ext_func(shallow a: I64, shallow b: I64) returns I64 {}
