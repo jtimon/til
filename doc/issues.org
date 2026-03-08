@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 38
+# NEXT_ISSUE: 39
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -51,6 +51,28 @@
    The generated .til binding includes ~link("mylib")~ at the top (like
    gui mode does for raylib), so linking is automatic — no manual flags.
 
+** OPEN #38 Drop til_ prefix from generated C symbols
+  :DEPENDENCIES: #37
+  Currently the builder prefixes all generated symbols with ~til_~ (e.g.
+  ~til_I64~, ~til_Token~, ~til_tokenize~). This was to avoid C name
+  collisions, but in practice these names don't collide with C stdlib.
+
+  Removing the prefix means generated C symbols match the original C
+  compiler's symbols (e.g. ~Token~ not ~til_Token~). This is essential
+  for the bottom-up self-hosting strategy (#12): each til module compiles
+  to a library with the same ABI as the C module it replaces, so the
+  linker can swap them transparently.
+
+  The generated .c files are compiled independently — they never see the
+  original C sources, so no symbol conflicts.
+
+  Changes needed:
+  - builder.c: remove ~til_~ prefix emission for types, functions, enums
+  - ext.h / ext.c: update extern declarations to match (or use typedefs)
+  - Core types (I64, Str, Vec, Bool, etc.) become unprefixed in generated C
+
+  Edge cases: ~Bool~ may conflict with C23's ~bool~. Handle if it arises.
+
 ** OPEN #22 Operator syntax: desugar operators to method calls
   :DEPENDENCIES: #12
   Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
@@ -96,7 +118,7 @@
    ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
    ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
 ** WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #2
+  :DEPENDENCIES: #2, #37, #38
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
@@ -112,9 +134,24 @@
   - #5 (pointers/Vec): FIXED
   - #8 (variadic): FIXED
   - #16 (imports): FIXED
-   - #30 (Vec-in-struct): FIXED
+  - #30 (Vec-in-struct): FIXED
+  - #37 (mode lib): compile til modules as linkable libraries
+  - #38 (drop til_ prefix): generated symbols must match C ABI
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
+
+*** Strategy: bottom-up module replacement
+   Each til module compiles to a library (#37) with the same symbols as
+   the C module it replaces (#38). Replace modules one at a time, bottom-up:
+
+   1. lexer.til → liblex.so/a, replaces src/c/lexer.c
+   2. ast.til + parser.til → libparser.so/a, replaces src/c/parser.c + ast.c
+   3. Continue upward: initer, typer, interpreter, builder
+   4. ctil.c becomes a thin CLI linking to til libs
+   5. ctil.c replaced by til.til → fully self-hosted
+
+   At each step, ~make test~ validates that the til lib produces identical
+   behavior to the C module it replaces. The linker swaps them transparently.
 
 *** DONE Lexer (src/self/lexer.til)
    Strict translation of src/c/lexer.c following c2til.org rules.
