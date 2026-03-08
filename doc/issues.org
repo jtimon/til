@@ -1,9 +1,102 @@
 # Issue tracker for til.
 # New issues go at the top (below the header), numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 35
+# NEXT_ISSUE: 36
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
+* OPEN #35 Switch statement
+  Multi-phase implementation. Desugars in the typer to if/else chains — no new
+  codegen or interpreter support needed.
+
+  Syntax: ~switch expr { case val: body  case: body }~. Implicit break at end
+  of every case (no fall-through). Default case is ~case:~ (not ~default:~).
+  Tokens TOK_SWITCH, TOK_CASE already reserved in lexer.
+
+  rstil had full switch with enum pattern matching (see ../rstil/src/test/enums.til).
+  This reimplements the same feature set in phases.
+
+** Phase 1: Simple value matching
+   Switch on I64, U8, Str, Bool — cases compare with ~.eq()~.
+
+   #+begin_src til
+   switch x {
+   case 1: println("one")
+   case 2: println("two")
+   case: println("other")
+   }
+   #+end_src
+
+   Desugars to:
+   #+begin_src til
+   {
+       _sw := x
+       if _sw.eq(1) { println("one") }
+       else if _sw.eq(2) { println("two") }
+       else { println("other") }
+   }
+   #+end_src
+
+   Parser: NODE_SWITCH with children[0] = expr, children[1..] = case nodes.
+   Each case node stores the match expression (or none for default) and body.
+   Typer: desugar to if/else chain in anonymous scope.
+
+** Phase 2: Range cases
+   Leverages the existing Range struct from #34.
+
+   #+begin_src til
+   switch c {
+   case '0'..'9': println("digit")
+   case 'a'..'z': println("lower")
+   case: println("other")
+   }
+   #+end_src
+
+   A range case ~case A..B:~ checks ~_sw.gte(A).and(_sw.lt(B))~ (half-open,
+   consistent with Range semantics). The ~..~ is already parsed as Range.new()
+   by the parser — the typer recognizes Range.new() calls in case expressions
+   and emits the range check instead of ~.eq()~.
+
+** Phase 3: Enum variant matching
+   Match on enum variants without payload extraction.
+
+   #+begin_src til
+   switch color {
+   case Color.Red: println("red")
+   case Color.Blue: println("blue")
+   case: println("other")
+   }
+   #+end_src
+
+   Desugars ~case EnumType.Variant:~ to ~if _sw.is_Variant()~, using the
+   auto-generated ~is_Variant()~ method.
+
+** Phase 4: Enum payload extraction
+   Pattern matching with payload binding.
+
+   #+begin_src til
+   switch opt {
+   case Option.Some(value):
+       println(value.to_str())
+   case Option.None:
+       println("nothing")
+   }
+   #+end_src
+
+   Desugars ~case EnumType.Variant(name):~ to:
+   #+begin_src til
+   if _sw.is_Variant() {
+       name := _sw.get_Variant()
+       body
+   }
+   #+end_src
+
+   Uses auto-generated ~get_Variant()~ method. The bound variable ~name~
+   is scoped to the case body.
+
+** Phase 5: Nested patterns
+   Full pattern matching as in rstil — nested enum patterns, struct
+   field matching, wildcard ~_~. Lower priority; phases 1-4 cover
+   most practical use cases.
 
 
 * OPEN #32 Keyword arguments (kwargs) capture and forwarding
