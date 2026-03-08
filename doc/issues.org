@@ -73,50 +73,6 @@
 
   Edge cases: ~Bool~ may conflict with C23's ~bool~. Handle if it arises.
 
-** OPEN #22 Operator syntax: desugar operators to method calls
-  :DEPENDENCIES: #12
-  Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
-  Purely a parser transform — no changes needed in typer, interpreter, or
-  codegen. The parser rewrites operator expressions into method call AST
-  nodes before anything downstream sees them.
-
-  Operator → method mapping:
-  - Comparison: < → lt, <= → lte, > → gt, >= → gte, == → eq, != → neq
-  - Arithmetic: + → add, - → sub, * → mul, / → div, % → mod
-
-  Precedence (low to high):
-  - == != < <= > >=
-  - + -
-  - * / %
-
-  Parenthesized expressions (a + b) * c override precedence. The parser
-  must disambiguate grouping parens from function call parens: ( after an
-  identifier/field-access is a call, otherwise it's grouping.
-
-  Parsing approach: Pratt parsing (precedence climbing) or one function
-  per precedence level (mutually recursive descent). Both work; Pratt is
-  more compact and easier to extend.
-
-  The cmp/initer synergy makes this especially nice for comparisons:
-  implement cmp once, the initer auto-generates eq, neq, lt, gt, lte, gte,
-  and operator desugaring gives you <, <=, >, >=, ==, != for free. If you
-  override eq with a faster implementation, neq (and !=) automatically
-  benefits since neq is generated as a.eq(b).not().
-
-*** Phase 1: Comparison operators
-   < <= > >= == !=
-   All same precedence, binary, no chaining ambiguity.
-   Desugars: a < b → a.lt(b), a != b → a.neq(b), etc.
-
-*** Phase 2: Arithmetic operators
-   + - * / %
-   Introduces real precedence: * / % bind tighter than + -.
-   Desugars: a + b * c → a.add(b.mul(c)).
-   Requires grouping parentheses support.
-
-   Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
-   ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
-   ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #2, #37, #38
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
@@ -470,6 +426,50 @@
   - builder.c: emit direct C types instead of til_* wrappers
   - dlsym: look up function name directly (no til_ prefix)
 
+** OPEN #22 Operator syntax: desugar operators to method calls
+  :DEPENDENCIES: #12
+  Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
+  Purely a parser transform — no changes needed in typer, interpreter, or
+  codegen. The parser rewrites operator expressions into method call AST
+  nodes before anything downstream sees them.
+
+  Operator → method mapping:
+  - Comparison: < → lt, <= → lte, > → gt, >= → gte, == → eq, != → neq
+  - Arithmetic: + → add, - → sub, * → mul, / → div, % → mod
+
+  Precedence (low to high):
+  - == != < <= > >=
+  - + -
+  - * / %
+
+  Parenthesized expressions (a + b) * c override precedence. The parser
+  must disambiguate grouping parens from function call parens: ( after an
+  identifier/field-access is a call, otherwise it's grouping.
+
+  Parsing approach: Pratt parsing (precedence climbing) or one function
+  per precedence level (mutually recursive descent). Both work; Pratt is
+  more compact and easier to extend.
+
+  The cmp/initer synergy makes this especially nice for comparisons:
+  implement cmp once, the initer auto-generates eq, neq, lt, gt, lte, gte,
+  and operator desugaring gives you <, <=, >, >=, ==, != for free. If you
+  override eq with a faster implementation, neq (and !=) automatically
+  benefits since neq is generated as a.eq(b).not().
+
+*** Phase 1: Comparison operators
+   < <= > >= == !=
+   All same precedence, binary, no chaining ambiguity.
+   Desugars: a < b → a.lt(b), a != b → a.neq(b), etc.
+
+*** Phase 2: Arithmetic operators
+   + - * / %
+   Introduces real precedence: * / % bind tighter than + -.
+   Desugars: a + b * c → a.add(b.mul(c)).
+   Requires grouping parentheses support.
+
+   Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
+   ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
+   ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
 ** OPEN #18 Tuple: fixed-size heterogeneous collections
   Holds a fixed number of elements of different types.
   Immutable (elements set at construction, no push/pop).
