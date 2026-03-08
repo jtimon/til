@@ -403,10 +403,16 @@ switch (type) {
 #+end_src
 
 #+begin_src til
-if type.eq(TokenType.Num) { ... }
-else if type.eq(TokenType.Eof) { ... }
-else { ... }
+switch type {
+case TokenType.Num: ...
+case TokenType.Eof: ...
+case: ...
+}
 #+end_src
+
+No break needed — each case has implicit break (no fall-through).
+For range matching: ~case 'a'..'z':~. For payload extraction:
+~case Token.Num(value):~.
 
 *** Other
 

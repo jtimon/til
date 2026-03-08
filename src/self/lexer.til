@@ -77,111 +77,115 @@ is_alnum := func(c: U8) returns Bool {
 // Matches C tok_name() output exactly.
 
 tok_name := func(type: TokenType) returns Str {
-    if type.eq(TokenType.Eof) { return "eof" }
-    if type.eq(TokenType.LParen) { return "(" }
-    if type.eq(TokenType.RParen) { return ")" }
-    if type.eq(TokenType.LBrace) { return "{" }
-    if type.eq(TokenType.RBrace) { return "}" }
-    if type.eq(TokenType.LBracket) { return "[" }
-    if type.eq(TokenType.RBracket) { return "]" }
-    if type.eq(TokenType.Comma) { return "," }
-    if type.eq(TokenType.Colon) { return ":" }
-    if type.eq(TokenType.Question) { return "?" }
-    if type.eq(TokenType.Bang) { return "!" }
-    if type.eq(TokenType.Minus) { return "-" }
-    if type.eq(TokenType.Plus) { return "+" }
-    if type.eq(TokenType.Star) { return "*" }
-    if type.eq(TokenType.Slash) { return "/" }
-    if type.eq(TokenType.Dot) { return "." }
-    if type.eq(TokenType.DotDot) { return ".." }
-    if type.eq(TokenType.Eq) { return "=" }
-    if type.eq(TokenType.EqEq) { return "==" }
-    if type.eq(TokenType.Neq) { return "!=" }
-    if type.eq(TokenType.Lt) { return "<" }
-    if type.eq(TokenType.LtEq) { return "<=" }
-    if type.eq(TokenType.Gt) { return ">" }
-    if type.eq(TokenType.GtEq) { return ">=" }
-    if type.eq(TokenType.ColonEq) { return ":=" }
-    if type.eq(TokenType.Ident) { return "identifier" }
-    if type.eq(TokenType.StringTok) { return "string" }
-    if type.eq(TokenType.Number) { return "number" }
-    if type.eq(TokenType.Char) { return "char" }
-    if type.eq(TokenType.KwMode) { return "mode" }
-    if type.eq(TokenType.KwMut) { return "mut" }
-    if type.eq(TokenType.KwOwn) { return "own" }
-    if type.eq(TokenType.KwRef) { return "ref" }
-    if type.eq(TokenType.KwStruct) { return "struct" }
-    if type.eq(TokenType.KwExtStruct) { return "ext_struct" }
-    if type.eq(TokenType.KwEnum) { return "enum" }
-    if type.eq(TokenType.KwNamespace) { return "namespace" }
-    if type.eq(TokenType.KwFunc) { return "func" }
-    if type.eq(TokenType.KwProc) { return "proc" }
-    if type.eq(TokenType.KwTest) { return "test" }
-    if type.eq(TokenType.KwMacro) { return "macro" }
-    if type.eq(TokenType.KwExtFunc) { return "ext_func" }
-    if type.eq(TokenType.KwExtProc) { return "ext_proc" }
-    if type.eq(TokenType.KwReturns) { return "returns" }
-    if type.eq(TokenType.KwThrows) { return "throws" }
-    if type.eq(TokenType.KwIf) { return "if" }
-    if type.eq(TokenType.KwElse) { return "else" }
-    if type.eq(TokenType.KwWhile) { return "while" }
-    if type.eq(TokenType.KwFor) { return "for" }
-    if type.eq(TokenType.KwIn) { return "in" }
-    if type.eq(TokenType.KwSwitch) { return "switch" }
-    if type.eq(TokenType.KwMatch) { return "match" }
-    if type.eq(TokenType.KwCase) { return "case" }
-    if type.eq(TokenType.KwDefault) { return "default" }
-    if type.eq(TokenType.KwReturn) { return "return" }
-    if type.eq(TokenType.KwThrow) { return "throw" }
-    if type.eq(TokenType.KwCatch) { return "catch" }
-    if type.eq(TokenType.KwBreak) { return "break" }
-    if type.eq(TokenType.KwContinue) { return "continue" }
-    if type.eq(TokenType.KwDefer) { return "defer" }
-    if type.eq(TokenType.KwTrue) { return "true" }
-    if type.eq(TokenType.KwFalse) { return "false" }
-    if type.eq(TokenType.Error) { return "error" }
-    return "?"
+    switch type {
+    case TokenType.Eof: return "eof"
+    case TokenType.LParen: return "("
+    case TokenType.RParen: return ")"
+    case TokenType.LBrace: return "{"
+    case TokenType.RBrace: return "}"
+    case TokenType.LBracket: return "["
+    case TokenType.RBracket: return "]"
+    case TokenType.Comma: return ","
+    case TokenType.Colon: return ":"
+    case TokenType.Question: return "?"
+    case TokenType.Bang: return "!"
+    case TokenType.Minus: return "-"
+    case TokenType.Plus: return "+"
+    case TokenType.Star: return "*"
+    case TokenType.Slash: return "/"
+    case TokenType.Dot: return "."
+    case TokenType.DotDot: return ".."
+    case TokenType.Eq: return "="
+    case TokenType.EqEq: return "=="
+    case TokenType.Neq: return "!="
+    case TokenType.Lt: return "<"
+    case TokenType.LtEq: return "<="
+    case TokenType.Gt: return ">"
+    case TokenType.GtEq: return ">="
+    case TokenType.ColonEq: return ":="
+    case TokenType.Ident: return "identifier"
+    case TokenType.StringTok: return "string"
+    case TokenType.Number: return "number"
+    case TokenType.Char: return "char"
+    case TokenType.KwMode: return "mode"
+    case TokenType.KwMut: return "mut"
+    case TokenType.KwOwn: return "own"
+    case TokenType.KwRef: return "ref"
+    case TokenType.KwStruct: return "struct"
+    case TokenType.KwExtStruct: return "ext_struct"
+    case TokenType.KwEnum: return "enum"
+    case TokenType.KwNamespace: return "namespace"
+    case TokenType.KwFunc: return "func"
+    case TokenType.KwProc: return "proc"
+    case TokenType.KwTest: return "test"
+    case TokenType.KwMacro: return "macro"
+    case TokenType.KwExtFunc: return "ext_func"
+    case TokenType.KwExtProc: return "ext_proc"
+    case TokenType.KwReturns: return "returns"
+    case TokenType.KwThrows: return "throws"
+    case TokenType.KwIf: return "if"
+    case TokenType.KwElse: return "else"
+    case TokenType.KwWhile: return "while"
+    case TokenType.KwFor: return "for"
+    case TokenType.KwIn: return "in"
+    case TokenType.KwSwitch: return "switch"
+    case TokenType.KwMatch: return "match"
+    case TokenType.KwCase: return "case"
+    case TokenType.KwDefault: return "default"
+    case TokenType.KwReturn: return "return"
+    case TokenType.KwThrow: return "throw"
+    case TokenType.KwCatch: return "catch"
+    case TokenType.KwBreak: return "break"
+    case TokenType.KwContinue: return "continue"
+    case TokenType.KwDefer: return "defer"
+    case TokenType.KwTrue: return "true"
+    case TokenType.KwFalse: return "false"
+    case TokenType.Error: return "error"
+    case: return "?"
+    }
 }
 
 // --- Keyword lookup ---
 // C version uses Keyword struct + static array with memcmp loop.
-// til version uses if/else chain — functionally equivalent.
+// til version uses switch on Str — functionally equivalent.
 
 lookup_keyword := func(word: Str) returns TokenType {
-    if word.eq("mode") { return TokenType.KwMode }
-    if word.eq("mut") { return TokenType.KwMut }
-    if word.eq("own") { return TokenType.KwOwn }
-    if word.eq("ref") { return TokenType.KwRef }
-    if word.eq("struct") { return TokenType.KwStruct }
-    if word.eq("ext_struct") { return TokenType.KwExtStruct }
-    if word.eq("enum") { return TokenType.KwEnum }
-    if word.eq("namespace") { return TokenType.KwNamespace }
-    if word.eq("func") { return TokenType.KwFunc }
-    if word.eq("proc") { return TokenType.KwProc }
-    if word.eq("test") { return TokenType.KwTest }
-    if word.eq("macro") { return TokenType.KwMacro }
-    if word.eq("ext_func") { return TokenType.KwExtFunc }
-    if word.eq("ext_proc") { return TokenType.KwExtProc }
-    if word.eq("returns") { return TokenType.KwReturns }
-    if word.eq("throws") { return TokenType.KwThrows }
-    if word.eq("if") { return TokenType.KwIf }
-    if word.eq("else") { return TokenType.KwElse }
-    if word.eq("while") { return TokenType.KwWhile }
-    if word.eq("for") { return TokenType.KwFor }
-    if word.eq("in") { return TokenType.KwIn }
-    if word.eq("switch") { return TokenType.KwSwitch }
-    if word.eq("match") { return TokenType.KwMatch }
-    if word.eq("case") { return TokenType.KwCase }
-    if word.eq("default") { return TokenType.KwDefault }
-    if word.eq("return") { return TokenType.KwReturn }
-    if word.eq("throw") { return TokenType.KwThrow }
-    if word.eq("catch") { return TokenType.KwCatch }
-    if word.eq("break") { return TokenType.KwBreak }
-    if word.eq("continue") { return TokenType.KwContinue }
-    if word.eq("defer") { return TokenType.KwDefer }
-    if word.eq("true") { return TokenType.KwTrue }
-    if word.eq("false") { return TokenType.KwFalse }
-    return TokenType.Ident
+    switch word {
+    case "mode": return TokenType.KwMode
+    case "mut": return TokenType.KwMut
+    case "own": return TokenType.KwOwn
+    case "ref": return TokenType.KwRef
+    case "struct": return TokenType.KwStruct
+    case "ext_struct": return TokenType.KwExtStruct
+    case "enum": return TokenType.KwEnum
+    case "namespace": return TokenType.KwNamespace
+    case "func": return TokenType.KwFunc
+    case "proc": return TokenType.KwProc
+    case "test": return TokenType.KwTest
+    case "macro": return TokenType.KwMacro
+    case "ext_func": return TokenType.KwExtFunc
+    case "ext_proc": return TokenType.KwExtProc
+    case "returns": return TokenType.KwReturns
+    case "throws": return TokenType.KwThrows
+    case "if": return TokenType.KwIf
+    case "else": return TokenType.KwElse
+    case "while": return TokenType.KwWhile
+    case "for": return TokenType.KwFor
+    case "in": return TokenType.KwIn
+    case "switch": return TokenType.KwSwitch
+    case "match": return TokenType.KwMatch
+    case "case": return TokenType.KwCase
+    case "default": return TokenType.KwDefault
+    case "return": return TokenType.KwReturn
+    case "throw": return TokenType.KwThrow
+    case "catch": return TokenType.KwCatch
+    case "break": return TokenType.KwBreak
+    case "continue": return TokenType.KwContinue
+    case "defer": return TokenType.KwDefer
+    case "true": return TokenType.KwTrue
+    case "false": return TokenType.KwFalse
+    case: return TokenType.Ident
+    }
 }
 
 // --- Tokenizer ---
@@ -368,24 +372,26 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 
         // Single-character tokens
         mut single := TokenType.Eof
-        if c.eq('(') { single = TokenType.LParen }
-        if c.eq(')') { single = TokenType.RParen }
-        if c.eq('{') { single = TokenType.LBrace }
-        if c.eq('}') { single = TokenType.RBrace }
-        if c.eq('[') { single = TokenType.LBracket }
-        if c.eq(']') { single = TokenType.RBracket }
-        if c.eq(',') { single = TokenType.Comma }
-        if c.eq(':') { single = TokenType.Colon }
-        if c.eq('.') { single = TokenType.Dot }
-        if c.eq('?') { single = TokenType.Question }
-        if c.eq('!') { single = TokenType.Bang }
-        if c.eq('+') { single = TokenType.Plus }
-        if c.eq('-') { single = TokenType.Minus }
-        if c.eq('*') { single = TokenType.Star }
-        if c.eq('/') { single = TokenType.Slash }
-        if c.eq('=') { single = TokenType.Eq }
-        if c.eq('<') { single = TokenType.Lt }
-        if c.eq('>') { single = TokenType.Gt }
+        switch c {
+        case '(': single = TokenType.LParen
+        case ')': single = TokenType.RParen
+        case '{': single = TokenType.LBrace
+        case '}': single = TokenType.RBrace
+        case '[': single = TokenType.LBracket
+        case ']': single = TokenType.RBracket
+        case ',': single = TokenType.Comma
+        case ':': single = TokenType.Colon
+        case '.': single = TokenType.Dot
+        case '?': single = TokenType.Question
+        case '!': single = TokenType.Bang
+        case '+': single = TokenType.Plus
+        case '-': single = TokenType.Minus
+        case '*': single = TokenType.Star
+        case '/': single = TokenType.Slash
+        case '=': single = TokenType.Eq
+        case '<': single = TokenType.Lt
+        case '>': single = TokenType.Gt
+        }
 
         if single.eq(TokenType.Eof).not() {
             tokens.push(own Token(type = single,
