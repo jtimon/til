@@ -1,10 +1,33 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 39
+# NEXT_ISSUE: 40
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #39 Replace ctil with til (bottom-up C elimination)
+  :DEPENDENCIES: #12
+  Once #12 produces a working til.til compiler, replace the C
+  implementation (ctil.c + src/c/*.c) by linking against til-compiled
+  libraries instead.
+
+  This is the inverse of #12: where #12 builds til.til top-down (start
+  with til main, FFI into C libs, replace imports with native til),
+  this issue works bottom-up (replace C modules in ctil with their
+  til-compiled equivalents one at a time).
+
+  Order:
+  1. Replace src/c/lexer.c with til-compiled liblexer
+  2. Replace src/c/parser.c + ast.c with til-compiled libparser
+  3. Continue upward: initer, typer, interpreter, builder
+  4. ctil.c becomes a thin CLI linking only til libs
+  5. ctil.c itself replaced by til.til binary → C code fully eliminated
+
+  At each step, run benchmarks to verify no significant performance
+  regressions from the til versions vs the C originals. The test suite
+  (tests.til) runs four configurations: C interpreted, C compiled, til
+  interpreted, til compiled — all must produce identical results.
 
 ** OPEN #37 Improved mode lib: library compilation and FFI bindings
   Running interpret or run on a mode lib file should fail with an error
@@ -154,18 +177,25 @@
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
 
-*** Strategy: bottom-up module replacement
-   Each til module compiles to a library (#37) with the same symbols as
-   the C module it replaces (#38). Replace modules one at a time, bottom-up:
+*** Strategy: top-down til.til with FFI into C libs
+   Build til.til as a top-level program that uses the existing C modules
+   (lexer, parser, etc.) via FFI. Start with everything as C FFI imports,
+   then replace imports with native til one at a time, top-down:
 
-   1. lexer.til → liblex.so/a, replaces src/c/lexer.c
-   2. ast.til + parser.til → libparser.so/a, replaces src/c/parser.c + ast.c
-   3. Continue upward: initer, typer, interpreter, builder
-   4. ctil.c becomes a thin CLI linking to til libs
-   5. ctil.c replaced by til.til → fully self-hosted
+   1. til.til imports lexer, parser, typer, etc. as FFI libs from ctil
+   2. Rewrite lexer.til as native til (already done) → drop FFI lexer import
+   3. Rewrite parser.til as native til (WIP) → drop FFI parser import
+   4. Continue replacing: initer, typer, interpreter, builder
+   5. All imports native → til.til is fully self-hosted
 
-   At each step, ~make test~ validates that the til lib produces identical
-   behavior to the C module it replaces. The linker swaps them transparently.
+   The test suite (tests.til) runs four configurations to validate:
+   - C interpreted, C compiled (existing ctil)
+   - til interpreted, til compiled (new til.til)
+   All four must produce identical results.
+
+   Once til.til is complete, #39 handles the reverse direction: replacing
+   ctil's C modules with til-compiled libraries bottom-up, eventually
+   eliminating the C codebase entirely.
 
 *** DONE Lexer (src/self/lexer.til)
    Strict translation of src/c/lexer.c following c2til.org rules.
