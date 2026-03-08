@@ -242,6 +242,7 @@ main := proc(args: ..Str) {
     c_common.push(own "src/test/pure.til")
     c_common.push(own "src/test/aliases.til")
     c_common.push(own "src/test/loops.til")
+    c_common.push(own "src/test/splat.til")
     c_common.push(own "src/test/lexing.til")
 
     c_interpreted := Vec.new("Str", Str.size())

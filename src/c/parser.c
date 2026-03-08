@@ -275,6 +275,11 @@ static Expr *parse_call(Parser *p, Str *name, U32 line, U32 col) {
             expr_add_child(na, parse_expression(p));
             expr_add_child(call, na);
         } else {
+            bool is_splat = false;
+            if (check(p, TOK_DOTDOT)) {
+                advance(p);
+                is_splat = true;
+            }
             bool is_own_arg = false;
             if (check(p, TOK_OWN)) {
                 advance(p);
@@ -282,6 +287,7 @@ static Expr *parse_call(Parser *p, Str *name, U32 line, U32 col) {
             }
             Expr *arg = parse_expression(p);
             arg->is_own_arg = is_own_arg;
+            arg->is_splat = is_splat;
             expr_add_child(call, arg);
         }
         if (check(p, TOK_COMMA)) advance(p); // skip comma between args

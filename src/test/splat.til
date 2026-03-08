@@ -1,0 +1,41 @@
+mode test
+
+sum := func(nums: ..I64) returns I64 {
+    mut total := 0
+    for n : I64 in nums {
+        total = total.add(n)
+    }
+    return total
+}
+
+// Forward variadic to another variadic function
+double_sum := func(nums: ..I64) returns I64 {
+    return sum(..nums)
+}
+
+test_splat_forward := test() {
+    assert_eq(loc(), double_sum(1, 2, 3), 6)
+    assert_eq(loc(), double_sum(10), 10)
+    assert_eq(loc(), double_sum(), 0)
+}
+
+// Splat an array into a variadic call
+test_splat_array := test() {
+    a := array("I64", 1, 2, 3)
+    assert_eq(loc(), sum(..a), 6)
+}
+
+// Forward Str variadic to format
+my_format := func(parts: ..Str) returns Str {
+    return format(..parts)
+}
+
+test_splat_format := test() {
+    assert_eq_str(loc(), my_format("hello", " ", "world"), "hello world")
+}
+
+test_splat_empty := test() {
+    assert_eq(loc(), sum(), 0)
+    assert_eq(loc(), double_sum(), 0)
+    assert_eq_str(loc(), my_format(), "")
+}

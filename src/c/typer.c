@@ -1184,6 +1184,33 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             continue;
         }
 
+        // Pure splat: f(fixed, ..arr) — pass array directly, skip Array construction
+        if (vc == 1 && expr_child(fcall, vi)->is_splat) {
+            Expr *splat = expr_child(fcall, vi);
+            splat->is_splat = false;
+            // Clone if ident so caller keeps their copy
+            if (splat->type == NODE_IDENT) {
+                splat = make_clone_call("Array", TIL_TYPE_STRUCT, splat, splat);
+            }
+            splat->is_own_arg = true;
+            // Rebuild fcall children replacing variadic slot with splat
+            Vec fcall_new_ch = Vec_new(sizeof(Expr *));
+            for (U32 j = 0; j < fcall->children.count; j++) {
+                if ((I32)j == vi) {
+                    Vec_push(&fcall_new_ch, &splat);
+                } else {
+                    Expr *ch = expr_child(fcall, j);
+                    Vec_push(&fcall_new_ch, &ch);
+                }
+            }
+            Vec_delete(&fcall->children);
+            fcall->children = fcall_new_ch;
+            fcall->variadic_index = -1;
+            fcall->variadic_count = 0;
+            Vec_push(&new_ch, &stmt);
+            continue;
+        }
+
         // Create temp variable name
         char buf[32];
         snprintf(buf, sizeof(buf), "_va%d", _va_counter++);

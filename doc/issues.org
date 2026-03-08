@@ -6,23 +6,6 @@
 
 * Pre-self-hosting
 
-** OPEN #31 Variadic argument forwarding (splat)
-  When a variadic function receives args as an Array, there's no way to forward
-  them to another variadic function. Need a splat/spread syntax at call sites.
-
-  Syntax: ~..expr~ at call site (prefix ~..~, mirrors ~..Type~ in declaration).
-  No ambiguity with ranges since ranges are always infix (~A..B~).
-
-  Example use case:
-  #+begin_src til
-  TODO := proc(parts: ..Str) {
-      panic("TODO", format(..parts))
-  }
-  #+end_src
-
-  Would allow TODO, custom logging, and other wrapper functions to forward
-  variadic args without manually iterating.
-
 ** OPEN #22 Operator syntax: desugar operators to method calls
   :DEPENDENCIES: #12
   Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.

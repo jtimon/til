@@ -1,5 +1,12 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #31 Variadic argument forwarding (splat)
+  ~..expr~ at call sites spreads an Array into variadic arguments.
+  Parser detects ~TOK_DOTDOT~ before args, sets ~is_splat~ flag on AST node.
+  Typer's ~desugar_variadic_calls~ handles pure splat by passing the Array
+  directly (cloned if ident) instead of constructing a new Array.
+  Enables forwarding variadic args: ~func(..nums)~ and splatting arrays.
+
 * FIXED #35 Switch statement (phases 1-4)
   Syntax: ~switch expr { case val: body  case: body }~. Implicit break, no
   fall-through. Default case is ~case:~. Desugars in typer to if/else chains.
