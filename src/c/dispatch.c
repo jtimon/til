@@ -36,6 +36,13 @@ static Map ffi_struct_defs;  // Str* name -> Expr* struct_def (for return type l
 static void *ffi_handle;     // dlopen handle
 static Bool ffi_loaded;
 
+// Cache for heap-allocated ffi_type structs (freed in ffi_cleanup)
+static Vec ffi_type_cache; // Vec of ffi_type*
+static Bool ffi_type_cache_inited;
+
+// Forward declaration
+static ffi_type *build_struct_ffi_type(Expr *struct_def);
+
 // Map a til type name to the appropriate ffi_type for shallow params
 static ffi_type *shallow_ffi_type(Str *type_name) {
     if (Str_eq_c(type_name, "I64"))  return &ffi_type_sint64;
@@ -45,7 +52,62 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
     if (Str_eq_c(type_name, "U32"))  return &ffi_type_uint32;
     if (Str_eq_c(type_name, "F32"))  return &ffi_type_float;
     if (Str_eq_c(type_name, "Bool")) return &ffi_type_uint8;
-    return &ffi_type_pointer; // Dynamic or other
+    // Struct type: look up def and build ffi_type
+    Expr **sdef = Map_get(&ffi_struct_defs, &type_name);
+    if (sdef) return build_struct_ffi_type(*sdef);
+    return &ffi_type_pointer; // fallback
+}
+
+// Map a field to its ffi_type (for building struct ffi_types)
+static ffi_type *field_ffi_type(Expr *field) {
+    if (field->data.decl.is_own || field->data.decl.is_ref)
+        return &ffi_type_pointer;
+    Str *ftype = field->data.decl.explicit_type;
+    if (!ftype) return &ffi_type_sint64; // fallback (I64-sized)
+    if (Str_eq_c(ftype, "I64"))  return &ffi_type_sint64;
+    if (Str_eq_c(ftype, "U8"))   return &ffi_type_uint8;
+    if (Str_eq_c(ftype, "I16"))  return &ffi_type_sint16;
+    if (Str_eq_c(ftype, "I32"))  return &ffi_type_sint32;
+    if (Str_eq_c(ftype, "U32"))  return &ffi_type_uint32;
+    if (Str_eq_c(ftype, "F32"))  return &ffi_type_float;
+    if (Str_eq_c(ftype, "Bool")) return &ffi_type_uint8;
+    // Inline struct field
+    if (field->data.decl.field_struct_def)
+        return build_struct_ffi_type(field->data.decl.field_struct_def);
+    return &ffi_type_sint64; // fallback
+}
+
+// Build an ffi_type descriptor for a struct (heap-allocated, cached)
+static ffi_type *build_struct_ffi_type(Expr *struct_def) {
+    if (!ffi_type_cache_inited) {
+        ffi_type_cache = Vec_new(sizeof(ffi_type *));
+        ffi_type_cache_inited = 1;
+    }
+    // Count instance fields
+    Expr *body = expr_child(struct_def, 0);
+    U32 nfields = 0;
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *f = expr_child(body, i);
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace) nfields++;
+    }
+    // Build elements array (NULL-terminated)
+    ffi_type **elements = malloc(sizeof(ffi_type *) * (nfields + 1));
+    U32 idx = 0;
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *f = expr_child(body, i);
+        if (f->type == NODE_DECL && !f->data.decl.is_namespace)
+            elements[idx++] = field_ffi_type(f);
+    }
+    elements[nfields] = NULL;
+    // Build the ffi_type
+    ffi_type *st = malloc(sizeof(ffi_type));
+    st->size = 0;
+    st->alignment = 0;
+    st->type = FFI_TYPE_STRUCT;
+    st->elements = elements;
+    // Cache for cleanup
+    Vec_push(&ffi_type_cache, &st);
+    return st;
 }
 
 // === Eval helper for Dynamic narrowing ===
@@ -629,6 +691,11 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 Value v = eval_expr(scope, expr_child(e, i + 1));
                 if (fe->param_shallows && i < (U32)fe->nparam && fe->param_shallows[i]) {
                     // Shallow: store dereferenced value directly for ffi
+                    if (v.type == VAL_STRUCT) {
+                        // Struct by value: point arg_ptrs directly at struct data
+                        arg_ptrs[i] = v.instance->data;
+                        continue;
+                    }
                     switch (v.type) {
                         case VAL_I64:  *(I64 *)&args[i] = *v.i64; break;
                         case VAL_U8:   *(U8 *)&args[i] = *v.u8; break;
@@ -673,10 +740,29 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 }
                 arg_ptrs[i] = &args[i];
             }
+            // Check if return is a shallow struct (needs larger buffer)
+            Expr **ret_sdef = NULL;
+            if (fe->return_is_shallow && fe->return_type)
+                ret_sdef = Map_get(&ffi_struct_defs, &fe->return_type);
             void *raw = NULL;
-            ffi_call(&fe->cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
+            void *ret_buf = NULL;
+            if (ret_sdef) {
+                // Struct return: allocate buffer of struct size
+                ret_buf = malloc((*ret_sdef)->total_struct_size);
+                ffi_call(&fe->cif, FFI_FN(fe->fn), ret_buf, nargs > 0 ? arg_ptrs : NULL);
+            } else {
+                ffi_call(&fe->cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
+            }
             if (!fe->return_type) {
                 *result = val_none();
+            } else if (ret_sdef) {
+                // Shallow struct return: wrap buffer in StructInstance
+                StructInstance *inst = malloc(sizeof(StructInstance));
+                inst->struct_name = fe->return_type;
+                inst->struct_def = *ret_sdef;
+                inst->data = ret_buf;
+                inst->borrowed = 0;
+                *result = (Value){.type = VAL_STRUCT, .instance = inst};
             } else if (fe->return_is_shallow) {
                 // Shallow return: C function returned a primitive by value.
                 // 'raw' contains the value in its low bits — box it.
@@ -943,5 +1029,14 @@ void ffi_cleanup(void) {
         Map_delete(&ffi_map);
         Map_delete(&ffi_struct_defs);
         ffi_loaded = 0;
+    }
+    if (ffi_type_cache_inited) {
+        for (U32 i = 0; i < ffi_type_cache.count; i++) {
+            ffi_type *t = *(ffi_type **)Vec_get(&ffi_type_cache, i);
+            free(t->elements);
+            free(t);
+        }
+        Vec_delete(&ffi_type_cache);
+        ffi_type_cache_inited = 0;
     }
 }

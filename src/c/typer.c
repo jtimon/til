@@ -126,9 +126,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (pshallow) {
                     Bool is_scalar = (pt == TIL_TYPE_I64 || pt == TIL_TYPE_U8 || pt == TIL_TYPE_I16 ||
                                       pt == TIL_TYPE_I32 || pt == TIL_TYPE_U32 || pt == TIL_TYPE_F32 || pt == TIL_TYPE_BOOL);
-                    if (!is_scalar && pt != TIL_TYPE_DYNAMIC) {
+                    if (!is_scalar && pt != TIL_TYPE_STRUCT && pt != TIL_TYPE_STRUCT_DEF) {
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar type or Dynamic",
+                        snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
                                  e->data.func_def.param_names[i]->c_str);
                         type_error(e, buf);
                     }
