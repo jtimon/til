@@ -37,7 +37,7 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
 }
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
-static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop);
+static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref);
 static const char *type_to_name(TilType type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Expr *src);
 static Expr *make_ns_call(const char *sname, const char *method,
@@ -145,7 +145,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                 }
             }
-            infer_body(func_scope, expr_child(e, 0), is_func, 1, 0);
+            infer_body(func_scope, expr_child(e, 0), is_func, 1, 0, e->data.func_def.return_is_ref);
             // Check: func/macro must have a return type
             if ((is_func || is_macro) && !e->data.func_def.return_type) {
                 type_error(e, is_macro ? "macro must declare a return type"
@@ -187,7 +187,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Type-check field declarations in a child scope so fields
         // don't leak into outer scope's locals for free-call insertion
         TypeScope *inner = tscope_new(scope);
-        infer_body(inner, expr_child(e, 0), 0, 0, 0);
+        infer_body(inner, expr_child(e, 0), 0, 0, 0, 0);
         tscope_free(inner);
         break;
     }
@@ -2138,7 +2138,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     free(locals);
 }
 
-static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop) {
+static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref) {
     body->til_type = TIL_TYPE_NONE;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
@@ -2414,6 +2414,20 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (stmt->children.count > 0) {
                 infer_expr(scope, expr_child(stmt, 0), in_func);
                 stmt->til_type = expr_child(stmt, 0)->til_type;
+                // Auto-insert clone when returning a borrowed parameter
+                // (prevents use-after-free: caller ASAP-deletes arg temps,
+                //  but the return value IS the same pointer as the arg)
+                if (!returns_ref && expr_child(stmt, 0)->type == NODE_IDENT) {
+                    TypeBinding *b = tscope_find(scope, expr_child(stmt, 0)->data.str_val);
+                    if (b && b->is_param && !b->is_own) {
+                        const char *tname = type_to_name(stmt->til_type, expr_child(stmt, 0)->struct_name);
+                        if (tname) {
+                            expr_child(stmt, 0) = make_clone_call(
+                                tname, stmt->til_type,
+                                expr_child(stmt, 0), stmt);
+                        }
+                    }
+                }
             } else {
                 stmt->til_type = TIL_TYPE_NONE;
             }
@@ -2441,19 +2455,19 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             {
                 TypeScope *then_scope = tscope_new(scope);
-                infer_body(then_scope, expr_child(stmt, 1), in_func, 1, in_loop);
+                infer_body(then_scope, expr_child(stmt, 1), in_func, 1, in_loop, returns_ref);
                 tscope_free(then_scope);
             }
             if (stmt->children.count > 2) {
                 TypeScope *else_scope = tscope_new(scope);
-                infer_body(else_scope, expr_child(stmt, 2), in_func, 1, in_loop);
+                infer_body(else_scope, expr_child(stmt, 2), in_func, 1, in_loop, returns_ref);
                 tscope_free(else_scope);
             }
             stmt->til_type = TIL_TYPE_NONE;
             break;
         case NODE_BODY: {
             TypeScope *block_scope = tscope_new(scope);
-            infer_body(block_scope, stmt, in_func, 1, in_loop);
+            infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref);
             tscope_free(block_scope);
             break;
         }
@@ -2519,7 +2533,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             {
                 TypeScope *while_scope = tscope_new(scope);
-                infer_body(while_scope, expr_child(stmt, 1), in_func, 1, 1);
+                infer_body(while_scope, expr_child(stmt, 1), in_func, 1, 1, returns_ref);
                 tscope_free(while_scope);
             }
             stmt->til_type = TIL_TYPE_NONE;
@@ -2911,6 +2925,6 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 I32 type_check(Expr *program, TypeScope *scope, const Mode *mode) {
     errors = 0;
     current_mode = mode;
-    infer_body(scope, program, 0, 1, 0);
+    infer_body(scope, program, 0, 1, 0, 0);
     return errors;
 }

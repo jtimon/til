@@ -118,16 +118,19 @@ svg_polyline := func(points: Str, color: Str) returns Str {
                   " stroke-width=", qa("2"), "/>", NL)
 }
 
+max_val := func(a: I64, b: I64) returns I64 {
+    if a.gt(b) { return a }
+    return b
+}
+
 generate_svg := proc(rows: Vec) returns Str {
-    // TODO #40: Y-axis max inlined because func with conditional return
-    // returns garbage in mode cli interpreter
     mut y_max := 0
     mut i := 0
     while i.lt(rows.len()) {
         ref row : Row = rows.get(i)
-        if row.interp_ms.gt(y_max) { y_max = row.interp_ms }
-        if row.compiled_ms.gt(y_max) { y_max = row.compiled_ms }
-        if row.wall_ms.gt(y_max) { y_max = row.wall_ms }
+        y_max = max_val(y_max, row.interp_ms)
+        y_max = max_val(y_max, row.compiled_ms)
+        y_max = max_val(y_max, row.wall_ms)
         i = i.add(1)
     }
     // Round up y_max to nice number (next multiple of 1000)

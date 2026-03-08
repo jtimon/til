@@ -7,22 +7,6 @@
 * Pre-self-hosting
 
 
-** OPEN #40 Interpreter: func with conditional return returns garbage in mode cli
-  Functions with conditional returns return garbage values when called
-  from ~main~ in ~mode cli~ programs. Works correctly in script mode.
-
-  Example:
-  #+begin_src til
-  max_val := func(a: I64, b: I64) returns I64 {
-      if a.gt(b) { return a }
-      return b
-  }
-  #+end_src
-
-  Called from ~main~ in a mode cli program, ~max_val~ returns garbage.
-  The same function works correctly in script mode (no ~mode cli~).
-
-  Workaround: inline the logic instead of using a separate function.
 
 ** OPEN #39 Replace ctil with til (bottom-up C elimination)
   :DEPENDENCIES: #12

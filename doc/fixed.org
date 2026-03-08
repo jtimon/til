@@ -1,5 +1,26 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #40 Func returning borrowed param: use-after-free in both interpret and run
+  When a func returns a borrowed parameter (~return a~ where ~a~ is not
+  ~own~), the returned pointer IS the same pointer as the caller's argument.
+  The typer's ASAP system hoists literal args to temps and deletes them
+  after the call, freeing the return value's memory.
+
+  Root cause: the typer hoists ~max_val(5, 3)~ into ~_t1 := 5; _t2 := 3;
+  r := max_val(_t1, _t2); I64.delete(_t1); I64.delete(_t2)~. Since
+  ~max_val~ returns borrowed ~a~ directly, ~r~ and ~_t1~ are the same
+  pointer — deleting ~_t1~ frees ~r~'s data (use-after-free in interpret,
+  double-free crash in run).
+
+  Affects both interpreter and builder because both evaluate the typer's
+  ASAP-inserted delete calls. Not mode-specific — appeared in cli mode
+  because that's where the pattern was first used.
+
+  Fix: auto-insert clone in the typer when a non-ref-returning function
+  returns a borrowed parameter (~return <ident>~ where ident is a non-own
+  param). Added ~returns_ref~ parameter to ~infer_body~ so ref-returning
+  functions (which intentionally return the same pointer) are not cloned.
+
 * FIXED #41 Typer: ASAP delete before reassignment causes use-after-free
   ~x = x.concat(y)~ generated ~Type_delete(x)~ before the assignment,
   but ~concat~ still needed to read ~x~. Fixed by checking
