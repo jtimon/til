@@ -81,48 +81,71 @@
    Parser.c translates to parser.til + ast.til (separate module since
    typer/interpreter/builder also need AST types).
 
-**** c2til.org gaps found during analysis
-    1. C union inside struct → flat struct (all union fields as regular fields)
-    2. Vec/struct as struct field → FIXED by #30
-    3. C arrays (Str**, bool*) as struct fields → Vec fields
-    4. Bool fields in Vec-stored structs → use I64 (known alignment bug)
-    5. NULL Expr* pointers → "" for strings, sentinel indices for optionals
-    6. Returning refs from borrowed data → returns ref Type
+**** Translation strategy (using til's current features)
+    C union in Expr → til tagged enum (ExprData) with variants:
+    - StrVal: Str (for Ident, LiteralStr, LiteralNum, Assign, ForIn, NamedArg,
+      FieldAccess, FieldAssign)
+    - Decl: DeclData (struct with name, explicit_type, is_mut, etc.)
+    - FuncDef: FuncDefData (struct with func_type, params, return_type, etc.)
+    - None (for nodes with no union data: Body, Return, If, While, Break, etc.)
+
+    C bool fields → til Bool (no alignment bug for named struct fields,
+    only an issue for Vec-stored values)
+
+    C NULL Str* → "" sentinel. C NULL Expr* → not stored (use children Vec
+    length to determine presence, e.g. Return has 0 or 1 children).
+
+    C arrays (Str**, bool*) for params → Vec of Str / Vec of Bool.
+
+    C switch → til switch. C for loops → til for..in or while.
+
+    C fprintf+exit for errors → til panic().
+
+    C tok_str (pointer+len extraction) → Token.text (already a Str in
+    the self-hosted lexer).
 
 **** src/self/ast.til (mode lib)
-    Strict translation of ast.h:
     - NodeType enum — 22 variants (Body, LiteralStr, LiteralNum, LiteralBool,
       Ident, Decl, Assign, FCall, FuncDef, StructDef, EnumDef, FieldAccess,
       FieldAssign, Return, If, While, ForIn, NamedArg, Break, Continue,
       MapLit, SetLit, Switch, Case)
     - FuncType enum — 6 variants (Func, Proc, Test, Macro, ExtFunc, ExtProc)
-    - Expr struct — flat (union flattened), all fields:
-      - type, str_val, decl_name, decl_explicit_type, decl_is_mut,
-        decl_is_namespace, decl_is_ref, decl_is_own (I64 flags, not Bool)
-      - decl_field_offset, decl_field_size, decl_field_struct_def (I64 sentinel)
-      - func_type, nparam, return_type, return_is_ref, variadic_param_index
-      - is_own_arg, is_splat, is_own_field, is_ns_field, is_ext, is_core
-      - total_struct_size, variadic_index, variadic_count
-      - struct_name, til_type
-      - line, col, path
-      - children: Vec (initialized in expr_new, not struct default)
-      - param_names, param_types: Vec of Str (FUNC_DEF only)
-      - param_muts, param_owns, param_defaults: Vec of I64 (FUNC_DEF only)
-    - expr_new proc — creates Expr, initializes children Vec
-    - expr_add_child proc — pushes child into children Vec
-    - expr_child func — returns ref to child at index
-    - node_type_name func — switch on NodeType → debug string
+    - TilType enum — 14 variants (Unknown..Dynamic)
+    - DeclData struct — name, explicit_type, is_mut, is_namespace, is_ref,
+      is_own, field_offset, field_size
+    - FuncDefData struct — func_type, return_type, return_is_ref,
+      variadic_index, param_names/types (Vec of Str),
+      param_muts/owns (Vec of Bool), param_defaults (Vec of I64, index or -1)
+    - ExprData tagged enum — StrVal: Str, Decl: DeclData, FuncDef: FuncDefData, None
+    - Expr struct:
+      - type: NodeType, til_type: TilType, data: ExprData
+      - struct_name: Str ("" if none)
+      - is_own_arg, is_splat, is_own_field, is_ns_field, is_ext, is_core: Bool
+      - total_struct_size, variadic_index, variadic_count: I64
+      - children: Vec (of Expr, heap-allocated via own)
+      - line, col: I64, path: Str
+    - expr_new, expr_add_child, expr_child, node_type_name (switch)
 
 **** src/self/parser.til (mode lib)
     Strict translation of parser.c, imports lexer.til and ast.til.
-    Parser struct: tokens (Vec), count (I64), pos (I64), path (Str).
-    Functions (same names as C, use switch/for where C uses switch/for):
-    - peek, advance, check, expect, tok_str (helpers)
+    Parser struct: tokens (Vec of Token), count (I64), pos (I64), path (Str).
+
+    Helper functions:
+    - peek → returns ref Token from tokens Vec
+    - advance → returns ref Token, increments pos
+    - check → compares peek().type with TokenType using .eq()
+    - expect → check + advance, panic on mismatch
+    - (no tok_str needed — Token.text is already a Str)
+
+    Parsing functions (same structure as C, using switch where C uses switch):
     - parse_block, parse_func_def, parse_struct_def, parse_enum_def
-    - parse_call (handles splat args with ..)
-    - parse_expression (handles __LOC__, __FILE__, __LINE__, __COL__ directives)
-    - parse_statement_ident, parse_statement (handles switch/case, for..in, own)
-    - parse (entry point, parses mode declaration, returns Expr root NODE_BODY)
+    - parse_call (handles named args, splat with .., own args)
+    - parse_expression (literals, idents, __LOC__/__FILE__/__LINE__/__COL__,
+      func/struct/enum defs, map/set literals, field access chains, ranges)
+    - parse_statement_ident (decl :=, decl : T =, field assign, method call, assign)
+    - parse_statement (switch on token type: ident, ref, mut, return, if, while,
+      for, switch, own, break, continue, literals, blocks)
+    - parse (entry point: parse mode, parse body until EOF)
 
 **** src/test/parsing.til (mode script)
     Tests exercising the self-hosted parser:
