@@ -4,41 +4,63 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* FIXED #34 For-in loops over collections
-  Syntax: ~for i in collection { body }~ or ~for i : Type in collection { body }~.
-  Works for any type with ~get(I64)~ and ~len()~ methods (Vec, Array, Str).
+* WIP #34 For-in loops over collections
 
-  Type inference follows normal declaration rules: if ~get()~ returns a concrete
-  type (e.g. Str.get returns ~ref U8~), the type annotation can be omitted.
-  If ~get()~ returns ~ref Dynamic~ (Vec, Array, Map, Set), explicit type is required.
+** DONE Phase 1: Collection iteration
+   Syntax: ~for i in collection { body }~ or ~for i : Type in collection { body }~.
+   Works for any type with ~get(I64)~ and ~len()~ methods (Vec, Array, Str).
 
-  Desugars in the typer to a while loop inside an anonymous scope:
+   Type inference follows normal declaration rules: if ~get()~ returns a concrete
+   type (e.g. Str.get returns ~ref U8~), the type annotation can be omitted.
+   If ~get()~ returns ~ref Dynamic~ (Vec, Array, Map, Set), explicit type is required.
 
-  #+begin_src til
-  for i in collection { body }
-  #+end_src
-  →
-  #+begin_src til
-  {
-      mut _fiN := 0
-      while _fiN.lt(collection.len()) {
-          ref i : Type = collection.get(_fiN)
-          _fiN = _fiN.add(1)
-          body
-      }
-  }
-  #+end_src
+   Desugars in the typer to a while loop inside an anonymous scope:
 
-  Index increment placed before user body so ~continue~ doesn't cause infinite loop.
-  The anonymous scope prevents the index variable from leaking.
+   #+begin_src til
+   for i in collection { body }
+   #+end_src
+   →
+   #+begin_src til
+   {
+       mut _fiN := 0
+       while _fiN.lt(collection.len()) {
+           ref i : Type = collection.get(_fiN)
+           _fiN = _fiN.add(1)
+           body
+       }
+   }
+   #+end_src
 
-  Typer validates iterable interface: ~len()~ must return I64 with 1 param,
-  ~get()~ must take 2 params with second being I64. Type errors for missing
-  methods or wrong signatures.
+   Index increment placed before user body so ~continue~ doesn't cause infinite loop.
+   The anonymous scope prevents the index variable from leaking.
 
-  Parser: TOK_FOR case in parse_statement() (parser.c).
-  Typer: NODE_FOR_IN desugaring inline in infer_body() (typer.c).
-  Tests: src/test/loops.til (9 tests), 3 new typer error cases.
+   Typer validates iterable interface: ~len()~ must return I64 with 1 param,
+   ~get()~ must take 2 params with second being I64. Type errors for missing
+   methods or wrong signatures.
+
+   Parser: TOK_FOR case in parse_statement() (parser.c).
+   Typer: NODE_FOR_IN desugaring inline in infer_body() (typer.c).
+   Tests: src/test/loops.til (9 tests), 3 new typer error cases.
+
+** Phase 2: Range iteration
+   Syntax: ~for i in 0..10 { body }~ — iterates i = 0, 1, 2, ..., 9 (end excluded).
+   Ascending (~0..10~) and descending (~10..0~) ranges.
+
+   ~0..10~ desugars to ~Range.new(0, 10)~ (or similar). Range is a Dynamic
+   collection in core.til (like Vec but with one element buffer). Stores start,
+   end, elem_type, elem_size, and a buffer for current value. ~len()~ returns
+   the distance. ~get(pos)~ stores the element at position pos into the buffer
+   and returns ref to it.
+
+   Range.get(pos) tracks internal position and steps with ~inc()~/~dec()~
+   from current, since for-in always iterates sequentially. Ascending ranges
+   use ~inc()~, descending use ~dec()~.
+
+   Prerequisite: add ~inc()~ and ~dec()~ methods to I64, U8, I16, I32, U32
+   in core.til. ~inc()~ returns value + 1, ~dec()~ returns value - 1.
+
+   Parser: ~..~ as a binary operator producing NODE_RANGE (or desugared to
+   Range.new() call). Needs a new token TOK_DOTDOT.
 
 * OPEN #33 Character literals for U8
   Currently there's no syntax for character literals. Writing ~U8.from_i64(40)~
@@ -336,6 +358,10 @@
    Introduces real precedence: * / % bind tighter than + -.
    Desugars: a + b * c → a.add(b.mul(c)).
    Requires grouping parentheses support.
+
+   Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
+   ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
+   ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
 
 * OPEN #18 Tuple: fixed-size heterogeneous collections
   Holds a fixed number of elements of different types.
