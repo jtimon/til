@@ -29,3 +29,7 @@ bin/ctil run program.til
 #+begin_src sh
 make test
 #+end_src
+
+** Performance
+
+[[file:img/totals.svg]]

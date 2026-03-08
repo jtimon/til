@@ -464,5 +464,79 @@ main := proc(args: ..Str) {
     if fail.eq(0) {
         println("all tests passed")
     }
+
+    // --- Benchmark CSV logging ---
+
+    // Get commit hash
+    run("git rev-parse --short HEAD > tmp/_commit_hash")
+    commit := readfile("tmp/_commit_hash").replace(NL, "")
+
+    // Write gen/benchmark.csv (per-test detail, not tracked in git)
+    run("mkdir -p gen")
+    mut bench := Str.with_capacity(32768)
+    bench.push_str("commit,file,interp_ms,run_ms,interp_ok,run_ok")
+    bench.push_str(NL)
+    mut bi := 0
+    while bi.lt(results.len()) {
+        ref br : TestFile = results.get(bi)
+        bench.push_str(format(commit, ",", br.file, ",",
+                              br.interp_ms.to_str(), ",", br.run_ms.to_str(), ",",
+                              br.interp_ok.to_str(), ",", br.run_ok.to_str(), NL))
+        bi = bi.add(1)
+    }
+    writefile("gen/benchmark.csv", bench)
+
+    // Build totals CSV line
+    totals_line := format(commit, ",",
+                          total_interp.to_str(), ",", total_run.to_str(), ",",
+                          ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
+                          cli_ms.to_str(), ",", wall_ms.to_str(), ",",
+                          passed.to_str(), ",", num_files.to_str())
+
+    // Update doc/totals.csv (tracked in git)
+    totals_path := "doc/totals.csv"
+    // Read existing totals or start fresh
+    existing := readfile(totals_path)
+    mut totals_content := ""
+    // Check if last line has the same commit — if so, replace it
+    lines := split(existing, NL)
+    mut last_data_idx := lines.len().sub(1)
+    // Skip trailing empty lines
+    while last_data_idx.gt(0) {
+        ref last_line : Str = lines.get(last_data_idx)
+        if last_line.len().gt(0) { break }
+        last_data_idx = last_data_idx.sub(1)
+    }
+    // Only try replace if we have data rows (not just header)
+    if last_data_idx.gt(0) {
+        ref last_data : Str = lines.get(last_data_idx)
+        last_commit := last_data.substr(0, last_data.find(","))
+        if last_commit.eq(commit) {
+            // Replace last line: rebuild without it
+            mut li := 0
+            while li.lt(last_data_idx) {
+                ref ln : Str = lines.get(li)
+                totals_content = totals_content.concat(ln).concat(NL)
+                li = li.add(1)
+            }
+        } else {
+            totals_content = existing
+            if existing.substr(existing.len().sub(1), 1).neq(NL) {
+                totals_content = totals_content.concat(NL)
+            }
+        }
+    } else {
+        totals_content = existing
+        if existing.len().gt(0).and(existing.substr(existing.len().sub(1), 1).neq(NL)) {
+            totals_content = totals_content.concat(NL)
+        }
+    }
+    totals_content = totals_content.concat(totals_line).concat(NL)
+    writefile(totals_path, totals_content)
+
+    // Generate chart
+    run("bin/ctil run src/examples/plot.til doc/totals.csv img/totals.svg")
+    println("Updated doc/totals.csv and img/totals.svg")
+
     exit(fail)
 }
