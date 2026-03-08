@@ -85,6 +85,7 @@ struct Expr {
             Str **param_types;     // type name strings: "I64", "Str", etc.
             bool *param_muts;        // true for mut params
             bool *param_owns;        // true for own params
+            bool *param_shallows;    // true for shallow params (pass by value)
             U32 nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             Str *return_type;      // NULL if none (proc)

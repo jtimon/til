@@ -1,0 +1,43 @@
+// Test shallow params on regular func
+add_shallow := func(shallow a: I64, shallow b: I64) returns I64 {
+    return a.add(b)
+}
+
+assert_eq(__LOC__, add_shallow(3, 4), 7)
+
+// Test shallow with non-shallow mix
+mixed := func(shallow a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
+
+assert_eq(__LOC__, mixed(10, 20), 30)
+
+// Test shallow Bool
+both_true := func(shallow a: Bool, shallow b: Bool) returns Bool {
+    return a.and(b)
+}
+
+assert(__LOC__, both_true(true, true))
+assert(__LOC__, both_true(true, false).not())
+
+// Test shallow param passed to another function
+double_it := func(shallow x: I64) returns I64 {
+    return x.mul(2)
+}
+
+chain := func(shallow a: I64) returns I64 {
+    return double_it(a)
+}
+
+assert_eq(__LOC__, chain(5), 10)
+
+// Test shallow param used in expressions
+expr_test := func(shallow a: I64, shallow b: I64) returns I64 {
+    c := a.add(b)
+    d := c.mul(2)
+    return d
+}
+
+assert_eq(__LOC__, expr_test(3, 4), 14)
+
+print("all shallow tests passed")

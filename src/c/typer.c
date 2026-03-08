@@ -118,6 +118,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 Bool pmut = e->data.func_def.param_muts ? e->data.func_def.param_muts[i] : 0;
                 Bool pown = e->data.func_def.param_owns ? e->data.func_def.param_owns[i] : 0;
+                Bool pshallow = e->data.func_def.param_shallows ? e->data.func_def.param_shallows[i] : 0;
+                if (pshallow) {
+                    Bool is_scalar = (pt == TIL_TYPE_I64 || pt == TIL_TYPE_U8 || pt == TIL_TYPE_I16 ||
+                                      pt == TIL_TYPE_I32 || pt == TIL_TYPE_U32 || pt == TIL_TYPE_BOOL);
+                    if (!is_scalar && pt != TIL_TYPE_DYNAMIC) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar type or Dynamic",
+                                 e->data.func_def.param_names[i]->c_str);
+                        type_error(e, buf);
+                    }
+                    if (pown) type_error(e, "parameter cannot be both 'shallow' and 'own'");
+                }
                 // Variadic param: bind as Array (element type already validated above)
                 if ((I32)i == e->data.func_def.variadic_index) {
                     if (e->data.func_def.param_owns) e->data.func_def.param_owns[i] = true;

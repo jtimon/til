@@ -21,8 +21,6 @@ static inline void *Array_elem(Array *a, I64 i) {
     return a->data + i * a->elem_size;
 }
 
-void exit_program(I64 *code);
-
 // I64 clone/delete
 I64 *I64_clone(I64 *v);
 void I64_delete(I64 *v, Bool *call_free);
@@ -137,21 +135,16 @@ void U32_delete(U32 *v, Bool *call_free);
 
 // Bool ops
 Bool *Bool_eq(Bool *a, Bool *b);
-Bool *Bool_and(Bool *a, Bool *b);
-Bool *Bool_or(Bool *a, Bool *b);
-Bool *Bool_not(Bool *a);
-
-void til_memmove(void *dest, void *src, I64 *len);
+Bool *Bool_and(Bool a, Bool b);
+Bool *Bool_or(Bool a, Bool b);
+Bool *Bool_not(Bool a);
 
 // Bool clone/delete
 Bool *Bool_clone(Bool *v);
 void Bool_delete(Bool *v, Bool *call_free);
 
-// Pointer primitives
-void *til_malloc(I64 *count);
-void *til_realloc(void *buf, I64 *count);
-void *ptr_add(void *buf, I64 *offset);
-void til_memcpy(void *dest, void *src, I64 *len);
+// Pointer primitives (custom, not in libc)
+void *ptr_add(void *buf, I64 offset);
 
 // CLI arg parsing
 I64 *cli_parse_i64(const char *s);
@@ -163,8 +156,8 @@ Bool *cli_parse_bool(const char *s);
 Str *readfile(Str *path);
 void writefile(Str *path, Str *content);
 I64 *spawn_cmd(Str *cmd);
-I64 *check_cmd_status(I64 *pid);
-void sleep_ms(I64 *ms);
+I64 *check_cmd_status(I64 pid);
+void sleep_ms(I64 ms);
 I64 *file_mtime(Str *path);
 I64 *clock_ms(void);
 I64 *get_thread_count(void);

@@ -15,8 +15,6 @@ static I32 *new_i32(I32 v) { I32 *r = malloc(sizeof(I32)); *r = v; return r; }
 static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
 
-void exit_program(I64 *code) { exit((int)*code); }
-
 // I64 clone/delete
 I64 *I64_clone(I64 *v) { return new_i64(*v); }
 void I64_delete(I64 *v, Bool *call_free) { if (*call_free) free(v); }
@@ -167,25 +165,17 @@ void U32_delete(U32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // Bool ops
 Bool *Bool_eq(Bool *a, Bool *b) { return new_bool(*a == *b); }
-Bool *Bool_and(Bool *a, Bool *b) { return new_bool(*a && *b); }
-Bool *Bool_or(Bool *a, Bool *b) { return new_bool(*a || *b); }
-Bool *Bool_not(Bool *a) { return new_bool(!*a); }
+Bool *Bool_and(Bool a, Bool b) { return new_bool(a && b); }
+Bool *Bool_or(Bool a, Bool b) { return new_bool(a || b); }
+Bool *Bool_not(Bool a) { return new_bool(!a); }
 
 // Bool clone/delete
 Bool *Bool_clone(Bool *v) { return new_bool(*v); }
 void Bool_delete(Bool *v, Bool *call_free) { if (*call_free) free(v); }
 
-// Pointer primitives
-void *til_malloc(I64 *count) { return calloc(1, (size_t)*count); }
-void *til_realloc(void *buf, I64 *count) { return realloc(buf, (size_t)*count); }
-void *ptr_add(void *buf, I64 *offset) {
-    return (char *)buf + *offset;
-}
-void til_memcpy(void *dest, void *src, I64 *len) {
-    memcpy(dest, src, (size_t)*len);
-}
-void til_memmove(void *dest, void *src, I64 *len) {
-    memmove(dest, src, (size_t)*len);
+// Pointer primitives (custom, not in libc)
+void *ptr_add(void *buf, I64 offset) {
+    return (char *)buf + offset;
 }
 
 // CLI arg parsing
@@ -278,16 +268,16 @@ I64 *spawn_cmd(Str *cmd) {
     return new_i64((I64)pid);
 }
 
-I64 *check_cmd_status(I64 *pid) {
+I64 *check_cmd_status(I64 pid) {
     I32 status;
-    pid_t result = waitpid((pid_t)*pid, &status, WNOHANG);
+    pid_t result = waitpid((pid_t)pid, &status, WNOHANG);
     if (result == 0) return new_i64(-1);
     if (WIFEXITED(status)) return new_i64(WEXITSTATUS(status));
     return new_i64(-1);
 }
 
-void sleep_ms(I64 *ms) {
-    usleep((useconds_t)(*ms * 1000));
+void sleep_ms(I64 ms) {
+    usleep((useconds_t)(ms * 1000));
 }
 
 I64 *file_mtime(Str *path) {

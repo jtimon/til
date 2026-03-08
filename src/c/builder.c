@@ -7,6 +7,7 @@
 
 static Expr *codegen_program; // set during codegen for ns_init lookups
 static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
+static Map func_defs;     // Str* name → Expr* func_def (NODE_FUNC_DEF)
 static Set script_globals; // names of top-level vars emitted as file-scope globals
 static Bool has_script_globals; // whether script_globals is initialized
 static Bool in_func_def; // true while emitting a function/proc body
@@ -108,20 +109,41 @@ static void emit_expr(FILE *f, Expr *e, I32 depth);
 static void emit_stmt(FILE *f, Expr *e, I32 depth);
 static void emit_body(FILE *f, Expr *body, I32 depth);
 
+// Track current function being emitted (for shallow param lookup)
+static Expr *current_fdef = NULL;
+
+static Bool is_shallow_param(const char *name) {
+    if (!current_fdef) return 0;
+    for (U32 i = 0; i < current_fdef->data.func_def.nparam; i++) {
+        if (current_fdef->data.func_def.param_shallows &&
+            current_fdef->data.func_def.param_shallows[i] &&
+            strcmp(current_fdef->data.func_def.param_names[i]->c_str, name) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+// Check if callee's i-th parameter is shallow (for call site emission)
+static Expr *find_callee_fdef(Str *name) {
+    Expr **p = Map_get(&func_defs, &name);
+    return p ? *p : NULL;
+}
+
+static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
+    Expr *fdef = find_callee_fdef(callee_name);
+    if (!fdef) return 0;
+    if (arg_index >= fdef->data.func_def.nparam) return 0;
+    return fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[arg_index];
+}
+
 // Map til function names to C symbol names (handles stdlib collisions)
 static const char *func_to_c(Str *name) {
-    if (Str_eq_c(name, "exit")) return "exit_program";
     if (Str_eq_c(name, "sleep")) return "sleep_ms";
     if (Str_eq_c(name, "and")) return "Bool_and";
     if (Str_eq_c(name, "or")) return "Bool_or";
     if (Str_eq_c(name, "not")) return "Bool_not";
     // C keyword collision
     if (Str_eq_c(name, "double")) return "double_";
-    // Keep til_ prefix for wrappers that have different signatures than C stdlib
-    if (Str_eq_c(name, "malloc")) return "til_malloc";
-    if (Str_eq_c(name, "realloc")) return "til_realloc";
-    if (Str_eq_c(name, "memcpy")) return "til_memcpy";
-    if (Str_eq_c(name, "memmove")) return "til_memmove";
     return name->c_str;
 }
 
@@ -147,10 +169,16 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         if (expr_child(e, 0)->type == NODE_FIELD_ACCESS) {
             Str *sname = expr_child(expr_child(e, 0), 0)->struct_name;
             Str *mname = expr_child(e, 0)->data.str_val;
+            char flat_key[256];
+            snprintf(flat_key, sizeof(flat_key), "%s_%s", sname->c_str, mname->c_str);
+            Str *flat_str = Str_new(flat_key);
             fprintf(f, "%s_%s(", sname->c_str, mname->c_str);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
+                if (callee_param_is_shallow(flat_str, i - 1))
+                    emit_deref(f, expr_child(e, i), depth);
+                else
+                    emit_as_ptr(f, expr_child(e, i), depth);
             }
             fprintf(f, ")");
             break;
@@ -195,7 +223,10 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "%s(", func_to_c(name));
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
+                if (callee_param_is_shallow(name, i - 1))
+                    emit_deref(f, expr_child(e, i), depth);
+                else
+                    emit_as_ptr(f, expr_child(e, i), depth);
             }
             fprintf(f, ")");
         }
@@ -290,8 +321,14 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
     } else {
         for (U32 i = 0; i < np; i++) {
             if (i > 0) fprintf(f, ", ");
-            const char *ptype = ((I32)i == fvi) ? "Array *"
-                : type_name_to_c(fdef->data.func_def.param_types[i]);
+            const char *ptype;
+            if ((I32)i == fvi) {
+                ptype = "Array *";
+            } else if (fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[i]) {
+                ptype = type_name_to_c_value(fdef->data.func_def.param_types[i]);
+            } else {
+                ptype = type_name_to_c(fdef->data.func_def.param_types[i]);
+            }
             if (with_names)
                 fprintf(f, "%s %s", ptype, fdef->data.func_def.param_names[i]->c_str);
             else
@@ -305,9 +342,13 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         // Dynamic (void *) IS the value — no dereference needed
         emit_expr(f, e, depth);
     } else if (e->type == NODE_IDENT) {
-        fprintf(f, "(*");
-        emit_expr(f, e, depth);
-        fprintf(f, ")");
+        if (is_shallow_param(e->data.str_val->c_str)) {
+            emit_expr(f, e, depth); // shallow param is already a value
+        } else {
+            fprintf(f, "(*");
+            emit_expr(f, e, depth);
+            fprintf(f, ")");
+        }
     } else if (e->type == NODE_LITERAL_STR) {
         fprintf(f, "(Str){.data=(U8*)\"%s\", .count=%lld, .cap=TIL_CAP_LIT}",
                 e->data.str_val->c_str, (long long)e->data.str_val->count);
@@ -324,7 +365,13 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
 // Emit expression as a pointer — after hoisting, args are NODE_IDENT (already pointer)
 // or NODE_FIELD_ACCESS (value needing compound literal wrapping).
 static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
-    if (e->type == NODE_IDENT || e->type == NODE_FCALL || e->type == NODE_LITERAL_STR) {
+    if (e->type == NODE_IDENT && is_shallow_param(e->data.str_val->c_str)) {
+        // Shallow param is a value — wrap in compound literal to get a pointer
+        const char *ctype = c_type_name(e->til_type, e->struct_name);
+        fprintf(f, "&(%s){", ctype);
+        emit_expr(f, e, depth);
+        fprintf(f, "}");
+    } else if (e->type == NODE_IDENT || e->type == NODE_FCALL || e->type == NODE_LITERAL_STR) {
         emit_expr(f, e, depth);
     } else if (e->type == NODE_FIELD_ACCESS) {
         // Own field is already a pointer; enum ns_field constructor returns pointer;
@@ -718,7 +765,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
         in_func_def = 1;
+        current_fdef = func_def;
         emit_body(f, body, 1);
+        current_fdef = NULL;
         in_func_def = 0;
         fprintf(f, "}\n");
     }
@@ -939,12 +988,30 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
 
     // Build struct body lookup map
     struct_bodies = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    // Build func_def lookup map (for shallow param lookup at call sites)
+    func_defs = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_STRUCT_DEF) {
             Str *sname = stmt->data.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
             Map_set(&struct_bodies, &sname, &body);
+            // Register namespace methods
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = expr_child(body, j);
+                if (!field->data.decl.is_namespace) continue;
+                if (field->children.count == 0 || expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
+                Expr *fdef = expr_child(field, 0);
+                char flat[256];
+                snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->data.decl.name->c_str);
+                Str *key = Str_new(flat);
+                Map_set(&func_defs, &key, &fdef);
+            }
+        }
+        if (stmt->type == NODE_DECL && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
+            Str *fname = stmt->data.decl.name;
+            Expr *fdef = expr_child(stmt, 0);
+            Map_set(&func_defs, &fname, &fdef);
         }
     }
     FILE *f = fopen(c_output_path, "w");
@@ -1403,6 +1470,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
 
     fclose(f);
     Map_delete(&struct_bodies);
+    Map_delete(&func_defs);
     return 0;
 }
 

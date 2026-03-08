@@ -25,6 +25,7 @@ typedef struct {
     void *fn;           // dlsym'd function pointer
     Str *return_type;   // NULL for proc (void return)
     I32 nparam;
+    bool *param_shallows; // per-param shallow flags (NULL if none)
     ffi_cif cif;
     ffi_type **arg_types;
 } FFIEntry;
@@ -33,6 +34,17 @@ static Map ffi_map;          // name -> FFIEntry
 static Map ffi_struct_defs;  // Str* name -> Expr* struct_def (for return type lookup)
 static void *ffi_handle;     // dlopen handle
 static Bool ffi_loaded;
+
+// Map a til type name to the appropriate ffi_type for shallow params
+static ffi_type *shallow_ffi_type(Str *type_name) {
+    if (Str_eq_c(type_name, "I64"))  return &ffi_type_sint64;
+    if (Str_eq_c(type_name, "U8"))   return &ffi_type_uint8;
+    if (Str_eq_c(type_name, "I16"))  return &ffi_type_sint16;
+    if (Str_eq_c(type_name, "I32"))  return &ffi_type_sint32;
+    if (Str_eq_c(type_name, "U32"))  return &ffi_type_uint32;
+    if (Str_eq_c(type_name, "Bool")) return &ffi_type_uint8;
+    return &ffi_type_pointer; // Dynamic or other
+}
 
 // === Eval helper for Dynamic narrowing ===
 // When the typer narrows a Dynamic arg to a concrete type, the expression's
@@ -513,7 +525,14 @@ static void *val_to_ptr(Value v) {
 static Bool h_malloc(Scope *s, Expr *e, Value *r) {
     Value count = eval_expr(s, expr_child(e,1));
     I32 nbytes = (I32)*count.i64;
-    *r = (Value){.type = VAL_PTR, .ptr = calloc(1, nbytes)};
+    *r = (Value){.type = VAL_PTR, .ptr = malloc(nbytes)};
+    return 1;
+}
+
+static Bool h_calloc(Scope *s, Expr *e, Value *r) {
+    Value nmemb = eval_expr(s, expr_child(e,1));
+    Value size = eval_expr(s, expr_child(e,2));
+    *r = (Value){.type = VAL_PTR, .ptr = calloc((size_t)*nmemb.i64, (size_t)*size.i64)};
     return 1;
 }
 
@@ -740,6 +759,7 @@ static void dispatch_init(void) {
 
     // Pointer primitives
     REG("malloc", h_malloc);
+    REG("calloc", h_calloc);
     REG("realloc", h_realloc);
     REG("ptr_add", h_ptr_add);
     REG("memcpy", h_memcpy);
@@ -787,16 +807,30 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             void *arg_ptrs[nargs > 0 ? nargs : 1];
             for (U32 i = 0; i < nargs; i++) {
                 Value v = eval_expr(scope, expr_child(e, i + 1));
-                switch (v.type) {
-                    case VAL_I64:    args[i] = v.i64; break;
-                    case VAL_U8:     args[i] = v.u8; break;
-                    case VAL_I16:    args[i] = v.i16; break;
-                    case VAL_I32:    args[i] = v.i32; break;
-                    case VAL_U32:    args[i] = v.u32; break;
-                    case VAL_BOOL:   args[i] = v.boolean; break;
-                    case VAL_PTR:    args[i] = v.ptr; break;
-                    case VAL_STRUCT: args[i] = v.instance->data; break;
-                    default:         args[i] = NULL; break;
+                if (fe->param_shallows && i < (U32)fe->nparam && fe->param_shallows[i]) {
+                    // Shallow: store dereferenced value directly for ffi
+                    switch (v.type) {
+                        case VAL_I64:  *(I64 *)&args[i] = *v.i64; break;
+                        case VAL_U8:   *(U8 *)&args[i] = *v.u8; break;
+                        case VAL_I16:  *(I16 *)&args[i] = *v.i16; break;
+                        case VAL_I32:  *(I32 *)&args[i] = *v.i32; break;
+                        case VAL_U32:  *(U32 *)&args[i] = *v.u32; break;
+                        case VAL_BOOL: *(U8 *)&args[i] = *v.boolean ? 1 : 0; break;
+                        default:       args[i] = v.ptr; break; // Dynamic stays as pointer
+                    }
+                } else {
+                    // Deep: pass pointer (existing behavior)
+                    switch (v.type) {
+                        case VAL_I64:    args[i] = v.i64; break;
+                        case VAL_U8:     args[i] = v.u8; break;
+                        case VAL_I16:    args[i] = v.i16; break;
+                        case VAL_I32:    args[i] = v.i32; break;
+                        case VAL_U32:    args[i] = v.u32; break;
+                        case VAL_BOOL:   args[i] = v.boolean; break;
+                        case VAL_PTR:    args[i] = v.ptr; break;
+                        case VAL_STRUCT: args[i] = v.instance->data; break;
+                        default:         args[i] = NULL; break;
+                    }
                 }
                 arg_ptrs[i] = &args[i];
             }
@@ -946,11 +980,26 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
             }
             U32 np = fdef->data.func_def.nparam;
             ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-            for (U32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
+            bool *pshallows = NULL;
+            bool has_shallow = false;
+            for (U32 k = 0; k < np; k++) {
+                if (fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k]) {
+                    atypes[k] = shallow_ffi_type(fdef->data.func_def.param_types[k]);
+                    has_shallow = true;
+                } else {
+                    atypes[k] = &ffi_type_pointer;
+                }
+            }
+            if (has_shallow) {
+                pshallows = malloc(sizeof(bool) * np);
+                for (U32 k = 0; k < np; k++)
+                    pshallows[k] = fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k];
+            }
             FFIEntry entry = {
                 .fn = fn,
                 .return_type = fdef->data.func_def.return_type,
                 .nparam = np,
+                .param_shallows = pshallows,
                 .arg_types = atypes,
             };
             ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;
@@ -983,11 +1032,26 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
                 }
                 U32 np = fdef->data.func_def.nparam;
                 ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-                for (U32 k = 0; k < np; k++) atypes[k] = &ffi_type_pointer;
+                bool *pshallows2 = NULL;
+                bool has_shallow2 = false;
+                for (U32 k = 0; k < np; k++) {
+                    if (fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k]) {
+                        atypes[k] = shallow_ffi_type(fdef->data.func_def.param_types[k]);
+                        has_shallow2 = true;
+                    } else {
+                        atypes[k] = &ffi_type_pointer;
+                    }
+                }
+                if (has_shallow2) {
+                    pshallows2 = malloc(sizeof(bool) * np);
+                    for (U32 k = 0; k < np; k++)
+                        pshallows2[k] = fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k];
+                }
                 FFIEntry entry = {
                     .fn = fn,
                     .return_type = fdef->data.func_def.return_type,
                     .nparam = np,
+                    .param_shallows = pshallows2,
                     .arg_types = atypes,
                 };
                 ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;

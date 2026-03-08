@@ -6,7 +6,7 @@ Array := struct {
 
     namespace:
     new := func(elem_type: Str, elem_size: I64, cap: I64) returns Array {
-        return Array(data = malloc(cap.mul(elem_size)), cap = cap,
+        return Array(data = calloc(cap, elem_size), cap = cap,
                      elem_size = elem_size, elem_type = elem_type)
     }
 

@@ -85,8 +85,14 @@ static Expr *parse_func_def(Parser *p) {
     Vec pmuts = Vec_new(sizeof(bool));
     Vec powns = Vec_new(sizeof(bool));
     Vec pdefs = Vec_new(sizeof(Expr *));
+    Vec pshallows = Vec_new(sizeof(bool));
     I32 variadic_index = -1;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
+        bool is_shallow = false;
+        if (check(p, TOK_SHALLOW)) {
+            advance(p);
+            is_shallow = true;
+        }
         bool is_own = false;
         if (check(p, TOK_OWN)) {
             advance(p);
@@ -112,6 +118,11 @@ static Expr *parse_func_def(Parser *p) {
                         p->path, pname->line, pname->col, pname->len, pname->start);
                 exit(1);
             }
+            if (is_shallow) {
+                fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'shallow'\n",
+                        p->path, pname->line, pname->col, pname->len, pname->start);
+                exit(1);
+            }
             if (variadic_index >= 0) {
                 fprintf(stderr, "%s:%u:%u: parse error: only one variadic parameter is allowed\n",
                         p->path, pname->line, pname->col);
@@ -127,6 +138,7 @@ static Expr *parse_func_def(Parser *p) {
         Vec_push(&ptypes, &tp);
         Vec_push(&pmuts, &is_mut);
         Vec_push(&powns, &is_own);
+        Vec_push(&pshallows, &is_shallow);
         // Optional default value: name: Type = expr
         Expr *def_val = NULL;
         if (check(p, TOK_EQ)) {
@@ -163,6 +175,7 @@ static Expr *parse_func_def(Parser *p) {
     def->data.func_def.param_types = Vec_take(&ptypes);
     def->data.func_def.param_muts = Vec_take(&pmuts);
     def->data.func_def.param_owns = Vec_take(&powns);
+    def->data.func_def.param_shallows = Vec_take(&pshallows);
     def->data.func_def.param_defaults = Vec_take(&pdefs);
     def->data.func_def.return_type = return_type;
     def->data.func_def.return_is_ref = return_is_ref;

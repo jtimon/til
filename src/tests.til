@@ -243,6 +243,7 @@ main := proc(args: ..Str) {
     c_common.push(own "src/test/aliases.til")
     c_common.push(own "src/test/loops.til")
     c_common.push(own "src/test/splat.til")
+    c_common.push(own "src/test/shallow.til")
     c_common.push(own "src/test/lexing.til")
     c_common.push(own "src/test/parsing.til")
 

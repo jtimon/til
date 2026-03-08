@@ -451,3 +451,31 @@ test_switch_payload_with_default := test() {
     }
     assert_eq_str(__LOC__, result, "other")
 }
+
+// --- shallow keyword tests ---
+
+shallow_add := func(shallow a: I64, shallow b: I64) returns I64 {
+    return a.add(b)
+}
+
+shallow_mixed := func(shallow a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
+
+shallow_bool := func(shallow a: Bool, shallow b: Bool) returns Bool {
+    return a.and(b)
+}
+
+shallow_chain := func(shallow x: I64) returns I64 {
+    return x.mul(2)
+}
+
+test_shallow := test() {
+    assert_eq(__LOC__, shallow_add(3, 4), 7)
+    assert_eq(__LOC__, shallow_mixed(10, 20), 30)
+    assert(__LOC__, shallow_bool(true, true))
+    assert(__LOC__, shallow_bool(true, false).not())
+    assert_eq(__LOC__, shallow_chain(5), 10)
+    // shallow param passed to another shallow func
+    assert_eq(__LOC__, shallow_add(shallow_chain(3), 1), 7)
+}
