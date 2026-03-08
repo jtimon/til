@@ -1,4 +1,5 @@
 mode script
+link_c("src/examples/ffi/ext_module.c")
 
 // Top-level ext functions
 greet := ext_func(name: Str) returns Str {}
