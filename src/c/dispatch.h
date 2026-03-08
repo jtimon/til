@@ -13,7 +13,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Str *enum_name, Expr *e,
                          Value *result);
 
-// FFI: load user .c as shared library, register function pointers
+// FFI: auto-discover C functions via dlsym, optionally compile user .c library
 I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, const char *link_flags);
 void ffi_cleanup(void);
 

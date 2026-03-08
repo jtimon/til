@@ -62,88 +62,9 @@
    - ~.h~ → system include path (e.g. ~/usr/local/include~)
    - ~.til~ → til lib path (TBD — e.g. ~~/.til/lib/~ or similar)
 
-** WIP #38 Drop til_ prefix from generated C symbols
-  :DEPENDENCIES: #23, #37
-  Currently the builder prefixes all generated symbols with ~til_~ (e.g.
-  ~til_I64~, ~til_Token~, ~til_tokenize~). This was to avoid C name
-  collisions, but in practice these names don't collide with C stdlib.
-
-  Removing the prefix means generated C symbols match the original C
-  compiler's symbols (e.g. ~Token~ not ~til_Token~). This is essential
-  for the bottom-up self-hosting strategy (#12): each til module compiles
-  to a library with the same ABI as the C module it replaces, so the
-  linker can swap them transparently.
-
-  The generated .c files are compiled independently — they never see the
-  original C sources, so no symbol conflicts.
-
-*** Done
-   - builder.c: all ~til_~ prefix emission removed from types, functions,
-     enums, structs, Vec, Array, dyn_call, dyn_has, CLI parsing, etc.
-   - ext.h / ext.c: rewritten with unprefixed names, ext.c now self-contained
-     (inlined ccore logic, no ccore.h dependency)
-   - ext.c excluded from compiler build (Makefile) to avoid symbol conflicts
-     with ccore.c
-   - interpreter.h: removed ext.h dependency, uses bare alias types
-   - interpreter.c, dispatch.c: replaced ~til_~ type casts with bare types;
-     dispatch.c uses local ~ExtStr~ for codegen Str layout (different from
-     compiler's str.h Str)
-   - FFI C files updated: gui.c, ext_module.c, raylib.c
-   - ~func_to_c()~ helper maps C-colliding names: ~exit~ → ~exit_program~,
-     ~sleep~ → ~sleep_ms~, ~double~ → ~double_~
-   - ~and~/~or~/~not~ renamed to ~Bool_and~/~Bool_or~/~Bool_not~ but this
-     may be unnecessary — they're standalone ext_funcs, not Bool namespace
-     methods, and ~and~/~or~/~not~ aren't C reserved words (only iso646.h
-     alternative tokens, which generated code never includes)
-
-*** Remaining: til_malloc, til_realloc, til_memcpy, til_memmove
-   These keep the ~til_~ prefix because they have different signatures from
-   C stdlib (they take ~I64 *~ pointer args, dereference them, then call
-   the real C function). Can't emit bare ~malloc()~ because generated code
-   passes ~I64 *~ not ~size_t~.
-
-   Fixing this requires #23 (shallow FFI): with shallow ext_func, the
-   builder could emit direct ~malloc(size)~ calls where ~size~ is
-   dereferenced from ~I64 *~ to ~size_t~ at the call site, eliminating
-   the wrapper functions entirely.
-
-** OPEN #23 shallow keyword: direct C calling convention for ext_func/ext_proc
-  til's FFI currently uses a pointer calling convention: all args are heap
-  pointers (til_I64 *, til_Str *, etc.) and returns are heap-allocated.
-  External C libraries (raylib, SDL, etc.) use natural C types — int, float,
-  const char *, structs by value. This mismatch forces users to write wrapper
-  .c files that dereference pointers and convert types.
-
-  A `shallow` keyword on ext_func/ext_proc would tell the FFI to use C's
-  native calling convention instead of til's pointer convention. C doesn't
-  distinguish ref from own — it's all just pointers or values — so the user
-  maps til types to C semantics, and the FFI handles the conversion:
-
-    init_window := shallow ext_proc(w: I64, h: I64, title: Str) {}
-    // FFI passes: (int64_t)w, (int64_t)h, null-terminated char* from title
-    // Instead of: til_I64*, til_I64*, til_Str*
-
-  Type mapping for shallow:
-  - I64 → int64_t by value (dereference the pointer)
-  - U8 → uint8_t by value
-  - Bool → bool by value
-  - Str → const char * (null-terminated copy of data)
-  - Struct → pointer to flat buffer (same as current, already C-compatible)
-
-  This eliminates the need for wrapper .c files for most external libraries.
-  The companion .c file (#4 TODO) would only be needed for complex cases
-  (custom memory management, opaque types, callbacks).
-
-  Implementation:
-  - Parser: recognize `shallow` before ext_func/ext_proc
-  - AST: flag on FUNC_DEF (e.g. is_shallow)
-  - dispatch.c: use ffi_type_sint64/uint8/etc. instead of ffi_type_pointer,
-    dereference values before passing, handle Str null-termination
-  - builder.c: emit direct C types instead of til_* wrappers
-  - dlsym: look up function name directly (no til_ prefix)
 
 ** WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #2, #37, #38
+  :DEPENDENCIES: #2
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.
@@ -160,8 +81,9 @@
   - #8 (variadic): FIXED
   - #16 (imports): FIXED
   - #30 (Vec-in-struct): FIXED
-  - #37 (mode lib): compile til modules as linkable libraries
-  - #38 (drop til_ prefix): generated symbols must match C ABI
+  - #37 (mode lib): FIXED
+  - #38 (drop til_ prefix): FIXED
+  - #23 (shallow FFI): FIXED
 
   Does NOT depend on #10 (REPL) or #11 (GUI mode).
 

@@ -522,27 +522,6 @@ static void *val_to_ptr(Value v) {
     }
 }
 
-static Bool h_malloc(Scope *s, Expr *e, Value *r) {
-    Value count = eval_expr(s, expr_child(e,1));
-    I32 nbytes = (I32)*count.i64;
-    *r = (Value){.type = VAL_PTR, .ptr = malloc(nbytes)};
-    return 1;
-}
-
-static Bool h_calloc(Scope *s, Expr *e, Value *r) {
-    Value nmemb = eval_expr(s, expr_child(e,1));
-    Value size = eval_expr(s, expr_child(e,2));
-    *r = (Value){.type = VAL_PTR, .ptr = calloc((size_t)*nmemb.i64, (size_t)*size.i64)};
-    return 1;
-}
-
-static Bool h_realloc(Scope *s, Expr *e, Value *r) {
-    Value buf = eval_expr(s, expr_child(e,1));
-    Value count = eval_expr(s, expr_child(e,2));
-    I32 nbytes = (I32)*count.i64;
-    *r = (Value){.type = VAL_PTR, .ptr = realloc(buf.ptr, nbytes)};
-    return 1;
-}
 
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, expr_child(e,1));
@@ -551,23 +530,6 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static Bool h_memcpy(Scope *s, Expr *e, Value *r) {
-    Value dest = eval_expr(s, expr_child(e,1));
-    Value src = eval_expr(s, expr_child(e,2));
-    Value len = eval_expr(s, expr_child(e,3));
-    memcpy(val_to_ptr(dest), val_to_ptr(src), (size_t)*len.i64);
-    *r = val_none();
-    return 1;
-}
-
-static Bool h_memmove(Scope *s, Expr *e, Value *r) {
-    Value dest = eval_expr(s, expr_child(e,1));
-    Value src = eval_expr(s, expr_child(e,2));
-    Value len = eval_expr(s, expr_child(e,3));
-    memmove(val_to_ptr(dest), val_to_ptr(src), (size_t)*len.i64);
-    *r = val_none();
-    return 1;
-}
 
 // === System primitive handlers ===
 
@@ -758,12 +720,7 @@ static void dispatch_init(void) {
     REG("free", h_free);
 
     // Pointer primitives
-    REG("malloc", h_malloc);
-    REG("calloc", h_calloc);
-    REG("realloc", h_realloc);
     REG("ptr_add", h_ptr_add);
-    REG("memcpy", h_memcpy);
-    REG("memmove", h_memmove);
 
     // Collection builtins
     REG("array", h_array);
@@ -853,6 +810,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw};
             } else if (Str_eq_c(fe->return_type, "Bool")) {
                 *result = (Value){.type = VAL_BOOL, .boolean = (Bool *)raw};
+            } else if (Str_eq_c(fe->return_type, "Dynamic")) {
+                *result = (Value){.type = VAL_PTR, .ptr = raw};
             } else {
                 // Struct return — look up struct def by return type name
                 Expr **sdef = Map_get(&ffi_struct_defs, &fe->return_type);
@@ -913,37 +872,95 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     return 0;
 }
 
+// Try to dlsym a name, using ffi_handle first (if available), then RTLD_DEFAULT
+static void *ffi_dlsym(const char *name) {
+    void *fn = NULL;
+    if (ffi_handle)
+        fn = dlsym(ffi_handle, name);
+    if (!fn)
+        fn = dlsym(RTLD_DEFAULT, name);
+    return fn;
+}
+
+// Register an ext_func/ext_proc in ffi_map
+static void ffi_register(Str *name, void *fn, Expr *fdef) {
+    U32 np = fdef->data.func_def.nparam;
+    ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
+    bool *pshallows = NULL;
+    bool has_shallow = false;
+    for (U32 k = 0; k < np; k++) {
+        if (fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k]) {
+            atypes[k] = shallow_ffi_type(fdef->data.func_def.param_types[k]);
+            has_shallow = true;
+        } else {
+            atypes[k] = &ffi_type_pointer;
+        }
+    }
+    if (has_shallow) {
+        pshallows = malloc(sizeof(bool) * np);
+        for (U32 k = 0; k < np; k++)
+            pshallows[k] = fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k];
+    }
+    FFIEntry entry = {
+        .fn = fn,
+        .return_type = fdef->data.func_def.return_type,
+        .nparam = np,
+        .param_shallows = pshallows,
+        .arg_types = atypes,
+    };
+    ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;
+    ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
+    Map_set(&ffi_map, &name, &entry);
+}
+
 I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, const char *link_flags) {
-    // Extract include dir from ext_c_path
-    char ext_dir[256];
-    const char *last_slash = strrchr(ext_c_path, '/');
-    if (last_slash) {
-        I32 dlen = (I32)(last_slash - ext_c_path);
-        snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
-    } else {
-        snprintf(ext_dir, sizeof(ext_dir), ".");
+    char so_path[256] = "";
+
+    // Compile user .c to shared library (if provided)
+    if (user_c_path) {
+        char ext_dir[256];
+        const char *last_slash = strrchr(ext_c_path, '/');
+        if (last_slash) {
+            I32 dlen = (I32)(last_slash - ext_c_path);
+            snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
+        } else {
+            snprintf(ext_dir, sizeof(ext_dir), ".");
+        }
+        snprintf(so_path, sizeof(so_path), "tmp/ffi_%d.so", (int)getpid());
+        system("mkdir -p tmp");
+        const char *lf = link_flags ? link_flags : "";
+        int cmdlen = snprintf(NULL, 0, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
+        char *cmd = malloc(cmdlen + 1);
+        snprintf(cmd, cmdlen + 1, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
+        int rc = system(cmd);
+        free(cmd);
+        if (rc != 0) {
+            fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path);
+            return 1;
+        }
+        ffi_handle = dlopen(so_path, RTLD_NOW);
+        if (!ffi_handle) {
+            fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
+            return 1;
+        }
     }
 
-    // Compile user .c to shared library
-    char so_path[256];
-    snprintf(so_path, sizeof(so_path), "tmp/ffi_%d.so", (int)getpid());
-    system("mkdir -p tmp");
-    const char *lf = link_flags ? link_flags : "";
-    int cmdlen = snprintf(NULL, 0, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
-    char *cmd = malloc(cmdlen + 1);
-    snprintf(cmd, cmdlen + 1, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
-    int rc = system(cmd);
-    free(cmd);
-    if (rc != 0) {
-        fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path);
-        return 1;
-    }
-
-    // dlopen
-    ffi_handle = dlopen(so_path, RTLD_NOW);
-    if (!ffi_handle) {
-        fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
-        return 1;
+    // dlopen linked libraries so their symbols are available via RTLD_DEFAULT
+    if (link_flags) {
+        const char *p = link_flags;
+        while ((p = strstr(p, "-l")) != NULL) {
+            p += 2;
+            char lib[256];
+            int i = 0;
+            while (*p && *p != ' ' && i < 255)
+                lib[i++] = *p++;
+            lib[i] = '\0';
+            if (i > 0) {
+                char soname[280];
+                snprintf(soname, sizeof(soname), "lib%s.so", lib);
+                dlopen(soname, RTLD_NOW | RTLD_GLOBAL);
+            }
+        }
     }
 
     // Build struct def map for return type lookup
@@ -956,11 +973,10 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
         Map_set(&ffi_struct_defs, &stmt->data.decl.name, &sdef);
     }
 
-    // Scan program for non-core ext_func/ext_proc, dlsym each
+    // Scan program for ext_func/ext_proc, dlsym each
     ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->is_core) continue;
         if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
 
         // Top-level ext_func/ext_proc
@@ -969,42 +985,9 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
             FuncType fft = fdef->data.func_def.func_type;
             if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
 
-            char sym_name[256];
-            snprintf(sym_name, sizeof(sym_name), "%s", stmt->data.decl.name->c_str);
-            void *fn = dlsym(ffi_handle, sym_name);
-            if (!fn) {
-                fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());
-                dlclose(ffi_handle);
-                ffi_handle = NULL;
-                return 1;
-            }
-            U32 np = fdef->data.func_def.nparam;
-            ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-            bool *pshallows = NULL;
-            bool has_shallow = false;
-            for (U32 k = 0; k < np; k++) {
-                if (fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k]) {
-                    atypes[k] = shallow_ffi_type(fdef->data.func_def.param_types[k]);
-                    has_shallow = true;
-                } else {
-                    atypes[k] = &ffi_type_pointer;
-                }
-            }
-            if (has_shallow) {
-                pshallows = malloc(sizeof(bool) * np);
-                for (U32 k = 0; k < np; k++)
-                    pshallows[k] = fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k];
-            }
-            FFIEntry entry = {
-                .fn = fn,
-                .return_type = fdef->data.func_def.return_type,
-                .nparam = np,
-                .param_shallows = pshallows,
-                .arg_types = atypes,
-            };
-            ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;
-            ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
-            Map_set(&ffi_map, &stmt->data.decl.name, &entry);
+            void *fn = ffi_dlsym(stmt->data.decl.name->c_str);
+            if (!fn) continue;
+            ffi_register(stmt->data.decl.name, fn, fdef);
         }
 
         // ext_struct namespace methods
@@ -1020,51 +1003,18 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
                 FuncType fft = fdef->data.func_def.func_type;
                 if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
 
-                char flat_name[256], sym_name[264];
+                char flat_name[256];
                 snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.decl.name->c_str);
-                snprintf(sym_name, sizeof(sym_name), "%s", flat_name);
-                void *fn = dlsym(ffi_handle, sym_name);
-                if (!fn) {
-                    fprintf(stderr, "error: FFI symbol '%s' not found: %s\n", sym_name, dlerror());
-                    dlclose(ffi_handle);
-                    ffi_handle = NULL;
-                    return 1;
-                }
-                U32 np = fdef->data.func_def.nparam;
-                ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
-                bool *pshallows2 = NULL;
-                bool has_shallow2 = false;
-                for (U32 k = 0; k < np; k++) {
-                    if (fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k]) {
-                        atypes[k] = shallow_ffi_type(fdef->data.func_def.param_types[k]);
-                        has_shallow2 = true;
-                    } else {
-                        atypes[k] = &ffi_type_pointer;
-                    }
-                }
-                if (has_shallow2) {
-                    pshallows2 = malloc(sizeof(bool) * np);
-                    for (U32 k = 0; k < np; k++)
-                        pshallows2[k] = fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k];
-                }
-                FFIEntry entry = {
-                    .fn = fn,
-                    .return_type = fdef->data.func_def.return_type,
-                    .nparam = np,
-                    .param_shallows = pshallows2,
-                    .arg_types = atypes,
-                };
-                ffi_type *rtype = entry.return_type ? &ffi_type_pointer : &ffi_type_void;
-                ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
+                void *fn = ffi_dlsym(flat_name);
+                if (!fn) continue;
                 Str *key = Str_new(flat_name);
-                Map_set(&ffi_map, &key, &entry);
+                ffi_register(key, fn, fdef);
             }
         }
     }
 
     ffi_loaded = 1;
-    // Clean up .so file
-    unlink(so_path);
+    if (so_path[0]) unlink(so_path);
     return 0;
 }
 

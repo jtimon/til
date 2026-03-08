@@ -1048,11 +1048,9 @@ static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
 }
 
 I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, U32 user_argc, char **user_argv) {
-    // Load user FFI library if provided
-    if (user_c_path) {
-        I32 rc = ffi_init(program, user_c_path, ext_c_path, link_flags);
-        if (rc != 0) return rc;
-    }
+    // Initialize FFI: load user .c library (if provided) and auto-discover C functions
+    I32 ffi_rc = ffi_init(program, user_c_path, ext_c_path, link_flags);
+    if (ffi_rc != 0) return ffi_rc;
 
     Scope *global = scope_new(NULL);
 

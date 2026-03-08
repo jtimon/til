@@ -1,5 +1,44 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #38 Drop til_ prefix from generated C symbols
+  All ~til_~ prefix removed from builder, ext.c, dispatch.c, FFI C files.
+  Generated C symbols now match the original C names (e.g. ~Token~ not
+  ~til_Token~, ~malloc~ not ~til_malloc~).
+
+  - builder.c: all ~til_~ prefix emission removed from types, functions,
+    enums, structs, Vec, Array, dyn_call, dyn_has, CLI parsing, etc.
+  - ext.h / ext.c: rewritten with unprefixed names
+  - interpreter.c, dispatch.c: replaced ~til_~ type casts with bare types
+  - ~func_to_c()~ helper maps C-colliding names: ~exit~ → ~exit_program~,
+    ~sleep~ → ~sleep_ms~, ~double~ → ~double_~
+  - Memory functions (malloc, calloc, realloc, memcpy, memmove): resolved
+    via #23 shallow FFI — auto-FFI calls libc functions directly through
+    libffi, no wrapper functions needed.
+
+* FIXED #23 shallow keyword: direct C calling convention for ext_func/ext_proc
+  Per-parameter ~shallow~ annotation on ext_func/ext_proc params tells the
+  FFI to pass C values instead of til pointers.
+
+  Example: ~malloc := ext_func(shallow count: I64) returns Dynamic {}~
+  FFI passes int64_t by value, returns void* — no wrapper .c file needed.
+
+  Implementation:
+  - Parser: ~shallow~ keyword before param name in ext_func/ext_proc
+  - AST: per-param ~param_shallows~ bool array on func_def
+  - Typer: validates shallow only on scalar types (I64, U8, I16, I32, U32,
+    Bool) and Dynamic
+  - dispatch.c: dereferences values before FFI call for shallow params,
+    uses ffi_type_sint64/uint8/etc. instead of ffi_type_pointer
+  - builder.c: emits direct C types for shallow params
+  - Auto-FFI: ffi_init scans all ext_func/ext_proc declarations, uses
+    ~dlsym(RTLD_DEFAULT, name)~ to find C library functions without
+    needing a companion .c file. Silently skips functions not found
+    (handled by dispatch_map). Processes ~link("lib")~ directives via
+    ~dlopen("libNAME.so", RTLD_NOW | RTLD_GLOBAL)~.
+  - Dynamic return type: FFI dispatch wraps void* returns as VAL_PTR
+  - Companion .c files eliminated for standard C library calls (malloc,
+    calloc, realloc, memcpy, memmove now go through auto-FFI)
+
 * FIXED #40 Func returning borrowed param: use-after-free in both interpret and run
   When a func returns a borrowed parameter (~return a~ where ~a~ is not
   ~own~), the returned pointer IS the same pointer as the caller's argument.
