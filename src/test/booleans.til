@@ -1,34 +1,34 @@
 mode test
 
 test_and := test() {
-    assert(loc(), and(true, true))
-    assert(loc(), and(true, false).not())
-    assert(loc(), and(false, true).not())
-    assert(loc(), and(false, false).not())
-    assert(loc(), true.and(true))
-    assert(loc(), true.and(false).not())
+    assert(__LOC__, and(true, true))
+    assert(__LOC__, and(true, false).not())
+    assert(__LOC__, and(false, true).not())
+    assert(__LOC__, and(false, false).not())
+    assert(__LOC__, true.and(true))
+    assert(__LOC__, true.and(false).not())
 }
 
 test_or := test() {
-    assert(loc(), or(true, false))
-    assert(loc(), or(false, true))
-    assert(loc(), or(true, true))
-    assert(loc(), or(false, false).not())
-    assert(loc(), false.or(true))
-    assert(loc(), false.or(false).not())
+    assert(__LOC__, or(true, false))
+    assert(__LOC__, or(false, true))
+    assert(__LOC__, or(true, true))
+    assert(__LOC__, or(false, false).not())
+    assert(__LOC__, false.or(true))
+    assert(__LOC__, false.or(false).not())
 }
 
 test_not := test() {
-    assert(loc(), not(false))
-    assert(loc(), not(true).not())
-    assert(loc(), false.not())
-    assert(loc(), true.not().not())
+    assert(__LOC__, not(false))
+    assert(__LOC__, not(true).not())
+    assert(__LOC__, false.not())
+    assert(__LOC__, true.not().not())
 }
 
 test_chaining := test() {
-    assert(loc(), true.and(true).or(false))
-    assert(loc(), false.or(true).and(true))
-    assert(loc(), false.and(true).or(true))
-    assert(loc(), not(and(false, true)))
-    assert(loc(), or(not(true), true))
+    assert(__LOC__, true.and(true).or(false))
+    assert(__LOC__, false.or(true).and(true))
+    assert(__LOC__, false.and(true).or(true))
+    assert(__LOC__, not(and(false, true)))
+    assert(__LOC__, or(not(true), true))
 }

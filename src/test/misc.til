@@ -1,5 +1,22 @@
 mode test
 
+test_loc_directives := test() {
+    // __LOC__ returns "file:line:col" string
+    loc := __LOC__
+    expect(__LOC__, loc.find("misc.til").neq(0.sub(1)), "__LOC__ contains filename")
+
+    // __FILE__ returns file path string
+    expect(__LOC__, __FILE__.find("misc.til").neq(0.sub(1)), "__FILE__ contains filename")
+
+    // __LINE__ returns I64
+    line := __LINE__
+    assert_eq(__LOC__, line, 12)
+
+    // __COL__ returns I64
+    col := __COL__
+    assert_eq(__LOC__, col, 12)
+}
+
 Foo := struct {
     x := 0
     namespace:
@@ -8,38 +25,38 @@ Foo := struct {
 
 test_dyn_has_method := test() {
     // TODO(#15): dummy references so scavenger keeps clone
-    assert_eq(loc(), 1.clone(), 1)
-    assert_eq_str(loc(), "hi".clone(), "hi")
+    assert_eq(__LOC__, 1.clone(), 1)
+    assert_eq_str(__LOC__, "hi".clone(), "hi")
 
-    expect(loc(), dyn_has_method("I64", "delete"), "I64 has delete")
-    expect(loc(), dyn_has_method("I64", "clone"), "I64 has clone")
-    expect(loc(), dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
-    expect(loc(), dyn_has_method("Str", "delete"), "Str has delete")
-    expect(loc(), dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
-    expect(loc(), dyn_has_method("Bool", "eq"), "Bool has eq")
-    expect(loc(), dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
+    expect(__LOC__, dyn_has_method("I64", "delete"), "I64 has delete")
+    expect(__LOC__, dyn_has_method("I64", "clone"), "I64 has clone")
+    expect(__LOC__, dyn_has_method("I64", "nonexistent").not(), "I64 no nonexistent")
+    expect(__LOC__, dyn_has_method("Str", "delete"), "Str has delete")
+    expect(__LOC__, dyn_has_method("Str", "nonexistent").not(), "Str no nonexistent")
+    expect(__LOC__, dyn_has_method("Bool", "eq"), "Bool has eq")
+    expect(__LOC__, dyn_has_method("Bool", "not").not(), "Bool no not (moved to top-level)")
     f := Foo(x=0)
-    assert_eq(loc(), f.bar(), 0)
-    expect(loc(), dyn_has_method("Foo", "bar"), "Foo has bar")
-    expect(loc(), dyn_has_method("Foo", "baz").not(), "Foo no baz")
+    assert_eq(__LOC__, f.bar(), 0)
+    expect(__LOC__, dyn_has_method("Foo", "bar"), "Foo has bar")
+    expect(__LOC__, dyn_has_method("Foo", "baz").not(), "Foo no baz")
 }
 
 test_cmp := test() {
-    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
-    assert_eq(loc(), I64.cmp(5, 5), 0)
-    assert_eq(loc(), I64.cmp(3, 1), 1)
-    assert_eq(loc(), U8.cmp(U8.from_i64(1), U8.from_i64(2)), 0.sub(1))
-    assert_eq(loc(), U8.cmp(U8.from_i64(5), U8.from_i64(5)), 0)
-    assert_eq(loc(), U8.cmp(U8.from_i64(3), U8.from_i64(1)), 1)
-    assert_eq(loc(), Bool.cmp(false, false), 0)
-    assert_eq(loc(), Bool.cmp(true, true), 0)
-    assert_eq(loc(), Bool.cmp(false, true), 0.sub(1))
-    assert_eq(loc(), Bool.cmp(true, false), 1)
-    assert_eq(loc(), Str.cmp("abc", "abd"), 0.sub(1))
-    assert_eq(loc(), Str.cmp("hello", "hello"), 0)
-    assert_eq(loc(), Str.cmp("b", "a"), 1)
-    assert_eq(loc(), Str.cmp("ab", "a"), 1)
-    assert_eq(loc(), Str.cmp("a", "ab"), 0.sub(1))
+    assert_eq(__LOC__, I64.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, I64.cmp(5, 5), 0)
+    assert_eq(__LOC__, I64.cmp(3, 1), 1)
+    assert_eq(__LOC__, U8.cmp(U8.from_i64(1), U8.from_i64(2)), 0.sub(1))
+    assert_eq(__LOC__, U8.cmp(U8.from_i64(5), U8.from_i64(5)), 0)
+    assert_eq(__LOC__, U8.cmp(U8.from_i64(3), U8.from_i64(1)), 1)
+    assert_eq(__LOC__, Bool.cmp(false, false), 0)
+    assert_eq(__LOC__, Bool.cmp(true, true), 0)
+    assert_eq(__LOC__, Bool.cmp(false, true), 0.sub(1))
+    assert_eq(__LOC__, Bool.cmp(true, false), 1)
+    assert_eq(__LOC__, Str.cmp("abc", "abd"), 0.sub(1))
+    assert_eq(__LOC__, Str.cmp("hello", "hello"), 0)
+    assert_eq(__LOC__, Str.cmp("b", "a"), 1)
+    assert_eq(__LOC__, Str.cmp("ab", "a"), 1)
+    assert_eq(__LOC__, Str.cmp("a", "ab"), 0.sub(1))
 }
 
 // variadic args
@@ -52,9 +69,9 @@ variadic_sum := func(nums: ..I64) returns I64 {
 }
 
 test_variadic := test() {
-    assert_eq(loc(), variadic_sum(1, 2, 3), 6)
-    assert_eq(loc(), variadic_sum(10), 10)
-    assert_eq(loc(), variadic_sum(), 0)
+    assert_eq(__LOC__, variadic_sum(1, 2, 3), 6)
+    assert_eq(__LOC__, variadic_sum(10), 10)
+    assert_eq(__LOC__, variadic_sum(), 0)
 }
 
 // proc-based variadic test (not constant-foldable)
@@ -75,15 +92,15 @@ test_variadic_proc := test() {
 test_dynamic_narrowing := test() {
     my_vec := vec("I64", 10, 20, 30)
     ref x2 : I64 = my_vec.get(0)
-    assert_eq(loc(), x2, 10)
+    assert_eq(__LOC__, x2, 10)
     // Dynamic value as typed argument
-    assert_eq(loc(), 34.add(my_vec.get(0)), 44)
+    assert_eq(__LOC__, 34.add(my_vec.get(0)), 44)
     // Chaining with typed start: 0.add(Dynamic) returns I64, chain continues
-    assert_eq(loc(), 0.add(my_vec.get(0)).add(my_vec.get(1)).add(my_vec.get(2)), 60)
+    assert_eq(__LOC__, 0.add(my_vec.get(0)).add(my_vec.get(1)).add(my_vec.get(2)), 60)
     // Top-level UFCS on Dynamic receiver: and/or/not are unique top-level functions
     my_bvec := vec("Bool", true, false)
-    assert(loc(), my_bvec.get(0).and(my_bvec.get(0)))
-    assert(loc(), my_bvec.get(1).or(my_bvec.get(0)))
+    assert(__LOC__, my_bvec.get(0).and(my_bvec.get(0)))
+    assert(__LOC__, my_bvec.get(1).or(my_bvec.get(0)))
     // TODO: my_bvec.get(1).not() — Bool values in Vec don't round-trip correctly (false→true)
 }
 
@@ -91,120 +108,120 @@ test_i16 := test() {
     // Arithmetic
     a : I16 = I16.from_i64(100)
     b : I16 = I16.from_i64(42)
-    assert_eq(loc(), a.add(b).to_i64(), 142)
-    assert_eq(loc(), a.sub(b).to_i64(), 58)
-    assert_eq(loc(), a.mul(b).to_i64(), 4200)
-    assert_eq(loc(), a.div(b).to_i64(), 2)
-    assert_eq(loc(), a.mod(b).to_i64(), 16)
+    assert_eq(__LOC__, a.add(b).to_i64(), 142)
+    assert_eq(__LOC__, a.sub(b).to_i64(), 58)
+    assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
+    assert_eq(__LOC__, a.div(b).to_i64(), 2)
+    assert_eq(__LOC__, a.mod(b).to_i64(), 16)
 
     // Negative values
     c : I16 = I16.from_i64(100.neg())
-    assert_eq(loc(), c.to_i64(), 100.neg())
-    assert_eq(loc(), c.neg().to_i64(), 100)
-    assert_eq(loc(), c.add(a).to_i64(), 0)
+    assert_eq(__LOC__, c.to_i64(), 100.neg())
+    assert_eq(__LOC__, c.neg().to_i64(), 100)
+    assert_eq(__LOC__, c.add(a).to_i64(), 0)
 
     // Comparisons
-    assert(loc(), a.gt(b))
-    assert(loc(), b.lt(a))
-    assert(loc(), a.gte(a))
-    assert(loc(), a.lte(a))
-    assert(loc(), a.neq(b))
-    assert(loc(), a.eq(a))
-    assert(loc(), c.lt(a))
+    assert(__LOC__, a.gt(b))
+    assert(__LOC__, b.lt(a))
+    assert(__LOC__, a.gte(a))
+    assert(__LOC__, a.lte(a))
+    assert(__LOC__, a.neq(b))
+    assert(__LOC__, a.eq(a))
+    assert(__LOC__, c.lt(a))
 
     // to_str
-    assert_eq_str(loc(), I16.from_i64(12345).to_str(), "12345")
-    assert_eq_str(loc(), I16.from_i64(100.neg()).to_str(), "-100")
+    assert_eq_str(__LOC__, I16.from_i64(12345).to_str(), "12345")
+    assert_eq_str(__LOC__, I16.from_i64(100.neg()).to_str(), "-100")
 
     // size
-    assert_eq(loc(), I16.size(), 2)
+    assert_eq(__LOC__, I16.size(), 2)
 }
 
 test_i32 := test() {
     a : I32 = I32.from_i64(100)
     b : I32 = I32.from_i64(42)
-    assert_eq(loc(), a.add(b).to_i64(), 142)
-    assert_eq(loc(), a.sub(b).to_i64(), 58)
-    assert_eq(loc(), a.mul(b).to_i64(), 4200)
-    assert_eq(loc(), a.div(b).to_i64(), 2)
-    assert_eq(loc(), a.mod(b).to_i64(), 16)
+    assert_eq(__LOC__, a.add(b).to_i64(), 142)
+    assert_eq(__LOC__, a.sub(b).to_i64(), 58)
+    assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
+    assert_eq(__LOC__, a.div(b).to_i64(), 2)
+    assert_eq(__LOC__, a.mod(b).to_i64(), 16)
 
     // Negative
     c : I32 = I32.from_i64(100.neg())
-    assert_eq(loc(), c.to_i64(), 100.neg())
-    assert_eq(loc(), c.neg().to_i64(), 100)
+    assert_eq(__LOC__, c.to_i64(), 100.neg())
+    assert_eq(__LOC__, c.neg().to_i64(), 100)
 
     // Comparisons
-    assert(loc(), a.gt(b))
-    assert(loc(), b.lt(a))
-    assert(loc(), a.eq(a))
-    assert(loc(), a.neq(b))
-    assert(loc(), c.lt(a))
+    assert(__LOC__, a.gt(b))
+    assert(__LOC__, b.lt(a))
+    assert(__LOC__, a.eq(a))
+    assert(__LOC__, a.neq(b))
+    assert(__LOC__, c.lt(a))
 
     // to_str
-    assert_eq_str(loc(), I32.from_i64(12345).to_str(), "12345")
-    assert_eq_str(loc(), I32.from_i64(100.neg()).to_str(), "-100")
+    assert_eq_str(__LOC__, I32.from_i64(12345).to_str(), "12345")
+    assert_eq_str(__LOC__, I32.from_i64(100.neg()).to_str(), "-100")
 
     // size
-    assert_eq(loc(), I32.size(), 4)
+    assert_eq(__LOC__, I32.size(), 4)
 }
 
 test_u32 := test() {
     // Arithmetic
     a : U32 = U32.from_i64(100)
     b : U32 = U32.from_i64(42)
-    assert_eq(loc(), a.add(b).to_i64(), 142)
-    assert_eq(loc(), a.sub(b).to_i64(), 58)
-    assert_eq(loc(), a.mul(b).to_i64(), 4200)
-    assert_eq(loc(), a.div(b).to_i64(), 2)
-    assert_eq(loc(), a.mod(b).to_i64(), 16)
+    assert_eq(__LOC__, a.add(b).to_i64(), 142)
+    assert_eq(__LOC__, a.sub(b).to_i64(), 58)
+    assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
+    assert_eq(__LOC__, a.div(b).to_i64(), 2)
+    assert_eq(__LOC__, a.mod(b).to_i64(), 16)
 
     // Comparisons (auto-generated from cmp)
-    assert(loc(), a.gt(b))
-    assert(loc(), b.lt(a))
-    assert(loc(), a.gte(a))
-    assert(loc(), a.lte(a))
-    assert(loc(), a.neq(b))
-    assert(loc(), a.eq(a))
+    assert(__LOC__, a.gt(b))
+    assert(__LOC__, b.lt(a))
+    assert(__LOC__, a.gte(a))
+    assert(__LOC__, a.lte(a))
+    assert(__LOC__, a.neq(b))
+    assert(__LOC__, a.eq(a))
 
     // Bitwise (0xFF00=65280, 0x0FF0=4080, AND=3840, OR=65520, XOR=61680)
     x : U32 = U32.from_i64(65280)
     y : U32 = U32.from_i64(4080)
-    assert_eq(loc(), x.and(y).to_i64(), 3840)
-    assert_eq(loc(), x.or(y).to_i64(), 65520)
-    assert_eq(loc(), x.xor(y).to_i64(), 61680)
+    assert_eq(__LOC__, x.and(y).to_i64(), 3840)
+    assert_eq(__LOC__, x.or(y).to_i64(), 65520)
+    assert_eq(__LOC__, x.xor(y).to_i64(), 61680)
 
     // to_str
-    assert_eq_str(loc(), U32.from_i64(12345).to_str(), "12345")
+    assert_eq_str(__LOC__, U32.from_i64(12345).to_str(), "12345")
 
     // size
-    assert_eq(loc(), U32.size(), 4)
+    assert_eq(__LOC__, U32.size(), 4)
 }
 
 test_char_literals := test() {
     // Basic chars
-    assert_eq(loc(), 'a'.to_i64(), 97)
-    assert_eq(loc(), '0'.to_i64(), 48)
-    assert_eq(loc(), '('.to_i64(), 40)
+    assert_eq(__LOC__, 'a'.to_i64(), 97)
+    assert_eq(__LOC__, '0'.to_i64(), 48)
+    assert_eq(__LOC__, '('.to_i64(), 40)
 
     // Escape sequences
-    assert_eq(loc(), '\n'.to_i64(), 10)
-    assert_eq(loc(), '\t'.to_i64(), 9)
-    assert_eq(loc(), '\r'.to_i64(), 13)
-    assert_eq(loc(), '\\'.to_i64(), 92)
-    assert_eq(loc(), '\''.to_i64(), 39)
-    assert_eq(loc(), '\0'.to_i64(), 0)
+    assert_eq(__LOC__, '\n'.to_i64(), 10)
+    assert_eq(__LOC__, '\t'.to_i64(), 9)
+    assert_eq(__LOC__, '\r'.to_i64(), 13)
+    assert_eq(__LOC__, '\\'.to_i64(), 92)
+    assert_eq(__LOC__, '\''.to_i64(), 39)
+    assert_eq(__LOC__, '\0'.to_i64(), 0)
 
     // Comparison
-    assert(loc(), 'a'.eq('a'))
-    assert(loc(), 'a'.eq('b').not())
+    assert(__LOC__, 'a'.eq('a'))
+    assert(__LOC__, 'a'.eq('b').not())
 
     // Arithmetic
-    assert(loc(), 'a'.add('b'.sub('a')).eq('b'))
+    assert(__LOC__, 'a'.add('b'.sub('a')).eq('b'))
 
     // Type is U8
     c := 'x'
-    assert_eq(loc(), c.to_i64(), 120)
+    assert_eq(__LOC__, c.to_i64(), 120)
 }
 
 test_switch_i64 := test() {
@@ -215,14 +232,14 @@ test_switch_i64 := test() {
     case 3: result = 30
     case: result = 99
     }
-    assert_eq(loc(), result, 20)
+    assert_eq(__LOC__, result, 20)
 
     // Default case
     switch 99 {
     case 1: result = 10
     case: result = 0.sub(1)
     }
-    assert_eq(loc(), result, 0.sub(1))
+    assert_eq(__LOC__, result, 0.sub(1))
 }
 
 test_switch_str := test() {
@@ -232,7 +249,7 @@ test_switch_str := test() {
     case "bob": result = "b"
     case: result = "?"
     }
-    assert_eq_str(loc(), result, "b")
+    assert_eq_str(__LOC__, result, "b")
 }
 
 test_switch_char := test() {
@@ -242,7 +259,7 @@ test_switch_char := test() {
     case 'b': result = 2
     case 'c': result = 3
     }
-    assert_eq(loc(), result, 2)
+    assert_eq(__LOC__, result, 2)
 }
 
 test_switch_bool := test() {
@@ -251,7 +268,7 @@ test_switch_bool := test() {
     case true: result = 1
     case false: result = 2
     }
-    assert_eq(loc(), result, 1)
+    assert_eq(__LOC__, result, 1)
 }
 
 test_switch_default_only := test() {
@@ -259,7 +276,7 @@ test_switch_default_only := test() {
     switch 42 {
     case: result = 99
     }
-    assert_eq(loc(), result, 99)
+    assert_eq(__LOC__, result, 99)
 }
 
 test_switch_no_default := test() {
@@ -268,14 +285,14 @@ test_switch_no_default := test() {
     case 1: result = 10
     case 2: result = 20
     }
-    assert_eq(loc(), result, 10)
+    assert_eq(__LOC__, result, 10)
 
     // No match, no default — nothing happens
     result = 0
     switch 5 {
     case 1: result = 10
     }
-    assert_eq(loc(), result, 0)
+    assert_eq(__LOC__, result, 0)
 }
 
 test_switch_nested := test() {
@@ -288,7 +305,7 @@ test_switch_nested := test() {
         }
     case 2: result = 20
     }
-    assert_eq(loc(), result, 11)
+    assert_eq(__LOC__, result, 11)
 }
 
 test_switch_in_loop := test() {
@@ -302,7 +319,7 @@ test_switch_in_loop := test() {
         }
     }
     // i=0: +0, i=1: +1, i=2: +0, i=3: +3, i=4: +1, i=5: +0, i=6: +6, i=7: +1, i=8: +0, i=9: +9
-    assert_eq(loc(), total, 21)
+    assert_eq(__LOC__, total, 21)
 }
 
 test_switch_multi_stmt := test() {
@@ -319,8 +336,8 @@ test_switch_multi_stmt := test() {
         a = 0
         b = 0
     }
-    assert_eq(loc(), a, 2)
-    assert_eq(loc(), b, 20)
+    assert_eq(__LOC__, a, 2)
+    assert_eq(__LOC__, b, 20)
 }
 
 // Phase 2: Range cases
@@ -332,7 +349,7 @@ test_switch_range_i64 := test() {
     case 8..10: result = "high"
     case: result = "other"
     }
-    assert_eq_str(loc(), result, "mid")
+    assert_eq_str(__LOC__, result, "mid")
 }
 
 test_switch_range_char := test() {
@@ -343,7 +360,7 @@ test_switch_range_char := test() {
     case '0'..'9': result = "digit"
     case: result = "other"
     }
-    assert_eq_str(loc(), result, "lower")
+    assert_eq_str(__LOC__, result, "lower")
 }
 
 test_switch_range_mixed := test() {
@@ -356,7 +373,7 @@ test_switch_range_mixed := test() {
     case 6..9: result = 4
     case: result = 5
     }
-    assert_eq(loc(), result, 3)
+    assert_eq(__LOC__, result, 3)
 }
 
 test_switch_range_boundary := test() {
@@ -365,20 +382,20 @@ test_switch_range_boundary := test() {
     switch 'z' {
     case 'a'..'z': result = true
     }
-    assert(loc(), result)
+    assert(__LOC__, result)
 
     result = false
     switch '9' {
     case '0'..'9': result = true
     }
-    assert(loc(), result)
+    assert(__LOC__, result)
 
     // Start value should also match
     result = false
     switch 'a' {
     case 'a'..'z': result = true
     }
-    assert(loc(), result)
+    assert(__LOC__, result)
 }
 
 // Phase 3: Enum matching (works via .eq() from Phase 1)
@@ -391,7 +408,7 @@ test_switch_enum := test() {
     case Color.Green: result = "green"
     case Color.Blue: result = "blue"
     }
-    assert_eq_str(loc(), result, "green")
+    assert_eq_str(__LOC__, result, "green")
 }
 
 // Phase 4: Payload extraction
@@ -404,7 +421,7 @@ test_switch_payload := test() {
     case Token.Name(s): result = 0.sub(1)
     case Token.Eof: result = 0.sub(2)
     }
-    assert_eq(loc(), result, 42)
+    assert_eq(__LOC__, result, 42)
 }
 
 test_switch_payload_multi := test() {
@@ -420,9 +437,9 @@ test_switch_payload_multi := test() {
     case Token.Eof:
         is_eof = true
     }
-    assert_eq(loc(), num_val, 0)
-    assert_eq_str(loc(), str_val, "hello")
-    assert(loc(), is_eof.not())
+    assert_eq(__LOC__, num_val, 0)
+    assert_eq_str(__LOC__, str_val, "hello")
+    assert(__LOC__, is_eof.not())
 }
 
 test_switch_payload_with_default := test() {
@@ -432,5 +449,5 @@ test_switch_payload_with_default := test() {
     case Token.Name(s): result = "name"
     case: result = "other"
     }
-    assert_eq_str(loc(), result, "other")
+    assert_eq_str(__LOC__, result, "other")
 }

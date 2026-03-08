@@ -1,50 +1,50 @@
 mode test
 
 test_arithmetic := test() {
-    assert_eq(loc(), 34.add(35), 69)
-    assert_eq(loc(), 10.sub(3), 7)
-    assert_eq(loc(), 6.mul(7), 42)
-    assert_eq(loc(), 10.div(3), 3)
-    assert_eq(loc(), 10.mod(3), 1)
-    assert_eq(loc(), 10.mod(5), 0)
-    assert_eq(loc(), 42.neg(), 0.sub(42))
+    assert_eq(__LOC__, 34.add(35), 69)
+    assert_eq(__LOC__, 10.sub(3), 7)
+    assert_eq(__LOC__, 6.mul(7), 42)
+    assert_eq(__LOC__, 10.div(3), 3)
+    assert_eq(__LOC__, 10.mod(3), 1)
+    assert_eq(__LOC__, 10.mod(5), 0)
+    assert_eq(__LOC__, 42.neg(), 0.sub(42))
 }
 
 test_comparison := test() {
-    assert(loc(), 1.eq(1))
-    assert(loc(), 1.lt(2))
-    assert(loc(), 2.gt(1))
-    assert(loc(), 1.lte(2))
-    assert(loc(), 2.lte(2))
-    assert(loc(), 3.lte(2).not())
-    assert(loc(), 3.gte(2))
-    assert(loc(), 2.gte(2))
-    assert(loc(), 1.gte(2).not())
-    assert(loc(), 1.neq(2))
-    assert(loc(), 2.neq(2).not())
+    assert(__LOC__, 1.eq(1))
+    assert(__LOC__, 1.lt(2))
+    assert(__LOC__, 2.gt(1))
+    assert(__LOC__, 1.lte(2))
+    assert(__LOC__, 2.lte(2))
+    assert(__LOC__, 3.lte(2).not())
+    assert(__LOC__, 3.gte(2))
+    assert(__LOC__, 2.gte(2))
+    assert(__LOC__, 1.gte(2).not())
+    assert(__LOC__, 1.neq(2))
+    assert(__LOC__, 2.neq(2).not())
 }
 
 test_boolean := test() {
-    assert(loc(), true.and(true))
-    assert(loc(), true.and(false).not())
-    assert(loc(), false.or(false).not())
-    assert(loc(), false.or(true))
-    assert(loc(), true.not().not())
-    assert(loc(), false.not())
+    assert(__LOC__, true.and(true))
+    assert(__LOC__, true.and(false).not())
+    assert(__LOC__, false.or(false).not())
+    assert(__LOC__, false.or(true))
+    assert(__LOC__, true.not().not())
+    assert(__LOC__, false.not())
 }
 
 test_bitwise := test() {
-    assert_eq(loc(), 6.and(3), 2)
-    assert_eq(loc(), 6.or(3), 7)
-    assert_eq(loc(), 6.xor(3), 5)
+    assert_eq(__LOC__, 6.and(3), 2)
+    assert_eq(__LOC__, 6.or(3), 7)
+    assert_eq(__LOC__, 6.xor(3), 5)
 }
 
 test_mutation := test() {
     mut counter := 0
     counter = 1
     counter = counter.add(1)
-    assert_eq(loc(), counter, 2)
+    assert_eq(__LOC__, counter, 2)
     mut msg : Str = "hello"
     msg = "world"
-    assert_eq_str(loc(), msg, "world")
+    assert_eq_str(__LOC__, msg, "world")
 }

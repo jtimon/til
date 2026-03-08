@@ -246,16 +246,6 @@ static Expr *parse_enum_def(Parser *p) {
 static Expr *parse_call(Parser *p, Str *name, U32 line, U32 col) {
     advance(p); // consume '('
 
-    // loc() — replaced with "path:line:col" string literal
-    if (Str_eq_c(name, "loc")) {
-        expect(p, TOK_RPAREN);
-        char buf[256];
-        snprintf(buf, sizeof(buf), "%s:%u:%u", p->path, line, col);
-        Expr *e = expr_new(NODE_LITERAL_STR, line, col, p->spath);
-        e->data.str_val = Str_new(buf);
-        return e;
-    }
-
     Expr *call = expr_new(NODE_FCALL, line, col, p->spath);
 
     // first child is the callee identifier
@@ -339,8 +329,26 @@ static Expr *parse_expression(Parser *p) {
     } else if (t->type == TOK_IDENT) {
         advance(p);
         Str *name = tok_str(t);
-        // function call?
-        if (check(p, TOK_LPAREN)) {
+        // compile-time directives
+        if (Str_eq_c(name, "__LOC__")) {
+            char buf[256];
+            snprintf(buf, sizeof(buf), "%s:%u:%u", p->path, t->line, t->col);
+            e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->spath);
+            e->data.str_val = Str_new(buf);
+        } else if (Str_eq_c(name, "__FILE__")) {
+            e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->spath);
+            e->data.str_val = Str_new(p->path);
+        } else if (Str_eq_c(name, "__LINE__")) {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%u", t->line);
+            e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
+            e->data.str_val = Str_new(buf);
+        } else if (Str_eq_c(name, "__COL__")) {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%u", t->col);
+            e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
+            e->data.str_val = Str_new(buf);
+        } else if (check(p, TOK_LPAREN)) {
             e = parse_call(p, name, t->line, t->col);
         } else {
             e = expr_new(NODE_IDENT, t->line, t->col, p->spath);

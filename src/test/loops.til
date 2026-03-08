@@ -6,7 +6,7 @@ test_for_in_str := test() {
     for c in "hello" {
         result.push_str(Str.from_byte(c))
     }
-    assert_eq_str(loc(), result, "hello")
+    assert_eq_str(__LOC__, result, "hello")
 }
 
 test_for_in_str_explicit := test() {
@@ -15,7 +15,7 @@ test_for_in_str_explicit := test() {
     for c : U8 in "world" {
         result.push_str(Str.from_byte(c))
     }
-    assert_eq_str(loc(), result, "world")
+    assert_eq_str(__LOC__, result, "world")
 }
 
 test_for_in_vec := test() {
@@ -24,7 +24,7 @@ test_for_in_vec := test() {
     for x : I64 in v {
         sum = sum.add(x)
     }
-    assert_eq(loc(), sum, 60)
+    assert_eq(__LOC__, sum, 60)
 }
 
 test_for_in_array := test() {
@@ -33,7 +33,7 @@ test_for_in_array := test() {
     for x : I64 in a {
         sum = sum.add(x)
     }
-    assert_eq(loc(), sum, 15)
+    assert_eq(__LOC__, sum, 15)
 }
 
 test_for_in_break := test() {
@@ -42,7 +42,7 @@ test_for_in_break := test() {
         if count.eq(3) { break }
         count = count.add(1)
     }
-    assert_eq(loc(), count, 3)
+    assert_eq(__LOC__, count, 3)
 }
 
 test_for_in_continue := test() {
@@ -52,7 +52,7 @@ test_for_in_continue := test() {
         if c.eq('b') { continue }
         result.push_str(Str.from_byte(c))
     }
-    assert_eq_str(loc(), result, "acd")
+    assert_eq_str(__LOC__, result, "acd")
 }
 
 test_for_in_nested := test() {
@@ -62,7 +62,7 @@ test_for_in_nested := test() {
             count = count.add(1)
         }
     }
-    assert_eq(loc(), count, 4)
+    assert_eq(__LOC__, count, 4)
 }
 
 test_for_in_empty := test() {
@@ -70,14 +70,14 @@ test_for_in_empty := test() {
     for c in "" {
         count = count.add(1)
     }
-    assert_eq(loc(), count, 0)
+    assert_eq(__LOC__, count, 0)
 
     v := vec("I64")
     mut sum := 0
     for x : I64 in v {
         sum = sum.add(x)
     }
-    assert_eq(loc(), sum, 0)
+    assert_eq(__LOC__, sum, 0)
 }
 
 test_for_in_scope := test() {
@@ -87,7 +87,7 @@ test_for_in_scope := test() {
     for c in "abc" {
         // c is scoped inside the block
     }
-    assert_eq(loc(), x, 42)
+    assert_eq(__LOC__, x, 42)
 }
 
 test_range_ascending := test() {
@@ -95,7 +95,7 @@ test_range_ascending := test() {
     for i in 0..5 {
         sum = sum.add(i)
     }
-    assert_eq(loc(), sum, 10)
+    assert_eq(__LOC__, sum, 10)
 }
 
 test_range_descending := test() {
@@ -103,7 +103,7 @@ test_range_descending := test() {
     for i in 5..0 {
         sum = sum.add(i)
     }
-    assert_eq(loc(), sum, 15)
+    assert_eq(__LOC__, sum, 15)
 }
 
 test_range_empty := test() {
@@ -111,7 +111,7 @@ test_range_empty := test() {
     for i in 3..3 {
         count = count.add(1)
     }
-    assert_eq(loc(), count, 0)
+    assert_eq(__LOC__, count, 0)
 }
 
 test_range_single := test() {
@@ -119,7 +119,7 @@ test_range_single := test() {
     for i in 0..1 {
         sum = sum.add(i)
     }
-    assert_eq(loc(), sum, 0)
+    assert_eq(__LOC__, sum, 0)
 }
 
 test_range_break := test() {
@@ -128,7 +128,7 @@ test_range_break := test() {
         if i.eq(5) { break }
         last = i
     }
-    assert_eq(loc(), last, 4)
+    assert_eq(__LOC__, last, 4)
 }
 
 test_range_continue := test() {
@@ -138,7 +138,7 @@ test_range_continue := test() {
         if i.mod(2).neq(0) { continue }
         sum = sum.add(i)
     }
-    assert_eq(loc(), sum, 20)
+    assert_eq(__LOC__, sum, 20)
 }
 
 test_range_nested := test() {
@@ -148,7 +148,7 @@ test_range_nested := test() {
             sum = sum.add(1)
         }
     }
-    assert_eq(loc(), sum, 12)
+    assert_eq(__LOC__, sum, 12)
 }
 
 test_while_basic := test() {
@@ -156,12 +156,12 @@ test_while_basic := test() {
     while i.lt(5) {
         i = i.add(1)
     }
-    assert_eq(loc(), i, 5)
+    assert_eq(__LOC__, i, 5)
 }
 
 test_while_false := test() {
     while false {
-        panic(loc(), "unreachable")
+        panic(__LOC__, "unreachable")
     }
 }
 
@@ -171,7 +171,7 @@ test_while_break := test() {
         if i.eq(3) { break }
         i = i.add(1)
     }
-    assert_eq(loc(), i, 3)
+    assert_eq(__LOC__, i, 3)
 }
 
 test_while_continue := test() {
@@ -182,5 +182,5 @@ test_while_continue := test() {
         if k.eq(3) { continue }
         total = total.add(k)
     }
-    assert_eq(loc(), total, 12)
+    assert_eq(__LOC__, total, 12)
 }

@@ -22,75 +22,75 @@ Entity := struct {
 
 test_basic_struct := test() {
     p := Point()
-    assert_eq(loc(), p.x, 0)
-    assert_eq(loc(), p.y, 0)
+    assert_eq(__LOC__, p.x, 0)
+    assert_eq(__LOC__, p.y, 0)
     p.x = 5
     p.y = 10
-    assert_eq(loc(), p.x, 5)
-    assert_eq(loc(), p.y, 10)
+    assert_eq(__LOC__, p.x, 5)
+    assert_eq(__LOC__, p.y, 10)
 }
 
 test_mixed_types := test() {
     bob := Person()
-    assert_eq_str(loc(), bob.name, "unknown")
-    assert_eq(loc(), bob.age, 0)
+    assert_eq_str(__LOC__, bob.name, "unknown")
+    assert_eq(__LOC__, bob.age, 0)
     bob.name = "Bob"
     bob.age = 30
-    assert_eq_str(loc(), bob.name, "Bob")
-    assert_eq(loc(), bob.age, 30)
+    assert_eq_str(__LOC__, bob.name, "Bob")
+    assert_eq(__LOC__, bob.age, 30)
 }
 
 test_bool_fields := test() {
     f := Flags()
-    assert(loc(), f.active.not())
-    assert(loc(), f.visible)
+    assert(__LOC__, f.active.not())
+    assert(__LOC__, f.visible)
     f.active = true
-    assert(loc(), f.active)
+    assert(__LOC__, f.active)
 }
 
 test_named_args := test() {
     p2 := Point(x=5)
-    assert_eq(loc(), p2.x, 5)
-    assert_eq(loc(), p2.y, 0)
+    assert_eq(__LOC__, p2.x, 5)
+    assert_eq(__LOC__, p2.y, 0)
     p3 := Point(y=10)
-    assert_eq(loc(), p3.x, 0)
-    assert_eq(loc(), p3.y, 10)
+    assert_eq(__LOC__, p3.x, 0)
+    assert_eq(__LOC__, p3.y, 10)
     p4 := Point(x=3, y=7)
-    assert_eq(loc(), p4.x, 3)
-    assert_eq(loc(), p4.y, 7)
+    assert_eq(__LOC__, p4.x, 3)
+    assert_eq(__LOC__, p4.y, 7)
     alice := Person(name="Alice", age=25)
-    assert_eq_str(loc(), alice.name, "Alice")
-    assert_eq(loc(), alice.age, 25)
+    assert_eq_str(__LOC__, alice.name, "Alice")
+    assert_eq(__LOC__, alice.age, 25)
 }
 
 test_explicit_annotation := test() {
     p5 : Point = Point()
-    assert_eq(loc(), p5.x, 0)
+    assert_eq(__LOC__, p5.x, 0)
     p6 : Point = Point(x=42, y=99)
-    assert_eq(loc(), p6.x, 42)
-    assert_eq(loc(), p6.y, 99)
+    assert_eq(__LOC__, p6.x, 42)
+    assert_eq(__LOC__, p6.y, 99)
 }
 
 test_immutable_fields := test() {
     e1 := Entity(id=1, name="hero")
-    assert_eq(loc(), e1.id, 1)
-    assert_eq_str(loc(), e1.name, "hero")
+    assert_eq(__LOC__, e1.id, 1)
+    assert_eq_str(__LOC__, e1.name, "hero")
     e1.name = "villain"
-    assert_eq_str(loc(), e1.name, "villain")
-    assert_eq(loc(), e1.id, 1)
+    assert_eq_str(__LOC__, e1.name, "villain")
+    assert_eq(__LOC__, e1.id, 1)
     e2 := Entity()
-    assert_eq(loc(), e2.id, 0)
-    assert_eq_str(loc(), e2.name, "unnamed")
+    assert_eq(__LOC__, e2.id, 0)
+    assert_eq_str(__LOC__, e2.name, "unnamed")
     e3 := Entity(id=99)
-    assert_eq(loc(), e3.id, 99)
+    assert_eq(__LOC__, e3.id, 99)
 }
 
 test_independence := test() {
     a := Point()
     b := Point()
     a.x = 1
-    assert_eq(loc(), a.x, 1)
-    assert_eq(loc(), b.x, 0)
+    assert_eq(__LOC__, a.x, 1)
+    assert_eq(__LOC__, b.x, 0)
 }
 
 Line := struct {
@@ -100,24 +100,24 @@ Line := struct {
 
 test_nested_structs := test() {
     l1 := Line()
-    assert_eq(loc(), l1.start.x, 0)
-    assert_eq(loc(), l1.start.y, 0)
-    assert_eq(loc(), l1.end.x, 0)
-    assert_eq(loc(), l1.end.y, 0)
+    assert_eq(__LOC__, l1.start.x, 0)
+    assert_eq(__LOC__, l1.start.y, 0)
+    assert_eq(__LOC__, l1.end.x, 0)
+    assert_eq(__LOC__, l1.end.y, 0)
     l2 := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
-    assert_eq(loc(), l2.start.x, 1)
-    assert_eq(loc(), l2.start.y, 2)
-    assert_eq(loc(), l2.end.x, 3)
-    assert_eq(loc(), l2.end.y, 4)
+    assert_eq(__LOC__, l2.start.x, 1)
+    assert_eq(__LOC__, l2.start.y, 2)
+    assert_eq(__LOC__, l2.end.x, 3)
+    assert_eq(__LOC__, l2.end.y, 4)
     l3 := Line(end=Point(x=10))
-    assert_eq(loc(), l3.start.x, 0)
-    assert_eq(loc(), l3.end.x, 10)
+    assert_eq(__LOC__, l3.start.x, 0)
+    assert_eq(__LOC__, l3.end.x, 10)
     l1.start.x = 42
-    assert_eq(loc(), l1.start.x, 42)
+    assert_eq(__LOC__, l1.start.x, 42)
     l1.end.y = 99
-    assert_eq(loc(), l1.end.y, 99)
+    assert_eq(__LOC__, l1.end.y, 99)
     l4 := Line()
-    assert_eq(loc(), l4.start.x, 0)
+    assert_eq(__LOC__, l4.start.x, 0)
 }
 
 Counter := struct {
@@ -128,23 +128,23 @@ Counter := struct {
 }
 
 test_namespace := test() {
-    assert_eq(loc(), Counter.instance_count, 0)
-    assert_eq_str(loc(), Counter.default_name, "Counter")
+    assert_eq(__LOC__, Counter.instance_count, 0)
+    assert_eq_str(__LOC__, Counter.default_name, "Counter")
     Counter.instance_count = 42
-    assert_eq(loc(), Counter.instance_count, 42)
+    assert_eq(__LOC__, Counter.instance_count, 42)
     c1 := Counter()
-    assert_eq(loc(), c1.instance_count, 42)
-    assert_eq_str(loc(), c1.default_name, "Counter")
+    assert_eq(__LOC__, c1.instance_count, 42)
+    assert_eq_str(__LOC__, c1.default_name, "Counter")
     Counter.instance_count = 100
     c2 := Counter()
-    assert_eq(loc(), c2.instance_count, 100)
-    assert_eq(loc(), c1.instance_count, 100)
+    assert_eq(__LOC__, c2.instance_count, 100)
+    assert_eq(__LOC__, c1.instance_count, 100)
     c1.value = 5
     c2.value = 10
-    assert_eq(loc(), c1.value, 5)
-    assert_eq(loc(), c2.value, 10)
-    assert_eq_str(loc(), I64.to_str(42), "42")
-    assert_eq_str(loc(), Bool.to_str(true), "true")
+    assert_eq(__LOC__, c1.value, 5)
+    assert_eq(__LOC__, c2.value, 10)
+    assert_eq_str(__LOC__, I64.to_str(42), "42")
+    assert_eq_str(__LOC__, Bool.to_str(true), "true")
 }
 
 Greeter := struct {
@@ -164,40 +164,40 @@ Describable := struct {
 
 test_ufcs := test() {
     x := 42
-    assert_eq_str(loc(), x.to_str(), "42")
-    assert_eq_str(loc(), 0.to_str(), "0")
+    assert_eq_str(__LOC__, x.to_str(), "42")
+    assert_eq_str(__LOC__, 0.to_str(), "0")
     y := true
-    assert_eq_str(loc(), y.to_str(), "true")
-    assert_eq_str(loc(), false.to_str(), "false")
-    assert_eq_str(loc(), Greeter.greet("world"), "hello, world")
+    assert_eq_str(__LOC__, y.to_str(), "true")
+    assert_eq_str(__LOC__, false.to_str(), "false")
+    assert_eq_str(__LOC__, Greeter.greet("world"), "hello, world")
     d := Describable(val=42)
-    assert_eq_str(loc(), d.describe(), "val=42")
-    assert_eq_str(loc(), Describable.describe(d), "val=42")
+    assert_eq_str(__LOC__, d.describe(), "val=42")
+    assert_eq_str(__LOC__, Describable.describe(d), "val=42")
 }
 
 test_clone := test() {
     // Clone a simple struct
     p := Point(x=3, y=7)
     p2 := p.clone()
-    assert_eq(loc(), p2.x, 3)
-    assert_eq(loc(), p2.y, 7)
+    assert_eq(__LOC__, p2.x, 3)
+    assert_eq(__LOC__, p2.y, 7)
     // Mutating original doesn't affect clone
     p.x = 99
-    assert_eq(loc(), p2.x, 3)
-    assert_eq(loc(), p.x, 99)
+    assert_eq(__LOC__, p2.x, 3)
+    assert_eq(__LOC__, p.x, 99)
 
     // Clone a nested struct (Line has Point fields)
     l := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     l2 := l.clone()
-    assert_eq(loc(), l2.start.x, 1)
-    assert_eq(loc(), l2.end.y, 4)
+    assert_eq(__LOC__, l2.start.x, 1)
+    assert_eq(__LOC__, l2.end.y, 4)
     l.start.x = 99
-    assert_eq(loc(), l2.start.x, 1)
+    assert_eq(__LOC__, l2.start.x, 1)
 
     // Clone builtins
-    assert_eq(loc(), 42.clone(), 42)
-    assert_eq_str(loc(), "hello".clone(), "hello")
-    assert(loc(), true.clone())
+    assert_eq(__LOC__, 42.clone(), 42)
+    assert_eq_str(__LOC__, "hello".clone(), "hello")
+    assert(__LOC__, true.clone())
 }
 
 test_delete := test() {
@@ -238,19 +238,19 @@ DeleteCustom := struct {
 test_custom_clone := test() {
     c := CloneCustom(val=5)
     d := c.clone()
-    assert_eq(loc(), d.val, 6)
+    assert_eq(__LOC__, d.val, 6)
     e := d.clone()
-    assert_eq(loc(), e.val, 7)
+    assert_eq(__LOC__, e.val, 7)
 }
 
 test_custom_delete := test() {
-    assert_eq(loc(), DeleteCustom.delete_count, 0)
+    assert_eq(__LOC__, DeleteCustom.delete_count, 0)
     t := DeleteCustom(id=1)
     own t.delete()
-    assert_eq(loc(), DeleteCustom.delete_count, 1)
+    assert_eq(__LOC__, DeleteCustom.delete_count, 1)
     t2 := DeleteCustom(id=2)
     own t2.delete()
-    assert_eq(loc(), DeleteCustom.delete_count, 2)
+    assert_eq(__LOC__, DeleteCustom.delete_count, 2)
 }
 
 Container := struct {
@@ -262,20 +262,20 @@ test_vec_in_struct := test() {
     c.items.push(own 10)
     c.items.push(own 20)
     c.items.push(own 30)
-    assert_eq(loc(), c.items.len(), 3)
-    assert_eq(loc(), c.items.get(0), 10)
-    assert_eq(loc(), c.items.get(1), 20)
-    assert_eq(loc(), c.items.get(2), 30)
+    assert_eq(__LOC__, c.items.len(), 3)
+    assert_eq(__LOC__, c.items.get(0), 10)
+    assert_eq(__LOC__, c.items.get(1), 20)
+    assert_eq(__LOC__, c.items.get(2), 30)
 }
 
 test_nested_struct_field_mutation := test() {
     l := Line()
     l.start.x = 42
     l.start.y = 99
-    assert_eq(loc(), l.start.x, 42)
-    assert_eq(loc(), l.start.y, 99)
-    assert_eq(loc(), l.end.x, 0)
-    assert_eq(loc(), l.end.y, 0)
+    assert_eq(__LOC__, l.start.x, 42)
+    assert_eq(__LOC__, l.start.y, 99)
+    assert_eq(__LOC__, l.end.x, 0)
+    assert_eq(__LOC__, l.end.y, 0)
 }
 
 test_field_access_copy := test() {
@@ -284,15 +284,15 @@ test_field_access_copy := test() {
     c.items.push(own 2)
     copy := c.items
     c.items.push(own 3)
-    assert_eq(loc(), c.items.len(), 3)
-    assert_eq(loc(), copy.len(), 2)
+    assert_eq(__LOC__, c.items.len(), 3)
+    assert_eq(__LOC__, copy.len(), 2)
 }
 
 test_field_reassign := test() {
     bob := Person()
-    assert_eq_str(loc(), bob.name, "unknown")
+    assert_eq_str(__LOC__, bob.name, "unknown")
     bob.name = "Alice"
-    assert_eq_str(loc(), bob.name, "Alice")
+    assert_eq_str(__LOC__, bob.name, "Alice")
     bob.name = "Charlie"
-    assert_eq_str(loc(), bob.name, "Charlie")
+    assert_eq_str(__LOC__, bob.name, "Charlie")
 }

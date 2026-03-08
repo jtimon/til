@@ -44,53 +44,53 @@ test_greet := proc() {
 
 test_instantiation := proc() {
     p := Pair()
-    assert_eq(loc(), p.a, 0)
-    assert_eq(loc(), p.b, 0)
+    assert_eq(__LOC__, p.a, 0)
+    assert_eq(__LOC__, p.b, 0)
     p2 := Pair(a=3, b=7)
-    assert_eq(loc(), p2.a, 3)
-    assert_eq(loc(), p2.b, 7)
+    assert_eq(__LOC__, p2.a, 3)
+    assert_eq(__LOC__, p2.b, 7)
 }
 
 test_field_mutation := proc() {
     p := Pair(a=1, b=2)
     p.a = 10
-    assert_eq(loc(), p.a, 10)
-    assert_eq(loc(), p.b, 2)
+    assert_eq(__LOC__, p.a, 10)
+    assert_eq(__LOC__, p.b, 2)
 }
 
 test_ext_methods := proc() {
     p := Pair(a=3, b=7)
-    assert_eq(loc(), p.sum(), 10)
+    assert_eq(__LOC__, p.sum(), 10)
     q := p.swap()
-    assert_eq(loc(), q.a, 7)
-    assert_eq(loc(), q.b, 3)
+    assert_eq(__LOC__, q.a, 7)
+    assert_eq(__LOC__, q.b, 3)
 }
 
 test_mixed_methods := proc() {
     p := Pair(a=3, b=7)
-    assert_eq(loc(), p.double_sum(), 20)
-    assert(loc(), p.is_equal().not())
-    assert_eq(loc(), p.diff(), 0.sub(4))
-    assert_eq(loc(), p.swapped_sum(), 10)
+    assert_eq(__LOC__, p.double_sum(), 20)
+    assert(__LOC__, p.is_equal().not())
+    assert_eq(__LOC__, p.diff(), 0.sub(4))
+    assert_eq(__LOC__, p.swapped_sum(), 10)
 
     q := Pair(a=5, b=5)
-    assert(loc(), q.is_equal())
-    assert_eq(loc(), q.diff(), 0)
+    assert(__LOC__, q.is_equal())
+    assert_eq(__LOC__, q.diff(), 0)
 
     r := p.with_offset(10)
-    assert_eq(loc(), r.a, 13)
-    assert_eq(loc(), r.b, 17)
-    assert_eq(loc(), r.sum(), 30)
+    assert_eq(__LOC__, r.a, 13)
+    assert_eq(__LOC__, r.b, 17)
+    assert_eq(__LOC__, r.sum(), 30)
 }
 
 test_clone := proc() {
     p := Pair(a=3, b=7)
     q := p.clone()
-    assert_eq(loc(), q.a, 3)
-    assert_eq(loc(), q.b, 7)
+    assert_eq(__LOC__, q.a, 3)
+    assert_eq(__LOC__, q.b, 7)
     q.a = 99
-    assert_eq(loc(), p.a, 3)
-    assert_eq(loc(), q.a, 99)
+    assert_eq(__LOC__, p.a, 3)
+    assert_eq(__LOC__, q.a, 99)
 }
 
 test_delete := proc() {
@@ -113,14 +113,14 @@ test_add_points := proc() {
     a := Point(x=1, y=2)
     b := Point(x=3, y=4)
     c := add_points(a, b)
-    assert_eq(loc(), c.x, 4)
-    assert_eq(loc(), c.y, 6)
+    assert_eq(__LOC__, c.x, 4)
+    assert_eq(__LOC__, c.y, 6)
 }
 
 test_variadic := proc() {
-    assert_eq(loc(), sum_all(10, 20, 30), 60)
-    assert_eq(loc(), sum_all(1, 2, 3, 4, 5), 15)
-    assert_eq(loc(), sum_all(42), 42)
+    assert_eq(__LOC__, sum_all(10, 20, 30), 60)
+    assert_eq(__LOC__, sum_all(1, 2, 3, 4, 5), 15)
+    assert_eq(__LOC__, sum_all(42), 42)
 }
 
 test_greet()

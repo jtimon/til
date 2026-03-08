@@ -3,11 +3,11 @@ import("import_helper.til")
 
 test_import_func := test() {
     result := double(21)
-    expect(loc(), result.eq(42), "double(21)")
+    expect(__LOC__, result.eq(42), "double(21)")
 }
 
 test_import_struct := test() {
     p := Point(x = 3, y = 4)
-    expect(loc(), p.x.eq(3), "Point.x")
-    expect(loc(), p.y.eq(4), "Point.y")
+    expect(__LOC__, p.x.eq(3), "Point.x")
+    expect(__LOC__, p.y.eq(4), "Point.y")
 }

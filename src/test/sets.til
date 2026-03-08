@@ -2,66 +2,66 @@ mode test
 
 test_i64_set := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
-    assert_eq(loc(), 1.clone(), 1)
+    assert_eq(__LOC__, I64.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, 1.clone(), 1)
 
     s := Set.new("I64", I64.size())
     s.add(own 3)
     s.add(own 1)
     s.add(own 2)
-    assert_eq(loc(), s.len(), 3)
-    assert(loc(), s.has(1))
-    assert(loc(), s.has(2))
-    assert(loc(), s.has(3))
-    assert(loc(), s.has(4).not())
+    assert_eq(__LOC__, s.len(), 3)
+    assert(__LOC__, s.has(1))
+    assert(__LOC__, s.has(2))
+    assert(__LOC__, s.has(3))
+    assert(__LOC__, s.has(4).not())
 
     // Duplicates ignored
     s.add(own 2)
-    assert_eq(loc(), s.len(), 3)
+    assert_eq(__LOC__, s.len(), 3)
 }
 
 test_str_set := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(loc(), Str.cmp("a", "b"), 0.sub(1))
-    assert_eq_str(loc(), "hi".clone(), "hi")
+    assert_eq(__LOC__, Str.cmp("a", "b"), 0.sub(1))
+    assert_eq_str(__LOC__, "hi".clone(), "hi")
 
     ss := Set.new("Str", Str.size())
     ss.add(own "banana")
     ss.add(own "apple")
     ss.add(own "cherry")
-    assert_eq(loc(), ss.len(), 3)
-    assert(loc(), ss.has("apple"))
-    assert(loc(), ss.has("banana"))
-    assert(loc(), ss.has("cherry"))
-    assert(loc(), ss.has("date").not())
+    assert_eq(__LOC__, ss.len(), 3)
+    assert(__LOC__, ss.has("apple"))
+    assert(__LOC__, ss.has("banana"))
+    assert(__LOC__, ss.has("cherry"))
+    assert(__LOC__, ss.has("date").not())
     ss.add(own "apple")
-    assert_eq(loc(), ss.len(), 3)
+    assert_eq(__LOC__, ss.len(), 3)
 }
 
 // --- Set literal tests ---
 
 test_set_literal_i64 := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(loc(), I64.cmp(1, 2), 0.sub(1))
-    assert_eq(loc(), 1.clone(), 1)
+    assert_eq(__LOC__, I64.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, 1.clone(), 1)
 
     s := {3, 1, 2}
-    assert_eq(loc(), s.len(), 3)
-    assert(loc(), s.has(1))
-    assert(loc(), s.has(2))
-    assert(loc(), s.has(3))
-    assert(loc(), s.has(4).not())
+    assert_eq(__LOC__, s.len(), 3)
+    assert(__LOC__, s.has(1))
+    assert(__LOC__, s.has(2))
+    assert(__LOC__, s.has(3))
+    assert(__LOC__, s.has(4).not())
 }
 
 test_set_literal_str := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(loc(), Str.cmp("a", "b"), 0.sub(1))
-    assert_eq_str(loc(), "hi".clone(), "hi")
+    assert_eq(__LOC__, Str.cmp("a", "b"), 0.sub(1))
+    assert_eq_str(__LOC__, "hi".clone(), "hi")
 
     s := {"apple", "banana", "cherry"}
-    assert_eq(loc(), s.len(), 3)
-    assert(loc(), s.has("apple"))
-    assert(loc(), s.has("banana"))
-    assert(loc(), s.has("cherry"))
-    assert(loc(), s.has("date").not())
+    assert_eq(__LOC__, s.len(), 3)
+    assert(__LOC__, s.has("apple"))
+    assert(__LOC__, s.has("banana"))
+    assert(__LOC__, s.has("cherry"))
+    assert(__LOC__, s.has("date").not())
 }

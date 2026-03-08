@@ -5,18 +5,18 @@ fn_double := func(n: I64) returns I64 {
 }
 
 test_func_proc := test() {
-    assert_eq(loc(), fn_double(5), 10)
-    assert_eq(loc(), fn_double(0), 0)
+    assert_eq(__LOC__, fn_double(5), 10)
+    assert_eq(__LOC__, fn_double(0), 0)
 }
 
 test_scope := test() {
     outer := 1
     {
         inner := 2
-        assert_eq(loc(), inner, 2)
-        assert_eq(loc(), outer, 1)
+        assert_eq(__LOC__, inner, 2)
+        assert_eq(__LOC__, outer, 1)
     }
-    assert_eq(loc(), outer, 1)
+    assert_eq(__LOC__, outer, 1)
 }
 
 fn_inc := proc(mut x: I64) {
@@ -32,12 +32,12 @@ fn_swap := proc(mut a: I64, mut b: I64) {
 test_mut_params := test() {
     mut_val := 42
     fn_inc(mut_val)
-    assert_eq(loc(), mut_val, 43)
+    assert_eq(__LOC__, mut_val, 43)
     mut_a := 10
     mut_b := 20
     fn_swap(mut_a, mut_b)
-    assert_eq(loc(), mut_a, 20)
-    assert_eq(loc(), mut_b, 10)
+    assert_eq(__LOC__, mut_a, 20)
+    assert_eq(__LOC__, mut_b, 10)
 }
 
 fn_identity := func(own x: I64) returns I64 {
@@ -45,5 +45,5 @@ fn_identity := func(own x: I64) returns I64 {
 }
 
 test_own_params := test() {
-    assert_eq(loc(), fn_identity(own 100), 100)
+    assert_eq(__LOC__, fn_identity(own 100), 100)
 }

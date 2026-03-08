@@ -3,38 +3,38 @@ mode test
 test_i64_basics := test() {
     a := 34
     b := 35
-    assert_eq(loc(), a.add(b), 69)
-    assert_eq(loc(), a, 34)
-    assert_eq(loc(), b, 35)
+    assert_eq(__LOC__, a.add(b), 69)
+    assert_eq(__LOC__, a, 34)
+    assert_eq(__LOC__, b, 35)
 }
 
 test_str_basics := test() {
     s := "Hello"
-    assert_eq_str(loc(), s, "Hello")
+    assert_eq_str(__LOC__, s, "Hello")
     greeting := "Hi there"
-    assert_eq_str(loc(), greeting, "Hi there")
+    assert_eq_str(__LOC__, greeting, "Hi there")
 }
 
 test_bool_basics := test() {
     t := true
     f := false
-    assert(loc(), t)
-    assert(loc(), f.not())
-    assert_eq_str(loc(), t.to_str(), "true")
-    assert_eq_str(loc(), f.to_str(), "false")
+    assert(__LOC__, t)
+    assert(__LOC__, f.not())
+    assert_eq_str(__LOC__, t.to_str(), "true")
+    assert_eq_str(__LOC__, f.to_str(), "false")
 }
 
 test_u8 := test() {
     a : U8 = 200
     b : U8 = 55
-    assert_eq_str(loc(), a.add(b).to_str(), "255")
-    assert_eq_str(loc(), a.add(b).add(b).to_str(), "54")
-    assert_eq_str(loc(), a.sub(b).to_str(), "145")
-    assert_eq_str(loc(), a.to_i64().to_str(), "200")
-    assert(loc(), a.gt(b))
-    assert(loc(), a.eq(a))
+    assert_eq_str(__LOC__, a.add(b).to_str(), "255")
+    assert_eq_str(__LOC__, a.add(b).add(b).to_str(), "54")
+    assert_eq_str(__LOC__, a.sub(b).to_str(), "145")
+    assert_eq_str(__LOC__, a.to_i64().to_str(), "200")
+    assert(__LOC__, a.gt(b))
+    assert(__LOC__, a.eq(a))
     c : U8 = U8.from_i64(42)
-    assert_eq_str(loc(), c.to_str(), "42")
+    assert_eq_str(__LOC__, c.to_str(), "42")
 }
 
 types_double := func(n: I64) returns I64 {
@@ -43,13 +43,13 @@ types_double := func(n: I64) returns I64 {
 
 test_explicit_types := test() {
     x : I64 = 35
-    assert_eq(loc(), x, 35)
+    assert_eq(__LOC__, x, 35)
     greeting : Str = "Hi there"
-    assert_eq_str(loc(), greeting, "Hi there")
-    assert_eq(loc(), types_double(5), 10)
+    assert_eq_str(__LOC__, greeting, "Hi there")
+    assert_eq(__LOC__, types_double(5), 10)
 }
 
 test_format := test() {
-    assert_eq_str(loc(), "hello".concat(" world"), "hello world")
-    assert_eq_str(loc(), format("a", "b", "c"), "abc")
+    assert_eq_str(__LOC__, "hello".concat(" world"), "hello world")
+    assert_eq_str(__LOC__, format("a", "b", "c"), "abc")
 }

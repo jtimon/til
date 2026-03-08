@@ -10,7 +10,7 @@ test_ref_i64 := test() {
     x := 3
     y := 7
     ref m := min(x, y)
-    assert_eq(loc(), m, 3)
+    assert_eq(__LOC__, m, 3)
 }
 
 # --- ref returns with Str ---
@@ -23,7 +23,7 @@ test_ref_str := test() {
     a := "hi"
     b := "hello"
     ref s := shorter(a, b)
-    assert_eq_str(loc(), s, "hi")
+    assert_eq_str(__LOC__, s, "hi")
 }
 
 # --- ref from parameter ---
@@ -35,5 +35,5 @@ identity := func(x: I64) returns ref I64 {
 test_ref_from_param := test() {
     v := 42
     ref r := identity(v)
-    assert_eq(loc(), r, 42)
+    assert_eq(__LOC__, r, 42)
 }

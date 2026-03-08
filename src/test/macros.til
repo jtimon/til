@@ -6,12 +6,12 @@ macro_add := macro(a: I64, b: I64) returns I64 {
 }
 
 test_basic_macro := test() {
-    assert_eq(loc(), macro_add(3, 4), 7)
+    assert_eq(__LOC__, macro_add(3, 4), 7)
 }
 
 test_macro_const_arg := test() {
     N := 10
-    assert_eq(loc(), macro_add(N, 5), 15)
+    assert_eq(__LOC__, macro_add(N, 5), 15)
 }
 
 # macro returning Str
@@ -20,7 +20,7 @@ macro_greet := macro(name: Str) returns Str {
 }
 
 test_macro_str := test() {
-    assert_eq_str(loc(), macro_greet("world"), "hello world")
+    assert_eq_str(__LOC__, macro_greet("world"), "hello world")
 }
 
 # macro body can call procs (runs at compile time)
@@ -30,7 +30,7 @@ macro_double := macro(x: I64) returns I64 {
 }
 
 test_macro_proc_call := test() {
-    assert_eq(loc(), macro_double(21), 42)
+    assert_eq(__LOC__, macro_double(21), 42)
 }
 
 # macro called from inside a func (with literal arg)
@@ -43,7 +43,7 @@ square_plus_one := func(dummy: I64) returns I64 {
 }
 
 test_macro_in_func := test() {
-    assert_eq(loc(), square_plus_one(0), 50)
+    assert_eq(__LOC__, square_plus_one(0), 50)
 }
 
 # macro returning Bool
@@ -52,8 +52,8 @@ macro_is_big := macro(x: I64) returns Bool {
 }
 
 test_macro_bool := test() {
-    expect(loc(), macro_is_big(200), "200 is big")
-    expect(loc(), macro_is_big(50).not(), "50 is not big")
+    expect(__LOC__, macro_is_big(200), "200 is big")
+    expect(__LOC__, macro_is_big(50).not(), "50 is not big")
 }
 
 # --- constant folding for pure funcs ---
@@ -63,13 +63,13 @@ double := func(x: I64) returns I64 {
 }
 
 test_func_folding := test() {
-    assert_eq(loc(), double(5), 10)
-    assert_eq(loc(), double(double(3)), 12)
+    assert_eq(__LOC__, double(5), 10)
+    assert_eq(__LOC__, double(double(3)), 12)
 }
 
 test_func_const_arg := test() {
     K := 7
-    assert_eq(loc(), double(K), 14)
+    assert_eq(__LOC__, double(K), 14)
 }
 
 greet := func(name: Str) returns Str {
@@ -77,5 +77,5 @@ greet := func(name: Str) returns Str {
 }
 
 test_func_str := test() {
-    assert_eq_str(loc(), greet("til"), "hi til")
+    assert_eq_str(__LOC__, greet("til"), "hi til")
 }

@@ -21,7 +21,7 @@ h := proc() {
     println(y.to_str())
 }
 
-assert(loc(), f().eq(42))
+assert(__LOC__, f().eq(42))
 g()
 h()
 
