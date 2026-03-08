@@ -1,5 +1,23 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #35 Switch statement (phases 1-4)
+  Syntax: ~switch expr { case val: body  case: body }~. Implicit break, no
+  fall-through. Default case is ~case:~. Desugars in typer to if/else chains.
+
+  Phase 1: Simple value matching — ~.eq()~ comparison for I64, U8, Str, Bool,
+  and enums. NODE_SWITCH/NODE_CASE AST nodes, parser, typer desugaring.
+
+  Phase 2: Range cases — ~case 'a'..'z':~ detects Range.new() pattern from
+  parser's ~..~ desugaring, emits ~_sw.gte(A).and(_sw.lte(B))~ (inclusive).
+
+  Phase 3: Enum variant matching — free via ~.eq()~ from Phase 1.
+
+  Phase 4: Payload extraction — ~case Token.Num(value):~ desugars to
+  ~_sw.is_Num()~ + ~value := _sw.get_Num()~. Typer detects enum variant
+  constructor pattern and generates is/get calls with binding.
+
+  Phase 5 (nested patterns) split to #36, depends on #12 (self-hosting).
+
 * FIXED #33 Character literals for U8
   Single-quoted character syntax: ~'a'~, ~'('~, ~'\n'~. Type is always U8.
   Escape sequences: ~'\n'~ ~'\t'~ ~'\r'~ ~'\\'~ ~'\''~ ~'\0'~.
