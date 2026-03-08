@@ -20,6 +20,8 @@ U8 : StructDef = ext_struct {
     mul := ext_func(a: U8, b: U8) returns U8 {}
     div := ext_func(a: U8, b: U8) returns U8 {}
     mod := ext_func(a: U8, b: U8) returns U8 {}
+    inc := ext_func(a: U8) returns U8 {}
+    dec := ext_func(a: U8) returns U8 {}
     eq := ext_func(a: U8, b: U8) returns Bool {}
     cmp := ext_func(a: U8, b: U8) returns I64 {}
     and := ext_func(a: U8, b: U8) returns U8 {}
@@ -47,6 +49,8 @@ I16 : StructDef = ext_struct {
     mul := ext_func(a: I16, b: I16) returns I16 {}
     div := ext_func(a: I16, b: I16) returns I16 {}
     mod := ext_func(a: I16, b: I16) returns I16 {}
+    inc := ext_func(a: I16) returns I16 {}
+    dec := ext_func(a: I16) returns I16 {}
     eq := ext_func(a: I16, b: I16) returns Bool {}
     cmp := ext_func(a: I16, b: I16) returns I64 {}
     neg := func(a: I16) returns I16 { return I16.from_i64(0.sub(a.to_i64())) }
@@ -75,6 +79,8 @@ I32 : StructDef = ext_struct {
     mul := ext_func(a: I32, b: I32) returns I32 {}
     div := ext_func(a: I32, b: I32) returns I32 {}
     mod := ext_func(a: I32, b: I32) returns I32 {}
+    inc := ext_func(a: I32) returns I32 {}
+    dec := ext_func(a: I32) returns I32 {}
     eq := ext_func(a: I32, b: I32) returns Bool {}
     cmp := ext_func(a: I32, b: I32) returns I64 {}
     neg := func(a: I32) returns I32 { return I32.from_i64(0.sub(a.to_i64())) }
@@ -103,6 +109,8 @@ U32 : StructDef = ext_struct {
     mul := ext_func(a: U32, b: U32) returns U32 {}
     div := ext_func(a: U32, b: U32) returns U32 {}
     mod := ext_func(a: U32, b: U32) returns U32 {}
+    inc := ext_func(a: U32) returns U32 {}
+    dec := ext_func(a: U32) returns U32 {}
     eq := ext_func(a: U32, b: U32) returns Bool {}
     cmp := ext_func(a: U32, b: U32) returns I64 {}
     and := ext_func(a: U32, b: U32) returns U32 {}
@@ -151,6 +159,8 @@ I64 : StructDef = ext_struct {
     mul := ext_func(a: I64, b: I64) returns I64 {}
     div := ext_func(a: I64, b: I64) returns I64 {}
     mod := ext_func(a: I64, b: I64) returns I64 {}
+    inc := ext_func(a: I64) returns I64 {}
+    dec := ext_func(a: I64) returns I64 {}
     eq := ext_func(a: I64, b: I64) returns Bool {}
     cmp := ext_func(a: I64, b: I64) returns I64 {}
     neg := func(a: I64) returns I64 { return 0.sub(a) }
@@ -162,6 +172,35 @@ I64 : StructDef = ext_struct {
     size := func() returns I64 { return 8 }
 }
 import("str.til")
+Range := struct {
+    start := 0
+    end := 0
+
+    namespace:
+    new := func(start: I64, end: I64) returns Range {
+        return Range(start = start, end = end)
+    }
+
+    len := func(self: Range) returns I64 {
+        if self.start.lte(self.end) { return self.end.sub(self.start) }
+        return self.start.sub(self.end)
+    }
+
+    get := func(self: Range, i: I64) returns I64 {
+        if self.start.lte(self.end) {
+            return self.start.add(i)
+        }
+        return self.start.sub(i)
+    }
+
+    clone := func(val: Range) returns Range {
+        return Range(start = val.start, end = val.end)
+    }
+
+    delete := proc(own self: Range, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
+}
 Bool : StructDef = ext_struct {
     namespace:
     to_str := func(b: Bool) returns Str {

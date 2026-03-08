@@ -42,25 +42,25 @@
    Typer: NODE_FOR_IN desugaring inline in infer_body() (typer.c).
    Tests: src/test/loops.til (9 tests), 3 new typer error cases.
 
-** Phase 2: Range iteration
+** DONE Phase 2: Range iteration
    Syntax: ~for i in 0..10 { body }~ — iterates i = 0, 1, 2, ..., 9 (end excluded).
    Ascending (~0..10~) and descending (~10..0~) ranges.
 
-   ~0..10~ desugars to ~Range.new(0, 10)~ (or similar). Range is a Dynamic
-   collection in core.til (like Vec but with one element buffer). Stores start,
-   end, elem_type, elem_size, and a buffer for current value. ~len()~ returns
-   the distance. ~get(pos)~ stores the element at position pos into the buffer
-   and returns ref to it.
+   ~0..10~ parses directly as ~Range.new(0, 10)~ — no new AST node needed.
+   Range is a simple I64 struct in core.til with start/end fields.
+   ~len()~ returns abs(end - start). ~get(i)~ returns ~start + i~ (ascending)
+   or ~start - i~ (descending) as I64 directly (not ref).
 
-   Range.get(pos) tracks internal position and steps with ~inc()~/~dec()~
-   from current, since for-in always iterates sequentially. Ascending ranges
-   use ~inc()~, descending use ~dec()~.
+   For-in desugaring updated to handle non-ref ~get()~ returns: if ~get()~
+   returns a concrete type (not ref), the loop variable is a regular
+   declaration instead of ref.
 
-   Prerequisite: add ~inc()~ and ~dec()~ methods to I64, U8, I16, I32, U32
-   in core.til. ~inc()~ returns value + 1, ~dec()~ returns value - 1.
+   Also added ~inc()~ and ~dec()~ ext_func methods to all integer types
+   (I64, U8, I16, I32, U32) as prerequisite for future ~++~/~--~ sugar (#22).
 
-   Parser: ~..~ as a binary operator producing NODE_RANGE (or desugared to
-   Range.new() call). Needs a new token TOK_DOTDOT.
+   Parser: TOK_DOTDOT handling after field access chain in parse_expression().
+   Tests: 7 range tests in src/test/loops.til (ascending, descending, empty,
+   single element, break, continue, nested).
 
 * OPEN #33 Character literals for U8
   Currently there's no syntax for character literals. Writing ~U8.from_i64(40)~

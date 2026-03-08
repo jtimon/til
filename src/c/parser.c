@@ -400,6 +400,22 @@ static Expr *parse_expression(Parser *p) {
             e = access;
         }
     }
+    // Range expression: expr..expr → Range.new(expr, expr)
+    if (check(p, TOK_DOTDOT)) {
+        Token *dt = &p->tokens[p->pos];
+        advance(p); // consume '..'
+        Expr *rhs = parse_expression(p);
+        Expr *range_ident = expr_new(NODE_IDENT, dt->line, dt->col, p->spath);
+        range_ident->data.str_val = Str_new("Range");
+        Expr *new_access = expr_new(NODE_FIELD_ACCESS, dt->line, dt->col, p->spath);
+        new_access->data.str_val = Str_new("new");
+        expr_add_child(new_access, range_ident);
+        Expr *call = expr_new(NODE_FCALL, dt->line, dt->col, p->spath);
+        expr_add_child(call, new_access);
+        expr_add_child(call, e);
+        expr_add_child(call, rhs);
+        e = call;
+    }
     return e;
 }
 

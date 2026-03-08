@@ -25,6 +25,10 @@ til_I64 *til_I64_and(til_I64 *a, til_I64 *b) { return I64_new(I64_and(*a, *b)); 
 til_I64 *til_I64_or(til_I64 *a, til_I64 *b) { return I64_new(I64_or(*a, *b)); }
 til_I64 *til_I64_xor(til_I64 *a, til_I64 *b) { return I64_new(I64_xor(*a, *b)); }
 
+// I64 inc/dec
+til_I64 *til_I64_inc(til_I64 *a) { return I64_new(*a + 1); }
+til_I64 *til_I64_dec(til_I64 *a) { return I64_new(*a - 1); }
+
 // I64 comparisons
 til_Bool *til_I64_eq(til_I64 *a, til_I64 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I64_eq(*a, *b); return r; }
 til_I64 *til_I64_cmp(til_I64 *a, til_I64 *b) { return I64_new(I64_cmp(*a, *b)); }
@@ -38,6 +42,10 @@ til_U8 *til_U8_mod(til_U8 *a, til_U8 *b) { return U8_new(U8_mod(*a, *b)); }
 til_U8 *til_U8_and(til_U8 *a, til_U8 *b) { return U8_new(U8_and(*a, *b)); }
 til_U8 *til_U8_or(til_U8 *a, til_U8 *b) { return U8_new(U8_or(*a, *b)); }
 til_U8 *til_U8_xor(til_U8 *a, til_U8 *b) { return U8_new(U8_xor(*a, *b)); }
+
+// U8 inc/dec
+til_U8 *til_U8_inc(til_U8 *a) { return U8_new(*a + 1); }
+til_U8 *til_U8_dec(til_U8 *a) { return U8_new(*a - 1); }
 
 // U8 comparisons
 til_Bool *til_U8_eq(til_U8 *a, til_U8 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U8_eq(*a, *b); return r; }
@@ -60,6 +68,10 @@ til_I16 *til_I16_mod(til_I16 *a, til_I16 *b) { return I16_new(I16_mod(*a, *b)); 
 til_I16 *til_I16_and(til_I16 *a, til_I16 *b) { return I16_new(I16_and(*a, *b)); }
 til_I16 *til_I16_or(til_I16 *a, til_I16 *b) { return I16_new(I16_or(*a, *b)); }
 til_I16 *til_I16_xor(til_I16 *a, til_I16 *b) { return I16_new(I16_xor(*a, *b)); }
+
+// I16 inc/dec
+til_I16 *til_I16_inc(til_I16 *a) { return I16_new(*a + 1); }
+til_I16 *til_I16_dec(til_I16 *a) { return I16_new(*a - 1); }
 
 // I16 comparisons
 til_Bool *til_I16_eq(til_I16 *a, til_I16 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I16_eq(*a, *b); return r; }
@@ -94,6 +106,10 @@ til_I32 *til_I32_and(til_I32 *a, til_I32 *b) { return I32_new(I32_and(*a, *b)); 
 til_I32 *til_I32_or(til_I32 *a, til_I32 *b) { return I32_new(I32_or(*a, *b)); }
 til_I32 *til_I32_xor(til_I32 *a, til_I32 *b) { return I32_new(I32_xor(*a, *b)); }
 
+// I32 inc/dec
+til_I32 *til_I32_inc(til_I32 *a) { return I32_new(*a + 1); }
+til_I32 *til_I32_dec(til_I32 *a) { return I32_new(*a - 1); }
+
 // I32 comparisons
 til_Bool *til_I32_eq(til_I32 *a, til_I32 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = I32_eq(*a, *b); return r; }
 til_I64 *til_I32_cmp(til_I32 *a, til_I32 *b) { return I64_new(I32_cmp(*a, *b)); }
@@ -126,6 +142,10 @@ til_U32 *til_U32_mod(til_U32 *a, til_U32 *b) { return U32_new(U32_mod(*a, *b)); 
 til_U32 *til_U32_and(til_U32 *a, til_U32 *b) { return U32_new(U32_and(*a, *b)); }
 til_U32 *til_U32_or(til_U32 *a, til_U32 *b) { return U32_new(U32_or(*a, *b)); }
 til_U32 *til_U32_xor(til_U32 *a, til_U32 *b) { return U32_new(U32_xor(*a, *b)); }
+
+// U32 inc/dec
+til_U32 *til_U32_inc(til_U32 *a) { return U32_new(*a + 1); }
+til_U32 *til_U32_dec(til_U32 *a) { return U32_new(*a - 1); }
 
 // U32 comparisons
 til_Bool *til_U32_eq(til_U32 *a, til_U32 *b) { til_Bool *r = malloc(sizeof(til_Bool)); *r = U32_eq(*a, *b); return r; }

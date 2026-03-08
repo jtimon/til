@@ -2584,11 +2584,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // While body
             Expr *wbody = expr_new(NODE_BODY, line, col, path);
 
-            // ref varname : ElemType = collection.get(_fiN)
+            // ref varname : ElemType = collection.get(_fiN)  (ref if get returns ref)
+            Bool get_returns_ref = get_func->data.func_def.return_is_ref;
             Expr *elem_decl = expr_new(NODE_DECL, line, col, path);
             elem_decl->data.decl.name = var_name;
             elem_decl->data.decl.explicit_type = elem_type;
-            elem_decl->data.decl.is_ref = true;
+            elem_decl->data.decl.is_ref = get_returns_ref;
             elem_decl->data.decl.is_mut = false;
             elem_decl->data.decl.is_namespace = false;
             elem_decl->data.decl.is_own = false;

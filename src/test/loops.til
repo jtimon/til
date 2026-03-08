@@ -89,3 +89,64 @@ test_for_in_scope := test() {
     }
     assert_eq(loc(), x, 42)
 }
+
+test_range_ascending := test() {
+    mut sum := 0
+    for i in 0..5 {
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), sum, 10)
+}
+
+test_range_descending := test() {
+    mut sum := 0
+    for i in 5..0 {
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), sum, 15)
+}
+
+test_range_empty := test() {
+    mut count := 0
+    for i in 3..3 {
+        count = count.add(1)
+    }
+    assert_eq(loc(), count, 0)
+}
+
+test_range_single := test() {
+    mut sum := 0
+    for i in 0..1 {
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), sum, 0)
+}
+
+test_range_break := test() {
+    mut last := 0
+    for i in 0..100 {
+        if i.eq(5) { break }
+        last = i
+    }
+    assert_eq(loc(), last, 4)
+}
+
+test_range_continue := test() {
+    // Sum only even numbers 0..10
+    mut sum := 0
+    for i in 0..10 {
+        if i.mod(2).neq(0) { continue }
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), sum, 20)
+}
+
+test_range_nested := test() {
+    mut sum := 0
+    for i in 0..3 {
+        for j in 0..4 {
+            sum = sum.add(1)
+        }
+    }
+    assert_eq(loc(), sum, 12)
+}
