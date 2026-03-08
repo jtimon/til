@@ -22,6 +22,7 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "I16"))  return TIL_TYPE_I16;
     if (Str_eq_c(name, "I32"))  return TIL_TYPE_I32;
     if (Str_eq_c(name, "U32"))  return TIL_TYPE_U32;
+    if (Str_eq_c(name, "F32"))  return TIL_TYPE_F32;
     if (Str_eq_c(name, "Str"))  return TIL_TYPE_STRUCT;
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
     if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
@@ -121,7 +122,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Bool pshallow = e->data.func_def.param_shallows ? e->data.func_def.param_shallows[i] : 0;
                 if (pshallow) {
                     Bool is_scalar = (pt == TIL_TYPE_I64 || pt == TIL_TYPE_U8 || pt == TIL_TYPE_I16 ||
-                                      pt == TIL_TYPE_I32 || pt == TIL_TYPE_U32 || pt == TIL_TYPE_BOOL);
+                                      pt == TIL_TYPE_I32 || pt == TIL_TYPE_U32 || pt == TIL_TYPE_F32 || pt == TIL_TYPE_BOOL);
                     if (!is_scalar && pt != TIL_TYPE_DYNAMIC) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar type or Dynamic",
@@ -214,6 +215,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 else if (obj->til_type == TIL_TYPE_I16)  type_name = Str_new("I16");
                 else if (obj->til_type == TIL_TYPE_I32)  type_name = Str_new("I32");
                 else if (obj->til_type == TIL_TYPE_U32)  type_name = Str_new("U32");
+                else if (obj->til_type == TIL_TYPE_F32)  type_name = Str_new("F32");
                 else if (obj->til_type == TIL_TYPE_BOOL) type_name = Str_new("Bool");
                 else if ((obj->til_type == TIL_TYPE_STRUCT || obj->til_type == TIL_TYPE_ENUM) && obj->struct_name)
                     type_name = obj->struct_name;
@@ -403,7 +405,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type == TIL_TYPE_DYNAMIC) continue;
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) continue;
-                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32))
+                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
                     continue;
                 if (arg->til_type != ptype) {
                     char buf[256];
@@ -681,7 +683,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type == TIL_TYPE_DYNAMIC) { ci++; continue; }
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) { ci++; continue; }
-                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32))
+                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
                     { ci++; continue; }
                 if (arg->til_type != ptype) {
                     char buf[256];
@@ -1592,6 +1594,7 @@ static const char *type_to_name(TilType type, Str *struct_name) {
         case TIL_TYPE_I16:  return "I16";
         case TIL_TYPE_I32:  return "I32";
         case TIL_TYPE_U32:  return "U32";
+        case TIL_TYPE_F32:  return "F32";
         case TIL_TYPE_BOOL: return "Bool";
         default: return NULL;
     }
@@ -2173,6 +2176,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 else if (Str_eq_c(sname, "I16"))  { builtin_type = TIL_TYPE_I16;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "I32"))  { builtin_type = TIL_TYPE_I32;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "U32"))  { builtin_type = TIL_TYPE_U32;  is_builtin = 1; }
+                else if (Str_eq_c(sname, "F32"))  { builtin_type = TIL_TYPE_F32;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "Str"))  { is_builtin = 0; } // Str is a regular struct now
                 else if (Str_eq_c(sname, "Bool")) { builtin_type = TIL_TYPE_BOOL; is_builtin = 1; }
                 else if (Str_eq_c(sname, "StructDef"))    { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
@@ -2229,7 +2233,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                              stmt->data.decl.name->c_str);
                     type_error(stmt, buf);
                 } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NUM &&
-                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_I16 || declared == TIL_TYPE_I32 || declared == TIL_TYPE_U32 || declared == TIL_TYPE_DYNAMIC)) {
+                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_I16 || declared == TIL_TYPE_I32 || declared == TIL_TYPE_U32 || declared == TIL_TYPE_F32 || declared == TIL_TYPE_DYNAMIC)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
                     expr_child(stmt, 0)->til_type = declared;
                 } else if (expr_child(stmt, 0)->til_type != declared &&

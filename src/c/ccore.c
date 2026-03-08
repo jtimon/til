@@ -132,6 +132,34 @@ I32 *I32_new(I32 val) {
 I32 *I32_clone(I32 *v) { return I32_new(*v); }
 void I32_delete(I32 *v, Bool *call_free) { if (*call_free) free(v); }
 
+// --- F32 ---
+
+F32 *F32_add(F32 a, F32 b) { return F32_new(a + b); }
+F32 *F32_sub(F32 a, F32 b) { return F32_new(a - b); }
+F32 *F32_mul(F32 a, F32 b) { return F32_new(a * b); }
+F32 *F32_div(F32 a, F32 b) { return F32_new((b == 0) ? 0 : a / b); }
+
+Bool *F32_eq(F32 a, F32 b) { return Bool_new(a == b); }
+I64 *F32_cmp(F32 a, F32 b) { return I64_new(a < b ? -1 : (a > b ? 1 : 0)); }
+
+I64 *F32_to_i64(F32 v) { return I64_new((I64)v); }
+F32 F32_from_i64(I64 v) { return (F32)v; }
+
+Str *F32_to_str(F32 v) {
+    char buf[32];
+    snprintf(buf, 32, "%g", (double)v);
+    return Str_new(buf);
+}
+
+F32 *F32_new(F32 val) {
+    F32 *p = malloc(sizeof(F32));
+    *p = val;
+    return p;
+}
+
+F32 *F32_clone(F32 *v) { return F32_new(*v); }
+void F32_delete(F32 *v, Bool *call_free) { if (*call_free) free(v); }
+
 // --- U32 ---
 
 U32 *U32_add(U32 a, U32 b) { return U32_new(a + b); }

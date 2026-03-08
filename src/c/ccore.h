@@ -84,6 +84,21 @@ I32 *I32_new(I32 val);
 I32 *I32_clone(I32 *v);
 void I32_delete(I32 *v, Bool *call_free);
 
+// --- F32 ---
+
+F32 *F32_add(F32 a, F32 b);
+F32 *F32_sub(F32 a, F32 b);
+F32 *F32_mul(F32 a, F32 b);
+F32 *F32_div(F32 a, F32 b);
+Bool *F32_eq(F32 a, F32 b);
+I64 *F32_cmp(F32 a, F32 b);
+I64 *F32_to_i64(F32 v);
+F32 F32_from_i64(I64 v);
+Str *F32_to_str(F32 v);
+F32 *F32_new(F32 val);
+F32 *F32_clone(F32 *v);
+void F32_delete(F32 *v, Bool *call_free);
+
 // --- U32 ---
 
 U32 *U32_add(U32 a, U32 b);

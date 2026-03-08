@@ -11,6 +11,7 @@ const char *til_type_name_c(TilType t) {
     case TIL_TYPE_I16:     return "I16";
     case TIL_TYPE_I32:     return "I32";
     case TIL_TYPE_U32:     return "U32";
+    case TIL_TYPE_F32:     return "F32";
     case TIL_TYPE_BOOL:    return "Bool";
     case TIL_TYPE_STRUCT:      return "Struct";
     case TIL_TYPE_STRUCT_DEF:  return "StructDef";

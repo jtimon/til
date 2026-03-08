@@ -171,6 +171,7 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
     case VAL_I16:  *(I16 *)ptr = *val.i16; free(val.i16); break;
     case VAL_I32:  *(I32 *)ptr = *val.i32; free(val.i32); break;
     case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
+    case VAL_F32:  *(F32 *)ptr = *val.f32; free(val.f32); break;
     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
     case VAL_STRUCT:
         memcpy(ptr, val.instance->data, fsz);
@@ -229,6 +230,7 @@ Value clone_value(Value v) {
     case VAL_I16:  return val_i16(*v.i16);
     case VAL_I32:  return val_i32(*v.i32);
     case VAL_U32:  return val_u32(*v.u32);
+    case VAL_F32:  return val_f32(*v.f32);
     case VAL_BOOL: return val_bool(*v.boolean);
     case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
                                     clone_value(v.enum_inst->payload));
@@ -299,6 +301,7 @@ void free_value(Value v) {
     case VAL_I16:  free(v.i16); break;
     case VAL_I32:  free(v.i32); break;
     case VAL_U32:  free(v.u32); break;
+    case VAL_F32:  free(v.f32); break;
     case VAL_BOOL: free(v.boolean); break;
     case VAL_ENUM:
         free_value(v.enum_inst->payload);
@@ -318,6 +321,7 @@ Bool values_equal(Value a, Value b) {
     case VAL_I16:  return *a.i16 == *b.i16;
     case VAL_I32:  return *a.i32 == *b.i32;
     case VAL_U32:  return *a.u32 == *b.u32;
+    case VAL_F32:  return *a.f32 == *b.f32;
     case VAL_U8:   return *a.u8 == *b.u8;
     case VAL_BOOL: return *a.boolean == *b.boolean;
     case VAL_ENUM:
@@ -428,6 +432,8 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U32"))
                         arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "F32"))
+                        arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
                     scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
@@ -453,6 +459,8 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U32"))
                         arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "F32"))
+                        arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
                 }
@@ -582,6 +590,8 @@ Value eval_expr(Scope *scope, Expr *e) {
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
             return val_u8(atoll(e->data.str_val->c_str));
+        if (e->til_type == TIL_TYPE_F32)
+            return val_f32((F32)atof(e->data.str_val->c_str));
         return val_i64(atoll(e->data.str_val->c_str));
     case NODE_LITERAL_BOOL:
         return val_bool(Str_eq_c(e->data.str_val, "true"));
@@ -712,6 +722,8 @@ static void eval_body(Scope *scope, Expr *body) {
                         val = (Value){.type = VAL_I32, .i32 = (I32 *)val.ptr};
                     else if (Str_eq_c(etype, "U32"))
                         val = (Value){.type = VAL_U32, .u32 = (U32 *)val.ptr};
+                    else if (Str_eq_c(etype, "F32"))
+                        val = (Value){.type = VAL_F32, .f32 = (F32 *)val.ptr};
                     else if (Str_eq_c(etype, "Bool"))
                         val = (Value){.type = VAL_BOOL, .boolean = (Bool *)val.ptr};
                     else if (Str_eq_c(etype, "Str")) {

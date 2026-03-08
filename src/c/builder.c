@@ -287,6 +287,7 @@ static const char *til_type_to_c(TilType t) {
     case TIL_TYPE_I16:  return "I16";
     case TIL_TYPE_I32:  return "I32";
     case TIL_TYPE_U32:  return "U32";
+    case TIL_TYPE_F32:  return "F32";
     case TIL_TYPE_BOOL: return "Bool";
     case TIL_TYPE_NONE:    return "void";
     case TIL_TYPE_DYNAMIC: return "void *";
@@ -312,6 +313,7 @@ static const char *type_name_to_c(Str *name) {
     if (Str_eq_c(name, "I16"))  return "I16 *";
     if (Str_eq_c(name, "I32"))  return "I32 *";
     if (Str_eq_c(name, "U32"))  return "U32 *";
+    if (Str_eq_c(name, "F32"))  return "F32 *";
     if (Str_eq_c(name, "Bool")) return "Bool *";
     if (Str_eq_c(name, "Dynamic")) return "void *";
     // User-defined struct type — pointer
@@ -327,6 +329,7 @@ static const char *type_name_to_c_value(Str *name) {
     if (Str_eq_c(name, "I16"))  return "I16";
     if (Str_eq_c(name, "I32"))  return "I32";
     if (Str_eq_c(name, "U32"))  return "U32";
+    if (Str_eq_c(name, "F32"))  return "F32";
     if (Str_eq_c(name, "Bool")) return "Bool";
     static char buf2[128];
     snprintf(buf2, sizeof(buf2), "%s", name->c_str);
@@ -335,7 +338,7 @@ static const char *type_name_to_c_value(Str *name) {
 
 static Bool is_primitive_type(Str *name) {
     return Str_eq_c(name, "I64") || Str_eq_c(name, "U8") || Str_eq_c(name, "I16") ||
-           Str_eq_c(name, "I32") || Str_eq_c(name, "U32") || Str_eq_c(name, "Bool");
+           Str_eq_c(name, "I32") || Str_eq_c(name, "U32") || Str_eq_c(name, "F32") || Str_eq_c(name, "Bool");
 }
 
 // Emit a function parameter list (with variadic support)
@@ -1690,7 +1693,7 @@ I32 build_header(Expr *program, const char *h_path) {
 static void emit_til_default(FILE *f, TilType t, Str *struct_name) {
     switch (t) {
     case TIL_TYPE_I64: case TIL_TYPE_I16: case TIL_TYPE_I32:
-    case TIL_TYPE_U32: fprintf(f, "0"); break;
+    case TIL_TYPE_U32: case TIL_TYPE_F32: fprintf(f, "0"); break;
     case TIL_TYPE_U8:   fprintf(f, "0"); break;
     case TIL_TYPE_BOOL: fprintf(f, "false"); break;
     case TIL_TYPE_STRUCT:

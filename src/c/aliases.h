@@ -11,6 +11,7 @@ typedef short I16;
 typedef unsigned short U16;
 typedef char I8;
 typedef unsigned char U8;
+typedef float F32;
 typedef bool Bool;
 
 #endif

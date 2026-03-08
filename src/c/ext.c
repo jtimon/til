@@ -13,6 +13,7 @@ static U8 *new_u8(U8 v) { U8 *r = malloc(sizeof(U8)); *r = v; return r; }
 static I16 *new_i16(I16 v) { I16 *r = malloc(sizeof(I16)); *r = v; return r; }
 static I32 *new_i32(I32 v) { I32 *r = malloc(sizeof(I32)); *r = v; return r; }
 static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
+static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
 
 // I64 clone/delete
@@ -128,6 +129,38 @@ I32 *cli_parse_i32(const char *s) {
     }
     return new_i32((I32)v);
 }
+
+// F32 arithmetic
+F32 *F32_add(F32 a, F32 b) { return new_f32(a + b); }
+F32 *F32_sub(F32 a, F32 b) { return new_f32(a - b); }
+F32 *F32_mul(F32 a, F32 b) { return new_f32(a * b); }
+F32 *F32_div(F32 a, F32 b) { return new_f32(a / b); }
+
+// F32 comparisons
+Bool *F32_eq(F32 a, F32 b) { return new_bool(a == b); }
+I64 *F32_cmp(F32 a, F32 b) { return new_i64((a > b) ? 1 : (a < b) ? -1 : 0); }
+
+// F32 conversions
+I64 *F32_to_i64(F32 a) { return new_i64((I64)a); }
+F32 *F32_from_i64_ext(I64 *a) { return new_f32((F32)*a); }
+
+// F32 to_str
+Str *F32_to_str(F32 v) {
+    char buf[32];
+    snprintf(buf, 32, "%g", (double)v);
+    I64 len = strlen(buf);
+    U8 *data = malloc(len);
+    memcpy(data, buf, len);
+    Str *s = malloc(sizeof(Str));
+    s->data = data;
+    s->count = len;
+    s->cap = len;
+    return s;
+}
+
+// F32 clone/delete
+F32 *F32_clone(F32 *v) { return new_f32(*v); }
+void F32_delete(F32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // U32 arithmetic
 U32 *U32_add(U32 a, U32 b) { return new_u32(a + b); }

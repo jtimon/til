@@ -91,6 +91,24 @@ I32 : StructDef = ext_struct {
     delete := ext_proc(own self: I32, call_free: Bool = true) {}
     size := func() returns I64 { return 4 }
 }
+F32 : StructDef = ext_struct {
+    namespace:
+    to_i64 := ext_func(shallow val: F32) returns I64 {}
+    to_str := ext_func(shallow val: F32) returns Str {}
+    from_i64 := func(val: I64) returns F32 {
+        F32_from_i64_ext := ext_func(val: I64) returns F32 {}
+        return F32_from_i64_ext(val)
+    }
+    add := ext_func(shallow a: F32, shallow b: F32) returns F32 {}
+    sub := ext_func(shallow a: F32, shallow b: F32) returns F32 {}
+    mul := ext_func(shallow a: F32, shallow b: F32) returns F32 {}
+    div := ext_func(shallow a: F32, shallow b: F32) returns F32 {}
+    eq := ext_func(shallow a: F32, shallow b: F32) returns Bool {}
+    cmp := ext_func(shallow a: F32, shallow b: F32) returns I64 {}
+    clone := ext_func(val: F32) returns F32 {}
+    delete := ext_proc(own self: F32, call_free: Bool = true) {}
+    size := func() returns I64 { return 4 }
+}
 U32 : StructDef = ext_struct {
     namespace:
     to_i64 := ext_func(shallow val: U32) returns I64 {}

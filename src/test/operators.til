@@ -39,6 +39,36 @@ test_bitwise := test() {
     assert_eq(__LOC__, 6.xor(3), 5)
 }
 
+test_f32_arithmetic := test() {
+    a := F32.from_i64(10)
+    b := F32.from_i64(3)
+
+    assert_eq(__LOC__, a.add(b).to_i64(), 13)
+    assert_eq(__LOC__, a.sub(b).to_i64(), 7)
+    assert_eq(__LOC__, a.mul(b).to_i64(), 30)
+    assert_eq(__LOC__, a.div(b).to_i64(), 3)
+
+    // Float precision with literals
+    x : F32 = 3.14
+    assert_eq_str(__LOC__, x.to_str(), "3.14")
+
+    y : F32 = 2.5
+    assert_eq_str(__LOC__, y.add(y).to_str(), "5")
+    assert_eq_str(__LOC__, y.mul(y).to_str(), "6.25")
+
+    // Comparisons
+    assert(__LOC__, a.eq(F32.from_i64(10)))
+    assert(__LOC__, a.eq(b).not())
+    assert_eq(__LOC__, a.cmp(b), 1)
+    assert_eq(__LOC__, b.cmp(a), 0.sub(1))
+    assert_eq(__LOC__, a.cmp(F32.from_i64(10)), 0)
+
+    // Conversions
+    assert_eq(__LOC__, F32.size(), 4)
+    z : F32 = 7.9
+    assert_eq(__LOC__, z.to_i64(), 7)
+}
+
 test_mutation := test() {
     mut counter := 0
     counter = 1

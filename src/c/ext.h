@@ -119,6 +119,25 @@ void I32_delete(I32 *v, Bool *call_free);
 // I32 CLI
 I32 *cli_parse_i32(const char *s);
 
+// F32 arithmetic
+F32 *F32_add(F32 a, F32 b);
+F32 *F32_sub(F32 a, F32 b);
+F32 *F32_mul(F32 a, F32 b);
+F32 *F32_div(F32 a, F32 b);
+
+// F32 comparisons
+Bool *F32_eq(F32 a, F32 b);
+I64 *F32_cmp(F32 a, F32 b);
+
+// F32 conversions
+I64 *F32_to_i64(F32 a);
+F32 *F32_from_i64_ext(I64 *a);
+Str *F32_to_str(F32 v);
+
+// F32 clone/delete
+F32 *F32_clone(F32 *v);
+void F32_delete(F32 *v, Bool *call_free);
+
 // U32 arithmetic
 U32 *U32_add(U32 a, U32 b);
 U32 *U32_sub(U32 a, U32 b);

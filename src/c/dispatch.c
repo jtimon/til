@@ -43,6 +43,7 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
     if (Str_eq_c(type_name, "I16"))  return &ffi_type_sint16;
     if (Str_eq_c(type_name, "I32"))  return &ffi_type_sint32;
     if (Str_eq_c(type_name, "U32"))  return &ffi_type_uint32;
+    if (Str_eq_c(type_name, "F32"))  return &ffi_type_float;
     if (Str_eq_c(type_name, "Bool")) return &ffi_type_uint8;
     return &ffi_type_pointer; // Dynamic or other
 }
@@ -60,6 +61,7 @@ static Value eval_arg(Scope *s, Expr *e) {
             case TIL_TYPE_I16:   return (Value){.type = VAL_I16, .i16 = (I16 *)v.ptr};
             case TIL_TYPE_I32:   return (Value){.type = VAL_I32, .i32 = (I32 *)v.ptr};
             case TIL_TYPE_U32:   return (Value){.type = VAL_U32, .u32 = (U32 *)v.ptr};
+            case TIL_TYPE_F32:   return (Value){.type = VAL_F32, .f32 = (F32 *)v.ptr};
             case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (Bool *)v.ptr};
             case TIL_TYPE_STRUCT:
                 if (e->struct_name && Str_eq_c(e->struct_name, "Str")) {
@@ -103,6 +105,10 @@ static Bool h_I16_from_i64(Scope *s, Expr *e, Value *r) {
 static Bool h_I32_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
     *r = val_i32(I32_from_i64(*v.i64)); return 1;
+}
+static Bool h_F32_from_i64(Scope *s, Expr *e, Value *r) {
+    Value v = eval_expr(s, expr_child(e,1));
+    *r = val_f32(F32_from_i64(*v.i64)); return 1;
 }
 static Bool h_U32_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, expr_child(e,1));
@@ -154,6 +160,7 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
         else if (payload.type == VAL_I16)  free(payload.i16);
         else if (payload.type == VAL_I32)  free(payload.i32);
         else if (payload.type == VAL_U32)  free(payload.u32);
+        else if (payload.type == VAL_F32)  free(payload.f32);
         else if (payload.type == VAL_BOOL) free(payload.boolean);
         free(cell->val.enum_inst);
     } else if (cell->val.type == VAL_I64) {
@@ -166,6 +173,8 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
         free(cell->val.i32);
     } else if (cell->val.type == VAL_U32) {
         free(cell->val.u32);
+    } else if (cell->val.type == VAL_F32) {
+        free(cell->val.f32);
     } else if (cell->val.type == VAL_BOOL) {
         free(cell->val.boolean);
     } else if (cell->val.type == VAL_PTR) {
@@ -260,6 +269,7 @@ static void *val_raw_ptr(Value v) {
         case VAL_I16:    return v.i16;
         case VAL_I32:    return v.i32;
         case VAL_U32:    return v.u32;
+        case VAL_F32:    return v.f32;
         case VAL_BOOL:   return v.boolean;
         case VAL_STRUCT: return v.instance->data;
         case VAL_PTR:    return v.ptr;
@@ -421,6 +431,7 @@ static void *val_to_ptr(Value v) {
         case VAL_I16:    return v.i16;
         case VAL_I32:    return v.i32;
         case VAL_U32:    return v.u32;
+        case VAL_F32:    return v.f32;
         case VAL_BOOL:   return v.boolean;
         case VAL_STRUCT: return v.instance->data;
         default:         return NULL;
@@ -562,6 +573,8 @@ static void dispatch_init(void) {
     REG("I16_from_i64_ext", h_I16_from_i64);
     REG("I32_from_i64", h_I32_from_i64);
     REG("I32_from_i64_ext", h_I32_from_i64);
+    REG("F32_from_i64", h_F32_from_i64);
+    REG("F32_from_i64_ext", h_F32_from_i64);
     REG("U32_from_i64", h_U32_from_i64);
     REG("U32_from_i64_ext", h_U32_from_i64);
 
@@ -622,6 +635,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         case VAL_I16:  *(I16 *)&args[i] = *v.i16; break;
                         case VAL_I32:  *(I32 *)&args[i] = *v.i32; break;
                         case VAL_U32:  *(U32 *)&args[i] = *v.u32; break;
+                        case VAL_F32:  *(F32 *)&args[i] = *v.f32; break;
                         case VAL_BOOL: *(U8 *)&args[i] = *v.boolean ? 1 : 0; break;
                         case VAL_PTR:
                             // Dynamic/ptr arg to shallow param: dereference as expected type
@@ -635,6 +649,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                                 *(I32 *)&args[i] = *(I32 *)v.ptr;
                             else if (fe->arg_types[i] == &ffi_type_uint32)
                                 *(U32 *)&args[i] = *(U32 *)v.ptr;
+                            else if (fe->arg_types[i] == &ffi_type_float)
+                                *(F32 *)&args[i] = *(F32 *)v.ptr;
                             else
                                 args[i] = v.ptr;
                             break;
@@ -648,6 +664,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         case VAL_I16:    args[i] = v.i16; break;
                         case VAL_I32:    args[i] = v.i32; break;
                         case VAL_U32:    args[i] = v.u32; break;
+                        case VAL_F32:    args[i] = v.f32; break;
                         case VAL_BOOL:   args[i] = v.boolean; break;
                         case VAL_PTR:    args[i] = v.ptr; break;
                         case VAL_STRUCT: args[i] = v.instance->data; break;
@@ -677,6 +694,9 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 } else if (Str_eq_c(fe->return_type, "U32")) {
                     U32 *p = malloc(sizeof(U32)); *p = (U32)(intptr_t)raw;
                     *result = (Value){.type = VAL_U32, .u32 = p};
+                } else if (Str_eq_c(fe->return_type, "F32")) {
+                    F32 *p = malloc(sizeof(F32)); *p = *(F32 *)&raw;
+                    *result = (Value){.type = VAL_F32, .f32 = p};
                 } else if (Str_eq_c(fe->return_type, "Bool")) {
                     Bool *p = malloc(sizeof(Bool)); *p = (Bool)(intptr_t)raw;
                     *result = (Value){.type = VAL_BOOL, .boolean = p};
@@ -696,6 +716,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = (Value){.type = VAL_I32, .i32 = (I32 *)raw};
             } else if (Str_eq_c(fe->return_type, "U32")) {
                 *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw};
+            } else if (Str_eq_c(fe->return_type, "F32")) {
+                *result = (Value){.type = VAL_F32, .f32 = (F32 *)raw};
             } else if (Str_eq_c(fe->return_type, "Bool")) {
                 *result = (Value){.type = VAL_BOOL, .boolean = (Bool *)raw};
             } else if (Str_eq_c(fe->return_type, "Dynamic")) {
