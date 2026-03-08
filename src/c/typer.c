@@ -2488,22 +2488,125 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     default_body = expr_child(case_node, 0);
                     continue;
                 }
-                // case EXPR: BODY → if _swN.eq(EXPR) { BODY }
                 Expr *match_expr = expr_child(case_node, 0);
                 Expr *case_body = expr_child(case_node, 1);
+                Expr *condition = NULL;
 
-                // Build _swN.eq(match_expr)
-                Expr *sw_ident = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
-                sw_ident->data.str_val = sw_name;
-                Expr *eq_access = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
-                eq_access->data.str_val = Str_new("eq");
-                expr_add_child(eq_access, sw_ident);
-                Expr *eq_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
-                expr_add_child(eq_call, eq_access);
-                expr_add_child(eq_call, match_expr);
+                // Phase 2: Range case — case A..B: → _sw.gte(A).and(_sw.lte(B))
+                // Detect Range.new(start, end) pattern from parser's .. desugaring
+                if (match_expr->type == NODE_FCALL &&
+                    match_expr->children.count == 3 &&
+                    expr_child(match_expr, 0)->type == NODE_FIELD_ACCESS &&
+                    Str_eq_c(expr_child(match_expr, 0)->data.str_val, "new") &&
+                    expr_child(expr_child(match_expr, 0), 0)->type == NODE_IDENT &&
+                    Str_eq_c(expr_child(expr_child(match_expr, 0), 0)->data.str_val, "Range")) {
+                    Expr *start_expr = expr_child(match_expr, 1);
+                    Expr *end_expr = expr_child(match_expr, 2);
+
+                    // _sw.gte(start)
+                    Expr *sw1 = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
+                    sw1->data.str_val = sw_name;
+                    Expr *gte_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
+                    gte_acc->data.str_val = Str_new("gte");
+                    expr_add_child(gte_acc, sw1);
+                    Expr *gte_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
+                    expr_add_child(gte_call, gte_acc);
+                    expr_add_child(gte_call, start_expr);
+
+                    // _sw.lte(end) — inclusive for case ranges
+                    Expr *sw2 = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
+                    sw2->data.str_val = sw_name;
+                    Expr *lte_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
+                    lte_acc->data.str_val = Str_new("lte");
+                    expr_add_child(lte_acc, sw2);
+                    Expr *lte_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
+                    expr_add_child(lte_call, lte_acc);
+                    expr_add_child(lte_call, end_expr);
+
+                    // gte_call.and(lte_call)
+                    Expr *and_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
+                    and_acc->data.str_val = Str_new("and");
+                    expr_add_child(and_acc, gte_call);
+                    condition = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
+                    expr_add_child(condition, and_acc);
+                    expr_add_child(condition, lte_call);
+                }
+
+                // Phase 4: Enum payload extraction — case Enum.Variant(binding):
+                // Detect EnumType.Variant(ident) where variant has a payload
+                if (!condition &&
+                    match_expr->type == NODE_FCALL &&
+                    match_expr->children.count == 2 &&
+                    expr_child(match_expr, 0)->type == NODE_FIELD_ACCESS &&
+                    expr_child(expr_child(match_expr, 0), 0)->type == NODE_IDENT &&
+                    expr_child(match_expr, 1)->type == NODE_IDENT) {
+                    Expr *callee = expr_child(match_expr, 0);
+                    Str *type_name = expr_child(callee, 0)->data.str_val;
+                    Str *variant_name = callee->data.str_val;
+                    Str *binding_name = expr_child(match_expr, 1)->data.str_val;
+                    Expr *enum_def = tscope_get_struct(scope, type_name);
+                    if (enum_def && enum_def->type == NODE_ENUM_DEF) {
+                        I32 tag = enum_variant_tag(enum_def, variant_name);
+                        Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
+                        if (payload_type) {
+                            // Build _sw.is_Variant()
+                            char is_buf[256];
+                            snprintf(is_buf, sizeof(is_buf), "is_%s", variant_name->c_str);
+                            Expr *sw_id = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
+                            sw_id->data.str_val = sw_name;
+                            Expr *is_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
+                            is_acc->data.str_val = Str_new(is_buf);
+                            expr_add_child(is_acc, sw_id);
+                            condition = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
+                            expr_add_child(condition, is_acc);
+
+                            // Prepend binding: binding_name := _sw.get_Variant()
+                            char get_buf[256];
+                            snprintf(get_buf, sizeof(get_buf), "get_%s", variant_name->c_str);
+                            Expr *sw_id2 = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
+                            sw_id2->data.str_val = sw_name;
+                            Expr *get_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
+                            get_acc->data.str_val = Str_new(get_buf);
+                            expr_add_child(get_acc, sw_id2);
+                            Expr *get_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
+                            expr_add_child(get_call, get_acc);
+
+                            Expr *bind_decl = expr_new(NODE_DECL, sw_line, sw_col, sw_path);
+                            bind_decl->data.decl.name = binding_name;
+                            bind_decl->data.decl.explicit_type = payload_type;
+                            bind_decl->data.decl.is_mut = false;
+                            bind_decl->data.decl.is_namespace = false;
+                            bind_decl->data.decl.is_ref = false;
+                            bind_decl->data.decl.is_own = false;
+                            expr_add_child(bind_decl, get_call);
+
+                            // Prepend to case body
+                            Vec new_ch = Vec_new(sizeof(Expr *));
+                            Vec_push(&new_ch, &bind_decl);
+                            for (U32 bi = 0; bi < case_body->children.count; bi++) {
+                                Expr *ch = expr_child(case_body, bi);
+                                Vec_push(&new_ch, &ch);
+                            }
+                            Vec_delete(&case_body->children);
+                            case_body->children = new_ch;
+                        }
+                    }
+                }
+
+                // Phase 1/3: Default — _sw.eq(match_expr)
+                if (!condition) {
+                    Expr *sw_ident = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
+                    sw_ident->data.str_val = sw_name;
+                    Expr *eq_access = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
+                    eq_access->data.str_val = Str_new("eq");
+                    expr_add_child(eq_access, sw_ident);
+                    condition = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
+                    expr_add_child(condition, eq_access);
+                    expr_add_child(condition, match_expr);
+                }
 
                 Expr *if_node = expr_new(NODE_IF, case_node->line, case_node->col, sw_path);
-                expr_add_child(if_node, eq_call);    // condition
+                expr_add_child(if_node, condition);  // condition
                 expr_add_child(if_node, case_body);  // then body
 
                 if (!first_if) {

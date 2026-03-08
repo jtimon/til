@@ -322,3 +322,115 @@ test_switch_multi_stmt := test() {
     assert_eq(loc(), a, 2)
     assert_eq(loc(), b, 20)
 }
+
+// Phase 2: Range cases
+test_switch_range_i64 := test() {
+    mut result := ""
+    switch 5 {
+    case 0..3: result = "low"
+    case 4..7: result = "mid"
+    case 8..10: result = "high"
+    case: result = "other"
+    }
+    assert_eq_str(loc(), result, "mid")
+}
+
+test_switch_range_char := test() {
+    mut result := ""
+    switch 'e' {
+    case 'a'..'z': result = "lower"
+    case 'A'..'Z': result = "upper"
+    case '0'..'9': result = "digit"
+    case: result = "other"
+    }
+    assert_eq_str(loc(), result, "lower")
+}
+
+test_switch_range_mixed := test() {
+    // Mix ranges, exact values, and default
+    mut result := 0
+    switch 5 {
+    case 0: result = 1
+    case 1..4: result = 2
+    case 5: result = 3
+    case 6..9: result = 4
+    case: result = 5
+    }
+    assert_eq(loc(), result, 3)
+}
+
+test_switch_range_boundary := test() {
+    // Inclusive: end value should match
+    mut result := false
+    switch 'z' {
+    case 'a'..'z': result = true
+    }
+    assert(loc(), result)
+
+    result = false
+    switch '9' {
+    case '0'..'9': result = true
+    }
+    assert(loc(), result)
+
+    // Start value should also match
+    result = false
+    switch 'a' {
+    case 'a'..'z': result = true
+    }
+    assert(loc(), result)
+}
+
+// Phase 3: Enum matching (works via .eq() from Phase 1)
+Color := enum { Red, Green, Blue }
+
+test_switch_enum := test() {
+    mut result := ""
+    switch Color.Green {
+    case Color.Red: result = "red"
+    case Color.Green: result = "green"
+    case Color.Blue: result = "blue"
+    }
+    assert_eq_str(loc(), result, "green")
+}
+
+// Phase 4: Payload extraction
+Token := enum { Num: I64, Name: Str, Eof }
+
+test_switch_payload := test() {
+    mut result := 0
+    switch Token.Num(42) {
+    case Token.Num(value): result = value
+    case Token.Name(s): result = 0.sub(1)
+    case Token.Eof: result = 0.sub(2)
+    }
+    assert_eq(loc(), result, 42)
+}
+
+test_switch_payload_multi := test() {
+    mut num_val := 0
+    mut str_val := ""
+    mut is_eof := false
+
+    switch Token.Name("hello") {
+    case Token.Num(n):
+        num_val = n
+    case Token.Name(s):
+        str_val = s
+    case Token.Eof:
+        is_eof = true
+    }
+    assert_eq(loc(), num_val, 0)
+    assert_eq_str(loc(), str_val, "hello")
+    assert(loc(), is_eof.not())
+}
+
+test_switch_payload_with_default := test() {
+    mut result := ""
+    switch Token.Eof {
+    case Token.Num(n): result = "num"
+    case Token.Name(s): result = "name"
+    case: result = "other"
+    }
+    assert_eq_str(loc(), result, "other")
+}

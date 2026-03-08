@@ -41,58 +41,16 @@
    Each case node stores the match expression (or none for default) and body.
    Typer: desugar to if/else chain in anonymous scope.
 
-** Phase 2: Range cases
-   Leverages the existing Range struct from #34.
+** DONE Phase 2: Range cases
+   Leverages ~..~ syntax (parsed as Range.new by parser). Typer detects Range.new()
+   pattern and emits ~_sw.gte(A).and(_sw.lte(B))~ — inclusive on both ends.
 
-   #+begin_src til
-   switch c {
-   case '0'..'9': println("digit")
-   case 'a'..'z': println("lower")
-   case: println("other")
-   }
-   #+end_src
+** DONE Phase 3: Enum variant matching
+   Works via ~.eq()~ from Phase 1 — no special handling needed.
 
-   A range case ~case A..B:~ checks ~_sw.gte(A).and(_sw.lt(B))~ (half-open,
-   consistent with Range semantics). The ~..~ is already parsed as Range.new()
-   by the parser — the typer recognizes Range.new() calls in case expressions
-   and emits the range check instead of ~.eq()~.
-
-** Phase 3: Enum variant matching
-   Match on enum variants without payload extraction.
-
-   #+begin_src til
-   switch color {
-   case Color.Red: println("red")
-   case Color.Blue: println("blue")
-   case: println("other")
-   }
-   #+end_src
-
-   Desugars ~case EnumType.Variant:~ to ~if _sw.is_Variant()~, using the
-   auto-generated ~is_Variant()~ method.
-
-** Phase 4: Enum payload extraction
-   Pattern matching with payload binding.
-
-   #+begin_src til
-   switch opt {
-   case Option.Some(value):
-       println(value.to_str())
-   case Option.None:
-       println("nothing")
-   }
-   #+end_src
-
-   Desugars ~case EnumType.Variant(name):~ to:
-   #+begin_src til
-   if _sw.is_Variant() {
-       name := _sw.get_Variant()
-       body
-   }
-   #+end_src
-
-   Uses auto-generated ~get_Variant()~ method. The bound variable ~name~
-   is scoped to the case body.
+** DONE Phase 4: Enum payload extraction
+   ~case Token.Num(value):~ desugars to ~if _sw.is_Num() { value := _sw.get_Num(); body }~.
+   Typer detects EnumType.Variant(ident) pattern where variant has a payload.
 
 ** Phase 5: Nested patterns
    Full pattern matching as in rstil — nested enum patterns, struct
