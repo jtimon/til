@@ -78,8 +78,8 @@
    Works in both interpret and codegen modes.
 
 *** TODO Parser (src/self/parser.til)
-   Plan complete. Parser.c translates to parser.til + ast.til (separate
-   module since typer/interpreter/builder also need AST types).
+   Parser.c translates to parser.til + ast.til (separate module since
+   typer/interpreter/builder also need AST types).
 
 **** c2til.org gaps found during analysis
     1. C union inside struct → flat struct (all union fields as regular fields)
@@ -91,36 +91,41 @@
 
 **** src/self/ast.til (mode lib)
     Strict translation of ast.h:
-    - NodeType enum — 20 variants (Body, LiteralStr, LiteralNum, LiteralBool,
+    - NodeType enum — 22 variants (Body, LiteralStr, LiteralNum, LiteralBool,
       Ident, Decl, Assign, FCall, FuncDef, StructDef, EnumDef, FieldAccess,
       FieldAssign, Return, If, While, ForIn, NamedArg, Break, Continue,
-      MapLit, SetLit)
+      MapLit, SetLit, Switch, Case)
     - FuncType enum — 6 variants (Func, Proc, Test, Macro, ExtFunc, ExtProc)
     - Expr struct — flat (union flattened), all fields:
       - type, str_val, decl_name, decl_explicit_type, decl_is_mut,
         decl_is_namespace, decl_is_ref, decl_is_own (I64 flags, not Bool)
+      - decl_field_offset, decl_field_size, decl_field_struct_def (I64 sentinel)
       - func_type, nparam, return_type, return_is_ref, variadic_param_index
-      - is_own_arg, is_ext
+      - is_own_arg, is_splat, is_own_field, is_ns_field, is_ext, is_core
+      - total_struct_size, variadic_index, variadic_count
+      - struct_name, til_type
       - line, col, path
       - children: Vec (initialized in expr_new, not struct default)
       - param_names, param_types: Vec of Str (FUNC_DEF only)
-      - param_muts, param_owns: Vec of I64 (FUNC_DEF only)
+      - param_muts, param_owns, param_defaults: Vec of I64 (FUNC_DEF only)
     - expr_new proc — creates Expr, initializes children Vec
     - expr_add_child proc — pushes child into children Vec
     - expr_child func — returns ref to child at index
-    - node_type_name func — maps NodeType → debug string
+    - node_type_name func — switch on NodeType → debug string
 
 **** src/self/parser.til (mode lib)
     Strict translation of parser.c, imports lexer.til and ast.til.
     Parser struct: tokens (Vec), count (I64), pos (I64), path (Str).
-    Functions (same names and variable names as C):
+    Functions (same names as C, use switch/for where C uses switch/for):
     - peek, advance, check, expect, tok_str (helpers)
     - parse_block, parse_func_def, parse_struct_def, parse_enum_def
-    - parse_call, parse_expression, parse_statement_ident, parse_statement
-    - parse (entry point, returns Expr root NODE_BODY)
+    - parse_call (handles splat args with ..)
+    - parse_expression (handles __LOC__, __FILE__, __LINE__, __COL__ directives)
+    - parse_statement_ident, parse_statement (handles switch/case, for..in, own)
+    - parse (entry point, parses mode declaration, returns Expr root NODE_BODY)
 
 **** src/test/parsing.til (mode script)
-    10 tests inspired by old rstil test_parser.til:
+    Tests exercising the self-hosted parser:
     1. test_empty — parse "" → Body with 0 children
     2. test_declaration — x := 42 → Decl + LiteralNum
     3. test_typed_decl — x : I64 = 0 → Decl with explicit type
@@ -131,6 +136,8 @@
     8. test_while → While with 2 children
     9. test_func_def → FuncDef with params and body
     10. test_struct_def → StructDef
+    11. test_switch → Switch with Case children
+    12. test_for_in → ForIn with range/typed iteration
 
 ** WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
   Currently all returns are owned by the caller (heap-allocated, caller must
