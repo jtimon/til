@@ -326,31 +326,29 @@ UNREACHABLE := proc(loc_str: Str) {
     panic(loc_str, "unreachable")
 }
 
-assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
+assertm := func(loc_str: Str, cond: Bool, parts: ..Str) returns Bool {
     if cond.not() {
-        panic(loc_str, "assert failed: ", msg)
+        panic(loc_str, "assert failed: ", format(..parts))
     }
     return true
 }
 
 assert := func(loc_str: Str, cond: Bool) returns Bool {
-    return assertm(loc_str, cond, "")
+    return assertm(loc_str, cond)
 }
 
-expect := proc(loc_str: Str, cond: Bool, msg: Str) {
-    assertm(loc_str, cond, msg)
+expect := proc(loc_str: Str, cond: Bool, parts: ..Str) {
+    assertm(loc_str, cond, ..parts)
 }
 
 assert_eq := proc(loc_str: Str, a: I64, b: I64) {
     if a.neq(b) {
-        println(loc_str, ": assert_eq failed: expected '", a.to_str(), "', found '", b.to_str(), "'")
-        exit(1)
+        panic(loc_str, "assert_eq failed: expected '", a.to_str(), "', found '", b.to_str(), "'")
     }
 }
 
 assert_eq_str := proc(loc_str: Str, a: Str, b: Str) {
     if a.eq(b).not() {
-        println(loc_str, ": assert_eq_str failed: expected '", a, "', found '", b, "'")
-        exit(1)
+        panic(loc_str, "assert_eq_str failed: expected '", a, "', found '", b, "'")
     }
 }
