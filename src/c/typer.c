@@ -69,6 +69,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     case NODE_LITERAL_BOOL:
         e->til_type = TIL_TYPE_BOOL;
         break;
+    case NODE_LITERAL_NULL:
+        e->til_type = TIL_TYPE_DYNAMIC;
+        break;
     case NODE_IDENT: {
         TilType t = tscope_get(scope, e->data.str_val);
         if (t == TIL_TYPE_UNKNOWN) {
@@ -444,6 +447,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             TypeBinding *ab = tscope_find(scope, expr_child(e, i)->data.str_val);
                             if (ab && ab->is_ref) type_error(expr_child(e, i), "cannot pass ref variable to 'own' parameter");
                         }
+                        if (pown && expr_child(e, i)->type == NODE_LITERAL_NULL)
+                            type_error(expr_child(e, i), "cannot pass null to 'own' parameter");
+                        bool *ps = ns_func->data.func_def.param_shallows;
+                        if (ps && ps[i - 1] && expr_child(e, i)->type == NODE_LITERAL_NULL)
+                            type_error(expr_child(e, i), "cannot pass null to 'shallow' parameter");
                     }
                 }
             }
@@ -547,6 +555,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     // own field: mark for move, don't clone
                     if (expr_child(e, ai)->type == NODE_IDENT)
                         expr_child(e, ai)->is_own_arg = 1;
+                    continue;
+                }
+                if (fld->data.decl.is_ref) {
+                    // ref field: store pointer, don't clone
                     continue;
                 }
                 if (expr_child(e, ai)->type == NODE_IDENT) {
@@ -748,6 +760,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     TypeBinding *ab = tscope_find(scope, expr_child(e, ci)->data.str_val);
                     if (ab && ab->is_ref) type_error(expr_child(e, ci), "cannot pass ref variable to 'own' parameter");
                 }
+                if (pown && expr_child(e, ci)->type == NODE_LITERAL_NULL)
+                    type_error(expr_child(e, ci), "cannot pass null to 'own' parameter");
+                bool *ps = fdef->data.func_def.param_shallows;
+                if (ps && ps[pi] && expr_child(e, ci)->type == NODE_LITERAL_NULL)
+                    type_error(expr_child(e, ci), "cannot pass null to 'shallow' parameter");
                 ci++;
             }
         }
@@ -797,7 +814,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     if (Str_eq(field->data.decl.name, fname)) {
                         e->til_type = field->til_type;
                         e->is_ns_field = field->data.decl.is_namespace;
-                        e->is_own_field = field->data.decl.is_own;
+                        e->is_own_field = field->data.decl.is_own || field->data.decl.is_ref;
+                        e->is_ref_field = field->data.decl.is_ref;
                         if (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) {
                             e->struct_name = expr_child(field, 0)->struct_name;
                         } else {
@@ -1684,7 +1702,10 @@ static void insert_field_deletes(Expr *body) {
         if (stmt->type == NODE_FIELD_ASSIGN) {
             Bool need_delete = 0;
             Bool is_own = stmt->is_own_field;
-            if (is_own) {
+            if (stmt->is_ref_field) {
+                // ref fields don't own their data — no delete on reassignment
+                need_delete = 0;
+            } else if (is_own) {
                 need_delete = 1;
             } else {
                 TilType ft = expr_child(stmt, 1)->til_type;
@@ -2236,6 +2257,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                            (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_I16 || declared == TIL_TYPE_I32 || declared == TIL_TYPE_U32 || declared == TIL_TYPE_F32 || declared == TIL_TYPE_DYNAMIC)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
                     expr_child(stmt, 0)->til_type = declared;
+                } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NULL && !stmt->data.decl.is_ref) {
+                    type_error(stmt, "null can only be assigned to 'ref' declarations");
                 } else if (expr_child(stmt, 0)->til_type != declared &&
                            expr_child(stmt, 0)->til_type != TIL_TYPE_DYNAMIC) {
                     char buf[128];
@@ -2275,15 +2298,16 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (stmt->data.decl.is_ref) {
                 TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
                 if (b) b->is_ref = 1;
-                // Validate ref RHS: must be a ref-returning fcall or a ref/param variable
+                // Validate ref RHS: must be null, a ref-returning fcall, or a ref/param variable
                 Expr *rhs = expr_child(stmt, 0);
                 Bool ok = 0;
+                if (rhs->type == NODE_LITERAL_NULL) ok = 1;
                 if (rhs->type == NODE_FCALL && fcall_returns_ref(rhs, scope)) ok = 1;
                 if (rhs->type == NODE_IDENT) {
                     TypeBinding *rb = tscope_find(scope, rhs->data.str_val);
                     if (rb && (rb->is_ref || (rb->is_param && !rb->is_own))) ok = 1;
                 }
-                if (!ok) type_error(stmt, "'ref' declaration requires a ref-returning function or ref/param variable");
+                if (!ok) type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable");
             }
             // Auto-alias: immutable ident → immutable dest becomes ref
             if (!stmt->data.decl.is_ref && !stmt->data.decl.is_mut &&
@@ -2367,7 +2391,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         if (Str_eq(field->data.decl.name, fname)) {
                             found = 1;
                             stmt->is_ns_field = field->data.decl.is_namespace;
-                            stmt->is_own_field = field->data.decl.is_own;
+                            stmt->is_own_field = field->data.decl.is_own || field->data.decl.is_ref;
+                            stmt->is_ref_field = field->data.decl.is_ref;
                             if (!field->data.decl.is_mut) {
                                 char buf[128];
                                 snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
@@ -2397,10 +2422,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             stmt->til_type = TIL_TYPE_NONE;
             // Auto-insert clone for field assignments from identifiers
-            if (expr_child(stmt, 1)->type == NODE_IDENT ||
-                (expr_child(stmt, 1)->type == NODE_FIELD_ACCESS &&
-                 (expr_child(stmt, 1)->til_type == TIL_TYPE_STRUCT ||
-                  expr_child(stmt, 1)->til_type == TIL_TYPE_ENUM))) {
+            // Skip clone for ref fields — they store pointers, not owned copies
+            if (!stmt->is_ref_field &&
+                (expr_child(stmt, 1)->type == NODE_IDENT ||
+                 (expr_child(stmt, 1)->type == NODE_FIELD_ACCESS &&
+                  (expr_child(stmt, 1)->til_type == TIL_TYPE_STRUCT ||
+                   expr_child(stmt, 1)->til_type == TIL_TYPE_ENUM)))) {
                 const char *tname = type_to_name(expr_child(stmt, 1)->til_type,
                                                   expr_child(stmt, 1)->struct_name);
                 if (tname) {

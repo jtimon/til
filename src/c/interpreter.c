@@ -125,6 +125,21 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         }
         return (Value){.type = VAL_PTR, .ptr = owned};
     }
+    if (fdecl->data.decl.is_ref) {
+        void *ref_ptr = *(void **)ptr;
+        if (!ref_ptr) return (Value){.type = VAL_PTR, .ptr = NULL};
+        if (fdecl->data.decl.field_struct_def) {
+            Expr *nested = fdecl->data.decl.field_struct_def;
+            Str *ftype = fdecl->data.decl.explicit_type;
+            StructInstance *sub = malloc(sizeof(StructInstance));
+            sub->struct_name = ftype;
+            sub->struct_def = nested;
+            sub->data = ref_ptr;
+            sub->borrowed = 1;
+            return (Value){.type = VAL_STRUCT, .instance = sub};
+        }
+        return (Value){.type = VAL_PTR, .ptr = ref_ptr};
+    }
     Str *ftype = fdecl->data.decl.explicit_type;
     if (ftype && Str_eq_c(ftype, "I64"))  return val_i64(*(I64 *)ptr);
     if (ftype && Str_eq_c(ftype, "U8"))   return val_u8(*(U8 *)ptr);
@@ -163,6 +178,16 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
     if (fdecl->data.decl.is_own) {
         *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
         if (val.type == VAL_STRUCT) { free(val.instance); }
+        return;
+    }
+    if (fdecl->data.decl.is_ref) {
+        // ref field: store pointer (don't own the data)
+        if (val.type == VAL_PTR) *(void **)ptr = val.ptr;
+        else if (val.type == VAL_STRUCT) {
+            *(void **)ptr = val.instance->data;
+            free(val.instance);
+        }
+        else *(void **)ptr = NULL;
         return;
     }
     switch (val.type) {
@@ -258,7 +283,32 @@ Value clone_value(Value v) {
             I32 foff = field->data.decl.field_offset;
             Str *ftype = field->data.decl.explicit_type;
             if (field->data.decl.is_own) {
-                // own fields are heap pointers — skip (shallow copy is intentional)
+                // own fields are heap pointers — deep-clone
+                void *src_ptr = *(void **)((char *)src->data + foff);
+                if (src_ptr && field->data.decl.field_struct_def) {
+                    Expr *nested = field->data.decl.field_struct_def;
+                    I32 nsz = nested->total_struct_size;
+                    void *dst_ptr = malloc(nsz);
+                    memcpy(dst_ptr, src_ptr, nsz);
+                    // Recursively deep-clone nested fields
+                    Expr *nbody = expr_child(nested, 0);
+                    for (U32 ni = 0; ni < nbody->children.count; ni++) {
+                        Expr *nf = expr_child(nbody, ni);
+                        if (nf->data.decl.is_namespace) continue;
+                        Str *nftype = nf->data.decl.explicit_type;
+                        I32 nfoff = nf->data.decl.field_offset;
+                        if (nftype && Str_eq_c(nftype, "Str")) {
+                            Str *s = (Str *)((char *)src_ptr + nfoff);
+                            if (s->count > 0 && s->c_str)
+                                *(char **)((char *)dst_ptr + nfoff) = strndup(s->c_str, s->count);
+                        }
+                    }
+                    *(void **)((char *)dst->data + foff) = dst_ptr;
+                }
+                continue;
+            }
+            if (field->data.decl.is_ref) {
+                // ref fields are non-owning pointers — copy pointer as-is
                 continue;
             }
             // Str fields: deep-clone the char* data pointer
@@ -595,6 +645,8 @@ Value eval_expr(Scope *scope, Expr *e) {
         return val_i64(atoll(e->data.str_val->c_str));
     case NODE_LITERAL_BOOL:
         return val_bool(Str_eq_c(e->data.str_val, "true"));
+    case NODE_LITERAL_NULL:
+        return (Value){.type = VAL_PTR, .ptr = NULL};
     case NODE_IDENT: {
         Cell *cell = scope_get(scope, e->data.str_val);
         if (!cell) {
@@ -710,7 +762,8 @@ static void eval_body(Scope *scope, Expr *body) {
                 }
                 // Reinterpret VAL_PTR based on declared type (ref a : I64 = ptr_add(...))
                 // Only for ref decls — own decls keep VAL_PTR (they own a buffer, not a single element)
-                if (val.type == VAL_PTR && stmt->data.decl.explicit_type && stmt->data.decl.is_ref) {
+                // Skip narrowing for NULL pointers (null literal)
+                if (val.type == VAL_PTR && val.ptr != NULL && stmt->data.decl.explicit_type && stmt->data.decl.is_ref) {
                     Str *etype = stmt->data.decl.explicit_type;
                     if (Str_eq_c(etype, "I64"))
                         val = (Value){.type = VAL_I64, .i64 = (I64 *)val.ptr};
@@ -812,7 +865,7 @@ static void eval_body(Scope *scope, Expr *body) {
                         for (I32 d = depth - 1; d >= 0; d--) {
                             Expr *fd = find_field_decl(cur_sdef, chain[d]->data.str_val);
                             if (!fd) { base = NULL; break; }
-                            if (fd->data.decl.is_own) {
+                            if (fd->data.decl.is_own || fd->data.decl.is_ref) {
                                 base = *(void **)((char *)base + fd->data.decl.field_offset);
                             } else {
                                 base = (char *)base + fd->data.decl.field_offset;
@@ -833,6 +886,13 @@ static void eval_body(Scope *scope, Expr *body) {
                 if (fdecl->data.decl.is_own) {
                     *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
                     if (val.type == VAL_STRUCT) free(val.instance);
+                } else if (fdecl->data.decl.is_ref) {
+                    if (val.type == VAL_PTR) *(void **)ptr = val.ptr;
+                    else if (val.type == VAL_STRUCT) {
+                        *(void **)ptr = val.instance->data;
+                        free(val.instance);
+                    }
+                    else *(void **)ptr = NULL;
                 } else {
                     switch (val.type) {
                     case VAL_I64:  *(I64 *)ptr = *val.i64; free(val.i64); break;

@@ -187,6 +187,9 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
     case NODE_LITERAL_BOOL:
         fprintf(f, "%d", Str_eq_c(e->data.str_val, "true") ? 1 : 0);
         break;
+    case NODE_LITERAL_NULL:
+        fprintf(f, "NULL");
+        break;
     case NODE_IDENT:
         fprintf(f, "%s", e->data.str_val->c_str);
         break;
@@ -846,9 +849,9 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, Bool is_co
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
         if (field->data.decl.is_namespace) continue;
-        if (field->data.decl.is_own && (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
+        if ((field->data.decl.is_own || field->data.decl.is_ref) && (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
             fprintf(f, "    %s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);
-        } else if (field->data.decl.is_own) {
+        } else if (field->data.decl.is_own || field->data.decl.is_ref) {
             fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->data.decl.name->c_str);
         } else if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
             fprintf(f, "    %s %s;\n", expr_child(field, 0)->struct_name->c_str, field->data.decl.name->c_str);

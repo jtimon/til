@@ -200,3 +200,14 @@ NoLen := struct {
     get := func(self: NoLen, i: I64) returns ref I64 { return i }
 }
 for x in NoLen() { }
+
+// null: cannot assign to non-ref declaration
+nonnull_local : I64 = null
+
+// null: cannot pass to 'own' parameter
+take_own := proc(own x: I64) {}
+take_own(own null)
+
+// null: cannot pass to 'shallow' parameter
+take_shallow := proc(shallow x: I64) {}
+take_shallow(null)

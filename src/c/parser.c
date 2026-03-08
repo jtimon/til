@@ -344,6 +344,9 @@ static Expr *parse_expression(Parser *p) {
         advance(p);
         e = expr_new(NODE_LITERAL_BOOL, t->line, t->col, p->spath);
         e->data.str_val = tok_str(t);
+    } else if (t->type == TOK_NULL) {
+        advance(p);
+        e = expr_new(NODE_LITERAL_NULL, t->line, t->col, p->spath);
     } else if (t->type == TOK_IDENT) {
         advance(p);
         Str *name = tok_str(t);
@@ -653,6 +656,7 @@ static Expr *parse_statement(Parser *p) {
     case TOK_NUMBER:
     case TOK_TRUE:
     case TOK_FALSE:
+    case TOK_NULL:
         return parse_expression(p);
     case TOK_LBRACE: {
         advance(p); // consume '{'

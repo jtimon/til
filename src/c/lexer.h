@@ -38,7 +38,7 @@ typedef enum {
     TOK_SWITCH, TOK_MATCH, TOK_CASE, TOK_DEFAULT,
     TOK_RETURN, TOK_THROW, TOK_CATCH,
     TOK_BREAK, TOK_CONTINUE, TOK_DEFER,
-    TOK_TRUE, TOK_FALSE,
+    TOK_TRUE, TOK_FALSE, TOK_NULL,
 
     // Error tokens (forbidden keywords, invalid chars, etc.)
     TOK_ERROR,

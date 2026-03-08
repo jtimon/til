@@ -197,6 +197,80 @@ static void mark_core(Expr *e) {
         mark_core(expr_child(e, i));
 }
 
+// High-level prepare function for til.til self-hosting.
+// Loads core.til, resolves imports, merges ASTs, strips link() directives.
+// Returns merged AST ready for type checking, or NULL on error.
+Expr *til_prepare(const char *path, const char *bin_dir) {
+    // Load core.til
+    char core_path[256];
+    snprintf(core_path, sizeof(core_path), "%s/src/core/core.til", bin_dir);
+    char *core_source = read_file(core_path);
+    if (!core_source) return NULL;
+    U32 core_count;
+    Token *core_tokens = tokenize(core_source, core_path, &core_count);
+    Expr *core_ast = parse(core_tokens, core_count, core_path, NULL);
+
+    // Resolve core imports
+    Vec core_import_decls = Vec_new(sizeof(Expr *));
+    Vec core_import_c_files = Vec_new(sizeof(char *));
+    Vec core_imports = extract_imports(core_ast);
+    if (core_imports.count > 0) {
+        char core_dir[PATH_MAX];
+        snprintf(core_dir, sizeof(core_dir), "%s/src/core", bin_dir);
+        Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
+        Vec resolve_stack = Vec_new(sizeof(Str *));
+        int err = resolve_imports(&core_imports, core_dir, &resolved, &resolve_stack,
+                                  &core_import_decls, &core_import_c_files, NULL);
+        Set_delete(&resolved);
+        Vec_delete(&resolve_stack);
+        if (err) return NULL;
+    }
+    Vec_delete(&core_imports);
+
+    // Load user file
+    char *source = read_file(path);
+    if (!source) return NULL;
+    U32 count;
+    Token *tokens = tokenize(source, path, &count);
+    Expr *ast = parse(tokens, count, path, NULL);
+
+    // Merge: core + core imports + user
+    Vec merged = Vec_new(sizeof(Expr *));
+    for (U32 i = 0; i < core_ast->children.count; i++) {
+        Expr *ch = expr_child(core_ast, i);
+        mark_core(ch);
+        Vec_push(&merged, &ch);
+    }
+    for (U32 i = 0; i < core_import_decls.count; i++) {
+        Expr *ch = *(Expr **)Vec_get(&core_import_decls, i);
+        mark_core(ch);
+        Vec_push(&merged, &ch);
+    }
+    for (U32 i = 0; i < ast->children.count; i++) {
+        Expr *ch = expr_child(ast, i);
+        Vec_push(&merged, &ch);
+    }
+    Vec_delete(&ast->children);
+    ast->children = merged;
+
+    // Strip link() directives
+    Vec kept = Vec_new(sizeof(Expr *));
+    for (U32 i = 0; i < ast->children.count; i++) {
+        Expr *stmt = expr_child(ast, i);
+        if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
+            expr_child(stmt, 0)->type == NODE_IDENT &&
+            Str_eq_c(expr_child(stmt, 0)->data.str_val, "link") &&
+            expr_child(stmt, 1)->type == NODE_LITERAL_STR) {
+            continue;
+        }
+        Vec_push(&kept, &stmt);
+    }
+    Vec_delete(&ast->children);
+    ast->children = kept;
+
+    return ast;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         usage();

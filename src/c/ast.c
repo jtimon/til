@@ -79,6 +79,7 @@ static const char *node_name(NodeType type) {
     case NODE_LITERAL_STR: return "str";
     case NODE_LITERAL_NUM: return "num";
     case NODE_LITERAL_BOOL: return "bool";
+    case NODE_LITERAL_NULL: return "null";
     case NODE_IDENT:       return "ident";
     case NODE_DECL:        return "decl";
     case NODE_ASSIGN:      return "assign";
@@ -129,6 +130,8 @@ void ast_print(Expr *e, U32 indent) {
     case NODE_LITERAL_BOOL:
     case NODE_FOR_IN:
         printf(" \"%s\"", e->data.str_val->c_str);
+        break;
+    case NODE_LITERAL_NULL:
         break;
     case NODE_DECL:
         printf(" %s%s", e->data.decl.is_mut ? "mut " : "", e->data.decl.name->c_str);

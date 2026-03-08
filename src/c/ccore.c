@@ -1,6 +1,8 @@
 #include "ccore.h"
 #include "lexer.h"
 #include "ast.h"
+#include "initer.h"
+#include "modes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +12,10 @@ Token *Token_clone(Token *t) { return t; }
 void Token_delete(Token *t, Bool *call_free) { (void)t; (void)call_free; }
 Expr *Expr_clone(Expr *e) { return e; }
 void Expr_delete(Expr *e, Bool *call_free) { (void)e; (void)call_free; }
+TypeScope *TypeScope_clone(TypeScope *s) { return s; }
+void TypeScope_delete(TypeScope *s, Bool *call_free) { (void)s; (void)call_free; }
+Mode *Mode_clone(Mode *m) { return m; }
+void Mode_delete(Mode *m, Bool *call_free) { (void)m; (void)call_free; }
 
 // --- I64 ---
 

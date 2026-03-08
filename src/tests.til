@@ -378,8 +378,8 @@ main := proc(args: ..Str) {
     run_capture(CTIL.concat(" interpret src/test/typer_errors.til"))
     typer_out := readfile(TMPF)
     errors := count_matches(typer_out, "type error:")
-    if errors.neq(45) {
-        println("FAIL: typer_errors expected 45 errors, got ", errors.to_str())
+    if errors.neq(48) {
+        println("FAIL: typer_errors expected 48 errors, got ", errors.to_str())
         fail = 1
     }
     typer_ms := clock_ms().sub(typer_start)

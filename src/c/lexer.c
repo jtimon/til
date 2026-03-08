@@ -70,6 +70,7 @@ const char *tok_name(TokenType type) {
     case TOK_DEFER:     return "defer";
     case TOK_TRUE:      return "true";
     case TOK_FALSE:     return "false";
+    case TOK_NULL:      return "null";
     case TOK_ERROR:     return "error";
     }
     return "?";
@@ -117,6 +118,7 @@ static const Keyword keywords[] = {
     {"defer",     TOK_DEFER},
     {"true",      TOK_TRUE},
     {"false",     TOK_FALSE},
+    {"null",      TOK_NULL},
     {NULL, TOK_EOF},
 };
 

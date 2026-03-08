@@ -103,8 +103,8 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
 
         I32 fsz, falign;
 
-        if (field->data.decl.is_own) {
-            // own fields are pointers
+        if (field->data.decl.is_own || field->data.decl.is_ref) {
+            // own/ref fields are pointers
             fsz = 8; falign = 8;
             // Resolve the pointed-to struct for field access
             Str *ftype = field->data.decl.explicit_type;
@@ -118,7 +118,9 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             if (ftype && !Str_eq_c(ftype, "I64") && !Str_eq_c(ftype, "U8") && !Str_eq_c(ftype, "I16") && !Str_eq_c(ftype, "I32") && !Str_eq_c(ftype, "U32") && !Str_eq_c(ftype, "Bool")) {
                 Expr *nested_def = tscope_get_struct(scope, ftype);
                 if (nested_def && !nested_def->is_ext) {
-                    compute_struct_layout(nested_def, scope);
+                    // Skip recursive layout for self-referential own/ref fields
+                    if (nested_def != struct_def)
+                        compute_struct_layout(nested_def, scope);
                     field->data.decl.field_struct_def = nested_def;
                 }
             }
@@ -262,12 +264,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         }
         if (has_clone) continue;
 
-        // Collect instance field names
+        // Collect instance field names and ref flags
         Vec field_names = Vec_new(sizeof(Str *));
+        Vec field_refs = Vec_new(sizeof(I32));
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
-            if (field->type == NODE_DECL && !field->data.decl.is_namespace)
+            if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
                 Vec_push(&field_names, &field->data.decl.name);
+                I32 ref_flag = field->data.decl.is_ref ? 1 : 0;
+                Vec_push(&field_refs, &ref_flag);
+            }
         }
 
         I32 line = stmt->line;
@@ -294,6 +300,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
             for (U32 j = 0; j < field_names.count; j++) {
                 Str *fname = *(Str **)Vec_get(&field_names, j);
+                I32 fref = *(I32 *)Vec_get(&field_refs, j);
                 // self.field_name
                 Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                 self_id->data.str_val = Str_new("self");
@@ -301,17 +308,24 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 field_acc->data.str_val = fname;
                 expr_add_child(field_acc, self_id);
 
-                // self.field_name.clone()
-                Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                clone_acc->data.str_val = Str_new("clone");
-                expr_add_child(clone_acc, field_acc);
-                Expr *clone_call = expr_new(NODE_FCALL, line, col, path);
-                expr_add_child(clone_call, clone_acc);
+                Expr *val_expr;
+                if (fref) {
+                    // ref field: copy pointer, don't clone
+                    val_expr = field_acc;
+                } else {
+                    // self.field_name.clone()
+                    Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                    clone_acc->data.str_val = Str_new("clone");
+                    expr_add_child(clone_acc, field_acc);
+                    Expr *clone_call = expr_new(NODE_FCALL, line, col, path);
+                    expr_add_child(clone_call, clone_acc);
+                    val_expr = clone_call;
+                }
 
-                // Named arg: field_name=self.field_name.clone()
+                // Named arg: field_name=value
                 Expr *named = expr_new(NODE_NAMED_ARG, line, col, path);
                 named->data.str_val = fname;
-                expr_add_child(named, clone_call);
+                expr_add_child(named, val_expr);
                 expr_add_child(ctor, named);
             }
 
@@ -346,6 +360,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Add to struct body
         expr_add_child(body, decl);
         Vec_delete(&field_names);
+        Vec_delete(&field_refs);
     }
 
     // Pass 1.7: auto-generate delete methods for all structs
@@ -383,7 +398,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec field_owns = Vec_new(sizeof(I32));
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
-            if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
+            if (field->type == NODE_DECL && !field->data.decl.is_namespace &&
+                !field->data.decl.is_ref) {
                 Vec_push(&field_names, &field->data.decl.name);
                 Vec_push(&field_owns, &field->data.decl.is_own);
             }

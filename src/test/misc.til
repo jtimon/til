@@ -452,6 +452,39 @@ test_switch_payload_with_default := test() {
     assert_eq_str(__LOC__, result, "other")
 }
 
+// --- null literal + ref struct fields ---
+
+test_null_ref_local := test() {
+    // ref local can be null
+    ref x : I64 = null
+}
+
+accept_null := proc(x: I64) {
+    // borrowed param can receive null — no crash if unused
+}
+
+test_null_borrowed_arg := test() {
+    accept_null(null)
+}
+
+RefNode := struct {
+    value := 0
+    ref mut next : RefNode = null
+}
+
+test_ref_struct_field := test() {
+    a := RefNode(value = 10)
+    b := RefNode(value = 20)
+    a.next = b
+    assert_eq(__LOC__, a.value, 10)
+    assert_eq(__LOC__, a.next.value, 20)
+
+    // clone copies the pointer (not deep clone)
+    c := a.clone()
+    assert_eq(__LOC__, c.value, 10)
+    assert_eq(__LOC__, c.next.value, 20)
+}
+
 // --- shallow keyword tests ---
 
 shallow_add := func(shallow a: I64, shallow b: I64) returns I64 {
