@@ -6,6 +6,35 @@ link("dl")
 link("rt")
 link("X11")
 
+// Raylib struct declarations for audio
+// Wave: { U32 frameCount, U32 sampleRate, U32 sampleSize, U32 channels, void *data }
+Wave := ext_struct {
+    mut frameCount := U32.from_i64(0)
+    mut sampleRate := U32.from_i64(0)
+    mut sampleSize := U32.from_i64(0)
+    mut channels := U32.from_i64(0)
+    ref data : U8 = null
+}
+
+// Sound: { AudioStream stream, U32 frameCount }
+// AudioStream flattened: { void *buffer, void *processor, U32 sampleRate, U32 sampleSize, U32 channels }
+Sound := ext_struct {
+    mut stream_buffer := 0
+    mut stream_processor := 0
+    mut stream_sampleRate := U32.from_i64(0)
+    mut stream_sampleSize := U32.from_i64(0)
+    mut stream_channels := U32.from_i64(0)
+    mut frameCount := U32.from_i64(0)
+}
+
+// Math FFI (from libm)
+sinf := ext_func(shallow x: F32) returns shallow F32 {}
+
+// Raylib audio FFI (struct by value via shallow)
+LoadSoundFromWave := ext_func(shallow wave: Wave) returns shallow Sound {}
+PlaySound := ext_proc(shallow sound: Sound) {}
+UnloadSound := ext_proc(shallow sound: Sound) {}
+
 // Direct raylib FFI declarations
 InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: U8) {}
 WindowShouldClose := ext_func() returns shallow Bool {}
@@ -29,8 +58,50 @@ GetMouseY := ext_func() returns shallow I32 {}
 InitAudioDevice := ext_proc() {}
 CloseAudioDevice := ext_proc() {}
 
-// play_tone remains in gui.c (complex wave generation logic)
-play_tone := ext_proc(freq: I64, duration_ms: I64) {}
+// Audio state
+mut prev_tone := Sound()
+mut tone_loaded := false
+
+// Generate and play a sine wave tone
+play_tone := proc(freq: I64, duration_ms: I64) {
+    if tone_loaded {
+        UnloadSound(prev_tone)
+    }
+    sr := 44100
+    mut n := sr.mul(duration_ms).div(1000)
+    if n.lt(1) { n = 1 }
+    own buf : U8 = malloc(n.mul(4))
+    attack := sr.div(100)
+    release := sr.div(100)
+    pi2 := F32.from_i64(6283185).div(F32.from_i64(1000000))
+    freq_f := F32.from_i64(freq)
+    sr_f := F32.from_i64(sr)
+    amp := F32.from_i64(3).div(F32.from_i64(10))
+    mut i := 0
+    while i.lt(n) {
+        mut env := F32.from_i64(1)
+        if i.lt(attack) {
+            env = F32.from_i64(i).div(F32.from_i64(attack))
+        }
+        if i.gt(n.sub(release)) {
+            env = F32.from_i64(n.sub(i)).div(F32.from_i64(release))
+        }
+        sample := sinf(pi2.mul(freq_f).mul(F32.from_i64(i)).div(sr_f)).mul(amp).mul(env)
+        memcpy(ptr_add(buf, i.mul(4)), sample, 4)
+        i = i.add(1)
+    }
+    w := Wave(
+        frameCount=U32.from_i64(n),
+        sampleRate=U32.from_i64(sr),
+        sampleSize=U32.from_i64(32),
+        channels=U32.from_i64(1),
+        data=buf
+    )
+    prev_tone = LoadSoundFromWave(w)
+    PlaySound(prev_tone)
+    tone_loaded = true
+    free(own buf)
+}
 
 // Color helper: pack r,g,b,a into a U32
 color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {

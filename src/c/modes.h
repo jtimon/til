@@ -7,7 +7,7 @@ typedef struct {
     const char *name;
     Bool needs_main;
     Bool decls_only;
-    const char *auto_import; // e.g. "gui" → loads modes/gui.til + modes/gui.c
+    const char *auto_import; // e.g. "gui" → loads modes/gui.til
     Bool is_pure;
     Bool debug_prints; // allow print/println in funcs
 } Mode;
