@@ -2449,6 +2449,191 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             stmt->til_type = TIL_TYPE_NONE;
             break;
+        case NODE_FOR_IN: {
+            // Validate iterable and desugar to while loop in anonymous scope
+            Expr *iter = expr_child(stmt, 0);
+            infer_expr(scope, iter, in_func);
+
+            // Iterable must be a struct type
+            Str *type_name = NULL;
+            if ((iter->til_type == TIL_TYPE_STRUCT || iter->til_type == TIL_TYPE_ENUM) && iter->struct_name)
+                type_name = iter->struct_name;
+            if (!type_name) {
+                type_error(stmt, "for-in requires a collection type with get() and len() methods");
+                break;
+            }
+
+            Expr *sdef = tscope_get_struct(scope, type_name);
+            if (!sdef) {
+                type_error(stmt, "for-in requires a collection type with get() and len() methods");
+                break;
+            }
+
+            // Find len() and get() in namespace, validate signatures
+            Expr *len_func = NULL, *get_func = NULL;
+            Expr *sbody = expr_child(sdef, 0);
+            for (U32 fi = 0; fi < sbody->children.count; fi++) {
+                Expr *field = expr_child(sbody, fi);
+                if (!field->data.decl.is_namespace) continue;
+                if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
+                if (Str_eq_c(field->data.decl.name, "len")) len_func = expr_child(field, 0);
+                if (Str_eq_c(field->data.decl.name, "get")) get_func = expr_child(field, 0);
+            }
+
+            if (!len_func) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "type '%s' has no 'len' method (required for for-in)", type_name->c_str);
+                type_error(stmt, buf);
+                break;
+            }
+            if (len_func->data.func_def.nparam != 1 || !len_func->data.func_def.return_type ||
+                !Str_eq_c(len_func->data.func_def.return_type, "I64")) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "type '%s' len() must take 1 param and return I64 for for-in", type_name->c_str);
+                type_error(stmt, buf);
+                break;
+            }
+            if (!get_func) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "type '%s' has no 'get' method (required for for-in)", type_name->c_str);
+                type_error(stmt, buf);
+                break;
+            }
+            if (get_func->data.func_def.nparam != 2 || !get_func->data.func_def.param_types[1] ||
+                !Str_eq_c(get_func->data.func_def.param_types[1], "I64")) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "type '%s' get() second param must be I64 for for-in", type_name->c_str);
+                type_error(stmt, buf);
+                break;
+            }
+
+            // Determine element type
+            Str *elem_type = stmt->struct_name; // explicit type annotation from parser
+            if (!elem_type) {
+                // Infer from get() return type
+                Str *ret = get_func->data.func_def.return_type;
+                if (!ret || Str_eq_c(ret, "Dynamic")) {
+                    char buf[192];
+                    snprintf(buf, sizeof(buf),
+                        "cannot infer element type for '%s', use explicit type: for x : Type in ...",
+                        type_name->c_str);
+                    type_error(stmt, buf);
+                    break;
+                }
+                elem_type = ret;
+            }
+
+            // Build desugared AST:
+            // {
+            //     mut _fiN := 0
+            //     while _fiN.lt(collection.len()) {
+            //         ref varname : ElemType = collection.get(_fiN)
+            //         _fiN = _fiN.add(1)   // before body so continue doesn't skip
+            //         ...body...
+            //     }
+            // }
+            Str *var_name = stmt->data.str_val;
+            Expr *for_body = expr_child(stmt, 1);
+            I32 line = stmt->line;
+            I32 col = stmt->col;
+            Str *path = stmt->path;
+
+            // Unique index variable name
+            char idx_buf[32];
+            snprintf(idx_buf, sizeof(idx_buf), "_fi%d", hoist_counter++);
+            Str *idx_name = Str_new(idx_buf);
+
+            // Outer block (anonymous scope)
+            Expr *block = expr_new(NODE_BODY, line, col, path);
+
+            // mut _fiN := 0
+            Expr *idx_decl = expr_new(NODE_DECL, line, col, path);
+            idx_decl->data.decl.name = idx_name;
+            idx_decl->data.decl.explicit_type = NULL;
+            idx_decl->data.decl.is_mut = true;
+            idx_decl->data.decl.is_namespace = false;
+            idx_decl->data.decl.is_ref = false;
+            idx_decl->data.decl.is_own = false;
+            Expr *zero = expr_new(NODE_LITERAL_NUM, line, col, path);
+            zero->data.str_val = Str_new("0");
+            expr_add_child(idx_decl, zero);
+            expr_add_child(block, idx_decl);
+
+            // while _fiN.lt(collection.len()) { ... }
+            Expr *while_node = expr_new(NODE_WHILE, line, col, path);
+
+            // Condition: _fiN.lt(collection.len())
+            // Build: collection.len() → NODE_FCALL(NODE_FIELD_ACCESS(iter_clone, "len"))
+            Expr *iter_len = expr_new(NODE_FIELD_ACCESS, line, col, path);
+            iter_len->data.str_val = Str_new("len");
+            expr_add_child(iter_len, expr_clone(iter));
+            Expr *len_call = expr_new(NODE_FCALL, line, col, path);
+            expr_add_child(len_call, iter_len);
+
+            // Build: _fiN.lt(len_call) → NODE_FCALL(NODE_FIELD_ACCESS(idx_ident, "lt"), len_call)
+            Expr *idx_ident_cond = expr_new(NODE_IDENT, line, col, path);
+            idx_ident_cond->data.str_val = idx_name;
+            Expr *lt_access = expr_new(NODE_FIELD_ACCESS, line, col, path);
+            lt_access->data.str_val = Str_new("lt");
+            expr_add_child(lt_access, idx_ident_cond);
+            Expr *lt_call = expr_new(NODE_FCALL, line, col, path);
+            expr_add_child(lt_call, lt_access);
+            expr_add_child(lt_call, len_call);
+            expr_add_child(while_node, lt_call);
+
+            // While body
+            Expr *wbody = expr_new(NODE_BODY, line, col, path);
+
+            // ref varname : ElemType = collection.get(_fiN)
+            Expr *elem_decl = expr_new(NODE_DECL, line, col, path);
+            elem_decl->data.decl.name = var_name;
+            elem_decl->data.decl.explicit_type = elem_type;
+            elem_decl->data.decl.is_ref = true;
+            elem_decl->data.decl.is_mut = false;
+            elem_decl->data.decl.is_namespace = false;
+            elem_decl->data.decl.is_own = false;
+
+            // collection.get(_fiN) → NODE_FCALL(NODE_FIELD_ACCESS(iter_clone, "get"), idx_ident)
+            Expr *iter_get = expr_new(NODE_FIELD_ACCESS, line, col, path);
+            iter_get->data.str_val = Str_new("get");
+            expr_add_child(iter_get, expr_clone(iter));
+            Expr *idx_ident_get = expr_new(NODE_IDENT, line, col, path);
+            idx_ident_get->data.str_val = idx_name;
+            Expr *get_call = expr_new(NODE_FCALL, line, col, path);
+            expr_add_child(get_call, iter_get);
+            expr_add_child(get_call, idx_ident_get);
+            expr_add_child(elem_decl, get_call);
+            expr_add_child(wbody, elem_decl);
+
+            // _fiN = _fiN.add(1) — placed before user body so continue doesn't skip it
+            Expr *idx_assign = expr_new(NODE_ASSIGN, line, col, path);
+            idx_assign->data.str_val = idx_name;
+            Expr *idx_ident_inc = expr_new(NODE_IDENT, line, col, path);
+            idx_ident_inc->data.str_val = idx_name;
+            Expr *add_access = expr_new(NODE_FIELD_ACCESS, line, col, path);
+            add_access->data.str_val = Str_new("add");
+            expr_add_child(add_access, idx_ident_inc);
+            Expr *one = expr_new(NODE_LITERAL_NUM, line, col, path);
+            one->data.str_val = Str_new("1");
+            Expr *add_call = expr_new(NODE_FCALL, line, col, path);
+            expr_add_child(add_call, add_access);
+            expr_add_child(add_call, one);
+            expr_add_child(idx_assign, add_call);
+            expr_add_child(wbody, idx_assign);
+
+            // Copy original body statements
+            for (U32 bi = 0; bi < for_body->children.count; bi++) {
+                expr_add_child(wbody, expr_child(for_body, bi));
+            }
+
+            expr_add_child(while_node, wbody);
+            expr_add_child(block, while_node);
+
+            // Replace FOR_IN with the desugared block in parent body
+            expr_child(body, i) = block;
+            i--; // re-visit to type-check the replacement
+            break;
+        }
         default:
             stmt->til_type = TIL_TYPE_NONE;
             break;

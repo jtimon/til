@@ -596,6 +596,22 @@ static Expr *parse_statement(Parser *p) {
         expr_add_child(node, parse_block(p));       // body
         return node;
     }
+    case TOK_FOR: {
+        advance(p); // consume 'for'
+        Token *ident = expect(p, TOK_IDENT);
+        Expr *node = expr_new(NODE_FOR_IN, ident->line, ident->col, p->spath);
+        node->data.str_val = tok_str(ident);
+        if (check(p, TOK_COLON)) {
+            advance(p); // consume ':'
+            node->struct_name = tok_str(peek(p)); // explicit element type
+            advance(p); // consume type name
+        }
+        expect(p, TOK_IN);
+        expr_add_child(node, parse_expression(p)); // iterable
+        expect(p, TOK_LBRACE);
+        expr_add_child(node, parse_block(p));       // body
+        return node;
+    }
     case TOK_OWN: {
         advance(p); // consume 'own'
         // own field declaration: own name := value  or  own mut name := value

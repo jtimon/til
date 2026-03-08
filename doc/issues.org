@@ -4,9 +4,9 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* OPEN #34 For-in loops over collections
+* FIXED #34 For-in loops over collections
   Syntax: ~for i in collection { body }~ or ~for i : Type in collection { body }~.
-  Works for any type with ~get()~ and ~len()~ methods (Vec, Array, Map, Set, Str).
+  Works for any type with ~get(I64)~ and ~len()~ methods (Vec, Array, Str).
 
   Type inference follows normal declaration rules: if ~get()~ returns a concrete
   type (e.g. Str.get returns ~ref U8~), the type annotation can be omitted.
@@ -20,16 +20,25 @@
   →
   #+begin_src til
   {
-      mut __idx := 0
-      while __idx.lt(collection.len()) {
-          ref i : Type = collection.get(__idx)
+      mut _fiN := 0
+      while _fiN.lt(collection.len()) {
+          ref i : Type = collection.get(_fiN)
+          _fiN = _fiN.add(1)
           body
-          __idx = __idx.add(1)
       }
   }
   #+end_src
 
+  Index increment placed before user body so ~continue~ doesn't cause infinite loop.
   The anonymous scope prevents the index variable from leaking.
+
+  Typer validates iterable interface: ~len()~ must return I64 with 1 param,
+  ~get()~ must take 2 params with second being I64. Type errors for missing
+  methods or wrong signatures.
+
+  Parser: TOK_FOR case in parse_statement() (parser.c).
+  Typer: NODE_FOR_IN desugaring inline in infer_body() (typer.c).
+  Tests: src/test/loops.til (9 tests), 3 new typer error cases.
 
 * OPEN #33 Character literals for U8
   Currently there's no syntax for character literals. Writing ~U8.from_i64(40)~

@@ -182,3 +182,21 @@ bad_map := {NoCmp(x=1): "one"}
 
 // set literal: element type must implement cmp
 bad_set := {NoCmp(x=1), NoCmp(x=2)}
+
+// for-in: Dynamic collection without explicit type
+forin_vec := vec("I64", 1, 2, 3)
+for x in forin_vec { }
+
+// for-in: type has no get method
+NoGet := struct {
+    namespace:
+    len := func(self: NoGet) returns I64 { return 0 }
+}
+for x in NoGet() { }
+
+// for-in: type has no len method
+NoLen := struct {
+    namespace:
+    get := func(self: NoLen, i: I64) returns ref I64 { return i }
+}
+for x in NoLen() { }

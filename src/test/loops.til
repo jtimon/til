@@ -1,0 +1,91 @@
+mode test
+
+test_for_in_str := test() {
+    // Str.get returns ref U8 — type inferred
+    mut result := Str.with_capacity(10)
+    for c in "hello" {
+        result.push_str(Str.from_byte(c))
+    }
+    assert_eq_str(loc(), result, "hello")
+}
+
+test_for_in_str_explicit := test() {
+    // Explicit type annotation also works
+    mut result := Str.with_capacity(10)
+    for c : U8 in "world" {
+        result.push_str(Str.from_byte(c))
+    }
+    assert_eq_str(loc(), result, "world")
+}
+
+test_for_in_vec := test() {
+    v := vec("I64", 10, 20, 30)
+    mut sum := 0
+    for x : I64 in v {
+        sum = sum.add(x)
+    }
+    assert_eq(loc(), sum, 60)
+}
+
+test_for_in_array := test() {
+    a := array("I64", 1, 2, 3, 4, 5)
+    mut sum := 0
+    for x : I64 in a {
+        sum = sum.add(x)
+    }
+    assert_eq(loc(), sum, 15)
+}
+
+test_for_in_break := test() {
+    mut count := 0
+    for c in "abcdef" {
+        if count.eq(3) { break }
+        count = count.add(1)
+    }
+    assert_eq(loc(), count, 3)
+}
+
+test_for_in_continue := test() {
+    // Skip 'b' characters
+    mut result := Str.with_capacity(10)
+    for c in "abcbd" {
+        if c.eq(U8.from_i64(98)) { continue }
+        result.push_str(Str.from_byte(c))
+    }
+    assert_eq_str(loc(), result, "acd")
+}
+
+test_for_in_nested := test() {
+    mut count := 0
+    for c1 in "ab" {
+        for c2 in "xy" {
+            count = count.add(1)
+        }
+    }
+    assert_eq(loc(), count, 4)
+}
+
+test_for_in_empty := test() {
+    mut count := 0
+    for c in "" {
+        count = count.add(1)
+    }
+    assert_eq(loc(), count, 0)
+
+    v := vec("I64")
+    mut sum := 0
+    for x : I64 in v {
+        sum = sum.add(x)
+    }
+    assert_eq(loc(), sum, 0)
+}
+
+test_for_in_scope := test() {
+    // Loop variable should not leak to outer scope
+    // (desugars to anonymous block)
+    x := 42
+    for c in "abc" {
+        // c is scoped inside the block
+    }
+    assert_eq(loc(), x, 42)
+}
