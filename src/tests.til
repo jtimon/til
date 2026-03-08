@@ -411,6 +411,41 @@ main := proc(args: ..Str) {
     cli_test("src/examples/hello_cli.til", "extra", "", 1, fail)
     cli_ms := clock_ms().sub(cli_start)
 
+    // --- Section 5: Plot example test ---
+
+    plot_start := clock_ms()
+    // Write test CSV
+    test_csv := format("commit,interp_ms,compiled_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total", NL,
+                       "abc1234,1940,5520,200,1710,1970,4640,32,32", NL,
+                       "def5678,1880,5400,190,1680,1950,4500,32,32", NL)
+    writefile("tmp/_test_plot.csv", test_csv)
+    // Run plot via codegen
+    plot_rc := run("bin/ctil run src/examples/plot.til tmp/_test_plot.csv tmp/_test_plot.svg")
+    if plot_rc.neq(0) {
+        println("FAIL: plot.til exited with ", plot_rc.to_str())
+        fail = 1
+    } else {
+        plot_svg := readfile("tmp/_test_plot.svg")
+        // Check SVG has expected elements
+        if count_matches(plot_svg, "<svg").eq(0) {
+            println("FAIL: plot.til missing <svg tag")
+            fail = 1
+        }
+        if count_matches(plot_svg, "<polyline").lt(3) {
+            println("FAIL: plot.til expected 3 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+            fail = 1
+        }
+        if count_matches(plot_svg, "abc1234").eq(0) {
+            println("FAIL: plot.til missing commit label abc1234")
+            fail = 1
+        }
+        if count_matches(plot_svg, "Interpreted").eq(0) {
+            println("FAIL: plot.til missing legend label Interpreted")
+            fail = 1
+        }
+    }
+    plot_ms := clock_ms().sub(plot_start)
+
     // --- Summary ---
 
     wall_ms := clock_ms().sub(wall_start)
@@ -421,6 +456,7 @@ main := proc(args: ..Str) {
     println("FFI tests:    ", ms_to_str(ffi_ms))
     println("Typer errors: ", ms_to_str(typer_ms))
     println("CLI tests:    ", ms_to_str(cli_ms))
+    println("Plot test:    ", ms_to_str(plot_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
     println("Passed:       ", passed.to_str(), "/", num_files.to_str())
     println("")

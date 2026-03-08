@@ -563,3 +563,21 @@ File modes set at the top:
 | ~(I32)x~             | ~I32.from_i64(x)~                     |
 | ~(void *)p~          | Dynamic type                          |
 | ~(Type *)void_ptr~   | ~ref val : Type = vec.get(i)~         |
+
+** Future Work: Str Growth
+
+Str does not auto-grow like Vec. ~push_str~ panics if capacity is exceeded.
+To build large strings incrementally, either:
+- Use ~Str.with_capacity(n)~ + ~push_str~ (must estimate max size)
+- Build pieces in a ~Vec~ of ~Str~ and ~Vec.join("")~ at the end
+- Use ~x = x.concat(y)~ inside a loop where ~x~ is declared in an outer scope
+  (avoids the ASAP delete-before-reassignment bug in the typer — see issues.org)
+
+Note: ~x = x.concat(y)~ in the *same* body where ~x~ is declared triggers
+a use-after-free: the typer inserts ~Type_delete(x)~ before the assignment,
+but ~concat~ still reads ~x~ on the RHS. This does not happen when ~x~ is
+from an outer scope (e.g. declared before a while loop, reassigned inside it)
+because the inner body's ASAP pass doesn't track outer-scope locals.
+
+Parameters are ref by default. Use ~own~ for ownership transfer (callee frees),
+~shallow~ for primitives passed by value, ~mut~ for mutable references.
