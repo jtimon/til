@@ -1,10 +1,55 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 37
+# NEXT_ISSUE: 38
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #37 Improved mode lib: library compilation and FFI bindings
+  Running interpret or run on a mode lib file should fail with an error
+  (libraries aren't executable). translate and build should work, with
+  enhanced output for libraries.
+
+*** translate (code generation)
+   For mode lib files, translate generates three files:
+   - ~gen/c/mylib.c~ — C implementation (already works)
+   - ~gen/c/mylib.h~ — C header declaring the public interface (structs,
+     functions, procs) so C programs can ~#include~ and link against it
+   - ~gen/til/mylib.til~ — FFI binding file with ~ext_struct~, ~ext_func~,
+     ~ext_proc~ declarations so other til programs can use the compiled
+     library without reimporting the source
+
+   Public interface = everything at top-level scope. Namespace methods
+   are part of the struct's ext_struct declaration.
+
+*** build (compilation)
+   Same as translate, plus compiles the C output into both:
+   - ~gen/lib/libmylib.so~ — shared library (dynamic linking)
+   - ~gen/lib/libmylib.a~ — static library (static linking)
+
+   Consumers choose which to link: ~-lmylib~ (dynamic) or link the .a
+   directly (static).
+
+*** install (system-wide)
+   Same as build, plus copies artifacts to system paths:
+   - ~.so~ / ~.a~ → system lib path (e.g. ~/usr/local/lib~)
+   - ~.h~ → system include path (e.g. ~/usr/local/include~)
+   - ~.til~ → til lib path (TBD — e.g. ~~/.til/lib/~ or similar)
+
+*** Usage from C
+   #+begin_src c
+   #include "mylib.h"
+   // link with -lmylib
+   #+end_src
+
+*** Usage from til (FFI)
+   #+begin_src til
+   import("mylib.til")  // the generated binding, not the source
+   #+end_src
+
+   The generated .til binding includes ~link("mylib")~ at the top (like
+   gui mode does for raylib), so linking is automatic — no manual flags.
 
 ** OPEN #22 Operator syntax: desugar operators to method calls
   :DEPENDENCIES: #12
