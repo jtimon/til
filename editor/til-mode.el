@@ -49,7 +49,7 @@
 
 (defconst til-error-words
   '(;; Because they're kind of "dangerous" and it's nice to see them in red
-    "throw" "panic" "exit" "TODO" "NULL"
+    "throw" "panic" "exit" "TODO" "UNREACHABLE" "NULL"
     ;; Because they are planned, but not implemented yet
     "defer"
     "priv" "private" ;; decide on one once implemmented

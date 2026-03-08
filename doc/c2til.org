@@ -338,19 +338,59 @@ while (i < n) { i++; }
 while i.lt(n) { i = i.add(1) }
 #+end_src
 
-*** for loop
+*** for loop (counter)
 
 #+begin_src c
 for (int i = 0; i < n; i++) { ... }
 #+end_src
 
 #+begin_src til
-mut i := 0
-while i.lt(n) {
-    // ...
-    i = i.add(1)
+for i in 0..n { ... }
+#+end_src
+
+When you need both the index and an element from a collection:
+
+#+begin_src til
+for i in 0..items.len() {
+    ref item : MyType = items.get(i)
+    // use both i and item
 }
 #+end_src
+
+*** for loop (collection iteration)
+
+#+begin_src c
+for (int i = 0; i < vec->count; i++) {
+    I64 *val = Vec_get(vec, i);
+    // use val
+}
+#+end_src
+
+#+begin_src til
+for val : I64 in vec { ... }
+#+end_src
+
+If ~get()~ returns a concrete type (e.g. Str.get returns ~ref U8~), the
+type annotation can be omitted:
+
+#+begin_src til
+for c in "hello" { ... }
+#+end_src
+
+*** for loop (descending)
+
+#+begin_src c
+for (int i = n - 1; i >= 0; i--) { ... }
+#+end_src
+
+#+begin_src til
+for i in n..0 { ... }
+#+end_src
+
+Note: ~while~ is still the right choice when the loop has complex state
+(variable-length advances, multiple counters, etc.). For example,
+lexer.til's main tokenize loop uses ~while pos.lt(src_len)~ because
+~pos~ advances by different amounts depending on the token type.
 
 *** switch
 

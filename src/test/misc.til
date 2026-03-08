@@ -44,12 +44,9 @@ test_cmp := test() {
 
 // variadic args
 variadic_sum := func(nums: ..I64) returns I64 {
-    mut i := 0
     mut total := 0
-    while i.lt(nums.len()) {
-        ref n: I64 = nums.get(i)
+    for n : I64 in nums {
         total = total.add(n)
-        i = i.add(1)
     }
     return total
 }
@@ -62,12 +59,10 @@ test_variadic := test() {
 
 // proc-based variadic test (not constant-foldable)
 variadic_print := proc(nums: ..I64) {
-    mut i := 0
-    while i.lt(nums.len()) {
+    for i in 0..nums.len() {
         ref n: I64 = nums.get(i)
         print(n.to_str())
         if i.lt(nums.len().sub(1)) { print(",") }
-        i = i.add(1)
     }
     println("")
 }

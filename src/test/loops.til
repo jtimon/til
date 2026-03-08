@@ -150,3 +150,37 @@ test_range_nested := test() {
     }
     assert_eq(loc(), sum, 12)
 }
+
+test_while_basic := test() {
+    mut i := 0
+    while i.lt(5) {
+        i = i.add(1)
+    }
+    assert_eq(loc(), i, 5)
+}
+
+test_while_false := test() {
+    while false {
+        panic(loc(), "unreachable")
+    }
+}
+
+test_while_break := test() {
+    mut i := 0
+    while true {
+        if i.eq(3) { break }
+        i = i.add(1)
+    }
+    assert_eq(loc(), i, 3)
+}
+
+test_while_continue := test() {
+    mut k := 0
+    mut total := 0
+    while k.lt(5) {
+        k = k.add(1)
+        if k.eq(3) { continue }
+        total = total.add(k)
+    }
+    assert_eq(loc(), total, 12)
+}

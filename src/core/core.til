@@ -225,40 +225,28 @@ print_single := ext_proc(s: Str) {}
 print_flush := ext_proc() {}
 
 println := proc(parts: ..Str) {
-    mut i := 0
-    while i.lt(parts.len()) {
-        ref s : Str = parts.get(i)
+    for s : Str in parts {
         print_single(s)
-        i = i.add(1)
     }
     print_flush()
 }
 
 print := proc(parts: ..Str) {
-    mut i := 0
-    while i.lt(parts.len()) {
-        ref s : Str = parts.get(i)
+    for s : Str in parts {
         print_single(s)
-        i = i.add(1)
     }
 }
 
 format := func(parts: ..Str) returns Str {
     mut total := 0
-    mut i := 0
-    while i.lt(parts.len()) {
-        ref s : Str = parts.get(i)
+    for s : Str in parts {
         total = total.add(s.len())
-        i = i.add(1)
     }
     own buf : U8 = malloc(total)
     mut offset := 0
-    i = 0
-    while i.lt(parts.len()) {
-        ref s : Str = parts.get(i)
+    for s : Str in parts {
         memcpy(ptr_add(buf, offset), s.data, s.len())
         offset = offset.add(s.len())
-        i = i.add(1)
     }
     return Str(data = buf, count = total, cap = total)
 }
@@ -332,6 +320,10 @@ panic := proc(loc_str: Str, msg: Str) {
 
 TODO := proc(loc_str: Str, msg: Str) {
     panic(loc_str, format("TODO: ", msg))
+}
+
+UNREACHABLE := proc(loc_str: Str) {
+    panic(loc_str, "unreachable")
 }
 
 assertm := func(loc_str: Str, cond: Bool, msg: Str) returns Bool {
