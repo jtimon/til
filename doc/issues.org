@@ -98,7 +98,7 @@
 
   Depends on:
   - #1 (consistency): FIXED
-  - #2 (ref): needed for efficient arg passing without clone overhead
+  - #2 (ref): FIXED
   - #5 (pointers/Vec): FIXED
   - #8 (variadic): FIXED
   - #16 (imports): FIXED
@@ -150,59 +150,6 @@
    - typer: ASAP ref lifetime extension for UFCS field-access chain args
      and transitive ref chains (fixed-point propagation)
 
-** WIP #2 ref keyword: non-owning references for returns, declarations, and struct fields
-  Currently all returns are owned by the caller (heap-allocated, caller must
-  delete). This breaks when a function wants to return one of its args:
-
-    min := func(a: I64, b: I64) returns I64 {
-        if a.lt(b) { return a } else { return b }
-    }
-
-  Either a or b would be owned twice and deleted twice (double-free).
-
-*** FIXED ref returns
-   returns ref I64 — the caller does NOT own the returned value and must
-   not delete it. ASAP destruction skips ref return values.
-
-    min := func(a: I64, b: I64) returns ref I64 {
-        if a.lt(b) { return a } else { return b }
-    }
-
-   Typer validates: return value must be a param or ref variable.
-
-*** FIXED ref declarations
-   Required when binding the result of a ref-returning function:
-   ref my_min := min(34, 35). ASAP destruction skips ref variables.
-
-   Typer validates: RHS must be a ref-returning function call or a
-   ref/param variable. Cannot pass ref variable to 'own' parameter.
-
-   ASAP lifetime extension: args to ref-returning calls have their
-   lifetimes extended to at least the ref variable's last use, preventing
-   use-after-free.
-
-   Interpreter: ref from ident uses scope_set_borrowed (shared cell).
-   builder: ref decl emits pointer assignment (no malloc).
-
-*** ref struct fields
-   A ref field stores a pointer to an existing value (not inline).
-   clone does not deep-copy it, delete does not recurse into it —
-   just copies/ignores the pointer.
-
-   Default initialization: ref fields default to NULL. This is the only
-   place NULL exists in til — ref locals and ref argument defaults cannot
-   be NULL (at least for now). Typer should check for NULL before
-   dereferencing ref fields (or provide an is_set/is_null check).
-
-*** ref tagged enum variants
-   Currently tagged enum payloads are stored inline (by value).
-   A ref variant (e.g. ~RefName: ref Str~) would store a pointer
-   instead — useful for non-owning references in enum payloads.
-   Not allowed until ref struct fields are fully implemented.
-
-*** args are already ref by default
-   Function args are borrowed (ref) unless explicitly marked own.
-   No change needed for args.
 
 * Post-self-hosting
 

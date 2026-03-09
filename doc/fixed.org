@@ -1,5 +1,20 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #2 ref keyword: non-owning references for returns, declarations, and struct fields
+  ref returns: ~returns ref I64~ — caller does not own, ASAP skips.
+  ref declarations: ~ref x := min(a, b)~ — binds without ownership.
+  ASAP lifetime extension for args to ref-returning calls.
+  ref struct fields: store pointer, clone copies pointer, delete skips.
+  null literal: only valid in ref positions (ref locals, ref struct fields,
+  borrowed params). Rejected for own/shallow params and non-ref locals.
+  Args are already borrowed (ref) by default.
+
+  Commit c3d3d81: null literal + ref struct fields.
+  Earlier commits: ref returns, ref declarations.
+
+  Note: ref tagged enum variants (ref payloads in enum) deferred — not
+  needed for current use cases.
+
 * FIXED #38 Drop til_ prefix from generated C symbols
   All ~til_~ prefix removed from builder, ext.c, dispatch.c, FFI C files.
   Generated C symbols now match the original C names (e.g. ~Token~ not
