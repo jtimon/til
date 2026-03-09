@@ -2285,8 +2285,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 stmt->til_type = expr_child(stmt, 0)->til_type;
                 if (stmt->til_type == TIL_TYPE_DYNAMIC) {
                     char buf[128];
-                    snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add explicit type annotation",
-                             stmt->type.decl.name->c_str);
+                    snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add a type annotation like '%s : Type = ...' to specify the concrete type",
+                             stmt->type.decl.name->c_str, stmt->type.decl.name->c_str);
                     type_error(stmt, buf);
                 }
             }

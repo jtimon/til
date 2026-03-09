@@ -1,0 +1,611 @@
+mode cli
+
+// Link C modules (same as ctil.c imports)
+link_c("src/c/lexer.c")
+link_c("src/c/parser.c")
+link_c("src/c/ast.c")
+link_c("src/c/initer.c")
+link_c("src/c/typer.c")
+link_c("src/c/interpreter.c")
+link_c("src/c/builder.c")
+link_c("src/c/precomp.c")
+link_c("src/c/scavenger.c")
+link_c("src/c/dispatch.c")
+link_c("src/c/ccore.c")
+link_c("src/c/str.c")
+link_c("src/c/vec.c")
+link_c("src/c/map.c")
+link_c("src/c/til_bridge.c")
+link("dl")
+link("ffi")
+
+// --- C types (accessed only through bridge functions) ---
+Expr := ext_struct {}
+Token := ext_struct {}
+Mode := ext_struct {
+    namespace:
+    eq := ext_func(self: Mode, other: Mode) returns Bool {}
+}
+TypeScope := ext_struct {}
+
+// --- NodeTypeTag constants (matching C enum values) ---
+NODE_BODY : I32 = 0
+NODE_LITERAL_STR : I32 = 1
+NODE_LITERAL_NUM : I32 = 2
+NODE_LITERAL_BOOL : I32 = 3
+NODE_LITERAL_NULL : I32 = 4
+NODE_IDENT : I32 = 5
+NODE_DECL : I32 = 6
+NODE_ASSIGN : I32 = 7
+NODE_FCALL : I32 = 8
+NODE_FUNC_DEF : I32 = 9
+NODE_STRUCT_DEF : I32 = 10
+NODE_ENUM_DEF : I32 = 11
+NODE_FIELD_ACCESS : I32 = 12
+NODE_FIELD_ASSIGN : I32 = 13
+NODE_RETURN : I32 = 14
+NODE_IF : I32 = 15
+NODE_WHILE : I32 = 16
+NODE_FOR_IN : I32 = 17
+NODE_NAMED_ARG : I32 = 18
+NODE_BREAK : I32 = 19
+NODE_CONTINUE : I32 = 20
+NODE_MAP_LIT : I32 = 21
+NODE_SET_LIT : I32 = 22
+NODE_SWITCH : I32 = 23
+NODE_CASE : I32 = 24
+
+// --- Bridge ext_func/ext_proc declarations ---
+
+// Tokenize/Parse
+til_tokenize := ext_func(source: Str, path: Str) returns Token {}
+til_tok_count := ext_func() returns shallow U32 {}
+til_parse := ext_func(tokens: Token, shallow count: U32, path: Str) returns Expr {}
+til_parse_mode := ext_func() returns Str {}
+
+// Expr helpers
+expr_null := ext_func() returns Expr {}
+expr_is_null := ext_func(e: Expr) returns shallow Bool {}
+expr_get_tag := ext_func(e: Expr) returns shallow I32 {}
+expr_get_str_val := ext_func(e: Expr) returns Str {}
+expr_get_child := ext_func(e: Expr, shallow i: U32) returns Expr {}
+expr_nchildren := ext_func(e: Expr) returns shallow U32 {}
+expr_set_core := ext_proc(e: Expr) {}
+expr_push_child := ext_proc(e: Expr, child: Expr) {}
+expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
+
+// Expr Vec helpers
+expr_vec_new := ext_func() returns Vec {}
+expr_vec_push := ext_proc(v: Vec, e: Expr) {}
+expr_vec_get := ext_func(v: Vec, shallow i: U32) returns Expr {}
+expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
+expr_vec_pop := ext_proc(v: Vec) {}
+expr_vec_free := ext_proc(v: Vec) {}
+
+// Mode
+til_mode_none := ext_func() returns Mode {}
+til_mode_resolve := ext_func(name: Str) returns Mode {}
+til_mode_eq := ext_func(a: Mode, b: Mode) returns shallow Bool {}
+til_mode_script := ext_func() returns Mode {}
+til_mode_cli := ext_func() returns Mode {}
+til_mode_gui := ext_func() returns Mode {}
+til_mode_test := ext_func() returns Mode {}
+til_mode_pure := ext_func() returns Mode {}
+til_mode_pura := ext_func() returns Mode {}
+til_mode_lib := ext_func() returns Mode {}
+til_mode_liba := ext_func() returns Mode {}
+til_mode_name := ext_func(m: Mode) returns Str {}
+til_mode_auto_import := ext_func(m: Mode) returns Str {}
+til_mode_is_lib := ext_func(m: Mode) returns shallow Bool {}
+til_mode_is_lib_output := ext_func(m: Mode) returns shallow Bool {}
+
+// Pipeline
+tscope_new := ext_func(parent: TypeScope) returns TypeScope {}
+tscope_free := ext_proc(s: TypeScope) {}
+til_init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
+til_type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
+til_precomp := ext_proc(program: Expr) {}
+til_scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
+til_interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, shallow user_argc: U32, user_argv: Dynamic) returns shallow I32 {}
+til_build := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
+til_build_header := ext_func(ast: Expr, h_path: Str) returns shallow I32 {}
+til_build_til_binding := ext_func(ast: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
+til_compile_c := ext_func(c_path: Str, bin_path: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
+til_compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
+til_ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
+til_expr_free := ext_proc(ast: Expr) {}
+
+// Utility
+til_realpath := ext_func(path: Str) returns Str {}
+til_system := ext_func(cmd: Str) returns shallow I32 {}
+til_set_new := ext_func() returns Set {}
+til_set_has := ext_func(s: Set, str: Str) returns shallow Bool {}
+til_set_add := ext_proc(s: Set, str: Str) {}
+til_set_free := ext_proc(s: Set) {}
+
+// --- Translated ctil.c functions ---
+
+// Extract import("path") calls from AST body, returning paths as Vec of Str*.
+// Matching nodes are removed from the body.
+extract_imports := proc(body: Dynamic) returns Vec {
+    mut paths := Vec.new("Str", Str.size())
+    kept := expr_vec_new()
+    mut i := U32.from_i64(0)
+    while i.lt(expr_nchildren(body)) {
+        stmt := expr_get_child(body, i)
+        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(U32.from_i64(2)))
+            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(0))).eq(NODE_IDENT))
+            .and(expr_get_str_val(expr_get_child(stmt, U32.from_i64(0))).eq("import"))
+            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(1))).eq(NODE_LITERAL_STR)) {
+            path := expr_get_str_val(expr_get_child(stmt, U32.from_i64(1)))
+            paths.push(own path)
+        } else {
+            expr_vec_push(kept, stmt)
+        }
+        i = i.add(U32.from_i64(1))
+    }
+    expr_swap_children(body, kept)
+    expr_vec_free(kept)
+    return paths
+}
+
+// Recursively resolve imports.
+resolve_imports := proc(import_paths: Vec, base_dir: Str,
+                        resolved_set: Dynamic, stack: Dynamic,
+                        merged: Dynamic, lib_dir: Str) returns I32 {
+    mut i := 0
+    while i.lt(import_paths.len()) {
+        ref import_path : Str = import_paths.get(i)
+
+        // Try relative to importing file's directory, then lib_dir
+        mut try_path := base_dir.concat("/").concat(import_path)
+        mut abs := til_realpath(try_path)
+        if abs.eq("").and(lib_dir.len().gt(0)) {
+            try_path = lib_dir.concat("/").concat(import_path)
+            abs = til_realpath(try_path)
+        }
+        if abs.eq("") {
+            println(format("error: could not find import '{}' (from {}/)", import_path, base_dir))
+            return I32.from_i64(1)
+        }
+
+        // Cycle detection
+        mut j := U32.from_i64(0)
+        mut cycle := false
+        while j.lt(expr_vec_count(stack)) {
+            s := expr_vec_get(stack, j)
+            // expr_vec stores Str* but we compare as strings
+            if abs.eq(abs) {
+                // TODO: proper cycle detection with stack of Str
+            }
+            j = j.add(U32.from_i64(1))
+        }
+
+        // Dedup
+        if til_set_has(resolved_set, abs) {
+            i = i.add(1)
+            continue
+        }
+        til_set_add(resolved_set, abs)
+
+        // Load, lex, parse the imported file
+        source := readfile(abs)
+        tokens := til_tokenize(source, abs)
+        count := til_tok_count()
+        sub_ast := til_parse(tokens, count, abs)
+        sub_mode_str := til_parse_mode()
+        sub_imports := extract_imports(sub_ast)
+
+        // Validate imported file cur_mode
+        if sub_mode_str.len().gt(0) {
+            sm := til_mode_resolve(sub_mode_str)
+            if sm.eq(null).or(
+                til_mode_eq(sm, til_mode_lib()).not()
+                .and(til_mode_eq(sm, til_mode_liba()).not())
+                .and(til_mode_eq(sm, til_mode_pure()).not())
+                .and(til_mode_eq(sm, til_mode_pura()).not())) {
+                println(format("error: imported file '{}' cannot use mode '{}'", abs, sub_mode_str))
+                return I32.from_i64(1)
+            }
+        }
+
+        // Get imported file's directory for recursive resolution
+        mut last_slash := abs.len().sub(1)
+        while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
+            last_slash = last_slash.sub(1)
+        }
+        sub_dir := abs.substr(0, last_slash)
+
+        // Recurse for sub-imports
+        if sub_imports.len().gt(0) {
+            err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir)
+            if err.gt(I32.from_i64(0)) {
+                return err
+            }
+        }
+
+        // Append imported file's declarations
+        mut k := U32.from_i64(0)
+        while k.lt(expr_nchildren(sub_ast)) {
+            ch := expr_get_child(sub_ast, k)
+            expr_vec_push(merged, ch)
+            k = k.add(U32.from_i64(1))
+        }
+
+        i = i.add(1)
+    }
+    return I32.from_i64(0)
+}
+
+usage := proc() {
+    println("Usage: til <command> <path>")
+    println("")
+    println("Commands:")
+    println("  interpret  Read and interpret a .til file")
+    println("  translate  Generate C source (no compilation)")
+    println("  build      Compile a .til file to a binary")
+    println("  run        Compile and run a .til file")
+    println("  test       Run test functions in a .til file")
+    println("  help       Print this message")
+}
+
+mark_core := proc(e: Dynamic) {
+    expr_set_core(e)
+    mut i := U32.from_i64(0)
+    while i.lt(expr_nchildren(e)) {
+        mark_core(expr_get_child(e, i))
+        i = i.add(U32.from_i64(1))
+    }
+}
+
+// --- Main ---
+
+main := proc(args: ..Str) {
+    if args.len().eq(0) {
+        usage()
+        panic("no arguments")
+    }
+
+    mut command : Str = args.get(0)
+    mut path : Str = ""
+
+    if args.len().eq(1) {
+        if command.eq("help").or(command.eq("--help")) {
+            usage()
+            return
+        }
+        path = command
+        command = "interpret"
+    } else {
+        ref p : Str = args.get(1)
+        path = p
+    }
+
+    if command.eq("help").or(command.eq("--help")) {
+        usage()
+        return
+    }
+
+    // Resolve paths relative to binary location
+    // In til mode cli, we get args starting from argv[1].
+    // We need bin_dir to find core.til and ext.c.
+    // For now, use ".." as bin_dir (assumes bin/c/til binary location)
+    bin_dir := ".."
+    core_path := bin_dir.concat("/src/core/core.til")
+    ext_c_path := bin_dir.concat("/src/c/ext.c")
+
+    // Load core.til
+    core_source := readfile(core_path)
+    core_tokens := til_tokenize(core_source, core_path)
+    core_count := til_tok_count()
+    core_ast := til_parse(core_tokens, core_count, core_path)
+
+    // Resolve core imports
+    core_import_decls := expr_vec_new()
+    core_imports := extract_imports(core_ast)
+    if core_imports.len().gt(0) {
+        core_dir := bin_dir.concat("/src/core")
+        resolved := til_set_new()
+        resolve_stack := expr_vec_new()
+        err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
+                               core_import_decls, "")
+        til_set_free(resolved)
+        expr_vec_free(resolve_stack)
+        if err.gt(I32.from_i64(0)) {
+            panic("failed to resolve core imports")
+        }
+    }
+
+    // Load user file
+    source := readfile(path)
+    tokens := til_tokenize(source, path)
+    count := til_tok_count()
+    ast := til_parse(tokens, count, path)
+    imports := extract_imports(ast)
+
+    // Resolve cur_mode
+    mode_str := til_parse_mode()
+    mut cur_mode : Mode = til_mode_none()
+    if mode_str.len().gt(0) {
+        cur_mode = til_mode_resolve(mode_str)
+        if cur_mode.eq(til_mode_none()) {
+            panic(format("unknown mode '{}'", mode_str))
+        }
+    }
+
+    // If mode has auto_import, load its .til declarations
+    mut mode_ast : Expr = expr_null()
+    auto_import := til_mode_auto_import(cur_mode)
+    if auto_import.len().gt(0) {
+        mode_til_path := format("{}/src/modes/{}.til", bin_dir, auto_import)
+        mode_source := readfile(mode_til_path)
+        mode_tokens := til_tokenize(mode_source, mode_til_path)
+        mode_count := til_tok_count()
+        mode_ast = til_parse(mode_tokens, mode_count, mode_til_path)
+    }
+
+    // Resolve user imports
+    import_decls := expr_vec_new()
+    if imports.len().gt(0) {
+        resolved := til_set_new()
+        resolve_stack := expr_vec_new()
+
+        // Compute base directory of user file
+        abs_path := til_realpath(path)
+        mut user_dir := "."
+        if abs_path.len().gt(0) {
+            mut last_slash := abs_path.len().sub(1)
+            while last_slash.gt(0).and(abs_path.get(last_slash).neq('/')) {
+                last_slash = last_slash.sub(1)
+            }
+            user_dir = abs_path.substr(0, last_slash)
+            til_set_add(resolved, abs_path)
+        }
+
+        lib_dir := bin_dir.concat("/src/lib")
+        err := resolve_imports(imports, user_dir, resolved, resolve_stack,
+                               import_decls, lib_dir)
+        til_set_free(resolved)
+        expr_vec_free(resolve_stack)
+        if err.gt(I32.from_i64(0)) {
+            panic("failed to resolve imports")
+        }
+    }
+
+    // Merge: core + core_imports + mode + user_imports + user
+    merged := expr_vec_new()
+
+    // Core declarations
+    mut i := U32.from_i64(0)
+    while i.lt(expr_nchildren(core_ast)) {
+        ch := expr_get_child(core_ast, i)
+        mark_core(ch)
+        expr_vec_push(merged, ch)
+        i = i.add(U32.from_i64(1))
+    }
+
+    // Core import declarations
+    i = U32.from_i64(0)
+    while i.lt(expr_vec_count(core_import_decls)) {
+        ch := expr_vec_get(core_import_decls, i)
+        mark_core(ch)
+        expr_vec_push(merged, ch)
+        i = i.add(U32.from_i64(1))
+    }
+
+    // Mode auto-import declarations
+    if expr_is_null(mode_ast).not() {
+        i = U32.from_i64(0)
+        while i.lt(expr_nchildren(mode_ast)) {
+            ch := expr_get_child(mode_ast, i)
+            expr_vec_push(merged, ch)
+            i = i.add(U32.from_i64(1))
+        }
+    }
+
+    // User import declarations
+    i = U32.from_i64(0)
+    while i.lt(expr_vec_count(import_decls)) {
+        ch := expr_vec_get(import_decls, i)
+        expr_vec_push(merged, ch)
+        i = i.add(U32.from_i64(1))
+    }
+
+    // User declarations
+    i = U32.from_i64(0)
+    while i.lt(expr_nchildren(ast)) {
+        ch := expr_get_child(ast, i)
+        expr_vec_push(merged, ch)
+        i = i.add(U32.from_i64(1))
+    }
+
+    expr_swap_children(ast, merged)
+    expr_vec_free(merged)
+
+    // Extract link() and link_c() directives
+    mut link_flags := ""
+    mut link_c_paths := ""
+    kept := expr_vec_new()
+    i = U32.from_i64(0)
+    while i.lt(expr_nchildren(ast)) {
+        stmt := expr_get_child(ast, i)
+        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(U32.from_i64(2)))
+            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(0))).eq(NODE_IDENT))
+            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(1))).eq(NODE_LITERAL_STR)) {
+            fname := expr_get_str_val(expr_get_child(stmt, U32.from_i64(0)))
+            arg := expr_get_str_val(expr_get_child(stmt, U32.from_i64(1)))
+            if fname.eq("link") {
+                link_flags = link_flags.concat(" -l").concat(arg)
+            } else if fname.eq("link_c") {
+                if link_c_paths.len().gt(0) {
+                    link_c_paths = link_c_paths.concat(" ")
+                }
+                link_c_paths = link_c_paths.concat(arg)
+            } else {
+                expr_vec_push(kept, stmt)
+            }
+        } else {
+            expr_vec_push(kept, stmt)
+        }
+        i = i.add(U32.from_i64(1))
+    }
+    expr_swap_children(ast, kept)
+    expr_vec_free(kept)
+
+    // Init phase: pre-scan declarations
+    scope := tscope_new(null)
+    til_init_declarations(ast, scope)
+
+    // Type checking
+    type_errors := til_type_check(ast, scope, cur_mode)
+    tscope_free(scope)
+    if type_errors.gt(I32.from_i64(0)) {
+        panic(format("{} type error(s) found", type_errors))
+    }
+
+    run_tests := command.eq("test")
+        .or(til_mode_eq(cur_mode, til_mode_test()))
+        .or(til_mode_eq(cur_mode, til_mode_pure()))
+        .or(til_mode_eq(cur_mode, til_mode_pura()))
+
+    til_precomp(ast)
+
+    // Skip scavenging for lib/pure translate/build
+    is_lib_target := til_mode_is_lib_output(cur_mode)
+        .and(command.eq("translate").or(command.eq("build")))
+    if is_lib_target.not() {
+        til_scavenge(ast, cur_mode, run_tests)
+    }
+
+    mut result := I32.from_i64(0)
+
+    // Use link_c() paths as user .c files
+    mut user_c := ""
+    if link_c_paths.len().gt(0) {
+        user_c = link_c_paths
+    }
+
+    // Append -l flags from CLI args (args[2..])
+    mut user_argv := Vec.new("Str", Str.size())
+    mut ai := 2
+    while ai.lt(args.len()) {
+        arg := args.get(ai)
+        if arg.starts_with("-l") {
+            lib := arg.substr(2, arg.len())
+            if lib.len().eq(0).and(ai.add(1).lt(args.len())) {
+                ai = ai.add(1)
+                lib = args.get(ai)
+            }
+            link_flags = link_flags.concat(" -l").concat(lib)
+        } else {
+            user_argv.push(arg)
+        }
+        ai = ai.add(1)
+    }
+
+    mut lflags := ""
+    if link_flags.len().gt(0) {
+        lflags = link_flags
+    }
+
+    is_lib_mode := til_mode_is_lib(cur_mode)
+
+    if command.eq("interpret").or(command.eq("test")) {
+        if is_lib_mode.and(command.eq("interpret")) {
+            panic("cannot interpret a library — use translate or build")
+        }
+        result = til_interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
+                               U32.from_i64(user_argv.len()), null)
+    } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
+        if is_lib_mode.and(command.eq("run")) {
+            panic("cannot run a library — use translate or build")
+        }
+
+        // Derive output paths from input
+        mut basename := path
+        mut slash_pos := path.len().sub(1)
+        while slash_pos.gt(0) {
+            if path.get(slash_pos).eq('/') {
+                basename = path.substr(slash_pos.add(1), path.len())
+                slash_pos = 0
+            }
+            slash_pos = slash_pos.sub(1)
+        }
+
+        // Strip .til extension
+        mut name_len := basename.len()
+        if basename.ends_with(".til") {
+            name_len = name_len.sub(4)
+        }
+        name := basename.substr(0, name_len)
+
+        c_path := format("gen/c/{}.c", name)
+        bin_path := format("bin/c/{}", name)
+
+        do_lib := til_mode_is_lib_output(cur_mode).and(command.eq("run").not())
+
+        if do_lib {
+            til_system("mkdir -p gen/c gen/til gen/lib")
+        } else {
+            til_system("mkdir -p gen/c bin/c")
+        }
+
+        result = til_build(ast, cur_mode, run_tests, path, c_path)
+
+        // For lib/pure: generate .h header and .til binding
+        if result.eq(I32.from_i64(0)).and(do_lib) {
+            h_path := format("gen/c/{}.h", name)
+            til_path := format("gen/til/{}.til", name)
+            result = til_build_header(ast, h_path)
+            if result.eq(I32.from_i64(0)) {
+                result = til_build_til_binding(ast, til_path, name)
+            }
+            if result.eq(I32.from_i64(0)).and(command.eq("translate")) {
+                println(format("Generated: {}", c_path))
+                println(format("Generated: {}", h_path))
+                println(format("Generated: {}", til_path))
+            }
+            if result.eq(I32.from_i64(0)).and(command.eq("build")) {
+                result = til_compile_lib(c_path, name, ext_c_path, user_c, lflags)
+                if result.eq(I32.from_i64(0)) {
+                    println(format("Generated: {}", c_path))
+                    println(format("Generated: {}", h_path))
+                    println(format("Generated: {}", til_path))
+                    println(format("Generated: gen/lib/lib{}.so", name))
+                    println(format("Generated: gen/lib/lib{}.a", name))
+                }
+            }
+        }
+
+        if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("translate")) {
+            println(format("Generated: {}", c_path))
+        }
+        if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("translate").not()) {
+            result = til_compile_c(c_path, bin_path, ext_c_path, user_c, lflags)
+        }
+        if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("run")) {
+            // Build command with user args
+            mut cmd := bin_path
+            mut ui := 0
+            while ui.lt(user_argv.len()) {
+                ref uarg : Str = user_argv.get(ui)
+                cmd = cmd.concat(" '").concat(uarg).concat("'")
+                ui = ui.add(1)
+            }
+            result = til_system(cmd)
+        }
+    } else if command.eq("ast") {
+        if cur_mode.eq(til_mode_none()).not() {
+            println(format("mode: {}", til_mode_name(cur_mode)))
+        } else {
+            println("mode: (none)")
+        }
+        til_ast_print(ast, U32.from_i64(0))
+    } else {
+        println(format("error: unknown command '{}'", command))
+        usage()
+        result = I32.from_i64(1)
+    }
+
+    til_expr_free(ast)
+}

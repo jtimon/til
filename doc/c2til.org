@@ -562,7 +562,8 @@ File modes set at the top:
 | ~(U8)x~              | ~U8.from_i64(x)~ (with range check)   |
 | ~(I32)x~             | ~I32.from_i64(x)~                     |
 | ~(void *)p~          | Dynamic type                          |
-| ~(Type *)void_ptr~   | ~ref val : Type = vec.get(i)~         |
+| ~(const Type *)ptr~  | ~ref val : Type = vec.get(i)~         |
+| ~(Type *)ptr~        | ~ref mut val : Type = vec.get(i)~     |
 
 ** Future Work: Str Growth
 
