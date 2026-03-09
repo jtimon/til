@@ -65,6 +65,7 @@ namespace:
     eq := ext_func(shallow a: I16, shallow b: I16) returns shallow Bool {}
     cmp := ext_func(shallow a: I16, shallow b: I16) returns shallow I64 {}
     neg := func(a: I16) returns I16 { return I16.from_i64(0.sub(a.to_i64())) }
+    abs := func(a: I16) returns I16 { if a.to_i64().lt(0) { return I16.from_i64(0.sub(a.to_i64())) } return a }
     and := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     or := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     xor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
@@ -96,6 +97,7 @@ namespace:
     eq := ext_func(shallow a: I32, shallow b: I32) returns shallow Bool {}
     cmp := ext_func(shallow a: I32, shallow b: I32) returns shallow I64 {}
     neg := func(a: I32) returns I32 { return I32.from_i64(0.sub(a.to_i64())) }
+    abs := func(a: I32) returns I32 { if a.to_i64().lt(0) { return I32.from_i64(0.sub(a.to_i64())) } return a }
     and := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     or := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     xor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
@@ -198,6 +200,7 @@ namespace:
     eq := ext_func(shallow a: I64, shallow b: I64) returns shallow Bool {}
     cmp := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     neg := func(a: I64) returns I64 { return 0.sub(a) }
+    abs := func(a: I64) returns I64 { if a.lt(0) { return 0.sub(a) } return a }
     and := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     or := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     xor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}

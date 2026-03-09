@@ -49,7 +49,7 @@ main := proc() {
 
     // Mode intervals (7 modes x 7 steps = 49), brightest to darkest
     // Lidio, Jonico, Mixolidio, Dorico, Eolico, Frigio, Locrio
-    mut intervals := array("I64",
+    intervals := array("I64",
         2, 2, 2, 1, 2, 2, 1,
         2, 2, 1, 2, 2, 2, 1,
         2, 2, 1, 2, 2, 1, 2,
@@ -60,10 +60,14 @@ main := proc() {
     )
 
     // Diatonic to chromatic natural mapping: do=0 re=2 mi=4 fa=5 sol=7 la=9 si=11
-    mut naturals := array("I64", 0, 2, 4, 5, 7, 9, 11)
+    naturals := array("I64", 0, 2, 4, 5, 7, 9, 11)
+
+    // Note name lookup arrays
+    names_sol := array("Str", "do", "re", "mi", "fa", "sol", "la", "si")
+    names_ame := array("Str", "C", "D", "E", "F", "G", "A", "B")
 
     // Frequencies for chromatic notes C4..B4
-    mut freqs := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+    freqs := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
 
     // Scale result arrays (8 notes: 7 degrees + octave)
     mut sc_chrom := Array.new("I64", 8, 8)
@@ -84,6 +88,8 @@ main := proc() {
     mut playing := false
     mut play_idx := 0
     mut play_timer := 0
+    mut clicked_note := 0.sub(1)
+    mut clicked_timer := 0
 
     while window_should_close().not() {
         dt := get_frame_time()
@@ -142,13 +148,32 @@ main := proc() {
                     }
                 }
             }
+
+            // Click on pentagram notes
+            mut ci := 0
+            while ci.lt(8) {
+                ref cd : I64 = sc_diat.get(ci)
+                ref co : I64 = sc_oct.get(ci)
+                cnx := NOTE_X0.add(ci.mul(NOTE_DX))
+                cny := STAFF_BASE_Y.sub(cd.sub(2).add(co.mul(7)).mul(STAFF_SP))
+                hit := NOTE_R.mul(3)
+                if mx.sub(cnx).abs().lt(hit).and(my.sub(cny).abs().lt(hit)) {
+                    ref cf : I64 = sc_freq.get(ci)
+                    if cf.gt(0) {
+                        play_tone(cf, 250)
+                        clicked_note = ci
+                        clicked_timer = 300
+                    }
+                }
+                ci = ci.add(1)
+            }
         }
 
         // Recompute scale
         if need_recompute {
             need_recompute = false
             ref nat_c : I64 = naturals.get(sel_diatonic)
-            mut root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
+            root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
             mut chrom_pos := root_chromatic
             mut diat_pos := sel_diatonic
             mut octave := 0
@@ -196,8 +221,8 @@ main := proc() {
                 ref root_c : I64 = sc_chrom.get(ti)
                 ref third_c : I64 = sc_chrom.get(ti.add(2).mod(7))
                 ref fifth_c : I64 = sc_chrom.get(ti.add(4).mod(7))
-                mut i3 := third_c.sub(root_c).add(12).mod(12)
-                mut i5 := fifth_c.sub(root_c).add(12).mod(12)
+                i3 := third_c.sub(root_c).add(12).mod(12)
+                i5 := fifth_c.sub(root_c).add(12).mod(12)
                 mut triad_type := 0
                 if i3.eq(4).and(i5.eq(7)) { triad_type = 0 }
                 if i3.eq(3).and(i5.eq(7)) { triad_type = 1 }
@@ -205,6 +230,14 @@ main := proc() {
                 if i3.eq(4).and(i5.eq(8)) { triad_type = 3 }
                 sc_triad.set(ti, own triad_type)
                 ti = ti.add(1)
+            }
+        }
+
+        // Clicked note highlight timer
+        if clicked_note.gte(0) {
+            clicked_timer = clicked_timer.sub(dt)
+            if clicked_timer.lte(0) {
+                clicked_note = 0.sub(1)
             }
         }
 
@@ -255,21 +288,11 @@ main := proc() {
                 // Label
                 mut label := ""
                 if sel_notation.eq(0) {
-                    if col.eq(0) { label = "do" }
-                    if col.eq(1) { label = "re" }
-                    if col.eq(2) { label = "mi" }
-                    if col.eq(3) { label = "fa" }
-                    if col.eq(4) { label = "sol" }
-                    if col.eq(5) { label = "la" }
-                    if col.eq(6) { label = "si" }
+                    ref ns : Str = names_sol.get(col)
+                    label = ns
                 } else {
-                    if col.eq(0) { label = "C" }
-                    if col.eq(1) { label = "D" }
-                    if col.eq(2) { label = "E" }
-                    if col.eq(3) { label = "F" }
-                    if col.eq(4) { label = "G" }
-                    if col.eq(5) { label = "A" }
-                    if col.eq(6) { label = "B" }
+                    ref na : Str = names_ame.get(col)
+                    label = na
                 }
                 if row.eq(0) { label = label.concat("b") }
                 if row.eq(2) { label = label.concat("#") }
@@ -394,24 +417,14 @@ main := proc() {
         while ri.lt(9) {
             ry := STAFF_BASE_Y.sub(ri.mul(STAFF_SP))
             // Map staff position to diatonic index
-            mut rd := ri.add(2).mod(7)
+            rd := ri.add(2).mod(7)
             mut rn := ""
             if sel_notation.eq(0) {
-                if rd.eq(0) { rn = "do" }
-                if rd.eq(1) { rn = "re" }
-                if rd.eq(2) { rn = "mi" }
-                if rd.eq(3) { rn = "fa" }
-                if rd.eq(4) { rn = "sol" }
-                if rd.eq(5) { rn = "la" }
-                if rd.eq(6) { rn = "si" }
+                ref rs : Str = names_sol.get(rd)
+                rn = rs
             } else {
-                if rd.eq(0) { rn = "C" }
-                if rd.eq(1) { rn = "D" }
-                if rd.eq(2) { rn = "E" }
-                if rd.eq(3) { rn = "F" }
-                if rd.eq(4) { rn = "G" }
-                if rd.eq(5) { rn = "A" }
-                if rd.eq(6) { rn = "B" }
+                ref ra : Str = names_ame.get(rd)
+                rn = ra
             }
             // Left side label
             draw_text(rn, STAFF_X.sub(MARGIN.mul(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 80, 80, 80, 255)
@@ -467,6 +480,11 @@ main := proc() {
                 ncg = 255
                 ncb = 0
             }
+            if clicked_note.eq(dni) {
+                ncr = 0
+                ncg = 255
+                ncb = 0
+            }
 
             draw_circle(dnx, dny, NOTE_R, ncr, ncg, ncb, 255)
 
@@ -489,21 +507,11 @@ main := proc() {
             ref nnd : I64 = sc_diat.get(dni)
             mut nn := ""
             if sel_notation.eq(0) {
-                if nnd.eq(0) { nn = "do" }
-                if nnd.eq(1) { nn = "re" }
-                if nnd.eq(2) { nn = "mi" }
-                if nnd.eq(3) { nn = "fa" }
-                if nnd.eq(4) { nn = "sol" }
-                if nnd.eq(5) { nn = "la" }
-                if nnd.eq(6) { nn = "si" }
+                ref nns : Str = names_sol.get(nnd)
+                nn = nns
             } else {
-                if nnd.eq(0) { nn = "C" }
-                if nnd.eq(1) { nn = "D" }
-                if nnd.eq(2) { nn = "E" }
-                if nnd.eq(3) { nn = "F" }
-                if nnd.eq(4) { nn = "G" }
-                if nnd.eq(5) { nn = "A" }
-                if nnd.eq(6) { nn = "B" }
+                ref nna2 : Str = names_ame.get(nnd)
+                nn = nna2
             }
             ref nna : I64 = sc_acc.get(dni)
             if nna.eq(1) { nn = nn.concat("#") }
