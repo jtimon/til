@@ -377,7 +377,7 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         if (is_shallow_param(e->type.str_val->c_str)) {
             emit_expr(f, e, depth); // shallow param is already a value
         } else {
-            fprintf(f, "(*");
+            fprintf(f, "DEREF(");
             emit_expr(f, e, depth);
             fprintf(f, ")");
         }
@@ -1299,6 +1299,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             fprintf(f, "};\n\n");
         }
     }
+
+    // Runtime NULL check for shallow deref
+    fprintf(f, "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n");
 
     // String helper functions (after all struct typedefs so Str is complete)
     fprintf(f, "__attribute__((unused))\n");

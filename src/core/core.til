@@ -282,6 +282,7 @@ format := func(parts: ..Str) returns Str {
 }
 exit := ext_func(shallow code: I64) {}
 free := ext_func(own elem: Dynamic) {}
+is_null := ext_func(p: Dynamic) returns Bool {}
 malloc := ext_func(shallow count: I64) returns Dynamic {}
 calloc := ext_func(shallow nmemb: I64, shallow size: I64) returns Dynamic {}
 realloc := ext_func(own buf: Dynamic, shallow count: I64) returns Dynamic {}

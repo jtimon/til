@@ -13,7 +13,7 @@ Wave := ext_struct {
     mut sampleRate := U32.from_i64(0)
     mut sampleSize := U32.from_i64(0)
     mut channels := U32.from_i64(0)
-    ref data : U8 = null
+    ref data : U8 = NULL
     namespace:
     delete := proc(own self: Wave, call_free: Bool = true) {}
 }

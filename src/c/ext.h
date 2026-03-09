@@ -174,6 +174,7 @@ void Bool_delete(Bool *v, Bool *call_free);
 
 // Pointer primitives (custom, not in libc)
 void *ptr_add(void *buf, I64 offset);
+Bool *is_null(void *p);
 
 // CLI arg parsing
 I64 *cli_parse_i64(const char *s);

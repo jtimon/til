@@ -209,3 +209,6 @@ Bool *Bool_new(Bool val) {
 
 Bool *Bool_clone(Bool *v) { return Bool_new(*v); }
 void Bool_delete(Bool *v, Bool *call_free) { if (*call_free) free(v); }
+
+// Pointer primitives
+Bool *is_null(void *p) { return Bool_new(p == NULL); }

@@ -452,24 +452,26 @@ test_switch_payload_with_default := test() {
     assert_eq_str(__LOC__, result, "other")
 }
 
-// --- null literal + ref struct fields ---
+// --- NULL literal + ref struct fields ---
 
 test_null_ref_local := test() {
-    // ref local can be null
-    ref x : I64 = null
+    // ref local can be NULL
+    ref x : I64 = NULL
+    accept_null(x)
 }
 
 accept_null := proc(x: I64) {
-    // borrowed param can receive null — no crash if unused
+    // borrowed param can receive NULL
+    assert(__LOC__, is_null(x))
 }
 
 test_null_borrowed_arg := test() {
-    accept_null(null)
+    accept_null(NULL)
 }
 
 RefNode := struct {
     value := 0
-    ref mut next : RefNode = null
+    ref mut next : RefNode = NULL
 }
 
 test_ref_struct_field := test() {

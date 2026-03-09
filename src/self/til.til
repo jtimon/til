@@ -199,7 +199,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Validate imported file cur_mode
         if sub_mode_str.len().gt(0) {
             sm := til_mode_resolve(sub_mode_str)
-            if sm.eq(null).or(
+            if sm.eq(NULL).or(
                 til_mode_eq(sm, til_mode_lib()).not()
                 .and(til_mode_eq(sm, til_mode_liba()).not())
                 .and(til_mode_eq(sm, til_mode_pure()).not())
@@ -453,7 +453,7 @@ main := proc(args: ..Str) {
     expr_vec_free(kept)
 
     // Init phase: pre-scan declarations
-    scope := tscope_new(null)
+    scope := tscope_new(NULL)
     til_init_declarations(ast, scope)
 
     // Type checking
@@ -515,7 +515,7 @@ main := proc(args: ..Str) {
             panic("cannot interpret a library — use translate or build")
         }
         result = til_interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
-                               U32.from_i64(user_argv.len()), null)
+                               U32.from_i64(user_argv.len()), NULL)
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
         if is_lib_mode.and(command.eq("run")) {
             panic("cannot run a library — use translate or build")

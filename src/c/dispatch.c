@@ -696,6 +696,23 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         arg_ptrs[i] = v.instance->data;
                         continue;
                     }
+                    // Check for NULL before shallow dereference
+                    void *shallow_ptr = NULL;
+                    switch (v.type) {
+                        case VAL_I64:  shallow_ptr = v.i64; break;
+                        case VAL_U8:   shallow_ptr = v.u8; break;
+                        case VAL_I16:  shallow_ptr = v.i16; break;
+                        case VAL_I32:  shallow_ptr = v.i32; break;
+                        case VAL_U32:  shallow_ptr = v.u32; break;
+                        case VAL_F32:  shallow_ptr = v.f32; break;
+                        case VAL_BOOL: shallow_ptr = v.boolean; break;
+                        case VAL_PTR:  shallow_ptr = v.ptr; break;
+                        default:       shallow_ptr = v.ptr; break;
+                    }
+                    if (!shallow_ptr) {
+                        fprintf(stderr, "panic: null deref\n");
+                        exit(1);
+                    }
                     switch (v.type) {
                         case VAL_I64:  *(I64 *)&args[i] = *v.i64; break;
                         case VAL_U8:   *(U8 *)&args[i] = *v.u8; break;

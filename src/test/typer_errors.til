@@ -201,13 +201,13 @@ NoLen := struct {
 }
 for x in NoLen() { }
 
-// null: cannot assign to non-ref declaration
-nonnull_local : I64 = null
+// NULL: cannot assign to non-ref declaration
+nonnull_local : I64 = NULL
 
-// null: cannot pass to 'own' parameter
+// NULL: cannot pass to 'own' parameter
 take_own := proc(own x: I64) {}
-take_own(own null)
+take_own(own NULL)
 
-// null: cannot pass to 'shallow' parameter
+// NULL: cannot pass to 'shallow' parameter
 take_shallow := proc(shallow x: I64) {}
-take_shallow(null)
+take_shallow(NULL)

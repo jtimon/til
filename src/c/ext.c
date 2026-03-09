@@ -200,6 +200,7 @@ void Bool_delete(Bool *v, Bool *call_free) { if (*call_free) free(v); }
 void *ptr_add(void *buf, I64 offset) {
     return (char *)buf + offset;
 }
+Bool *is_null(void *p) { return new_bool(p == NULL); }
 
 // CLI arg parsing
 I64 *cli_parse_i64(const char *s) {
