@@ -382,7 +382,7 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
             fprintf(f, ")");
         }
     } else if (e->type.tag == NODE_LITERAL_STR) {
-        fprintf(f, "(Str){.data=(U8*)\"%s\", .count=%lld, .cap=TIL_CAP_LIT}",
+        fprintf(f, "(Str){.c_str=(U8*)\"%s\", .count=%lld, .cap=TIL_CAP_LIT}",
                 e->type.str_val->c_str, (long long)e->type.str_val->count);
     } else if (e->type.tag == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
         // Auto-called constructor returns pointer; dereference it
@@ -1303,14 +1303,14 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
     fprintf(f, "#define TIL_CAP_LIT (-1LL)\n");
     fprintf(f, "static Str *Str_lit(const char *s, long long len) {\n");
     fprintf(f, "    Str *r = malloc(sizeof(Str));\n");
-    fprintf(f, "    r->data = (U8 *)s;\n");
+    fprintf(f, "    r->c_str = (U8 *)s;\n");
     fprintf(f, "    r->count = len;\n");
     fprintf(f, "    r->cap = TIL_CAP_LIT;\n");
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
     fprintf(f, "static void print_single(Str *s) {\n");
-    fprintf(f, "    fwrite(s->data, 1, (size_t)s->count, stdout);\n");
+    fprintf(f, "    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n");
     fprintf(f, "}\n");
     fprintf(f, "__attribute__((unused))\n");
     fprintf(f, "static void print_flush() {\n");
@@ -1400,17 +1400,17 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                 }
                 if (info->nargs == 2) {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(%s, %s);\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) return (void *)%s_%s(%s, %s);\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(%s, %s); return; }\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s_%s(%s, %s); return; }\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                 } else {
                     if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) return (void *)%s_%s(%s);\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) return (void *)%s_%s(%s);\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { %s_%s(%s); return; }\n",
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s_%s(%s); return; }\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1);
                 }
             }
@@ -1446,7 +1446,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
                     }
                 }
                 if (!found) continue;
-                fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->data, \"%s\", %lld) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n",
+                fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n",
                         (long long)tname->count, tname->c_str, (long long)tname->count);
             }
             fprintf(f, "    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n");

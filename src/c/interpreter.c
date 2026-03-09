@@ -219,7 +219,7 @@ Value make_str_value(const char *data, I64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
-    inst->data = malloc(24); // Str = {U8 *data, I64 count, I64 cap}
+    inst->data = malloc(24); // Str = {U8 *c_str, I64 count, I64 cap}
     inst->borrowed = 0;
     *(char **)inst->data = strndup(data, len);
     *(I64 *)((char *)inst->data + 8) = len;

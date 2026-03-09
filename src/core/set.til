@@ -1,3 +1,5 @@
+mode lib
+
 Set := struct {
     own mut data : U8 = 0
     mut count := 0
@@ -5,7 +7,7 @@ Set := struct {
     elem_size := 0
     elem_type := ""
 
-    namespace:
+namespace:
     new := func(elem_type: Str, elem_size: I64) returns Set {
         if dyn_has_method(elem_type, "cmp").not() {
             panic("Set.new", "type ", elem_type, " must implement cmp")

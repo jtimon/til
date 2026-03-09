@@ -4,7 +4,7 @@
 #include "aliases.h"
 
 typedef struct Str {
-    U8 *data;
+    U8 *c_str;
     I64 count;
     I64 cap;
 } Str;

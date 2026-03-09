@@ -1,19 +1,21 @@
+mode lib
+
 CAP_LIT := 0.sub(1)
 CAP_VIEW := 0.sub(2)
 
 Str := struct {
-    own mut data : U8 = 0
-    mut count := 0
-    mut cap := 0
+    own mut c_str : U8 = 0
+    mut count : I64 = 0
+    mut cap : I64 = 0
 
-    namespace:
+namespace:
     len := func(self: Str) returns I64 { return self.count }
 
     get := func(self: Str, i: I64) returns ref U8 {
         if i.lt(0).or(i.gte(self.count)) {
             panic("Str.get", "index out of bounds")
         }
-        return ptr_add(self.data, i)
+        return ptr_add(self.c_str, i)
     }
 
     cmp := func(a: Str, b: Str) returns I64 {
@@ -33,16 +35,16 @@ Str := struct {
     concat := func(a: Str, b: Str) returns Str {
         new_len := a.count.add(b.count)
         own new_data : U8 = malloc(new_len.add(1))
-        memcpy(new_data, a.data, a.count)
-        memcpy(ptr_add(new_data, a.count), b.data, b.count)
+        memcpy(new_data, a.c_str, a.count)
+        memcpy(ptr_add(new_data, a.count), b.c_str, b.count)
         memcpy(ptr_add(new_data, new_len), U8.from_i64(0), 1)
-        return Str(data = new_data, count = new_len, cap = new_len)
+        return Str(c_str = new_data, count = new_len, cap = new_len)
     }
 
     with_capacity := func(n: I64) returns Str {
         own buf : U8 = malloc(n.add(1))
         memcpy(buf, U8.from_i64(0), 1)
-        return Str(data = buf, count = 0, cap = n)
+        return Str(c_str = buf, count = 0, cap = n)
     }
 
     push_str := proc(mut self: Str, s: Str) {
@@ -53,20 +55,20 @@ Str := struct {
         if new_len.gt(self.cap) {
             panic("Str.push_str", "capacity exceeded")
         }
-        memcpy(ptr_add(self.data, self.count), s.data, s.count)
+        memcpy(ptr_add(self.c_str, self.count), s.c_str, s.count)
         self.count = new_len
-        memcpy(ptr_add(self.data, new_len), U8.from_i64(0), 1)
+        memcpy(ptr_add(self.c_str, new_len), U8.from_i64(0), 1)
     }
 
     clone := func(val: Str) returns Str {
         own new_data : U8 = malloc(val.count.add(1))
-        memcpy(new_data, val.data, val.count)
+        memcpy(new_data, val.c_str, val.count)
         memcpy(ptr_add(new_data, val.count), U8.from_i64(0), 1)
-        return Str(data = new_data, count = val.count, cap = val.count)
+        return Str(c_str = new_data, count = val.count, cap = val.count)
     }
 
     delete := proc(own self: Str, call_free: Bool = true) {
-        if self.cap.gte(0) { free(own self.data) }
+        if self.cap.gte(0) { free(own self.c_str) }
         if call_free { free(own self) }
     }
 
@@ -79,7 +81,7 @@ Str := struct {
         if st.gt(s.count) { st = s.count }
         if ln.lt(0) { ln = 0 }
         if st.add(ln).gt(s.count) { ln = s.count.sub(st) }
-        return Str(data = ptr_add(s.data, st), count = ln, cap = CAP_VIEW)
+        return Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
     }
 
     contains := func(a: Str, b: Str) returns Bool {
@@ -212,7 +214,7 @@ Str := struct {
         own buf : U8 = malloc(2)
         memcpy(buf, byte, 1)
         memcpy(ptr_add(buf, 1), U8.from_i64(0), 1)
-        return Str(data = buf, count = 1, cap = 1)
+        return Str(c_str = buf, count = 1, cap = 1)
     }
 
     to_i64 := func(self: Str) returns I64 {

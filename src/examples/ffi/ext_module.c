@@ -11,9 +11,9 @@ Str *greet(Str *name) {
     Str *result = malloc(sizeof(Str));
     result->count = hello_len + name->count;
     result->cap = result->count;
-    result->data = malloc(result->count);
-    memcpy(result->data, hello, hello_len);
-    memcpy(result->data + hello_len, name->data, name->count);
+    result->c_str = malloc(result->count);
+    memcpy(result->c_str, hello, hello_len);
+    memcpy(result->c_str + hello_len, name->c_str, name->count);
     return result;
 }
 
@@ -21,7 +21,7 @@ void greet_print(Str *name) {
     const char *hello = "hello ";
     int hello_len = 6;
     fwrite(hello, 1, hello_len, stdout);
-    fwrite(name->data, 1, name->count, stdout);
+    fwrite(name->c_str, 1, name->count, stdout);
     putchar('\n');
 }
 

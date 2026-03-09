@@ -1,3 +1,5 @@
+mode lib
+
 Map := struct {
     own mut key_data : U8 = 0
     own mut val_data : U8 = 0
@@ -8,7 +10,7 @@ Map := struct {
     val_size := 0
     val_type := ""
 
-    namespace:
+namespace:
     new := func(key_type: Str, key_size: I64, val_type: Str, val_size: I64) returns Map {
         if dyn_has_method(key_type, "cmp").not() {
             panic("Map.new", "type ", key_type, " must implement cmp")

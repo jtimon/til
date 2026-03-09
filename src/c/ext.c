@@ -152,7 +152,7 @@ Str *F32_to_str(F32 v) {
     U8 *data = malloc(len);
     memcpy(data, buf, len);
     Str *s = malloc(sizeof(Str));
-    s->data = data;
+    s->c_str = data;
     s->count = len;
     s->cap = len;
     return s;
@@ -237,12 +237,11 @@ Bool *cli_parse_bool(const char *s) {
 }
 
 // --- System primitives ---
-// These use Str (codegen layout: { U8 *data, I64 count, I64 cap }) rather than
-// the compiler-internal Str ({ char *c_str, I64 count, I64 cap }).
+// These use the codegen Str layout: { U8 *c_str, I64 count, I64 cap }.
 // For the interpreter, dispatch.c has its own handlers using the compiler Str directly.
 
 Str *readfile(Str *path) {
-    char *p = strndup((char *)path->data, path->count);
+    char *p = strndup((char *)path->c_str, path->count);
     FILE *f = fopen(p, "rb");
     if (!f) {
         fprintf(stderr, "readfile: could not open '%s'\n", p);
@@ -257,14 +256,14 @@ Str *readfile(Str *path) {
     fread(buf, 1, len, f);
     fclose(f);
     Str *s = malloc(sizeof(Str));
-    s->data = (U8 *)buf;
+    s->c_str = (U8 *)buf;
     s->count = len;
     s->cap = len;
     return s;
 }
 
 void writefile(Str *path, Str *content) {
-    char *p = strndup((char *)path->data, path->count);
+    char *p = strndup((char *)path->c_str, path->count);
     FILE *f = fopen(p, "wb");
     if (!f) {
         fprintf(stderr, "writefile: could not open '%s'\n", p);
@@ -272,12 +271,12 @@ void writefile(Str *path, Str *content) {
         exit(1);
     }
     free(p);
-    fwrite(content->data, 1, content->count, f);
+    fwrite(content->c_str, 1, content->count, f);
     fclose(f);
 }
 
 I64 *spawn_cmd(Str *cmd) {
-    char *c = strndup((char *)cmd->data, cmd->count);
+    char *c = strndup((char *)cmd->c_str, cmd->count);
     pid_t pid = fork();
     if (pid == 0) {
         execl("/bin/sh", "sh", "-c", c, NULL);
@@ -304,7 +303,7 @@ void sleep_ms(I64 ms) {
 }
 
 I64 *file_mtime(Str *path) {
-    char *p = strndup((char *)path->data, path->count);
+    char *p = strndup((char *)path->c_str, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);

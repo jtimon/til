@@ -1,7 +1,16 @@
+mode lib
+
+import("array.til")
+import("map.til")
+import("set.til")
+import("str.til")
+import("vec.til")
+
 // builtin types (empty structs for future namespace support)
 StructDef : StructDef = struct {}
 FunctionDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
+
 U8 : StructDef = ext_struct {
     namespace:
     to_i64 := ext_func(shallow val: U8) returns I64 {}
@@ -145,7 +154,7 @@ I64 : StructDef = ext_struct {
             own buf : U8 = malloc(2)
             memcpy(buf, U8.from_i64(48), 1)
             memcpy(ptr_add(buf, 1), U8.from_i64(0), 1)
-            return Str(data = buf, count = 1, cap = 1)
+            return Str(c_str = buf, count = 1, cap = 1)
         }
         mut is_neg := false
         mut v := val
@@ -172,7 +181,7 @@ I64 : StructDef = ext_struct {
             i = i.sub(1)
         }
         memcpy(ptr_add(buf, total), U8.from_i64(0), 1)
-        return Str(data = buf, count = total, cap = total)
+        return Str(c_str = buf, count = total, cap = total)
     }
     add := ext_func(shallow a: I64, shallow b: I64) returns I64 {}
     sub := ext_func(shallow a: I64, shallow b: I64) returns I64 {}
@@ -191,7 +200,7 @@ I64 : StructDef = ext_struct {
     delete := ext_proc(own self: I64, call_free: Bool = true) {}
     size := func() returns I64 { return 8 }
 }
-import("str.til")
+
 Range := struct {
     start := 0
     end := 0
@@ -221,6 +230,7 @@ Range := struct {
         if call_free { free(own self) }
     }
 }
+
 Bool : StructDef = ext_struct {
     namespace:
     to_str := func(b: Bool) returns Str {
@@ -265,10 +275,10 @@ format := func(parts: ..Str) returns Str {
     own buf : U8 = malloc(total)
     mut offset := 0
     for s : Str in parts {
-        memcpy(ptr_add(buf, offset), s.data, s.len())
+        memcpy(ptr_add(buf, offset), s.c_str, s.len())
         offset = offset.add(s.len())
     }
-    return Str(data = buf, count = total, cap = total)
+    return Str(c_str = buf, count = total, cap = total)
 }
 exit := ext_func(shallow code: I64) {}
 free := ext_func(own elem: Dynamic) {}
@@ -325,14 +335,6 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     free(own content)
     return ec
 }
-
-import("vec.til")
-
-import("array.til")
-
-import("set.til")
-
-import("map.til")
 
 panic := proc(loc_str: Str, parts: ..Str) {
     println(loc_str, ": panic: ", format(..parts))
