@@ -1403,15 +1403,24 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                     else
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
                 }
+                bool ret_shallow = method_fdef->type.func_def.return_is_shallow;
+                const char *ret_ctype = (info->returns && ret_shallow && method_fdef->type.func_def.return_type)
+                    ? type_name_to_c_value(method_fdef->type.func_def.return_type) : NULL;
                 if (info->nargs == 2) {
-                    if (info->returns)
+                    if (info->returns && ret_shallow)
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s, %s); return _r; }\n",
+                                (long long)tname->count, tname->c_str, (long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1, arg2_str);
+                    else if (info->returns)
                         fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) return (void *)%s_%s(%s, %s);\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                     else
                         fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s_%s(%s, %s); return; }\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                 } else {
-                    if (info->returns)
+                    if (info->returns && ret_shallow)
+                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s); return _r; }\n",
+                                (long long)tname->count, tname->c_str, (long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1);
+                    else if (info->returns)
                         fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) return (void *)%s_%s(%s);\n",
                                 (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1);
                     else
