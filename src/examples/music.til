@@ -228,12 +228,9 @@ main := proc() {
             mut prev_diat := sel_diatonic
 
             for k in 0..8 {
-                cp := chrom_pos
-                dp := diat_pos
-                oc := octave
-                sc_chrom.set(k, own cp)
-                sc_diat.set(k, own dp)
-                sc_oct.set(k, own oc)
+                sc_chrom.set(k, own chrom_pos.clone())
+                sc_diat.set(k, own diat_pos.clone())
+                sc_oct.set(k, own octave.clone())
 
                 // Compute accidental
                 ref nat_ref : I64 = NATURALS.get(diat_pos)
@@ -251,8 +248,7 @@ main := proc() {
                 // Next note
                 if k.lt(7) {
                     ref step : I64 = INTERVALS.get(sel_mode.mul(7).add(k))
-                    step_val := step
-                    chrom_pos = chrom_pos.add(step_val).mod(12)
+                    chrom_pos = chrom_pos.add(step).mod(12)
                     prev_diat = diat_pos
                     diat_pos = diat_pos.add(1).mod(7)
                     if diat_pos.lt(prev_diat) {
