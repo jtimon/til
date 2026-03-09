@@ -114,6 +114,117 @@ start_scale := proc(mut playing: Bool, mut play_idx: I64, mut play_timer: I64) {
     play_timer = 300
 }
 
+draw_note := proc(dni: I64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: Array,
+                   mut sc_triad: Array, playing: Bool, play_idx: I64,
+                   clicked_note: I64, sel_notation: I64) {
+    dnx := NOTE_X0.add(dni.mul(NOTE_DX))
+    ref nd : I64 = sc_diat.get(dni)
+    ref no : I64 = sc_oct.get(dni)
+    staff_pos := nd.sub(2).add(no.mul(7))
+    dny := staff_y(nd, no)
+
+    // Ledger lines
+    if staff_pos.lt(0) {
+        mut lp := 0.sub(2)
+        while lp.gte(staff_pos) {
+            lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
+            draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
+            lp = lp.sub(2)
+        }
+    }
+    if staff_pos.gt(8) {
+        mut lp := 10
+        while lp.lte(staff_pos) {
+            lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
+            draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
+            lp = lp.add(2)
+        }
+    }
+
+    // Note color
+    mut ncr := 255
+    mut ncg := 255
+    mut ncb := 0
+    if playing.and(play_idx.gt(dni)) {
+        ncr = 100
+        ncg = 100
+        ncb = 0
+    }
+    if clicked_note.eq(dni) {
+        ncr = 0
+        ncg = 255
+        ncb = 0
+    }
+
+    draw_circle(dnx, dny, NOTE_R, ncr, ncg, ncb, 255)
+
+    // Accidental text
+    ref na : I64 = sc_acc.get(dni)
+    if na.eq(0).not() {
+        mut aw := NOTE_R
+        if na.abs().eq(2) { aw = NOTE_R.mul(2) }
+        at := acc_text(na)
+        draw_text(at, dnx.sub(FONT.add(aw)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
+    }
+
+    // Note name with inline triad label
+    ref nn_base : Str = note_name(nd, sel_notation)
+    nn_acc := acc_text(na)
+    mut nn := nn_base.concat(nn_acc)
+    if dni.lt(7) {
+        ref trt2 : I64 = sc_triad.get(dni)
+        ref tsuf : Str = TRIAD_SUFFIXES.get(trt2)
+        nn = nn.concat(tsuf)
+    }
+    draw_text(nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 180, 180, 180, 255)
+}
+
+recompute_scale := proc(sel_diatonic: I64, sel_accidental: I64, sel_mode: I64,
+                        mut sc_chrom: Array, mut sc_diat: Array, mut sc_oct: Array,
+                        mut sc_acc: Array, mut sc_freq: Array, mut sc_triad: Array) {
+    ref nat_c : I64 = NATURALS.get(sel_diatonic)
+    root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
+    mut chrom_pos := root_chromatic
+    mut diat_pos := sel_diatonic
+    mut octave := 0
+    mut prev_diat := sel_diatonic
+
+    for k in 0..8 {
+        sc_chrom.set(k, own chrom_pos.clone())
+        sc_diat.set(k, own diat_pos.clone())
+        sc_oct.set(k, own octave.clone())
+
+        // Compute accidental
+        ref nat_ref : I64 = NATURALS.get(diat_pos)
+        mut acc := chrom_pos.sub(nat_ref)
+        if acc.gt(6) { acc = acc.sub(12) }
+        if acc.lt(0.sub(6)) { acc = acc.add(12) }
+        sc_acc.set(k, own acc)
+
+        // Frequency
+        ref f : I64 = FREQS.get(chrom_pos.mod(12))
+        mut freq := f
+        if octave.gt(0) { freq = freq.mul(2) }
+        sc_freq.set(k, own freq)
+
+        // Next note
+        if k.lt(7) {
+            ref step : I64 = INTERVALS.get(sel_mode.mul(7).add(k))
+            chrom_pos = chrom_pos.add(step).mod(12)
+            prev_diat = diat_pos
+            diat_pos = diat_pos.add(1).mod(7)
+            if diat_pos.lt(prev_diat) {
+                octave = octave.add(1)
+            }
+        }
+    }
+
+    // Compute triads for each degree
+    for ti in 0..7 {
+        sc_triad.set(ti, own triad_type(sc_chrom, ti))
+    }
+}
+
 play_note := proc(freq: I64, mut clicked_note: I64, mut clicked_timer: I64, note_idx: I64) {
     if freq.gt(0) {
         play_tone(freq, 250)
@@ -220,47 +331,8 @@ main := proc() {
         // Recompute scale
         if need_recompute {
             need_recompute = false
-            ref nat_c : I64 = NATURALS.get(sel_diatonic)
-            root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
-            mut chrom_pos := root_chromatic
-            mut diat_pos := sel_diatonic
-            mut octave := 0
-            mut prev_diat := sel_diatonic
-
-            for k in 0..8 {
-                sc_chrom.set(k, own chrom_pos.clone())
-                sc_diat.set(k, own diat_pos.clone())
-                sc_oct.set(k, own octave.clone())
-
-                // Compute accidental
-                ref nat_ref : I64 = NATURALS.get(diat_pos)
-                mut acc := chrom_pos.sub(nat_ref)
-                if acc.gt(6) { acc = acc.sub(12) }
-                if acc.lt(0.sub(6)) { acc = acc.add(12) }
-                sc_acc.set(k, own acc)
-
-                // Frequency
-                ref f : I64 = FREQS.get(chrom_pos.mod(12))
-                mut freq := f
-                if octave.gt(0) { freq = freq.mul(2) }
-                sc_freq.set(k, own freq)
-
-                // Next note
-                if k.lt(7) {
-                    ref step : I64 = INTERVALS.get(sel_mode.mul(7).add(k))
-                    chrom_pos = chrom_pos.add(step).mod(12)
-                    prev_diat = diat_pos
-                    diat_pos = diat_pos.add(1).mod(7)
-                    if diat_pos.lt(prev_diat) {
-                        octave = octave.add(1)
-                    }
-                }
-            }
-
-            // Compute triads for each degree
-            for ti in 0..7 {
-                sc_triad.set(ti, own triad_type(sc_chrom, ti))
-            }
+            recompute_scale(sel_diatonic, sel_accidental, sel_mode,
+                            sc_chrom, sc_diat, sc_oct, sc_acc, sc_freq, sc_triad)
         }
 
         // Clicked note highlight timer
@@ -397,68 +469,8 @@ main := proc() {
 
         // Draw notes
         for dni in 0..8 {
-            dnx := NOTE_X0.add(dni.mul(NOTE_DX))
-
-            ref nd : I64 = sc_diat.get(dni)
-            ref no : I64 = sc_oct.get(dni)
-            staff_pos := nd.sub(2).add(no.mul(7))
-            dny := staff_y(nd, no)
-
-            // Ledger lines
-            if staff_pos.lt(0) {
-                mut lp := 0.sub(2)
-                while lp.gte(staff_pos) {
-                    lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
-                    draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
-                    lp = lp.sub(2)
-                }
-            }
-            if staff_pos.gt(8) {
-                mut lp := 10
-                while lp.lte(staff_pos) {
-                    lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
-                    draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
-                    lp = lp.add(2)
-                }
-            }
-
-            // Note color
-            mut ncr := 255
-            mut ncg := 255
-            mut ncb := 0
-            if playing.and(play_idx.gt(dni)) {
-                ncr = 100
-                ncg = 100
-                ncb = 0
-            }
-            if clicked_note.eq(dni) {
-                ncr = 0
-                ncg = 255
-                ncb = 0
-            }
-
-            draw_circle(dnx, dny, NOTE_R, ncr, ncg, ncb, 255)
-
-            // Accidental text
-            ref na : I64 = sc_acc.get(dni)
-            if na.eq(0).not() {
-                mut aw := NOTE_R
-                if na.abs().eq(2) { aw = NOTE_R.mul(2) }
-                at := acc_text(na)
-                draw_text(at, dnx.sub(FONT.add(aw)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
-            }
-
-            // Note name with inline triad label
-            ref nnd : I64 = sc_diat.get(dni)
-            ref nn_base : Str = note_name(nnd, sel_notation)
-            nn_acc := acc_text(na)
-            mut nn := nn_base.concat(nn_acc)
-            if dni.lt(7) {
-                ref trt2 : I64 = sc_triad.get(dni)
-                ref tsuf : Str = TRIAD_SUFFIXES.get(trt2)
-                nn = nn.concat(tsuf)
-            }
-            draw_text(nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 180, 180, 180, 255)
+            draw_note(dni, sc_diat, sc_oct, sc_acc, sc_triad,
+                      playing, play_idx, clicked_note, sel_notation)
         }
 
         // Hint
