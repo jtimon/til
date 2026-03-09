@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 42
+# NEXT_ISSUE: 43
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -31,59 +31,6 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-** WIP #37 Improved mode lib: library compilation and FFI bindings
-  Running interpret or run on a mode lib file fails with an error.
-  translate and build produce library artifacts.
-
-*** DONE Error gating
-   ~interpret~ and ~run~ blocked for mode lib/liba with error message.
-   ~test~ still works. Mode pure/pura not blocked (they auto-run tests).
-
-*** DONE translate (code generation)
-   For mode lib/liba/pure/pura, translate generates three files:
-   - ~gen/c/mylib.c~ — C implementation
-   - ~gen/c/mylib.h~ — C header (structs, enums, function prototypes)
-   - ~gen/til/mylib.til~ — FFI binding (~ext_struct~, ~ext_func~, ~ext_proc~,
-     ~link("mylib")~)
-
-*** DONE build (compilation)
-   Same as translate, plus compiles to:
-   - ~gen/lib/libmylib.so~ — shared library
-   - ~gen/lib/libmylib.a~ — static library
-
-*** DONE Scavenger skip
-   Scavenger skipped for translate/build on lib/pure targets (all
-   declarations are public API). Normal scavenging for test/run and
-   when lib files are imported by other programs.
-
-*** DONE Eliminate dispatch.c wrapper handlers via auto-FFI
-   Removed ~60 handwritten h_* wrapper handlers from dispatch.c that were
-   pure boilerplate: dereference pointer args, call ccore.c function, wrap
-   result back as heap pointer. Now auto-FFI (dlsym + libffi) handles them.
-
-   Approach: changed ccore.c/ext.c functions to take value params (matching
-   ~shallow~ keyword) but return pointers (matching existing FFI return
-   handling). Added ~shallow~ to all primitive type arithmetic/comparison/
-   conversion/inc/dec params in core.til. No AST/parser/typer language
-   changes needed.
-
-   Fixes along the way:
-   - precomp.c: added ffi_init() call so auto-delete calls work during
-     constant folding (precomp's mini interpreter had no FFI)
-   - dispatch.c: handle VAL_PTR args to shallow params by dereferencing
-     based on expected ffi_type (needed for dyn_call dispatch)
-   - builder.c: dyn_call dispatch functions dereference void* args for
-     shallow params (e.g. ~I64_cmp(*(I64 *)val, *(I64 *)arg2)~)
-
-   7 handlers remain (name mismatches and local ext_func not scanned):
-   h_Bool_and/or/not, h_U8/I16/I32/U32_from_i64.
-
-*** TODO install (system-wide)
-   Same as build, plus copies artifacts to system paths:
-   - ~.so~ / ~.a~ → system lib path (e.g. ~/usr/local/lib~)
-   - ~.h~ → system include path (e.g. ~/usr/local/include~)
-   - ~.til~ → til lib path (TBD — e.g. ~~/.til/lib/~ or similar)
-
 
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #2
@@ -103,7 +50,7 @@
   - #8 (variadic): FIXED
   - #16 (imports): FIXED
   - #30 (Vec-in-struct): FIXED
-  - #37 (mode lib): WIP (install TODO)
+  - #37 (mode lib): FIXED
   - #38 (drop til_ prefix): FIXED
   - #23 (shallow FFI): FIXED
 
@@ -152,6 +99,18 @@
 
 
 * Post-self-hosting
+
+** OPEN #42 til install: system-wide library installation
+  ~til install mylib.til~ — build a mode lib/pure file and install
+  artifacts to system paths for use by other programs:
+  - ~.so~ / ~.a~ → system lib path (e.g. ~/usr/local/lib~)
+  - ~.h~ → system include path (e.g. ~/usr/local/include~)
+  - ~.til~ → til lib path (TBD — e.g. ~~/.til/lib/~ or similar)
+
+  Depends on #37 (mode lib) which already produces .c, .h, .til, .so, .a
+  via translate/build. This issue adds the install step that copies those
+  artifacts to system-wide locations so they can be used without path
+  manipulation.
 
 ** OPEN #36 Nested pattern matching in switch
   Depends on #12 (self-hosting) — not worth implementing before self-hosting.

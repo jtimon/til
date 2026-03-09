@@ -1,5 +1,84 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #37 Improved mode lib: library compilation and FFI bindings
+  Mode lib/liba/pure/pura for writing til libraries that produce C-compatible
+  artifacts. Companion .c auto-detection replaced with explicit ~link_c()~
+  directive. Auto-FFI via dlsym eliminates most handwritten dispatch wrappers.
+
+*** Error gating
+   ~interpret~ and ~run~ blocked for mode lib/liba with error message.
+   ~test~ still works. Mode pure/pura not blocked (they auto-run tests).
+
+*** translate (code generation)
+   For mode lib/liba/pure/pura, translate generates three files:
+   - ~gen/c/mylib.c~ — C implementation
+   - ~gen/c/mylib.h~ — C header (structs, enums, function prototypes)
+   - ~gen/til/mylib.til~ — FFI binding (~ext_struct~, ~ext_func~, ~ext_proc~,
+     ~link("mylib")~)
+
+*** build (compilation)
+   Same as translate, plus compiles to:
+   - ~gen/lib/libmylib.so~ — shared library
+   - ~gen/lib/libmylib.a~ — static library
+
+*** Scavenger skip
+   Scavenger skipped for translate/build on lib/pure targets (all
+   declarations are public API). Normal scavenging for test/run and
+   when lib files are imported by other programs.
+
+*** Auto-FFI via dlsym (dispatch.c wrapper elimination)
+   ffi_init scans ext_func/ext_proc declarations, auto-discovers C
+   functions via dlsym(RTLD_DEFAULT). link() directives processed via
+   dlopen for interpreter access.
+
+   Eliminated ~60 handwritten h_* wrapper handlers from dispatch.c.
+   Changed ccore.c/ext.c to value params + pointer returns, added
+   ~shallow~ to all primitive arithmetic/comparison/conversion/inc/dec
+   params in core.til. Auto-FFI (dlsym + libffi) handles them.
+
+   Fixes: precomp ffi_init() for constant folding, VAL_PTR arg
+   dereference for shallow dispatch, builder dyn_call void* casting.
+
+   7 handlers remain (name mismatches): h_Bool_and/or/not,
+   h_U8/I16/I32/U32_from_i64.
+
+*** link_c() directive (replaces companion .c convention)
+   Implicit companion .c auto-detection removed. Users now declare
+   ~link_c("path/to/file.c")~ explicitly, parallel to ~link("libname")~.
+   Path resolved relative to the .til file's directory.
+
+   Commit 0b1ed97: ctil.c resolve_imports no longer searches for foo.c
+   next to foo.til. c_files Vec removed from resolve_imports signature.
+
+*** Shallow struct FFI (by-value struct params/returns)
+   ~shallow~ keyword extended to support struct types in ext_func/ext_proc.
+   Typer allows shallow on TIL_TYPE_STRUCT. dispatch.c shallow_ffi_type()
+   builds ffi_type with FFI_TYPE_STRUCT and per-field elements array.
+   Shallow struct params point arg_ptrs at StructInstance data buffer.
+   Shallow struct returns allocate buffer, wrap in StructInstance.
+
+   Builder emits ~StructName param~ (by value) instead of ~StructName *~.
+
+   Commit e40d897 + fix in 42b3e04: Bool (ext_struct in core.til) was
+   incorrectly matched as struct return — added cif.rtype FFI_TYPE_STRUCT
+   check.
+
+*** gui.c elimination
+   Rewrote play_tone in gui.til using shallow struct FFI: Wave/Sound
+   declared as ext_structs matching raylib's C layout, LoadSoundFromWave/
+   PlaySound/UnloadSound called by value. gui.c deleted.
+
+   Commit 6a5ae3f. Fix in 42b3e04: scavenger seeding, builder ref field
+   assignment, Wave/Sound namespace + delete methods.
+
+   Note: interpreter play_tone is slow (sample loop through eval dispatch
+   vs native C). Documented in #24.
+
+  Key commits: 940e369, 78956c1, 1a288e9, 0b1ed97, e40d897, 6a5ae3f,
+  42b3e04.
+
+  Install feature split to #42 (post-self-hosting).
+
 * FIXED #2 ref keyword: non-owning references for returns, declarations, and struct fields
   ref returns: ~returns ref I64~ — caller does not own, ASAP skips.
   ref declarations: ~ref x := min(a, b)~ — binds without ownership.
