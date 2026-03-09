@@ -10,8 +10,7 @@ typedef struct {
     Token *tokens;
     U32 count;
     U32 pos;
-    const char *path;
-    Str *spath;  // path as Str* (for Expr nodes)
+    Str *path;
 } Parser;
 
 static Token *peek(Parser *p) {
@@ -32,7 +31,7 @@ static Token *expect(Parser *p, TokenType type) {
     Token *t = peek(p);
     if (t->type != type) {
         fprintf(stderr, "%s:%u:%u: parse error: expected '%s', found '%.*s'\n",
-                p->path, t->line, t->col, tok_name(type), t->len, t->start);
+                p->path->c_str, t->line, t->col, tok_name(type), t->len, t->start);
         exit(1);
     }
     return advance(p);
@@ -52,7 +51,7 @@ static Expr *parse_expression(Parser *p);
 
 // parse_block: expects '{' already consumed, reads statements until '}'
 static Expr *parse_block(Parser *p) {
-    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
+    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->path);
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         expr_add_child(body, parse_statement(p));
     }
@@ -73,7 +72,7 @@ static Expr *parse_func_def(Parser *p) {
     case TOK_EXT_PROC: ft = FUNC_EXT_PROC; break;
     default:
         fprintf(stderr, "%s:%u:%u: parse error: expected function keyword\n",
-                p->path, kw->line, kw->col);
+                p->path->c_str, kw->line, kw->col);
         exit(1);
     }
 
@@ -110,22 +109,22 @@ static Expr *parse_func_def(Parser *p) {
             advance(p); // consume '..'
             if (is_own) {
                 fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
-                        p->path, pname->line, pname->col, pname->len, pname->start);
+                        p->path->c_str, pname->line, pname->col, pname->len, pname->start);
                 exit(1);
             }
             if (is_mut) {
                 fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
-                        p->path, pname->line, pname->col, pname->len, pname->start);
+                        p->path->c_str, pname->line, pname->col, pname->len, pname->start);
                 exit(1);
             }
             if (is_shallow) {
                 fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'shallow'\n",
-                        p->path, pname->line, pname->col, pname->len, pname->start);
+                        p->path->c_str, pname->line, pname->col, pname->len, pname->start);
                 exit(1);
             }
             if (variadic_index >= 0) {
                 fprintf(stderr, "%s:%u:%u: parse error: only one variadic parameter is allowed\n",
-                        p->path, pname->line, pname->col);
+                        p->path->c_str, pname->line, pname->col);
                 exit(1);
             }
             variadic_index = pnames.count; // index of this param (before push)
@@ -147,7 +146,7 @@ static Expr *parse_func_def(Parser *p) {
         }
         if (variadic_index >= 0 && !is_this_variadic && !def_val) {
             fprintf(stderr, "%s:%u:%u: parse error: positional parameter '%.*s' not allowed after variadic\n",
-                    p->path, pname->line, pname->col, pname->len, pname->start);
+                    p->path->c_str, pname->line, pname->col, pname->len, pname->start);
             exit(1);
         }
         Vec_push(&pdefs, &def_val);
@@ -172,7 +171,7 @@ static Expr *parse_func_def(Parser *p) {
         return_type = tok_str(rt);
     }
 
-    Expr *def = expr_new(NODE_FUNC_DEF, kw->line, kw->col, p->spath);
+    Expr *def = expr_new(NODE_FUNC_DEF, kw->line, kw->col, p->path);
     def->type.func_def.func_type = ft;
     def->type.func_def.nparam = pnames.count;
     def->type.func_def.param_names = Vec_take(&pnames);
@@ -196,11 +195,11 @@ static Expr *parse_func_def(Parser *p) {
 static Expr *parse_struct_def(Parser *p) {
     Token *kw = advance(p); // consume 'struct' or 'ext_struct'
     bool is_ext = (kw->type == TOK_EXT_STRUCT);
-    Expr *def = expr_new(NODE_STRUCT_DEF, kw->line, kw->col, p->spath);
+    Expr *def = expr_new(NODE_STRUCT_DEF, kw->line, kw->col, p->path);
     def->is_ext = is_ext;
     expect(p, TOK_LBRACE);
     // Parse struct body with namespace: support
-    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
+    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->path);
     I32 in_namespace = 0;
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         if (check(p, TOK_NAMESPACE)) {
@@ -224,9 +223,9 @@ static Expr *parse_struct_def(Parser *p) {
 // parse_enum_def: current token is 'enum'
 static Expr *parse_enum_def(Parser *p) {
     Token *kw = advance(p); // consume 'enum'
-    Expr *def = expr_new(NODE_ENUM_DEF, kw->line, kw->col, p->spath);
+    Expr *def = expr_new(NODE_ENUM_DEF, kw->line, kw->col, p->path);
     expect(p, TOK_LBRACE);
-    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
+    Expr *body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->path);
     I32 in_namespace = 0;
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         if (check(p, TOK_NAMESPACE)) {
@@ -244,7 +243,7 @@ static Expr *parse_enum_def(Parser *p) {
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
             Token *name = expect(p, TOK_IDENT);
-            Expr *variant = expr_new(NODE_DECL, name->line, name->col, p->spath);
+            Expr *variant = expr_new(NODE_DECL, name->line, name->col, p->path);
             variant->type.decl.name = tok_str(name);
             if (check(p, TOK_COLON)) {
                 advance(p);
@@ -264,10 +263,10 @@ static Expr *parse_enum_def(Parser *p) {
 static Expr *parse_call(Parser *p, Str *name, U32 line, U32 col) {
     advance(p); // consume '('
 
-    Expr *call = expr_new(NODE_FCALL, line, col, p->spath);
+    Expr *call = expr_new(NODE_FCALL, line, col, p->path);
 
     // first child is the callee identifier
-    Expr *callee = expr_new(NODE_IDENT, line, col, p->spath);
+    Expr *callee = expr_new(NODE_IDENT, line, col, p->path);
     callee->type.str_val = name;
     expr_add_child(call, callee);
 
@@ -278,7 +277,7 @@ static Expr *parse_call(Parser *p, Str *name, U32 line, U32 col) {
             p->tokens[p->pos + 1].type == TOK_EQ) {
             Token *aname = advance(p); // consume ident
             advance(p); // consume '='
-            Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col, p->spath);
+            Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col, p->path);
             na->type.str_val = tok_str(aname);
             expr_add_child(na, parse_expression(p));
             expr_add_child(call, na);
@@ -312,11 +311,11 @@ static Expr *parse_expression(Parser *p) {
 
     if (t->type == TOK_STRING) {
         advance(p);
-        e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->spath);
+        e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->path);
         e->type.str_val = tok_str(t);
     } else if (t->type == TOK_NUMBER) {
         advance(p);
-        e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
+        e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->path);
         e->type.str_val = tok_str(t);
     } else if (t->type == TOK_CHAR) {
         advance(p);
@@ -335,44 +334,44 @@ static Expr *parse_expression(Parser *p) {
         } else {
             byte_val = (U8)ch[0];
         }
-        e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
+        e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->path);
         char buf[4];
         snprintf(buf, sizeof(buf), "%u", byte_val);
         e->type.str_val = Str_new(buf);
         e->til_type = TIL_TYPE_U8;
     } else if (t->type == TOK_TRUE || t->type == TOK_FALSE) {
         advance(p);
-        e = expr_new(NODE_LITERAL_BOOL, t->line, t->col, p->spath);
+        e = expr_new(NODE_LITERAL_BOOL, t->line, t->col, p->path);
         e->type.str_val = tok_str(t);
     } else if (t->type == TOK_NULL) {
         advance(p);
-        e = expr_new(NODE_LITERAL_NULL, t->line, t->col, p->spath);
+        e = expr_new(NODE_LITERAL_NULL, t->line, t->col, p->path);
     } else if (t->type == TOK_IDENT) {
         advance(p);
         Str *name = tok_str(t);
         // compile-time directives
         if (Str_eq_c(name, "__LOC__")) {
-            char buf[256];
-            snprintf(buf, sizeof(buf), "%s:%u:%u", p->path, t->line, t->col);
-            e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->spath);
-            e->type.str_val = Str_new(buf);
+            char loc[32];
+            snprintf(loc, sizeof(loc), ":%u:%u", t->line, t->col);
+            e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->path);
+            e->type.str_val = Str_concat(p->path, Str_new(loc));
         } else if (Str_eq_c(name, "__FILE__")) {
-            e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->spath);
-            e->type.str_val = Str_new(p->path);
+            e = expr_new(NODE_LITERAL_STR, t->line, t->col, p->path);
+            e->type.str_val = Str_clone(p->path);
         } else if (Str_eq_c(name, "__LINE__")) {
             char buf[16];
             snprintf(buf, sizeof(buf), "%u", t->line);
-            e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
+            e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->path);
             e->type.str_val = Str_new(buf);
         } else if (Str_eq_c(name, "__COL__")) {
             char buf[16];
             snprintf(buf, sizeof(buf), "%u", t->col);
-            e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->spath);
+            e = expr_new(NODE_LITERAL_NUM, t->line, t->col, p->path);
             e->type.str_val = Str_new(buf);
         } else if (check(p, TOK_LPAREN)) {
             e = parse_call(p, name, t->line, t->col);
         } else {
-            e = expr_new(NODE_IDENT, t->line, t->col, p->spath);
+            e = expr_new(NODE_IDENT, t->line, t->col, p->path);
             e->type.str_val = name;
         }
     } else if (t->type == TOK_FUNC || t->type == TOK_PROC || t->type == TOK_TEST ||
@@ -387,7 +386,7 @@ static Expr *parse_expression(Parser *p) {
         Expr *first = parse_expression(p);
         if (check(p, TOK_COLON)) {
             // Map literal: {key: val, ...}
-            e = expr_new(NODE_MAP_LIT, t->line, t->col, p->spath);
+            e = expr_new(NODE_MAP_LIT, t->line, t->col, p->path);
             expr_add_child(e, first);
             advance(p); // consume ':'
             expr_add_child(e, parse_expression(p));
@@ -400,7 +399,7 @@ static Expr *parse_expression(Parser *p) {
             }
         } else {
             // Set literal: {val, val, ...}
-            e = expr_new(NODE_SET_LIT, t->line, t->col, p->spath);
+            e = expr_new(NODE_SET_LIT, t->line, t->col, p->path);
             expr_add_child(e, first);
             if (check(p, TOK_COMMA)) advance(p);
             while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
@@ -411,7 +410,7 @@ static Expr *parse_expression(Parser *p) {
         expect(p, TOK_RBRACE);
     } else {
         fprintf(stderr, "%s:%u:%u: parse error: unexpected token '%.*s'\n",
-                p->path, t->line, t->col, t->len, t->start);
+                p->path->c_str, t->line, t->col, t->len, t->start);
         exit(1);
     }
 
@@ -422,17 +421,17 @@ static Expr *parse_expression(Parser *p) {
         if (check(p, TOK_LPAREN)) {
             // Method call: expr.method(args)
             advance(p); // consume '('
-            Expr *callee = expr_new(NODE_FIELD_ACCESS, field->line, field->col, p->spath);
+            Expr *callee = expr_new(NODE_FIELD_ACCESS, field->line, field->col, p->path);
             callee->type.str_val = tok_str(field);
             expr_add_child(callee, e);
-            Expr *call = expr_new(NODE_FCALL, field->line, field->col, p->spath);
+            Expr *call = expr_new(NODE_FCALL, field->line, field->col, p->path);
             expr_add_child(call, callee);
             while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
                 if (check(p, TOK_IDENT) && p->pos + 1 < p->count &&
                     p->tokens[p->pos + 1].type == TOK_EQ) {
                     Token *aname = advance(p);
                     advance(p);
-                    Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col, p->spath);
+                    Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col, p->path);
                     na->type.str_val = tok_str(aname);
                     expr_add_child(na, parse_expression(p));
                     expr_add_child(call, na);
@@ -451,7 +450,7 @@ static Expr *parse_expression(Parser *p) {
             expect(p, TOK_RPAREN);
             e = call;
         } else {
-            Expr *access = expr_new(NODE_FIELD_ACCESS, field->line, field->col, p->spath);
+            Expr *access = expr_new(NODE_FIELD_ACCESS, field->line, field->col, p->path);
             access->type.str_val = tok_str(field);
             expr_add_child(access, e);
             e = access;
@@ -462,12 +461,12 @@ static Expr *parse_expression(Parser *p) {
         Token *dt = &p->tokens[p->pos];
         advance(p); // consume '..'
         Expr *rhs = parse_expression(p);
-        Expr *range_ident = expr_new(NODE_IDENT, dt->line, dt->col, p->spath);
+        Expr *range_ident = expr_new(NODE_IDENT, dt->line, dt->col, p->path);
         range_ident->type.str_val = Str_new("Range");
-        Expr *new_access = expr_new(NODE_FIELD_ACCESS, dt->line, dt->col, p->spath);
+        Expr *new_access = expr_new(NODE_FIELD_ACCESS, dt->line, dt->col, p->path);
         new_access->type.str_val = Str_new("new");
         expr_add_child(new_access, range_ident);
-        Expr *call = expr_new(NODE_FCALL, dt->line, dt->col, p->spath);
+        Expr *call = expr_new(NODE_FCALL, dt->line, dt->col, p->path);
         expr_add_child(call, new_access);
         expr_add_child(call, e);
         expr_add_child(call, rhs);
@@ -484,7 +483,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     // Declaration: name := value (inferred type)
     if (check(p, TOK_COLONEQ)) {
         advance(p); // consume :=
-        Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->spath);
+        Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->path);
         decl->type.decl.name = name;
         decl->type.decl.explicit_type = NULL;
         decl->type.decl.is_mut = is_mut;
@@ -500,7 +499,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         Str *type_name = tok_str(type_tok);
         advance(p); // consume type name
         expect(p, TOK_EQ); // consume =
-        Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->spath);
+        Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->path);
         decl->type.decl.name = name;
         decl->type.decl.explicit_type = type_name;
         decl->type.decl.is_mut = is_mut;
@@ -512,7 +511,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     // Field assignment or method call: name.field = value  or  name.method(args)
     if (check(p, TOK_DOT)) {
         // Build the field access chain
-        Expr *obj = expr_new(NODE_IDENT, t->line, t->col, p->spath);
+        Expr *obj = expr_new(NODE_IDENT, t->line, t->col, p->path);
         obj->type.str_val = name;
         Token *last_field = NULL;
         while (check(p, TOK_DOT)) {
@@ -520,7 +519,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
             last_field = expect(p, TOK_IDENT);
             if (check(p, TOK_DOT)) {
                 // More dots coming — this is an intermediate access
-                Expr *access = expr_new(NODE_FIELD_ACCESS, last_field->line, last_field->col, p->spath);
+                Expr *access = expr_new(NODE_FIELD_ACCESS, last_field->line, last_field->col, p->path);
                 access->type.str_val = tok_str(last_field);
                 expr_add_child(access, obj);
                 obj = access;
@@ -529,17 +528,17 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         // Method call: name.method(args)
         if (check(p, TOK_LPAREN)) {
             advance(p); // consume '('
-            Expr *callee = expr_new(NODE_FIELD_ACCESS, last_field->line, last_field->col, p->spath);
+            Expr *callee = expr_new(NODE_FIELD_ACCESS, last_field->line, last_field->col, p->path);
             callee->type.str_val = tok_str(last_field);
             expr_add_child(callee, obj);
-            Expr *call = expr_new(NODE_FCALL, last_field->line, last_field->col, p->spath);
+            Expr *call = expr_new(NODE_FCALL, last_field->line, last_field->col, p->path);
             expr_add_child(call, callee);
             while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
                 if (check(p, TOK_IDENT) && p->pos + 1 < p->count &&
                     p->tokens[p->pos + 1].type == TOK_EQ) {
                     Token *aname = advance(p);
                     advance(p);
-                    Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col, p->spath);
+                    Expr *na = expr_new(NODE_NAMED_ARG, aname->line, aname->col, p->path);
                     na->type.str_val = tok_str(aname);
                     expr_add_child(na, parse_expression(p));
                     expr_add_child(call, na);
@@ -560,7 +559,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         }
         // Field assignment
         expect(p, TOK_EQ);
-        Expr *fa = expr_new(NODE_FIELD_ASSIGN, t->line, t->col, p->spath);
+        Expr *fa = expr_new(NODE_FIELD_ASSIGN, t->line, t->col, p->path);
         fa->type.str_val = tok_str(last_field);
         expr_add_child(fa, obj);
         expr_add_child(fa, parse_expression(p));
@@ -570,7 +569,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     // Assignment: name = value
     if (check(p, TOK_EQ)) {
         advance(p); // consume =
-        Expr *assign = expr_new(NODE_ASSIGN, t->line, t->col, p->spath);
+        Expr *assign = expr_new(NODE_ASSIGN, t->line, t->col, p->path);
         assign->type.str_val = name;
         expr_add_child(assign, parse_expression(p));
         return assign;
@@ -582,7 +581,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     }
 
     fprintf(stderr, "%s:%u:%u: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
-            p->path, t->line, t->col, name->c_str);
+            p->path->c_str, t->line, t->col, name->c_str);
     exit(1);
 }
 
@@ -601,7 +600,7 @@ static Expr *parse_statement(Parser *p) {
         }
         Token *ident = expect(p, TOK_IDENT);
         Str *name = tok_str(ident);
-        Expr *decl = expr_new(NODE_DECL, ident->line, ident->col, p->spath);
+        Expr *decl = expr_new(NODE_DECL, ident->line, ident->col, p->path);
         decl->type.decl.name = name;
         decl->type.decl.is_ref = true;
         if (ref_mut) decl->type.decl.is_mut = true;
@@ -625,7 +624,7 @@ static Expr *parse_statement(Parser *p) {
     }
     case TOK_RETURN: {
         advance(p);
-        Expr *ret = expr_new(NODE_RETURN, t->line, t->col, p->spath);
+        Expr *ret = expr_new(NODE_RETURN, t->line, t->col, p->path);
         // If next token looks like a value, parse it
         if (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
             expr_add_child(ret, parse_expression(p));
@@ -634,7 +633,7 @@ static Expr *parse_statement(Parser *p) {
     }
     case TOK_IF: {
         advance(p); // consume 'if'
-        Expr *node = expr_new(NODE_IF, t->line, t->col, p->spath);
+        Expr *node = expr_new(NODE_IF, t->line, t->col, p->path);
         expr_add_child(node, parse_expression(p)); // condition
         expect(p, TOK_LBRACE);
         expr_add_child(node, parse_block(p));       // then body
@@ -642,7 +641,7 @@ static Expr *parse_statement(Parser *p) {
             advance(p); // consume 'else'
             if (check(p, TOK_IF)) {
                 // else if → else { if ... }
-                Expr *else_body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
+                Expr *else_body = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->path);
                 expr_add_child(else_body, parse_statement(p));
                 expr_add_child(node, else_body);
             } else {
@@ -664,7 +663,7 @@ static Expr *parse_statement(Parser *p) {
     }
     case TOK_WHILE: {
         advance(p); // consume 'while'
-        Expr *node = expr_new(NODE_WHILE, t->line, t->col, p->spath);
+        Expr *node = expr_new(NODE_WHILE, t->line, t->col, p->path);
         expr_add_child(node, parse_expression(p)); // condition
         expect(p, TOK_LBRACE);
         expr_add_child(node, parse_block(p));       // body
@@ -673,7 +672,7 @@ static Expr *parse_statement(Parser *p) {
     case TOK_FOR: {
         advance(p); // consume 'for'
         Token *ident = expect(p, TOK_IDENT);
-        Expr *node = expr_new(NODE_FOR_IN, ident->line, ident->col, p->spath);
+        Expr *node = expr_new(NODE_FOR_IN, ident->line, ident->col, p->path);
         node->type.str_val = tok_str(ident);
         if (check(p, TOK_COLON)) {
             advance(p); // consume ':'
@@ -688,17 +687,17 @@ static Expr *parse_statement(Parser *p) {
     }
     case TOK_SWITCH: {
         advance(p); // consume 'switch'
-        Expr *node = expr_new(NODE_SWITCH, t->line, t->col, p->spath);
+        Expr *node = expr_new(NODE_SWITCH, t->line, t->col, p->path);
         expr_add_child(node, parse_expression(p)); // switch expression
         expect(p, TOK_LBRACE);
         while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
             expect(p, TOK_CASE);
-            Expr *cn = expr_new(NODE_CASE, peek(p)->line, peek(p)->col, p->spath);
+            Expr *cn = expr_new(NODE_CASE, peek(p)->line, peek(p)->col, p->path);
             if (!check(p, TOK_COLON)) {
                 expr_add_child(cn, parse_expression(p)); // match value
             }
             expect(p, TOK_COLON);
-            Expr *cb = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->spath);
+            Expr *cb = expr_new(NODE_BODY, peek(p)->line, peek(p)->col, p->path);
             while (!check(p, TOK_CASE) && !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
                 expr_add_child(cb, parse_statement(p));
             }
@@ -724,7 +723,7 @@ static Expr *parse_statement(Parser *p) {
             if (own_mut) {
                 // We consumed 'mut' but it's not a declaration — error
                 fprintf(stderr, "%s:%u:%u: parse error: expected identifier after 'own mut'\n",
-                        p->path, t->line, t->col);
+                        p->path->c_str, t->line, t->col);
                 exit(1);
             }
         }
@@ -740,21 +739,21 @@ static Expr *parse_statement(Parser *p) {
     }
     case TOK_BREAK: {
         advance(p);
-        return expr_new(NODE_BREAK, t->line, t->col, p->spath);
+        return expr_new(NODE_BREAK, t->line, t->col, p->path);
     }
     case TOK_CONTINUE: {
         advance(p);
-        return expr_new(NODE_CONTINUE, t->line, t->col, p->spath);
+        return expr_new(NODE_CONTINUE, t->line, t->col, p->path);
     }
     default:
         fprintf(stderr, "%s:%u:%u: parse error: expected statement, found '%.*s'\n",
-                p->path, t->line, t->col, t->len, t->start);
+                p->path->c_str, t->line, t->col, t->len, t->start);
         exit(1);
     }
 }
 
-Expr *parse(Token *tokens, U32 count, const char *path, Str **mode_out) {
-    Parser p = {tokens, count, 0, path, Str_new(path)};
+Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out) {
+    Parser p = {tokens, count, 0, path};
 
     // Parse optional mode declaration
     if (mode_out) *mode_out = NULL;
@@ -767,7 +766,7 @@ Expr *parse(Token *tokens, U32 count, const char *path, Str **mode_out) {
     }
 
     // Parse body (top-level statements until EOF)
-    Expr *root = expr_new(NODE_BODY, 1, 1, p.spath);
+    Expr *root = expr_new(NODE_BODY, 1, 1, p.path);
     while (!check(&p, TOK_EOF)) {
         expr_add_child(root, parse_statement(&p));
     }

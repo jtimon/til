@@ -1119,7 +1119,7 @@ static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
-I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *user_c_path, const char *ext_c_path, const char *link_flags, U32 user_argc, char **user_argv) {
+I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, U32 user_argc, char **user_argv) {
     // Initialize FFI: load user .c library (if provided) and auto-discover C functions
     I32 ffi_rc = ffi_init(program, user_c_path, ext_c_path, link_flags);
     if (ffi_rc != 0) return ffi_rc;
@@ -1176,7 +1176,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
         Str main_name = {.c_str = (char *)"main", .count = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
-            fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path, mode->name);
+            fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path->c_str, mode->name);
             scope_free(global);
             return 1;
         }

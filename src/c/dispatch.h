@@ -14,7 +14,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Value *result);
 
 // FFI: auto-discover C functions via dlsym, optionally compile user .c library
-I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, const char *link_flags);
+I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags);
 void ffi_cleanup(void);
 
 #endif

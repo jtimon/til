@@ -1050,7 +1050,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     }
 }
 
-I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, const char *c_output_path) {
+I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     (void)path;
 
     codegen_program = program;
@@ -1083,9 +1083,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
             Map_set(&func_defs, &fname, &fdef);
         }
     }
-    FILE *f = fopen(c_output_path, "w");
+    FILE *f = fopen(c_output_path->c_str, "w");
     if (!f) {
-        fprintf(stderr, "error: could not open '%s' for writing\n", c_output_path);
+        fprintf(stderr, "error: could not open '%s' for writing\n", c_output_path->c_str);
         return 1;
     }
 
@@ -1565,10 +1565,10 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, const char *path, con
     return 0;
 }
 
-I32 build_header(Expr *program, const char *h_path) {
-    FILE *f = fopen(h_path, "w");
+I32 build_header(Expr *program, Str *h_path) {
+    FILE *f = fopen(h_path->c_str, "w");
     if (!f) {
-        fprintf(stderr, "error: could not open '%s' for writing\n", h_path);
+        fprintf(stderr, "error: could not open '%s' for writing\n", h_path->c_str);
         return 1;
     }
 
@@ -1719,15 +1719,15 @@ static void emit_til_default(FILE *f, TilType t, Str *struct_name) {
     }
 }
 
-I32 build_til_binding(Expr *program, const char *til_path, const char *lib_name) {
-    FILE *f = fopen(til_path, "w");
+I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
+    FILE *f = fopen(til_path->c_str, "w");
     if (!f) {
-        fprintf(stderr, "error: could not open '%s' for writing\n", til_path);
+        fprintf(stderr, "error: could not open '%s' for writing\n", til_path->c_str);
         return 1;
     }
 
-    fprintf(f, "// Auto-generated FFI binding for %s\n", lib_name);
-    fprintf(f, "link(\"%s\")\n\n", lib_name);
+    fprintf(f, "// Auto-generated FFI binding for %s\n", lib_name->c_str);
+    fprintf(f, "link(\"%s\")\n\n", lib_name->c_str);
 
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -1856,63 +1856,48 @@ I32 build_til_binding(Expr *program, const char *til_path, const char *lib_name)
     return 0;
 }
 
-I32 compile_lib(const char *c_path, const char *lib_name,
-                const char *ext_c_path, const char *user_c_path,
-                const char *link_flags) {
+I32 compile_lib(Str *c_path, Str *lib_name,
+                Str *ext_c_path, Str *user_c_path,
+                Str *link_flags) {
     // Extract directory from ext_c_path for -I flag
-    char ext_dir[256];
-    const char *last_slash = strrchr(ext_c_path, '/');
-    if (last_slash) {
-        I32 dlen = (I32)(last_slash - ext_c_path);
-        snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
-    } else {
-        snprintf(ext_dir, sizeof(ext_dir), ".");
+    Str *ext_dir;
+    {
+        I64 slash = Str_rfind(ext_c_path, Str_new("/"));
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, 0, slash) : Str_new(".");
     }
 
-    const char *user_part = user_c_path ? user_c_path : "";
-    const char *lf = link_flags ? link_flags : "";
+    Str *lf = link_flags ? link_flags : Str_new("");
 
     // Compile library .c to object
-    char obj_path[256];
-    snprintf(obj_path, sizeof(obj_path), "gen/lib/%s.o", lib_name);
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
-                       ext_dir, c_path, obj_path);
-    char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
-             ext_dir, c_path, obj_path);
-    int result = system(cmd);
-    free(cmd);
+    Str *obj_path = Str_concat(Str_concat(Str_new("gen/lib/"), lib_name), Str_new(".o"));
+    Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
+        Str_new(" -c ")), c_path), Str_new(" -o ")), obj_path);
+    int result = system(cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: library compilation failed\n");
         return 1;
     }
 
     // Compile ext.c to object
-    char ext_obj[256];
-    snprintf(ext_obj, sizeof(ext_obj), "gen/lib/ext.o");
-    len = snprintf(NULL, 0, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
-                   ext_dir, ext_c_path, ext_obj);
-    cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
-             ext_dir, ext_c_path, ext_obj);
-    result = system(cmd);
-    free(cmd);
+    Str *ext_obj = Str_new("gen/lib/ext.o");
+    cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
+        Str_new(" -c ")), ext_c_path), Str_new(" -o ")), ext_obj);
+    result = system(cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: ext.c compilation failed\n");
         return 1;
     }
 
     // Compile user .c to object if present
-    char user_obj[256] = "";
+    Str *user_obj = Str_new("");
     if (user_c_path) {
-        snprintf(user_obj, sizeof(user_obj), "gen/lib/user.o");
-        len = snprintf(NULL, 0, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
-                       ext_dir, user_c_path, user_obj);
-        cmd = malloc(len + 1);
-        snprintf(cmd, len + 1, "cc -Wall -Wextra -fPIC -I%s -c %s -o %s",
-                 ext_dir, user_c_path, user_obj);
-        result = system(cmd);
-        free(cmd);
+        user_obj = Str_new("gen/lib/user.o");
+        cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+            Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
+            Str_new(" -c ")), user_c_path), Str_new(" -o ")), user_obj);
+        result = system(cmd->c_str);
         if (result != 0) {
             fprintf(stderr, "error: user .c compilation failed\n");
             return 1;
@@ -1920,61 +1905,50 @@ I32 compile_lib(const char *c_path, const char *lib_name,
     }
 
     // Create shared library
-    char so_path[256];
-    snprintf(so_path, sizeof(so_path), "gen/lib/lib%s.so", lib_name);
-    len = snprintf(NULL, 0, "cc -shared -o %s %s %s %s%s",
-                   so_path, obj_path, ext_obj, user_obj, lf);
-    cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -shared -o %s %s %s %s%s",
-             so_path, obj_path, ext_obj, user_obj, lf);
-    result = system(cmd);
-    free(cmd);
+    Str *so_path = Str_concat(Str_concat(Str_new("gen/lib/lib"), lib_name), Str_new(".so"));
+    cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        Str_new("cc -shared -o "), so_path),
+        Str_new(" ")), obj_path), Str_new(" ")), ext_obj),
+        Str_concat(Str_concat(Str_new(" "), user_obj), lf));
+    result = system(cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: shared library creation failed\n");
         return 1;
     }
 
     // Create static library
-    char a_path[256];
-    snprintf(a_path, sizeof(a_path), "gen/lib/lib%s.a", lib_name);
-    len = snprintf(NULL, 0, "ar rcs %s %s %s %s",
-                   a_path, obj_path, ext_obj, user_obj);
-    cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "ar rcs %s %s %s %s",
-             a_path, obj_path, ext_obj, user_obj);
-    result = system(cmd);
-    free(cmd);
+    Str *a_path = Str_concat(Str_concat(Str_new("gen/lib/lib"), lib_name), Str_new(".a"));
+    cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        Str_new("ar rcs "), a_path),
+        Str_new(" ")), obj_path), Str_new(" ")), ext_obj),
+        Str_concat(Str_new(" "), user_obj));
+    result = system(cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: static library creation failed\n");
         return 1;
     }
 
-    (void)user_part;
     return 0;
 }
 
-I32 compile_c(const char *c_path, const char *bin_path, const char *ext_c_path, const char *user_c_path, const char *link_flags) {
+I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str *link_flags) {
     // Extract directory from ext_c_path for -I flag
-    char ext_dir[256];
-    const char *last_slash = strrchr(ext_c_path, '/');
-    if (last_slash) {
-        I32 dlen = (I32)(last_slash - ext_c_path);
-        snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
-    } else {
-        snprintf(ext_dir, sizeof(ext_dir), ".");
+    Str *ext_dir;
+    {
+        I64 slash = Str_rfind(ext_c_path, Str_new("/"));
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, 0, slash) : Str_new(".");
     }
 
-    // Build the cc command
-    const char *user_part = user_c_path ? user_c_path : "";
-    const char *lf = link_flags ? link_flags : "";
-    int len = snprintf(NULL, 0, "cc -Wall -Wextra -I%s -o %s %s %s %s%s",
-                       ext_dir, bin_path, c_path, ext_c_path, user_part, lf);
-    char *cmd = malloc(len + 1);
-    snprintf(cmd, len + 1, "cc -Wall -Wextra -I%s -o %s %s %s %s%s",
-             ext_dir, bin_path, c_path, ext_c_path, user_part, lf);
+    Str *user_part = user_c_path ? Str_concat(Str_new(" "), user_c_path) : Str_new("");
+    Str *lf = link_flags ? link_flags : Str_new("");
 
-    int result = system(cmd);
-    free(cmd);
+    Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        Str_new("cc -Wall -Wextra -I"), ext_dir),
+        Str_new(" -o ")), bin_path),
+        Str_new(" ")), c_path),
+        Str_new(" ")), Str_concat(Str_concat(ext_c_path, user_part), lf));
+
+    int result = system(cmd->c_str);
 
     if (result != 0) {
         fprintf(stderr, "error: C compilation failed\n");

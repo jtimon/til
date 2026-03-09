@@ -21,13 +21,13 @@ static U32 _tok_count;
 static Str *_parse_mode;
 
 Token *til_tokenize(Str *source, Str *path) {
-    return tokenize(source->c_str, path->c_str, &_tok_count);
+    return tokenize(source->c_str, path, &_tok_count);
 }
 U32 til_tok_count(void) { return _tok_count; }
 
 Expr *til_parse(Token *tokens, U32 count, Str *path) {
     _parse_mode = NULL;
-    return parse(tokens, count, path->c_str, &_parse_mode);
+    return parse(tokens, count, path, &_parse_mode);
 }
 Str *til_parse_mode(void) { return _parse_mode; }
 
@@ -118,7 +118,7 @@ Bool til_mode_is_lib_output(const Mode *m) {
                  m == &MODE_PURE || m == &MODE_PURA);
 }
 
-// --- Pipeline wrappers (Str* → const char*) ---
+// --- Pipeline wrappers ---
 
 I32 til_init_declarations(Expr *program, TypeScope *scope) {
     return init_declarations(program, scope);
@@ -144,11 +144,7 @@ I32 til_interpret(Expr *ast, const Mode *mode, Bool run_tests,
         for (U32 i = 0; i < user_argc; i++)
             argv[i] = (char *)user_argv[i]->c_str;
     }
-    I32 r = interpret(ast, mode, run_tests,
-                      path ? path->c_str : NULL,
-                      user_c ? user_c->c_str : NULL,
-                      ext_c ? ext_c->c_str : NULL,
-                      link_flags ? link_flags->c_str : NULL,
+    I32 r = interpret(ast, mode, run_tests, path, user_c, ext_c, link_flags,
                       user_argc, argv);
     free(argv);
     return r;
@@ -156,29 +152,23 @@ I32 til_interpret(Expr *ast, const Mode *mode, Bool run_tests,
 
 I32 til_build(Expr *ast, const Mode *mode, Bool run_tests,
               Str *path, Str *c_path) {
-    return build(ast, mode, run_tests, path->c_str, c_path->c_str);
+    return build(ast, mode, run_tests, path, c_path);
 }
 
 I32 til_build_header(Expr *ast, Str *h_path) {
-    return build_header(ast, h_path->c_str);
+    return build_header(ast, h_path);
 }
 
 I32 til_build_til_binding(Expr *ast, Str *til_path, Str *lib_name) {
-    return build_til_binding(ast, til_path->c_str, lib_name->c_str);
+    return build_til_binding(ast, til_path, lib_name);
 }
 
 I32 til_compile_c(Str *c_path, Str *bin_path, Str *ext_c, Str *user_c, Str *lflags) {
-    return compile_c(c_path->c_str, bin_path->c_str,
-                     ext_c ? ext_c->c_str : NULL,
-                     user_c ? user_c->c_str : NULL,
-                     lflags ? lflags->c_str : NULL);
+    return compile_c(c_path, bin_path, ext_c, user_c, lflags);
 }
 
 I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lflags) {
-    return compile_lib(c_path->c_str, lib_name->c_str,
-                       ext_c ? ext_c->c_str : NULL,
-                       user_c ? user_c->c_str : NULL,
-                       lflags ? lflags->c_str : NULL);
+    return compile_lib(c_path, lib_name, ext_c, user_c, lflags);
 }
 
 void til_ast_print(Expr *ast, U32 indent) { ast_print(ast, indent); }
@@ -221,7 +211,7 @@ void til_set_free(Set *s) {
 }
 
 // til_prepare: exposed for self-hosting (til.til can call the C version)
-extern Expr *til_prepare(const char *path, const char *bin_dir);
+extern Expr *til_prepare(Str *path, Str *bin_dir);
 Expr *til_prepare_s(Str *path, Str *bin_dir) {
-    return til_prepare(path->c_str, bin_dir->c_str);
+    return til_prepare(path, bin_dir);
 }

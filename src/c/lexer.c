@@ -133,7 +133,7 @@ static TokenType lookup_keyword(const char *start, I32 len) {
 
 // --- Tokenizer ---
 
-Token *tokenize(const char *source, const char *path, U32 *count_out) {
+Token *tokenize(const char *source, Str *path, U32 *count_out) {
     Vec tokens = Vec_new(sizeof(Token));
     const char *pos = source;
     U32 line = 1;
@@ -171,7 +171,7 @@ Token *tokenize(const char *source, const char *path, U32 *count_out) {
                 else { if (*pos == '\n') { line++; line_start = pos + 1; } pos++; }
             }
             if (depth > 0) {
-                fprintf(stderr, "%s:%u:%u: error: unterminated comment\n", path, line, col);
+                fprintf(stderr, "%s:%u:%u: error: unterminated comment\n", path->c_str, line, col);
             }
             continue;
         }
@@ -209,7 +209,7 @@ Token *tokenize(const char *source, const char *path, U32 *count_out) {
                 // start+1 to skip opening quote, len excludes both quotes
                 Vec_push(&tokens, &(Token){TOK_STRING, start + 1, (I32)(pos - start - 2), line, col});
             } else {
-                fprintf(stderr, "%s:%u:%u: error: unterminated string\n", path, line, col);
+                fprintf(stderr, "%s:%u:%u: error: unterminated string\n", path->c_str, line, col);
                 Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
             }
             continue;
@@ -226,7 +226,7 @@ Token *tokenize(const char *source, const char *path, U32 *count_out) {
                 pos++; // skip closing quote
                 Vec_push(&tokens, &(Token){TOK_CHAR, ch_start, ch_len, line, col});
             } else {
-                fprintf(stderr, "%s:%u:%u: error: unterminated character literal\n", path, line, col);
+                fprintf(stderr, "%s:%u:%u: error: unterminated character literal\n", path->c_str, line, col);
                 Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
             }
             continue;
@@ -280,7 +280,7 @@ Token *tokenize(const char *source, const char *path, U32 *count_out) {
         }
 
         // Unknown character
-        fprintf(stderr, "%s:%u:%u: error: unexpected character '%c'\n", path, line, col, *pos);
+        fprintf(stderr, "%s:%u:%u: error: unexpected character '%c'\n", path->c_str, line, col, *pos);
         Vec_push(&tokens, &(Token){TOK_ERROR, start, 1, line, col});
         pos++;
     }

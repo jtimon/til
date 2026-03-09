@@ -26,10 +26,10 @@ static const Mode *mode_resolve(const char *name) {
     return NULL;
 }
 
-static char *read_file(const char *path) {
-    FILE *f = fopen(path, "rb");
+static char *read_file(Str *path) {
+    FILE *f = fopen(path->c_str, "rb");
     if (!f) {
-        fprintf(stderr, "error: could not open '%s'\n", path);
+        fprintf(stderr, "error: could not open '%s'\n", path->c_str);
         return NULL;
     }
     fseek(f, 0, SEEK_END);
@@ -71,24 +71,24 @@ static Vec extract_imports(Expr *body) {
 // - stack: Vec of Str* (current import chain, for cycle detection)
 // - merged: Vec of Expr* (accumulated declarations, output)
 // - lib_dir: standard library directory (fallback search path)
-static int resolve_imports(Vec *import_paths, const char *base_dir,
+static int resolve_imports(Vec *import_paths, Str *base_dir,
                            Set *resolved, Vec *stack,
                            Vec *merged,
-                           const char *lib_dir) {
+                           Str *lib_dir) {
+    Str *slash = Str_new("/");
     for (U32 i = 0; i < import_paths->count; i++) {
         Str *import_path = *(Str **)Vec_get(import_paths, i);
 
         // Try relative to importing file's directory, then lib_dir
-        char try_path[PATH_MAX];
-        snprintf(try_path, sizeof(try_path), "%s/%s", base_dir, import_path->c_str);
-        char *abs = realpath(try_path, NULL);
+        Str *try_path = Str_concat(Str_concat(base_dir, slash), import_path);
+        char *abs = realpath(try_path->c_str, NULL);
         if (!abs && lib_dir) {
-            snprintf(try_path, sizeof(try_path), "%s/%s", lib_dir, import_path->c_str);
-            abs = realpath(try_path, NULL);
+            try_path = Str_concat(Str_concat(lib_dir, slash), import_path);
+            abs = realpath(try_path->c_str, NULL);
         }
         if (!abs) {
             fprintf(stderr, "error: could not find import '%s' (from %s/)\n",
-                    import_path->c_str, base_dir);
+                    import_path->c_str, base_dir->c_str);
             return 1;
         }
 
@@ -118,14 +118,14 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         Vec_push(stack, &abs_str);
 
         // Load, lex, parse the imported file
-        char *source = read_file(abs);
+        char *source = read_file(abs_str);
         if (!source) { free(abs); return 1; }
 
         U32 tok_count;
-        Token *toks = tokenize(source, abs, &tok_count);
+        Token *toks = tokenize(source, abs_str, &tok_count);
 
         Str *sub_mode = NULL;
-        Expr *sub_ast = parse(toks, tok_count, abs, &sub_mode);
+        Expr *sub_ast = parse(toks, tok_count, abs_str, &sub_mode);
         Vec sub_imports = extract_imports(sub_ast);
 
         if (!sub_mode) {
@@ -142,11 +142,14 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         }
 
         // Get imported file's directory for recursive resolution
-        char sub_dir[PATH_MAX];
-        strncpy(sub_dir, abs, sizeof(sub_dir));
-        sub_dir[sizeof(sub_dir) - 1] = '\0';
-        char *last_slash = strrchr(sub_dir, '/');
-        if (last_slash) *last_slash = '\0';
+        Str *sub_dir;
+        {
+            const char *last_slash = strrchr(abs, '/');
+            if (last_slash)
+                sub_dir = Str_new_len(abs, last_slash - abs);
+            else
+                sub_dir = Str_new(".");
+        }
 
         // Recurse for sub-imports
         if (sub_imports.count > 0) {
@@ -190,13 +193,13 @@ static void mark_core(Expr *e) {
 // High-level prepare function for til.til self-hosting.
 // Loads core.til, resolves imports, merges ASTs, strips link() directives.
 // Returns merged AST ready for type checking, or NULL on error.
-Expr *til_prepare(const char *path, const char *bin_dir) {
+Expr *til_prepare(Str *path, Str *bin_dir) {
     // Single resolved set for all imports
     Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
     Vec resolve_stack = Vec_new(sizeof(Str *));
 
     // Add user file to resolved set early
-    char *user_abs = realpath(path, NULL);
+    char *user_abs = realpath(path->c_str, NULL);
     if (user_abs) {
         Str *user_abs_str = Str_new(user_abs);
         Set_add(&resolved, &user_abs_str);
@@ -204,8 +207,7 @@ Expr *til_prepare(const char *path, const char *bin_dir) {
     }
 
     // Load core.til
-    char core_path[256];
-    snprintf(core_path, sizeof(core_path), "%s/src/core/core.til", bin_dir);
+    Str *core_path = Str_concat(bin_dir, Str_new("/src/core/core.til"));
     char *core_source = read_file(core_path);
     if (!core_source) return NULL;
     U32 core_count;
@@ -214,7 +216,7 @@ Expr *til_prepare(const char *path, const char *bin_dir) {
     Expr *core_ast = parse(core_tokens, core_count, core_path, &core_mode);
 
     // Add core.til to resolved set
-    char *core_abs = realpath(core_path, NULL);
+    char *core_abs = realpath(core_path->c_str, NULL);
     if (core_abs) {
         Str *core_abs_str = Str_new(core_abs);
         Set_add(&resolved, &core_abs_str);
@@ -225,8 +227,7 @@ Expr *til_prepare(const char *path, const char *bin_dir) {
     Vec core_import_decls = Vec_new(sizeof(Expr *));
     Vec core_imports = extract_imports(core_ast);
     if (core_imports.count > 0) {
-        char core_dir[PATH_MAX];
-        snprintf(core_dir, sizeof(core_dir), "%s/src/core", bin_dir);
+        Str *core_dir = Str_concat(bin_dir, Str_new("/src/core"));
         int err = resolve_imports(&core_imports, core_dir, &resolved, &resolve_stack,
                                   &core_import_decls, NULL);
         if (err) return NULL;
@@ -287,7 +288,7 @@ int main(int argc, char **argv) {
     }
 
     const char *command = argv[1];
-    const char *path = NULL;
+    Str *path = NULL;
 
     if (argc == 2) {
         // Single arg: if it's a known command without a path, handle it
@@ -296,10 +297,10 @@ int main(int argc, char **argv) {
             return 0;
         }
         // Otherwise treat as a path (like til does)
-        path = command;
+        path = Str_new(command);
         command = "interpret";
     } else {
-        path = argv[2];
+        path = Str_new(argv[2]);
     }
 
     if (strcmp(command, "help") == 0 || strcmp(command, "--help") == 0) {
@@ -308,37 +309,38 @@ int main(int argc, char **argv) {
     }
 
     // Resolve paths relative to binary location
-    char core_path[256], ext_c_path[256], bin_dir[256];
+    Str *bin_dir;
     {
         const char *slash = strrchr(argv[0], '/');
         if (slash) {
-            I32 dir_len = (int)(slash - argv[0]);
-            snprintf(bin_dir, sizeof(bin_dir), "%.*s/..", dir_len, argv[0]);
-            snprintf(core_path, sizeof(core_path), "%s/src/core/core.til", bin_dir);
-            snprintf(ext_c_path, sizeof(ext_c_path), "%s/src/c/ext.c", bin_dir);
+            Str *bin_parent = Str_new_len(argv[0], slash - argv[0]);
+            bin_dir = Str_concat(bin_parent, Str_new("/.."));
         } else {
-            snprintf(bin_dir, sizeof(bin_dir), "..");
-            snprintf(core_path, sizeof(core_path), "../src/core/core.til");
-            snprintf(ext_c_path, sizeof(ext_c_path), "../src/c/ext.c");
+            bin_dir = Str_new("..");
         }
     }
+    Str *core_path = Str_concat(bin_dir, Str_new("/src/core/core.til"));
+    Str *ext_c_path = Str_concat(bin_dir, Str_new("/src/c/ext.c"));
     // Single resolved set for all imports (core + user), so no file is loaded twice
     Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
     Vec resolve_stack = Vec_new(sizeof(Str *));
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
-    char user_dir[PATH_MAX];
-    char *user_abs_path = realpath(path, NULL);
-    if (user_abs_path) {
-        strncpy(user_dir, user_abs_path, sizeof(user_dir));
-        user_dir[sizeof(user_dir) - 1] = '\0';
-        char *slash = strrchr(user_dir, '/');
-        if (slash) *slash = '\0';
-        Str *user_abs_str = Str_new(user_abs_path);
-        Set_add(&resolved, &user_abs_str);
-        free(user_abs_path);
-    } else {
-        snprintf(user_dir, sizeof(user_dir), ".");
+    Str *user_dir;
+    {
+        char *user_abs_path = realpath(path->c_str, NULL);
+        if (user_abs_path) {
+            const char *slash = strrchr(user_abs_path, '/');
+            if (slash)
+                user_dir = Str_new_len(user_abs_path, slash - user_abs_path);
+            else
+                user_dir = Str_new(".");
+            Str *user_abs_str = Str_new(user_abs_path);
+            Set_add(&resolved, &user_abs_str);
+            free(user_abs_path);
+        } else {
+            user_dir = Str_new(".");
+        }
     }
 
     char *core_source = read_file(core_path);
@@ -349,7 +351,7 @@ int main(int argc, char **argv) {
 
     // Add core.til to resolved set
     if (core_ast) {
-        char *core_abs = realpath(core_path, NULL);
+        char *core_abs = realpath(core_path->c_str, NULL);
         if (core_abs) {
             Str *core_abs_str = Str_new(core_abs);
             Set_add(&resolved, &core_abs_str);
@@ -362,8 +364,7 @@ int main(int argc, char **argv) {
     if (core_ast) {
         Vec core_imports = extract_imports(core_ast);
         if (core_imports.count > 0) {
-            char core_dir[PATH_MAX];
-            snprintf(core_dir, sizeof(core_dir), "%s/src/core", bin_dir);
+            Str *core_dir = Str_concat(bin_dir, Str_new("/src/core"));
             int err = resolve_imports(&core_imports, core_dir, &resolved, &resolve_stack,
                                       &core_import_decls, NULL);
             if (err) return 1;
@@ -392,13 +393,14 @@ int main(int argc, char **argv) {
 
     // If mode has auto_import, load its .til declarations
     Expr *mode_ast = NULL;
-    char mode_til_path[256] = "";
+    Str *mode_til_path = NULL;
     if (mode && mode->auto_import) {
-        snprintf(mode_til_path, sizeof(mode_til_path), "%s/src/modes/%s.til", bin_dir, mode->auto_import);
+        mode_til_path = Str_concat(Str_concat(bin_dir, Str_new("/src/modes/")),
+                                   Str_concat(Str_new(mode->auto_import), Str_new(".til")));
         char *mode_source = read_file(mode_til_path);
         if (!mode_source) {
             fprintf(stderr, "error: mode '%s' requires %s.til (not found at '%s')\n",
-                    mode->name, mode->auto_import, mode_til_path);
+                    mode->name, mode->auto_import, mode_til_path->c_str);
             return 1;
         }
         U32 mode_count;
@@ -409,8 +411,7 @@ int main(int argc, char **argv) {
     // Resolve user imports (using same resolved set — skips files already loaded by core)
     Vec import_decls = Vec_new(sizeof(Expr *));
     if (imports.count > 0) {
-        char lib_dir[PATH_MAX];
-        snprintf(lib_dir, sizeof(lib_dir), "%s/src/lib", bin_dir);
+        Str *lib_dir = Str_concat(bin_dir, Str_new("/src/lib"));
 
         int err = resolve_imports(&imports, user_dir, &resolved, &resolve_stack,
                                   &import_decls, lib_dir);
@@ -453,10 +454,8 @@ int main(int argc, char **argv) {
     }
 
     // Extract link("lib") and link_c("file.c") directives from AST
-    char link_flags[512] = "";
-    I32 link_pos = 0;
-    char link_c_paths[2048] = "";
-    I32 link_c_pos = 0;
+    Str *link_flags = Str_new("");
+    Str *link_c_paths = Str_new("");
     {
         Vec kept = Vec_new(sizeof(Expr *));
         for (U32 i = 0; i < ast->children.count; i++) {
@@ -467,11 +466,11 @@ int main(int argc, char **argv) {
                 Str *fname = expr_child(stmt, 0)->type.str_val;
                 Str *arg = expr_child(stmt, 1)->type.str_val;
                 if (Str_eq_c(fname, "link")) {
-                    link_pos += snprintf(link_flags + link_pos, sizeof(link_flags) - link_pos,
-                                         " -l%.*s", (int)arg->cap, arg->c_str);
+                    link_flags = Str_concat(Str_concat(link_flags, Str_new(" -l")), arg);
                 } else if (Str_eq_c(fname, "link_c")) {
-                    link_c_pos += snprintf(link_c_paths + link_c_pos, sizeof(link_c_paths) - link_c_pos,
-                                           "%s%.*s", link_c_pos > 0 ? " " : "", (int)arg->cap, arg->c_str);
+                    if (link_c_paths->count > 0)
+                        link_c_paths = Str_concat(link_c_paths, Str_new(" "));
+                    link_c_paths = Str_concat(link_c_paths, arg);
                 } else {
                     Vec_push(&kept, &stmt);
                 }
@@ -511,7 +510,7 @@ int main(int argc, char **argv) {
     I32 result = 0;
 
     // Use link_c() paths as user .c files (replaces companion .c auto-detection)
-    const char *user_c = link_c_pos > 0 ? link_c_paths : NULL;
+    Str *user_c = link_c_paths->count > 0 ? link_c_paths : NULL;
 
     // Append -l flags from CLI args (argv[3..])
     char *filtered_argv[argc];
@@ -520,14 +519,13 @@ int main(int argc, char **argv) {
         if (strncmp(argv[i], "-l", 2) == 0) {
             const char *lib = argv[i] + 2;
             if (*lib == '\0' && i + 1 < argc) { lib = argv[++i]; }
-            link_pos += snprintf(link_flags + link_pos, sizeof(link_flags) - link_pos,
-                                 " -l%s", lib);
+            link_flags = Str_concat(Str_concat(link_flags, Str_new(" -l")), Str_new(lib));
         } else {
             filtered_argv[user_argc++] = argv[i];
         }
     }
     char **user_argv = user_argc > 0 ? filtered_argv : NULL;
-    const char *lflags = link_flags[0] ? link_flags : NULL;
+    Str *lflags = link_flags->count > 0 ? link_flags : NULL;
 
     Bool is_lib_mode = mode && (strcmp(mode->name, "lib") == 0 || strcmp(mode->name, "liba") == 0);
     Bool is_lib_output = is_lib_mode || (mode && (strcmp(mode->name, "pure") == 0 || strcmp(mode->name, "pura") == 0));
@@ -546,14 +544,14 @@ int main(int argc, char **argv) {
             return 1;
         }
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
-        const char *basename = strrchr(path, '/');
-        basename = basename ? basename + 1 : path;
-        I32 name_len = (int)(strlen(basename) - 4); // strip .til
-        if (name_len <= 0) name_len = (int)strlen(basename);
+        I64 last_slash = Str_rfind(path, Str_new("/"));
+        Str *basename = last_slash >= 0 ? Str_substr(path, last_slash + 1, path->count - last_slash - 1) : path;
+        // Strip .til extension
+        Str *name = Str_ends_with(basename, Str_new(".til"))
+            ? Str_substr(basename, 0, basename->count - 4) : basename;
 
-        char c_path[256], bin_path[256];
-        snprintf(c_path, sizeof(c_path), "gen/c/%.*s.c", name_len, basename);
-        snprintf(bin_path, sizeof(bin_path), "bin/c/%.*s", name_len, basename);
+        Str *c_path = Str_concat(Str_concat(Str_new("gen/c/"), name), Str_new(".c"));
+        Str *bin_path = Str_concat(Str_new("bin/c/"), name);
 
         Bool do_lib = is_lib_output && strcmp(command, "run") != 0;
 
@@ -566,47 +564,42 @@ int main(int argc, char **argv) {
 
         // For lib/pure translate/build: generate .h header and .til binding
         if (result == 0 && do_lib) {
-            char h_path[256], til_path[256], lib_name[256];
-            snprintf(h_path, sizeof(h_path), "gen/c/%.*s.h", name_len, basename);
-            snprintf(til_path, sizeof(til_path), "gen/til/%.*s.til", name_len, basename);
-            snprintf(lib_name, sizeof(lib_name), "%.*s", name_len, basename);
+            Str *h_path = Str_concat(Str_concat(Str_new("gen/c/"), name), Str_new(".h"));
+            Str *til_path = Str_concat(Str_concat(Str_new("gen/til/"), name), Str_new(".til"));
             result = build_header(ast, h_path);
             if (result == 0)
-                result = build_til_binding(ast, til_path, lib_name);
+                result = build_til_binding(ast, til_path, name);
             if (result == 0 && strcmp(command, "translate") == 0) {
-                printf("Generated: %s\n", c_path);
-                printf("Generated: %s\n", h_path);
-                printf("Generated: %s\n", til_path);
+                printf("Generated: %s\n", c_path->c_str);
+                printf("Generated: %s\n", h_path->c_str);
+                printf("Generated: %s\n", til_path->c_str);
             }
             if (result == 0 && strcmp(command, "build") == 0) {
-                result = compile_lib(c_path, lib_name, ext_c_path, user_c, lflags);
+                result = compile_lib(c_path, name, ext_c_path, user_c, lflags);
                 if (result == 0) {
-                    printf("Generated: %s\n", c_path);
-                    printf("Generated: %s\n", h_path);
-                    printf("Generated: %s\n", til_path);
-                    printf("Generated: gen/lib/lib%s.so\n", lib_name);
-                    printf("Generated: gen/lib/lib%s.a\n", lib_name);
+                    printf("Generated: %s\n", c_path->c_str);
+                    printf("Generated: %s\n", h_path->c_str);
+                    printf("Generated: %s\n", til_path->c_str);
+                    printf("Generated: gen/lib/lib%s.so\n", name->c_str);
+                    printf("Generated: gen/lib/lib%s.a\n", name->c_str);
                 }
             }
         }
 
         if (result == 0 && !do_lib && strcmp(command, "translate") == 0) {
-            printf("Generated: %s\n", c_path);
+            printf("Generated: %s\n", c_path->c_str);
         }
         if (result == 0 && !do_lib && strcmp(command, "translate") != 0) {
             result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags);
         }
         if (result == 0 && !do_lib && strcmp(command, "run") == 0) {
             // Build command with user args appended
-            I32 cmdlen = (int)strlen(bin_path);
-            for (U32 i = 0; i < user_argc; i++)
-                cmdlen += 1 + (I32)strlen(user_argv[i]) + 2; // space + quotes
-            char *cmd = malloc(cmdlen + 1);
-            I32 pos = snprintf(cmd, cmdlen + 1, "%s", bin_path);
-            for (U32 i = 0; i < user_argc; i++)
-                pos += snprintf(cmd + pos, cmdlen + 1 - pos, " '%s'", user_argv[i]);
-            int status = system(cmd);
-            free(cmd);
+            Str *cmd = Str_clone(bin_path);
+            for (U32 i = 0; i < user_argc; i++) {
+                cmd = Str_concat(Str_concat(Str_concat(cmd, Str_new(" '")),
+                                            Str_new(user_argv[i])), Str_new("'"));
+            }
+            int status = system(cmd->c_str);
             if (WIFEXITED(status))
                 result = WEXITSTATUS(status);
             else

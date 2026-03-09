@@ -917,33 +917,32 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     Map_set(&ffi_map, &name, &entry);
 }
 
-I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, const char *link_flags) {
+I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
     if (ffi_loaded) ffi_cleanup();  // re-init (e.g. precomp then interpret)
-    char so_path[256] = "";
+    Str *so_path = NULL;
 
     // Compile user .c to shared library (if provided)
     if (user_c_path) {
-        char ext_dir[256];
-        const char *last_slash = strrchr(ext_c_path, '/');
-        if (last_slash) {
-            I32 dlen = (I32)(last_slash - ext_c_path);
-            snprintf(ext_dir, sizeof(ext_dir), "%.*s", dlen, ext_c_path);
-        } else {
-            snprintf(ext_dir, sizeof(ext_dir), ".");
+        Str *ext_dir;
+        {
+            I64 slash = Str_rfind(ext_c_path, Str_new("/"));
+            ext_dir = slash >= 0 ? Str_substr(ext_c_path, 0, slash) : Str_new(".");
         }
-        snprintf(so_path, sizeof(so_path), "tmp/ffi_%d.so", (int)getpid());
+        char pid_buf[32];
+        snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
+        so_path = Str_new(pid_buf);
         system("mkdir -p tmp");
-        const char *lf = link_flags ? link_flags : "";
-        int cmdlen = snprintf(NULL, 0, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
-        char *cmd = malloc(cmdlen + 1);
-        snprintf(cmd, cmdlen + 1, "cc -shared -fPIC -I%s -o %s %s%s", ext_dir, so_path, user_c_path, lf);
-        int rc = system(cmd);
-        free(cmd);
+        Str *lf = link_flags ? link_flags : Str_new("");
+        Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+            Str_new("cc -Wall -Wextra -shared -fPIC -I"), ext_dir),
+            Str_new(" -o ")), so_path),
+            Str_new(" ")), user_c_path), lf);
+        int rc = system(cmd->c_str);
         if (rc != 0) {
-            fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path);
+            fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path->c_str);
             return 1;
         }
-        ffi_handle = dlopen(so_path, RTLD_NOW);
+        ffi_handle = dlopen(so_path->c_str, RTLD_NOW);
         if (!ffi_handle) {
             fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
             return 1;
@@ -952,7 +951,7 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
 
     // dlopen linked libraries so their symbols are available via RTLD_DEFAULT
     if (link_flags) {
-        const char *p = link_flags;
+        const char *p = link_flags->c_str;
         while ((p = strstr(p, "-l")) != NULL) {
             p += 2;
             char lib[256];
@@ -1019,7 +1018,7 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
     }
 
     ffi_loaded = 1;
-    if (so_path[0]) unlink(so_path);
+    if (so_path) unlink(so_path->c_str);
     return 0;
 }
 
