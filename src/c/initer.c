@@ -242,13 +242,13 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         Str *sname = stmt->type.decl.name;
 
-        // Skip meta-types and ext_structs (C side provides clone if needed)
+        // Skip meta-types and core ext_structs (C side provides clone)
         if (Str_eq_c(sname, "StructDef") ||
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
         Expr *sdef = expr_child(stmt, 0);
-        if (sdef->is_ext) continue;
+        if (sdef->is_ext && stmt->is_core) continue;
 
         Expr *body = expr_child(sdef, 0); // NODE_BODY
 
@@ -371,13 +371,13 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         Str *sname = stmt->type.decl.name;
 
-        // Skip meta-types and ext_structs (C side provides delete if needed)
+        // Skip meta-types and core ext_structs (C side provides delete)
         if (Str_eq_c(sname, "StructDef") ||
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
         Expr *sdef = expr_child(stmt, 0);
-        if (sdef->is_ext) continue;
+        if (sdef->is_ext && stmt->is_core) continue;
 
         Expr *body = expr_child(sdef, 0); // NODE_BODY
 
@@ -1078,8 +1078,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
-        // Skip ext_structs (they define size in core.til)
-        if (def->is_ext) continue;
+        // Skip core ext_structs (they define size in core.til)
+        if (def->is_ext && stmt->is_core) continue;
 
         Expr *body = expr_child(def, 0); // NODE_BODY
 

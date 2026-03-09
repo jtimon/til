@@ -14,8 +14,6 @@ Wave := ext_struct {
     mut sampleSize := U32.from_i64(0)
     mut channels := U32.from_i64(0)
     ref data : U8 = NULL
-    namespace:
-    delete := proc(own self: Wave, call_free: Bool = true) {}
 }
 
 // Sound: { AudioStream stream, U32 frameCount }
@@ -27,16 +25,12 @@ Sound := ext_struct {
     mut stream_sampleSize := U32.from_i64(0)
     mut stream_channels := U32.from_i64(0)
     mut frameCount := U32.from_i64(0)
-    namespace:
-    delete := proc(own self: Sound, call_free: Bool = true) {}
 }
 
 // Vector2: { float x, float y }
 Vector2 := ext_struct {
     mut x := F32.from_i64(0)
     mut y := F32.from_i64(0)
-    namespace:
-    delete := proc(own self: Vector2, call_free: Bool = true) {}
 }
 
 // Font: { int baseSize, int glyphCount, int glyphPadding,
@@ -53,8 +47,6 @@ Font := ext_struct {
     mut texture_format := I32.from_i64(0)
     ref recs : U8 = NULL
     ref glyphs : U8 = NULL
-    namespace:
-    delete := proc(own self: Font, call_free: Bool = true) {}
 }
 
 // Math FFI (from libm)
