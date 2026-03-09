@@ -10,21 +10,50 @@
 
 ** OPEN #39 Replace ctil with til (bottom-up C elimination)
   :DEPENDENCIES: #12
-  Once #12 produces a working til.til compiler, replace the C
-  implementation (ctil.c + src/c/*.c) by linking against til-compiled
-  libraries instead.
+  Replace C modules in ctil with their til-compiled equivalents,
+  bottom-up. The inverse of #12: where #12 builds til.til top-down
+  (FFI into C libs, replace with native til), this works bottom-up
+  (replace C modules in ctil one at a time).
 
-  This is the inverse of #12: where #12 builds til.til top-down (start
-  with til main, FFI into C libs, replace imports with native til),
-  this issue works bottom-up (replace C modules in ctil with their
-  til-compiled equivalents one at a time).
+*** Architecture: core.til as ctil's runtime library
 
-  Order:
-  1. Replace src/c/lexer.c with til-compiled liblexer
-  2. Replace src/c/parser.c + ast.c with til-compiled libparser
-  3. Continue upward: initer, typer, interpreter, builder
-  4. ctil.c becomes a thin CLI linking only til libs
-  5. ctil.c itself replaced by til.til binary → C code fully eliminated
+   core.til (which imports str.til, vec.til, map.til, set.til, array.til)
+   is built as a library via ~ctil build core.til~, producing core.c/core.h.
+   ctil itself links against this generated core.c instead of having its
+   own handwritten str.c, vec.c, map.c. The .til files become the single
+   source of truth.
+
+   core.til uses ~link_c("ext.c")~ — the builder emits ~#include "ext.c"~
+   in the generated core.c, making it self-contained. ccore.c is NOT
+   link_c'd because it overlaps with ext.c (both define I64_add, Bool_eq,
+   etc.). ext.c is the canonical source for scalar ops and system prims.
+   ccore.c's unique parts (Token/Expr/TypeScope/Mode clone/delete for
+   til_bridge FFI) stay in a small compiler-only file.
+
+   Bootstrap: generated core.c/core.h are copied to src/lib/ and checked
+   into the repo. People who clone the repo get pre-generated files.
+   ~make libs~ rebuilds from core.til when needed.
+
+   Vec/Map/Set conflict: the generated types have different struct layouts
+   than the compiler's internal versions (e.g. generated Vec has I64 fields
+   + Str elem_type, compiler Vec has U32 fields + void* data). Resolution:
+   rename the compiler's internal types to CVec/CMap/CSet.
+
+   Str signature change: generated Str functions return I64*/Bool* (heap
+   pointers) instead of scalar I64/Bool. All compiler call sites (~60+)
+   need adapting (*Str_eq(...) style dereferences). Compiler-only helpers
+   (Str_val, Str_new, Str_new_len, Str_eq_c) stay in a compiler-only file.
+
+*** Order
+   1. Builder: link_c emits #include in generated .c (not separate compile)
+   2. Rename compiler Vec/Map/Set → CVec/CMap/CSet (avoid conflicts)
+   3. Build core.til with link_c("ext.c"), copy to src/lib/
+   4. Wire ctil to use src/lib/core.c, adapt Str callers, delete str.c
+   5. Replace src/c/lexer.c with til-compiled liblexer
+   6. Replace src/c/parser.c + ast.c with til-compiled libparser
+   7. Continue upward: initer, typer, interpreter, builder
+   8. ctil.c becomes a thin CLI linking only til libs
+   9. ctil.c itself replaced by til.til binary → C code fully eliminated
 
   At each step, run benchmarks to verify no significant performance
   regressions from the til versions vs the C originals. The test suite
