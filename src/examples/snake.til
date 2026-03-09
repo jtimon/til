@@ -4,80 +4,163 @@ main := proc() {
     cols := 32
     rows := 24
     cell := 20
+    bar_h := 30
     w := cols.mul(cell)
-    h := rows.mul(cell)
+    h := rows.mul(cell).add(bar_h)
 
     init_window(w, h, "snake")
     set_target_fps(60)
 
-    // Snake body as encoded positions (y * cols + x)
     max_len := cols.mul(rows)
+    center_x := cols.div(2)
+    center_y := rows.div(2)
+
+    // P1 state
     mut body := Array.new("I64", 8, max_len)
     mut snake_len := 3
     mut dx := 1
     mut dy := 0
     mut next_dx := 1
     mut next_dy := 0
+
+    // P2 state
+    mut body2 := Array.new("I64", 8, max_len)
+    mut snake_len2 := 3
+    mut dx2 := 0.sub(1)
+    mut dy2 := 0
+    mut next_dx2 := 0.sub(1)
+    mut next_dy2 := 0
+
     mut frame := 0
     mut speed := 8
     mut score := 0
     mut game_over := false
-
-    // Place snake in center
-    center_x := cols.div(2)
-    center_y := rows.div(2)
-    body.set(0, own center_y.mul(cols).add(center_x))
-    body.set(1, own center_y.mul(cols).add(center_x.sub(1)))
-    body.set(2, own center_y.mul(cols).add(center_x.sub(2)))
-
-    // Place first food
-    mut food_x := get_random_value(0, cols.sub(1))
-    mut food_y := get_random_value(0, rows.sub(1))
+    mut two_player := false
+    mut p1_dead := false
+    mut p2_dead := false
+    mut restart := true
+    mut food_x := 0
+    mut food_y := 0
 
     while window_should_close().not() {
-        // Input
-        if game_over {
-            if is_key_pressed(82) {
-                // R = restart
-                snake_len = 3
+        // Restart handler (single place for all reset logic)
+        if restart {
+            restart = false
+            game_over = false
+            p1_dead = false
+            p2_dead = false
+            frame = 0
+            speed = 8
+            score = 0
+            if two_player {
+                // P1: upper third, going right
+                p1y := rows.div(3)
                 dx = 1
                 dy = 0
                 next_dx = 1
                 next_dy = 0
-                frame = 0
-                speed = 8
-                score = 0
-                game_over = false
+                snake_len = 3
+                body.set(0, own p1y.mul(cols).add(center_x))
+                body.set(1, own p1y.mul(cols).add(center_x.sub(1)))
+                body.set(2, own p1y.mul(cols).add(center_x.sub(2)))
+                // P2: lower third, going left
+                p2y := rows.mul(2).div(3)
+                dx2 = 0.sub(1)
+                dy2 = 0
+                next_dx2 = 0.sub(1)
+                next_dy2 = 0
+                snake_len2 = 3
+                body2.set(0, own p2y.mul(cols).add(center_x))
+                body2.set(1, own p2y.mul(cols).add(center_x.add(1)))
+                body2.set(2, own p2y.mul(cols).add(center_x.add(2)))
+            } else {
+                dx = 1
+                dy = 0
+                next_dx = 1
+                next_dy = 0
+                snake_len = 3
                 body.set(0, own center_y.mul(cols).add(center_x))
                 body.set(1, own center_y.mul(cols).add(center_x.sub(1)))
                 body.set(2, own center_y.mul(cols).add(center_x.sub(2)))
-                food_x = get_random_value(0, cols.sub(1))
-                food_y = get_random_value(0, rows.sub(1))
             }
+            food_x = get_random_value(0, cols.sub(1))
+            food_y = get_random_value(0, rows.sub(1))
+        }
+
+        // Mode buttons (always clickable)
+        if is_mouse_button_pressed(0) {
+            mx := get_mouse_x()
+            my := get_mouse_y()
+            if my.lt(bar_h) {
+                if mx.lt(w.div(2)) {
+                    if two_player {
+                        two_player = false
+                        restart = true
+                    }
+                } else {
+                    if two_player.not() {
+                        two_player = true
+                        restart = true
+                    }
+                }
+            }
+        }
+
+        // Game input
+        if game_over {
+            if is_key_pressed(82) { restart = true }
         } else {
-            // WASD - prevent 180 reversal
-            if is_key_pressed(87).or(is_key_pressed(265)) {
+            // P1: WASD (+ arrows in 1P mode)
+            if is_key_pressed(87).or(two_player.not().and(is_key_pressed(265))) {
                 if dy.eq(1).not() {
                     next_dx = 0
                     next_dy = 0.sub(1)
                 }
             }
-            if is_key_pressed(83).or(is_key_pressed(264)) {
+            if is_key_pressed(83).or(two_player.not().and(is_key_pressed(264))) {
                 if dy.eq(0.sub(1)).not() {
                     next_dx = 0
                     next_dy = 1
                 }
             }
-            if is_key_pressed(65).or(is_key_pressed(263)) {
+            if is_key_pressed(65).or(two_player.not().and(is_key_pressed(263))) {
                 if dx.eq(1).not() {
                     next_dx = 0.sub(1)
                     next_dy = 0
                 }
             }
-            if is_key_pressed(68).or(is_key_pressed(262)) {
+            if is_key_pressed(68).or(two_player.not().and(is_key_pressed(262))) {
                 if dx.eq(0.sub(1)).not() {
                     next_dx = 1
                     next_dy = 0
+                }
+            }
+
+            // P2: Arrow keys (only in 2P mode)
+            if two_player {
+                if is_key_pressed(265) {
+                    if dy2.eq(1).not() {
+                        next_dx2 = 0
+                        next_dy2 = 0.sub(1)
+                    }
+                }
+                if is_key_pressed(264) {
+                    if dy2.eq(0.sub(1)).not() {
+                        next_dx2 = 0
+                        next_dy2 = 1
+                    }
+                }
+                if is_key_pressed(263) {
+                    if dx2.eq(1).not() {
+                        next_dx2 = 0.sub(1)
+                        next_dy2 = 0
+                    }
+                }
+                if is_key_pressed(262) {
+                    if dx2.eq(0.sub(1)).not() {
+                        next_dx2 = 1
+                        next_dy2 = 0
+                    }
                 }
             }
 
@@ -88,45 +171,113 @@ main := proc() {
                 dx = next_dx
                 dy = next_dy
 
-                // Get current head
+                // P1 new head
                 ref head_pos : I64 = body.get(0)
                 head_x := head_pos.mod(cols)
                 head_y := head_pos.div(cols)
-
-                // New head (toroidal wrapping)
                 new_x := head_x.add(dx).add(cols).mod(cols)
                 new_y := head_y.add(dy).add(rows).mod(rows)
                 new_pos := new_y.mul(cols).add(new_x)
 
-                // Self collision
-                mut i := 0
-                while i.lt(snake_len) {
-                    ref seg : I64 = body.get(i)
-                    if seg.eq(new_pos) {
+                if two_player {
+                    dx2 = next_dx2
+                    dy2 = next_dy2
+
+                    // P2 new head
+                    ref head_pos2 : I64 = body2.get(0)
+                    head_x2 := head_pos2.mod(cols)
+                    head_y2 := head_pos2.div(cols)
+                    new_x2 := head_x2.add(dx2).add(cols).mod(cols)
+                    new_y2 := head_y2.add(dy2).add(rows).mod(rows)
+                    new_pos2 := new_y2.mul(cols).add(new_x2)
+
+                    // Head-on-head
+                    if new_pos.eq(new_pos2) {
+                        p1_dead = true
+                        p2_dead = true
                         game_over = true
                     }
-                    i = i.add(1)
-                }
 
-                if game_over.not() {
-                    // Shift body
-                    mut j := snake_len.sub(1)
-                    while j.gt(0) {
-                        ref prev_ref : I64 = body.get(j.sub(1))
-                        prev_val := prev_ref
-                        body.set(j, own prev_val)
-                        j = j.sub(1)
+                    // P1 head vs P1 body
+                    if game_over.not() {
+                        mut i := 0
+                        while i.lt(snake_len) {
+                            ref seg : I64 = body.get(i)
+                            if seg.eq(new_pos) { p1_dead = true }
+                            i = i.add(1)
+                        }
                     }
-                    body.set(0, own new_pos)
+                    // P1 head vs P2 body
+                    if game_over.not() {
+                        mut i := 0
+                        while i.lt(snake_len2) {
+                            ref seg : I64 = body2.get(i)
+                            if seg.eq(new_pos) { p1_dead = true }
+                            i = i.add(1)
+                        }
+                    }
+                    // P2 head vs P2 body
+                    if game_over.not() {
+                        mut i := 0
+                        while i.lt(snake_len2) {
+                            ref seg : I64 = body2.get(i)
+                            if seg.eq(new_pos2) { p2_dead = true }
+                            i = i.add(1)
+                        }
+                    }
+                    // P2 head vs P1 body
+                    if game_over.not() {
+                        mut i := 0
+                        while i.lt(snake_len) {
+                            ref seg : I64 = body.get(i)
+                            if seg.eq(new_pos2) { p2_dead = true }
+                            i = i.add(1)
+                        }
+                    }
 
-                    // Food collision
-                    if new_x.eq(food_x).and(new_y.eq(food_y)) {
-                        // Grow: duplicate tail
-                        ref tail_ref : I64 = body.get(snake_len.sub(1))
-                        tail_val := tail_ref
-                        body.set(snake_len, own tail_val)
-                        snake_len = snake_len.add(1)
-                        score = score.add(10)
+                    if p1_dead.or(p2_dead) { game_over = true }
+
+                    if game_over.not() {
+                        // Shift P1 body
+                        mut j := snake_len.sub(1)
+                        while j.gt(0) {
+                            ref prev_ref : I64 = body.get(j.sub(1))
+                            prev_val := prev_ref
+                            body.set(j, own prev_val)
+                            j = j.sub(1)
+                        }
+                        body.set(0, own new_pos)
+
+                        // Shift P2 body
+                        mut j2 := snake_len2.sub(1)
+                        while j2.gt(0) {
+                            ref prev_ref2 : I64 = body2.get(j2.sub(1))
+                            prev_val2 := prev_ref2
+                            body2.set(j2, own prev_val2)
+                            j2 = j2.sub(1)
+                        }
+                        body2.set(0, own new_pos2)
+
+                        // Food collision P1
+                        if new_x.eq(food_x).and(new_y.eq(food_y)) {
+                            ref tail_ref : I64 = body.get(snake_len.sub(1))
+                            tail_val := tail_ref
+                            body.set(snake_len, own tail_val)
+                            snake_len = snake_len.add(1)
+                            score = score.add(10)
+                            food_x = get_random_value(0, cols.sub(1))
+                            food_y = get_random_value(0, rows.sub(1))
+                        }
+                        // Food collision P2
+                        if new_x2.eq(food_x).and(new_y2.eq(food_y)) {
+                            ref tail_ref2 : I64 = body2.get(snake_len2.sub(1))
+                            tail_val2 := tail_ref2
+                            body2.set(snake_len2, own tail_val2)
+                            snake_len2 = snake_len2.add(1)
+                            score = score.add(10)
+                            food_x = get_random_value(0, cols.sub(1))
+                            food_y = get_random_value(0, rows.sub(1))
+                        }
 
                         // Speed up every 50 points
                         if speed.gt(3) {
@@ -134,10 +285,42 @@ main := proc() {
                                 speed = speed.sub(1)
                             }
                         }
+                    }
+                } else {
+                    // 1P mode
+                    mut i := 0
+                    while i.lt(snake_len) {
+                        ref seg : I64 = body.get(i)
+                        if seg.eq(new_pos) { game_over = true }
+                        i = i.add(1)
+                    }
 
-                        // New food (simple: no overlap check)
-                        food_x = get_random_value(0, cols.sub(1))
-                        food_y = get_random_value(0, rows.sub(1))
+                    if game_over.not() {
+                        mut j := snake_len.sub(1)
+                        while j.gt(0) {
+                            ref prev_ref : I64 = body.get(j.sub(1))
+                            prev_val := prev_ref
+                            body.set(j, own prev_val)
+                            j = j.sub(1)
+                        }
+                        body.set(0, own new_pos)
+
+                        if new_x.eq(food_x).and(new_y.eq(food_y)) {
+                            ref tail_ref : I64 = body.get(snake_len.sub(1))
+                            tail_val := tail_ref
+                            body.set(snake_len, own tail_val)
+                            snake_len = snake_len.add(1)
+                            score = score.add(10)
+
+                            if speed.gt(3) {
+                                if score.mod(50).eq(0) {
+                                    speed = speed.sub(1)
+                                }
+                            }
+
+                            food_x = get_random_value(0, cols.sub(1))
+                            food_y = get_random_value(0, rows.sub(1))
+                        }
                     }
                 }
             }
@@ -147,32 +330,74 @@ main := proc() {
         begin_drawing()
         clear_background(0, 0, 0, 255)
 
+        // Button bar
+        btn_w := w.div(2)
+        if two_player.not() {
+            draw_rectangle(0, 0, btn_w, bar_h, 60, 60, 60, 255)
+            draw_rectangle(btn_w, 0, btn_w, bar_h, 30, 30, 30, 255)
+        } else {
+            draw_rectangle(0, 0, btn_w, bar_h, 30, 30, 30, 255)
+            draw_rectangle(btn_w, 0, btn_w, bar_h, 60, 60, 60, 255)
+        }
+        draw_text("1 Player", btn_w.div(2).sub(30), 7, 16, 255, 255, 255, 255)
+        draw_text("2 Players", btn_w.add(btn_w.div(2)).sub(35), 7, 16, 255, 255, 255, 255)
+        draw_rectangle(0, bar_h.sub(1), w, 1, 80, 80, 80, 255)
+
         // Food
-        draw_rectangle(food_x.mul(cell).add(2), food_y.mul(cell).add(2),
+        draw_rectangle(food_x.mul(cell).add(2), food_y.mul(cell).add(2).add(bar_h),
                        cell.sub(4), cell.sub(4), 0, 200, 0, 255)
 
-        // Body segments (skip head)
+        // P1 body segments
         mut k := 1
         while k.lt(snake_len) {
             ref seg : I64 = body.get(k)
             sx := seg.mod(cols).mul(cell).add(2)
-            sy := seg.div(cols).mul(cell).add(2)
+            sy := seg.div(cols).mul(cell).add(2).add(bar_h)
             draw_rectangle(sx, sy, cell.sub(4), cell.sub(4), 255, 255, 0, 255)
             k = k.add(1)
         }
 
-        // Head (yellow circle)
+        // P1 head
         ref head : I64 = body.get(0)
         hx := head.mod(cols).mul(cell).add(cell.div(2))
-        hy := head.div(cols).mul(cell).add(cell.div(2))
+        hy := head.div(cols).mul(cell).add(cell.div(2)).add(bar_h)
         draw_circle(hx, hy, cell.div(2).sub(1), 255, 255, 0, 255)
 
+        // P2 (only in 2P mode)
+        if two_player {
+            mut k2 := 1
+            while k2.lt(snake_len2) {
+                ref seg2 : I64 = body2.get(k2)
+                sx2 := seg2.mod(cols).mul(cell).add(2)
+                sy2 := seg2.div(cols).mul(cell).add(2).add(bar_h)
+                draw_rectangle(sx2, sy2, cell.sub(4), cell.sub(4), 0, 200, 210, 255)
+                k2 = k2.add(1)
+            }
+            ref head2 : I64 = body2.get(0)
+            hx2 := head2.mod(cols).mul(cell).add(cell.div(2))
+            hy2 := head2.div(cols).mul(cell).add(cell.div(2)).add(bar_h)
+            draw_circle(hx2, hy2, cell.div(2).sub(1), 0, 200, 210, 255)
+        }
+
         // Score
-        draw_text(format("score: ", score.to_str()), 4, 4, 16, 255, 255, 255, 255)
+        draw_text(format("score: ", score.to_str()), 4, bar_h.add(4), 16, 255, 255, 255, 255)
 
         // Game over overlay
         if game_over {
-            draw_text("GAME OVER", w.div(2).sub(100), h.div(2).sub(20), 40, 230, 41, 55, 255)
+            gy := h.div(2).sub(20)
+            if two_player {
+                if p1_dead.and(p2_dead) {
+                    draw_text("DRAW", w.div(2).sub(50), gy, 40, 230, 41, 55, 255)
+                } else {
+                    if p1_dead {
+                        draw_text("P2 WINS!", w.div(2).sub(80), gy, 40, 0, 200, 210, 255)
+                    } else {
+                        draw_text("P1 WINS!", w.div(2).sub(80), gy, 40, 255, 255, 0, 255)
+                    }
+                }
+            } else {
+                draw_text("GAME OVER", w.div(2).sub(100), gy, 40, 230, 41, 55, 255)
+            }
             draw_text("press R to restart", w.div(2).sub(90), h.div(2).add(30), 20, 200, 200, 200, 255)
         }
 
