@@ -56,25 +56,25 @@ main := proc() {
             }
         } else {
             // WASD - prevent 180 reversal
-            if is_key_pressed(87) {
+            if is_key_pressed(87).or(is_key_pressed(265)) {
                 if dy.eq(1).not() {
                     next_dx = 0
                     next_dy = 0.sub(1)
                 }
             }
-            if is_key_pressed(83) {
+            if is_key_pressed(83).or(is_key_pressed(264)) {
                 if dy.eq(0.sub(1)).not() {
                     next_dx = 0
                     next_dy = 1
                 }
             }
-            if is_key_pressed(65) {
+            if is_key_pressed(65).or(is_key_pressed(263)) {
                 if dx.eq(1).not() {
                     next_dx = 0.sub(1)
                     next_dy = 0
                 }
             }
-            if is_key_pressed(68) {
+            if is_key_pressed(68).or(is_key_pressed(262)) {
                 if dx.eq(0.sub(1)).not() {
                     next_dx = 1
                     next_dy = 0
@@ -93,57 +93,51 @@ main := proc() {
                 head_x := head_pos.mod(cols)
                 head_y := head_pos.div(cols)
 
-                // New head
-                new_x := head_x.add(dx)
-                new_y := head_y.add(dy)
+                // New head (toroidal wrapping)
+                new_x := head_x.add(dx).add(cols).mod(cols)
+                new_y := head_y.add(dy).add(rows).mod(rows)
+                new_pos := new_y.mul(cols).add(new_x)
 
-                // Wall collision
-                if new_x.lt(0).or(new_x.gte(cols)).or(new_y.lt(0)).or(new_y.gte(rows)) {
-                    game_over = true
-                } else {
-                    new_pos := new_y.mul(cols).add(new_x)
-
-                    // Self collision
-                    mut i := 0
-                    while i.lt(snake_len) {
-                        ref seg : I64 = body.get(i)
-                        if seg.eq(new_pos) {
-                            game_over = true
-                        }
-                        i = i.add(1)
+                // Self collision
+                mut i := 0
+                while i.lt(snake_len) {
+                    ref seg : I64 = body.get(i)
+                    if seg.eq(new_pos) {
+                        game_over = true
                     }
+                    i = i.add(1)
+                }
 
-                    if game_over.not() {
-                        // Shift body
-                        mut j := snake_len.sub(1)
-                        while j.gt(0) {
-                            ref prev_ref : I64 = body.get(j.sub(1))
-                            prev_val := prev_ref
-                            body.set(j, own prev_val)
-                            j = j.sub(1)
-                        }
-                        body.set(0, own new_pos)
+                if game_over.not() {
+                    // Shift body
+                    mut j := snake_len.sub(1)
+                    while j.gt(0) {
+                        ref prev_ref : I64 = body.get(j.sub(1))
+                        prev_val := prev_ref
+                        body.set(j, own prev_val)
+                        j = j.sub(1)
+                    }
+                    body.set(0, own new_pos)
 
-                        // Food collision
-                        if new_x.eq(food_x).and(new_y.eq(food_y)) {
-                            // Grow: duplicate tail
-                            ref tail_ref : I64 = body.get(snake_len.sub(1))
-                            tail_val := tail_ref
-                            body.set(snake_len, own tail_val)
-                            snake_len = snake_len.add(1)
-                            score = score.add(10)
+                    // Food collision
+                    if new_x.eq(food_x).and(new_y.eq(food_y)) {
+                        // Grow: duplicate tail
+                        ref tail_ref : I64 = body.get(snake_len.sub(1))
+                        tail_val := tail_ref
+                        body.set(snake_len, own tail_val)
+                        snake_len = snake_len.add(1)
+                        score = score.add(10)
 
-                            // Speed up every 50 points
-                            if speed.gt(3) {
-                                if score.mod(50).eq(0) {
-                                    speed = speed.sub(1)
-                                }
+                        // Speed up every 50 points
+                        if speed.gt(3) {
+                            if score.mod(50).eq(0) {
+                                speed = speed.sub(1)
                             }
-
-                            // New food (simple: no overlap check)
-                            food_x = get_random_value(0, cols.sub(1))
-                            food_y = get_random_value(0, rows.sub(1))
                         }
+
+                        // New food (simple: no overlap check)
+                        food_x = get_random_value(0, cols.sub(1))
+                        food_y = get_random_value(0, rows.sub(1))
                     }
                 }
             }
