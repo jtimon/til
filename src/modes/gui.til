@@ -31,6 +31,32 @@ Sound := ext_struct {
     delete := proc(own self: Sound, call_free: Bool = true) {}
 }
 
+// Vector2: { float x, float y }
+Vector2 := ext_struct {
+    mut x := F32.from_i64(0)
+    mut y := F32.from_i64(0)
+    namespace:
+    delete := proc(own self: Vector2, call_free: Bool = true) {}
+}
+
+// Font: { int baseSize, int glyphCount, int glyphPadding,
+//         Texture2D { uint id, int width, height, mipmaps, format },
+//         Rectangle *recs, GlyphInfo *glyphs }
+Font := ext_struct {
+    mut baseSize := I32.from_i64(0)
+    mut glyphCount := I32.from_i64(0)
+    mut glyphPadding := I32.from_i64(0)
+    mut texture_id := U32.from_i64(0)
+    mut texture_width := I32.from_i64(0)
+    mut texture_height := I32.from_i64(0)
+    mut texture_mipmaps := I32.from_i64(0)
+    mut texture_format := I32.from_i64(0)
+    ref recs : U8 = NULL
+    ref glyphs : U8 = NULL
+    namespace:
+    delete := proc(own self: Font, call_free: Bool = true) {}
+}
+
 // Math FFI (from libm)
 sinf := ext_func(shallow x: F32) returns shallow F32 {}
 
@@ -38,6 +64,12 @@ sinf := ext_func(shallow x: F32) returns shallow F32 {}
 LoadSoundFromWave := ext_func(shallow wave: Wave) returns shallow Sound {}
 PlaySound := ext_proc(shallow sound: Sound) {}
 UnloadSound := ext_proc(shallow sound: Sound) {}
+
+// Font FFI
+LoadFontEx := ext_func(fileName: U8, shallow fontSize: I32, shallow codepoints: I64, shallow codepointCount: I32) returns shallow Font {}
+DrawTextEx := ext_proc(shallow font: Font, text: U8, shallow position: Vector2, shallow fontSize: F32, shallow spacing: F32, shallow color: U32) {}
+UnloadFont := ext_proc(shallow font: Font) {}
+MeasureTextEx := ext_func(shallow font: Font, text: U8, shallow fontSize: F32, shallow spacing: F32) returns shallow Vector2 {}
 
 // Direct raylib FFI declarations
 InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: U8) {}
@@ -152,3 +184,17 @@ get_mouse_x := func() returns I64 { return GetMouseX().to_i64() }
 get_mouse_y := func() returns I64 { return GetMouseY().to_i64() }
 init_audio_device := proc() { InitAudioDevice() }
 close_audio_device := proc() { CloseAudioDevice() }
+
+// Font wrappers
+load_font := func(path: Str, size: I64) returns Font {
+    return LoadFontEx(path.c_str, I32.from_i64(size), 0, I32.from_i64(0))
+}
+unload_font := proc(font: Font) { UnloadFont(font) }
+draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, spacing: I64, r: I64, g: I64, b: I64, a: I64) {
+    pos := Vector2(x=F32.from_i64(x), y=F32.from_i64(y))
+    DrawTextEx(font, text.c_str, pos, F32.from_i64(font_size), F32.from_i64(spacing), color(r, g, b, a))
+}
+measure_text_font := func(font: Font, text: Str, font_size: I64, spacing: I64) returns I64 {
+    v := MeasureTextEx(font, text.c_str, F32.from_i64(font_size), F32.from_i64(spacing))
+    return v.x.to_i64()
+}

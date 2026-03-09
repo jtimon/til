@@ -1,0 +1,86 @@
+mode gui
+
+// Font comparison — click to cycle through fonts
+
+FONTS := array("Str",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+    "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
+    "/usr/share/fonts/fonts-go/Go-Regular.ttf",
+    "/usr/share/fonts/fonts-go/Go-Bold.ttf",
+    "/usr/share/fonts/fonts-go/Go-Mono.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+    "/usr/share/fonts/truetype/andika/Andika-Regular.ttf"
+)
+NUM_FONTS := 21
+
+main := proc() {
+    init_window(1200, 800, "font test")
+    set_target_fps(60)
+
+    // Load all fonts
+    mut fonts := Array.new("Font", 48, NUM_FONTS)
+    for i in 0..NUM_FONTS {
+        ref path : Str = FONTS.get(i)
+        f := load_font(path, 48)
+        fonts.set(i, own f)
+    }
+
+    mut sel := 0
+
+    while window_should_close().not() {
+        if is_mouse_button_pressed(0) {
+            sel = sel.add(1).mod(NUM_FONTS)
+        }
+        if is_mouse_button_pressed(1) {
+            sel = sel.add(NUM_FONTS).sub(1).mod(NUM_FONTS)
+        }
+
+        begin_drawing()
+        clear_background(20, 20, 30, 255)
+
+        // Header
+        draw_text("Click to cycle fonts (left=next, right=prev)", 30, 10, 20, 100, 100, 100, 255)
+
+        // Show all fonts, each rendering its own name
+        mut y := 50
+        for i in 0..NUM_FONTS {
+            ref path : Str = FONTS.get(i)
+            ref font : Font = fonts.get(i)
+            if i.eq(sel) {
+                draw_rectangle(0, y.sub(2), 1200, 30, 40, 40, 80, 255)
+                draw_text_font(font, path, 30, y, 24, 1, 255, 255, 0, 255)
+            } else {
+                draw_text_font(font, path, 30, y, 24, 1, 180, 180, 180, 255)
+            }
+            y = y.add(30)
+        }
+
+        // Selected font large preview
+        ref cur_font : Font = fonts.get(sel)
+        draw_rectangle(0, y.add(10), 1200, 100, 10, 10, 20, 255)
+        draw_text_font(cur_font, "Do Re Mi Fa Sol La Si — C D E F G A B — 1234567890", 30, y.add(20), 36, 1, 255, 255, 255, 255)
+        draw_text_font(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim", 30, y.add(62), 28, 1, 200, 200, 200, 255)
+
+        end_drawing()
+    }
+
+    for i in 0..NUM_FONTS {
+        ref uf : Font = fonts.get(i)
+        unload_font(uf)
+    }
+    close_window()
+}

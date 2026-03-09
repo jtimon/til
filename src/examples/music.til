@@ -58,7 +58,7 @@ INTERVALS := array("I64",
 NATURALS := array("I64", 0, 2, 4, 5, 7, 9, 11)
 
 // Note name lookup arrays
-NAMES_SOL := array("Str", "do", "re", "mi", "fa", "sol", "la", "si")
+NAMES_SOL := array("Str", "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
 NAMES_AME := array("Str", "C", "D", "E", "F", "G", "A", "B")
 
 // Triad suffixes: M, m, dim, aug
@@ -68,9 +68,9 @@ TRIAD_SUFFIXES := array("Str", "-M", "-m", "-dim", "-aug")
 FREQS := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
 
 // Language data: [name, mode0..mode6, notation0, notation1]
-LANG_PT := array("Str", "PT", "lidio", "jonio", "mixolidio", "dorico", "eolio", "frigio", "locrio", "solfejo", "americano")
-LANG_ES := array("Str", "ES", "lidio", "jonico", "mixolidio", "dorico", "eolico", "frigio", "locrio", "solfeo", "americano")
-LANG_EN := array("Str", "EN", "lydian", "ionian", "mixolydian", "dorian", "aeolian", "phrygian", "locrian", "solfege", "american")
+LANG_PT := array("Str", "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio", "Solfejo", "Americano")
+LANG_ES := array("Str", "ES", "Lidio", "Jonico", "Mixolidio", "Dorico", "Eolico", "Frigio", "Locrio", "Solfeo", "Americano")
+LANG_EN := array("Str", "EN", "Lydian", "Ionian", "Mixolydian", "Dorian", "Aeolian", "Phrygian", "Locrian", "Solfege", "American")
 LANGS := array("Array", LANG_PT, LANG_ES, LANG_EN)
 
 // -- Helper functions --
@@ -122,7 +122,7 @@ start_scale := proc(mut playing: Bool, mut play_idx: I64, mut play_timer: I64) {
 
 draw_note := proc(dni: I64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: Array,
                    mut sc_triad: Array, playing: Bool, play_idx: I64,
-                   clicked_note: I64, sel_notation: I64) {
+                   clicked_note: I64, sel_notation: I64, fnt: Font) {
     dnx := NOTE_X0.add(dni.mul(NOTE_DX))
     ref nd : I64 = sc_diat.get(dni)
     ref no : I64 = sc_oct.get(dni)
@@ -170,7 +170,7 @@ draw_note := proc(dni: I64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: A
         mut aw := NOTE_R
         if na.abs().eq(2) { aw = NOTE_R.mul(2) }
         at := acc_text(na)
-        draw_text(at, dnx.sub(FONT.add(aw)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
+        draw_text_font(fnt, at, dnx.sub(FONT.add(aw)), dny.sub(FONT.div(2)), FONT, 1, 255, 255, 255, 255)
     }
 
     // Note name with inline triad label
@@ -182,7 +182,7 @@ draw_note := proc(dni: I64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: A
         ref tsuf : Str = TRIAD_SUFFIXES.get(trt2)
         nn = nn.concat(tsuf)
     }
-    draw_text(nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 180, 180, 180, 255)
+    draw_text_font(fnt, nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 1, 180, 180, 180, 255)
 }
 
 recompute_scale := proc(sel_diatonic: I64, sel_accidental: I64, sel_mode: I64,
@@ -243,6 +243,8 @@ main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music")
     set_target_fps(FPS)
     init_audio_device()
+
+    fnt := load_font("assets/DejaVuSans.ttf", 48)
 
     // Scale result arrays (8 notes: 7 degrees + octave)
     mut sc_chrom := Array.new("I64", 8, 8)
@@ -394,7 +396,7 @@ main := proc() {
                 mut label := ln.clone()
                 if row.eq(0) { label = ln.concat("b") }
                 if row.eq(2) { label = ln.concat("#") }
-                draw_text(label, bx.add(PAD_X), by.add(PAD_Y), FONT, 220, 220, 220, 255)
+                draw_text_font(fnt, label, bx.add(PAD_X), by.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
             }
         }
 
@@ -414,7 +416,7 @@ main := proc() {
             draw_rectangle(bx, by, BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
 
             ref mlabel : Str = lang_str(sel_lang, mi.add(1))
-            draw_text(mlabel, bx.add(PAD_X), by.add(PAD_Y), FONT, 220, 220, 220, 255)
+            draw_text_font(fnt, mlabel, bx.add(PAD_X), by.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
         }
 
         // -- Radio buttons: lang + notation --
@@ -427,7 +429,7 @@ main := proc() {
             if li.eq(sel_lang) { lr = 100 ; lg = 50 ; lb = 120 }
             draw_rectangle(lx, RADIO_ROW_Y, LANG_BTN_W.sub(2), BTN_H.sub(2), lr, lg, lb, 255)
             ref ll : Str = lang_str(li, 0)
-            draw_text(ll, lx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 220, 220, 220, 255)
+            draw_text_font(fnt, ll, lx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
         }
         // Notation: solfege / american
         for ni in 0..2 {
@@ -438,7 +440,7 @@ main := proc() {
             if ni.eq(sel_notation) { nr = 100 ; ng = 50 ; nb = 120 }
             draw_rectangle(nx, RADIO_ROW_Y, NOTATION_BTN_W.sub(2), BTN_H.sub(2), nr, ng, nb, 255)
             ref nl : Str = lang_str(sel_lang, ni.add(8))
-            draw_text(nl, nx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 220, 220, 220, 255)
+            draw_text_font(fnt, nl, nx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
         }
 
         // -- Pentagram --
@@ -460,9 +462,9 @@ main := proc() {
             rd := ri.add(2).mod(7)
             ref rn : Str = note_name(rd, sel_notation)
             // Left side label
-            draw_text(rn, STAFF_X.sub(MARGIN.mul(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 80, 80, 80, 255)
+            draw_text_font(fnt, rn, STAFF_X.sub(MARGIN.mul(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 1, 80, 80, 80, 255)
             // Right side label
-            draw_text(rn, STAFF_X.add(STAFF_W).add(MARGIN.div(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 80, 80, 80, 255)
+            draw_text_font(fnt, rn, STAFF_X.add(STAFF_W).add(MARGIN.div(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 1, 80, 80, 80, 255)
             // Tick marks for spaces (odd positions)
             if ri.mod(2).eq(1) {
                 draw_rectangle(STAFF_X.sub(NOTE_R.mul(2)), ry, NOTE_R.mul(2), 1, 60, 60, 60, 255)
@@ -473,15 +475,16 @@ main := proc() {
         // Draw notes
         for dni in 0..8 {
             draw_note(dni, sc_diat, sc_oct, sc_acc, sc_triad,
-                      playing, play_idx, clicked_note, sel_notation)
+                      playing, play_idx, clicked_note, sel_notation, fnt)
         }
 
         // Hint
-        draw_text("click note + mode to play scale", WINDOW_WIDTH.div(3), HINT_Y, FONT, 80, 80, 80, 255)
+        draw_text_font(fnt, "click note + mode to play scale", WINDOW_WIDTH.div(3), HINT_Y, FONT, 1, 80, 80, 80, 255)
 
         end_drawing()
     }
 
+    unload_font(fnt)
     close_audio_device()
     close_window()
 }
