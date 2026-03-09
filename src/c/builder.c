@@ -430,11 +430,13 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
     U32 fi = 0;
     for (U32 i = 1; i < ctor->children.count; i++) {
         Bool is_own = 0;
+        Bool is_ref = 0;
         const char *fname = NULL;
         if (sbody) {
             for (; fi < sbody->children.count; fi++) {
                 if (!expr_child(sbody, fi)->data.decl.is_namespace) {
                     is_own = expr_child(sbody, fi)->data.decl.is_own;
+                    is_ref = expr_child(sbody, fi)->data.decl.is_ref;
                     fname = expr_child(sbody, fi)->data.decl.name->c_str;
                     fi++;
                     break;
@@ -443,7 +445,12 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
         }
         Expr *arg = expr_child(ctor, i);
         emit_indent(f, depth);
-        if (is_own && arg->type == NODE_FCALL && arg->struct_name &&
+        if (is_ref) {
+            // Ref field: store pointer directly (no deref)
+            fprintf(f, "%s->%s = ", var, fname);
+            emit_expr(f, arg, depth);
+            fprintf(f, ";\n");
+        } else if (is_own && arg->type == NODE_FCALL && arg->struct_name &&
             Str_eq(expr_child(arg, 0)->data.str_val, arg->struct_name)) {
             // Nested struct constructor for own field: emit as temp, assign pointer
             const char *ct = c_type_name(arg->til_type, arg->struct_name);

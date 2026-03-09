@@ -406,11 +406,18 @@
   audio playback via play_tone, language radio (PT/ES/EN), notation
   radio (solfege/american), resolution-independent layout.
 
+  play_tone rewritten in til (was C in gui.c). Works well via ctil run
+  (compiled). Interpreter path is slow for audio because the sample
+  generation loop (sinf/memcpy per sample) runs through eval dispatch
+  instead of native C. Previously play_tone was a single ext_proc FFI
+  call to gui.c.
+
 *** DONE Initial GUI with note/mode selection and pentagram
 *** DONE Audio playback of scale notes
 *** DONE Triad type line (M/m/dim per degree)
 *** DONE Language and notation radio buttons
 *** DONE Resolution-independent layout (derived from WINDOW_WIDTH/WINDOW_HEIGHT)
+*** DONE play_tone rewritten in til (gui.c eliminated)
 *** TODO Verify modal playback correctness with music teacher
 *** TODO Richer audio (sustain, chords, drone note under scale)
 *** TODO Piano keyboard visualization

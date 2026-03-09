@@ -741,8 +741,11 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 arg_ptrs[i] = &args[i];
             }
             // Check if return is a shallow struct (needs larger buffer)
+            // Only treat as struct if the CIF return type is FFI_TYPE_STRUCT —
+            // scalar types like Bool are ext_structs in til but scalars in FFI.
             Expr **ret_sdef = NULL;
-            if (fe->return_is_shallow && fe->return_type)
+            if (fe->return_is_shallow && fe->return_type &&
+                fe->cif.rtype->type == FFI_TYPE_STRUCT)
                 ret_sdef = Map_get(&ffi_struct_defs, &fe->return_type);
             void *raw = NULL;
             void *ret_buf = NULL;

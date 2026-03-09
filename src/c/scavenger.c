@@ -168,6 +168,16 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     Vec worklist = Vec_new(sizeof(Str *));
     if (is_cli) {
         vec_push_str(&worklist, gc_str(Str_new("main")));
+        // Also seed from top-level variable declarations (e.g. mode auto-imports)
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type == NODE_DECL &&
+                (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
+                 expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
+                 expr_child(stmt, 0)->type == NODE_ENUM_DEF))
+                continue;
+            collect_refs(stmt, &worklist);
+        }
     } else if (run_tests) {
         // Test execution: seed with all test function names
         for (U32 i = 0; i < program->children.count; i++) {
