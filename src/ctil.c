@@ -94,22 +94,9 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
 
         Str *abs_str = Str_new(abs);
 
-        // Cycle detection: check if this file is on the current import stack
-        for (U32 j = 0; j < stack->count; j++) {
-            Str *s = *(Str **)Vec_get(stack, j);
-            if (Str_eq(s, abs_str)) {
-                fprintf(stderr, "error: circular import: ");
-                for (U32 k = j; k < stack->count; k++) {
-                    Str *sk = *(Str **)Vec_get(stack, k);
-                    fprintf(stderr, "%s -> ", sk->c_str);
-                }
-                fprintf(stderr, "%s\n", abs_str->c_str);
-                free(abs);
-                return 1;
-            }
-        }
-
-        // Dedup: skip if already resolved
+        // Dedup: skip if already resolved (also handles circular imports —
+        // files are added to resolved when they start processing, so a
+        // circular import is silently skipped here)
         if (Set_has(resolved, &abs_str)) {
             free(abs);
             continue;
@@ -349,11 +336,15 @@ int main(int argc, char **argv) {
     Str *core_mode = NULL;
     Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, &core_mode) : NULL;
 
-    // Add core.til to resolved set
+    // Add core.til to resolved set; skip prepending if user file IS core.til
     if (core_ast) {
         char *core_abs = realpath(core_path->c_str, NULL);
         if (core_abs) {
             Str *core_abs_str = Str_new(core_abs);
+            if (Set_has(&resolved, &core_abs_str)) {
+                // User file is core.til itself — don't prepend core to itself
+                core_ast = NULL;
+            }
             Set_add(&resolved, &core_abs_str);
             free(core_abs);
         }
@@ -423,34 +414,40 @@ int main(int argc, char **argv) {
     Vec_delete(&resolve_stack);
 
     // Prepend core declarations (and mode .til + imports) to program AST
-    if (core_ast && core_ast->children.count > 0) {
-        Vec merged = Vec_new(sizeof(Expr *));
-        for (U32 i = 0; i < core_ast->children.count; i++) {
-            Expr *ch = expr_child(core_ast, i);
-            mark_core(ch);
-            Vec_push(&merged, &ch);
-        }
-        for (U32 i = 0; i < core_import_decls.count; i++) {
-            Expr *ch = *(Expr **)Vec_get(&core_import_decls, i);
-            mark_core(ch);
-            Vec_push(&merged, &ch);
-        }
-        if (mode_ast) {
-            for (U32 i = 0; i < mode_ast->children.count; i++) {
-                Expr *ch = expr_child(mode_ast, i);
+    {
+        Bool need_merge = (core_ast && core_ast->children.count > 0) ||
+                          import_decls.count > 0 || mode_ast;
+        if (need_merge) {
+            Vec merged = Vec_new(sizeof(Expr *));
+            if (core_ast) {
+                for (U32 i = 0; i < core_ast->children.count; i++) {
+                    Expr *ch = expr_child(core_ast, i);
+                    mark_core(ch);
+                    Vec_push(&merged, &ch);
+                }
+            }
+            for (U32 i = 0; i < core_import_decls.count; i++) {
+                Expr *ch = *(Expr **)Vec_get(&core_import_decls, i);
+                mark_core(ch);
                 Vec_push(&merged, &ch);
             }
+            if (mode_ast) {
+                for (U32 i = 0; i < mode_ast->children.count; i++) {
+                    Expr *ch = expr_child(mode_ast, i);
+                    Vec_push(&merged, &ch);
+                }
+            }
+            for (U32 i = 0; i < import_decls.count; i++) {
+                Expr *ch = *(Expr **)Vec_get(&import_decls, i);
+                Vec_push(&merged, &ch);
+            }
+            for (U32 i = 0; i < ast->children.count; i++) {
+                Expr *ch = expr_child(ast, i);
+                Vec_push(&merged, &ch);
+            }
+            Vec_delete(&ast->children);
+            ast->children = merged;
         }
-        for (U32 i = 0; i < import_decls.count; i++) {
-            Expr *ch = *(Expr **)Vec_get(&import_decls, i);
-            Vec_push(&merged, &ch);
-        }
-        for (U32 i = 0; i < ast->children.count; i++) {
-            Expr *ch = expr_child(ast, i);
-            Vec_push(&merged, &ch);
-        }
-        Vec_delete(&ast->children);
-        ast->children = merged;
     }
 
     // Extract link("lib") and link_c("file.c") directives from AST

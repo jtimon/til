@@ -169,19 +169,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             return I32.from_i64(1)
         }
 
-        // Cycle detection
-        mut j := U32.from_i64(0)
-        mut cycle := false
-        while j.lt(expr_vec_count(stack)) {
-            s := expr_vec_get(stack, j)
-            // expr_vec stores Str* but we compare as strings
-            if abs.eq(abs) {
-                // TODO: proper cycle detection with stack of Str
-            }
-            j = j.add(U32.from_i64(1))
-        }
-
-        // Dedup
+        // Dedup (also handles circular imports — files are added to
+        // resolved_set when they start processing)
         if til_set_has(resolved_set, abs) {
             i = i.add(1)
             continue
