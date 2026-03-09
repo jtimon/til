@@ -11,8 +11,8 @@ StructDef : StructDef = struct {}
 FunctionDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
 
-U8 : StructDef = ext_struct {
-    namespace:
+U8 := ext_struct {
+namespace:
     to_i64 := ext_func(shallow val: U8) returns I64 {}
     to_str := func(val: U8) returns Str {
         return val.to_i64().to_str()
@@ -40,8 +40,9 @@ U8 : StructDef = ext_struct {
     delete := ext_proc(own self: U8, call_free: Bool = true) {}
     size := func() returns I64 { return 1 }
 }
-I16 : StructDef = ext_struct {
-    namespace:
+
+I16 := ext_struct {
+namespace:
     to_i64 := ext_func(shallow val: I16) returns I64 {}
     to_str := func(val: I16) returns Str {
         return val.to_i64().to_str()
@@ -70,8 +71,9 @@ I16 : StructDef = ext_struct {
     delete := ext_proc(own self: I16, call_free: Bool = true) {}
     size := func() returns I64 { return 2 }
 }
-I32 : StructDef = ext_struct {
-    namespace:
+
+I32 := ext_struct {
+namespace:
     to_i64 := ext_func(shallow val: I32) returns I64 {}
     to_str := func(val: I32) returns Str {
         return val.to_i64().to_str()
@@ -100,8 +102,9 @@ I32 : StructDef = ext_struct {
     delete := ext_proc(own self: I32, call_free: Bool = true) {}
     size := func() returns I64 { return 4 }
 }
-F32 : StructDef = ext_struct {
-    namespace:
+
+F32 := ext_struct {
+namespace:
     to_i64 := ext_func(shallow val: F32) returns I64 {}
     to_str := ext_func(shallow val: F32) returns Str {}
     from_i64 := func(val: I64) returns F32 {
@@ -118,8 +121,9 @@ F32 : StructDef = ext_struct {
     delete := ext_proc(own self: F32, call_free: Bool = true) {}
     size := func() returns I64 { return 4 }
 }
-U32 : StructDef = ext_struct {
-    namespace:
+
+U32 := ext_struct {
+namespace:
     to_i64 := ext_func(shallow val: U32) returns I64 {}
     to_str := func(val: U32) returns Str {
         return val.to_i64().to_str()
@@ -148,7 +152,7 @@ U32 : StructDef = ext_struct {
     size := func() returns I64 { return 4 }
 }
 I64 : StructDef = ext_struct {
-    namespace:
+namespace:
     to_str := func(val: I64) returns Str {
         if val.eq(0) {
             own buf : U8 = malloc(2)
@@ -205,7 +209,7 @@ Range := struct {
     start := 0
     end := 0
 
-    namespace:
+namespace:
     new := func(start: I64, end: I64) returns Range {
         return Range(start = start, end = end)
     }
@@ -232,7 +236,7 @@ Range := struct {
 }
 
 Bool : StructDef = ext_struct {
-    namespace:
+namespace:
     to_str := func(b: Bool) returns Str {
         if b { return "true" } else { return "false" }
     }

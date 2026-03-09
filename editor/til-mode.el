@@ -22,14 +22,15 @@
   "Syntax table for `til-mode'.")
 
 (defconst til-keywords
-  '("mode" "mut" "copy" "own" "struct" "enum" "namespace" "main"
+  '("mode" "mut" "ref" "shallow" "copy" "own" "struct" "enum" "namespace" "main"
     "func" "proc" "ext_func" "ext_proc" "macro"
     "returns" "return" "throws" "catch"
     "if" "else" "while" "for" "in" "switch" "case" "true" "false"
     ))
 
 (defconst til-types
-  '("U8" "I64" "Bool" "Str"))
+  '("U8" "I16" "I32" "I64" "U32" "F32" "Bool" "Str" "Dynamic"
+    "StructDef" "FunctionDef" "EnumDef"))
 
 (defconst til-builtins
   '("and" "or" "not" "eq" "branchless"
@@ -101,7 +102,7 @@
     ;; Enum variants without types
     ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*[,}]" 1 font-lock-constant-face)
     ;; Function and procedure names
-    ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*:=\\s-*\\(func\\|proc\\|macro\\|ext_func\\|ext_proc\\)" 1 font-lock-function-name-face)
+    ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*:=\\s-*\\(func\\|proc\\|test\\|macro\\|ext_func\\|ext_proc\\)" 1 font-lock-function-name-face)
     ;; Mutable variables and arguments (anything after 'mut')
     ("\\<mut\\s-+\\([a-zA-Z_][a-zA-Z0-9_]*\\)" 1 font-lock-variable-name-face)
     ;; Constant arguments (no 'mut', in function signatures)
@@ -161,6 +162,14 @@
           (error
            (message "Error in case indentation")
            (setq indent 0))))
+       ;; Namespace blocks: align with parent block (like case in switch)
+       ((looking-at "\\<namespace\\>")
+        (condition-case nil
+            (progn
+              (backward-up-list 1)
+              (setq indent (current-indentation))
+              (setq not-indented nil))
+          (error (setq indent 0))))
        ;; Other lines: indent based on open blocks or parentheses
        (t
         (condition-case nil
