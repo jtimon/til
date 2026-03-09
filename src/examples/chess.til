@@ -1,0 +1,964 @@
+mode gui
+
+// Chess Game
+// 2-player or 1-player vs AI (random legal moves)
+// Click piece to select, click destination to move
+// Full legal move validation: castling, en passant, pawn promotion
+
+WINDOW_WIDTH := 720
+WINDOW_HEIGHT := 800
+FPS := 60
+CELL := 80
+BOARD_Y := 80
+FONT_SZ := 20
+FONT_LG := 40
+
+// Piece encoding: 0=empty
+// White: 1=pawn 2=knight 3=bishop 4=rook 5=queen 6=king
+// Black: 7=pawn 8=knight 9=bishop 10=rook 11=queen 12=king
+// Color: pieces 1-6 are white, 7-12 are black
+
+PIECE_NAMES := array("Str", ".", "P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k")
+
+// Initial board (row 0 = top = rank 8, black side)
+INIT_BOARD := array("I64",
+    10, 8, 9, 11, 12, 9, 8, 10,
+     7, 7, 7,  7,  7, 7, 7,  7,
+     0, 0, 0,  0,  0, 0, 0,  0,
+     0, 0, 0,  0,  0, 0, 0,  0,
+     0, 0, 0,  0,  0, 0, 0,  0,
+     0, 0, 0,  0,  0, 0, 0,  0,
+     1, 1, 1,  1,  1, 1, 1,  1,
+     4, 2, 3,  5,  6, 3, 2,  4
+)
+
+// Returns true if piece belongs to white (1-6)
+is_white := func(piece: I64) returns Bool {
+    return piece.gte(1).and(piece.lte(6))
+}
+
+// Returns true if piece belongs to black (7-12)
+is_black := func(piece: I64) returns Bool {
+    return piece.gte(7).and(piece.lte(12))
+}
+
+// Returns true if piece belongs to the given side (0=white, 1=black)
+is_side := func(piece: I64, side: I64) returns Bool {
+    if side.eq(0) {
+        return is_white(piece)
+    }
+    return is_black(piece)
+}
+
+// Returns the piece type (1-6) regardless of color
+piece_type := func(piece: I64) returns I64 {
+    if piece.eq(0) { return 0 }
+    if piece.lte(6) { return piece }
+    return piece.sub(6)
+}
+
+// Copy board from src to dst
+copy_board := proc(mut dst: Array, mut src: Array) {
+    mut i := 0
+    while i.lt(64) {
+        ref v : I64 = src.get(i)
+        dst.set(i, own v.clone())
+        i = i.add(1)
+    }
+}
+
+// Check if square (r,c) is attacked by side `by_side` (0=white, 1=black)
+is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool {
+    // Check knight attacks
+    mut ki := 0
+    KN_DR := array("I64", 0.sub(2), 0.sub(2), 0.sub(1), 0.sub(1), 1, 1, 2, 2)
+    KN_DC := array("I64", 0.sub(1), 1, 0.sub(2), 2, 0.sub(2), 2, 0.sub(1), 1)
+    while ki.lt(8) {
+        ref dr : I64 = KN_DR.get(ki)
+        ref dc : I64 = KN_DC.get(ki)
+        nr := r.add(dr)
+        nc := c.add(dc)
+        if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
+            ref p : I64 = board.get(nr.mul(8).add(nc))
+            knight_piece := by_side.mul(6).add(2)
+            if p.eq(knight_piece) { return true }
+        }
+        ki = ki.add(1)
+    }
+
+    // Check king attacks (adjacent squares)
+    mut kki := 0.sub(1)
+    while kki.lte(1) {
+        mut kkj := 0.sub(1)
+        while kkj.lte(1) {
+            if kki.eq(0).and(kkj.eq(0)).not() {
+                nr := r.add(kki)
+                nc := c.add(kkj)
+                if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
+                    ref p : I64 = board.get(nr.mul(8).add(nc))
+                    king_piece := by_side.mul(6).add(6)
+                    if p.eq(king_piece) { return true }
+                }
+            }
+            kkj = kkj.add(1)
+        }
+        kki = kki.add(1)
+    }
+
+    // Check pawn attacks
+    pawn_piece := by_side.mul(6).add(1)
+    // White pawns attack upward (row decreases), black downward (row increases)
+    mut pawn_dr := 0.sub(1)
+    if by_side.eq(1) { pawn_dr = 1 }
+    // Pawn attacks from the pawn's position, so a pawn on (r+pawn_dr, c+-1) attacks (r,c)
+    // But we want: is square (r,c) attacked by a pawn?
+    // A white pawn at (r+1, c+-1) attacks (r,c) — white pawns move up, attack diag up
+    // A black pawn at (r-1, c+-1) attacks (r,c) — black pawns move down, attack diag down
+    mut pawn_src_r := r.add(1)
+    if by_side.eq(1) { pawn_src_r = r.sub(1) }
+    if pawn_src_r.gte(0).and(pawn_src_r.lt(8)) {
+        if c.sub(1).gte(0) {
+            ref pl : I64 = board.get(pawn_src_r.mul(8).add(c.sub(1)))
+            if pl.eq(pawn_piece) { return true }
+        }
+        if c.add(1).lt(8) {
+            ref pr2 : I64 = board.get(pawn_src_r.mul(8).add(c.add(1)))
+            if pr2.eq(pawn_piece) { return true }
+        }
+    }
+
+    // Check rook/queen attacks (straight lines)
+    DIRS_R := array("I64", 0.sub(1), 1, 0, 0)
+    DIRS_C := array("I64", 0, 0, 0.sub(1), 1)
+    mut di := 0
+    while di.lt(4) {
+        ref sdr : I64 = DIRS_R.get(di)
+        ref sdc : I64 = DIRS_C.get(di)
+        mut sr := r.add(sdr)
+        mut sc := c.add(sdc)
+        while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
+            ref sp : I64 = board.get(sr.mul(8).add(sc))
+            if sp.neq(0) {
+                spt := piece_type(sp)
+                if is_side(sp, by_side).and(spt.eq(4).or(spt.eq(5))) {
+                    return true
+                }
+                // Blocked by a piece
+                sr = 99
+                sc = 99
+            } else {
+                sr = sr.add(sdr)
+                sc = sc.add(sdc)
+            }
+        }
+        di = di.add(1)
+    }
+
+    // Check bishop/queen attacks (diagonals)
+    DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
+    DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
+    mut bi := 0
+    while bi.lt(4) {
+        ref bdr : I64 = DIAG_R.get(bi)
+        ref bdc : I64 = DIAG_C.get(bi)
+        mut br := r.add(bdr)
+        mut bc := c.add(bdc)
+        while br.gte(0).and(br.lt(8)).and(bc.gte(0)).and(bc.lt(8)) {
+            ref bp : I64 = board.get(br.mul(8).add(bc))
+            if bp.neq(0) {
+                bpt := piece_type(bp)
+                if is_side(bp, by_side).and(bpt.eq(3).or(bpt.eq(5))) {
+                    return true
+                }
+                br = 99
+                bc = 99
+            } else {
+                br = br.add(bdr)
+                bc = bc.add(bdc)
+            }
+        }
+        bi = bi.add(1)
+    }
+
+    return false
+}
+
+// Find king position for side (0=white, 1=black)
+find_king := func(mut board: Array, side: I64) returns I64 {
+    king_piece := side.mul(6).add(6)
+    mut i := 0
+    while i.lt(64) {
+        ref p : I64 = board.get(i)
+        if p.eq(king_piece) { return i }
+        i = i.add(1)
+    }
+    return 0.sub(1)
+}
+
+// Check if side is in check
+in_check := func(mut board: Array, side: I64) returns Bool {
+    ki := find_king(board, side)
+    if ki.lt(0) { return true }
+    kr := ki.div(8)
+    kc := ki.mod(8)
+    opp := 1.sub(side)
+    return is_attacked(board, kr, kc, opp)
+}
+
+// Try a move on a temp board and check if own king is in check
+// Returns true if the move leaves the player in check (illegal)
+move_leaves_in_check := proc(mut board: Array, mut tmp: Array, from: I64, to: I64, side: I64) returns Bool {
+    copy_board(tmp, board)
+    ref p : I64 = tmp.get(from)
+    pv := p.clone()
+    pt := piece_type(pv)
+    tmp.set(to, own pv)
+    tmp.set(from, own 0)
+
+    // Handle en passant capture on temp board
+    if pt.eq(1) {
+        from_c := from.mod(8)
+        to_c := to.mod(8)
+        ref dest : I64 = board.get(to)
+        if dest.eq(0).and(from_c.neq(to_c)) {
+            // En passant: remove captured pawn
+            cap_r := from.div(8)
+            tmp.set(cap_r.mul(8).add(to_c), own 0)
+        }
+    }
+
+    return in_check(tmp, side)
+}
+
+// Generate valid moves for a piece at position idx
+// Stores destination squares in moves array, returns count
+gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
+                   mut moves: Array, ep_col: I64,
+                   mut castle_flags: Array) returns I64 {
+    ref piece : I64 = board.get(idx)
+    pt := piece_type(piece)
+    r := idx.div(8)
+    c := idx.mod(8)
+    mut count := 0
+
+    if pt.eq(1) {
+        // Pawn
+        mut dir := 0.sub(1)
+        mut start_row := 6
+        if side.eq(1) {
+            dir = 1
+            start_row = 1
+        }
+
+        // Forward one
+        nr := r.add(dir)
+        if nr.gte(0).and(nr.lt(8)) {
+            ref fp : I64 = board.get(nr.mul(8).add(c))
+            if fp.eq(0) {
+                if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(c), side).not() {
+                    moves.set(count, own nr.mul(8).add(c))
+                    count = count.add(1)
+                }
+                // Forward two from start
+                if r.eq(start_row) {
+                    nr2 := r.add(dir.mul(2))
+                    ref fp2 : I64 = board.get(nr2.mul(8).add(c))
+                    if fp2.eq(0) {
+                        if move_leaves_in_check(board, tmp, idx, nr2.mul(8).add(c), side).not() {
+                            moves.set(count, own nr2.mul(8).add(c))
+                            count = count.add(1)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Captures (diagonal)
+        if nr.gte(0).and(nr.lt(8)) {
+            mut dc := 0.sub(1)
+            while dc.lte(1) {
+                nc := c.add(dc)
+                if nc.gte(0).and(nc.lt(8)).and(dc.neq(0)) {
+                    ref cp : I64 = board.get(nr.mul(8).add(nc))
+                    opp := 1.sub(side)
+                    can_capture := is_side(cp, opp)
+                    // En passant
+                    mut is_ep := false
+                    if cp.eq(0).and(nc.eq(ep_col)) {
+                        mut ep_row := 3
+                        if side.eq(1) { ep_row = 4 }
+                        if r.eq(ep_row) {
+                            is_ep = true
+                        }
+                    }
+                    if can_capture.or(is_ep) {
+                        if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
+                            // For en passant, also check removing the captured pawn
+                            mut ok := true
+                            if is_ep {
+                                copy_board(tmp, board)
+                                ref pv : I64 = tmp.get(idx)
+                                pvv := pv.clone()
+                                tmp.set(nr.mul(8).add(nc), own pvv)
+                                tmp.set(idx, own 0)
+                                tmp.set(r.mul(8).add(nc), own 0)
+                                if in_check(tmp, side) {
+                                    ok = false
+                                }
+                            }
+                            if ok {
+                                moves.set(count, own nr.mul(8).add(nc))
+                                count = count.add(1)
+                            }
+                        }
+                    }
+                }
+                dc = dc.add(2)
+            }
+        }
+    }
+
+    if pt.eq(2) {
+        // Knight
+        KN_DR := array("I64", 0.sub(2), 0.sub(2), 0.sub(1), 0.sub(1), 1, 1, 2, 2)
+        KN_DC := array("I64", 0.sub(1), 1, 0.sub(2), 2, 0.sub(2), 2, 0.sub(1), 1)
+        mut ki := 0
+        while ki.lt(8) {
+            ref dr : I64 = KN_DR.get(ki)
+            ref dc : I64 = KN_DC.get(ki)
+            nr := r.add(dr)
+            nc := c.add(dc)
+            if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
+                ref dp : I64 = board.get(nr.mul(8).add(nc))
+                if is_side(dp, side).not() {
+                    if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
+                        moves.set(count, own nr.mul(8).add(nc))
+                        count = count.add(1)
+                    }
+                }
+            }
+            ki = ki.add(1)
+        }
+    }
+
+    if pt.eq(3).or(pt.eq(5)) {
+        // Bishop or Queen (diagonals)
+        DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
+        DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
+        mut di := 0
+        while di.lt(4) {
+            ref sdr : I64 = DIAG_R.get(di)
+            ref sdc : I64 = DIAG_C.get(di)
+            mut sr := r.add(sdr)
+            mut sc := c.add(sdc)
+            while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
+                ref sp : I64 = board.get(sr.mul(8).add(sc))
+                if sp.eq(0) {
+                    if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                        moves.set(count, own sr.mul(8).add(sc))
+                        count = count.add(1)
+                    }
+                } else {
+                    if is_side(sp, side).not() {
+                        if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                            moves.set(count, own sr.mul(8).add(sc))
+                            count = count.add(1)
+                        }
+                    }
+                    // Blocked
+                    sr = 99
+                    sc = 99
+                }
+                if sr.lt(99) {
+                    sr = sr.add(sdr)
+                    sc = sc.add(sdc)
+                }
+            }
+            di = di.add(1)
+        }
+    }
+
+    if pt.eq(4).or(pt.eq(5)) {
+        // Rook or Queen (straight lines)
+        DIRS_R := array("I64", 0.sub(1), 1, 0, 0)
+        DIRS_C := array("I64", 0, 0, 0.sub(1), 1)
+        mut di := 0
+        while di.lt(4) {
+            ref sdr : I64 = DIRS_R.get(di)
+            ref sdc : I64 = DIRS_C.get(di)
+            mut sr := r.add(sdr)
+            mut sc := c.add(sdc)
+            while sr.gte(0).and(sr.lt(8)).and(sc.gte(0)).and(sc.lt(8)) {
+                ref sp : I64 = board.get(sr.mul(8).add(sc))
+                if sp.eq(0) {
+                    if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                        moves.set(count, own sr.mul(8).add(sc))
+                        count = count.add(1)
+                    }
+                } else {
+                    if is_side(sp, side).not() {
+                        if move_leaves_in_check(board, tmp, idx, sr.mul(8).add(sc), side).not() {
+                            moves.set(count, own sr.mul(8).add(sc))
+                            count = count.add(1)
+                        }
+                    }
+                    sr = 99
+                    sc = 99
+                }
+                if sr.lt(99) {
+                    sr = sr.add(sdr)
+                    sc = sc.add(sdc)
+                }
+            }
+            di = di.add(1)
+        }
+    }
+
+    if pt.eq(6) {
+        // King
+        mut kki := 0.sub(1)
+        while kki.lte(1) {
+            mut kkj := 0.sub(1)
+            while kkj.lte(1) {
+                if kki.eq(0).and(kkj.eq(0)).not() {
+                    nr := r.add(kki)
+                    nc := c.add(kkj)
+                    if nr.gte(0).and(nr.lt(8)).and(nc.gte(0)).and(nc.lt(8)) {
+                        ref dp : I64 = board.get(nr.mul(8).add(nc))
+                        if is_side(dp, side).not() {
+                            if move_leaves_in_check(board, tmp, idx, nr.mul(8).add(nc), side).not() {
+                                moves.set(count, own nr.mul(8).add(nc))
+                                count = count.add(1)
+                            }
+                        }
+                    }
+                }
+                kkj = kkj.add(1)
+            }
+            kki = kki.add(1)
+        }
+
+        // Castling
+        // castle_flags: [white_king_moved, white_rook_a_moved, white_rook_h_moved,
+        //                black_king_moved, black_rook_a_moved, black_rook_h_moved]
+        mut cf_offset := 0
+        mut king_row := 7
+        if side.eq(1) {
+            cf_offset = 3
+            king_row = 0
+        }
+        if r.eq(king_row).and(c.eq(4)) {
+            ref km : I64 = castle_flags.get(cf_offset)
+            if km.eq(0) {
+                opp := 1.sub(side)
+                // Not currently in check
+                if is_attacked(board, r, 4, opp).not() {
+                    // Kingside castling (O-O)
+                    ref rk_h : I64 = castle_flags.get(cf_offset.add(2))
+                    if rk_h.eq(0) {
+                        ref sq5 : I64 = board.get(r.mul(8).add(5))
+                        ref sq6 : I64 = board.get(r.mul(8).add(6))
+                        ref sq7 : I64 = board.get(r.mul(8).add(7))
+                        rook_piece := side.mul(6).add(4)
+                        if sq5.eq(0).and(sq6.eq(0)).and(sq7.eq(rook_piece)) {
+                            if is_attacked(board, r, 5, opp).not().and(is_attacked(board, r, 6, opp).not()) {
+                                moves.set(count, own r.mul(8).add(6))
+                                count = count.add(1)
+                            }
+                        }
+                    }
+                    // Queenside castling (O-O-O)
+                    ref rk_a : I64 = castle_flags.get(cf_offset.add(1))
+                    if rk_a.eq(0) {
+                        ref sq3 : I64 = board.get(r.mul(8).add(3))
+                        ref sq2 : I64 = board.get(r.mul(8).add(2))
+                        ref sq1 : I64 = board.get(r.mul(8).add(1))
+                        ref sq0 : I64 = board.get(r.mul(8))
+                        rook_piece := side.mul(6).add(4)
+                        if sq3.eq(0).and(sq2.eq(0)).and(sq1.eq(0)).and(sq0.eq(rook_piece)) {
+                            if is_attacked(board, r, 3, opp).not().and(is_attacked(board, r, 2, opp).not()) {
+                                moves.set(count, own r.mul(8).add(2))
+                                count = count.add(1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return count
+}
+
+// Check if side has any legal moves
+has_legal_moves := proc(mut board: Array, mut tmp: Array, side: I64,
+                         mut moves: Array, ep_col: I64,
+                         mut castle_flags: Array) returns Bool {
+    mut i := 0
+    while i.lt(64) {
+        ref p : I64 = board.get(i)
+        if is_side(p, side) {
+            mc := gen_moves(board, tmp, i, side, moves, ep_col, castle_flags)
+            if mc.gt(0) { return true }
+        }
+        i = i.add(1)
+    }
+    return false
+}
+
+main := proc() {
+    init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "chess")
+    set_target_fps(FPS)
+
+    // Board state
+    mut board := Array.new("I64", 8, 64)
+    mut tmp_board := Array.new("I64", 8, 64)
+
+    // Valid moves buffer (max 28 moves per piece is enough)
+    mut valid_moves := Array.new("I64", 8, 64)
+    mut valid_count := 0
+
+    // Castle flags: [wk, wra, wrh, bk, bra, brh] (0=not moved, 1=moved)
+    mut castle_flags := Array.new("I64", 8, 6)
+
+    // Game state
+    mut turn := 0       // 0=white, 1=black
+    mut selected := 0.sub(1) // selected square index (-1 = none)
+    mut game_over := 0  // 0=playing, 1=checkmate, 2=stalemate
+    mut winner := 0.sub(1)
+    mut ep_col := 0.sub(1)   // en passant target column (-1 = none)
+    mut vs_ai := 0      // 0=menu, 1=two player, 2=vs AI (player is white)
+    mut ai_timer := 0
+
+    // Initialize board
+    mut i := 0
+    while i.lt(64) {
+        ref init_p : I64 = INIT_BOARD.get(i)
+        board.set(i, own init_p.clone())
+        i = i.add(1)
+    }
+    i = 0
+    while i.lt(6) {
+        castle_flags.set(i, own 0)
+        i = i.add(1)
+    }
+
+    while window_should_close().not() {
+        // --- MENU MODE ---
+        if vs_ai.eq(0) {
+            if is_key_pressed(49) {
+                // 1 = Two Players
+                vs_ai = 1
+            }
+            if is_key_pressed(50) {
+                // 2 = vs AI
+                vs_ai = 2
+            }
+
+            begin_drawing()
+            clear_background(30, 30, 30, 255)
+            draw_text("CHESS", WINDOW_WIDTH.div(2).sub(60), 200, FONT_LG, 255, 255, 255, 255)
+            draw_text("press 1: two players", WINDOW_WIDTH.div(2).sub(110), 300, FONT_SZ, 200, 200, 200, 255)
+            draw_text("press 2: vs computer", WINDOW_WIDTH.div(2).sub(110), 340, FONT_SZ, 200, 200, 200, 255)
+            end_drawing()
+        } else {
+            // --- GAME MODE ---
+
+            // Restart
+            if is_key_pressed(82) {
+                // R = restart to menu
+                i = 0
+                while i.lt(64) {
+                    ref init_p : I64 = INIT_BOARD.get(i)
+                    board.set(i, own init_p.clone())
+                    i = i.add(1)
+                }
+                i = 0
+                while i.lt(6) {
+                    castle_flags.set(i, own 0)
+                    i = i.add(1)
+                }
+                turn = 0
+                selected = 0.sub(1)
+                valid_count = 0
+                game_over = 0
+                winner = 0.sub(1)
+                ep_col = 0.sub(1)
+                vs_ai = 0
+                ai_timer = 0
+            }
+
+            // AI move
+            if vs_ai.eq(2).and(turn.eq(1)).and(game_over.eq(0)) {
+                ai_timer = ai_timer.add(1)
+                if ai_timer.gt(30) {
+                    ai_timer = 0
+                    // Collect all legal moves for black
+                    mut ai_pieces := Array.new("I64", 8, 64)
+                    mut ai_dests := Array.new("I64", 8, 64)
+                    mut ai_total := 0
+                    mut ai_moves := Array.new("I64", 8, 64)
+
+                    mut ai := 0
+                    while ai.lt(64) {
+                        ref ap : I64 = board.get(ai)
+                        if is_black(ap) {
+                            mc := gen_moves(board, tmp_board, ai, 1, ai_moves, ep_col, castle_flags)
+                            mut mj := 0
+                            while mj.lt(mc) {
+                                ref md : I64 = ai_moves.get(mj)
+                                ai_pieces.set(ai_total, own ai.clone())
+                                ai_dests.set(ai_total, own md.clone())
+                                ai_total = ai_total.add(1)
+                                mj = mj.add(1)
+                            }
+                        }
+                        ai = ai.add(1)
+                    }
+
+                    if ai_total.gt(0) {
+                        // Pick random move
+                        choice := get_random_value(0, ai_total.sub(1))
+                        ref from_sq : I64 = ai_pieces.get(choice)
+                        ref to_sq : I64 = ai_dests.get(choice)
+                        from_val := from_sq.clone()
+                        to_val := to_sq.clone()
+
+                        // Execute AI move
+                        ref mp : I64 = board.get(from_val)
+                        mpv := mp.clone()
+                        mpt := piece_type(mpv)
+                        from_r := from_val.div(8)
+                        from_c := from_val.mod(8)
+                        to_r := to_val.div(8)
+                        to_c := to_val.mod(8)
+
+                        // Update castle flags
+                        if mpt.eq(6) {
+                            castle_flags.set(3, own 1)
+                            // Check castling move
+                            if from_c.eq(4).and(to_c.eq(6)) {
+                                // Kingside
+                                ref rp : I64 = board.get(from_r.mul(8).add(7))
+                                rpv := rp.clone()
+                                board.set(from_r.mul(8).add(5), own rpv)
+                                board.set(from_r.mul(8).add(7), own 0)
+                            }
+                            if from_c.eq(4).and(to_c.eq(2)) {
+                                // Queenside
+                                ref rp : I64 = board.get(from_r.mul(8))
+                                rpv := rp.clone()
+                                board.set(from_r.mul(8).add(3), own rpv)
+                                board.set(from_r.mul(8), own 0)
+                            }
+                        }
+                        if mpt.eq(4) {
+                            if from_val.eq(0) { castle_flags.set(4, own 1) }
+                            if from_val.eq(7) { castle_flags.set(5, own 1) }
+                        }
+
+                        // En passant capture
+                        if mpt.eq(1).and(from_c.neq(to_c)) {
+                            ref dest_p : I64 = board.get(to_val)
+                            if dest_p.eq(0) {
+                                board.set(from_r.mul(8).add(to_c), own 0)
+                            }
+                        }
+
+                        // Move piece
+                        board.set(to_val, own mpv)
+                        board.set(from_val, own 0)
+
+                        // Pawn promotion (auto-queen)
+                        if mpt.eq(1).and(to_r.eq(7)) {
+                            board.set(to_val, own 11)
+                        }
+
+                        // Update en passant column
+                        if mpt.eq(1).and(to_r.sub(from_r).abs().eq(2)) {
+                            ep_col = from_c
+                        } else {
+                            ep_col = 0.sub(1)
+                        }
+
+                        // Switch turn
+                        turn = 0
+                        selected = 0.sub(1)
+                        valid_count = 0
+
+                        // Check for checkmate/stalemate
+                        if has_legal_moves(board, tmp_board, 0, valid_moves, ep_col, castle_flags).not() {
+                            if in_check(board, 0) {
+                                game_over = 1
+                                winner = 1
+                            } else {
+                                game_over = 2
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Human input
+            if game_over.eq(0) {
+                mut is_human_turn := true
+                if vs_ai.eq(2).and(turn.eq(1)) {
+                    is_human_turn = false
+                }
+
+                if is_human_turn.and(is_mouse_button_pressed(0)) {
+                    mx := get_mouse_x()
+                    my := get_mouse_y().sub(BOARD_Y)
+                    click_c := mx.div(CELL)
+                    click_r := my.div(CELL)
+
+                    if click_r.gte(0).and(click_r.lt(8)).and(click_c.gte(0).and(click_c.lt(8))) {
+                        click_idx := click_r.mul(8).add(click_c)
+
+                        if selected.gte(0) {
+                            // Check if click is a valid move destination
+                            mut is_valid := false
+                            mut vi := 0
+                            while vi.lt(valid_count) {
+                                ref vm : I64 = valid_moves.get(vi)
+                                if vm.eq(click_idx) {
+                                    is_valid = true
+                                }
+                                vi = vi.add(1)
+                            }
+
+                            if is_valid {
+                                // Execute move
+                                ref mp : I64 = board.get(selected)
+                                mpv := mp.clone()
+                                mpt := piece_type(mpv)
+                                from_r := selected.div(8)
+                                from_c := selected.mod(8)
+                                to_r := click_r
+                                to_c := click_c
+
+                                // Update castle flags
+                                mut cf_off := turn.mul(3)
+                                if mpt.eq(6) {
+                                    castle_flags.set(cf_off, own 1)
+                                    // Castling move
+                                    if from_c.eq(4).and(to_c.eq(6)) {
+                                        ref rp : I64 = board.get(from_r.mul(8).add(7))
+                                        rpv := rp.clone()
+                                        board.set(from_r.mul(8).add(5), own rpv)
+                                        board.set(from_r.mul(8).add(7), own 0)
+                                    }
+                                    if from_c.eq(4).and(to_c.eq(2)) {
+                                        ref rp : I64 = board.get(from_r.mul(8))
+                                        rpv := rp.clone()
+                                        board.set(from_r.mul(8).add(3), own rpv)
+                                        board.set(from_r.mul(8), own 0)
+                                    }
+                                }
+                                if mpt.eq(4) {
+                                    if turn.eq(0) {
+                                        if selected.eq(56) { castle_flags.set(1, own 1) }
+                                        if selected.eq(63) { castle_flags.set(2, own 1) }
+                                    } else {
+                                        if selected.eq(0) { castle_flags.set(4, own 1) }
+                                        if selected.eq(7) { castle_flags.set(5, own 1) }
+                                    }
+                                }
+
+                                // En passant capture
+                                if mpt.eq(1).and(from_c.neq(to_c)) {
+                                    ref dest_p : I64 = board.get(click_idx)
+                                    if dest_p.eq(0) {
+                                        board.set(from_r.mul(8).add(to_c), own 0)
+                                    }
+                                }
+
+                                // Move piece
+                                board.set(click_idx, own mpv)
+                                board.set(selected, own 0)
+
+                                // Pawn promotion (auto-queen)
+                                if mpt.eq(1) {
+                                    if turn.eq(0).and(to_r.eq(0)) {
+                                        board.set(click_idx, own 5)
+                                    }
+                                    if turn.eq(1).and(to_r.eq(7)) {
+                                        board.set(click_idx, own 11)
+                                    }
+                                }
+
+                                // Update en passant column
+                                if mpt.eq(1).and(to_r.sub(from_r).abs().eq(2)) {
+                                    ep_col = from_c
+                                } else {
+                                    ep_col = 0.sub(1)
+                                }
+
+                                // Switch turn
+                                opp := 1.sub(turn)
+                                turn = opp
+                                selected = 0.sub(1)
+                                valid_count = 0
+
+                                // Check for checkmate/stalemate
+                                if has_legal_moves(board, tmp_board, turn, valid_moves, ep_col, castle_flags).not() {
+                                    if in_check(board, turn) {
+                                        game_over = 1
+                                        winner = 1.sub(turn)
+                                    } else {
+                                        game_over = 2
+                                    }
+                                }
+                            } else {
+                                // Click on own piece = reselect, otherwise deselect
+                                ref cp : I64 = board.get(click_idx)
+                                if is_side(cp, turn) {
+                                    selected = click_idx
+                                    valid_count = gen_moves(board, tmp_board, click_idx, turn, valid_moves, ep_col, castle_flags)
+                                } else {
+                                    selected = 0.sub(1)
+                                    valid_count = 0
+                                }
+                            }
+                        } else {
+                            // No piece selected yet - select own piece
+                            ref cp : I64 = board.get(click_idx)
+                            if is_side(cp, turn) {
+                                selected = click_idx
+                                valid_count = gen_moves(board, tmp_board, click_idx, turn, valid_moves, ep_col, castle_flags)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- DRAW ---
+            begin_drawing()
+            clear_background(30, 30, 30, 255)
+
+            // Status bar
+            if game_over.eq(0) {
+                if turn.eq(0) {
+                    draw_text("White to move", 10, 10, FONT_SZ, 255, 255, 255, 255)
+                } else {
+                    draw_text("Black to move", 10, 10, FONT_SZ, 180, 180, 180, 255)
+                }
+                if in_check(board, turn) {
+                    draw_text("CHECK!", 250, 10, FONT_SZ, 230, 41, 55, 255)
+                }
+            } else {
+                if game_over.eq(1) {
+                    if winner.eq(0) {
+                        draw_text("CHECKMATE! White wins!", 10, 10, FONT_SZ, 255, 255, 0, 255)
+                    } else {
+                        draw_text("CHECKMATE! Black wins!", 10, 10, FONT_SZ, 255, 255, 0, 255)
+                    }
+                } else {
+                    draw_text("STALEMATE! Draw!", 10, 10, FONT_SZ, 200, 200, 0, 255)
+                }
+            }
+
+            // Mode indicator
+            if vs_ai.eq(1) {
+                draw_text("2 players", WINDOW_WIDTH.sub(130), 10, FONT_SZ, 100, 100, 100, 255)
+            } else {
+                draw_text("vs computer", WINDOW_WIDTH.sub(150), 10, FONT_SZ, 100, 100, 100, 255)
+            }
+            draw_text("R=menu", WINDOW_WIDTH.sub(130), 40, 16, 100, 100, 100, 255)
+
+            // Draw board
+            mut dr := 0
+            while dr.lt(8) {
+                mut dc := 0
+                while dc.lt(8) {
+                    px := dc.mul(CELL)
+                    py := dr.mul(CELL).add(BOARD_Y)
+
+                    // Square color (light/dark)
+                    mut sq_r := 238
+                    mut sq_g := 238
+                    mut sq_b := 210
+                    if dr.add(dc).mod(2).eq(1) {
+                        sq_r = 118
+                        sq_g = 150
+                        sq_b = 86
+                    }
+
+                    // Highlight selected square
+                    idx := dr.mul(8).add(dc)
+                    if idx.eq(selected) {
+                        sq_r = 186
+                        sq_g = 202
+                        sq_b = 68
+                    }
+
+                    draw_rectangle(px, py, CELL, CELL, sq_r, sq_g, sq_b, 255)
+
+                    // Draw valid move indicators
+                    mut vi := 0
+                    while vi.lt(valid_count) {
+                        ref vm : I64 = valid_moves.get(vi)
+                        if vm.eq(idx) {
+                            ref dp : I64 = board.get(idx)
+                            if dp.eq(0) {
+                                // Empty square: small dot
+                                draw_circle(px.add(CELL.div(2)), py.add(CELL.div(2)), 8, 100, 100, 100, 128)
+                            } else {
+                                // Capture: corner markers
+                                draw_rectangle(px, py, 12, 12, 200, 50, 50, 180)
+                                draw_rectangle(px.add(CELL).sub(12), py, 12, 12, 200, 50, 50, 180)
+                                draw_rectangle(px, py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
+                                draw_rectangle(px.add(CELL).sub(12), py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
+                            }
+                        }
+                        vi = vi.add(1)
+                    }
+
+                    // Draw piece
+                    ref piece : I64 = board.get(idx)
+                    if piece.neq(0) {
+                        ref pname : Str = PIECE_NAMES.get(piece)
+                        // White pieces: white text, black pieces: dark text
+                        mut pr := 40
+                        mut pg := 40
+                        mut pb := 40
+                        if is_white(piece) {
+                            pr = 255
+                            pg = 255
+                            pb = 255
+                        }
+                        // Draw piece letter centered in cell
+                        draw_text(pname, px.add(CELL.div(2)).sub(12), py.add(CELL.div(2)).sub(16), 36, pr, pg, pb, 255)
+                    }
+
+                    dc = dc.add(1)
+                }
+                dr = dr.add(1)
+            }
+
+            // Rank labels (1-8)
+            mut ri := 0
+            while ri.lt(8) {
+                label := 8.sub(ri).to_str()
+                draw_text(label, WINDOW_WIDTH.sub(20), ri.mul(CELL).add(BOARD_Y).add(CELL.div(2)).sub(8), 16, 100, 100, 100, 255)
+                ri = ri.add(1)
+            }
+
+            // File labels (a-h)
+            FILE_LABELS := array("Str", "a", "b", "c", "d", "e", "f", "g", "h")
+            mut fi := 0
+            while fi.lt(8) {
+                ref fl : Str = FILE_LABELS.get(fi)
+                draw_text(fl, fi.mul(CELL).add(CELL.div(2)).sub(4), BOARD_Y.add(CELL.mul(8)).add(5), 16, 100, 100, 100, 255)
+                fi = fi.add(1)
+            }
+
+            // Captured pieces area - bottom
+            draw_text("click a piece to select, click destination to move", 10, WINDOW_HEIGHT.sub(30), 14, 80, 80, 80, 255)
+
+            end_drawing()
+        }
+    }
+
+    close_window()
+}
