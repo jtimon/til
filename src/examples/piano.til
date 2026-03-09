@@ -1,0 +1,314 @@
+mode gui
+
+// Playable piano with scrolling piano roll
+// QWERTY keyboard maps to 3 octaves (C3-B5)
+// Notes scroll left across the top as you play
+
+WINDOW_WIDTH := 1920
+WINDOW_HEIGHT := 1080
+FPS := 60
+NUM_KEYS := 36
+MAX_NOTES := 256
+
+// Layout
+MARGIN := 40
+ROLL_H := WINDOW_HEIGHT.div(2)
+PIANO_Y := WINDOW_HEIGHT.sub(WINDOW_HEIGHT.div(3))
+WHITE_W := WINDOW_WIDTH.div(21)
+WHITE_H := WINDOW_HEIGHT.sub(PIANO_Y)
+BLACK_W := WHITE_W.mul(3).div(5)
+BLACK_H := WHITE_H.mul(2).div(3)
+FONT := 20
+SCROLL_SPEED := 300
+
+// Raylib key codes for 36 keys (left-to-right = low-to-high)
+// Row 1: 1 2 3 4 5 6 7 8 9 0
+// Row 2: Q W E R T Y U I O P
+// Row 3: A S D F G H J K L
+// Row 4: Z X C V B N M
+KEYCODES := array("I64",
+    49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
+    81, 87, 69, 82, 84, 89, 85, 73, 79, 80,
+    65, 83, 68, 70, 71, 72, 74, 75, 76,
+    90, 88, 67, 86, 66, 78, 77
+)
+
+// Key labels for display
+KEY_LABELS := array("Str",
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+    "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
+    "A", "S", "D", "F", "G", "H", "J", "K", "L",
+    "Z", "X", "C", "V", "B", "N", "M"
+)
+
+// Frequencies for 36 chromatic notes C3-B5
+FREQS := array("I64",
+    131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
+    262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
+    523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988
+)
+
+// Piano key layout helpers
+NATURALS := array("I64", 0, 2, 4, 5, 7, 9, 11)
+BLACK_CHROMS := array("I64", 1, 3, 6, 8, 10)
+BLACK_KEY_POS := array("I64", 0, 1, 3, 4, 5)
+
+// Map chromatic note (0-35) to white key index (-1 if black)
+// Within each octave: C=0 D=1 E=2 F=3 G=4 A=5 B=6, black=-1
+CHROM_TO_WHITE := array("I64", 0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6)
+IS_BLACK := array("I64", 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0)
+
+// Note names for piano roll labels
+NOTE_NAMES := array("Str", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+
+main := proc() {
+    init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "piano")
+    set_target_fps(FPS)
+    init_audio_device()
+    fnt := load_font("assets/DejaVuSans.ttf", 48)
+
+    // Key state tracking
+    mut key_down := Array.new("I64", 8, NUM_KEYS)
+    mut prev_down := Array.new("I64", 8, NUM_KEYS)
+    for i in 0..NUM_KEYS {
+        key_down.set(i, own 0)
+        prev_down.set(i, own 0)
+    }
+
+    // Note events (circular buffer)
+    mut ev_note := Array.new("I64", 8, MAX_NOTES)
+    mut ev_start := Array.new("I64", 8, MAX_NOTES)
+    mut ev_end := Array.new("I64", 8, MAX_NOTES)
+    for i in 0..MAX_NOTES {
+        ev_note.set(i, own 0)
+        ev_start.set(i, own 0)
+        ev_end.set(i, own 0)
+    }
+    mut ev_count := 0
+    mut ev_head := 0
+
+    mut timer := 0
+    mut sounding_note := 0.sub(1)
+
+    while window_should_close().not() {
+        dt := get_frame_time()
+        timer = timer.add(dt)
+
+        // -- Input: reset key_down, then set from keyboard + mouse --
+        for i in 0..NUM_KEYS {
+            ref kc : I64 = KEYCODES.get(i)
+            if is_key_down(kc) {
+                key_down.set(i, own 1)
+            } else {
+                key_down.set(i, own 0)
+            }
+        }
+
+        // Mouse click on piano keys
+        if is_mouse_button_down(0) {
+            mx := get_mouse_x()
+            my := get_mouse_y()
+            if my.gte(PIANO_Y) {
+                mut mouse_note := 0.sub(1)
+                // Check black keys first (they're on top)
+                if my.lt(PIANO_Y.add(BLACK_H)) {
+                    for oct in 0..3 {
+                        for j in 0..5 {
+                            ref bpos : I64 = BLACK_KEY_POS.get(j)
+                            ref bchrom_off : I64 = BLACK_CHROMS.get(j)
+                            chrom := bchrom_off.add(oct.mul(12))
+                            bx := oct.mul(7).add(bpos).add(1).mul(WHITE_W).sub(BLACK_W.div(2))
+                            if chrom.lt(NUM_KEYS).and(mx.gte(bx)).and(mx.lt(bx.add(BLACK_W))) {
+                                mouse_note = chrom
+                            }
+                        }
+                    }
+                }
+                // If no black key hit, check white keys
+                if mouse_note.lt(0) {
+                    wk := mx.div(WHITE_W)
+                    if wk.gte(0).and(wk.lt(21)) {
+                        oct := wk.div(7)
+                        ref nat : I64 = NATURALS.get(wk.mod(7))
+                        mouse_note = nat.add(oct.mul(12))
+                    }
+                }
+                if mouse_note.gte(0).and(mouse_note.lt(NUM_KEYS)) {
+                    key_down.set(mouse_note, own 1)
+                }
+            }
+        }
+
+        // Detect press/release by comparing with prev_down
+        for i in 0..NUM_KEYS {
+            ref kd : I64 = key_down.get(i)
+            ref pd : I64 = prev_down.get(i)
+            // Newly pressed
+            if kd.eq(1).and(pd.eq(0)) {
+                ref freq : I64 = FREQS.get(i)
+                play_tone(freq, 5000)
+                sounding_note = i
+                // Add note event
+                ev_note.set(ev_head, own i.clone())
+                ev_start.set(ev_head, own timer.clone())
+                ev_end.set(ev_head, own 0.sub(1))
+                ev_head = ev_head.add(1).mod(MAX_NOTES)
+                if ev_count.lt(MAX_NOTES) {
+                    ev_count = ev_count.add(1)
+                }
+            }
+            // Just released
+            if kd.eq(0).and(pd.eq(1)) {
+                if sounding_note.eq(i) {
+                    stop_tone()
+                    sounding_note = 0.sub(1)
+                }
+                // Close the note event
+                for j in 0..ev_count {
+                    idx := ev_head.sub(1).sub(j).add(MAX_NOTES).mod(MAX_NOTES)
+                    ref en : I64 = ev_note.get(idx)
+                    ref ee : I64 = ev_end.get(idx)
+                    if en.eq(i).and(ee.eq(0.sub(1))) {
+                        ev_end.set(idx, own timer.clone())
+                        break
+                    }
+                }
+            }
+        }
+
+        // Copy current state to prev
+        for i in 0..NUM_KEYS {
+            ref kd : I64 = key_down.get(i)
+            prev_down.set(i, own kd.clone())
+        }
+
+        // -- Draw --
+        begin_drawing()
+        clear_background(20, 20, 30, 255)
+
+        // Piano roll background
+        draw_rectangle(0, 0, WINDOW_WIDTH, ROLL_H, 10, 10, 20, 255)
+
+        // Piano roll grid lines (one per note, horizontal)
+        note_h := ROLL_H.div(NUM_KEYS)
+        for i in 0..NUM_KEYS {
+            ny := i.mul(note_h)
+            ref ib : I64 = IS_BLACK.get(i.mod(12))
+            if ib.eq(1) {
+                draw_rectangle(0, ny, WINDOW_WIDTH, note_h, 15, 15, 25, 255)
+            }
+            // Octave separator
+            if i.mod(12).eq(0).and(i.gt(0)) {
+                draw_rectangle(0, ny, WINDOW_WIDTH, 1, 40, 40, 60, 255)
+            }
+        }
+
+        // Draw note events
+        for j in 0..ev_count {
+            idx := ev_head.sub(ev_count).add(j).add(MAX_NOTES).mod(MAX_NOTES)
+            ref en : I64 = ev_note.get(idx)
+            ref es : I64 = ev_start.get(idx)
+            ref ee : I64 = ev_end.get(idx)
+
+            // x positions (time → x, scrolling left)
+            x_right := WINDOW_WIDTH.sub(timer.sub(es).mul(SCROLL_SPEED).div(1000))
+            mut x_left := WINDOW_WIDTH
+            if ee.gte(0) {
+                x_left = WINDOW_WIDTH.sub(timer.sub(ee).mul(SCROLL_SPEED).div(1000))
+            }
+
+            // Skip if fully off-screen
+            if x_right.lt(0) { continue }
+            if x_left.gt(WINDOW_WIDTH) { x_left = WINDOW_WIDTH }
+
+            // y position: note 0 at bottom of roll, note 35 at top
+            ey := ROLL_H.sub(en.add(1).mul(note_h))
+            mut ew := x_left.sub(x_right)
+            if ew.lt(2) { ew = 2 }
+
+            // Color: teal with brightness per octave
+            mut nr := 0
+            mut ng := 150
+            mut nb := 155
+            oct := en.div(12)
+            if oct.eq(1) { ng = 180 ; nb = 185 }
+            if oct.eq(2) { ng = 210 ; nb = 215 }
+
+            draw_rectangle(x_right, ey, ew, note_h.sub(1), nr, ng, nb, 255)
+        }
+
+        // Note labels on left side of roll
+        for i in 0..NUM_KEYS {
+            ny := ROLL_H.sub(i.add(1).mul(note_h))
+            ref nn : Str = NOTE_NAMES.get(i.mod(12))
+            oct_label := nn.concat(i.div(12).add(3).to_str())
+            draw_text_font(fnt, oct_label, 4, ny, note_h.sub(2), 1, 60, 60, 80, 255)
+        }
+
+        // -- Piano keyboard --
+        // Draw 21 white keys (3 octaves)
+        for i in 0..21 {
+            kx := i.mul(WHITE_W)
+            oct := i.div(7)
+            ref nat : I64 = NATURALS.get(i.mod(7))
+            chrom := nat.add(oct.mul(12))
+
+            mut kr := 240
+            mut kg := 240
+            mut kb := 240
+            if chrom.lt(NUM_KEYS) {
+                ref kd : I64 = key_down.get(chrom)
+                if kd.eq(1) {
+                    kr = 0
+                    kg = 200
+                    kb = 210
+                }
+            }
+            draw_rectangle(kx, PIANO_Y, WHITE_W.sub(2), WHITE_H, kr, kg, kb, 255)
+
+            // Key label
+            if chrom.lt(NUM_KEYS) {
+                ref lbl : Str = KEY_LABELS.get(chrom)
+                draw_text_font(fnt, lbl, kx.add(WHITE_W.div(4)), PIANO_Y.add(WHITE_H).sub(30), 18, 1, 80, 80, 80, 255)
+            }
+        }
+
+        // Draw 15 black keys (5 per octave, 3 octaves)
+        for oct in 0..3 {
+            for j in 0..5 {
+                ref bpos : I64 = BLACK_KEY_POS.get(j)
+                ref bchrom_off : I64 = BLACK_CHROMS.get(j)
+                chrom := bchrom_off.add(oct.mul(12))
+                bx := oct.mul(7).add(bpos).add(1).mul(WHITE_W).sub(BLACK_W.div(2))
+
+                mut br := 20
+                mut bg := 20
+                mut bb := 20
+                if chrom.lt(NUM_KEYS) {
+                    ref kd : I64 = key_down.get(chrom)
+                    if kd.eq(1) {
+                        br = 0
+                        bg = 150
+                        bb = 155
+                    }
+                }
+                draw_rectangle(bx, PIANO_Y, BLACK_W, BLACK_H, br, bg, bb, 255)
+
+                // Key label
+                if chrom.lt(NUM_KEYS) {
+                    ref lbl : Str = KEY_LABELS.get(chrom)
+                    draw_text_font(fnt, lbl, bx.add(BLACK_W.div(4)), PIANO_Y.add(BLACK_H).sub(20), 14, 1, 180, 180, 180, 255)
+                }
+            }
+        }
+
+        // Hint
+        draw_text_font(fnt, "press keyboard keys to play (1-0, Q-P, A-L, Z-M)", MARGIN, PIANO_Y.sub(30), FONT, 1, 80, 80, 80, 255)
+
+        end_drawing()
+    }
+
+    unload_font(fnt)
+    close_audio_device()
+    close_window()
+}

@@ -56,6 +56,7 @@ sinf := ext_func(shallow x: F32) returns shallow F32 {}
 LoadSoundFromWave := ext_func(shallow wave: Wave) returns shallow Sound {}
 PlaySound := ext_proc(shallow sound: Sound) {}
 UnloadSound := ext_proc(shallow sound: Sound) {}
+StopSound := ext_proc(shallow sound: Sound) {}
 
 // Font FFI
 LoadFontEx := ext_func(fileName: U8, shallow fontSize: I32, shallow codepoints: I64, shallow codepointCount: I32) returns shallow Font {}
@@ -80,6 +81,7 @@ GetFrameTime := ext_func() returns shallow F32 {}
 IsKeyPressed := ext_func(shallow key: I32) returns shallow Bool {}
 IsKeyDown := ext_func(shallow key: I32) returns shallow Bool {}
 IsMouseButtonPressed := ext_func(shallow button: I32) returns shallow Bool {}
+IsMouseButtonDown := ext_func(shallow button: I32) returns shallow Bool {}
 GetRandomValue := ext_func(shallow min: I32, shallow max: I32) returns shallow I32 {}
 GetMouseX := ext_func() returns shallow I32 {}
 GetMouseY := ext_func() returns shallow I32 {}
@@ -131,6 +133,12 @@ play_tone := proc(freq: I64, duration_ms: I64) {
     free(own buf)
 }
 
+stop_tone := proc() {
+    if tone_loaded {
+        StopSound(prev_tone)
+    }
+}
+
 // Color helper: pack r,g,b,a into a U32
 color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
     return U32.from_i64(r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)))
@@ -169,6 +177,7 @@ get_frame_time := func() returns I64 {
 is_key_pressed := func(key: I64) returns Bool { return IsKeyPressed(I32.from_i64(key)) }
 is_key_down := func(key: I64) returns Bool { return IsKeyDown(I32.from_i64(key)) }
 is_mouse_button_pressed := func(button: I64) returns Bool { return IsMouseButtonPressed(I32.from_i64(button)) }
+is_mouse_button_down := func(button: I64) returns Bool { return IsMouseButtonDown(I32.from_i64(button)) }
 get_random_value := func(min: I64, max: I64) returns I64 {
     return GetRandomValue(I32.from_i64(min), I32.from_i64(max)).to_i64()
 }
