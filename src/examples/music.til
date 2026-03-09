@@ -42,32 +42,32 @@ NOTE_DX := WINDOW_WIDTH.sub(NOTE_X0.mul(2)).div(7)
 LABEL_Y := STAFF_BASE_Y.add(STAFF_SP.mul(2)).add(NOTE_R).add(GAP)
 HINT_Y := WINDOW_HEIGHT.sub(MARGIN)
 
+// Mode INTERVALS (7 modes x 7 steps = 49), brightest to darkest
+// Lidio, Jonico, Mixolidio, Dorico, Eolico, Frigio, Locrio
+INTERVALS := array("I64",
+    2, 2, 2, 1, 2, 2, 1,
+    2, 2, 1, 2, 2, 2, 1,
+    2, 2, 1, 2, 2, 1, 2,
+    2, 1, 2, 2, 2, 1, 2,
+    2, 1, 2, 2, 1, 2, 2,
+    1, 2, 2, 2, 1, 2, 2,
+    1, 2, 2, 1, 2, 2, 2
+)
+
+// Diatonic to chromatic natural mapping: do=0 re=2 mi=4 fa=5 sol=7 la=9 si=11
+NATURALS := array("I64", 0, 2, 4, 5, 7, 9, 11)
+
+// Note name lookup arrays
+NAMES_SOL := array("Str", "do", "re", "mi", "fa", "sol", "la", "si")
+NAMES_AME := array("Str", "C", "D", "E", "F", "G", "A", "B")
+
+// Frequencies for chromatic notes C4..B4
+FREQS := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music")
     set_target_fps(FPS)
     init_audio_device()
-
-    // Mode intervals (7 modes x 7 steps = 49), brightest to darkest
-    // Lidio, Jonico, Mixolidio, Dorico, Eolico, Frigio, Locrio
-    intervals := array("I64",
-        2, 2, 2, 1, 2, 2, 1,
-        2, 2, 1, 2, 2, 2, 1,
-        2, 2, 1, 2, 2, 1, 2,
-        2, 1, 2, 2, 2, 1, 2,
-        2, 1, 2, 2, 1, 2, 2,
-        1, 2, 2, 2, 1, 2, 2,
-        1, 2, 2, 1, 2, 2, 2
-    )
-
-    // Diatonic to chromatic natural mapping: do=0 re=2 mi=4 fa=5 sol=7 la=9 si=11
-    naturals := array("I64", 0, 2, 4, 5, 7, 9, 11)
-
-    // Note name lookup arrays
-    names_sol := array("Str", "do", "re", "mi", "fa", "sol", "la", "si")
-    names_ame := array("Str", "C", "D", "E", "F", "G", "A", "B")
-
-    // Frequencies for chromatic notes C4..B4
-    freqs := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
 
     // Scale result arrays (8 notes: 7 degrees + octave)
     mut sc_chrom := Array.new("I64", 8, 8)
@@ -150,8 +150,7 @@ main := proc() {
             }
 
             // Click on pentagram notes
-            mut ci := 0
-            while ci.lt(8) {
+            for ci in 0..8 {
                 ref cd : I64 = sc_diat.get(ci)
                 ref co : I64 = sc_oct.get(ci)
                 cnx := NOTE_X0.add(ci.mul(NOTE_DX))
@@ -165,22 +164,20 @@ main := proc() {
                         clicked_timer = 300
                     }
                 }
-                ci = ci.add(1)
             }
         }
 
         // Recompute scale
         if need_recompute {
             need_recompute = false
-            ref nat_c : I64 = naturals.get(sel_diatonic)
+            ref nat_c : I64 = NATURALS.get(sel_diatonic)
             root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
             mut chrom_pos := root_chromatic
             mut diat_pos := sel_diatonic
             mut octave := 0
             mut prev_diat := sel_diatonic
 
-            mut k := 0
-            while k.lt(8) {
+            for k in 0..8 {
                 cp := chrom_pos
                 dp := diat_pos
                 oc := octave
@@ -189,21 +186,21 @@ main := proc() {
                 sc_oct.set(k, own oc)
 
                 // Compute accidental
-                ref nat_ref : I64 = naturals.get(diat_pos)
+                ref nat_ref : I64 = NATURALS.get(diat_pos)
                 mut acc := chrom_pos.sub(nat_ref)
                 if acc.gt(6) { acc = acc.sub(12) }
                 if acc.lt(0.sub(6)) { acc = acc.add(12) }
                 sc_acc.set(k, own acc)
 
                 // Frequency
-                ref f : I64 = freqs.get(chrom_pos.mod(12))
+                ref f : I64 = FREQS.get(chrom_pos.mod(12))
                 mut freq := f
                 if octave.gt(0) { freq = freq.mul(2) }
                 sc_freq.set(k, own freq)
 
                 // Next note
                 if k.lt(7) {
-                    ref step : I64 = intervals.get(sel_mode.mul(7).add(k))
+                    ref step : I64 = INTERVALS.get(sel_mode.mul(7).add(k))
                     step_val := step
                     chrom_pos = chrom_pos.add(step_val).mod(12)
                     prev_diat = diat_pos
@@ -212,12 +209,10 @@ main := proc() {
                         octave = octave.add(1)
                     }
                 }
-                k = k.add(1)
             }
 
             // Compute triads for each degree
-            mut ti := 0
-            while ti.lt(7) {
+            for ti in 0..7 {
                 ref root_c : I64 = sc_chrom.get(ti)
                 ref third_c : I64 = sc_chrom.get(ti.add(2).mod(7))
                 ref fifth_c : I64 = sc_chrom.get(ti.add(4).mod(7))
@@ -229,7 +224,6 @@ main := proc() {
                 if i3.eq(3).and(i5.eq(6)) { triad_type = 2 }
                 if i3.eq(4).and(i5.eq(8)) { triad_type = 3 }
                 sc_triad.set(ti, own triad_type)
-                ti = ti.add(1)
             }
         }
 
@@ -263,10 +257,8 @@ main := proc() {
         clear_background(0, 0, 0, 255)
 
         // -- Note buttons (7 cols x 3 rows) --
-        mut row := 0
-        while row.lt(3) {
-            mut col := 0
-            while col.lt(7) {
+        for row in 0..3 {
+            for col in 0..7 {
                 bx := MARGIN.add(col.mul(BTN_W))
                 by := NOTE_ROW_Y.add(row.mul(BTN_H))
 
@@ -288,24 +280,20 @@ main := proc() {
                 // Label
                 mut label := ""
                 if sel_notation.eq(0) {
-                    ref ns : Str = names_sol.get(col)
+                    ref ns : Str = NAMES_SOL.get(col)
                     label = ns
                 } else {
-                    ref na : Str = names_ame.get(col)
+                    ref na : Str = NAMES_AME.get(col)
                     label = na
                 }
                 if row.eq(0) { label = label.concat("b") }
                 if row.eq(2) { label = label.concat("#") }
                 draw_text(label, bx.add(PAD_X), by.add(PAD_Y), FONT, 220, 220, 220, 255)
-
-                col = col.add(1)
             }
-            row = row.add(1)
         }
 
         // -- Mode buttons --
-        mut mi := 0
-        while mi.lt(7) {
+        for mi in 0..7 {
             bx := MARGIN.add(mi.mul(BTN_W))
             by := MODE_ROW_Y
 
@@ -351,14 +339,11 @@ main := proc() {
                 }
             }
             draw_text(mlabel, bx.add(PAD_X), by.add(PAD_Y), FONT, 220, 220, 220, 255)
-
-            mi = mi.add(1)
         }
 
         // -- Radio buttons: lang + notation --
         // Lang: PT ES EN
-        mut li := 0
-        while li.lt(3) {
+        for li in 0..3 {
             lx := MARGIN.add(li.mul(LANG_BTN_W))
             mut lr := 40
             mut lg := 40
@@ -370,11 +355,9 @@ main := proc() {
             if li.eq(1) { ll = "ES" }
             if li.eq(2) { ll = "EN" }
             draw_text(ll, lx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 220, 220, 220, 255)
-            li = li.add(1)
         }
         // Notation: solfege / american
-        mut ni := 0
-        while ni.lt(2) {
+        for ni in 0..2 {
             nx := NOTATION_X.add(ni.mul(NOTATION_BTN_W))
             mut nr := 40
             mut ng := 40
@@ -395,7 +378,6 @@ main := proc() {
                 }
             }
             draw_text(nl, nx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 220, 220, 220, 255)
-            ni = ni.add(1)
         }
 
         // -- Pentagram --
@@ -403,27 +385,24 @@ main := proc() {
         // staff_pos for a note = diatonic_idx - 2 + octave*7
 
         // Draw 5 staff lines
-        mut sli := 0
-        while sli.lt(5) {
+        for sli in 0..5 {
             line_pos := sli.mul(2)
             ly := STAFF_BASE_Y.sub(line_pos.mul(STAFF_SP))
             draw_rectangle(STAFF_X, ly, STAFF_W, 2, 100, 100, 100, 255)
-            sli = sli.add(1)
         }
 
         // Reference labels on both sides of staff (lines + spaces)
         // Positions 0-8 map to diatonic indices: 2,3,4,5,6,0,1,2,3
-        mut ri := 0
-        while ri.lt(9) {
+        for ri in 0..9 {
             ry := STAFF_BASE_Y.sub(ri.mul(STAFF_SP))
             // Map staff position to diatonic index
             rd := ri.add(2).mod(7)
             mut rn := ""
             if sel_notation.eq(0) {
-                ref rs : Str = names_sol.get(rd)
+                ref rs : Str = NAMES_SOL.get(rd)
                 rn = rs
             } else {
-                ref ra : Str = names_ame.get(rd)
+                ref ra : Str = NAMES_AME.get(rd)
                 rn = ra
             }
             // Left side label
@@ -435,12 +414,10 @@ main := proc() {
                 draw_rectangle(STAFF_X.sub(NOTE_R.mul(2)), ry, NOTE_R.mul(2), 1, 60, 60, 60, 255)
                 draw_rectangle(STAFF_X.add(STAFF_W), ry, NOTE_R.mul(2), 1, 60, 60, 60, 255)
             }
-            ri = ri.add(1)
         }
 
         // Draw notes
-        mut dni := 0
-        while dni.lt(8) {
+        for dni in 0..8 {
             dnx := NOTE_X0.add(dni.mul(NOTE_DX))
 
             ref nd : I64 = sc_diat.get(dni)
@@ -507,10 +484,10 @@ main := proc() {
             ref nnd : I64 = sc_diat.get(dni)
             mut nn := ""
             if sel_notation.eq(0) {
-                ref nns : Str = names_sol.get(nnd)
+                ref nns : Str = NAMES_SOL.get(nnd)
                 nn = nns
             } else {
-                ref nna2 : Str = names_ame.get(nnd)
+                ref nna2 : Str = NAMES_AME.get(nnd)
                 nn = nna2
             }
             ref nna : I64 = sc_acc.get(dni)
@@ -524,8 +501,6 @@ main := proc() {
                 if trt2.eq(3) { nn = nn.concat("-aug") }
             }
             draw_text(nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 180, 180, 180, 255)
-
-            dni = dni.add(1)
         }
 
         // Hint
