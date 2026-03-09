@@ -75,7 +75,10 @@ LANGS := array("Array", LANG_PT, LANG_ES, LANG_EN)
 
 // -- Helper functions --
 
-triad_type := func(root_c: I64, third_c: I64, fifth_c: I64) returns I64 {
+triad_type := func(mut sc_chrom: Array, ti: I64) returns I64 {
+    ref root_c : I64 = sc_chrom.get(ti)
+    ref third_c : I64 = sc_chrom.get(ti.add(2).mod(7))
+    ref fifth_c : I64 = sc_chrom.get(ti.add(4).mod(7))
     i3 := third_c.sub(root_c).add(12).mod(12)
     i5 := fifth_c.sub(root_c).add(12).mod(12)
     if i3.eq(3).and(i5.eq(7)) { return 1 }
@@ -260,11 +263,7 @@ main := proc() {
 
             // Compute triads for each degree
             for ti in 0..7 {
-                ref root_c : I64 = sc_chrom.get(ti)
-                ref third_c : I64 = sc_chrom.get(ti.add(2).mod(7))
-                ref fifth_c : I64 = sc_chrom.get(ti.add(4).mod(7))
-                tt := triad_type(root_c, third_c, fifth_c)
-                sc_triad.set(ti, own tt)
+                sc_triad.set(ti, own triad_type(sc_chrom, ti))
             }
         }
 
