@@ -87,8 +87,15 @@ main := proc() {
     mut ev_count := 0
     mut ev_head := 0
 
+    // Pre-generate all 36 sounds for polyphony
+    mut sounds := Array.new("Sound", 32, NUM_KEYS)
+    for i in 0..NUM_KEYS {
+        ref freq : I64 = FREQS.get(i)
+        s := make_tone(freq, 10000)
+        sounds.set(i, own s)
+    }
+
     mut timer := 0
-    mut sounding_note := 0.sub(1)
 
     while window_should_close().not() {
         dt := get_frame_time()
@@ -145,9 +152,8 @@ main := proc() {
             ref pd : I64 = prev_down.get(i)
             // Newly pressed
             if kd.eq(1).and(pd.eq(0)) {
-                ref freq : I64 = FREQS.get(i)
-                play_tone(freq, 5000)
-                sounding_note = i
+                ref s : Sound = sounds.get(i)
+                play_sound(s)
                 // Add note event
                 ev_note.set(ev_head, own i.clone())
                 ev_start.set(ev_head, own timer.clone())
@@ -159,10 +165,8 @@ main := proc() {
             }
             // Just released
             if kd.eq(0).and(pd.eq(1)) {
-                if sounding_note.eq(i) {
-                    stop_tone()
-                    sounding_note = 0.sub(1)
-                }
+                ref s : Sound = sounds.get(i)
+                stop_sound(s)
                 // Close the note event
                 for j in 0..ev_count {
                     idx := ev_head.sub(1).sub(j).add(MAX_NOTES).mod(MAX_NOTES)
@@ -211,14 +215,15 @@ main := proc() {
             ref ee : I64 = ev_end.get(idx)
 
             // x positions (time → x, scrolling left)
-            x_right := WINDOW_WIDTH.sub(timer.sub(es).mul(SCROLL_SPEED).div(1000))
+            mut x_right := WINDOW_WIDTH.sub(timer.sub(es).mul(SCROLL_SPEED).div(1000))
             mut x_left := WINDOW_WIDTH
             if ee.gte(0) {
                 x_left = WINDOW_WIDTH.sub(timer.sub(ee).mul(SCROLL_SPEED).div(1000))
             }
 
             // Skip if fully off-screen
-            if x_right.lt(0) { continue }
+            if x_left.lt(0) { continue }
+            if x_right.lt(0) { x_right = 0 }
             if x_left.gt(WINDOW_WIDTH) { x_left = WINDOW_WIDTH }
 
             // y position: note 0 at bottom of roll, note 35 at top
@@ -308,6 +313,10 @@ main := proc() {
         end_drawing()
     }
 
+    for i in 0..NUM_KEYS {
+        ref s : Sound = sounds.get(i)
+        unload_sound(s)
+    }
     unload_font(fnt)
     close_audio_device()
     close_window()

@@ -139,6 +139,47 @@ stop_tone := proc() {
     }
 }
 
+// Generate a sine wave tone and return the Sound (for polyphonic use)
+make_tone := func(freq: I64, duration_ms: I64) returns Sound {
+    sr := 44100
+    mut n := sr.mul(duration_ms).div(1000)
+    if n.lt(1) { n = 1 }
+    own buf : U8 = malloc(n.mul(4))
+    attack := sr.div(100)
+    release := sr.div(100)
+    pi2 := F32.from_i64(6283185).div(F32.from_i64(1000000))
+    freq_f := F32.from_i64(freq)
+    sr_f := F32.from_i64(sr)
+    amp := F32.from_i64(1).div(F32.from_i64(10))
+    mut i := 0
+    while i.lt(n) {
+        mut env := F32.from_i64(1)
+        if i.lt(attack) {
+            env = F32.from_i64(i).div(F32.from_i64(attack))
+        }
+        if i.gt(n.sub(release)) {
+            env = F32.from_i64(n.sub(i)).div(F32.from_i64(release))
+        }
+        sample := sinf(pi2.mul(freq_f).mul(F32.from_i64(i)).div(sr_f)).mul(amp).mul(env)
+        memcpy(ptr_add(buf, i.mul(4)), sample, 4)
+        i = i.add(1)
+    }
+    w := Wave(
+        frameCount=U32.from_i64(n),
+        sampleRate=U32.from_i64(sr),
+        sampleSize=U32.from_i64(32),
+        channels=U32.from_i64(1),
+        data=buf
+    )
+    result := LoadSoundFromWave(w)
+    free(own buf)
+    return result
+}
+
+play_sound := proc(sound: Sound) { PlaySound(sound) }
+stop_sound := proc(sound: Sound) { StopSound(sound) }
+unload_sound := proc(sound: Sound) { UnloadSound(sound) }
+
 // Color helper: pack r,g,b,a into a U32
 color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
     return U32.from_i64(r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)))
