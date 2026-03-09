@@ -70,6 +70,38 @@ LANG_ES := array("Str", "ES", "lidio", "jonico", "mixolidio", "dorico", "eolico"
 LANG_EN := array("Str", "EN", "lydian", "ionian", "mixolydian", "dorian", "aeolian", "phrygian", "locrian", "solfege", "american")
 LANGS := array("Array", LANG_PT, LANG_ES, LANG_EN)
 
+// -- Helper functions --
+
+triad_type := func(root_c: I64, third_c: I64, fifth_c: I64) returns I64 {
+    i3 := third_c.sub(root_c).add(12).mod(12)
+    i5 := fifth_c.sub(root_c).add(12).mod(12)
+    if i3.eq(3).and(i5.eq(7)) { return 1 }
+    if i3.eq(3).and(i5.eq(6)) { return 2 }
+    if i3.eq(4).and(i5.eq(8)) { return 3 }
+    return 0
+}
+
+note_name := func(diat_idx: I64, sel_notation: I64) returns ref Str {
+    if sel_notation.eq(0) {
+        ref s : Str = NAMES_SOL.get(diat_idx)
+        return s
+    }
+    ref a : Str = NAMES_AME.get(diat_idx)
+    return a
+}
+
+acc_text := func(acc: I64) returns Str {
+    if acc.eq(1) { return "#" }
+    if acc.eq(0.sub(1)) { return "b" }
+    if acc.eq(2) { return "##" }
+    if acc.eq(0.sub(2)) { return "bb" }
+    return ""
+}
+
+staff_y := func(diat_idx: I64, octave: I64) returns I64 {
+    return STAFF_BASE_Y.sub(diat_idx.sub(2).add(octave.mul(7)).mul(STAFF_SP))
+}
+
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music")
     set_target_fps(FPS)
@@ -160,7 +192,7 @@ main := proc() {
                 ref cd : I64 = sc_diat.get(ci)
                 ref co : I64 = sc_oct.get(ci)
                 cnx := NOTE_X0.add(ci.mul(NOTE_DX))
-                cny := STAFF_BASE_Y.sub(cd.sub(2).add(co.mul(7)).mul(STAFF_SP))
+                cny := staff_y(cd, co)
                 hit := NOTE_R.mul(3)
                 if mx.sub(cnx).abs().lt(hit).and(my.sub(cny).abs().lt(hit)) {
                     ref cf : I64 = sc_freq.get(ci)
@@ -222,14 +254,8 @@ main := proc() {
                 ref root_c : I64 = sc_chrom.get(ti)
                 ref third_c : I64 = sc_chrom.get(ti.add(2).mod(7))
                 ref fifth_c : I64 = sc_chrom.get(ti.add(4).mod(7))
-                i3 := third_c.sub(root_c).add(12).mod(12)
-                i5 := fifth_c.sub(root_c).add(12).mod(12)
-                mut triad_type := 0
-                if i3.eq(4).and(i5.eq(7)) { triad_type = 0 }
-                if i3.eq(3).and(i5.eq(7)) { triad_type = 1 }
-                if i3.eq(3).and(i5.eq(6)) { triad_type = 2 }
-                if i3.eq(4).and(i5.eq(8)) { triad_type = 3 }
-                sc_triad.set(ti, own triad_type)
+                tt := triad_type(root_c, third_c, fifth_c)
+                sc_triad.set(ti, own tt)
             }
         }
 
@@ -284,16 +310,10 @@ main := proc() {
                 draw_rectangle(bx, by, BTN_W.sub(2), BTN_H.sub(2), br, bg, bb, 255)
 
                 // Label
-                mut label := ""
-                if sel_notation.eq(0) {
-                    ref ns : Str = NAMES_SOL.get(col)
-                    label = ns
-                } else {
-                    ref na : Str = NAMES_AME.get(col)
-                    label = na
-                }
-                if row.eq(0) { label = label.concat("b") }
-                if row.eq(2) { label = label.concat("#") }
+                ref ln : Str = note_name(col, sel_notation)
+                mut label := ln.clone()
+                if row.eq(0) { label = ln.concat("b") }
+                if row.eq(2) { label = ln.concat("#") }
                 draw_text(label, bx.add(PAD_X), by.add(PAD_Y), FONT, 220, 220, 220, 255)
             }
         }
@@ -361,14 +381,7 @@ main := proc() {
             ry := STAFF_BASE_Y.sub(ri.mul(STAFF_SP))
             // Map staff position to diatonic index
             rd := ri.add(2).mod(7)
-            mut rn := ""
-            if sel_notation.eq(0) {
-                ref rs : Str = NAMES_SOL.get(rd)
-                rn = rs
-            } else {
-                ref ra : Str = NAMES_AME.get(rd)
-                rn = ra
-            }
+            ref rn : Str = note_name(rd, sel_notation)
             // Left side label
             draw_text(rn, STAFF_X.sub(MARGIN.mul(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 80, 80, 80, 255)
             // Right side label
@@ -387,7 +400,7 @@ main := proc() {
             ref nd : I64 = sc_diat.get(dni)
             ref no : I64 = sc_oct.get(dni)
             staff_pos := nd.sub(2).add(no.mul(7))
-            dny := STAFF_BASE_Y.sub(staff_pos.mul(STAFF_SP))
+            dny := staff_y(nd, no)
 
             // Ledger lines
             if staff_pos.lt(0) {
@@ -431,32 +444,18 @@ main := proc() {
 
             // Accidental text
             ref na : I64 = sc_acc.get(dni)
-            if na.eq(1) {
-                draw_text("#", dnx.sub(FONT.add(NOTE_R)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
-            }
-            if na.eq(0.sub(1)) {
-                draw_text("b", dnx.sub(FONT.add(NOTE_R)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
-            }
-            if na.eq(2) {
-                draw_text("##", dnx.sub(FONT.add(NOTE_R.mul(2))), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
-            }
-            if na.eq(0.sub(2)) {
-                draw_text("bb", dnx.sub(FONT.add(NOTE_R.mul(2))), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
+            if na.eq(0).not() {
+                mut aw := NOTE_R
+                if na.abs().eq(2) { aw = NOTE_R.mul(2) }
+                at := acc_text(na)
+                draw_text(at, dnx.sub(FONT.add(aw)), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
             }
 
             // Note name with inline triad label
             ref nnd : I64 = sc_diat.get(dni)
-            mut nn := ""
-            if sel_notation.eq(0) {
-                ref nns : Str = NAMES_SOL.get(nnd)
-                nn = nns
-            } else {
-                ref nna2 : Str = NAMES_AME.get(nnd)
-                nn = nna2
-            }
-            ref nna : I64 = sc_acc.get(dni)
-            if nna.eq(1) { nn = nn.concat("#") }
-            if nna.eq(0.sub(1)) { nn = nn.concat("b") }
+            ref nn_base : Str = note_name(nnd, sel_notation)
+            nn_acc := acc_text(na)
+            mut nn := nn_base.concat(nn_acc)
             if dni.lt(7) {
                 ref trt2 : I64 = sc_triad.get(dni)
                 if trt2.eq(0) { nn = nn.concat("-M") }
