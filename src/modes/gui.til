@@ -114,7 +114,7 @@ color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) re
 
 // Backward-compatible snake_case API
 init_window := proc(w: I64, h: I64, title: Str) {
-    InitWindow(I32.from_i64(w), I32.from_i64(h), title.data)
+    InitWindow(I32.from_i64(w), I32.from_i64(h), title.c_str)
 }
 window_should_close := func() returns Bool {
     return WindowShouldClose()
@@ -131,7 +131,7 @@ draw_rectangle := proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a
     DrawRectangle(I32.from_i64(x), I32.from_i64(y), I32.from_i64(w), I32.from_i64(h), color(r, g, b, a))
 }
 draw_text := proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawText(text.data, I32.from_i64(x), I32.from_i64(y), I32.from_i64(font_size), color(r, g, b, a))
+    DrawText(text.c_str, I32.from_i64(x), I32.from_i64(y), I32.from_i64(font_size), color(r, g, b, a))
 }
 draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {
     DrawCircle(I32.from_i64(cx), I32.from_i64(cy), F32.from_i64(radius), color(r, g, b, a))

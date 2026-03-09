@@ -337,9 +337,11 @@
 ** OPEN #24 Music scale viewer: ongoing improvements
   GUI music theory learning tool (src/examples/music.til). Uses mode gui
   (raylib). Current features: 7x3 note buttons, 7 Greek mode buttons,
-  scale text + triad line, graphical pentagram with notes on staff,
-  audio playback via play_tone, language radio (PT/ES/EN), notation
-  radio (solfege/american), resolution-independent layout.
+  graphical pentagram with notes on staff, inline triad labels (Do-M,
+  Re-m, Mib-dim) below staff, reference labels on both sides of staff
+  (notation-aware), audio playback via play_tone, language radio
+  (PT/ES/EN), notation radio (solfejo/solfeo/solfege by language),
+  resolution-independent layout with fixed staff positioning.
 
   play_tone rewritten in til (was C in gui.c). Works well via ctil run
   (compiled). Interpreter path is slow for audio because the sample
@@ -353,6 +355,11 @@
 *** DONE Language and notation radio buttons
 *** DONE Resolution-independent layout (derived from WINDOW_WIDTH/WINDOW_HEIGHT)
 *** DONE play_tone rewritten in til (gui.c eliminated)
+*** DONE Inline triad labels under notes, uniform label positioning
+*** DONE Reference labels on both sides of staff (notation-aware, with ticks)
+*** DONE Fixed staff/label positioning (precalculated from note range)
+*** DONE Removed redundant scale text and mode title
+*** DONE Translated notation radio labels by language
 *** TODO Verify modal playback correctness with music teacher
 *** TODO Richer audio (sustain, chords, drone note under scale)
 *** TODO Piano keyboard visualization

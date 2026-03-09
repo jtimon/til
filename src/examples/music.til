@@ -16,7 +16,6 @@ BTN_W := WINDOW_WIDTH.sub(MARGIN.mul(2)).div(7)
 BTN_H := WINDOW_HEIGHT.div(22)
 GAP := WINDOW_HEIGHT.div(60)
 FONT := WINDOW_HEIGHT.div(38)
-FONT_LG := WINDOW_HEIGHT.div(30)
 FONT_SM := WINDOW_HEIGHT.div(45)
 PAD_X := BTN_W.div(25)
 PAD_Y := BTN_H.div(4)
@@ -25,23 +24,22 @@ PAD_Y := BTN_H.div(4)
 NOTE_ROW_Y := GAP
 MODE_ROW_Y := NOTE_ROW_Y.add(BTN_H.mul(3)).add(GAP)
 RADIO_ROW_Y := MODE_ROW_Y.add(BTN_H).add(GAP)
-TEXT_Y := RADIO_ROW_Y.add(BTN_H).add(GAP.mul(2))
-TRIAD_Y := TEXT_Y.add(FONT_LG).add(GAP)
-TITLE_Y := TRIAD_Y.add(FONT).add(GAP)
-
 // Radio button sizes
 LANG_BTN_W := BTN_W.mul(2).div(5)
 NOTATION_BTN_W := BTN_W.mul(3).div(4)
 NOTATION_X := MARGIN.add(LANG_BTN_W.mul(3)).add(GAP.mul(2))
 
 // Staff/pentagram
-STAFF_BASE_Y := WINDOW_HEIGHT.mul(5).div(6)
+// Staff pos range: -2 (do/C octave 0) to 11 (si/B octave 1)
+BUTTONS_END_Y := RADIO_ROW_Y.add(BTN_H)
 STAFF_SP := WINDOW_HEIGHT.div(30)
+NOTE_R := WINDOW_HEIGHT.div(68)
+STAFF_BASE_Y := BUTTONS_END_Y.add(GAP).add(NOTE_R).add(STAFF_SP.mul(11))
 STAFF_X := MARGIN.mul(3)
 STAFF_W := WINDOW_WIDTH.sub(STAFF_X.mul(2))
 NOTE_X0 := WINDOW_WIDTH.div(8)
 NOTE_DX := WINDOW_WIDTH.sub(NOTE_X0.mul(2)).div(7)
-NOTE_R := WINDOW_HEIGHT.div(68)
+LABEL_Y := STAFF_BASE_Y.add(STAFF_SP.mul(2)).add(NOTE_R).add(GAP)
 HINT_Y := WINDOW_HEIGHT.sub(MARGIN)
 
 main := proc() {
@@ -361,147 +359,21 @@ main := proc() {
             if ni.eq(sel_notation) { nr = 100 ; ng = 50 ; nb = 120 }
             draw_rectangle(nx, RADIO_ROW_Y, NOTATION_BTN_W.sub(2), BTN_H.sub(2), nr, ng, nb, 255)
             mut nl := ""
-            if ni.eq(0) { nl = "solfege" }
-            if ni.eq(1) { nl = "american" }
+            if sel_lang.eq(0) {
+                if ni.eq(0) { nl = "solfejo" }
+                if ni.eq(1) { nl = "americano" }
+            } else {
+                if sel_lang.eq(1) {
+                    if ni.eq(0) { nl = "solfeo" }
+                    if ni.eq(1) { nl = "americano" }
+                } else {
+                    if ni.eq(0) { nl = "solfege" }
+                    if ni.eq(1) { nl = "american" }
+                }
+            }
             draw_text(nl, nx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 220, 220, 220, 255)
             ni = ni.add(1)
         }
-
-        // -- ASCII scale text --
-        mut scale_text := ""
-        mut sti := 0
-        while sti.lt(8) {
-            if sti.gt(0) { scale_text = scale_text.concat("  ") }
-
-            ref td : I64 = sc_diat.get(sti)
-            mut tname := ""
-            if sel_notation.eq(0) {
-                if td.eq(0) { tname = "do" }
-                if td.eq(1) { tname = "re" }
-                if td.eq(2) { tname = "mi" }
-                if td.eq(3) { tname = "fa" }
-                if td.eq(4) { tname = "sol" }
-                if td.eq(5) { tname = "la" }
-                if td.eq(6) { tname = "si" }
-            } else {
-                if td.eq(0) { tname = "C" }
-                if td.eq(1) { tname = "D" }
-                if td.eq(2) { tname = "E" }
-                if td.eq(3) { tname = "F" }
-                if td.eq(4) { tname = "G" }
-                if td.eq(5) { tname = "A" }
-                if td.eq(6) { tname = "B" }
-            }
-
-            ref ta : I64 = sc_acc.get(sti)
-            if ta.eq(1) { tname = tname.concat("#") }
-            if ta.eq(0.sub(1)) { tname = tname.concat("b") }
-            if ta.eq(2) { tname = tname.concat("##") }
-            if ta.eq(0.sub(2)) { tname = tname.concat("bb") }
-
-            scale_text = scale_text.concat(tname)
-            sti = sti.add(1)
-        }
-        draw_text(scale_text, MARGIN, TEXT_Y, FONT_LG, 255, 255, 0, 255)
-
-        // -- Triad line --
-        mut triad_text := ""
-        mut tri := 0
-        while tri.lt(7) {
-            if tri.gt(0) { triad_text = triad_text.concat("  ") }
-
-            ref trd : I64 = sc_diat.get(tri)
-            mut trn := ""
-            if sel_notation.eq(0) {
-                if trd.eq(0) { trn = "do" }
-                if trd.eq(1) { trn = "re" }
-                if trd.eq(2) { trn = "mi" }
-                if trd.eq(3) { trn = "fa" }
-                if trd.eq(4) { trn = "sol" }
-                if trd.eq(5) { trn = "la" }
-                if trd.eq(6) { trn = "si" }
-            } else {
-                if trd.eq(0) { trn = "C" }
-                if trd.eq(1) { trn = "D" }
-                if trd.eq(2) { trn = "E" }
-                if trd.eq(3) { trn = "F" }
-                if trd.eq(4) { trn = "G" }
-                if trd.eq(5) { trn = "A" }
-                if trd.eq(6) { trn = "B" }
-            }
-
-            ref tra : I64 = sc_acc.get(tri)
-            if tra.eq(1) { trn = trn.concat("#") }
-            if tra.eq(0.sub(1)) { trn = trn.concat("b") }
-
-            ref trt : I64 = sc_triad.get(tri)
-            if trt.eq(0) { trn = trn.concat("-M") }
-            if trt.eq(1) { trn = trn.concat("-m") }
-            if trt.eq(2) { trn = trn.concat("-dim") }
-            if trt.eq(3) { trn = trn.concat("-aug") }
-
-            triad_text = triad_text.concat(trn)
-            tri = tri.add(1)
-        }
-        draw_text(triad_text, MARGIN, TRIAD_Y, FONT, 200, 200, 100, 255)
-
-        // -- Mode name --
-        mut mode_full := ""
-        if sel_lang.eq(0) {
-            // PT
-            if sel_mode.eq(0) { mode_full = "Lidio" }
-            if sel_mode.eq(1) { mode_full = "Jonio (Maior)" }
-            if sel_mode.eq(2) { mode_full = "Mixolidio" }
-            if sel_mode.eq(3) { mode_full = "Dorico" }
-            if sel_mode.eq(4) { mode_full = "Eolio (Menor Natural)" }
-            if sel_mode.eq(5) { mode_full = "Frigio" }
-            if sel_mode.eq(6) { mode_full = "Locrio" }
-        } else {
-            if sel_lang.eq(1) {
-                // ES
-                if sel_mode.eq(0) { mode_full = "Lidio" }
-                if sel_mode.eq(1) { mode_full = "Jonico (Mayor)" }
-                if sel_mode.eq(2) { mode_full = "Mixolidio" }
-                if sel_mode.eq(3) { mode_full = "Dorico" }
-                if sel_mode.eq(4) { mode_full = "Eolico (Menor Natural)" }
-                if sel_mode.eq(5) { mode_full = "Frigio" }
-                if sel_mode.eq(6) { mode_full = "Locrio" }
-            } else {
-                // EN
-                if sel_mode.eq(0) { mode_full = "Lydian" }
-                if sel_mode.eq(1) { mode_full = "Ionian (Major)" }
-                if sel_mode.eq(2) { mode_full = "Mixolydian" }
-                if sel_mode.eq(3) { mode_full = "Dorian" }
-                if sel_mode.eq(4) { mode_full = "Aeolian (Natural Minor)" }
-                if sel_mode.eq(5) { mode_full = "Phrygian" }
-                if sel_mode.eq(6) { mode_full = "Locrian" }
-            }
-        }
-
-        // Root name for title
-        mut root_name := ""
-        if sel_notation.eq(0) {
-            if sel_diatonic.eq(0) { root_name = "do" }
-            if sel_diatonic.eq(1) { root_name = "re" }
-            if sel_diatonic.eq(2) { root_name = "mi" }
-            if sel_diatonic.eq(3) { root_name = "fa" }
-            if sel_diatonic.eq(4) { root_name = "sol" }
-            if sel_diatonic.eq(5) { root_name = "la" }
-            if sel_diatonic.eq(6) { root_name = "si" }
-        } else {
-            if sel_diatonic.eq(0) { root_name = "C" }
-            if sel_diatonic.eq(1) { root_name = "D" }
-            if sel_diatonic.eq(2) { root_name = "E" }
-            if sel_diatonic.eq(3) { root_name = "F" }
-            if sel_diatonic.eq(4) { root_name = "G" }
-            if sel_diatonic.eq(5) { root_name = "A" }
-            if sel_diatonic.eq(6) { root_name = "B" }
-        }
-        if sel_accidental.eq(0.sub(1)) { root_name = root_name.concat("b") }
-        if sel_accidental.eq(1) { root_name = root_name.concat("#") }
-
-        mut title := root_name.concat(" ").concat(mode_full)
-        draw_text(title, MARGIN, TITLE_Y, FONT, 150, 150, 150, 255)
 
         // -- Pentagram --
         // Staff lines at positions: E4=0, G4=2, B4=4, D5=6, F5=8
@@ -514,6 +386,43 @@ main := proc() {
             ly := STAFF_BASE_Y.sub(line_pos.mul(STAFF_SP))
             draw_rectangle(STAFF_X, ly, STAFF_W, 2, 100, 100, 100, 255)
             sli = sli.add(1)
+        }
+
+        // Reference labels on both sides of staff (lines + spaces)
+        // Positions 0-8 map to diatonic indices: 2,3,4,5,6,0,1,2,3
+        mut ri := 0
+        while ri.lt(9) {
+            ry := STAFF_BASE_Y.sub(ri.mul(STAFF_SP))
+            // Map staff position to diatonic index
+            mut rd := ri.add(2).mod(7)
+            mut rn := ""
+            if sel_notation.eq(0) {
+                if rd.eq(0) { rn = "do" }
+                if rd.eq(1) { rn = "re" }
+                if rd.eq(2) { rn = "mi" }
+                if rd.eq(3) { rn = "fa" }
+                if rd.eq(4) { rn = "sol" }
+                if rd.eq(5) { rn = "la" }
+                if rd.eq(6) { rn = "si" }
+            } else {
+                if rd.eq(0) { rn = "C" }
+                if rd.eq(1) { rn = "D" }
+                if rd.eq(2) { rn = "E" }
+                if rd.eq(3) { rn = "F" }
+                if rd.eq(4) { rn = "G" }
+                if rd.eq(5) { rn = "A" }
+                if rd.eq(6) { rn = "B" }
+            }
+            // Left side label
+            draw_text(rn, STAFF_X.sub(MARGIN.mul(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 80, 80, 80, 255)
+            // Right side label
+            draw_text(rn, STAFF_X.add(STAFF_W).add(MARGIN.div(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 80, 80, 80, 255)
+            // Tick marks for spaces (odd positions)
+            if ri.mod(2).eq(1) {
+                draw_rectangle(STAFF_X.sub(NOTE_R.mul(2)), ry, NOTE_R.mul(2), 1, 60, 60, 60, 255)
+                draw_rectangle(STAFF_X.add(STAFF_W), ry, NOTE_R.mul(2), 1, 60, 60, 60, 255)
+            }
+            ri = ri.add(1)
         }
 
         // Draw notes
@@ -548,12 +457,12 @@ main := proc() {
             mut ncr := 255
             mut ncg := 255
             mut ncb := 0
-            if playing.and(play_idx.gt(dni)) {
+            if playing.and(play_idx.sub(1).gt(dni)) {
                 ncr = 100
                 ncg = 100
                 ncb = 0
             }
-            if playing.and(play_idx.eq(dni)) {
+            if playing.and(play_idx.sub(1).eq(dni)) {
                 ncr = 0
                 ncg = 255
                 ncb = 0
@@ -576,7 +485,7 @@ main := proc() {
                 draw_text("bb", dnx.sub(FONT.add(NOTE_R.mul(2))), dny.sub(FONT.div(2)), FONT, 255, 255, 255, 255)
             }
 
-            // Note name below
+            // Note name with inline triad label
             ref nnd : I64 = sc_diat.get(dni)
             mut nn := ""
             if sel_notation.eq(0) {
@@ -599,7 +508,14 @@ main := proc() {
             ref nna : I64 = sc_acc.get(dni)
             if nna.eq(1) { nn = nn.concat("#") }
             if nna.eq(0.sub(1)) { nn = nn.concat("b") }
-            draw_text(nn, dnx.sub(NOTE_R), STAFF_BASE_Y.add(STAFF_SP), FONT_SM, 180, 180, 180, 255)
+            if dni.lt(7) {
+                ref trt2 : I64 = sc_triad.get(dni)
+                if trt2.eq(0) { nn = nn.concat("-M") }
+                if trt2.eq(1) { nn = nn.concat("-m") }
+                if trt2.eq(2) { nn = nn.concat("-dim") }
+                if trt2.eq(3) { nn = nn.concat("-aug") }
+            }
+            draw_text(nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 180, 180, 180, 255)
 
             dni = dni.add(1)
         }
