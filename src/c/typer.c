@@ -2309,6 +2309,11 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
                 if (!ok) type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable");
             }
+            // Error: owning result of ref-returning function without ref
+            if (!stmt->type.decl.is_ref && expr_child(stmt, 0)->type.tag == NODE_FCALL &&
+                fcall_returns_ref(expr_child(stmt, 0), scope)) {
+                type_error(stmt, "cannot own result of ref-returning function; use 'ref' or .clone()");
+            }
             // Auto-alias: immutable ident → immutable dest becomes ref
             if (!stmt->type.decl.is_ref && !stmt->type.decl.is_mut &&
                 expr_child(stmt, 0)->type.tag == NODE_IDENT) {
@@ -2445,6 +2450,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (stmt->children.count > 0) {
                 infer_expr(scope, expr_child(stmt, 0), in_func);
                 stmt->til_type = expr_child(stmt, 0)->til_type;
+                // Error: returning a ref variable from a non-ref function
+                if (!returns_ref && expr_child(stmt, 0)->type.tag == NODE_IDENT) {
+                    TypeBinding *b = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
+                    if (b && b->is_ref && !b->is_param) {
+                        type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'");
+                    }
+                }
                 // Auto-insert clone when returning a borrowed parameter
                 // (prevents use-after-free: caller ASAP-deletes arg temps,
                 //  but the return value IS the same pointer as the arg)

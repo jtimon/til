@@ -152,6 +152,17 @@ bad_ref_fn := func(a: I64) returns ref I64 {
     return b
 }
 
+// cannot return ref variable from non-ref function; use .clone() or 'returns ref'
+TERR_ARR := array("I64", 1, 2, 3)
+bad_ret_ref := func(i: I64) returns I64 {
+    ref v : I64 = TERR_ARR.get(i)
+    return v
+}
+
+// cannot own result of ref-returning function; use 'ref' or .clone()
+good_ref_fn := func(a: I64) returns ref I64 { return a }
+bad_own := good_ref_fn(42)
+
 // cannot store Dynamic without own
 bad_dyn : Dynamic = 0
 
