@@ -199,9 +199,16 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
     case VAL_F32:  *(F32 *)ptr = *val.f32; free(val.f32); break;
     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
     case VAL_STRUCT:
-        memcpy(ptr, val.instance->data, fsz);
-        if (!val.instance->borrowed) free(val.instance->data);
-        free(val.instance);
+        if (val.instance->borrowed) {
+            Value cloned = clone_value(val);
+            memcpy(ptr, cloned.instance->data, fsz);
+            free(cloned.instance->data);
+            free(cloned.instance);
+        } else {
+            memcpy(ptr, val.instance->data, fsz);
+            free(val.instance->data);
+            free(val.instance);
+        }
         break;
     case VAL_ENUM: {
         EnumInstance *existing = *(EnumInstance **)ptr;
@@ -283,27 +290,20 @@ Value clone_value(Value v) {
             I32 foff = field->type.decl.field_offset;
             Str *ftype = field->type.decl.explicit_type;
             if (field->type.decl.is_own) {
-                // own fields are heap pointers — deep-clone
+                // own fields are heap pointers — deep-clone recursively
                 void *src_ptr = *(void **)((char *)src->data + foff);
                 if (src_ptr && field->type.decl.field_struct_def) {
                     Expr *nested = field->type.decl.field_struct_def;
-                    I32 nsz = nested->total_struct_size;
-                    void *dst_ptr = malloc(nsz);
-                    memcpy(dst_ptr, src_ptr, nsz);
-                    // Recursively deep-clone nested fields
-                    Expr *nbody = expr_child(nested, 0);
-                    for (U32 ni = 0; ni < nbody->children.count; ni++) {
-                        Expr *nf = expr_child(nbody, ni);
-                        if (nf->type.decl.is_namespace) continue;
-                        Str *nftype = nf->type.decl.explicit_type;
-                        I32 nfoff = nf->type.decl.field_offset;
-                        if (nftype && Str_eq_c(nftype, "Str")) {
-                            Str *s = (Str *)((char *)src_ptr + nfoff);
-                            if (s->count > 0 && s->c_str)
-                                *(char **)((char *)dst_ptr + nfoff) = strndup(s->c_str, s->count);
-                        }
-                    }
-                    *(void **)((char *)dst->data + foff) = dst_ptr;
+                    StructInstance tmp_src = {
+                        .struct_name = ftype,
+                        .struct_def = nested,
+                        .data = src_ptr,
+                        .borrowed = 1
+                    };
+                    Value tmp_val = {.type = VAL_STRUCT, .instance = &tmp_src};
+                    Value cloned = clone_value(tmp_val);
+                    *(void **)((char *)dst->data + foff) = cloned.instance->data;
+                    free(cloned.instance);
                 }
                 continue;
             }
@@ -331,6 +331,23 @@ Value clone_value(Value v) {
                     clone->payload = clone_value(ei->payload);
                     *(EnumInstance **)((char *)dst->data + foff) = clone;
                 }
+                continue;
+            }
+            // Inline struct fields: recursively deep-clone
+            if (field->type.decl.field_struct_def &&
+                field->type.decl.field_struct_def->type.tag != NODE_ENUM_DEF) {
+                Expr *nested = field->type.decl.field_struct_def;
+                StructInstance tmp_src = {
+                    .struct_name = ftype,
+                    .struct_def = nested,
+                    .data = (char *)src->data + foff,
+                    .borrowed = 1
+                };
+                Value tmp_val = {.type = VAL_STRUCT, .instance = &tmp_src};
+                Value cloned = clone_value(tmp_val);
+                memcpy((char *)dst->data + foff, cloned.instance->data, nested->total_struct_size);
+                free(cloned.instance->data);
+                free(cloned.instance);
                 continue;
             }
         }
@@ -902,9 +919,16 @@ static void eval_body(Scope *scope, Expr *body) {
                     case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
                     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
                     case VAL_STRUCT:
-                        memcpy(ptr, val.instance->data, fsz);
-                        free(val.instance->data);
-                        free(val.instance);
+                        if (val.instance->borrowed) {
+                            Value cloned = clone_value(val);
+                            memcpy(ptr, cloned.instance->data, fsz);
+                            free(cloned.instance->data);
+                            free(cloned.instance);
+                        } else {
+                            memcpy(ptr, val.instance->data, fsz);
+                            free(val.instance->data);
+                            free(val.instance);
+                        }
                         break;
                     case VAL_ENUM: {
                         EnumInstance *existing = *(EnumInstance **)ptr;
@@ -1089,9 +1113,16 @@ static void value_to_buf(void *dest, Value v, Str *type_name) {
     else if (Str_eq_c(type_name, "Bool")) { memcpy(dest, v.boolean, sizeof(Bool)); free(v.boolean); }
     else if (v.type == VAL_STRUCT) {
         I32 sz = v.instance->struct_def->total_struct_size;
-        memcpy(dest, v.instance->data, sz);
-        if (!v.instance->borrowed) free(v.instance->data);
-        free(v.instance);
+        if (v.instance->borrowed) {
+            Value cloned = clone_value(v);
+            memcpy(dest, cloned.instance->data, sz);
+            free(cloned.instance->data);
+            free(cloned.instance);
+        } else {
+            memcpy(dest, v.instance->data, sz);
+            free(v.instance->data);
+            free(v.instance);
+        }
     }
 }
 

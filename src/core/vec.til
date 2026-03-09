@@ -34,23 +34,20 @@ namespace:
     }
 
     delete := proc(own self: Vec, call_free: Bool = true) {
-        mut i := 0
-        while i.lt(self.count) {
+        for i in 0..self.count {
             dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
-            i = i.add(1)
         }
         free(own self.data)
+        Str.delete(own self.elem_type, false)
         if call_free { free(own self) }
     }
 
     clone := func(self: Vec) returns Vec {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
-        mut i := 0
-        while i.lt(self.count) {
+        for i in 0..self.count {
             own cloned : Dynamic = dyn_call1_ret(self.elem_type, "clone", ptr_add(self.data, i.mul(self.elem_size)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
-            i = i.add(1)
         }
         return Vec(data = new_data, count = self.count, cap = self.cap,
                    elem_size = self.elem_size, elem_type = self.elem_type)

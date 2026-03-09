@@ -266,6 +266,18 @@
      using Str.concat loop. Removed special-case call emission, C
      implementation emission, and interpreter handlers (~90 lines total).
 
+  3. Interpreter shallow copies replaced with deep clones to match builder.
+     The interpreter used raw memcpy in write_field, NODE_FIELD_ASSIGN, and
+     value_to_buf for struct values, sharing internal heap pointers (e.g.
+     Str's c_str) between what should be independent copies. Fixed all three
+     sites to check val.instance->borrowed and call clone_value for borrowed
+     values instead of memcpy. Also made clone_value properly recursive:
+     own fields now recursively call clone_value (was only one level deep
+     with strndup for Str), and inline struct fields (e.g. Vec inside
+     FuncDefData) are now recursively deep-cloned (were previously left as
+     shallow memcpy). This fixed 3 interpreter-only test failures (structs,
+     splat, parsing — all use-after-free crashes from shared c_str pointers).
+
   Remaining differences (dyn_call, primitive types, struct constructors,
   ownership tracking, namespace init) are inherent to the execution models
   and marked as acceptable.
@@ -801,6 +813,15 @@
    Struct constructors use field-by-field assignment (emit_ctor_fields)
    instead of compound literals. Inline compound fields use deref + free-wrapper
    to avoid sharing internal pointers with hoisted temps.
+
+   Interpreter clone_value made properly recursive: own fields recursively
+   call clone_value instead of shallow one-level-deep memcpy+strndup. Inline
+   struct fields (e.g. Vec inside a parent struct) are now recursively
+   deep-cloned via temporary StructInstance + clone_value, matching the
+   builder's Type_clone() calls in emit_ctor_fields. Previously only Str
+   and enum fields were deep-cloned; all other inline/own structs were
+   shallow-copied, causing use-after-free when internal heap pointers
+   (like Vec's elem_type.c_str) were shared between copies.
 
 ** FIXED Reassignment frees old value
    Typer inserts Type.delete(own var) before compound-type variable reassignment.

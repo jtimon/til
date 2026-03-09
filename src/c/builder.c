@@ -484,6 +484,12 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             fprintf(f, "{ %s *_ca = ", ftype);
             emit_expr(f, arg, depth);
             fprintf(f, "; %s->%s = *_ca; free(_ca); }\n", var, fname);
+        } else if (arg->til_type == TIL_TYPE_STRUCT || arg->til_type == TIL_TYPE_ENUM) {
+            // Inline compound field: clone to avoid shallow copy
+            const char *ftype = c_type_name(arg->til_type, arg->struct_name);
+            fprintf(f, "{ %s *_ca = %s_clone(", ftype, arg->struct_name->c_str);
+            emit_as_ptr(f, arg, depth);
+            fprintf(f, "); %s->%s = *_ca; free(_ca); }\n", var, fname);
         } else {
             fprintf(f, "%s->%s = ", var, fname);
             emit_deref(f, arg, depth);

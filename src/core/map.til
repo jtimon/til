@@ -98,24 +98,23 @@ namespace:
     }
 
     delete := proc(own self: Map, call_free: Bool = true) {
-        mut i := 0
-        while i.lt(self.count) {
+        for i in 0..self.count {
             dyn_call2(self.key_type, "delete",
                       ptr_add(self.key_data, i.mul(self.key_size)), false)
             dyn_call2(self.val_type, "delete",
                       ptr_add(self.val_data, i.mul(self.val_size)), false)
-            i = i.add(1)
         }
         free(own self.key_data)
         free(own self.val_data)
+        Str.delete(own self.key_type, false)
+        Str.delete(own self.val_type, false)
         if call_free { free(own self) }
     }
 
     clone := func(self: Map) returns Map {
         own new_keys : U8 = malloc(self.cap.mul(self.key_size))
         own new_vals : U8 = malloc(self.cap.mul(self.val_size))
-        mut i := 0
-        while i.lt(self.count) {
+        for i in 0..self.count {
             own ck : Dynamic = dyn_call1_ret(self.key_type, "clone",
                      ptr_add(self.key_data, i.mul(self.key_size)))
             memcpy(ptr_add(new_keys, i.mul(self.key_size)), ck, self.key_size)
@@ -124,7 +123,6 @@ namespace:
                      ptr_add(self.val_data, i.mul(self.val_size)))
             memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
             free(own cv)
-            i = i.add(1)
         }
         return Map(key_data = new_keys, val_data = new_vals,
                    count = self.count, cap = self.cap,
