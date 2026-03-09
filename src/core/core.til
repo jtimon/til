@@ -8,6 +8,7 @@ import("vec.til")
 
 // builtin types (empty structs for future namespace support)
 StructDef : StructDef = struct {}
+EnumDef : StructDef = struct {}
 FunctionDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
 
