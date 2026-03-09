@@ -40,7 +40,14 @@ STAFF_W := WINDOW_WIDTH.sub(STAFF_X.mul(2))
 NOTE_X0 := WINDOW_WIDTH.div(8)
 NOTE_DX := WINDOW_WIDTH.sub(NOTE_X0.mul(2)).div(7)
 LABEL_Y := STAFF_BASE_Y.add(STAFF_SP.mul(2)).add(NOTE_R).add(GAP)
-HINT_Y := WINDOW_HEIGHT.sub(MARGIN)
+
+// Piano roll
+PIANO_Y := LABEL_Y.add(FONT_SM).add(GAP)
+WHITE_W := STAFF_W.div(15)
+WHITE_H := WINDOW_HEIGHT.div(8)
+BLACK_W := WHITE_W.div(2)
+BLACK_H := WHITE_H.mul(2).div(3)
+HINT_Y := PIANO_Y.add(WHITE_H).add(GAP)
 
 // Mode INTERVALS (7 modes x 7 steps = 49), brightest to darkest
 // Lidio, Jonico, Mixolidio, Dorico, Eolico, Frigio, Locrio
@@ -66,6 +73,12 @@ TRIAD_SUFFIXES := array("Str", "-M", "-m", "-dim", "-aug")
 
 // Frequencies for chromatic notes C4..B4
 FREQS := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+
+// Piano roll lookup arrays
+// Chromatic values of the 5 black keys
+BLACK_CHROMS := array("I64", 1, 3, 6, 8, 10)
+// Black key sits after which white key index (0-based)
+BLACK_KEY_POS := array("I64", 0, 1, 3, 4, 5)
 
 // Language data: [name, mode0..mode6, notation0, notation1]
 LANG_PT := array("Str", "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio", "Solfejo", "Americano")
@@ -236,6 +249,42 @@ play_note := proc(freq: I64, mut clicked_note: I64, mut clicked_timer: I64, note
         play_tone(freq, 250)
         clicked_note = note_idx
         clicked_timer = 300
+    }
+}
+
+draw_piano := proc(active_chrom: I64, active_oct: I64) {
+    // 2 octaves: 15 white keys (C4-B4, C5-B5, C6)
+    for i in 0..15 {
+        kx := STAFF_X.add(i.mul(WHITE_W))
+        ref nat : I64 = NATURALS.get(i.mod(7))
+        key_oct := i.div(7)
+        mut kr := 240
+        mut kg := 240
+        mut kb := 240
+        if active_chrom.gte(0).and(nat.eq(active_chrom)).and(key_oct.eq(active_oct)) {
+            kr = 0
+            kg = 255
+            kb = 0
+        }
+        draw_rectangle(kx, PIANO_Y, WHITE_W.sub(2), WHITE_H, kr, kg, kb, 255)
+    }
+
+    // 10 black keys (5 per octave, 2 octaves)
+    for oct in 0..2 {
+        for j in 0..5 {
+            ref bpos : I64 = BLACK_KEY_POS.get(j)
+            ref bchrom : I64 = BLACK_CHROMS.get(j)
+            bx := STAFF_X.add(oct.mul(7).add(bpos).add(1).mul(WHITE_W)).sub(BLACK_W.div(2))
+            mut br := 20
+            mut bg := 20
+            mut bb := 20
+            if active_chrom.gte(0).and(bchrom.eq(active_chrom)).and(oct.eq(active_oct)) {
+                br = 0
+                bg = 200
+                bb = 0
+            }
+            draw_rectangle(bx, PIANO_Y, BLACK_W, BLACK_H, br, bg, bb, 255)
+        }
     }
 }
 
@@ -477,6 +526,17 @@ main := proc() {
             draw_note(dni, sc_diat, sc_oct, sc_acc, sc_triad,
                       playing, play_idx, clicked_note, sel_notation, fnt)
         }
+
+        // Piano roll
+        mut active_chrom := 0.sub(1)
+        mut active_oct := 0
+        if clicked_note.gte(0) {
+            ref ac : I64 = sc_chrom.get(clicked_note)
+            ref ao : I64 = sc_oct.get(clicked_note)
+            active_chrom = ac
+            active_oct = ao
+        }
+        draw_piano(active_chrom, active_oct)
 
         // Hint
         draw_text_font(fnt, "click note + mode to play scale", WINDOW_WIDTH.div(3), HINT_Y, FONT, 1, 80, 80, 80, 255)
