@@ -49,11 +49,11 @@ static Vec extract_imports(Expr *body) {
     Vec kept = Vec_new(sizeof(Expr *));
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
-        if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
-            expr_child(stmt, 0)->type == NODE_IDENT &&
-            Str_eq_c(expr_child(stmt, 0)->data.str_val, "import") &&
-            expr_child(stmt, 1)->type == NODE_LITERAL_STR) {
-            Str *path = expr_child(stmt, 1)->data.str_val;
+        if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
+            expr_child(stmt, 0)->type.tag == NODE_IDENT &&
+            Str_eq_c(expr_child(stmt, 0)->type.str_val, "import") &&
+            expr_child(stmt, 1)->type.tag == NODE_LITERAL_STR) {
+            Str *path = expr_child(stmt, 1)->type.str_val;
             Vec_push(&paths, &path);
         } else {
             Vec_push(&kept, &stmt);
@@ -242,10 +242,10 @@ Expr *til_prepare(const char *path, const char *bin_dir) {
     Vec kept = Vec_new(sizeof(Expr *));
     for (U32 i = 0; i < ast->children.count; i++) {
         Expr *stmt = expr_child(ast, i);
-        if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
-            expr_child(stmt, 0)->type == NODE_IDENT &&
-            expr_child(stmt, 1)->type == NODE_LITERAL_STR) {
-            Str *fn = expr_child(stmt, 0)->data.str_val;
+        if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
+            expr_child(stmt, 0)->type.tag == NODE_IDENT &&
+            expr_child(stmt, 1)->type.tag == NODE_LITERAL_STR) {
+            Str *fn = expr_child(stmt, 0)->type.str_val;
             if (Str_eq_c(fn, "link") || Str_eq_c(fn, "link_c")) continue;
         }
         Vec_push(&kept, &stmt);
@@ -431,11 +431,11 @@ int main(int argc, char **argv) {
         Vec kept = Vec_new(sizeof(Expr *));
         for (U32 i = 0; i < ast->children.count; i++) {
             Expr *stmt = expr_child(ast, i);
-            if (stmt->type == NODE_FCALL && stmt->children.count == 2 &&
-                expr_child(stmt, 0)->type == NODE_IDENT &&
-                expr_child(stmt, 1)->type == NODE_LITERAL_STR) {
-                Str *fname = expr_child(stmt, 0)->data.str_val;
-                Str *arg = expr_child(stmt, 1)->data.str_val;
+            if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
+                expr_child(stmt, 0)->type.tag == NODE_IDENT &&
+                expr_child(stmt, 1)->type.tag == NODE_LITERAL_STR) {
+                Str *fname = expr_child(stmt, 0)->type.str_val;
+                Str *arg = expr_child(stmt, 1)->type.str_val;
                 if (Str_eq_c(fname, "link")) {
                     link_pos += snprintf(link_flags + link_pos, sizeof(link_flags) - link_pos,
                                          " -l%.*s", (int)arg->cap, arg->c_str);

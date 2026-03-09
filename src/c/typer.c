@@ -32,7 +32,7 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     // Check scope for user-defined struct/enum types
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
-        if (sdef) return (sdef->type == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
+        if (sdef) return (sdef->type.tag == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
     }
     return TIL_TYPE_UNKNOWN;
 }
@@ -57,7 +57,7 @@ static void narrow_dynamic(Expr *expr, TilType target, Str *target_struct_name) 
 }
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
-    switch (e->type) {
+    switch (e->type.tag) {
     case NODE_LITERAL_STR:
         e->til_type = TIL_TYPE_STRUCT;
         e->struct_name = Str_new("Str");
@@ -73,21 +73,21 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->til_type = TIL_TYPE_DYNAMIC;
         break;
     case NODE_IDENT: {
-        TilType t = tscope_get(scope, e->data.str_val);
+        TilType t = tscope_get(scope, e->type.str_val);
         if (t == TIL_TYPE_UNKNOWN) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->data.str_val->c_str);
+            snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->type.str_val->c_str);
             type_error(e, buf);
         }
         e->til_type = t;
         if (t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) {
-            TypeBinding *b = tscope_find(scope, e->data.str_val);
+            TypeBinding *b = tscope_find(scope, e->type.str_val);
             if (b) e->struct_name = b->struct_name;
         }
         // Struct type names: allow field access for namespace fields
-        TypeBinding *ib = tscope_find(scope, e->data.str_val);
+        TypeBinding *ib = tscope_find(scope, e->type.str_val);
         if (ib && ib->struct_def) {
-            e->struct_name = e->data.str_val;
+            e->struct_name = e->type.str_val;
         }
         break;
     }
@@ -95,16 +95,16 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->til_type = TIL_TYPE_NONE;
         // Type the body
         {
-            FuncType ftype = e->data.func_def.func_type;
+            FuncType ftype = e->type.func_def.func_type;
             Bool is_func = (ftype == FUNC_FUNC);
             Bool is_macro = (ftype == FUNC_MACRO);
             // Test function constraints
             if (ftype == FUNC_TEST) {
                 if (scope->parent != NULL)
                     type_error(e, "test functions can only be declared in root scope");
-                if (e->data.func_def.return_type)
+                if (e->type.func_def.return_type)
                     type_error(e, "test functions cannot have a return type");
-                if (e->data.func_def.nparam > 0)
+                if (e->type.func_def.nparam > 0)
                     type_error(e, "test functions cannot have parameters");
             }
             // Pure mode: reject user-declared procs (allow core procs)
@@ -112,62 +112,62 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 type_error(e, "proc not allowed in pure mode");
             TypeScope *func_scope = tscope_new(scope);
             // Bind parameters
-            for (U32 i = 0; i < e->data.func_def.nparam; i++) {
-                Str *ptn = e->data.func_def.param_types[i];
+            for (U32 i = 0; i < e->type.func_def.nparam; i++) {
+                Str *ptn = e->type.func_def.param_types[i];
                 TilType pt = type_from_name(ptn, scope);
                 if (pt == TIL_TYPE_UNKNOWN) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", ptn->c_str);
                     type_error(e, buf);
                 }
-                Bool pmut = e->data.func_def.param_muts ? e->data.func_def.param_muts[i] : 0;
-                Bool pown = e->data.func_def.param_owns ? e->data.func_def.param_owns[i] : 0;
-                Bool pshallow = e->data.func_def.param_shallows ? e->data.func_def.param_shallows[i] : 0;
+                Bool pmut = e->type.func_def.param_muts ? e->type.func_def.param_muts[i] : 0;
+                Bool pown = e->type.func_def.param_owns ? e->type.func_def.param_owns[i] : 0;
+                Bool pshallow = e->type.func_def.param_shallows ? e->type.func_def.param_shallows[i] : 0;
                 if (pshallow) {
                     Bool is_scalar = (pt == TIL_TYPE_I64 || pt == TIL_TYPE_U8 || pt == TIL_TYPE_I16 ||
                                       pt == TIL_TYPE_I32 || pt == TIL_TYPE_U32 || pt == TIL_TYPE_F32 || pt == TIL_TYPE_BOOL);
                     if (!is_scalar && pt != TIL_TYPE_STRUCT && pt != TIL_TYPE_STRUCT_DEF) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
-                                 e->data.func_def.param_names[i]->c_str);
+                                 e->type.func_def.param_names[i]->c_str);
                         type_error(e, buf);
                     }
                     if (pown) type_error(e, "parameter cannot be both 'shallow' and 'own'");
                 }
                 // Variadic param: bind as Array (element type already validated above)
-                if ((I32)i == e->data.func_def.variadic_index) {
-                    if (e->data.func_def.param_owns) e->data.func_def.param_owns[i] = true;
-                    tscope_set(func_scope, e->data.func_def.param_names[i], TIL_TYPE_STRUCT, -1, 0, e->line, e->col, 1, 1);
-                    TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);
+                if ((I32)i == e->type.func_def.variadic_index) {
+                    if (e->type.func_def.param_owns) e->type.func_def.param_owns[i] = true;
+                    tscope_set(func_scope, e->type.func_def.param_names[i], TIL_TYPE_STRUCT, -1, 0, e->line, e->col, 1, 1);
+                    TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
                     if (pb) pb->struct_name = Str_new("Array");
                 } else {
-                    tscope_set(func_scope, e->data.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1, pown);
+                    tscope_set(func_scope, e->type.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1, pown);
                     // For struct/enum-typed params, store struct_name
                     if (pt == TIL_TYPE_STRUCT || pt == TIL_TYPE_ENUM) {
-                        TypeBinding *pb = tscope_find(func_scope, e->data.func_def.param_names[i]);
+                        TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
                         if (pb) pb->struct_name = ptn;
                     }
                 }
             }
-            infer_body(func_scope, expr_child(e, 0), is_func, 1, 0, e->data.func_def.return_is_ref);
+            infer_body(func_scope, expr_child(e, 0), is_func, 1, 0, e->type.func_def.return_is_ref);
             // Check: func/macro must have a return type
-            if ((is_func || is_macro) && !e->data.func_def.return_type) {
+            if ((is_func || is_macro) && !e->type.func_def.return_type) {
                 type_error(e, is_macro ? "macro must declare a return type"
                                              : "func must declare a return type");
             }
             // Validate ref returns: every return value must be a param or ref variable
-            if (e->data.func_def.return_is_ref) {
+            if (e->type.func_def.return_is_ref) {
                 Expr *body = expr_child(e, 0);
                 for (U32 ri = 0; ri < body->children.count; ri++) {
                     Expr *s = expr_child(body, ri);
-                    if (s->type != NODE_RETURN || s->children.count == 0) continue;
+                    if (s->type.tag != NODE_RETURN || s->children.count == 0) continue;
                     Expr *rv = expr_child(s, 0);
                     Bool ok = 0;
-                    if (rv->type == NODE_IDENT) {
-                        TypeBinding *rb = tscope_find(func_scope, rv->data.str_val);
+                    if (rv->type.tag == NODE_IDENT) {
+                        TypeBinding *rb = tscope_find(func_scope, rv->type.str_val);
                         if (rb && (rb->is_param || rb->is_ref)) ok = 1;
                     }
-                    if (rv->type == NODE_FCALL && fcall_returns_ref(rv, func_scope)) ok = 1;
+                    if (rv->type.tag == NODE_FCALL && fcall_returns_ref(rv, func_scope)) ok = 1;
                     if (!ok) type_error(s, "ref function must return a parameter or ref variable");
                 }
             }
@@ -178,12 +178,12 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     case NODE_ENUM_DEF: {
         e->til_type = TIL_TYPE_NONE;
         // Reject ref payloads in tagged enum variants
-        if (e->type == NODE_ENUM_DEF) {
+        if (e->type.tag == NODE_ENUM_DEF) {
             Expr *body = expr_child(e, 0);
             for (U32 vi = 0; vi < body->children.count; vi++) {
                 Expr *v = expr_child(body, vi);
-                if (v->type == NODE_DECL && !v->data.decl.is_namespace &&
-                    v->data.decl.explicit_type && v->data.decl.is_ref) {
+                if (v->type.tag == NODE_DECL && !v->type.decl.is_namespace &&
+                    v->type.decl.explicit_type && v->type.decl.is_ref) {
                     type_error(v, "ref payloads in tagged enum variants are not supported");
                 }
             }
@@ -197,17 +197,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     }
     case NODE_FCALL: {
         // Namespace method call or UFCS: Type.method(args) or instance.method(args)
-        if (expr_child(e, 0)->type == NODE_FIELD_ACCESS) {
+        if (expr_child(e, 0)->type.tag == NODE_FIELD_ACCESS) {
             Expr *fa = expr_child(e, 0);
             Expr *obj = expr_child(fa, 0);
-            Str *method = fa->data.str_val;
+            Str *method = fa->type.str_val;
 
             // Type just the object first (not the full field access)
             infer_expr(scope, obj, in_func);
 
             // Check: is obj a type name (has struct_def) or an instance/value?
-            TypeBinding *tb = (obj->type == NODE_IDENT)
-                ? tscope_find(scope, obj->data.str_val) : NULL;
+            TypeBinding *tb = (obj->type.tag == NODE_IDENT)
+                ? tscope_find(scope, obj->type.str_val) : NULL;
             Bool obj_is_type = (tb && tb->struct_def);
 
             if (!obj_is_type) {
@@ -229,9 +229,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     Expr *body = expr_child(sdef, 0);
                     for (U32 i = 0; i < body->children.count; i++) {
                         Expr *field = expr_child(body, i);
-                        if (field->data.decl.is_namespace &&
-                            Str_eq(field->data.decl.name, method) &&
-                            expr_child(field, 0)->type == NODE_FUNC_DEF) {
+                        if (field->type.decl.is_namespace &&
+                            Str_eq(field->type.decl.name, method) &&
+                            expr_child(field, 0)->type.tag == NODE_FUNC_DEF) {
                             ns_func = expr_child(field, 0);
                             break;
                         }
@@ -242,9 +242,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     TypeBinding *top = tscope_find(scope, method);
                     Bool ufcs_match = 0;
                     if (top && top->func_def &&
-                        top->func_def->data.func_def.nparam > 0 &&
-                        top->func_def->data.func_def.param_types[0]) {
-                        Str *first_param = top->func_def->data.func_def.param_types[0];
+                        top->func_def->type.func_def.nparam > 0 &&
+                        top->func_def->type.func_def.param_types[0]) {
+                        Str *first_param = top->func_def->type.func_def.param_types[0];
                         if (type_name && Str_eq(first_param, type_name)) {
                             ufcs_match = 1; // known type matches first param
                         } else if (!type_name && obj->til_type == TIL_TYPE_DYNAMIC) {
@@ -257,7 +257,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     if (ufcs_match) {
                         // Rewrite: a.f(b) → f(a, b)
                         Expr *fn_ident = expr_new(NODE_IDENT, fa->line, fa->col, fa->path);
-                        fn_ident->data.str_val = method;
+                        fn_ident->type.str_val = method;
                         expr_child(e, 0) = fn_ident;
                         // Insert instance as first arg
                         Expr *instance = obj;
@@ -285,7 +285,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 // Desugar: rewrite AST to Type.method(instance, args)
                 Expr *instance = obj;
                 Expr *type_ident = expr_new(NODE_IDENT, obj->line, obj->col, obj->path);
-                type_ident->data.str_val = type_name;
+                type_ident->type.str_val = type_name;
                 expr_child(fa, 0) = type_ident;
                 // Insert instance as first arg
                 Expr *dummy = NULL;
@@ -306,9 +306,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Expr *body = expr_child(sdef, 0);
                 for (U32 i = 0; i < body->children.count; i++) {
                     Expr *field = expr_child(body, i);
-                    if (field->data.decl.is_namespace &&
-                        Str_eq(field->data.decl.name, method) &&
-                        expr_child(field, 0)->type == NODE_FUNC_DEF) {
+                    if (field->type.decl.is_namespace &&
+                        Str_eq(field->type.decl.name, method) &&
+                        expr_child(field, 0)->type.tag == NODE_FUNC_DEF) {
                         ns_func = expr_child(field, 0);
                         break;
                     }
@@ -324,18 +324,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             fa->is_ns_field = true;
             // Desugar named/optional args for namespace methods
             {
-                U32 np = ns_func->data.func_def.nparam;
+                U32 np = ns_func->type.func_def.nparam;
                 Expr **new_args = calloc(np, sizeof(Expr *));
                 U32 pos_idx = 0;
                 Bool seen_named = 0;
                 for (U32 i = 1; i < e->children.count; i++) {
                     Expr *arg = expr_child(e, i);
-                    if (arg->type == NODE_NAMED_ARG) {
+                    if (arg->type.tag == NODE_NAMED_ARG) {
                         seen_named = 1;
-                        Str *aname = arg->data.str_val;
+                        Str *aname = arg->type.str_val;
                         I32 slot = -1;
                         for (U32 j = 0; j < np; j++) {
-                            if (Str_eq(ns_func->data.func_def.param_names[j], aname)) {
+                            if (Str_eq(ns_func->type.func_def.param_names[j], aname)) {
                                 slot = j;
                                 break;
                             }
@@ -364,13 +364,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 // Fill defaults for missing args
                 for (U32 i = 0; i < np; i++) {
                     if (!new_args[i]) {
-                        if (ns_func->data.func_def.param_defaults &&
-                            ns_func->data.func_def.param_defaults[i]) {
-                            new_args[i] = expr_clone(ns_func->data.func_def.param_defaults[i]);
+                        if (ns_func->type.func_def.param_defaults &&
+                            ns_func->type.func_def.param_defaults[i]) {
+                            new_args[i] = expr_clone(ns_func->type.func_def.param_defaults[i]);
                         } else {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
-                                     ns_func->data.func_def.param_names[i]->c_str);
+                                     ns_func->type.func_def.param_names[i]->c_str);
                             type_error(e, buf);
                         }
                     }
@@ -395,80 +395,80 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 infer_expr(scope, expr_child(e, i), in_func);
             }
             // Narrow Dynamic args to parameter types
-            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
-                Str *ptype = ns_func->data.func_def.param_types[i - 1];
+            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->type.func_def.nparam; i++) {
+                Str *ptype = ns_func->type.func_def.param_types[i - 1];
                 if (ptype)
                     narrow_dynamic(expr_child(e, i), type_from_name(ptype, scope), ptype);
             }
             // Validate arg types against param types
-            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.func_def.nparam; i++) {
-                Str *ptype_name = ns_func->data.func_def.param_types[i - 1];
+            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->type.func_def.nparam; i++) {
+                Str *ptype_name = ns_func->type.func_def.param_types[i - 1];
                 if (!ptype_name) continue;
                 Expr *arg = expr_child(e, i);
                 if (arg->til_type == TIL_TYPE_DYNAMIC) continue;
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) continue;
-                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
+                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
                     continue;
                 if (arg->til_type != ptype) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ns_func->data.func_def.param_names[i - 1]->c_str,
+                             ns_func->type.func_def.param_names[i - 1]->c_str,
                              ptype_name->c_str, til_type_name_c(arg->til_type));
                     type_error(arg, buf);
                 } else if ((ptype == TIL_TYPE_STRUCT || ptype == TIL_TYPE_ENUM) &&
                            arg->struct_name && !Str_eq(ptype_name, arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ns_func->data.func_def.param_names[i - 1]->c_str,
+                             ns_func->type.func_def.param_names[i - 1]->c_str,
                              ptype_name->c_str, arg->struct_name->c_str);
                     type_error(arg, buf);
                 }
             }
             // Validate 'own' markers on arguments
             {
-                bool *po = ns_func->data.func_def.param_owns;
+                bool *po = ns_func->type.func_def.param_owns;
                 if (po) {
-                    U32 np = ns_func->data.func_def.nparam;
+                    U32 np = ns_func->type.func_def.nparam;
                     for (U32 i = 1; i < e->children.count && i - 1 < np; i++) {
                         Bool pown = po[i - 1];
                         if (pown && !expr_child(e, i)->is_own_arg) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
-                                     ns_func->data.func_def.param_names[i - 1]->c_str);
+                                     ns_func->type.func_def.param_names[i - 1]->c_str);
                             type_error(expr_child(e, i), buf);
                         } else if (!pown && expr_child(e, i)->is_own_arg) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
-                                     ns_func->data.func_def.param_names[i - 1]->c_str);
+                                     ns_func->type.func_def.param_names[i - 1]->c_str);
                             type_error(expr_child(e, i), buf);
                         }
-                        if (pown && expr_child(e, i)->type == NODE_IDENT) {
-                            TypeBinding *ab = tscope_find(scope, expr_child(e, i)->data.str_val);
+                        if (pown && expr_child(e, i)->type.tag == NODE_IDENT) {
+                            TypeBinding *ab = tscope_find(scope, expr_child(e, i)->type.str_val);
                             if (ab && ab->is_ref) type_error(expr_child(e, i), "cannot pass ref variable to 'own' parameter");
                         }
-                        if (pown && expr_child(e, i)->type == NODE_LITERAL_NULL)
+                        if (pown && expr_child(e, i)->type.tag == NODE_LITERAL_NULL)
                             type_error(expr_child(e, i), "cannot pass null to 'own' parameter");
-                        bool *ps = ns_func->data.func_def.param_shallows;
-                        if (ps && ps[i - 1] && expr_child(e, i)->type == NODE_LITERAL_NULL)
+                        bool *ps = ns_func->type.func_def.param_shallows;
+                        if (ps && ps[i - 1] && expr_child(e, i)->type.tag == NODE_LITERAL_NULL)
                             type_error(expr_child(e, i), "cannot pass null to 'shallow' parameter");
                     }
                 }
             }
             // Set return type
             TilType rt = TIL_TYPE_NONE;
-            if (ns_func->data.func_def.return_type) {
-                rt = type_from_name(ns_func->data.func_def.return_type, scope);
+            if (ns_func->type.func_def.return_type) {
+                rt = type_from_name(ns_func->type.func_def.return_type, scope);
             }
             e->til_type = rt;
-            if ((rt == TIL_TYPE_STRUCT || rt == TIL_TYPE_ENUM) && ns_func->data.func_def.return_type) {
-                e->struct_name = ns_func->data.func_def.return_type;
+            if ((rt == TIL_TYPE_STRUCT || rt == TIL_TYPE_ENUM) && ns_func->type.func_def.return_type) {
+                e->struct_name = ns_func->type.func_def.return_type;
             }
             break;
         }
         regular_call:;
         // Resolve callee
-        Str *name = expr_child(e, 0)->data.str_val;
+        Str *name = expr_child(e, 0)->type.str_val;
         // Struct instantiation: Point() or Point(x=1, y=2)
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) {
@@ -484,7 +484,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Count instance fields (skip namespace)
             U32 nfields = 0;
             for (U32 i = 0; i < body->children.count; i++) {
-                if (!expr_child(body, i)->data.decl.is_namespace) nfields++;
+                if (!expr_child(body, i)->type.decl.is_namespace) nfields++;
             }
             // Desugar named args into positional (one per instance field)
             Expr **field_vals = calloc(nfields, sizeof(Expr *));
@@ -492,19 +492,19 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             I32 *field_idx = malloc(nfields * sizeof(I32));
             { I32 k = 0;
               for (U32 i = 0; i < body->children.count; i++) {
-                  if (!expr_child(body, i)->data.decl.is_namespace) field_idx[k++] = i;
+                  if (!expr_child(body, i)->type.decl.is_namespace) field_idx[k++] = i;
               }
             }
             for (U32 i = 1; i < e->children.count; i++) {
                 Expr *arg = expr_child(e, i);
-                if (arg->type != NODE_NAMED_ARG) {
+                if (arg->type.tag != NODE_NAMED_ARG) {
                     type_error(arg, "struct instantiation requires named arguments");
                     continue;
                 }
-                Str *aname = arg->data.str_val;
+                Str *aname = arg->type.str_val;
                 I32 slot = -1;
                 for (U32 j = 0; j < nfields; j++) {
-                    if (Str_eq(expr_child(body, field_idx[j])->data.decl.name, aname)) {
+                    if (Str_eq(expr_child(body, field_idx[j])->type.decl.name, aname)) {
                         slot = j;
                         break;
                     }
@@ -548,20 +548,20 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             { U32 fi = 0;
               for (U32 bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
                 Expr *fld = expr_child(body, bi);
-                if (fld->data.decl.is_namespace) continue;
+                if (fld->type.decl.is_namespace) continue;
                 I32 ai = fi + 1; // arg index (children[0] is callee)
                 fi++;
-                if (fld->data.decl.is_own) {
+                if (fld->type.decl.is_own) {
                     // own field: mark for move, don't clone
-                    if (expr_child(e, ai)->type == NODE_IDENT)
+                    if (expr_child(e, ai)->type.tag == NODE_IDENT)
                         expr_child(e, ai)->is_own_arg = 1;
                     continue;
                 }
-                if (fld->data.decl.is_ref) {
+                if (fld->type.decl.is_ref) {
                     // ref field: store pointer, don't clone
                     continue;
                 }
-                if (expr_child(e, ai)->type == NODE_IDENT) {
+                if (expr_child(e, ai)->type.tag == NODE_IDENT) {
                     const char *tname = type_to_name(expr_child(e, ai)->til_type,
                                                       expr_child(e, ai)->struct_name);
                     if (tname) {
@@ -581,8 +581,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (callee_bind && callee_bind->func_def &&
             (!callee_bind->is_builtin || !callee_bind->func_def->is_core)) {
             Expr *fdef = callee_bind->func_def;
-            U32 nparam = fdef->data.func_def.nparam;
-            I32 vi = fdef->data.func_def.variadic_index; // -1 if not variadic
+            U32 nparam = fdef->type.func_def.nparam;
+            I32 vi = fdef->type.func_def.variadic_index; // -1 if not variadic
             U32 fixed_count = (vi >= 0) ? (U32)vi : nparam; // params before variadic
             // Collect positional and named args
             Vec va_args = Vec_new(sizeof(Expr *)); // variadic args (only if vi >= 0)
@@ -591,13 +591,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Bool seen_named = 0;
             for (U32 i = 1; i < e->children.count; i++) {
                 Expr *arg = expr_child(e, i);
-                if (arg->type == NODE_NAMED_ARG) {
+                if (arg->type.tag == NODE_NAMED_ARG) {
                     seen_named = 1;
-                    Str *aname = arg->data.str_val;
+                    Str *aname = arg->type.str_val;
                     I32 slot = -1;
                     for (U32 j = 0; j < nparam; j++) {
                         if ((I32)j == vi) continue; // can't name the variadic param
-                        if (Str_eq(fdef->data.func_def.param_names[j], aname)) {
+                        if (Str_eq(fdef->type.func_def.param_names[j], aname)) {
                             slot = j;
                             break;
                         }
@@ -630,13 +630,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) continue; // variadic param handled separately
                 if (!new_args[i]) {
-                    if (fdef->data.func_def.param_defaults &&
-                        fdef->data.func_def.param_defaults[i]) {
-                        new_args[i] = expr_clone(fdef->data.func_def.param_defaults[i]);
+                    if (fdef->type.func_def.param_defaults &&
+                        fdef->type.func_def.param_defaults[i]) {
+                        new_args[i] = expr_clone(fdef->type.func_def.param_defaults[i]);
                     } else {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
-                                 fdef->data.func_def.param_names[i]->c_str);
+                                 fdef->type.func_def.param_names[i]->c_str);
                         type_error(e, buf);
                     }
                 }
@@ -675,39 +675,39 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Narrow Dynamic args to parameter types, then validate arg types
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
-            I32 fvi = fdef->data.func_def.variadic_index;
+            I32 fvi = fdef->type.func_def.variadic_index;
             U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
             U32 ci = 1;
-            for (U32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+            for (U32 pi = 0; pi < fdef->type.func_def.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
-                Str *ptype = fdef->data.func_def.param_types[pi];
+                Str *ptype = fdef->type.func_def.param_types[pi];
                 if (ptype)
                     narrow_dynamic(expr_child(e, ci), type_from_name(ptype, scope), ptype);
                 ci++;
             }
             // Validate arg types against param types
             ci = 1;
-            for (U32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+            for (U32 pi = 0; pi < fdef->type.func_def.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
-                Str *ptype_name = fdef->data.func_def.param_types[pi];
+                Str *ptype_name = fdef->type.func_def.param_types[pi];
                 if (!ptype_name) { ci++; continue; }
                 Expr *arg = expr_child(e, ci);
                 if (arg->til_type == TIL_TYPE_DYNAMIC) { ci++; continue; }
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) { ci++; continue; }
-                if (arg->type == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
+                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
                     { ci++; continue; }
                 if (arg->til_type != ptype) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             fdef->data.func_def.param_names[pi]->c_str,
+                             fdef->type.func_def.param_names[pi]->c_str,
                              ptype_name->c_str, til_type_name_c(arg->til_type));
                     type_error(arg, buf);
                 } else if ((ptype == TIL_TYPE_STRUCT || ptype == TIL_TYPE_ENUM) &&
                            arg->struct_name && !Str_eq(ptype_name, arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             fdef->data.func_def.param_names[pi]->c_str,
+                             fdef->type.func_def.param_names[pi]->c_str,
                              ptype_name->c_str, arg->struct_name->c_str);
                     type_error(arg, buf);
                 }
@@ -720,7 +720,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
              Str_eq_c(name, "dyn_has_method")) &&
             e->children.count >= 3) {
             Expr *method_arg = expr_child(e, 2);
-            if (method_arg->type != NODE_LITERAL_STR) {
+            if (method_arg->type.tag != NODE_LITERAL_STR) {
                 type_error(method_arg, "dyn_call method argument must be a string literal");
             }
         }
@@ -728,18 +728,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if ((Str_eq_c(name, "array") || Str_eq_c(name, "vec")) &&
             e->children.count >= 2) {
             Expr *type_arg = expr_child(e, 1);
-            if (type_arg->type != NODE_LITERAL_STR) {
+            if (type_arg->type.tag != NODE_LITERAL_STR) {
                 type_error(type_arg, "array/vec type_name argument must be a string literal");
             }
         }
         // Validate 'own' markers on arguments (variadic-aware)
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
-            bool *po = fdef->data.func_def.param_owns;
-            I32 fvi = fdef->data.func_def.variadic_index;
+            bool *po = fdef->type.func_def.param_owns;
+            I32 fvi = fdef->type.func_def.variadic_index;
             U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
             U32 ci = 1; // children index
-            for (U32 pi = 0; pi < fdef->data.func_def.nparam && ci < e->children.count; pi++) {
+            for (U32 pi = 0; pi < fdef->type.func_def.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) {
                     ci += fvc; // skip variadic args
                     continue;
@@ -748,22 +748,22 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (pown && !expr_child(e, ci)->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
-                             fdef->data.func_def.param_names[pi]->c_str);
+                             fdef->type.func_def.param_names[pi]->c_str);
                     type_error(expr_child(e, ci), buf);
                 } else if (!pown && expr_child(e, ci)->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
-                             fdef->data.func_def.param_names[pi]->c_str);
+                             fdef->type.func_def.param_names[pi]->c_str);
                     type_error(expr_child(e, ci), buf);
                 }
-                if (pown && expr_child(e, ci)->type == NODE_IDENT) {
-                    TypeBinding *ab = tscope_find(scope, expr_child(e, ci)->data.str_val);
+                if (pown && expr_child(e, ci)->type.tag == NODE_IDENT) {
+                    TypeBinding *ab = tscope_find(scope, expr_child(e, ci)->type.str_val);
                     if (ab && ab->is_ref) type_error(expr_child(e, ci), "cannot pass ref variable to 'own' parameter");
                 }
-                if (pown && expr_child(e, ci)->type == NODE_LITERAL_NULL)
+                if (pown && expr_child(e, ci)->type.tag == NODE_LITERAL_NULL)
                     type_error(expr_child(e, ci), "cannot pass null to 'own' parameter");
-                bool *ps = fdef->data.func_def.param_shallows;
-                if (ps && ps[pi] && expr_child(e, ci)->type == NODE_LITERAL_NULL)
+                bool *ps = fdef->type.func_def.param_shallows;
+                if (ps && ps[pi] && expr_child(e, ci)->type.tag == NODE_LITERAL_NULL)
                     type_error(expr_child(e, ci), "cannot pass null to 'shallow' parameter");
                 ci++;
             }
@@ -778,8 +778,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->til_type = fn_type;
         // Propagate struct_name for struct-returning functions
         if ((fn_type == TIL_TYPE_STRUCT || fn_type == TIL_TYPE_ENUM) && callee_bind && callee_bind->func_def &&
-            callee_bind->func_def->data.func_def.return_type) {
-            e->struct_name = callee_bind->func_def->data.func_def.return_type;
+            callee_bind->func_def->type.func_def.return_type) {
+            e->struct_name = callee_bind->func_def->type.func_def.return_type;
         }
         // Check: func cannot call proc (panic is exempt; print/println exempt in debug_prints modes)
         Bool debug_exempt = current_mode && current_mode->debug_prints &&
@@ -804,18 +804,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Expr *sdef = tscope_get_struct(scope, obj->struct_name);
             if (sdef) {
                 Expr *body = expr_child(sdef, 0);
-                Str *fname = e->data.str_val;
+                Str *fname = e->type.str_val;
                 Bool found = 0;
                 for (U32 i = 0; i < body->children.count; i++) {
                     Expr *field = expr_child(body, i);
                     // Skip variant registry entries (non-namespace) in enum bodies
-                    if (sdef->type == NODE_ENUM_DEF && !field->data.decl.is_namespace)
+                    if (sdef->type.tag == NODE_ENUM_DEF && !field->type.decl.is_namespace)
                         continue;
-                    if (Str_eq(field->data.decl.name, fname)) {
+                    if (Str_eq(field->type.decl.name, fname)) {
                         e->til_type = field->til_type;
-                        e->is_ns_field = field->data.decl.is_namespace;
-                        e->is_own_field = field->data.decl.is_own || field->data.decl.is_ref;
-                        e->is_ref_field = field->data.decl.is_ref;
+                        e->is_ns_field = field->type.decl.is_namespace;
+                        e->is_own_field = field->type.decl.is_own || field->type.decl.is_ref;
+                        e->is_ref_field = field->type.decl.is_ref;
                         if (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) {
                             e->struct_name = expr_child(field, 0)->struct_name;
                         } else {
@@ -824,18 +824,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         // Enum variant access: override type to enum for:
                         // 1. I64 literal variants (simple enums)
                         // 2. Zero-arg ext_func constructors (no-payload in payload enums)
-                        if (sdef->type == NODE_ENUM_DEF &&
-                            field->data.decl.is_namespace &&
+                        if (sdef->type.tag == NODE_ENUM_DEF &&
+                            field->type.decl.is_namespace &&
                             field->children.count > 0) {
                             Expr *fc = expr_child(field, 0);
-                            if (fc->type != NODE_FUNC_DEF) {
+                            if (fc->type.tag != NODE_FUNC_DEF) {
                                 // I64 literal variant
                                 e->til_type = TIL_TYPE_ENUM;
                                 e->struct_name = obj->struct_name;
-                            } else if (fc->data.func_def.func_type == FUNC_EXT_FUNC &&
-                                       fc->data.func_def.nparam == 0 &&
-                                       fc->data.func_def.return_type &&
-                                       Str_eq(fc->data.func_def.return_type, obj->struct_name)) {
+                            } else if (fc->type.func_def.func_type == FUNC_EXT_FUNC &&
+                                       fc->type.func_def.nparam == 0 &&
+                                       fc->type.func_def.return_type &&
+                                       Str_eq(fc->type.func_def.return_type, obj->struct_name)) {
                                 // Zero-arg ext_func constructor (auto-callable)
                                 e->til_type = TIL_TYPE_ENUM;
                                 e->struct_name = obj->struct_name;
@@ -848,7 +848,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (!found) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "%s '%s' has no field '%s'",
-                             sdef->type == NODE_ENUM_DEF ? "enum" : "struct",
+                             sdef->type.tag == NODE_ENUM_DEF ? "enum" : "struct",
                              obj->struct_name->c_str, fname->c_str);
                     type_error(e, buf);
                     e->til_type = TIL_TYPE_UNKNOWN;
@@ -886,8 +886,8 @@ static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
     Expr *body = expr_child(sdef, 0);
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
-        if (f->type == NODE_DECL && f->data.decl.is_namespace &&
-            Str_eq_c(f->data.decl.name, "cmp"))
+        if (f->type.tag == NODE_DECL && f->type.decl.is_namespace &&
+            Str_eq_c(f->type.decl.name, "cmp"))
             return 1;
     }
     return 0;
@@ -906,8 +906,8 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
-        if (stmt->type != NODE_DECL || stmt->children.count == 0 ||
-            expr_child(stmt, 0)->type != NODE_SET_LIT) {
+        if (stmt->type.tag != NODE_DECL || stmt->children.count == 0 ||
+            expr_child(stmt, 0)->type.tag != NODE_SET_LIT) {
             Vec_push(&new_ch, &stmt);
             continue;
         }
@@ -915,7 +915,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         Expr *set_lit = expr_child(stmt, 0);
         U32 line = set_lit->line, col = set_lit->col;
         Str *path = set_lit->path;
-        Str *var_name = stmt->data.decl.name;
+        Str *var_name = stmt->type.decl.name;
 
         if (set_lit->children.count == 0) {
             type_error(set_lit, "set literal must have at least one element");
@@ -951,7 +951,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         Expr *new_call = make_ns_call("Set", "new", TIL_TYPE_STRUCT,
                                        Str_new("Set"), set_lit);
         Expr *et_str = expr_new(NODE_LITERAL_STR, line, col, path);
-        et_str->data.str_val = Str_new(elem_type);
+        et_str->type.str_val = Str_new(elem_type);
         et_str->til_type = TIL_TYPE_STRUCT;
         et_str->struct_name = Str_new("Str");
         expr_add_child(new_call, et_str);
@@ -959,8 +959,8 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         expr_add_child(new_call, esz);
 
         Expr *decl = expr_new(NODE_DECL, stmt->line, stmt->col, path);
-        decl->data.decl.name = var_name;
-        decl->data.decl.is_mut = true;
+        decl->type.decl.name = var_name;
+        decl->type.decl.is_mut = true;
         decl->til_type = TIL_TYPE_STRUCT;
         expr_add_child(decl, new_call);
 
@@ -974,7 +974,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         for (U32 j = 0; j < set_lit->children.count; j++) {
             Expr *add_call = make_ns_call("Set", "add", TIL_TYPE_NONE, NULL, set_lit);
             Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-            self_id->data.str_val = var_name;
+            self_id->type.str_val = var_name;
             self_id->til_type = TIL_TYPE_STRUCT;
             self_id->struct_name = Str_new("Set");
             expr_add_child(add_call, self_id);
@@ -1006,8 +1006,8 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         // Only handle: name := {k: v, ...}
-        if (stmt->type != NODE_DECL || stmt->children.count == 0 ||
-            expr_child(stmt, 0)->type != NODE_MAP_LIT) {
+        if (stmt->type.tag != NODE_DECL || stmt->children.count == 0 ||
+            expr_child(stmt, 0)->type.tag != NODE_MAP_LIT) {
             Vec_push(&new_ch, &stmt);
             continue;
         }
@@ -1015,7 +1015,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         Expr *map_lit = expr_child(stmt, 0);
         U32 line = map_lit->line, col = map_lit->col;
         Str *path = map_lit->path;
-        Str *var_name = stmt->data.decl.name;
+        Str *var_name = stmt->type.decl.name;
         U32 n_pairs = map_lit->children.count / 2;
 
         if (map_lit->children.count == 0) {
@@ -1070,7 +1070,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
                                        Str_new("Map"), map_lit);
         // Arg 1: key_type string
         Expr *kt_str = expr_new(NODE_LITERAL_STR, line, col, path);
-        kt_str->data.str_val = Str_new(key_type);
+        kt_str->type.str_val = Str_new(key_type);
         kt_str->til_type = TIL_TYPE_STRUCT;
         kt_str->struct_name = Str_new("Str");
         expr_add_child(new_call, kt_str);
@@ -1079,7 +1079,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         expr_add_child(new_call, ksz);
         // Arg 3: val_type string
         Expr *vt_str = expr_new(NODE_LITERAL_STR, line, col, path);
-        vt_str->data.str_val = Str_new(val_type);
+        vt_str->type.str_val = Str_new(val_type);
         vt_str->til_type = TIL_TYPE_STRUCT;
         vt_str->struct_name = Str_new("Str");
         expr_add_child(new_call, vt_str);
@@ -1089,8 +1089,8 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
 
         // Build declaration node (mut, so .set can work)
         Expr *decl = expr_new(NODE_DECL, stmt->line, stmt->col, path);
-        decl->data.decl.name = var_name;
-        decl->data.decl.is_mut = true;
+        decl->type.decl.name = var_name;
+        decl->type.decl.is_mut = true;
         decl->til_type = TIL_TYPE_STRUCT;
         expr_add_child(decl, new_call);
 
@@ -1106,7 +1106,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
             Expr *set_call = make_ns_call("Map", "set", TIL_TYPE_NONE, NULL, map_lit);
             // Arg: self
             Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-            self_id->data.str_val = var_name;
+            self_id->type.str_val = var_name;
             self_id->til_type = TIL_TYPE_STRUCT;
             self_id->struct_name = Str_new("Map");
             expr_add_child(set_call, self_id);
@@ -1137,12 +1137,12 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
 
 static Expr *find_variadic_fcall(Expr *e) {
     if (!e) return NULL;
-    if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF ||
-        e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return NULL;
-    if (e->type == NODE_FCALL && e->variadic_index >= 0) {
+    if (e->type.tag == NODE_FUNC_DEF || e->type.tag == NODE_STRUCT_DEF ||
+        e->type.tag == NODE_ENUM_DEF || e->type.tag == NODE_BODY) return NULL;
+    if (e->type.tag == NODE_FCALL && e->variadic_index >= 0) {
         // Skip array/vec builtins — handled specially like dyn_call
-        if (expr_child(e, 0)->type == NODE_IDENT) {
-            Str *cn = expr_child(e, 0)->data.str_val;
+        if (expr_child(e, 0)->type.tag == NODE_IDENT) {
+            Str *cn = expr_child(e, 0)->type.str_val;
             if (Str_eq_c(cn, "array") || Str_eq_c(cn, "vec")) return NULL;
         }
         return e;
@@ -1163,10 +1163,10 @@ static Expr *make_ns_call(const char *sname, const char *method,
     call->til_type = ret_type;
     call->struct_name = ret_sname;
     Expr *type_id = expr_new(NODE_IDENT, line, col, path);
-    type_id->data.str_val = Str_new(sname);
+    type_id->type.str_val = Str_new(sname);
     type_id->struct_name = Str_new(sname);
     Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col, path);
-    fa->data.str_val = Str_new(method);
+    fa->type.str_val = Str_new(method);
     fa->is_ns_field = true;
     expr_add_child(fa, type_id);
     expr_add_child(call, fa);
@@ -1195,27 +1195,27 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         // Find element type from func_def
         Str *elem_type = NULL;
         Expr *callee = expr_child(fcall, 0);
-        if (callee->type == NODE_IDENT) {
-            TypeBinding *tb = tscope_find(scope, callee->data.str_val);
+        if (callee->type.tag == NODE_IDENT) {
+            TypeBinding *tb = tscope_find(scope, callee->type.str_val);
             if (tb && tb->func_def) {
-                I32 fvi = tb->func_def->data.func_def.variadic_index;
+                I32 fvi = tb->func_def->type.func_def.variadic_index;
                 if (fvi >= 0)
-                    elem_type = tb->func_def->data.func_def.param_types[fvi];
+                    elem_type = tb->func_def->type.func_def.param_types[fvi];
             }
-        } else if (callee->type == NODE_FIELD_ACCESS && callee->is_ns_field) {
+        } else if (callee->type.tag == NODE_FIELD_ACCESS && callee->is_ns_field) {
             Expr *type_node = expr_child(callee, 0);
-            if (type_node->type == NODE_IDENT) {
-                Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
+            if (type_node->type.tag == NODE_IDENT) {
+                Expr *sdef = tscope_get_struct(scope, type_node->type.str_val);
                 if (sdef) {
                     Expr *sbody = expr_child(sdef, 0);
                     for (U32 j = 0; j < sbody->children.count; j++) {
                         Expr *f = expr_child(sbody, j);
-                        if (f->type == NODE_DECL && f->data.decl.is_namespace &&
-                            Str_eq(f->data.decl.name, callee->data.str_val) &&
-                            expr_child(f, 0)->type == NODE_FUNC_DEF) {
-                            I32 fvi = expr_child(f, 0)->data.func_def.variadic_index;
+                        if (f->type.tag == NODE_DECL && f->type.decl.is_namespace &&
+                            Str_eq(f->type.decl.name, callee->type.str_val) &&
+                            expr_child(f, 0)->type.tag == NODE_FUNC_DEF) {
+                            I32 fvi = expr_child(f, 0)->type.func_def.variadic_index;
                             if (fvi >= 0)
-                                elem_type = expr_child(f, 0)->data.func_def.param_types[fvi];
+                                elem_type = expr_child(f, 0)->type.func_def.param_types[fvi];
                             break;
                         }
                     }
@@ -1232,7 +1232,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             Expr *splat = expr_child(fcall, vi);
             splat->is_splat = false;
             // Clone if ident so caller keeps their copy
-            if (splat->type == NODE_IDENT) {
+            if (splat->type.tag == NODE_IDENT) {
                 splat = make_clone_call("Array", TIL_TYPE_STRUCT, splat, splat);
             }
             splat->is_own_arg = true;
@@ -1264,7 +1264,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                                        Str_new("Array"), fcall);
         // Arg: elem_type string
         Expr *et = expr_new(NODE_LITERAL_STR, line, col, path);
-        et->data.str_val = Str_new(elem_type->c_str);
+        et->type.str_val = Str_new(elem_type->c_str);
         et->til_type = TIL_TYPE_STRUCT;
         et->struct_name = Str_new("Str");
         expr_add_child(new_call, et);
@@ -1276,13 +1276,13 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         Expr *cap = expr_new(NODE_LITERAL_NUM, line, col, path);
         char cap_buf[16];
         snprintf(cap_buf, sizeof(cap_buf), "%d", vc);
-        cap->data.str_val = Str_new(cap_buf);
+        cap->type.str_val = Str_new(cap_buf);
         cap->til_type = TIL_TYPE_I64;
         expr_add_child(new_call, cap);
 
         // DECL _va := Array.new(...)
         Expr *va_decl = expr_new(NODE_DECL, line, col, path);
-        va_decl->data.decl.name = va_name;
+        va_decl->type.decl.name = va_name;
         va_decl->til_type = TIL_TYPE_STRUCT;
         expr_add_child(va_decl, new_call);
 
@@ -1299,7 +1299,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                                            NULL, fcall);
             // Arg: self = _va
             Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-            self_id->data.str_val = va_name;
+            self_id->type.str_val = va_name;
             self_id->til_type = TIL_TYPE_STRUCT;
             self_id->struct_name = Str_new("Array");
             expr_add_child(set_call, self_id);
@@ -1307,12 +1307,12 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             Expr *idx = expr_new(NODE_LITERAL_NUM, line, col, path);
             char idx_buf[16];
             snprintf(idx_buf, sizeof(idx_buf), "%d", j);
-            idx->data.str_val = Str_new(idx_buf);
+            idx->type.str_val = Str_new(idx_buf);
             idx->til_type = TIL_TYPE_I64;
             expr_add_child(set_call, idx);
             // Arg: val — clone if NODE_IDENT to preserve caller's variable
             Expr *val = expr_child(fcall, vi + j);
-            if (val->type == NODE_IDENT) {
+            if (val->type.tag == NODE_IDENT) {
                 const char *tname = type_to_name(val->til_type, val->struct_name);
                 if (tname)
                     val = make_clone_call(tname, val->til_type, val, val);
@@ -1330,7 +1330,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
                 if (!va_inserted) {
                     Expr *va_id = expr_new(NODE_IDENT, line, col, path);
-                    va_id->data.str_val = va_name;
+                    va_id->type.str_val = va_name;
                     va_id->til_type = TIL_TYPE_STRUCT;
                     va_id->struct_name = Str_new("Array");
                     va_id->is_own_arg = true;
@@ -1342,7 +1342,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             // Insert _va before post-variadic args when vc==0
             if ((I32)j == vi && !va_inserted) {
                 Expr *va_id = expr_new(NODE_IDENT, line, col, path);
-                va_id->data.str_val = va_name;
+                va_id->type.str_val = va_name;
                 va_id->til_type = TIL_TYPE_STRUCT;
                 va_id->struct_name = Str_new("Array");
                 va_id->is_own_arg = true;
@@ -1355,7 +1355,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         // Insert _va at end if variadic was last param and vc==0
         if (!va_inserted) {
             Expr *va_id = expr_new(NODE_IDENT, line, col, path);
-            va_id->data.str_val = va_name;
+            va_id->type.str_val = va_name;
             va_id->til_type = TIL_TYPE_STRUCT;
             va_id->struct_name = Str_new("Array");
             va_id->is_own_arg = true;
@@ -1381,7 +1381,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 // --- Argument hoisting ---
 
 static Bool expr_contains_fcall(Expr *e) {
-    if (e->type == NODE_FCALL) return 1;
+    if (e->type.tag == NODE_FCALL) return 1;
     for (U32 i = 0; i < e->children.count; i++) {
         if (expr_contains_fcall(expr_child(e, i))) return 1;
     }
@@ -1390,22 +1390,22 @@ static Bool expr_contains_fcall(Expr *e) {
 
 // Check if a function call returns ref
 static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope) {
-    if (fcall->type != NODE_FCALL) return 0;
+    if (fcall->type.tag != NODE_FCALL) return 0;
     Expr *callee = expr_child(fcall, 0);
-    if (callee->type == NODE_IDENT) {
-        TypeBinding *cb = tscope_find(scope, callee->data.str_val);
-        return (cb && cb->func_def) ? cb->func_def->data.func_def.return_is_ref : 0;
+    if (callee->type.tag == NODE_IDENT) {
+        TypeBinding *cb = tscope_find(scope, callee->type.str_val);
+        return (cb && cb->func_def) ? cb->func_def->type.func_def.return_is_ref : 0;
     }
-    if (callee->type == NODE_FIELD_ACCESS && callee->is_ns_field) {
-        Expr *sdef = tscope_get_struct(scope, expr_child(callee, 0)->data.str_val);
+    if (callee->type.tag == NODE_FIELD_ACCESS && callee->is_ns_field) {
+        Expr *sdef = tscope_get_struct(scope, expr_child(callee, 0)->type.str_val);
         if (!sdef) return 0;
         Expr *body = expr_child(sdef, 0);
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *f = expr_child(body, j);
-            if (f->type == NODE_DECL && f->data.decl.is_namespace &&
-                Str_eq(f->data.decl.name, callee->data.str_val) &&
-                expr_child(f, 0)->type == NODE_FUNC_DEF)
-                return expr_child(f, 0)->data.func_def.return_is_ref;
+            if (f->type.tag == NODE_DECL && f->type.decl.is_namespace &&
+                Str_eq(f->type.decl.name, callee->type.str_val) &&
+                expr_child(f, 0)->type.tag == NODE_FUNC_DEF)
+                return expr_child(f, 0)->type.func_def.return_is_ref;
         }
     }
     return 0;
@@ -1420,22 +1420,22 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     snprintf(name_buf, sizeof(name_buf), "_t%d", hoist_counter++);
     Str *tname = Str_new(name_buf);
     Expr *decl = expr_new(NODE_DECL, val->line, val->col, val->path);
-    decl->data.decl.name = tname;
-    decl->data.decl.explicit_type = NULL;
-    decl->data.decl.is_mut = false;
-    decl->data.decl.is_namespace = false;
+    decl->type.decl.name = tname;
+    decl->type.decl.explicit_type = NULL;
+    decl->type.decl.is_mut = false;
+    decl->type.decl.is_namespace = false;
     decl->til_type = val->til_type;
     expr_add_child(decl, val);
     Expr *ident = expr_new(NODE_IDENT, val->line, val->col, val->path);
-    ident->data.str_val = tname;
+    ident->type.str_val = tname;
     ident->til_type = val->til_type;
     ident->struct_name = val->struct_name;
     ident->is_own_arg = val->is_own_arg;
     tscope_set(scope, tname, val->til_type, -1, 0, val->line, val->col, 0, 0);
     TypeBinding *tb = tscope_find(scope, tname);
     if (tb) tb->struct_name = val->struct_name;
-    if (val->type == NODE_FCALL && fcall_returns_ref(val, scope)) {
-        decl->data.decl.is_ref = true;
+    if (val->type.tag == NODE_FCALL && fcall_returns_ref(val, scope)) {
+        decl->type.decl.is_ref = true;
         if (tb) tb->is_ref = 1;
     }
     if (*nhoisted >= *cap) {
@@ -1450,17 +1450,17 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
 // Does NOT recurse into scope boundaries (func/struct defs, bodies).
 static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
     // Don't recurse into scope boundaries -- those have their own infer_body calls
-    if (e->type == NODE_FUNC_DEF || e->type == NODE_STRUCT_DEF || e->type == NODE_ENUM_DEF || e->type == NODE_BODY) return;
+    if (e->type.tag == NODE_FUNC_DEF || e->type.tag == NODE_STRUCT_DEF || e->type.tag == NODE_ENUM_DEF || e->type.tag == NODE_BODY) return;
     // Recurse into children first (depth-first: inner fcalls hoisted before outer)
     for (U32 i = 0; i < e->children.count; i++) {
         hoist_expr(expr_child(e, i), hoisted, nhoisted, cap, scope);
     }
-    if (e->type != NODE_FCALL) return;
+    if (e->type.tag != NODE_FCALL) return;
 
     // For struct constructors, find field info to skip hoisting inline compound args
     Expr *ctor_body = NULL;
     if (e->struct_name && e->children.count > 0 &&
-        Str_eq(expr_child(e, 0)->data.str_val, e->struct_name)) {
+        Str_eq(expr_child(e, 0)->type.str_val, e->struct_name)) {
         Expr *sdef = tscope_get_struct(scope, e->struct_name);
         if (sdef) ctor_body = expr_child(sdef, 0);
     }
@@ -1468,25 +1468,25 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
     // Check each argument (children[1..n])
     // dyn_call variants: don't hoist the method arg (2nd) — codegen needs it as a literal
     Bool is_dyn_call = 0;
-    if (expr_child(e, 0)->type == NODE_IDENT) {
-        Str *cn = expr_child(e, 0)->data.str_val;
+    if (expr_child(e, 0)->type.tag == NODE_IDENT) {
+        Str *cn = expr_child(e, 0)->type.str_val;
         is_dyn_call = Str_eq_c(cn, "dyn_call1") || Str_eq_c(cn, "dyn_call2") ||
                       Str_eq_c(cn, "dyn_call1_ret") || Str_eq_c(cn, "dyn_call2_ret") ||
                       Str_eq_c(cn, "dyn_has_method");
     }
     Bool is_array_vec = 0;
-    if (expr_child(e, 0)->type == NODE_IDENT) {
-        Str *cn = expr_child(e, 0)->data.str_val;
+    if (expr_child(e, 0)->type.tag == NODE_IDENT) {
+        Str *cn = expr_child(e, 0)->type.str_val;
         is_array_vec = Str_eq_c(cn, "array") || Str_eq_c(cn, "vec");
     }
     U32 fi = 0; // instance field index for struct constructors
     for (U32 i = 1; i < e->children.count; i++) {
         if (is_dyn_call && i == 2) continue; // keep method as NODE_LITERAL_STR
         if (is_array_vec && i == 1) continue; // keep type_name as NODE_LITERAL_STR
-        if (expr_child(e, i)->type != NODE_FCALL &&
-            expr_child(e, i)->type != NODE_LITERAL_NUM &&
-            expr_child(e, i)->type != NODE_LITERAL_STR &&
-            expr_child(e, i)->type != NODE_LITERAL_BOOL) continue;
+        if (expr_child(e, i)->type.tag != NODE_FCALL &&
+            expr_child(e, i)->type.tag != NODE_LITERAL_NUM &&
+            expr_child(e, i)->type.tag != NODE_LITERAL_STR &&
+            expr_child(e, i)->type.tag != NODE_LITERAL_BOOL) continue;
 
         // Skip hoisting inline compound field args in struct constructors
         if (ctor_body) {
@@ -1495,8 +1495,8 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
             TilType ft = TIL_TYPE_NONE;
             for (; fi < ctor_body->children.count; fi++) {
                 Expr *field = expr_child(ctor_body, fi);
-                if (!field->data.decl.is_namespace) {
-                    is_own = field->data.decl.is_own;
+                if (!field->type.decl.is_namespace) {
+                    is_own = field->type.decl.is_own;
                     ft = expr_child(field, 0)->til_type;
                     fi++;
                     break;
@@ -1518,7 +1518,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
         Expr **hoisted = NULL;
         U32 nhoisted = 0, hcap = 0;
         // Walk the appropriate expression tree based on statement type
-        switch (stmt->type) {
+        switch (stmt->type.tag) {
         case NODE_DECL:
             hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             break;
@@ -1533,10 +1533,10 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
         case NODE_RETURN:
             if (stmt->children.count > 0) {
                 hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
-                if (expr_child(stmt, 0)->type == NODE_FCALL ||
-                    expr_child(stmt, 0)->type == NODE_LITERAL_NUM ||
-                    expr_child(stmt, 0)->type == NODE_LITERAL_STR ||
-                    expr_child(stmt, 0)->type == NODE_LITERAL_BOOL) {
+                if (expr_child(stmt, 0)->type.tag == NODE_FCALL ||
+                    expr_child(stmt, 0)->type.tag == NODE_LITERAL_NUM ||
+                    expr_child(stmt, 0)->type.tag == NODE_LITERAL_STR ||
+                    expr_child(stmt, 0)->type.tag == NODE_LITERAL_BOOL) {
                     expr_child(stmt, 0) = hoist_to_temp(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
                 }
             }
@@ -1547,16 +1547,16 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             // uses pointer-assign (typer inserts delete before reassignment).
             // Keep hoisting for scalars (deref-assign) and params (write-through).
             Bool do_hoist = 1;
-            TypeBinding *ab = tscope_find(scope, stmt->data.str_val);
+            TypeBinding *ab = tscope_find(scope, stmt->type.str_val);
             if (ab && !ab->is_param) {
                 TilType t = ab->type;
                 if (t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM)
                     do_hoist = 0;
             }
-            if (do_hoist && (expr_child(stmt, 0)->type == NODE_FCALL ||
-                expr_child(stmt, 0)->type == NODE_LITERAL_NUM ||
-                expr_child(stmt, 0)->type == NODE_LITERAL_STR ||
-                expr_child(stmt, 0)->type == NODE_LITERAL_BOOL)) {
+            if (do_hoist && (expr_child(stmt, 0)->type.tag == NODE_FCALL ||
+                expr_child(stmt, 0)->type.tag == NODE_LITERAL_NUM ||
+                expr_child(stmt, 0)->type.tag == NODE_LITERAL_STR ||
+                expr_child(stmt, 0)->type.tag == NODE_LITERAL_BOOL)) {
                 expr_child(stmt, 0) = hoist_to_temp(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
@@ -1570,17 +1570,17 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 if (ft == TIL_TYPE_STRUCT || ft == TIL_TYPE_ENUM)
                     fa_hoist = 0;
             }
-            if (fa_hoist && (expr_child(stmt, 1)->type == NODE_FCALL ||
-                expr_child(stmt, 1)->type == NODE_LITERAL_NUM ||
-                expr_child(stmt, 1)->type == NODE_LITERAL_STR ||
-                expr_child(stmt, 1)->type == NODE_LITERAL_BOOL)) {
+            if (fa_hoist && (expr_child(stmt, 1)->type.tag == NODE_FCALL ||
+                expr_child(stmt, 1)->type.tag == NODE_LITERAL_NUM ||
+                expr_child(stmt, 1)->type.tag == NODE_LITERAL_STR ||
+                expr_child(stmt, 1)->type.tag == NODE_LITERAL_BOOL)) {
                 expr_child(stmt, 1) = hoist_to_temp(expr_child(stmt, 1), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         }
         case NODE_IF:
             hoist_expr(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
-            if (expr_child(stmt, 0)->type == NODE_FCALL) {
+            if (expr_child(stmt, 0)->type.tag == NODE_FCALL) {
                 expr_child(stmt, 0) = hoist_to_temp(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
@@ -1628,17 +1628,17 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Exp
     call->til_type = TIL_TYPE_NONE;
 
     Expr *type_id = expr_new(NODE_IDENT, line, col, path);
-    type_id->data.str_val = Str_new(tname);
+    type_id->type.str_val = Str_new(tname);
     type_id->struct_name = Str_new(tname);
 
     Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col, path);
-    fa->data.str_val = Str_new("delete");
+    fa->type.str_val = Str_new("delete");
     fa->is_ns_field = true;
     expr_add_child(fa, type_id);
     expr_add_child(call, fa);
 
     Expr *arg = expr_new(NODE_IDENT, line, col, path);
-    arg->data.str_val = var_name;
+    arg->type.str_val = var_name;
     arg->til_type = type;
     arg->struct_name = struct_name;
     arg->is_own_arg = true;
@@ -1646,7 +1646,7 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Exp
 
     // call_free=true (ASAP delete should free the top-level allocation)
     Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-    true_lit->data.str_val = Str_new("true");
+    true_lit->type.str_val = Str_new("true");
     true_lit->til_type = TIL_TYPE_BOOL;
     expr_add_child(call, true_lit);
 
@@ -1666,18 +1666,18 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
     call->til_type = TIL_TYPE_NONE;
 
     Expr *type_id = expr_new(NODE_IDENT, line, col, path);
-    type_id->data.str_val = Str_new(tname);
+    type_id->type.str_val = Str_new(tname);
     type_id->struct_name = Str_new(tname);
 
     Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col, path);
-    fa->data.str_val = Str_new("delete");
+    fa->type.str_val = Str_new("delete");
     fa->is_ns_field = true;
     expr_add_child(fa, type_id);
     expr_add_child(call, fa);
 
     // arg: obj.field_name (clone the obj expr, build field access)
     Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-    field_acc->data.str_val = field_assign->data.str_val;
+    field_acc->type.str_val = field_assign->type.str_val;
     field_acc->is_own_field = is_own;
     field_acc->til_type = rhs->til_type;
     field_acc->struct_name = rhs->struct_name;
@@ -1685,7 +1685,7 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
     expr_add_child(call, field_acc);
 
     Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-    cf_lit->data.str_val = Str_new(is_own ? "true" : "false");
+    cf_lit->type.str_val = Str_new(is_own ? "true" : "false");
     cf_lit->til_type = TIL_TYPE_BOOL;
     expr_add_child(call, cf_lit);
 
@@ -1699,7 +1699,7 @@ static void insert_field_deletes(Expr *body) {
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
-        if (stmt->type == NODE_FIELD_ASSIGN) {
+        if (stmt->type.tag == NODE_FIELD_ASSIGN) {
             Bool need_delete = 0;
             Bool is_own = stmt->is_own_field;
             if (stmt->is_ref_field) {
@@ -1739,11 +1739,11 @@ static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Exp
     call->struct_name = (type == TIL_TYPE_STRUCT || type == TIL_TYPE_ENUM) ? Str_new(type_name) : NULL;
 
     Expr *type_id = expr_new(NODE_IDENT, line, col, path);
-    type_id->data.str_val = Str_new(type_name);
+    type_id->type.str_val = Str_new(type_name);
     type_id->struct_name = Str_new(type_name);
 
     Expr *fa = expr_new(NODE_FIELD_ACCESS, line, col, path);
-    fa->data.str_val = Str_new("clone");
+    fa->type.str_val = Str_new("clone");
     fa->is_ns_field = true;
     expr_add_child(fa, type_id);
     expr_add_child(call, fa);
@@ -1753,9 +1753,9 @@ static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Exp
 }
 
 static Bool expr_uses_var(Expr *e, Str *name) {
-    if (e->type == NODE_FUNC_DEF) return 0;
-    if (e->type == NODE_IDENT && Str_eq(e->data.str_val, name)) return 1;
-    if (e->type == NODE_ASSIGN && Str_eq(e->data.str_val, name)) return 1;
+    if (e->type.tag == NODE_FUNC_DEF) return 0;
+    if (e->type.tag == NODE_IDENT && Str_eq(e->type.str_val, name)) return 1;
+    if (e->type.tag == NODE_ASSIGN && Str_eq(e->type.str_val, name)) return 1;
     for (U32 i = 0; i < e->children.count; i++) {
         if (expr_uses_var(expr_child(e, i), name)) return 1;
     }
@@ -1765,10 +1765,10 @@ static Bool expr_uses_var(Expr *e, Str *name) {
 // Check if name is referenced inside any nested func/proc body in this subtree,
 // excluding cases where the name is shadowed by a parameter of that function.
 static Bool expr_used_in_nested_func(Expr *e, Str *name) {
-    if (e->type == NODE_FUNC_DEF) {
+    if (e->type.tag == NODE_FUNC_DEF) {
         // Check if name is shadowed by a parameter
-        for (U32 i = 0; i < e->data.func_def.nparam; i++) {
-            if (Str_eq(e->data.func_def.param_names[i], name)) return 0;
+        for (U32 i = 0; i < e->type.func_def.nparam; i++) {
+            if (Str_eq(e->type.func_def.param_names[i], name)) return 0;
         }
         // Not a param — recurse into body to find uses
         if (e->children.count > 0) return expr_uses_var(expr_child(e, 0), name);
@@ -1781,8 +1781,8 @@ static Bool expr_used_in_nested_func(Expr *e, Str *name) {
 }
 
 static Bool expr_contains_decl(Expr *e, Str *name) {
-    if (e->type == NODE_FUNC_DEF) return 0;
-    if (e->type == NODE_DECL && Str_eq(e->data.decl.name, name)) return 1;
+    if (e->type.tag == NODE_FUNC_DEF) return 0;
+    if (e->type.tag == NODE_DECL && Str_eq(e->type.decl.name, name)) return 1;
     for (U32 i = 0; i < e->children.count; i++) {
         if (expr_contains_decl(expr_child(e, i), name)) return 1;
     }
@@ -1791,12 +1791,12 @@ static Bool expr_contains_decl(Expr *e, Str *name) {
 
 // Helper: given a func_def, check if var_name is passed to an own param
 static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
-    bool *po = fdef->data.func_def.param_owns;
+    bool *po = fdef->type.func_def.param_owns;
     if (!po) return 0;
-    U32 np = fdef->data.func_def.nparam;
+    U32 np = fdef->type.func_def.nparam;
     for (U32 i = 0; i < np && i + 1 < fcall->children.count; i++) {
-        if (po[i] && expr_child(fcall, i + 1)->type == NODE_IDENT &&
-            Str_eq(expr_child(fcall, i + 1)->data.str_val, var_name)) {
+        if (po[i] && expr_child(fcall, i + 1)->type.tag == NODE_IDENT &&
+            Str_eq(expr_child(fcall, i + 1)->type.str_val, var_name)) {
             return 1;
         }
     }
@@ -1804,48 +1804,48 @@ static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
 }
 
 static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
-    if (fcall->type != NODE_FCALL || fcall->children.count < 2) return 0;
+    if (fcall->type.tag != NODE_FCALL || fcall->children.count < 2) return 0;
     // Struct constructor: check if var is in an own field position
-    if (fcall->struct_name && expr_child(fcall, 0)->type == NODE_IDENT &&
-        Str_eq(expr_child(fcall, 0)->data.str_val, fcall->struct_name)) {
+    if (fcall->struct_name && expr_child(fcall, 0)->type.tag == NODE_IDENT &&
+        Str_eq(expr_child(fcall, 0)->type.str_val, fcall->struct_name)) {
         Expr *sdef = tscope_get_struct(scope, fcall->struct_name);
         if (sdef) {
             Expr *body = expr_child(sdef, 0);
             U32 fi = 0;
             for (U32 i = 0; i < body->children.count; i++) {
-                if (expr_child(body, i)->type != NODE_DECL ||
-                    expr_child(body, i)->data.decl.is_namespace) continue;
+                if (expr_child(body, i)->type.tag != NODE_DECL ||
+                    expr_child(body, i)->type.decl.is_namespace) continue;
                 U32 arg_idx = fi + 1;
                 fi++;
                 if (arg_idx < fcall->children.count &&
-                    expr_child(fcall, arg_idx)->type == NODE_IDENT &&
-                    Str_eq(expr_child(fcall, arg_idx)->data.str_val, var_name) &&
-                    expr_child(body, i)->data.decl.is_own) {
+                    expr_child(fcall, arg_idx)->type.tag == NODE_IDENT &&
+                    Str_eq(expr_child(fcall, arg_idx)->type.str_val, var_name) &&
+                    expr_child(body, i)->type.decl.is_own) {
                     return 1;
                 }
             }
         }
     }
     // Direct call: look up func def in scope
-    if (expr_child(fcall, 0)->type == NODE_IDENT) {
-        Str *fn_name = expr_child(fcall, 0)->data.str_val;
+    if (expr_child(fcall, 0)->type.tag == NODE_IDENT) {
+        Str *fn_name = expr_child(fcall, 0)->type.str_val;
         TypeBinding *fb = tscope_find(scope, fn_name);
         if (!fb || !fb->func_def) return 0;
         return check_own_args(fb->func_def, fcall, var_name);
     }
     // Namespace method call: look up in struct definition
-    if (expr_child(fcall, 0)->type == NODE_FIELD_ACCESS && expr_child(fcall, 0)->is_ns_field) {
-        Str *method = expr_child(fcall, 0)->data.str_val;
+    if (expr_child(fcall, 0)->type.tag == NODE_FIELD_ACCESS && expr_child(fcall, 0)->is_ns_field) {
+        Str *method = expr_child(fcall, 0)->type.str_val;
         Expr *type_node = expr_child(expr_child(fcall, 0), 0);
-        if (type_node->type != NODE_IDENT) return 0;
-        Expr *sdef = tscope_get_struct(scope, type_node->data.str_val);
+        if (type_node->type.tag != NODE_IDENT) return 0;
+        Expr *sdef = tscope_get_struct(scope, type_node->type.str_val);
         if (!sdef) return 0;
         Expr *body = expr_child(sdef, 0);
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
-            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
-                Str_eq(field->data.decl.name, method) &&
-                expr_child(field, 0)->type == NODE_FUNC_DEF) {
+            if (field->type.tag == NODE_DECL && field->type.decl.is_namespace &&
+                Str_eq(field->type.decl.name, method) &&
+                expr_child(field, 0)->type.tag == NODE_FUNC_DEF) {
                 return check_own_args(expr_child(field, 0), fcall, var_name);
             }
         }
@@ -1854,12 +1854,12 @@ static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
 }
 
 static Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
-    if (e->type == NODE_FUNC_DEF) return 0;
+    if (e->type.tag == NODE_FUNC_DEF) return 0;
     if (fcall_has_own_arg(e, var_name, scope)) return 1;
     // Own field assignment: RHS ownership transfers to the field
-    if (e->type == NODE_FIELD_ASSIGN && e->is_own_field &&
-        expr_child(e, 1)->type == NODE_IDENT &&
-        Str_eq(expr_child(e, 1)->data.str_val, var_name)) {
+    if (e->type.tag == NODE_FIELD_ASSIGN && e->is_own_field &&
+        expr_child(e, 1)->type.tag == NODE_IDENT &&
+        Str_eq(expr_child(e, 1)->type.str_val, var_name)) {
         return 1;
     }
     for (U32 i = 0; i < e->children.count; i++) {
@@ -1882,10 +1882,10 @@ typedef struct {
 static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {
     for (U32 k = 0; k < body->children.count; k++) {
         Expr *d = expr_child(body, k);
-        if (d->type == NODE_DECL && d->data.decl.is_ref &&
-            expr_child(d, 0)->type == NODE_IDENT &&
-            Str_eq(expr_child(d, 0)->data.str_val, name)) {
-            if (expr_uses_var(expr, d->data.decl.name))
+        if (d->type.tag == NODE_DECL && d->type.decl.is_ref &&
+            expr_child(d, 0)->type.tag == NODE_IDENT &&
+            Str_eq(expr_child(d, 0)->type.str_val, name)) {
+            if (expr_uses_var(expr, d->type.decl.name))
                 return 1;
         }
     }
@@ -1899,15 +1899,15 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool re
     Vec new_ch = Vec_new(sizeof(Expr *));
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
-        if (stmt->type == NODE_IF) {
+        if (stmt->type.tag == NODE_IF) {
             for (U32 c = 1; c < stmt->children.count; c++)
                 insert_exit_deletes(expr_child(stmt, c), live, n_live, return_only);
         }
-        if (stmt->type == NODE_WHILE) {
+        if (stmt->type.tag == NODE_WHILE) {
             insert_exit_deletes(expr_child(stmt, 1), live, n_live, 1);
         }
-        if (stmt->type == NODE_RETURN ||
-            (!return_only && (stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE))) {
+        if (stmt->type.tag == NODE_RETURN ||
+            (!return_only && (stmt->type.tag == NODE_BREAK || stmt->type.tag == NODE_CONTINUE))) {
             for (U32 j = 0; j < n_live; j++) {
                 if (stmt->children.count > 0 &&
                     (expr_uses_var(expr_child(stmt, 0), live[j].name) ||
@@ -1942,7 +1942,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         I32 decl_idx = -1;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *s = expr_child(body, j);
-            if (s->type == NODE_DECL && Str_eq(s->data.decl.name, b->name)) {
+            if (s->type.tag == NODE_DECL && Str_eq(s->type.decl.name, b->name)) {
                 decl_idx = j;
                 break;
             }
@@ -2004,24 +2004,24 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         ref_changed = 0;
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *stmt = expr_child(body, i);
-            if (stmt->type != NODE_DECL || !stmt->data.decl.is_ref) continue;
+            if (stmt->type.tag != NODE_DECL || !stmt->type.decl.is_ref) continue;
             Expr *rhs = expr_child(stmt, 0);
 
             // Compute ref_last: max of AST uses and extended last_use in locals
             I32 ref_last = -1;
             for (U32 j = i + 1; j < body->children.count; j++) {
-                if (expr_uses_var(expr_child(body, j), stmt->data.decl.name))
+                if (expr_uses_var(expr_child(body, j), stmt->type.decl.name))
                     ref_last = j;
             }
             if (ref_last == -1) ref_last = i;
             for (U32 j = 0; j < n_locals; j++) {
-                if (Str_eq(locals[j].name, stmt->data.decl.name) && locals[j].last_use > ref_last)
+                if (Str_eq(locals[j].name, stmt->type.decl.name) && locals[j].last_use > ref_last)
                     ref_last = locals[j].last_use;
             }
 
-            if (rhs->type == NODE_IDENT) {
+            if (rhs->type.tag == NODE_IDENT) {
                 // Direct alias: source must outlive alias
-                Str *src_name = rhs->data.str_val;
+                Str *src_name = rhs->type.str_val;
                 for (U32 j = 0; j < n_locals; j++) {
                     if (Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last) {
                         locals[j].last_use = ref_last;
@@ -2030,15 +2030,15 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 }
                 continue;
             }
-            if (rhs->type != NODE_FCALL) continue;
+            if (rhs->type.tag != NODE_FCALL) continue;
             // Extend last_use of all ident args in the fcall
             // Walk field-access chains to find root ident (e.g. root.children → root)
             for (U32 a = 1; a < rhs->children.count; a++) {
                 Expr *arg = expr_child(rhs, a);
-                while (arg->type == NODE_FIELD_ACCESS && arg->children.count > 0)
+                while (arg->type.tag == NODE_FIELD_ACCESS && arg->children.count > 0)
                     arg = expr_child(arg, 0);
-                if (arg->type != NODE_IDENT) continue;
-                Str *aname = arg->data.str_val;
+                if (arg->type.tag != NODE_IDENT) continue;
+                Str *aname = arg->type.str_val;
                 for (U32 j = 0; j < n_locals; j++) {
                     if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
                         locals[j].last_use = ref_last;
@@ -2071,7 +2071,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         Expr *stmt = expr_child(body, i);
 
         // Before NODE_RETURN/NODE_BREAK/NODE_CONTINUE: free locals not yet freed
-        if (stmt->type == NODE_RETURN || stmt->type == NODE_BREAK || stmt->type == NODE_CONTINUE) {
+        if (stmt->type.tag == NODE_RETURN || stmt->type.tag == NODE_BREAK || stmt->type.tag == NODE_CONTINUE) {
             for (U32 j = 0; j < n_locals; j++) {
                 if (stmt->children.count > 0 &&
                     (expr_uses_var(expr_child(stmt, 0), locals[j].name) ||
@@ -2087,7 +2087,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         }
 
         // For NODE_IF/NODE_WHILE: insert frees before nested early exits
-        if (stmt->type == NODE_IF || stmt->type == NODE_WHILE) {
+        if (stmt->type.tag == NODE_IF || stmt->type.tag == NODE_WHILE) {
             Vec live_vec = Vec_new(sizeof(LocalInfo));
             for (U32 j = 0; j < n_locals; j++) {
                 if (locals[j].skip_delete) continue;
@@ -2100,7 +2100,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             if (live_vec.count > 0) {
                 U32 n_live = live_vec.count;
                 LocalInfo *live = Vec_take(&live_vec);
-                if (stmt->type == NODE_IF) {
+                if (stmt->type.tag == NODE_IF) {
                     for (U32 c = 1; c < stmt->children.count; c++)
                         insert_exit_deletes(expr_child(stmt, c), live, n_live, 0);
                 } else {
@@ -2114,8 +2114,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         }
 
         // Before NODE_ASSIGN: delete old compound-type value
-        if (stmt->type == NODE_ASSIGN) {
-            Str *vname = stmt->data.str_val;
+        if (stmt->type.tag == NODE_ASSIGN) {
+            Str *vname = stmt->type.str_val;
             for (U32 j = 0; j < n_locals; j++) {
                 if (!Str_eq(locals[j].name, vname)) continue;
                 if (locals[j].skip_delete) break;
@@ -2140,7 +2140,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         Vec_push(&new_ch, &stmt);
 
         // After non-exit statements: free locals whose last use is this statement
-        if (stmt->type != NODE_RETURN && stmt->type != NODE_BREAK && stmt->type != NODE_CONTINUE) {
+        if (stmt->type.tag != NODE_RETURN && stmt->type.tag != NODE_BREAK && stmt->type.tag != NODE_CONTINUE) {
             for (U32 j = 0; j < n_locals; j++) {
                 if (locals[j].skip_delete) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
@@ -2166,29 +2166,29 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
     body->til_type = TIL_TYPE_NONE;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
-        switch (stmt->type) {
+        switch (stmt->type.tag) {
         case NODE_DECL:
             // Skip variant registry entries (payload enum: no children)
             if (stmt->children.count == 0) break;
             infer_expr(scope, expr_child(stmt, 0), in_func);
             // For struct/enum defs, register type in scope
-            if (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
-                expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
-                Bool is_enum = (expr_child(stmt, 0)->type == NODE_ENUM_DEF);
+            if (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
+                expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
+                Bool is_enum = (expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF);
                 // Check explicit type annotation if present
-                if (stmt->data.decl.explicit_type) {
-                    TilType declared = type_from_name(stmt->data.decl.explicit_type, scope);
+                if (stmt->type.decl.explicit_type) {
+                    TilType declared = type_from_name(stmt->type.decl.explicit_type, scope);
                     TilType expected = is_enum ? TIL_TYPE_ENUM_DEF : TIL_TYPE_STRUCT_DEF;
                     if (declared != expected) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                                 stmt->data.decl.name->c_str, stmt->data.decl.explicit_type->c_str,
+                                 stmt->type.decl.name->c_str, stmt->type.decl.explicit_type->c_str,
                                  is_enum ? "EnumDef" : "StructDef");
                         type_error(stmt, buf);
                     }
                 }
                 stmt->til_type = TIL_TYPE_NONE;
-                Str *sname = stmt->data.decl.name;
+                Str *sname = stmt->type.decl.name;
                 // Check if this is a builtin type
                 TilType builtin_type = is_enum ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
                 Bool is_builtin = 0;
@@ -2213,27 +2213,27 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 break;
             }
             // For func/proc defs, store return type and func/proc-ness in scope
-            if (expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
+            if (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
                 // Check explicit type annotation if present
-                if (stmt->data.decl.explicit_type) {
-                    TilType declared = type_from_name(stmt->data.decl.explicit_type, scope);
+                if (stmt->type.decl.explicit_type) {
+                    TilType declared = type_from_name(stmt->type.decl.explicit_type, scope);
                     if (declared != TIL_TYPE_FUNC_DEF) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "'%s' declared as %s but value is FunctionDef",
-                                 stmt->data.decl.name->c_str, stmt->data.decl.explicit_type->c_str);
+                                 stmt->type.decl.name->c_str, stmt->type.decl.explicit_type->c_str);
                         type_error(stmt, buf);
                     }
                 }
-                FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
+                FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
                 I32 callee_is_proc = (ft == FUNC_TEST) ? 2 : (ft == FUNC_PROC || ft == FUNC_EXT_PROC) ? 1 : 0;
                 TilType rt = TIL_TYPE_NONE;
-                if (expr_child(stmt, 0)->data.func_def.return_type) {
-                    rt = type_from_name(expr_child(stmt, 0)->data.func_def.return_type, scope);
+                if (expr_child(stmt, 0)->type.func_def.return_type) {
+                    rt = type_from_name(expr_child(stmt, 0)->type.func_def.return_type, scope);
                 }
                 stmt->til_type = rt;
-                tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
+                tscope_set(scope, stmt->type.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
                 // Store func_def pointer and builtin flag
-                TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
+                TypeBinding *fb = tscope_find(scope, stmt->type.decl.name);
                 if (fb) {
                     fb->func_def = expr_child(stmt, 0);
                     if (ft == FUNC_EXT_FUNC || ft == FUNC_EXT_PROC)
@@ -2241,29 +2241,29 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
                 break;
             }
-            if (stmt->data.decl.explicit_type) {
-                Str *etn = stmt->data.decl.explicit_type;
+            if (stmt->type.decl.explicit_type) {
+                Str *etn = stmt->type.decl.explicit_type;
                 TilType declared = type_from_name(etn, scope);
                 if (declared == TIL_TYPE_UNKNOWN) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
                     type_error(stmt, buf);
-                } else if (declared == TIL_TYPE_DYNAMIC && !stmt->data.decl.is_own) {
+                } else if (declared == TIL_TYPE_DYNAMIC && !stmt->type.decl.is_own) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; use 'own' with Dynamic type",
-                             stmt->data.decl.name->c_str);
+                             stmt->type.decl.name->c_str);
                     type_error(stmt, buf);
-                } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NUM &&
+                } else if (expr_child(stmt, 0)->type.tag == NODE_LITERAL_NUM &&
                            (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_I16 || declared == TIL_TYPE_I32 || declared == TIL_TYPE_U32 || declared == TIL_TYPE_F32 || declared == TIL_TYPE_DYNAMIC)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
                     expr_child(stmt, 0)->til_type = declared;
-                } else if (expr_child(stmt, 0)->type == NODE_LITERAL_NULL && !stmt->data.decl.is_ref) {
+                } else if (expr_child(stmt, 0)->type.tag == NODE_LITERAL_NULL && !stmt->type.decl.is_ref) {
                     type_error(stmt, "null can only be assigned to 'ref' declarations");
                 } else if (expr_child(stmt, 0)->til_type != declared &&
                            expr_child(stmt, 0)->til_type != TIL_TYPE_DYNAMIC) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                             stmt->data.decl.name->c_str, til_type_name_c(declared),
+                             stmt->type.decl.name->c_str, til_type_name_c(declared),
                              til_type_name_c(expr_child(stmt, 0)->til_type));
                     type_error(stmt, buf);
                 } else if ((declared == TIL_TYPE_STRUCT || declared == TIL_TYPE_ENUM) &&
@@ -2271,7 +2271,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                            !Str_eq(etn, expr_child(stmt, 0)->struct_name)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                             stmt->data.decl.name->c_str, etn->c_str, expr_child(stmt, 0)->struct_name->c_str);
+                             stmt->type.decl.name->c_str, etn->c_str, expr_child(stmt, 0)->struct_name->c_str);
                     type_error(stmt, buf);
                 }
                 stmt->til_type = declared;
@@ -2286,45 +2286,45 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (stmt->til_type == TIL_TYPE_DYNAMIC) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add explicit type annotation",
-                             stmt->data.decl.name->c_str);
+                             stmt->type.decl.name->c_str);
                     type_error(stmt, buf);
                 }
             }
-            tscope_set(scope, stmt->data.decl.name, stmt->til_type, -1, stmt->data.decl.is_mut, stmt->line, stmt->col, 0, 0);
+            tscope_set(scope, stmt->type.decl.name, stmt->til_type, -1, stmt->type.decl.is_mut, stmt->line, stmt->col, 0, 0);
             if ((stmt->til_type == TIL_TYPE_STRUCT || stmt->til_type == TIL_TYPE_ENUM) && expr_child(stmt, 0)->struct_name) {
-                TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
+                TypeBinding *b = tscope_find(scope, stmt->type.decl.name);
                 if (b) b->struct_name = expr_child(stmt, 0)->struct_name;
             }
-            if (stmt->data.decl.is_ref) {
-                TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
+            if (stmt->type.decl.is_ref) {
+                TypeBinding *b = tscope_find(scope, stmt->type.decl.name);
                 if (b) b->is_ref = 1;
                 // Validate ref RHS: must be null, a ref-returning fcall, or a ref/param variable
                 Expr *rhs = expr_child(stmt, 0);
                 Bool ok = 0;
-                if (rhs->type == NODE_LITERAL_NULL) ok = 1;
-                if (rhs->type == NODE_FCALL && fcall_returns_ref(rhs, scope)) ok = 1;
-                if (rhs->type == NODE_IDENT) {
-                    TypeBinding *rb = tscope_find(scope, rhs->data.str_val);
+                if (rhs->type.tag == NODE_LITERAL_NULL) ok = 1;
+                if (rhs->type.tag == NODE_FCALL && fcall_returns_ref(rhs, scope)) ok = 1;
+                if (rhs->type.tag == NODE_IDENT) {
+                    TypeBinding *rb = tscope_find(scope, rhs->type.str_val);
                     if (rb && (rb->is_ref || (rb->is_param && !rb->is_own))) ok = 1;
                 }
                 if (!ok) type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable");
             }
             // Auto-alias: immutable ident → immutable dest becomes ref
-            if (!stmt->data.decl.is_ref && !stmt->data.decl.is_mut &&
-                expr_child(stmt, 0)->type == NODE_IDENT) {
-                TypeBinding *rb = tscope_find(scope, expr_child(stmt, 0)->data.str_val);
+            if (!stmt->type.decl.is_ref && !stmt->type.decl.is_mut &&
+                expr_child(stmt, 0)->type.tag == NODE_IDENT) {
+                TypeBinding *rb = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
                 if (rb && !rb->is_mut && !rb->is_own && !rb->is_ref && !rb->is_param) {
-                    stmt->data.decl.is_ref = true;
-                    TypeBinding *b = tscope_find(scope, stmt->data.decl.name);
+                    stmt->type.decl.is_ref = true;
+                    TypeBinding *b = tscope_find(scope, stmt->type.decl.name);
                     if (b) b->is_ref = 1;
                 }
             }
             // Auto-insert clone for declarations from identifiers (skip ref decls)
-            if ((expr_child(stmt, 0)->type == NODE_IDENT ||
-                 (expr_child(stmt, 0)->type == NODE_FIELD_ACCESS &&
+            if ((expr_child(stmt, 0)->type.tag == NODE_IDENT ||
+                 (expr_child(stmt, 0)->type.tag == NODE_FIELD_ACCESS &&
                   (expr_child(stmt, 0)->til_type == TIL_TYPE_STRUCT ||
                    expr_child(stmt, 0)->til_type == TIL_TYPE_ENUM))) &&
-                !stmt->data.decl.is_ref) {
+                !stmt->type.decl.is_ref) {
                 const char *tname = type_to_name(stmt->til_type, expr_child(stmt, 0)->struct_name);
                 if (tname) {
                     expr_child(stmt, 0) = make_clone_call(
@@ -2336,7 +2336,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
         case NODE_ASSIGN: {
             infer_expr(scope, expr_child(stmt, 0), in_func);
             stmt->til_type = expr_child(stmt, 0)->til_type;
-            Str *aname = stmt->data.str_val;
+            Str *aname = stmt->type.str_val;
             TilType existing = tscope_get(scope, aname);
             if (existing == TIL_TYPE_UNKNOWN) {
                 char buf[128];
@@ -2363,8 +2363,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
             }
             // Auto-insert clone for assignments from identifiers
-            if (expr_child(stmt, 0)->type == NODE_IDENT ||
-                (expr_child(stmt, 0)->type == NODE_FIELD_ACCESS &&
+            if (expr_child(stmt, 0)->type.tag == NODE_IDENT ||
+                (expr_child(stmt, 0)->type.tag == NODE_FIELD_ACCESS &&
                  (expr_child(stmt, 0)->til_type == TIL_TYPE_STRUCT ||
                   expr_child(stmt, 0)->til_type == TIL_TYPE_ENUM))) {
                 const char *tname = type_to_name(expr_child(stmt, 0)->til_type, expr_child(stmt, 0)->struct_name);
@@ -2380,7 +2380,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             infer_expr(scope, expr_child(stmt, 0), in_func); // object
             infer_expr(scope, expr_child(stmt, 1), in_func); // value
             Expr *obj = expr_child(stmt, 0);
-            Str *fname = stmt->data.str_val;
+            Str *fname = stmt->type.str_val;
             if (obj->struct_name) {
                 Expr *sdef = tscope_get_struct(scope, obj->struct_name);
                 if (sdef) {
@@ -2388,12 +2388,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Bool found = 0;
                     for (U32 i = 0; i < body->children.count; i++) {
                         Expr *field = expr_child(body, i);
-                        if (Str_eq(field->data.decl.name, fname)) {
+                        if (Str_eq(field->type.decl.name, fname)) {
                             found = 1;
-                            stmt->is_ns_field = field->data.decl.is_namespace;
-                            stmt->is_own_field = field->data.decl.is_own || field->data.decl.is_ref;
-                            stmt->is_ref_field = field->data.decl.is_ref;
-                            if (!field->data.decl.is_mut) {
+                            stmt->is_ns_field = field->type.decl.is_namespace;
+                            stmt->is_own_field = field->type.decl.is_own || field->type.decl.is_ref;
+                            stmt->is_ref_field = field->type.decl.is_ref;
+                            if (!field->type.decl.is_mut) {
                                 char buf[128];
                                 snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
                                 type_error(stmt, buf);
@@ -2424,8 +2424,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // Auto-insert clone for field assignments from identifiers
             // Skip clone for ref fields — they store pointers, not owned copies
             if (!stmt->is_ref_field &&
-                (expr_child(stmt, 1)->type == NODE_IDENT ||
-                 (expr_child(stmt, 1)->type == NODE_FIELD_ACCESS &&
+                (expr_child(stmt, 1)->type.tag == NODE_IDENT ||
+                 (expr_child(stmt, 1)->type.tag == NODE_FIELD_ACCESS &&
                   (expr_child(stmt, 1)->til_type == TIL_TYPE_STRUCT ||
                    expr_child(stmt, 1)->til_type == TIL_TYPE_ENUM)))) {
                 const char *tname = type_to_name(expr_child(stmt, 1)->til_type,
@@ -2448,8 +2448,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Auto-insert clone when returning a borrowed parameter
                 // (prevents use-after-free: caller ASAP-deletes arg temps,
                 //  but the return value IS the same pointer as the arg)
-                if (!returns_ref && expr_child(stmt, 0)->type == NODE_IDENT) {
-                    TypeBinding *b = tscope_find(scope, expr_child(stmt, 0)->data.str_val);
+                if (!returns_ref && expr_child(stmt, 0)->type.tag == NODE_IDENT) {
+                    TypeBinding *b = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
                     if (b && b->is_param && !b->is_own) {
                         const char *tname = type_to_name(stmt->til_type, expr_child(stmt, 0)->struct_name);
                         if (tname) {
@@ -2524,15 +2524,15 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 snprintf(name_buf, sizeof(name_buf), "_wcond%d", hoist_counter++);
                 Str *wname = Str_new(name_buf);
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
-                decl->data.decl.name = wname;
-                decl->data.decl.explicit_type = NULL;
-                decl->data.decl.is_mut = false;
-                decl->data.decl.is_namespace = false;
+                decl->type.decl.name = wname;
+                decl->type.decl.explicit_type = NULL;
+                decl->type.decl.is_mut = false;
+                decl->type.decl.is_namespace = false;
                 decl->til_type = cond->til_type;
                 expr_add_child(decl, cond);
                 // if _wcondN {} else { break }
                 Expr *ident = expr_new(NODE_IDENT, line, col, path);
-                ident->data.str_val = wname;
+                ident->type.str_val = wname;
                 ident->til_type = TIL_TYPE_BOOL;
                 Expr *if_node = expr_new(NODE_IF, line, col, path);
                 if_node->til_type = TIL_TYPE_NONE;
@@ -2558,7 +2558,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 body->children = new_ch;
                 // Replace condition with true
                 Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-                true_lit->data.str_val = Str_new("true");
+                true_lit->type.str_val = Str_new("true");
                 true_lit->til_type = TIL_TYPE_BOOL;
                 expr_child(stmt, 0) = true_lit;
             }
@@ -2586,12 +2586,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // _swN := expr
             Expr *decl = expr_new(NODE_DECL, sw_line, sw_col, sw_path);
-            decl->data.decl.name = sw_name;
-            decl->data.decl.explicit_type = NULL;
-            decl->data.decl.is_mut = false;
-            decl->data.decl.is_namespace = false;
-            decl->data.decl.is_ref = false;
-            decl->data.decl.is_own = false;
+            decl->type.decl.name = sw_name;
+            decl->type.decl.explicit_type = NULL;
+            decl->type.decl.is_mut = false;
+            decl->type.decl.is_namespace = false;
+            decl->type.decl.is_ref = false;
+            decl->type.decl.is_own = false;
             expr_add_child(decl, sw_expr);
             expr_add_child(block, decl);
 
@@ -2613,20 +2613,20 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
                 // Phase 2: Range case — case A..B: → _sw.gte(A).and(_sw.lte(B))
                 // Detect Range.new(start, end) pattern from parser's .. desugaring
-                if (match_expr->type == NODE_FCALL &&
+                if (match_expr->type.tag == NODE_FCALL &&
                     match_expr->children.count == 3 &&
-                    expr_child(match_expr, 0)->type == NODE_FIELD_ACCESS &&
-                    Str_eq_c(expr_child(match_expr, 0)->data.str_val, "new") &&
-                    expr_child(expr_child(match_expr, 0), 0)->type == NODE_IDENT &&
-                    Str_eq_c(expr_child(expr_child(match_expr, 0), 0)->data.str_val, "Range")) {
+                    expr_child(match_expr, 0)->type.tag == NODE_FIELD_ACCESS &&
+                    Str_eq_c(expr_child(match_expr, 0)->type.str_val, "new") &&
+                    expr_child(expr_child(match_expr, 0), 0)->type.tag == NODE_IDENT &&
+                    Str_eq_c(expr_child(expr_child(match_expr, 0), 0)->type.str_val, "Range")) {
                     Expr *start_expr = expr_child(match_expr, 1);
                     Expr *end_expr = expr_child(match_expr, 2);
 
                     // _sw.gte(start)
                     Expr *sw1 = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
-                    sw1->data.str_val = sw_name;
+                    sw1->type.str_val = sw_name;
                     Expr *gte_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
-                    gte_acc->data.str_val = Str_new("gte");
+                    gte_acc->type.str_val = Str_new("gte");
                     expr_add_child(gte_acc, sw1);
                     Expr *gte_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
                     expr_add_child(gte_call, gte_acc);
@@ -2634,9 +2634,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
                     // _sw.lte(end) — inclusive for case ranges
                     Expr *sw2 = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
-                    sw2->data.str_val = sw_name;
+                    sw2->type.str_val = sw_name;
                     Expr *lte_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
-                    lte_acc->data.str_val = Str_new("lte");
+                    lte_acc->type.str_val = Str_new("lte");
                     expr_add_child(lte_acc, sw2);
                     Expr *lte_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
                     expr_add_child(lte_call, lte_acc);
@@ -2644,7 +2644,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
                     // gte_call.and(lte_call)
                     Expr *and_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
-                    and_acc->data.str_val = Str_new("and");
+                    and_acc->type.str_val = Str_new("and");
                     expr_add_child(and_acc, gte_call);
                     condition = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
                     expr_add_child(condition, and_acc);
@@ -2654,17 +2654,17 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Phase 4: Enum payload extraction — case Enum.Variant(binding):
                 // Detect EnumType.Variant(ident) where variant has a payload
                 if (!condition &&
-                    match_expr->type == NODE_FCALL &&
+                    match_expr->type.tag == NODE_FCALL &&
                     match_expr->children.count == 2 &&
-                    expr_child(match_expr, 0)->type == NODE_FIELD_ACCESS &&
-                    expr_child(expr_child(match_expr, 0), 0)->type == NODE_IDENT &&
-                    expr_child(match_expr, 1)->type == NODE_IDENT) {
+                    expr_child(match_expr, 0)->type.tag == NODE_FIELD_ACCESS &&
+                    expr_child(expr_child(match_expr, 0), 0)->type.tag == NODE_IDENT &&
+                    expr_child(match_expr, 1)->type.tag == NODE_IDENT) {
                     Expr *callee = expr_child(match_expr, 0);
-                    Str *type_name = expr_child(callee, 0)->data.str_val;
-                    Str *variant_name = callee->data.str_val;
-                    Str *binding_name = expr_child(match_expr, 1)->data.str_val;
+                    Str *type_name = expr_child(callee, 0)->type.str_val;
+                    Str *variant_name = callee->type.str_val;
+                    Str *binding_name = expr_child(match_expr, 1)->type.str_val;
                     Expr *enum_def = tscope_get_struct(scope, type_name);
-                    if (enum_def && enum_def->type == NODE_ENUM_DEF) {
+                    if (enum_def && enum_def->type.tag == NODE_ENUM_DEF) {
                         I32 tag = enum_variant_tag(enum_def, variant_name);
                         Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
                         if (payload_type) {
@@ -2672,9 +2672,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             char is_buf[256];
                             snprintf(is_buf, sizeof(is_buf), "is_%s", variant_name->c_str);
                             Expr *sw_id = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
-                            sw_id->data.str_val = sw_name;
+                            sw_id->type.str_val = sw_name;
                             Expr *is_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
-                            is_acc->data.str_val = Str_new(is_buf);
+                            is_acc->type.str_val = Str_new(is_buf);
                             expr_add_child(is_acc, sw_id);
                             condition = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
                             expr_add_child(condition, is_acc);
@@ -2683,20 +2683,20 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             char get_buf[256];
                             snprintf(get_buf, sizeof(get_buf), "get_%s", variant_name->c_str);
                             Expr *sw_id2 = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
-                            sw_id2->data.str_val = sw_name;
+                            sw_id2->type.str_val = sw_name;
                             Expr *get_acc = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
-                            get_acc->data.str_val = Str_new(get_buf);
+                            get_acc->type.str_val = Str_new(get_buf);
                             expr_add_child(get_acc, sw_id2);
                             Expr *get_call = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
                             expr_add_child(get_call, get_acc);
 
                             Expr *bind_decl = expr_new(NODE_DECL, sw_line, sw_col, sw_path);
-                            bind_decl->data.decl.name = binding_name;
-                            bind_decl->data.decl.explicit_type = payload_type;
-                            bind_decl->data.decl.is_mut = false;
-                            bind_decl->data.decl.is_namespace = false;
-                            bind_decl->data.decl.is_ref = false;
-                            bind_decl->data.decl.is_own = false;
+                            bind_decl->type.decl.name = binding_name;
+                            bind_decl->type.decl.explicit_type = payload_type;
+                            bind_decl->type.decl.is_mut = false;
+                            bind_decl->type.decl.is_namespace = false;
+                            bind_decl->type.decl.is_ref = false;
+                            bind_decl->type.decl.is_own = false;
                             expr_add_child(bind_decl, get_call);
 
                             // Prepend to case body
@@ -2715,9 +2715,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Phase 1/3: Default — _sw.eq(match_expr)
                 if (!condition) {
                     Expr *sw_ident = expr_new(NODE_IDENT, sw_line, sw_col, sw_path);
-                    sw_ident->data.str_val = sw_name;
+                    sw_ident->type.str_val = sw_name;
                     Expr *eq_access = expr_new(NODE_FIELD_ACCESS, sw_line, sw_col, sw_path);
-                    eq_access->data.str_val = Str_new("eq");
+                    eq_access->type.str_val = Str_new("eq");
                     expr_add_child(eq_access, sw_ident);
                     condition = expr_new(NODE_FCALL, sw_line, sw_col, sw_path);
                     expr_add_child(condition, eq_access);
@@ -2779,10 +2779,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Expr *sbody = expr_child(sdef, 0);
             for (U32 fi = 0; fi < sbody->children.count; fi++) {
                 Expr *field = expr_child(sbody, fi);
-                if (!field->data.decl.is_namespace) continue;
-                if (expr_child(field, 0)->type != NODE_FUNC_DEF) continue;
-                if (Str_eq_c(field->data.decl.name, "len")) len_func = expr_child(field, 0);
-                if (Str_eq_c(field->data.decl.name, "get")) get_func = expr_child(field, 0);
+                if (!field->type.decl.is_namespace) continue;
+                if (expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
+                if (Str_eq_c(field->type.decl.name, "len")) len_func = expr_child(field, 0);
+                if (Str_eq_c(field->type.decl.name, "get")) get_func = expr_child(field, 0);
             }
 
             if (!len_func) {
@@ -2791,8 +2791,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
                 break;
             }
-            if (len_func->data.func_def.nparam != 1 || !len_func->data.func_def.return_type ||
-                !Str_eq_c(len_func->data.func_def.return_type, "I64")) {
+            if (len_func->type.func_def.nparam != 1 || !len_func->type.func_def.return_type ||
+                !Str_eq_c(len_func->type.func_def.return_type, "I64")) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' len() must take 1 param and return I64 for for-in", type_name->c_str);
                 type_error(stmt, buf);
@@ -2804,8 +2804,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
                 break;
             }
-            if (get_func->data.func_def.nparam != 2 || !get_func->data.func_def.param_types[1] ||
-                !Str_eq_c(get_func->data.func_def.param_types[1], "I64")) {
+            if (get_func->type.func_def.nparam != 2 || !get_func->type.func_def.param_types[1] ||
+                !Str_eq_c(get_func->type.func_def.param_types[1], "I64")) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' get() second param must be I64 for for-in", type_name->c_str);
                 type_error(stmt, buf);
@@ -2816,7 +2816,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Str *elem_type = stmt->struct_name; // explicit type annotation from parser
             if (!elem_type) {
                 // Infer from get() return type
-                Str *ret = get_func->data.func_def.return_type;
+                Str *ret = get_func->type.func_def.return_type;
                 if (!ret || Str_eq_c(ret, "Dynamic")) {
                     char buf[192];
                     snprintf(buf, sizeof(buf),
@@ -2837,7 +2837,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             //         ...body...
             //     }
             // }
-            Str *var_name = stmt->data.str_val;
+            Str *var_name = stmt->type.str_val;
             Expr *for_body = expr_child(stmt, 1);
             I32 line = stmt->line;
             I32 col = stmt->col;
@@ -2853,14 +2853,14 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // mut _fiN := 0
             Expr *idx_decl = expr_new(NODE_DECL, line, col, path);
-            idx_decl->data.decl.name = idx_name;
-            idx_decl->data.decl.explicit_type = NULL;
-            idx_decl->data.decl.is_mut = true;
-            idx_decl->data.decl.is_namespace = false;
-            idx_decl->data.decl.is_ref = false;
-            idx_decl->data.decl.is_own = false;
+            idx_decl->type.decl.name = idx_name;
+            idx_decl->type.decl.explicit_type = NULL;
+            idx_decl->type.decl.is_mut = true;
+            idx_decl->type.decl.is_namespace = false;
+            idx_decl->type.decl.is_ref = false;
+            idx_decl->type.decl.is_own = false;
             Expr *zero = expr_new(NODE_LITERAL_NUM, line, col, path);
-            zero->data.str_val = Str_new("0");
+            zero->type.str_val = Str_new("0");
             expr_add_child(idx_decl, zero);
             expr_add_child(block, idx_decl);
 
@@ -2870,16 +2870,16 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // Condition: _fiN.lt(collection.len())
             // Build: collection.len() → NODE_FCALL(NODE_FIELD_ACCESS(iter_clone, "len"))
             Expr *iter_len = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            iter_len->data.str_val = Str_new("len");
+            iter_len->type.str_val = Str_new("len");
             expr_add_child(iter_len, expr_clone(iter));
             Expr *len_call = expr_new(NODE_FCALL, line, col, path);
             expr_add_child(len_call, iter_len);
 
             // Build: _fiN.lt(len_call) → NODE_FCALL(NODE_FIELD_ACCESS(idx_ident, "lt"), len_call)
             Expr *idx_ident_cond = expr_new(NODE_IDENT, line, col, path);
-            idx_ident_cond->data.str_val = idx_name;
+            idx_ident_cond->type.str_val = idx_name;
             Expr *lt_access = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            lt_access->data.str_val = Str_new("lt");
+            lt_access->type.str_val = Str_new("lt");
             expr_add_child(lt_access, idx_ident_cond);
             Expr *lt_call = expr_new(NODE_FCALL, line, col, path);
             expr_add_child(lt_call, lt_access);
@@ -2890,21 +2890,21 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Expr *wbody = expr_new(NODE_BODY, line, col, path);
 
             // ref varname : ElemType = collection.get(_fiN)  (ref if get returns ref)
-            Bool get_returns_ref = get_func->data.func_def.return_is_ref;
+            Bool get_returns_ref = get_func->type.func_def.return_is_ref;
             Expr *elem_decl = expr_new(NODE_DECL, line, col, path);
-            elem_decl->data.decl.name = var_name;
-            elem_decl->data.decl.explicit_type = elem_type;
-            elem_decl->data.decl.is_ref = get_returns_ref;
-            elem_decl->data.decl.is_mut = false;
-            elem_decl->data.decl.is_namespace = false;
-            elem_decl->data.decl.is_own = false;
+            elem_decl->type.decl.name = var_name;
+            elem_decl->type.decl.explicit_type = elem_type;
+            elem_decl->type.decl.is_ref = get_returns_ref;
+            elem_decl->type.decl.is_mut = false;
+            elem_decl->type.decl.is_namespace = false;
+            elem_decl->type.decl.is_own = false;
 
             // collection.get(_fiN) → NODE_FCALL(NODE_FIELD_ACCESS(iter_clone, "get"), idx_ident)
             Expr *iter_get = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            iter_get->data.str_val = Str_new("get");
+            iter_get->type.str_val = Str_new("get");
             expr_add_child(iter_get, expr_clone(iter));
             Expr *idx_ident_get = expr_new(NODE_IDENT, line, col, path);
-            idx_ident_get->data.str_val = idx_name;
+            idx_ident_get->type.str_val = idx_name;
             Expr *get_call = expr_new(NODE_FCALL, line, col, path);
             expr_add_child(get_call, iter_get);
             expr_add_child(get_call, idx_ident_get);
@@ -2913,14 +2913,14 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // _fiN = _fiN.add(1) — placed before user body so continue doesn't skip it
             Expr *idx_assign = expr_new(NODE_ASSIGN, line, col, path);
-            idx_assign->data.str_val = idx_name;
+            idx_assign->type.str_val = idx_name;
             Expr *idx_ident_inc = expr_new(NODE_IDENT, line, col, path);
-            idx_ident_inc->data.str_val = idx_name;
+            idx_ident_inc->type.str_val = idx_name;
             Expr *add_access = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            add_access->data.str_val = Str_new("add");
+            add_access->type.str_val = Str_new("add");
             expr_add_child(add_access, idx_ident_inc);
             Expr *one = expr_new(NODE_LITERAL_NUM, line, col, path);
-            one->data.str_val = Str_new("1");
+            one->type.str_val = Str_new("1");
             Expr *add_call = expr_new(NODE_FCALL, line, col, path);
             expr_add_child(add_call, add_access);
             expr_add_child(add_call, one);

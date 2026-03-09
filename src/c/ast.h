@@ -7,31 +7,31 @@
 
 typedef enum {
     NODE_BODY,          // list of statements (children = statements)
-    NODE_LITERAL_STR,   // string literal (data.str_val)
-    NODE_LITERAL_NUM,   // number literal (data.str_val)
-    NODE_LITERAL_BOOL,  // bool literal (data.str_val = "true"/"false")
+    NODE_LITERAL_STR,   // string literal (str_val)
+    NODE_LITERAL_NUM,   // number literal (str_val)
+    NODE_LITERAL_BOOL,  // bool literal (str_val = "true"/"false")
     NODE_LITERAL_NULL,  // null literal
-    NODE_IDENT,         // identifier (data.str_val)
-    NODE_DECL,          // declaration :=  (data.decl, children[0] = value)
-    NODE_ASSIGN,        // assignment =    (data.str_val = name, children[0] = value)
+    NODE_IDENT,         // identifier (str_val)
+    NODE_DECL,          // declaration :=  (decl, children[0] = value)
+    NODE_ASSIGN,        // assignment =    (str_val = name, children[0] = value)
     NODE_FCALL,         // function call   (children[0] = callee ident, children[1..] = args)
-    NODE_FUNC_DEF,      // func/proc def   (data.func_def, children[0] = body)
+    NODE_FUNC_DEF,      // func/proc def   (func_def, children[0] = body)
     NODE_STRUCT_DEF,    // struct def       (children[0] = body of NODE_DECL fields)
     NODE_ENUM_DEF,      // enum def        (children[0] = body of variant + namespace decls)
-    NODE_FIELD_ACCESS,  // field access     (children[0] = object expr, data.str_val = field name)
-    NODE_FIELD_ASSIGN,  // field assign     (children[0] = object expr, children[1] = value, data.str_val = field name)
+    NODE_FIELD_ACCESS,  // field access     (children[0] = object expr, str_val = field name)
+    NODE_FIELD_ASSIGN,  // field assign     (children[0] = object expr, children[1] = value, str_val = field name)
     NODE_RETURN,        // return           (children[0] = value, if any)
     NODE_IF,            // if               (children[0] = cond, [1] = then body, [2] = else body)
     NODE_WHILE,         // while            (children[0] = cond, [1] = body)
-    NODE_FOR_IN,        // for x in ...     (data.str_val = var name, children[0] = iter, [1] = body)
-    NODE_NAMED_ARG,     // named argument   (data.str_val = param name, children[0] = value)
+    NODE_FOR_IN,        // for x in ...     (str_val = var name, children[0] = iter, [1] = body)
+    NODE_NAMED_ARG,     // named argument   (str_val = param name, children[0] = value)
     NODE_BREAK,
     NODE_CONTINUE,
     NODE_MAP_LIT,         // map literal {k:v, ...} (children = [k0, v0, k1, v1, ...])
     NODE_SET_LIT,         // set literal {v, ...} (children = [v0, v1, v2, ...])
     NODE_SWITCH,          // switch (children[0] = expr, children[1..] = NODE_CASE nodes)
     NODE_CASE,            // case   (count==1: default [body], count==2: [match_expr, body])
-} NodeType;
+} NodeTypeTag;
 
 typedef enum {
     FUNC_FUNC,
@@ -65,9 +65,9 @@ const char *til_type_name_c(TilType t);
 
 typedef struct Expr Expr;
 
-struct Expr {
-    NodeType type;
-    TilType til_type;               // resolved type (set by typer)
+// Tagged node type: tag enum + union payload (mirrors til's tagged enum)
+typedef struct {
+    NodeTypeTag tag;
     union {
         Str *str_val;               // for IDENT, LITERAL_STR, LITERAL_NUM, ASSIGN, FOR_IN
         struct {                    // for DECL
@@ -95,7 +95,12 @@ struct Expr {
             bool return_is_ref;       // true for `returns ref Type`
             bool return_is_shallow;   // true for `returns shallow Type`
         } func_def;
-    } data;
+    };
+} NodeType;
+
+struct Expr {
+    NodeType type;                  // tagged union: tag + payload
+    TilType til_type;               // resolved type (set by typer)
     Str *struct_name;               // for TIL_TYPE_STRUCT: which struct type
     bool is_own_arg;                // true if this arg was marked 'own' at call site
     bool is_splat;                  // true if this arg was marked '..' (splat) at call site
@@ -115,7 +120,7 @@ struct Expr {
 };
 
 // Allocate a new Expr node
-Expr *expr_new(NodeType type, U32 line, U32 col, Str *path);
+Expr *expr_new(NodeTypeTag tag, U32 line, U32 col, Str *path);
 
 // Error reporting helpers (print to stderr)
 void expr_error(Expr *e, const char *msg);
@@ -144,7 +149,7 @@ static inline Bool enum_has_payloads(Expr *enum_def) {
     Expr *body = expr_child(enum_def, 0);
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
-        if (f->type == NODE_DECL && !f->data.decl.is_namespace && f->data.decl.explicit_type)
+        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace && f->type.decl.explicit_type)
             return 1;
     }
     return 0;
@@ -156,8 +161,8 @@ static inline I32 enum_variant_tag(Expr *enum_def, Str *variant_name) {
     I32 tag = 0;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
-        if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
-            if (Str_eq(f->data.decl.name, variant_name)) return tag;
+        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace) {
+            if (Str_eq(f->type.decl.name, variant_name)) return tag;
             tag++;
         }
     }
@@ -170,8 +175,8 @@ static inline Str *enum_variant_type(Expr *enum_def, I32 tag) {
     I32 idx = 0;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
-        if (f->type == NODE_DECL && !f->data.decl.is_namespace) {
-            if (idx == tag) return f->data.decl.explicit_type;
+        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace) {
+            if (idx == tag) return f->type.decl.explicit_type;
             idx++;
         }
     }

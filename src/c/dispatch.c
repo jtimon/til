@@ -60,9 +60,9 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
 
 // Map a field to its ffi_type (for building struct ffi_types)
 static ffi_type *field_ffi_type(Expr *field) {
-    if (field->data.decl.is_own || field->data.decl.is_ref)
+    if (field->type.decl.is_own || field->type.decl.is_ref)
         return &ffi_type_pointer;
-    Str *ftype = field->data.decl.explicit_type;
+    Str *ftype = field->type.decl.explicit_type;
     if (!ftype) return &ffi_type_sint64; // fallback (I64-sized)
     if (Str_eq_c(ftype, "I64"))  return &ffi_type_sint64;
     if (Str_eq_c(ftype, "U8"))   return &ffi_type_uint8;
@@ -72,8 +72,8 @@ static ffi_type *field_ffi_type(Expr *field) {
     if (Str_eq_c(ftype, "F32"))  return &ffi_type_float;
     if (Str_eq_c(ftype, "Bool")) return &ffi_type_uint8;
     // Inline struct field
-    if (field->data.decl.field_struct_def)
-        return build_struct_ffi_type(field->data.decl.field_struct_def);
+    if (field->type.decl.field_struct_def)
+        return build_struct_ffi_type(field->type.decl.field_struct_def);
     return &ffi_type_sint64; // fallback
 }
 
@@ -88,14 +88,14 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     U32 nfields = 0;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
-        if (f->type == NODE_DECL && !f->data.decl.is_namespace) nfields++;
+        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace) nfields++;
     }
     // Build elements array (NULL-terminated)
     ffi_type **elements = malloc(sizeof(ffi_type *) * (nfields + 1));
     U32 idx = 0;
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
-        if (f->type == NODE_DECL && !f->data.decl.is_namespace)
+        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace)
             elements[idx++] = field_ffi_type(f);
     }
     elements[nfields] = NULL;
@@ -203,14 +203,14 @@ static Bool h_exit(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_free(Scope *s, Expr *e, Value *r) {
-    if (expr_child(e, 1)->type != NODE_IDENT) {
+    if (expr_child(e, 1)->type.tag != NODE_IDENT) {
         Value val = eval_expr(s, expr_child(e,1));
         void *ptr = val_to_ptr(val);
         if (ptr) free(ptr);
         *r = val_none();
         return 1;
     }
-    Cell *cell = scope_get(s, expr_child(e, 1)->data.str_val);
+    Cell *cell = scope_get(s, expr_child(e, 1)->type.str_val);
     if (cell->val.type == VAL_STRUCT && cell->val.instance) {
         if (!cell->val.instance->borrowed)
             free(cell->val.instance->data);
@@ -259,15 +259,15 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Str *method = &_mn;
 
     Expr type_ident = {0};
-    type_ident.type = NODE_IDENT;
-    type_ident.data.str_val = type_name;
+    type_ident.type.tag = NODE_IDENT;
+    type_ident.type.str_val = type_name;
     type_ident.struct_name = type_name;
     type_ident.line = e->line;
     type_ident.col = e->col;
 
     Expr field_access = {0};
-    field_access.type = NODE_FIELD_ACCESS;
-    field_access.data.str_val = method;
+    field_access.type.tag = NODE_FIELD_ACCESS;
+    field_access.type.str_val = method;
     field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
@@ -276,7 +276,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     Vec_push(&field_access.children, &ti_ptr);
 
     Expr fake_call = {0};
-    fake_call.type = NODE_FCALL;
+    fake_call.type.tag = NODE_FCALL;
     fake_call.line = e->line;
     fake_call.col = e->col;
     fake_call.children = Vec_new(sizeof(Expr *));
@@ -288,14 +288,14 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     }
 
     Value fn_val = eval_expr(s, &field_access);
-    if (fn_val.type == VAL_FUNC && fn_val.func->type == NODE_FUNC_DEF) {
+    if (fn_val.type == VAL_FUNC && fn_val.func->type.tag == NODE_FUNC_DEF) {
         Expr *fdef = fn_val.func;
-        U32 nparam = fdef->data.func_def.nparam;
+        U32 nparam = fdef->type.func_def.nparam;
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
-            if (fdef->data.func_def.param_defaults &&
-                fdef->data.func_def.param_defaults[i]) {
-                Expr *def_arg = fdef->data.func_def.param_defaults[i];
+            if (fdef->type.func_def.param_defaults &&
+                fdef->type.func_def.param_defaults[i]) {
+                Expr *def_arg = fdef->type.func_def.param_defaults[i];
                 Vec_push(&fake_call.children, &def_arg);
             }
         }
@@ -352,15 +352,15 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     }
     // Build fake call: Type.size()
     Expr type_ident = {0};
-    type_ident.type = NODE_IDENT;
-    type_ident.data.str_val = type_name;
+    type_ident.type.tag = NODE_IDENT;
+    type_ident.type.str_val = type_name;
     type_ident.struct_name = type_name;
     type_ident.line = src->line; type_ident.col = src->col;
     type_ident.path = src->path;
 
     Expr field_access = {0};
-    field_access.type = NODE_FIELD_ACCESS;
-    field_access.data.str_val = Str_new("size");
+    field_access.type.tag = NODE_FIELD_ACCESS;
+    field_access.type.str_val = Str_new("size");
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
@@ -369,7 +369,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Vec_push(&field_access.children, &ti);
 
     Expr fake_call = {0};
-    fake_call.type = NODE_FCALL;
+    fake_call.type.tag = NODE_FCALL;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
     fake_call.children = Vec_new(sizeof(Expr *));
@@ -883,13 +883,13 @@ static void *ffi_dlsym(const char *name) {
 
 // Register an ext_func/ext_proc in ffi_map
 static void ffi_register(Str *name, void *fn, Expr *fdef) {
-    U32 np = fdef->data.func_def.nparam;
+    U32 np = fdef->type.func_def.nparam;
     ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
     bool *pshallows = NULL;
     bool has_shallow = false;
     for (U32 k = 0; k < np; k++) {
-        if (fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k]) {
-            atypes[k] = shallow_ffi_type(fdef->data.func_def.param_types[k]);
+        if (fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[k]) {
+            atypes[k] = shallow_ffi_type(fdef->type.func_def.param_types[k]);
             has_shallow = true;
         } else {
             atypes[k] = &ffi_type_pointer;
@@ -898,12 +898,12 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     if (has_shallow) {
         pshallows = malloc(sizeof(bool) * np);
         for (U32 k = 0; k < np; k++)
-            pshallows[k] = fdef->data.func_def.param_shallows && fdef->data.func_def.param_shallows[k];
+            pshallows[k] = fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[k];
     }
-    bool ret_shallow = fdef->data.func_def.return_is_shallow;
+    bool ret_shallow = fdef->type.func_def.return_is_shallow;
     FFIEntry entry = {
         .fn = fn,
-        .return_type = fdef->data.func_def.return_type,
+        .return_type = fdef->type.func_def.return_type,
         .nparam = np,
         .param_shallows = pshallows,
         .return_is_shallow = ret_shallow,
@@ -972,44 +972,44 @@ I32 ffi_init(Expr *program, const char *user_c_path, const char *ext_c_path, con
     ffi_struct_defs = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
-        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
+        if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
         Expr *sdef = expr_child(stmt, 0);
-        Map_set(&ffi_struct_defs, &stmt->data.decl.name, &sdef);
+        Map_set(&ffi_struct_defs, &stmt->type.decl.name, &sdef);
     }
 
     // Scan program for ext_func/ext_proc, dlsym each
     ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL || stmt->children.count == 0) continue;
+        if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;
 
         // Top-level ext_func/ext_proc
-        if (expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
+        if (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             Expr *fdef = expr_child(stmt, 0);
-            FuncType fft = fdef->data.func_def.func_type;
+            FuncType fft = fdef->type.func_def.func_type;
             if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
 
-            void *fn = ffi_dlsym(stmt->data.decl.name->c_str);
+            void *fn = ffi_dlsym(stmt->type.decl.name->c_str);
             if (!fn) continue;
-            ffi_register(stmt->data.decl.name, fn, fdef);
+            ffi_register(stmt->type.decl.name, fn, fdef);
         }
 
         // ext_struct namespace methods
-        if (expr_child(stmt, 0)->type == NODE_STRUCT_DEF && expr_child(stmt, 0)->is_ext) {
-            Str *sname = stmt->data.decl.name;
+        if (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF && expr_child(stmt, 0)->is_ext) {
+            Str *sname = stmt->type.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
-                if (!field->data.decl.is_namespace) continue;
+                if (!field->type.decl.is_namespace) continue;
                 if (field->children.count == 0) continue;
                 Expr *fdef = expr_child(field, 0);
-                if (fdef->type != NODE_FUNC_DEF) continue;
-                FuncType fft = fdef->data.func_def.func_type;
+                if (fdef->type.tag != NODE_FUNC_DEF) continue;
+                FuncType fft = fdef->type.func_def.func_type;
                 if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
 
                 char flat_name[256];
-                snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.decl.name->c_str);
+                snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->type.decl.name->c_str);
                 void *fn = ffi_dlsym(flat_name);
                 if (!fn) continue;
                 Str *key = Str_new(flat_name);

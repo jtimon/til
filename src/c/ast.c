@@ -23,9 +23,9 @@ const char *til_type_name_c(TilType t) {
     return "?";
 }
 
-Expr *expr_new(NodeType type, U32 line, U32 col, Str *path) {
+Expr *expr_new(NodeTypeTag tag, U32 line, U32 col, Str *path) {
     Expr *e = calloc(1, sizeof(Expr));
-    e->type = type;
+    e->type.tag = tag;
     e->children = Vec_new(sizeof(Expr *));
     e->line = line;
     e->col = col;
@@ -73,7 +73,7 @@ void expr_free(Expr *e) {
     free(e);
 }
 
-static const char *node_name(NodeType type) {
+static const char *node_name(NodeTypeTag type) {
     switch (type) {
     case NODE_BODY:        return "body";
     case NODE_LITERAL_STR: return "str";
@@ -119,29 +119,29 @@ static const char *func_type_name(FuncType ft) {
 void ast_print(Expr *e, U32 indent) {
     if (!e) return;
     for (U32 i = 0; i < indent; i++) printf("  ");
-    printf("(%s", node_name(e->type));
+    printf("(%s", node_name(e->type.tag));
     if (e->til_type != TIL_TYPE_UNKNOWN) {
         printf(":%s", til_type_name_c(e->til_type));
     }
-    switch (e->type) {
+    switch (e->type.tag) {
     case NODE_IDENT:
     case NODE_LITERAL_STR:
     case NODE_LITERAL_NUM:
     case NODE_LITERAL_BOOL:
     case NODE_FOR_IN:
-        printf(" \"%s\"", e->data.str_val->c_str);
+        printf(" \"%s\"", e->type.str_val->c_str);
         break;
     case NODE_LITERAL_NULL:
         break;
     case NODE_DECL:
-        printf(" %s%s", e->data.decl.is_mut ? "mut " : "", e->data.decl.name->c_str);
+        printf(" %s%s", e->type.decl.is_mut ? "mut " : "", e->type.decl.name->c_str);
         break;
     case NODE_ASSIGN:
     case NODE_NAMED_ARG:
-        printf(" %s", e->data.str_val->c_str);
+        printf(" %s", e->type.str_val->c_str);
         break;
     case NODE_FUNC_DEF:
-        printf(" %s", func_type_name(e->data.func_def.func_type));
+        printf(" %s", func_type_name(e->type.func_def.func_type));
         break;
     default:
         break;

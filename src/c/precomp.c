@@ -20,7 +20,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
         e = expr_new(NODE_LITERAL_NUM, line, col, path);
         char buf[32];
         snprintf(buf, sizeof(buf), "%lld", (long long)*val.i64);
-        e->data.str_val = Str_new(buf);
+        e->type.str_val = Str_new(buf);
         e->til_type = TIL_TYPE_I64;
         return e;
     }
@@ -28,7 +28,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
         e = expr_new(NODE_LITERAL_NUM, line, col, path);
         char buf[32];
         snprintf(buf, sizeof(buf), "%u", (unsigned)*val.u8);
-        e->data.str_val = Str_new(buf);
+        e->type.str_val = Str_new(buf);
         e->til_type = TIL_TYPE_U8;
         return e;
     }
@@ -36,7 +36,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
         if (Str_eq_c(val.instance->struct_name, "Str")) {
             Str sv = str_view(val);
             e = expr_new(NODE_LITERAL_STR, line, col, path);
-            e->data.str_val = Str_new_len(sv.c_str, sv.count);
+            e->type.str_val = Str_new_len(sv.c_str, sv.count);
             e->til_type = TIL_TYPE_STRUCT;
             e->struct_name = Str_new("Str");
             return e;
@@ -45,7 +45,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
     }
     case VAL_BOOL: {
         e = expr_new(NODE_LITERAL_BOOL, line, col, path);
-        e->data.str_val = Str_new(*val.boolean ? "true" : "false");
+        e->type.str_val = Str_new(*val.boolean ? "true" : "false");
         e->til_type = TIL_TYPE_BOOL;
         return e;
     }
@@ -57,15 +57,15 @@ static Expr *value_to_expr(Value val, Expr *src) {
 // --- Expr → Value conversion (for building args to pass to interpreter) ---
 
 static Value expr_to_value(Expr *e) {
-    switch (e->type) {
+    switch (e->type.tag) {
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
-            return val_u8(atoll(e->data.str_val->c_str));
-        return val_i64(atoll(e->data.str_val->c_str));
+            return val_u8(atoll(e->type.str_val->c_str));
+        return val_i64(atoll(e->type.str_val->c_str));
     case NODE_LITERAL_STR:
-        return make_str_value(e->data.str_val->c_str, e->data.str_val->count);
+        return make_str_value(e->type.str_val->c_str, e->type.str_val->count);
     case NODE_LITERAL_BOOL:
-        return val_bool(strcmp(e->data.str_val->c_str, "true") == 0);
+        return val_bool(strcmp(e->type.str_val->c_str, "true") == 0);
     default:
         return val_none();
     }
@@ -73,13 +73,13 @@ static Value expr_to_value(Expr *e) {
 
 // Check if an expression is compile-time known and return its value
 static Bool is_known(Expr *e, Value *out) {
-    if (e->type == NODE_LITERAL_NUM || e->type == NODE_LITERAL_STR ||
-        e->type == NODE_LITERAL_BOOL) {
+    if (e->type.tag == NODE_LITERAL_NUM || e->type.tag == NODE_LITERAL_STR ||
+        e->type.tag == NODE_LITERAL_BOOL) {
         *out = expr_to_value(e);
         return 1;
     }
-    if (e->type == NODE_IDENT) {
-        Value *v = Map_get(&known, &e->data.str_val);
+    if (e->type.tag == NODE_IDENT) {
+        Value *v = Map_get(&known, &e->type.str_val);
         if (v) { *out = *v; return 1; }
     }
     return 0;
@@ -87,29 +87,29 @@ static Bool is_known(Expr *e, Value *out) {
 
 // Check if a NODE_FCALL is a macro call
 static Bool is_macro_call(Expr *e) {
-    return e->type == NODE_FCALL &&
+    return e->type.tag == NODE_FCALL &&
            e->children.count > 0 &&
-           expr_child(e, 0)->type == NODE_IDENT &&
-           Set_has(&macros, &expr_child(e, 0)->data.str_val);
+           expr_child(e, 0)->type.tag == NODE_IDENT &&
+           Set_has(&macros, &expr_child(e, 0)->type.str_val);
 }
 
 // Check if a NODE_FCALL is a pure func call
 static Bool is_func_call(Expr *e) {
-    return e->type == NODE_FCALL &&
+    return e->type.tag == NODE_FCALL &&
            e->children.count > 0 &&
-           expr_child(e, 0)->type == NODE_IDENT &&
-           Set_has(&funcs, &expr_child(e, 0)->data.str_val);
+           expr_child(e, 0)->type.tag == NODE_IDENT &&
+           Set_has(&funcs, &expr_child(e, 0)->type.str_val);
 }
 
 // Check if a func body references identifiers not available at precomp time.
 // Something is available if it's a parameter, in the known map, or in the precomp scope
 // (funcs, structs, enums are pre-registered there).
 static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_scope) {
-    if (e->type == NODE_FUNC_DEF) return 0; // don't recurse into nested funcs
-    if (e->type == NODE_IDENT) {
-        Str *name = e->data.str_val;
-        for (U32 i = 0; i < func_def->data.func_def.nparam; i++) {
-            if (Str_eq(func_def->data.func_def.param_names[i], name)) return 0;
+    if (e->type.tag == NODE_FUNC_DEF) return 0; // don't recurse into nested funcs
+    if (e->type.tag == NODE_IDENT) {
+        Str *name = e->type.str_val;
+        for (U32 i = 0; i < func_def->type.func_def.nparam; i++) {
+            if (Str_eq(func_def->type.func_def.param_names[i], name)) return 0;
         }
         if (Map_get(&known, &name)) return 0;
         if (scope_get(precomp_scope, name)) return 0;
@@ -125,9 +125,9 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
 static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Check if the function body references unknown globals
-    Str *callee_name = expr_child(fcall, 0)->data.str_val;
+    Str *callee_name = expr_child(fcall, 0)->type.str_val;
     Cell *fn_cell = scope_get(scope, callee_name);
-    if (fn_cell && fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_FUNC_DEF) {
+    if (fn_cell && fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type.tag == NODE_FUNC_DEF) {
         Expr *fdef = fn_cell->val.func;
         if (fdef->children.count > 0 && func_uses_unknown_globals(expr_child(fdef, 0), fdef, scope)) {
             return NULL;
@@ -194,41 +194,41 @@ static void process_body(Scope *scope, Expr *body) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
 
-        switch (stmt->type) {
+        switch (stmt->type.tag) {
         case NODE_DECL:
             if (stmt->children.count == 0) break; // variant registry (payload enums)
-            if (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
-                expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
-                expr_child(stmt, 0)->type == NODE_ENUM_DEF) {
+            if (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF ||
+                expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
+                expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
                 // Recurse into func/proc/macro bodies
-                if (expr_child(stmt, 0)->type == NODE_FUNC_DEF &&
+                if (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
                     expr_child(stmt, 0)->children.count > 0) {
                     process_body(scope, expr_child(expr_child(stmt, 0), 0));
                 }
                 break;
             }
             // ref declarations must keep the function call — no folding
-            if (stmt->data.decl.is_ref) break;
+            if (stmt->type.decl.is_ref) break;
             // Check if RHS is a macro or pure func call
             if (is_macro_call(expr_child(stmt, 0))) {
                 Expr *lit = try_eval_call(scope, expr_child(stmt, 0), 1);
                 if (lit) {
                     expr_free(expr_child(stmt, 0));
                     expr_child(stmt, 0) = lit;
-                    track_literal(scope, stmt->data.decl.name, lit);
+                    track_literal(scope, stmt->type.decl.name, lit);
                 }
             } else if (is_func_call(expr_child(stmt, 0))) {
                 Expr *lit = try_eval_call(scope, expr_child(stmt, 0), 0);
                 if (lit) {
                     expr_free(expr_child(stmt, 0));
                     expr_child(stmt, 0) = lit;
-                    track_literal(scope, stmt->data.decl.name, lit);
+                    track_literal(scope, stmt->type.decl.name, lit);
                 } else {
-                    track_literal(scope, stmt->data.decl.name, expr_child(stmt, 0));
+                    track_literal(scope, stmt->type.decl.name, expr_child(stmt, 0));
                 }
             } else {
                 // Track compile-time known value
-                track_literal(scope, stmt->data.decl.name, expr_child(stmt, 0));
+                track_literal(scope, stmt->type.decl.name, expr_child(stmt, 0));
             }
             break;
 
@@ -273,12 +273,12 @@ void precomp(Expr *program) {
     funcs = Set_new(sizeof(Str *), str_ptr_cmp);
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type == NODE_DECL && stmt->children.count > 0 && expr_child(stmt, 0)->type == NODE_FUNC_DEF) {
-            FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
+        if (stmt->type.tag == NODE_DECL && stmt->children.count > 0 && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
+            FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
             if (ft == FUNC_MACRO)
-                Set_add(&macros, &stmt->data.decl.name);
+                Set_add(&macros, &stmt->type.decl.name);
             else if (ft == FUNC_FUNC)
-                Set_add(&funcs, &stmt->data.decl.name);
+                Set_add(&funcs, &stmt->type.decl.name);
         }
     }
 
@@ -293,12 +293,12 @@ void precomp(Expr *program) {
     Scope *global = scope_new(NULL);
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type == NODE_DECL &&
-            (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
-             expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
-             expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
+        if (stmt->type.tag == NODE_DECL &&
+            (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF ||
+             expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
+             expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
             Value val = {.type = VAL_FUNC, .func = expr_child(stmt, 0)};
-            scope_set_owned(global, stmt->data.decl.name, val);
+            scope_set_owned(global, stmt->type.decl.name, val);
         }
     }
     interpreter_init_ns(global, program);

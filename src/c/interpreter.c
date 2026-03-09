@@ -100,8 +100,8 @@ Expr *find_field_decl(Expr *struct_def, Str *fname) {
     Expr *body = expr_child(struct_def, 0);
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
-        if (f->type == NODE_DECL && !f->data.decl.is_namespace &&
-            Str_eq(f->data.decl.name, fname))
+        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace &&
+            Str_eq(f->type.decl.name, fname))
             return f;
     }
     return NULL;
@@ -109,13 +109,13 @@ Expr *find_field_decl(Expr *struct_def, Str *fname) {
 
 // Read a Value from flat buffer at a field decl's offset
 static Value read_field(StructInstance *inst, Expr *fdecl) {
-    void *ptr = (char *)inst->data + fdecl->data.decl.field_offset;
-    if (fdecl->data.decl.is_own) {
+    void *ptr = (char *)inst->data + fdecl->type.decl.field_offset;
+    if (fdecl->type.decl.is_own) {
         void *owned = *(void **)ptr;
         // If the own field has a struct def, wrap in StructInstance for field access
-        if (fdecl->data.decl.field_struct_def) {
-            Expr *nested = fdecl->data.decl.field_struct_def;
-            Str *ftype = fdecl->data.decl.explicit_type;
+        if (fdecl->type.decl.field_struct_def) {
+            Expr *nested = fdecl->type.decl.field_struct_def;
+            Str *ftype = fdecl->type.decl.explicit_type;
             StructInstance *sub = malloc(sizeof(StructInstance));
             sub->struct_name = ftype;
             sub->struct_def = nested;
@@ -125,12 +125,12 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         }
         return (Value){.type = VAL_PTR, .ptr = owned};
     }
-    if (fdecl->data.decl.is_ref) {
+    if (fdecl->type.decl.is_ref) {
         void *ref_ptr = *(void **)ptr;
         if (!ref_ptr) return (Value){.type = VAL_PTR, .ptr = NULL};
-        if (fdecl->data.decl.field_struct_def) {
-            Expr *nested = fdecl->data.decl.field_struct_def;
-            Str *ftype = fdecl->data.decl.explicit_type;
+        if (fdecl->type.decl.field_struct_def) {
+            Expr *nested = fdecl->type.decl.field_struct_def;
+            Str *ftype = fdecl->type.decl.explicit_type;
             StructInstance *sub = malloc(sizeof(StructInstance));
             sub->struct_name = ftype;
             sub->struct_def = nested;
@@ -140,7 +140,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         }
         return (Value){.type = VAL_PTR, .ptr = ref_ptr};
     }
-    Str *ftype = fdecl->data.decl.explicit_type;
+    Str *ftype = fdecl->type.decl.explicit_type;
     if (ftype && Str_eq_c(ftype, "I64"))  return val_i64(*(I64 *)ptr);
     if (ftype && Str_eq_c(ftype, "U8"))   return val_u8(*(U8 *)ptr);
     if (ftype && Str_eq_c(ftype, "I16"))  return val_i16(*(I16 *)ptr);
@@ -148,9 +148,9 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && Str_eq_c(ftype, "U32"))  return val_u32(*(U32 *)ptr);
     if (ftype && Str_eq_c(ftype, "Bool")) return val_bool(*(Bool *)ptr);
     // Enum field: tagged enums stored as pointer to EnumInstance, simple enums as I32
-    if (fdecl->data.decl.field_struct_def &&
-        fdecl->data.decl.field_struct_def->type == NODE_ENUM_DEF) {
-        if (enum_has_payloads(fdecl->data.decl.field_struct_def)) {
+    if (fdecl->type.decl.field_struct_def &&
+        fdecl->type.decl.field_struct_def->type.tag == NODE_ENUM_DEF) {
+        if (enum_has_payloads(fdecl->type.decl.field_struct_def)) {
             EnumInstance *ei = *(EnumInstance **)ptr;
             if (ei) return val_enum(ei->enum_name, ei->tag, clone_value(ei->payload));
             return val_i32(0);
@@ -158,8 +158,8 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         return val_i32(*(I32 *)ptr);
     }
     // Inline struct: borrow if parent is borrowed, copy otherwise
-    if (fdecl->data.decl.field_struct_def) {
-        Expr *nested = fdecl->data.decl.field_struct_def;
+    if (fdecl->type.decl.field_struct_def) {
+        Expr *nested = fdecl->type.decl.field_struct_def;
         StructInstance *sub = malloc(sizeof(StructInstance));
         sub->struct_name = ftype; // borrowed — set by initer for inferred struct types
         sub->struct_def = nested;
@@ -173,14 +173,14 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
 
 // Write a Value into flat buffer at a field decl's offset
 void write_field(StructInstance *inst, Expr *fdecl, Value val) {
-    void *ptr = (char *)inst->data + fdecl->data.decl.field_offset;
-    I32 fsz = fdecl->data.decl.field_size;
-    if (fdecl->data.decl.is_own) {
+    void *ptr = (char *)inst->data + fdecl->type.decl.field_offset;
+    I32 fsz = fdecl->type.decl.field_size;
+    if (fdecl->type.decl.is_own) {
         *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
         if (val.type == VAL_STRUCT) { free(val.instance); }
         return;
     }
-    if (fdecl->data.decl.is_ref) {
+    if (fdecl->type.decl.is_ref) {
         // ref field: store pointer (don't own the data)
         if (val.type == VAL_PTR) *(void **)ptr = val.ptr;
         else if (val.type == VAL_STRUCT) {
@@ -279,14 +279,14 @@ Value clone_value(Value v) {
         Expr *body = expr_child(src->struct_def, 0);
         for (U32 fi = 0; fi < body->children.count; fi++) {
             Expr *field = expr_child(body, fi);
-            if (field->data.decl.is_namespace) continue;
-            I32 foff = field->data.decl.field_offset;
-            Str *ftype = field->data.decl.explicit_type;
-            if (field->data.decl.is_own) {
+            if (field->type.decl.is_namespace) continue;
+            I32 foff = field->type.decl.field_offset;
+            Str *ftype = field->type.decl.explicit_type;
+            if (field->type.decl.is_own) {
                 // own fields are heap pointers — deep-clone
                 void *src_ptr = *(void **)((char *)src->data + foff);
-                if (src_ptr && field->data.decl.field_struct_def) {
-                    Expr *nested = field->data.decl.field_struct_def;
+                if (src_ptr && field->type.decl.field_struct_def) {
+                    Expr *nested = field->type.decl.field_struct_def;
                     I32 nsz = nested->total_struct_size;
                     void *dst_ptr = malloc(nsz);
                     memcpy(dst_ptr, src_ptr, nsz);
@@ -294,9 +294,9 @@ Value clone_value(Value v) {
                     Expr *nbody = expr_child(nested, 0);
                     for (U32 ni = 0; ni < nbody->children.count; ni++) {
                         Expr *nf = expr_child(nbody, ni);
-                        if (nf->data.decl.is_namespace) continue;
-                        Str *nftype = nf->data.decl.explicit_type;
-                        I32 nfoff = nf->data.decl.field_offset;
+                        if (nf->type.decl.is_namespace) continue;
+                        Str *nftype = nf->type.decl.explicit_type;
+                        I32 nfoff = nf->type.decl.field_offset;
                         if (nftype && Str_eq_c(nftype, "Str")) {
                             Str *s = (Str *)((char *)src_ptr + nfoff);
                             if (s->count > 0 && s->c_str)
@@ -307,7 +307,7 @@ Value clone_value(Value v) {
                 }
                 continue;
             }
-            if (field->data.decl.is_ref) {
+            if (field->type.decl.is_ref) {
                 // ref fields are non-owning pointers — copy pointer as-is
                 continue;
             }
@@ -320,9 +320,9 @@ Value clone_value(Value v) {
                 continue;
             }
             // Tagged enum fields: clone the EnumInstance pointer
-            if (field->data.decl.field_struct_def &&
-                field->data.decl.field_struct_def->type == NODE_ENUM_DEF &&
-                enum_has_payloads(field->data.decl.field_struct_def)) {
+            if (field->type.decl.field_struct_def &&
+                field->type.decl.field_struct_def->type.tag == NODE_ENUM_DEF &&
+                enum_has_payloads(field->type.decl.field_struct_def)) {
                 EnumInstance *ei = *(EnumInstance **)((char *)src->data + foff);
                 if (ei) {
                     EnumInstance *clone = malloc(sizeof(EnumInstance));
@@ -393,7 +393,7 @@ Value eval_call(Scope *scope, Expr *e) {
     Expr *callee_expr = expr_child(e, 0);
 
     // Namespace method call: Struct.method(args)
-    if (callee_expr->type == NODE_FIELD_ACCESS) {
+    if (callee_expr->type.tag == NODE_FIELD_ACCESS) {
         Value fn_val = eval_expr(scope,callee_expr);
         if (fn_val.type != VAL_FUNC) {
             expr_error(e, "namespace field is not a function");
@@ -401,20 +401,20 @@ Value eval_call(Scope *scope, Expr *e) {
         }
         Expr *func_def = fn_val.func;
         // Direct ext_func namespace method — dispatch by flat name
-        FuncType fft = func_def->data.func_def.func_type;
+        FuncType fft = func_def->type.func_def.func_type;
         if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
             // Enum ext methods — delegated to dispatch.c
             Str *parent_sname = expr_child(callee_expr, 0)->struct_name;
             if (parent_sname) {
                 Cell *tc = scope_get(scope, parent_sname);
-                if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_ENUM_DEF) {
+                if (tc && tc->val.type == VAL_FUNC && tc->val.func->type.tag == NODE_ENUM_DEF) {
                     Value eresult;
-                    if (enum_method_dispatch(callee_expr->data.str_val, scope,
+                    if (enum_method_dispatch(callee_expr->type.str_val, scope,
                             tc->val.func, parent_sname, e, &eresult)) {
                         // Null cells of own-arg idents
                         for (U32 i = 1; i < e->children.count; i++) {
-                            if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
-                                Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
+                            if (expr_child(e, i)->type.tag == NODE_IDENT && expr_child(e, i)->is_own_arg) {
+                                Cell *c = scope_get(scope, expr_child(e, i)->type.str_val);
                                 if (c) c->val = val_none();
                             }
                         }
@@ -424,7 +424,7 @@ Value eval_call(Scope *scope, Expr *e) {
             }
             static char flat_name_buf[256];
             Str *sn = expr_child(callee_expr, 0)->struct_name;
-            Str *fn = callee_expr->data.str_val;
+            Str *fn = callee_expr->type.str_val;
             I64 flen = sn->count + 1 + fn->count;
             memcpy(flat_name_buf, sn->c_str, sn->count);
             flat_name_buf[sn->count] = '_';
@@ -433,8 +433,8 @@ Value eval_call(Scope *scope, Expr *e) {
             Str flat_str = {.c_str = flat_name_buf, .count = flen};
             Expr *orig_callee = expr_child(e, 0);
             Expr flat_ident = *orig_callee;
-            flat_ident.type = NODE_IDENT;
-            flat_ident.data.str_val = &flat_str;
+            flat_ident.type.tag = NODE_IDENT;
+            flat_ident.type.str_val = &flat_str;
             expr_child(e, 0) = &flat_ident;
             Value result = eval_call(scope, e);
             expr_child(e, 0) = orig_callee;
@@ -443,11 +443,11 @@ Value eval_call(Scope *scope, Expr *e) {
         Expr *body = expr_child(func_def, 0);
 
         // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
-        if (func_def->data.func_def.nparam > 0 &&
-            func_def->data.func_def.param_owns &&
-            func_def->data.func_def.param_owns[0] &&
-            e->children.count > 1 && expr_child(e, 1)->type == NODE_IDENT) {
-            Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
+        if (func_def->type.func_def.nparam > 0 &&
+            func_def->type.func_def.param_owns &&
+            func_def->type.func_def.param_owns[0] &&
+            e->children.count > 1 && expr_child(e, 1)->type.tag == NODE_IDENT) {
+            Cell *fc = scope_get(scope, expr_child(e, 1)->type.str_val);
             if (fc && fc->val.type == VAL_NONE) return val_none();
             if (fc && fc->val.type == VAL_STRUCT && fc->val.instance->borrowed) {
                 fc->val = val_none();
@@ -460,13 +460,13 @@ Value eval_call(Scope *scope, Expr *e) {
         }
 
         Scope *call_scope = scope_new(scope);
-        for (U32 i = 0; i < func_def->data.func_def.nparam; i++) {
+        for (U32 i = 0; i < func_def->type.func_def.nparam; i++) {
             Expr *arg_expr = expr_child(e, i + 1);
-            if (arg_expr->type == NODE_IDENT) {
-                Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
+            if (arg_expr->type.tag == NODE_IDENT) {
+                Cell *arg_cell = scope_get(scope, arg_expr->type.str_val);
                 // Reinterpret VAL_PTR based on param type
-                if (arg_cell->val.type == VAL_PTR && func_def->data.func_def.param_types[i]) {
-                    Str *ptype = func_def->data.func_def.param_types[i];
+                if (arg_cell->val.type == VAL_PTR && func_def->type.func_def.param_types[i]) {
+                    Str *ptype = func_def->type.func_def.param_types[i];
                     Value arg = arg_cell->val;
                     if (Str_eq_c(ptype, "Str")) {
                         Str *sp = (Str *)arg.ptr;
@@ -486,15 +486,15 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
-                    scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
+                    scope_set_owned(call_scope, func_def->type.func_def.param_names[i], arg);
                 } else {
-                    scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
+                    scope_set_borrowed(call_scope, func_def->type.func_def.param_names[i], arg_cell);
                 }
             } else {
                 Value arg = eval_expr(scope,arg_expr);
                 // Reinterpret VAL_PTR based on param type (same as ref decl)
-                if (arg.type == VAL_PTR && func_def->data.func_def.param_types[i]) {
-                    Str *ptype = func_def->data.func_def.param_types[i];
+                if (arg.type == VAL_PTR && func_def->type.func_def.param_types[i]) {
+                    Str *ptype = func_def->type.func_def.param_types[i];
                     if (Str_eq_c(ptype, "Str")) {
                         Str *sp = (Str *)arg.ptr;
                         arg = make_str_value_own(sp->c_str, sp->count);
@@ -514,7 +514,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if (Str_eq_c(ptype, "Bool"))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
                 }
-                scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
+                scope_set_owned(call_scope, func_def->type.func_def.param_names[i], arg);
             }
         }
         has_return = 0;
@@ -528,15 +528,15 @@ Value eval_call(Scope *scope, Expr *e) {
         return result;
     }
 
-    Str *name = callee_expr->data.str_val;
+    Str *name = callee_expr->type.str_val;
 
     // Ext function dispatch
     Value ext_result;
     if (ext_function_dispatch(name, scope, e, &ext_result)) {
         // Null cells of own-arg idents (ext dispatch evaluates by value, not borrowed cell)
         for (U32 i = 1; i < e->children.count; i++) {
-            if (expr_child(e, i)->type == NODE_IDENT && expr_child(e, i)->is_own_arg) {
-                Cell *c = scope_get(scope, expr_child(e, i)->data.str_val);
+            if (expr_child(e, i)->type.tag == NODE_IDENT && expr_child(e, i)->is_own_arg) {
+                Cell *c = scope_get(scope, expr_child(e, i)->type.str_val);
                 if (c) c->val = val_none();
             }
         }
@@ -553,7 +553,7 @@ Value eval_call(Scope *scope, Expr *e) {
     }
 
     // Struct instantiation — typer already desugared named args to positional
-    if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type == NODE_STRUCT_DEF) {
+    if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->type.tag == NODE_STRUCT_DEF) {
         Expr *sdef = fn_cell->val.func;
         Expr *body = expr_child(sdef, 0);
 
@@ -565,11 +565,11 @@ Value eval_call(Scope *scope, Expr *e) {
         I32 arg_idx = 1;
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *field = expr_child(body, i);
-            if (field->data.decl.is_namespace) continue;
+            if (field->type.decl.is_namespace) continue;
             Expr *arg = expr_child(e, arg_idx++);
             Value val;
-            if (arg->type == NODE_IDENT) {
-                Cell *src = scope_get(scope, arg->data.str_val);
+            if (arg->type.tag == NODE_IDENT) {
+                Cell *src = scope_get(scope, arg->type.str_val);
                 val = src->val;
                 src->val = val_none();
             } else {
@@ -591,11 +591,11 @@ Value eval_call(Scope *scope, Expr *e) {
     Expr *body = expr_child(func_def, 0);
 
     // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
-    if (func_def->data.func_def.nparam > 0 &&
-        func_def->data.func_def.param_owns &&
-        func_def->data.func_def.param_owns[0] &&
-        e->children.count > 1 && expr_child(e, 1)->type == NODE_IDENT) {
-        Cell *fc = scope_get(scope, expr_child(e, 1)->data.str_val);
+    if (func_def->type.func_def.nparam > 0 &&
+        func_def->type.func_def.param_owns &&
+        func_def->type.func_def.param_owns[0] &&
+        e->children.count > 1 && expr_child(e, 1)->type.tag == NODE_IDENT) {
+        Cell *fc = scope_get(scope, expr_child(e, 1)->type.str_val);
         if (fc && fc->val.type == VAL_NONE) return val_none();
         if (fc && fc->val.type == VAL_STRUCT && fc->val.instance->borrowed) {
             fc->val = val_none();
@@ -609,15 +609,15 @@ Value eval_call(Scope *scope, Expr *e) {
 
     Scope *call_scope = scope_new(scope);
     // Bind arguments to parameters (borrowed refs for idents, owned for expressions)
-    U32 nparam = func_def->data.func_def.nparam;
+    U32 nparam = func_def->type.func_def.nparam;
     for (U32 i = 0; i < nparam; i++) {
         Expr *arg_expr = expr_child(e, i + 1);
-        if (arg_expr->type == NODE_IDENT) {
-            Cell *arg_cell = scope_get(scope, arg_expr->data.str_val);
-            scope_set_borrowed(call_scope, func_def->data.func_def.param_names[i], arg_cell);
+        if (arg_expr->type.tag == NODE_IDENT) {
+            Cell *arg_cell = scope_get(scope, arg_expr->type.str_val);
+            scope_set_borrowed(call_scope, func_def->type.func_def.param_names[i], arg_cell);
         } else {
             Value arg = eval_expr(scope, arg_expr);
-            scope_set_owned(call_scope, func_def->data.func_def.param_names[i], arg);
+            scope_set_owned(call_scope, func_def->type.func_def.param_names[i], arg);
         }
     }
 
@@ -634,24 +634,24 @@ Value eval_call(Scope *scope, Expr *e) {
 }
 
 Value eval_expr(Scope *scope, Expr *e) {
-    switch (e->type) {
+    switch (e->type.tag) {
     case NODE_LITERAL_STR:
-        return make_str_value(e->data.str_val->c_str, e->data.str_val->count);
+        return make_str_value(e->type.str_val->c_str, e->type.str_val->count);
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
-            return val_u8(atoll(e->data.str_val->c_str));
+            return val_u8(atoll(e->type.str_val->c_str));
         if (e->til_type == TIL_TYPE_F32)
-            return val_f32((F32)atof(e->data.str_val->c_str));
-        return val_i64(atoll(e->data.str_val->c_str));
+            return val_f32((F32)atof(e->type.str_val->c_str));
+        return val_i64(atoll(e->type.str_val->c_str));
     case NODE_LITERAL_BOOL:
-        return val_bool(Str_eq_c(e->data.str_val, "true"));
+        return val_bool(Str_eq_c(e->type.str_val, "true"));
     case NODE_LITERAL_NULL:
         return (Value){.type = VAL_PTR, .ptr = NULL};
     case NODE_IDENT: {
-        Cell *cell = scope_get(scope, e->data.str_val);
+        Cell *cell = scope_get(scope, e->type.str_val);
         if (!cell) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "undefined variable '%s'", e->data.str_val->c_str);
+            snprintf(buf, sizeof(buf), "undefined variable '%s'", e->type.str_val->c_str);
             expr_error(e, buf);
             exit(1);
         }
@@ -666,10 +666,10 @@ Value eval_expr(Scope *scope, Expr *e) {
         return (Value){.type = VAL_FUNC, .func = e};
     case NODE_FIELD_ACCESS: {
         Value obj = eval_expr(scope,expr_child(e, 0));
-        Str *fname = e->data.str_val;
+        Str *fname = e->type.str_val;
         if (e->is_ns_field) {
             Str *sname = obj.type == VAL_STRUCT
-                ? obj.instance->struct_name : expr_child(e, 0)->data.str_val;
+                ? obj.instance->struct_name : expr_child(e, 0)->type.str_val;
             Value *nsv = ns_get(sname, fname);
             if (nsv) {
                 // Fresh copy of scalar values (prevents alias to namespace map)
@@ -677,11 +677,11 @@ Value eval_expr(Scope *scope, Expr *e) {
                 if (nsv->type == VAL_I32) return val_i32(*nsv->i32);
                 // Auto-call zero-arg enum constructors (Token.Eof without parens)
                 if (nsv->type == VAL_FUNC && nsv->func &&
-                    nsv->func->type == NODE_FUNC_DEF &&
-                    nsv->func->data.func_def.func_type == FUNC_EXT_FUNC &&
-                    nsv->func->data.func_def.nparam == 0) {
+                    nsv->func->type.tag == NODE_FUNC_DEF &&
+                    nsv->func->type.func_def.func_type == FUNC_EXT_FUNC &&
+                    nsv->func->type.func_def.nparam == 0) {
                     Cell *tc = scope_get(scope, sname);
-                    if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_ENUM_DEF) {
+                    if (tc && tc->val.type == VAL_FUNC && tc->val.func->type.tag == NODE_ENUM_DEF) {
                         I32 tag = enum_variant_tag(tc->val.func, fname);
                         if (tag >= 0) {
                             if (enum_has_payloads(tc->val.func))
@@ -702,7 +702,7 @@ Value eval_expr(Scope *scope, Expr *e) {
             Expr *obj_expr = expr_child(e, 0);
             if (obj_expr->struct_name) {
                 Cell *tc = scope_get(scope, obj_expr->struct_name);
-                if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_STRUCT_DEF) {
+                if (tc && tc->val.type == VAL_FUNC && tc->val.func->type.tag == NODE_STRUCT_DEF) {
                     StructInstance *inst = malloc(sizeof(StructInstance));
                     inst->struct_name = obj_expr->struct_name;
                     inst->struct_def = tc->val.func;
@@ -727,7 +727,7 @@ Value eval_expr(Scope *scope, Expr *e) {
     }
     default:
         char buf[128];
-        snprintf(buf, sizeof(buf), "cannot evaluate node type %d as expression", e->type);
+        snprintf(buf, sizeof(buf), "cannot evaluate node type %d as expression", e->type.tag);
         expr_lang_error(e, buf);
         exit(1);
     }
@@ -737,21 +737,21 @@ static void eval_body(Scope *scope, Expr *body) {
     for (U32 i = 0; i < body->children.count; i++) {
         if (has_return || has_break || has_continue) return;
         Expr *stmt = expr_child(body, i);
-        switch (stmt->type) {
+        switch (stmt->type.tag) {
         case NODE_DECL: {
             Expr *rhs = expr_child(stmt, 0);
-            if (stmt->data.decl.is_ref && rhs->type == NODE_IDENT) {
+            if (stmt->type.decl.is_ref && rhs->type.tag == NODE_IDENT) {
                 // Ref decl from ident: borrow the same cell (no move, no free)
-                Cell *src = scope_get(scope, rhs->data.str_val);
-                scope_set_borrowed(scope, stmt->data.decl.name, src);
+                Cell *src = scope_get(scope, rhs->type.str_val);
+                scope_set_borrowed(scope, stmt->type.decl.name, src);
             } else {
                 Value val;
-                if (rhs->type == NODE_IDENT) {
+                if (rhs->type.tag == NODE_IDENT) {
                     // Move semantics: transfer value from source, null source
-                    Cell *src = scope_get(scope, rhs->data.str_val);
+                    Cell *src = scope_get(scope, rhs->type.str_val);
                     if (!src) {
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "undefined variable '%s'", rhs->data.str_val->c_str);
+                        snprintf(buf, sizeof(buf), "undefined variable '%s'", rhs->type.str_val->c_str);
                         expr_error(rhs, buf);
                         exit(1);
                     }
@@ -763,8 +763,8 @@ static void eval_body(Scope *scope, Expr *body) {
                 // Reinterpret VAL_PTR based on declared type (ref a : I64 = ptr_add(...))
                 // Only for ref decls — own decls keep VAL_PTR (they own a buffer, not a single element)
                 // Skip narrowing for NULL pointers (null literal)
-                if (val.type == VAL_PTR && val.ptr != NULL && stmt->data.decl.explicit_type && stmt->data.decl.is_ref) {
-                    Str *etype = stmt->data.decl.explicit_type;
+                if (val.type == VAL_PTR && val.ptr != NULL && stmt->type.decl.explicit_type && stmt->type.decl.is_ref) {
+                    Str *etype = stmt->type.decl.explicit_type;
                     if (Str_eq_c(etype, "I64"))
                         val = (Value){.type = VAL_I64, .i64 = (I64 *)val.ptr};
                     else if (Str_eq_c(etype, "U8"))
@@ -786,32 +786,32 @@ static void eval_body(Scope *scope, Expr *body) {
                     else {
                         // User-defined struct: wrap ptr in borrowed StructInstance
                         Cell *tc = scope_get(scope, etype);
-                        if (tc && tc->val.type == VAL_FUNC && tc->val.func->type == NODE_STRUCT_DEF) {
+                        if (tc && tc->val.type == VAL_FUNC && tc->val.func->type.tag == NODE_STRUCT_DEF) {
                             StructInstance *inst = malloc(sizeof(StructInstance));
                             inst->struct_name = etype;
                             inst->struct_def = tc->val.func;
                             inst->data = val.ptr;
-                            inst->borrowed = stmt->data.decl.is_mut ? 1 : 0;
+                            inst->borrowed = stmt->type.decl.is_mut ? 1 : 0;
                             val = (Value){.type = VAL_STRUCT, .instance = inst};
                         }
                     }
                 }
-                scope_set_owned(scope, stmt->data.decl.name, val);
+                scope_set_owned(scope, stmt->type.decl.name, val);
             }
             break;
         }
         case NODE_ASSIGN: {
             Expr *rhs = expr_child(stmt, 0);
-            Cell *cell = scope_get(scope, stmt->data.str_val);
+            Cell *cell = scope_get(scope, stmt->type.str_val);
             if (!cell) {
                 char buf[128];
-                snprintf(buf, sizeof(buf), "undefined variable '%s'", stmt->data.str_val->c_str);
+                snprintf(buf, sizeof(buf), "undefined variable '%s'", stmt->type.str_val->c_str);
                 expr_error(stmt, buf);
                 exit(1);
             }
-            if (rhs->type == NODE_IDENT) {
+            if (rhs->type.tag == NODE_IDENT) {
                 // Move semantics: transfer value from source, null source
-                Cell *src = scope_get(scope, rhs->data.str_val);
+                Cell *src = scope_get(scope, rhs->type.str_val);
                 free_value(cell->val);
                 cell->val = src->val;
                 src->val = val_none();
@@ -826,17 +826,17 @@ static void eval_body(Scope *scope, Expr *body) {
             Expr *val_expr = expr_child(stmt, 1);
             Value val;
             Cell *move_src = NULL;
-            if (val_expr->type == NODE_IDENT) {
-                move_src = scope_get(scope, val_expr->data.str_val);
+            if (val_expr->type.tag == NODE_IDENT) {
+                move_src = scope_get(scope, val_expr->type.str_val);
                 val = move_src->val;
             } else {
                 val = eval_expr(scope, val_expr);
             }
-            Str *fname = stmt->data.str_val;
+            Str *fname = stmt->type.str_val;
             if (stmt->is_ns_field) {
                 Value obj = eval_expr(scope, expr_child(stmt, 0));
                 Str *sname = obj.type == VAL_STRUCT
-                    ? obj.instance->struct_name : expr_child(stmt, 0)->data.str_val;
+                    ? obj.instance->struct_name : expr_child(stmt, 0)->type.str_val;
                 ns_set(sname, fname, val);
                 if (move_src) move_src->val = val_none();
             } else {
@@ -844,33 +844,33 @@ static void eval_body(Scope *scope, Expr *body) {
                 void *base = NULL;
                 Expr *cur_sdef = NULL;
                 Expr *obj_expr = expr_child(stmt, 0);
-                if (obj_expr->type == NODE_IDENT) {
-                    Cell *cell = scope_get(scope, obj_expr->data.str_val);
+                if (obj_expr->type.tag == NODE_IDENT) {
+                    Cell *cell = scope_get(scope, obj_expr->type.str_val);
                     if (cell && cell->val.type == VAL_STRUCT) {
                         base = cell->val.instance->data;
                         cur_sdef = cell->val.instance->struct_def;
                     }
-                } else if (obj_expr->type == NODE_FIELD_ACCESS) {
+                } else if (obj_expr->type.tag == NODE_FIELD_ACCESS) {
                     // Chained: e.g. l1.start.x — walk chain to compute offset
                     Expr *chain[32]; I32 depth = 0;
                     Expr *cur = obj_expr;
-                    while (cur->type == NODE_FIELD_ACCESS) {
+                    while (cur->type.tag == NODE_FIELD_ACCESS) {
                         chain[depth++] = cur;
                         cur = expr_child(cur, 0);
                     }
-                    Cell *cell = scope_get(scope, cur->data.str_val);
+                    Cell *cell = scope_get(scope, cur->type.str_val);
                     if (cell && cell->val.type == VAL_STRUCT) {
                         base = cell->val.instance->data;
                         cur_sdef = cell->val.instance->struct_def;
                         for (I32 d = depth - 1; d >= 0; d--) {
-                            Expr *fd = find_field_decl(cur_sdef, chain[d]->data.str_val);
+                            Expr *fd = find_field_decl(cur_sdef, chain[d]->type.str_val);
                             if (!fd) { base = NULL; break; }
-                            if (fd->data.decl.is_own || fd->data.decl.is_ref) {
-                                base = *(void **)((char *)base + fd->data.decl.field_offset);
+                            if (fd->type.decl.is_own || fd->type.decl.is_ref) {
+                                base = *(void **)((char *)base + fd->type.decl.field_offset);
                             } else {
-                                base = (char *)base + fd->data.decl.field_offset;
+                                base = (char *)base + fd->type.decl.field_offset;
                             }
-                            cur_sdef = fd->data.decl.field_struct_def;
+                            cur_sdef = fd->type.decl.field_struct_def;
                             if (!cur_sdef) { base = NULL; break; }
                         }
                     }
@@ -880,13 +880,13 @@ static void eval_body(Scope *scope, Expr *body) {
                     exit(1);
                 }
                 Expr *fdecl = find_field_decl(cur_sdef, fname);
-                void *ptr = (char *)base + fdecl->data.decl.field_offset;
+                void *ptr = (char *)base + fdecl->type.decl.field_offset;
                 // Write value directly at computed address
-                I32 fsz = fdecl->data.decl.field_size;
-                if (fdecl->data.decl.is_own) {
+                I32 fsz = fdecl->type.decl.field_size;
+                if (fdecl->type.decl.is_own) {
                     *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
                     if (val.type == VAL_STRUCT) free(val.instance);
-                } else if (fdecl->data.decl.is_ref) {
+                } else if (fdecl->type.decl.is_ref) {
                     if (val.type == VAL_PTR) *(void **)ptr = val.ptr;
                     else if (val.type == VAL_STRUCT) {
                         *(void **)ptr = val.instance->data;
@@ -971,7 +971,7 @@ static void eval_body(Scope *scope, Expr *body) {
             return;
         default:
             char buf[128];
-            snprintf(buf, sizeof(buf), "unexpected statement type %d", stmt->type);
+            snprintf(buf, sizeof(buf), "unexpected statement type %d", stmt->type.tag);
             expr_lang_error(stmt, buf);
             exit(1);
         }
@@ -983,12 +983,12 @@ void interpreter_init_ns(Scope *global, Expr *program) {
     ns_keys = Vec_new(sizeof(Str *));
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type == NODE_DECL && (expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
-                                        expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
-            Str *sname = stmt->data.decl.name;
+        if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
+                                        expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
+            Str *sname = stmt->type.decl.name;
             Expr *sdef = expr_child(stmt, 0);
             // Cache struct defs for C-side construction
-            if (sdef->type == NODE_STRUCT_DEF) {
+            if (sdef->type.tag == NODE_STRUCT_DEF) {
                 if (Str_eq_c(sname, "Str"))   { cached_str_def = sdef; cached_str_name = sname; }
                 if (Str_eq_c(sname, "Array")) { cached_array_def = sdef; cached_array_name = sname; }
                 if (Str_eq_c(sname, "Vec"))   { cached_vec_def = sdef; cached_vec_name = sname; }
@@ -996,16 +996,16 @@ void interpreter_init_ns(Scope *global, Expr *program) {
             Expr *body = expr_child(sdef, 0);
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
-                if (field->data.decl.is_namespace) {
+                if (field->type.decl.is_namespace) {
                     Value fval = eval_expr(global, expr_child(field, 0));
                     // Simple enum variant tags: convert I64 literal to I32 (matching C enum)
-                    if (sdef->type == NODE_ENUM_DEF && !enum_has_payloads(sdef) &&
+                    if (sdef->type.tag == NODE_ENUM_DEF && !enum_has_payloads(sdef) &&
                         fval.type == VAL_I64) {
                         I32 tag = (I32)*fval.i64;
                         free(fval.i64);
                         fval = val_i32(tag);
                     }
-                    ns_set(sname, field->data.decl.name, fval);
+                    ns_set(sname, field->type.decl.name, fval);
                 }
             }
         }
@@ -1129,12 +1129,12 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
     // Pre-register all top-level func/proc/struct definitions for forward references
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type == NODE_DECL &&
-            (expr_child(stmt, 0)->type == NODE_FUNC_DEF ||
-             expr_child(stmt, 0)->type == NODE_STRUCT_DEF ||
-             expr_child(stmt, 0)->type == NODE_ENUM_DEF)) {
+        if (stmt->type.tag == NODE_DECL &&
+            (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF ||
+             expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
+             expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
             Value val = {.type = VAL_FUNC, .func = expr_child(stmt, 0)};
-            scope_set_owned(global, stmt->data.decl.name, val);
+            scope_set_owned(global, stmt->type.decl.name, val);
         }
     }
 
@@ -1149,11 +1149,11 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
         I32 test_count = 0, pass_count = 0;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);
-            if (stmt->type != NODE_DECL) continue;
+            if (stmt->type.tag != NODE_DECL) continue;
             Expr *rhs = expr_child(stmt, 0);
-            if (rhs->type != NODE_FUNC_DEF) continue;
-            if (rhs->data.func_def.func_type != FUNC_TEST) continue;
-            Str *tname = stmt->data.decl.name;
+            if (rhs->type.tag != NODE_FUNC_DEF) continue;
+            if (rhs->type.func_def.func_type != FUNC_TEST) continue;
+            Str *tname = stmt->type.decl.name;
             test_count++;
             Scope *test_scope = scope_new(global);
             eval_body(test_scope, expr_child(rhs, 0));
@@ -1181,8 +1181,8 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
             return 1;
         }
         Expr *func_def = main_cell->val.func;
-        U32 nparam = func_def->data.func_def.nparam;
-        I32 vi = func_def->data.func_def.variadic_index;
+        U32 nparam = func_def->type.func_def.nparam;
+        I32 vi = func_def->type.func_def.variadic_index;
         Expr *body = expr_child(func_def, 0);
         Scope *main_scope = scope_new(global);
 
@@ -1209,12 +1209,12 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, const char *path,
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
                     U32 va_count = user_argc - fixed;
-                    Value arr = build_argv_array(va_count, user_argv + argi, func_def->data.func_def.param_types[vi]);
-                    scope_set_owned(main_scope, func_def->data.func_def.param_names[i], arr);
+                    Value arr = build_argv_array(va_count, user_argv + argi, func_def->type.func_def.param_types[vi]);
+                    scope_set_owned(main_scope, func_def->type.func_def.param_names[i], arr);
                     argi += va_count;
                 } else {
-                    Value v = parse_cli_arg(user_argv[argi], func_def->data.func_def.param_types[i]);
-                    scope_set_owned(main_scope, func_def->data.func_def.param_names[i], v);
+                    Value v = parse_cli_arg(user_argv[argi], func_def->type.func_def.param_types[i]);
+                    scope_set_owned(main_scope, func_def->type.func_def.param_names[i], v);
                     argi++;
                 }
             }

@@ -77,7 +77,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
-        if (sdef) return (sdef->type == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
+        if (sdef) return (sdef->type.tag == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
     }
     return TIL_TYPE_UNKNOWN;
 }
@@ -99,21 +99,21 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
-        if (field->type != NODE_DECL || field->data.decl.is_namespace) continue;
+        if (field->type.tag != NODE_DECL || field->type.decl.is_namespace) continue;
 
         I32 fsz, falign;
 
-        if (field->data.decl.is_own || field->data.decl.is_ref) {
+        if (field->type.decl.is_own || field->type.decl.is_ref) {
             // own/ref fields are pointers
             fsz = 8; falign = 8;
             // Resolve the pointed-to struct for field access
-            Str *ftype = field->data.decl.explicit_type;
+            Str *ftype = field->type.decl.explicit_type;
             if (!ftype && field->children.count > 0) {
                 Expr *def_val = expr_child(field, 0);
-                if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
-                    expr_child(def_val, 0)->type == NODE_IDENT)
-                    ftype = expr_child(def_val, 0)->data.str_val;
-                if (ftype) field->data.decl.explicit_type = ftype;
+                if (def_val->type.tag == NODE_FCALL && def_val->children.count > 0 &&
+                    expr_child(def_val, 0)->type.tag == NODE_IDENT)
+                    ftype = expr_child(def_val, 0)->type.str_val;
+                if (ftype) field->type.decl.explicit_type = ftype;
             }
             if (ftype && !Str_eq_c(ftype, "I64") && !Str_eq_c(ftype, "U8") && !Str_eq_c(ftype, "I16") && !Str_eq_c(ftype, "I32") && !Str_eq_c(ftype, "U32") && !Str_eq_c(ftype, "Bool")) {
                 Expr *nested_def = tscope_get_struct(scope, ftype);
@@ -121,33 +121,33 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                     // Skip recursive layout for self-referential own/ref fields
                     if (nested_def != struct_def)
                         compute_struct_layout(nested_def, scope);
-                    field->data.decl.field_struct_def = nested_def;
+                    field->type.decl.field_struct_def = nested_def;
                 }
             }
         } else {
             // Determine type name
-            Str *ftype = field->data.decl.explicit_type;
+            Str *ftype = field->type.decl.explicit_type;
             if (!ftype && field->children.count > 0) {
                 Expr *def_val = expr_child(field, 0);
-                if (def_val->type == NODE_LITERAL_NUM) ftype = Str_new("I64");
-                else if (def_val->type == NODE_LITERAL_STR) ftype = Str_new("Str");
-                else if (def_val->type == NODE_LITERAL_BOOL) ftype = Str_new("Bool");
+                if (def_val->type.tag == NODE_LITERAL_NUM) ftype = Str_new("I64");
+                else if (def_val->type.tag == NODE_LITERAL_STR) ftype = Str_new("Str");
+                else if (def_val->type.tag == NODE_LITERAL_BOOL) ftype = Str_new("Bool");
                 else if (def_val->struct_name) ftype = def_val->struct_name;
                 // FCALL default (e.g. Point()): callee ident is the struct name
-                else if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type == NODE_IDENT)
-                    ftype = expr_child(def_val, 0)->data.str_val;
+                else if (def_val->type.tag == NODE_FCALL && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type.tag == NODE_IDENT)
+                    ftype = expr_child(def_val, 0)->type.str_val;
                 // Namespace FCALL default (e.g. Vec.new(...)): struct name is in field access child
-                else if (def_val->type == NODE_FCALL && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type == NODE_FIELD_ACCESS &&
-                         expr_child(expr_child(def_val, 0), 0)->type == NODE_IDENT)
-                    ftype = expr_child(expr_child(def_val, 0), 0)->data.str_val;
+                else if (def_val->type.tag == NODE_FCALL && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type.tag == NODE_FIELD_ACCESS &&
+                         expr_child(expr_child(def_val, 0), 0)->type.tag == NODE_IDENT)
+                    ftype = expr_child(expr_child(def_val, 0), 0)->type.str_val;
                 // Namespace field access default (e.g. MyEnum.C): type is the parent ident
-                else if (def_val->type == NODE_FIELD_ACCESS && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type == NODE_IDENT)
-                    ftype = expr_child(def_val, 0)->data.str_val;
+                else if (def_val->type.tag == NODE_FIELD_ACCESS && def_val->children.count > 0 &&
+                         expr_child(def_val, 0)->type.tag == NODE_IDENT)
+                    ftype = expr_child(def_val, 0)->type.str_val;
                 // Store resolved type for interpreter's read_field
-                if (ftype) field->data.decl.explicit_type = ftype;
+                if (ftype) field->type.decl.explicit_type = ftype;
             }
             if (!ftype) { fsz = 8; falign = 8; } // fallback
             else if (Str_eq_c(ftype, "I64"))  { fsz = 8; falign = 8; }
@@ -159,18 +159,18 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             else {
                 // Inline struct/enum field
                 Expr *nested_def = tscope_get_struct(scope, ftype);
-                if (nested_def && nested_def->type == NODE_ENUM_DEF) {
+                if (nested_def && nested_def->type.tag == NODE_ENUM_DEF) {
                     if (enum_has_payloads(nested_def)) {
                         fsz = 8; falign = 8; // tagged enum: pointer to EnumInstance
                     } else {
                         fsz = 4; falign = 4; // simple enum: I32 tag (matches C enum)
                     }
-                    field->data.decl.field_struct_def = nested_def;
+                    field->type.decl.field_struct_def = nested_def;
                 } else if (nested_def) {
                     compute_struct_layout(nested_def, scope);
                     fsz = nested_def->total_struct_size;
                     falign = 8; // structs are 8-aligned
-                    field->data.decl.field_struct_def = nested_def;
+                    field->type.decl.field_struct_def = nested_def;
                 } else {
                     fsz = 8; falign = 8; // unknown — treat as pointer
                 }
@@ -178,8 +178,8 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
         }
 
         offset = align_up(offset, falign);
-        field->data.decl.field_offset = offset;
-        field->data.decl.field_size = fsz;
+        field->type.decl.field_offset = offset;
+        field->type.decl.field_size = fsz;
         if (falign > max_align) max_align = falign;
         offset += fsz;
     }
@@ -192,10 +192,10 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
 static void compute_all_struct_layouts(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
 
-        Str *sname = stmt->data.decl.name;
+        Str *sname = stmt->type.decl.name;
         if (Str_eq_c(sname, "StructDef") ||
             Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
@@ -210,10 +210,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1: register all struct definitions
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
 
-        Str *sname = stmt->data.decl.name;
+        Str *sname = stmt->type.decl.name;
         TilType builtin_type = TIL_TYPE_STRUCT;
         Bool is_builtin = 0;
         if (Str_eq_c(sname, "I64"))             { builtin_type = TIL_TYPE_I64;        is_builtin = 1; }
@@ -237,10 +237,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1.5: auto-generate clone methods for all structs
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
 
-        Str *sname = stmt->data.decl.name;
+        Str *sname = stmt->type.decl.name;
 
         // Skip meta-types and ext_structs (C side provides clone if needed)
         if (Str_eq_c(sname, "StructDef") ||
@@ -256,8 +256,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Bool has_clone = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
-            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
-                Str_eq_c(field->data.decl.name, "clone")) {
+            if (field->type.tag == NODE_DECL && field->type.decl.is_namespace &&
+                Str_eq_c(field->type.decl.name, "clone")) {
                 has_clone = 1;
                 break;
             }
@@ -269,9 +269,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec field_refs = Vec_new(sizeof(I32));
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
-            if (field->type == NODE_DECL && !field->data.decl.is_namespace) {
-                Vec_push(&field_names, &field->data.decl.name);
-                I32 ref_flag = field->data.decl.is_ref ? 1 : 0;
+            if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace) {
+                Vec_push(&field_names, &field->type.decl.name);
+                I32 ref_flag = field->type.decl.is_ref ? 1 : 0;
                 Vec_push(&field_refs, &ref_flag);
             }
         }
@@ -285,7 +285,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             // No instance fields: return Type()
             Expr *ctor = expr_new(NODE_FCALL, line, col, path);
             Expr *ctor_name = expr_new(NODE_IDENT, line, col, path);
-            ctor_name->data.str_val = sname;
+            ctor_name->type.str_val = sname;
             expr_add_child(ctor, ctor_name);
 
             Expr *ret = expr_new(NODE_RETURN, line, col, path);
@@ -295,7 +295,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             // With fields: return StructName(f1=self.f1.clone(), ...)
             Expr *ctor = expr_new(NODE_FCALL, line, col, path);
             Expr *ctor_name = expr_new(NODE_IDENT, line, col, path);
-            ctor_name->data.str_val = sname;
+            ctor_name->type.str_val = sname;
             expr_add_child(ctor, ctor_name);
 
             for (U32 j = 0; j < field_names.count; j++) {
@@ -303,9 +303,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 I32 fref = *(I32 *)Vec_get(&field_refs, j);
                 // self.field_name
                 Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                self_id->data.str_val = Str_new("self");
+                self_id->type.str_val = Str_new("self");
                 Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                field_acc->data.str_val = fname;
+                field_acc->type.str_val = fname;
                 expr_add_child(field_acc, self_id);
 
                 Expr *val_expr;
@@ -315,7 +315,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 } else {
                     // self.field_name.clone()
                     Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    clone_acc->data.str_val = Str_new("clone");
+                    clone_acc->type.str_val = Str_new("clone");
                     expr_add_child(clone_acc, field_acc);
                     Expr *clone_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(clone_call, clone_acc);
@@ -324,7 +324,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
                 // Named arg: field_name=value
                 Expr *named = expr_new(NODE_NAMED_ARG, line, col, path);
-                named->data.str_val = fname;
+                named->type.str_val = fname;
                 expr_add_child(named, val_expr);
                 expr_add_child(ctor, named);
             }
@@ -336,25 +336,25 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // func def
         Expr *func_def = expr_new(NODE_FUNC_DEF, line, col, path);
-        func_def->data.func_def.func_type = FUNC_FUNC;
-        func_def->data.func_def.nparam = 1;
-        func_def->data.func_def.param_names = malloc(sizeof(Str *));
-        func_def->data.func_def.param_names[0] = Str_new("self");
-        func_def->data.func_def.param_types = malloc(sizeof(Str *));
-        func_def->data.func_def.param_types[0] = sname;
-        func_def->data.func_def.param_muts = calloc(1, sizeof(bool));
-        func_def->data.func_def.param_owns = calloc(1, sizeof(bool));
-        func_def->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
-        func_def->data.func_def.return_type = sname;
-        func_def->data.func_def.variadic_index = -1;
+        func_def->type.func_def.func_type = FUNC_FUNC;
+        func_def->type.func_def.nparam = 1;
+        func_def->type.func_def.param_names = malloc(sizeof(Str *));
+        func_def->type.func_def.param_names[0] = Str_new("self");
+        func_def->type.func_def.param_types = malloc(sizeof(Str *));
+        func_def->type.func_def.param_types[0] = sname;
+        func_def->type.func_def.param_muts = calloc(1, sizeof(bool));
+        func_def->type.func_def.param_owns = calloc(1, sizeof(bool));
+        func_def->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
+        func_def->type.func_def.return_type = sname;
+        func_def->type.func_def.variadic_index = -1;
         expr_add_child(func_def, func_body);
 
         // clone := func(...)  (namespace decl)
         Expr *decl = expr_new(NODE_DECL, line, col, path);
-        decl->data.decl.name = Str_new("clone");
-        decl->data.decl.is_namespace = true;
-        decl->data.decl.is_mut = false;
-        decl->data.decl.explicit_type = NULL;
+        decl->type.decl.name = Str_new("clone");
+        decl->type.decl.is_namespace = true;
+        decl->type.decl.is_mut = false;
+        decl->type.decl.explicit_type = NULL;
         expr_add_child(decl, func_def);
 
         // Add to struct body
@@ -366,10 +366,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1.7: auto-generate delete methods for all structs
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type != NODE_STRUCT_DEF) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
 
-        Str *sname = stmt->data.decl.name;
+        Str *sname = stmt->type.decl.name;
 
         // Skip meta-types and ext_structs (C side provides delete if needed)
         if (Str_eq_c(sname, "StructDef") ||
@@ -385,8 +385,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Bool has_delete = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
-            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
-                Str_eq_c(field->data.decl.name, "delete")) {
+            if (field->type.tag == NODE_DECL && field->type.decl.is_namespace &&
+                Str_eq_c(field->type.decl.name, "delete")) {
                 has_delete = 1;
                 break;
             }
@@ -398,10 +398,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec field_owns = Vec_new(sizeof(I32));
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
-            if (field->type == NODE_DECL && !field->data.decl.is_namespace &&
-                !field->data.decl.is_ref) {
-                Vec_push(&field_names, &field->data.decl.name);
-                Vec_push(&field_owns, &field->data.decl.is_own);
+            if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace &&
+                !field->type.decl.is_ref) {
+                Vec_push(&field_names, &field->type.decl.name);
+                Vec_push(&field_owns, &field->type.decl.is_own);
             }
         }
 
@@ -415,21 +415,21 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Str *fname = *(Str **)Vec_get(&field_names, j);
             I32 fown = *(I32 *)Vec_get(&field_owns, j);
             Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-            self_id->data.str_val = Str_new("self");
+            self_id->type.str_val = Str_new("self");
             Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            field_acc->data.str_val = fname;
+            field_acc->type.str_val = fname;
             field_acc->is_own_arg = true; // delete takes own self
             expr_add_child(field_acc, self_id);
 
             Expr *del_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            del_acc->data.str_val = Str_new("delete");
+            del_acc->type.str_val = Str_new("delete");
             expr_add_child(del_acc, field_acc);
             Expr *del_call = expr_new(NODE_FCALL, line, col, path);
             expr_add_child(del_call, del_acc);
 
             // call_free=true for own fields (separate allocation), false for inline
             Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-            cf_lit->data.str_val = Str_new(fown ? "true" : "false");
+            cf_lit->type.str_val = Str_new(fown ? "true" : "false");
             expr_add_child(del_call, cf_lit);
 
             expr_add_child(proc_body, del_call);
@@ -437,14 +437,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // if call_free { free(own self) }
         Expr *cond = expr_new(NODE_IDENT, line, col, path);
-        cond->data.str_val = Str_new("call_free");
+        cond->type.str_val = Str_new("call_free");
         Expr *then_body = expr_new(NODE_BODY, line, col, path);
         Expr *free_call = expr_new(NODE_FCALL, line, col, path);
         Expr *free_id = expr_new(NODE_IDENT, line, col, path);
-        free_id->data.str_val = Str_new("free");
+        free_id->type.str_val = Str_new("free");
         expr_add_child(free_call, free_id);
         Expr *self_arg = expr_new(NODE_IDENT, line, col, path);
-        self_arg->data.str_val = Str_new("self");
+        self_arg->type.str_val = Str_new("self");
         self_arg->is_own_arg = true;
         expr_add_child(free_call, self_arg);
         expr_add_child(then_body, free_call);
@@ -455,33 +455,33 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // proc def: delete(own self: Type, call_free: Bool = true)
         Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col, path);
-        default_true->data.str_val = Str_new("true");
+        default_true->type.str_val = Str_new("true");
 
         Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col, path);
         proc_def->is_core = true; // auto-generated, not user code
-        proc_def->data.func_def.func_type = FUNC_PROC;
-        proc_def->data.func_def.nparam = 2;
-        proc_def->data.func_def.param_names = malloc(2 * sizeof(Str *));
-        proc_def->data.func_def.param_names[0] = Str_new("self");
-        proc_def->data.func_def.param_names[1] = Str_new("call_free");
-        proc_def->data.func_def.param_types = malloc(2 * sizeof(Str *));
-        proc_def->data.func_def.param_types[0] = sname;
-        proc_def->data.func_def.param_types[1] = Str_new("Bool");
-        proc_def->data.func_def.param_muts = calloc(2, sizeof(bool));
-        proc_def->data.func_def.param_owns = calloc(2, sizeof(bool));
-        proc_def->data.func_def.param_owns[0] = true;
-        proc_def->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
-        proc_def->data.func_def.param_defaults[1] = default_true;
-        proc_def->data.func_def.return_type = NULL;
-        proc_def->data.func_def.variadic_index = -1;
+        proc_def->type.func_def.func_type = FUNC_PROC;
+        proc_def->type.func_def.nparam = 2;
+        proc_def->type.func_def.param_names = malloc(2 * sizeof(Str *));
+        proc_def->type.func_def.param_names[0] = Str_new("self");
+        proc_def->type.func_def.param_names[1] = Str_new("call_free");
+        proc_def->type.func_def.param_types = malloc(2 * sizeof(Str *));
+        proc_def->type.func_def.param_types[0] = sname;
+        proc_def->type.func_def.param_types[1] = Str_new("Bool");
+        proc_def->type.func_def.param_muts = calloc(2, sizeof(bool));
+        proc_def->type.func_def.param_owns = calloc(2, sizeof(bool));
+        proc_def->type.func_def.param_owns[0] = true;
+        proc_def->type.func_def.param_defaults = calloc(2, sizeof(Expr *));
+        proc_def->type.func_def.param_defaults[1] = default_true;
+        proc_def->type.func_def.return_type = NULL;
+        proc_def->type.func_def.variadic_index = -1;
         expr_add_child(proc_def, proc_body);
 
         // delete := proc(...)  (namespace decl)
         Expr *decl = expr_new(NODE_DECL, line, col, path);
-        decl->data.decl.name = Str_new("delete");
-        decl->data.decl.is_namespace = true;
-        decl->data.decl.is_mut = false;
-        decl->data.decl.explicit_type = NULL;
+        decl->type.decl.name = Str_new("delete");
+        decl->type.decl.is_namespace = true;
+        decl->type.decl.is_mut = false;
+        decl->type.decl.explicit_type = NULL;
         expr_add_child(decl, proc_def);
 
         // Add to struct body
@@ -493,10 +493,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1.8: register enum definitions, generate variants + methods
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type != NODE_ENUM_DEF) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_ENUM_DEF) continue;
 
-        Str *ename = stmt->data.decl.name;
+        Str *ename = stmt->type.decl.name;
         I32 line = stmt->line, col = stmt->col;
         Str *path = stmt->path;
 
@@ -512,10 +512,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec variant_types = Vec_new(sizeof(Str *)); // NULL entries for no-payload
         Bool has_payloads = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            if (expr_child(body, j)->data.decl.is_namespace) continue;
-            Vec_push(&variant_names, &expr_child(body, j)->data.decl.name);
-            Vec_push(&variant_types, &expr_child(body, j)->data.decl.explicit_type);
-            if (expr_child(body, j)->data.decl.explicit_type) has_payloads = 1;
+            if (expr_child(body, j)->type.decl.is_namespace) continue;
+            Vec_push(&variant_names, &expr_child(body, j)->type.decl.name);
+            Vec_push(&variant_types, &expr_child(body, j)->type.decl.explicit_type);
+            if (expr_child(body, j)->type.decl.explicit_type) has_payloads = 1;
         }
 
         if (!has_payloads) {
@@ -527,10 +527,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 Expr *lit = expr_new(NODE_LITERAL_NUM, line, col, path);
                 char buf[16];
                 snprintf(buf, sizeof(buf), "%d", j);
-                lit->data.str_val = Str_new(buf);
+                lit->type.str_val = Str_new(buf);
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
-                decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
-                decl->data.decl.is_namespace = true;
+                decl->type.decl.name = *(Str **)Vec_get(&variant_names, j);
+                decl->type.decl.is_namespace = true;
                 expr_add_child(decl, lit);
                 expr_add_child(body, decl);
             }
@@ -543,40 +543,40 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     // Payload variant: ext_func constructor
                     // e.g. Num := ext_func(val: I64) returns Token {}
                     Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-                    fdef->data.func_def.func_type = FUNC_EXT_FUNC;
-                    fdef->data.func_def.nparam = 1;
-                    fdef->data.func_def.param_names = malloc(sizeof(Str *));
-                    fdef->data.func_def.param_names[0] = Str_new("val");
-                    fdef->data.func_def.param_types = malloc(sizeof(Str *));
-                    fdef->data.func_def.param_types[0] = *(Str **)Vec_get(&variant_types, j);
-                    fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
-                    fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
-                    fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
-                    fdef->data.func_def.return_type = ename;
-                    fdef->data.func_def.variadic_index = -1;
+                    fdef->type.func_def.func_type = FUNC_EXT_FUNC;
+                    fdef->type.func_def.nparam = 1;
+                    fdef->type.func_def.param_names = malloc(sizeof(Str *));
+                    fdef->type.func_def.param_names[0] = Str_new("val");
+                    fdef->type.func_def.param_types = malloc(sizeof(Str *));
+                    fdef->type.func_def.param_types[0] = *(Str **)Vec_get(&variant_types, j);
+                    fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
+                    fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
+                    fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
+                    fdef->type.func_def.return_type = ename;
+                    fdef->type.func_def.variadic_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
-                    decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
-                    decl->data.decl.is_namespace = true;
+                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, j);
+                    decl->type.decl.is_namespace = true;
                     expr_add_child(decl, fdef);
                     expr_add_child(body, decl);
                 } else {
                     // No-payload variant: zero-arg ext_func constructor
                     // e.g. Eof := ext_func() returns Token {}
                     Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-                    fdef->data.func_def.func_type = FUNC_EXT_FUNC;
-                    fdef->data.func_def.nparam = 0;
-                    fdef->data.func_def.param_names = NULL;
-                    fdef->data.func_def.param_types = NULL;
-                    fdef->data.func_def.param_muts = NULL;
-                    fdef->data.func_def.param_owns = NULL;
-                    fdef->data.func_def.param_defaults = NULL;
-                    fdef->data.func_def.return_type = ename;
-                    fdef->data.func_def.variadic_index = -1;
+                    fdef->type.func_def.func_type = FUNC_EXT_FUNC;
+                    fdef->type.func_def.nparam = 0;
+                    fdef->type.func_def.param_names = NULL;
+                    fdef->type.func_def.param_types = NULL;
+                    fdef->type.func_def.param_muts = NULL;
+                    fdef->type.func_def.param_owns = NULL;
+                    fdef->type.func_def.param_defaults = NULL;
+                    fdef->type.func_def.return_type = ename;
+                    fdef->type.func_def.variadic_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
-                    decl->data.decl.name = *(Str **)Vec_get(&variant_names, j);
-                    decl->data.decl.is_namespace = true;
+                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, j);
+                    decl->type.decl.is_namespace = true;
                     expr_add_child(decl, fdef);
                     expr_add_child(body, decl);
                 }
@@ -588,21 +588,21 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 char name_buf[256];
                 snprintf(name_buf, sizeof(name_buf), "get_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
                 Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-                fdef->data.func_def.func_type = FUNC_EXT_FUNC;
-                fdef->data.func_def.nparam = 1;
-                fdef->data.func_def.param_names = malloc(sizeof(Str *));
-                fdef->data.func_def.param_names[0] = Str_new("self");
-                fdef->data.func_def.param_types = malloc(sizeof(Str *));
-                fdef->data.func_def.param_types[0] = ename;
-                fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
-                fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
-                fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
-                fdef->data.func_def.return_type = *(Str **)Vec_get(&variant_types, j);
-                fdef->data.func_def.variadic_index = -1;
+                fdef->type.func_def.func_type = FUNC_EXT_FUNC;
+                fdef->type.func_def.nparam = 1;
+                fdef->type.func_def.param_names = malloc(sizeof(Str *));
+                fdef->type.func_def.param_names[0] = Str_new("self");
+                fdef->type.func_def.param_types = malloc(sizeof(Str *));
+                fdef->type.func_def.param_types[0] = ename;
+                fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
+                fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
+                fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
+                fdef->type.func_def.return_type = *(Str **)Vec_get(&variant_types, j);
+                fdef->type.func_def.variadic_index = -1;
                 expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
-                decl->data.decl.name = Str_new(name_buf);
-                decl->data.decl.is_namespace = true;
+                decl->type.decl.name = Str_new(name_buf);
+                decl->type.decl.is_namespace = true;
                 expr_add_child(decl, fdef);
                 expr_add_child(body, decl);
             }
@@ -613,21 +613,21 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             char name_buf[256];
             snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->data.func_def.func_type = FUNC_EXT_FUNC;
-            fdef->data.func_def.nparam = 1;
-            fdef->data.func_def.param_names = malloc(sizeof(Str *));
-            fdef->data.func_def.param_names[0] = Str_new("self");
-            fdef->data.func_def.param_types = malloc(sizeof(Str *));
-            fdef->data.func_def.param_types[0] = ename;
-            fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
-            fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
-            fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
-            fdef->data.func_def.return_type = Str_new("Bool");
-            fdef->data.func_def.variadic_index = -1;
+            fdef->type.func_def.func_type = FUNC_EXT_FUNC;
+            fdef->type.func_def.nparam = 1;
+            fdef->type.func_def.param_names = malloc(sizeof(Str *));
+            fdef->type.func_def.param_names[0] = Str_new("self");
+            fdef->type.func_def.param_types = malloc(sizeof(Str *));
+            fdef->type.func_def.param_types[0] = ename;
+            fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
+            fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
+            fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
+            fdef->type.func_def.return_type = Str_new("Bool");
+            fdef->type.func_def.variadic_index = -1;
             expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
             Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->data.decl.name = Str_new(name_buf);
-            decl->data.decl.is_namespace = true;
+            decl->type.decl.name = Str_new(name_buf);
+            decl->type.decl.is_namespace = true;
             expr_add_child(decl, fdef);
             expr_add_child(body, decl);
         }
@@ -636,12 +636,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Bool has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *f = expr_child(body, j);
-            if (f->type != NODE_DECL || !f->data.decl.is_namespace) continue;
-            if (f->children.count == 0 || expr_child(f, 0)->type != NODE_FUNC_DEF) continue;
-            if (Str_eq_c(f->data.decl.name, "eq")) has_eq = 1;
-            if (Str_eq_c(f->data.decl.name, "clone")) has_clone = 1;
-            if (Str_eq_c(f->data.decl.name, "delete")) has_delete = 1;
-            if (Str_eq_c(f->data.decl.name, "to_str")) has_to_str = 1;
+            if (f->type.tag != NODE_DECL || !f->type.decl.is_namespace) continue;
+            if (f->children.count == 0 || expr_child(f, 0)->type.tag != NODE_FUNC_DEF) continue;
+            if (Str_eq_c(f->type.decl.name, "eq")) has_eq = 1;
+            if (Str_eq_c(f->type.decl.name, "clone")) has_clone = 1;
+            if (Str_eq_c(f->type.decl.name, "delete")) has_delete = 1;
+            if (Str_eq_c(f->type.decl.name, "to_str")) has_to_str = 1;
         }
 
         // Auto-generate eq := func(self: E, other: E) returns Bool { if-chain }
@@ -651,12 +651,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             for (U32 j = 0; j < variant_names.count; j++) {
                 // Build self.is_Vj() call
                 Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                self_id->data.str_val = Str_new("self");
+                self_id->type.str_val = Str_new("self");
                 char is_buf[256];
                 snprintf(is_buf, sizeof(is_buf), "is_%s",
                          (*(Str **)Vec_get(&variant_names, j))->c_str);
                 Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                is_acc->data.str_val = Str_new(is_buf);
+                is_acc->type.str_val = Str_new(is_buf);
                 expr_add_child(is_acc, self_id);
                 Expr *is_call = expr_new(NODE_FCALL, line, col, path);
                 expr_add_child(is_call, is_acc);
@@ -668,21 +668,21 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     //   if other.is_Vj().not() { return false }
                     //   return self.get_Vj().eq(other.get_Vj())
                     Expr *other_id = expr_new(NODE_IDENT, line, col, path);
-                    other_id->data.str_val = Str_new("other");
+                    other_id->type.str_val = Str_new("other");
                     Expr *is_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    is_acc2->data.str_val = Str_new(is_buf);
+                    is_acc2->type.str_val = Str_new(is_buf);
                     expr_add_child(is_acc2, other_id);
                     Expr *is_call2 = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(is_call2, is_acc2);
                     Expr *not_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    not_acc->data.str_val = Str_new("not");
+                    not_acc->type.str_val = Str_new("not");
                     expr_add_child(not_acc, is_call2);
                     Expr *not_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(not_call, not_acc);
 
                     Expr *ret_false = expr_new(NODE_RETURN, line, col, path);
                     Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-                    false_lit->data.str_val = Str_new("false");
+                    false_lit->type.str_val = Str_new("false");
                     expr_add_child(ret_false, false_lit);
                     Expr *guard_body = expr_new(NODE_BODY, line, col, path);
                     expr_add_child(guard_body, ret_false);
@@ -696,21 +696,21 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
                              (*(Str **)Vec_get(&variant_names, j))->c_str);
                     Expr *self2 = expr_new(NODE_IDENT, line, col, path);
-                    self2->data.str_val = Str_new("self");
+                    self2->type.str_val = Str_new("self");
                     Expr *get_acc1 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    get_acc1->data.str_val = Str_new(get_buf);
+                    get_acc1->type.str_val = Str_new(get_buf);
                     expr_add_child(get_acc1, self2);
                     Expr *get_call1 = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(get_call1, get_acc1);
 
                     Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    eq_acc->data.str_val = Str_new("eq");
+                    eq_acc->type.str_val = Str_new("eq");
                     expr_add_child(eq_acc, get_call1);
 
                     Expr *other2 = expr_new(NODE_IDENT, line, col, path);
-                    other2->data.str_val = Str_new("other");
+                    other2->type.str_val = Str_new("other");
                     Expr *get_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    get_acc2->data.str_val = Str_new(get_buf);
+                    get_acc2->type.str_val = Str_new(get_buf);
                     expr_add_child(get_acc2, other2);
                     Expr *get_call2 = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(get_call2, get_acc2);
@@ -725,9 +725,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 } else {
                     // No-payload variant: return other.is_Vj()
                     Expr *other_id = expr_new(NODE_IDENT, line, col, path);
-                    other_id->data.str_val = Str_new("other");
+                    other_id->type.str_val = Str_new("other");
                     Expr *is_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    is_acc2->data.str_val = Str_new(is_buf);
+                    is_acc2->type.str_val = Str_new(is_buf);
                     expr_add_child(is_acc2, other_id);
                     Expr *is_call2 = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(is_call2, is_acc2);
@@ -744,29 +744,29 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             // return false
             Expr *ret_false = expr_new(NODE_RETURN, line, col, path);
             Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-            false_lit->data.str_val = Str_new("false");
+            false_lit->type.str_val = Str_new("false");
             expr_add_child(ret_false, false_lit);
             expr_add_child(func_body, ret_false);
 
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->data.func_def.func_type = FUNC_FUNC;
-            fdef->data.func_def.nparam = 2;
-            fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));
-            fdef->data.func_def.param_names[0] = Str_new("self");
-            fdef->data.func_def.param_names[1] = Str_new("other");
-            fdef->data.func_def.param_types = malloc(2 * sizeof(Str *));
-            fdef->data.func_def.param_types[0] = ename;
-            fdef->data.func_def.param_types[1] = ename;
-            fdef->data.func_def.param_muts = calloc(2, sizeof(bool));
-            fdef->data.func_def.param_owns = calloc(2, sizeof(bool));
-            fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
-            fdef->data.func_def.return_type = Str_new("Bool");
-            fdef->data.func_def.variadic_index = -1;
+            fdef->type.func_def.func_type = FUNC_FUNC;
+            fdef->type.func_def.nparam = 2;
+            fdef->type.func_def.param_names = malloc(2 * sizeof(Str *));
+            fdef->type.func_def.param_names[0] = Str_new("self");
+            fdef->type.func_def.param_names[1] = Str_new("other");
+            fdef->type.func_def.param_types = malloc(2 * sizeof(Str *));
+            fdef->type.func_def.param_types[0] = ename;
+            fdef->type.func_def.param_types[1] = ename;
+            fdef->type.func_def.param_muts = calloc(2, sizeof(bool));
+            fdef->type.func_def.param_owns = calloc(2, sizeof(bool));
+            fdef->type.func_def.param_defaults = calloc(2, sizeof(Expr *));
+            fdef->type.func_def.return_type = Str_new("Bool");
+            fdef->type.func_def.variadic_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->data.decl.name = Str_new("eq");
-            decl->data.decl.is_namespace = true;
+            decl->type.decl.name = Str_new("eq");
+            decl->type.decl.is_namespace = true;
             expr_add_child(decl, fdef);
             expr_add_child(body, decl);
         }
@@ -779,9 +779,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             for (U32 j = 0; j < variant_names.count; j++) {
                 // Build variant expression: E.V(self.get_V()) for payload, E.V for no-payload
                 Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
-                ename_id->data.str_val = ename;
+                ename_id->type.str_val = ename;
                 Expr *ctor_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                ctor_acc->data.str_val = *(Str **)Vec_get(&variant_names, j);
+                ctor_acc->type.str_val = *(Str **)Vec_get(&variant_names, j);
                 expr_add_child(ctor_acc, ename_id);
 
                 Expr *ctor_expr;
@@ -790,12 +790,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *ctor_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(ctor_call, ctor_acc);
                     Expr *self_g = expr_new(NODE_IDENT, line, col, path);
-                    self_g->data.str_val = Str_new("self");
+                    self_g->type.str_val = Str_new("self");
                     char get_buf[256];
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
                              (*(Str **)Vec_get(&variant_names, j))->c_str);
                     Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    get_acc->data.str_val = Str_new(get_buf);
+                    get_acc->type.str_val = Str_new(get_buf);
                     expr_add_child(get_acc, self_g);
                     Expr *get_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(get_call, get_acc);
@@ -814,27 +814,27 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *cond;
                     if (has_payloads) {
                         Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                        self_id->data.str_val = Str_new("self");
+                        self_id->type.str_val = Str_new("self");
                         char is_buf[256];
                         snprintf(is_buf, sizeof(is_buf), "is_%s",
                                  (*(Str **)Vec_get(&variant_names, j))->c_str);
                         Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        is_acc->data.str_val = Str_new(is_buf);
+                        is_acc->type.str_val = Str_new(is_buf);
                         expr_add_child(is_acc, self_id);
                         cond = expr_new(NODE_FCALL, line, col, path);
                         expr_add_child(cond, is_acc);
                     } else {
                         // self.eq(E.V) — bare field access as eq arg
                         Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                        self_id->data.str_val = Str_new("self");
+                        self_id->type.str_val = Str_new("self");
                         Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        eq_acc->data.str_val = Str_new("eq");
+                        eq_acc->type.str_val = Str_new("eq");
                         expr_add_child(eq_acc, self_id);
 
                         Expr *en2 = expr_new(NODE_IDENT, line, col, path);
-                        en2->data.str_val = ename;
+                        en2->type.str_val = ename;
                         Expr *va2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        va2->data.str_val = *(Str **)Vec_get(&variant_names, j);
+                        va2->type.str_val = *(Str **)Vec_get(&variant_names, j);
                         expr_add_child(va2, en2);
 
                         cond = expr_new(NODE_FCALL, line, col, path);
@@ -856,22 +856,22 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             }
 
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->data.func_def.func_type = FUNC_FUNC;
-            fdef->data.func_def.nparam = 1;
-            fdef->data.func_def.param_names = malloc(sizeof(Str *));
-            fdef->data.func_def.param_names[0] = Str_new("self");
-            fdef->data.func_def.param_types = malloc(sizeof(Str *));
-            fdef->data.func_def.param_types[0] = ename;
-            fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
-            fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
-            fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
-            fdef->data.func_def.return_type = ename;
-            fdef->data.func_def.variadic_index = -1;
+            fdef->type.func_def.func_type = FUNC_FUNC;
+            fdef->type.func_def.nparam = 1;
+            fdef->type.func_def.param_names = malloc(sizeof(Str *));
+            fdef->type.func_def.param_names[0] = Str_new("self");
+            fdef->type.func_def.param_types = malloc(sizeof(Str *));
+            fdef->type.func_def.param_types[0] = ename;
+            fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
+            fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
+            fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
+            fdef->type.func_def.return_type = ename;
+            fdef->type.func_def.variadic_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->data.decl.name = Str_new("clone");
-            decl->data.decl.is_namespace = true;
+            decl->type.decl.name = Str_new("clone");
+            decl->type.decl.is_namespace = true;
             expr_add_child(decl, fdef);
             expr_add_child(body, decl);
         }
@@ -884,14 +884,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (!has_delete) {
             Expr *proc_body = expr_new(NODE_BODY, line, col, path);
             Expr *cond = expr_new(NODE_IDENT, line, col, path);
-            cond->data.str_val = Str_new("call_free");
+            cond->type.str_val = Str_new("call_free");
             Expr *then_body = expr_new(NODE_BODY, line, col, path);
             Expr *free_call = expr_new(NODE_FCALL, line, col, path);
             Expr *free_id = expr_new(NODE_IDENT, line, col, path);
-            free_id->data.str_val = Str_new("free");
+            free_id->type.str_val = Str_new("free");
             expr_add_child(free_call, free_id);
             Expr *self_arg = expr_new(NODE_IDENT, line, col, path);
-            self_arg->data.str_val = Str_new("self");
+            self_arg->type.str_val = Str_new("self");
             self_arg->is_own_arg = true;
             expr_add_child(free_call, self_arg);
             expr_add_child(then_body, free_call);
@@ -901,28 +901,28 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             expr_add_child(proc_body, if_node);
 
             Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col, path);
-            default_true->data.str_val = Str_new("true");
+            default_true->type.str_val = Str_new("true");
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
             fdef->is_core = true; // auto-generated, not user code
-            fdef->data.func_def.func_type = FUNC_PROC;
-            fdef->data.func_def.nparam = 2;
-            fdef->data.func_def.param_names = malloc(2 * sizeof(Str *));
-            fdef->data.func_def.param_names[0] = Str_new("self");
-            fdef->data.func_def.param_names[1] = Str_new("call_free");
-            fdef->data.func_def.param_types = malloc(2 * sizeof(Str *));
-            fdef->data.func_def.param_types[0] = ename;
-            fdef->data.func_def.param_types[1] = Str_new("Bool");
-            fdef->data.func_def.param_muts = calloc(2, sizeof(bool));
-            fdef->data.func_def.param_owns = calloc(2, sizeof(bool));
-            fdef->data.func_def.param_owns[0] = true;
-            fdef->data.func_def.param_defaults = calloc(2, sizeof(Expr *));
-            fdef->data.func_def.param_defaults[1] = default_true;
-            fdef->data.func_def.return_type = NULL;
-            fdef->data.func_def.variadic_index = -1;
+            fdef->type.func_def.func_type = FUNC_PROC;
+            fdef->type.func_def.nparam = 2;
+            fdef->type.func_def.param_names = malloc(2 * sizeof(Str *));
+            fdef->type.func_def.param_names[0] = Str_new("self");
+            fdef->type.func_def.param_names[1] = Str_new("call_free");
+            fdef->type.func_def.param_types = malloc(2 * sizeof(Str *));
+            fdef->type.func_def.param_types[0] = ename;
+            fdef->type.func_def.param_types[1] = Str_new("Bool");
+            fdef->type.func_def.param_muts = calloc(2, sizeof(bool));
+            fdef->type.func_def.param_owns = calloc(2, sizeof(bool));
+            fdef->type.func_def.param_owns[0] = true;
+            fdef->type.func_def.param_defaults = calloc(2, sizeof(Expr *));
+            fdef->type.func_def.param_defaults[1] = default_true;
+            fdef->type.func_def.return_type = NULL;
+            fdef->type.func_def.variadic_index = -1;
             expr_add_child(fdef, proc_body);
             Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->data.decl.name = Str_new("delete");
-            decl->data.decl.is_namespace = true;
+            decl->type.decl.name = Str_new("delete");
+            decl->type.decl.is_namespace = true;
             expr_add_child(decl, fdef);
             expr_add_child(body, decl);
         }
@@ -935,11 +935,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     // Payload enum to_str uses is_/get_ methods
                     // if self.is_Variant() { ... }
                     Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                    self_id->data.str_val = Str_new("self");
+                    self_id->type.str_val = Str_new("self");
                     char is_buf[256];
                     snprintf(is_buf, sizeof(is_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
                     Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    is_acc->data.str_val = Str_new(is_buf);
+                    is_acc->type.str_val = Str_new(is_buf);
                     expr_add_child(is_acc, self_id);
                     Expr *is_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(is_call, is_acc);
@@ -949,34 +949,34 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         // return format("Variant(", self.get_Variant().to_str(), ")")
                         Expr *fmt_call = expr_new(NODE_FCALL, line, col, path);
                         Expr *fmt_id = expr_new(NODE_IDENT, line, col, path);
-                        fmt_id->data.str_val = Str_new("format");
+                        fmt_id->type.str_val = Str_new("format");
                         expr_add_child(fmt_call, fmt_id);
 
                         char prefix_buf[256];
                         snprintf(prefix_buf, sizeof(prefix_buf), "%s(", (*(Str **)Vec_get(&variant_names, j))->c_str);
                         Expr *prefix = expr_new(NODE_LITERAL_STR, line, col, path);
-                        prefix->data.str_val = Str_new(prefix_buf);
+                        prefix->type.str_val = Str_new(prefix_buf);
                         expr_add_child(fmt_call, prefix);
 
                         // self.get_Variant().to_str()
                         Expr *self2 = expr_new(NODE_IDENT, line, col, path);
-                        self2->data.str_val = Str_new("self");
+                        self2->type.str_val = Str_new("self");
                         char get_buf[256];
                         snprintf(get_buf, sizeof(get_buf), "get_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
                         Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        get_acc->data.str_val = Str_new(get_buf);
+                        get_acc->type.str_val = Str_new(get_buf);
                         expr_add_child(get_acc, self2);
                         Expr *get_call = expr_new(NODE_FCALL, line, col, path);
                         expr_add_child(get_call, get_acc);
                         Expr *tostr_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        tostr_acc->data.str_val = Str_new("to_str");
+                        tostr_acc->type.str_val = Str_new("to_str");
                         expr_add_child(tostr_acc, get_call);
                         Expr *tostr_call = expr_new(NODE_FCALL, line, col, path);
                         expr_add_child(tostr_call, tostr_acc);
                         expr_add_child(fmt_call, tostr_call);
 
                         Expr *suffix = expr_new(NODE_LITERAL_STR, line, col, path);
-                        suffix->data.str_val = Str_new(")");
+                        suffix->type.str_val = Str_new(")");
                         expr_add_child(fmt_call, suffix);
 
                         Expr *ret = expr_new(NODE_RETURN, line, col, path);
@@ -985,7 +985,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     } else {
                         // return "VariantName"
                         Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
-                        ret_str->data.str_val = *(Str **)Vec_get(&variant_names, j);
+                        ret_str->type.str_val = *(Str **)Vec_get(&variant_names, j);
                         Expr *ret = expr_new(NODE_RETURN, line, col, path);
                         expr_add_child(ret, ret_str);
                         expr_add_child(then_body, ret);
@@ -998,16 +998,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 } else {
                     // Simple enum: if self.eq(EnumName.VariantName) { return "VariantName" }
                     Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                    self_id->data.str_val = Str_new("self");
+                    self_id->type.str_val = Str_new("self");
                     Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    eq_acc->data.str_val = Str_new("eq");
+                    eq_acc->type.str_val = Str_new("eq");
                     expr_add_child(eq_acc, self_id);
 
                     // EnumName.VariantName (bare field access)
                     Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
-                    ename_id->data.str_val = ename;
+                    ename_id->type.str_val = ename;
                     Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    var_acc->data.str_val = *(Str **)Vec_get(&variant_names, j);
+                    var_acc->type.str_val = *(Str **)Vec_get(&variant_names, j);
                     expr_add_child(var_acc, ename_id);
 
                     Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
@@ -1015,7 +1015,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     expr_add_child(eq_call, var_acc);
 
                     Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
-                    ret_str->data.str_val = *(Str **)Vec_get(&variant_names, j);
+                    ret_str->type.str_val = *(Str **)Vec_get(&variant_names, j);
                     Expr *ret = expr_new(NODE_RETURN, line, col, path);
                     expr_add_child(ret, ret_str);
                     Expr *then_body = expr_new(NODE_BODY, line, col, path);
@@ -1029,28 +1029,28 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             }
             // return "unknown"
             Expr *unk = expr_new(NODE_LITERAL_STR, line, col, path);
-            unk->data.str_val = Str_new("unknown");
+            unk->type.str_val = Str_new("unknown");
             Expr *ret_unk = expr_new(NODE_RETURN, line, col, path);
             expr_add_child(ret_unk, unk);
             expr_add_child(func_body, ret_unk);
 
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->data.func_def.func_type = FUNC_FUNC;
-            fdef->data.func_def.nparam = 1;
-            fdef->data.func_def.param_names = malloc(sizeof(Str *));
-            fdef->data.func_def.param_names[0] = Str_new("self");
-            fdef->data.func_def.param_types = malloc(sizeof(Str *));
-            fdef->data.func_def.param_types[0] = ename;
-            fdef->data.func_def.param_muts = calloc(1, sizeof(bool));
-            fdef->data.func_def.param_owns = calloc(1, sizeof(bool));
-            fdef->data.func_def.param_defaults = calloc(1, sizeof(Expr *));
-            fdef->data.func_def.return_type = Str_new("Str");
-            fdef->data.func_def.variadic_index = -1;
+            fdef->type.func_def.func_type = FUNC_FUNC;
+            fdef->type.func_def.nparam = 1;
+            fdef->type.func_def.param_names = malloc(sizeof(Str *));
+            fdef->type.func_def.param_names[0] = Str_new("self");
+            fdef->type.func_def.param_types = malloc(sizeof(Str *));
+            fdef->type.func_def.param_types[0] = ename;
+            fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
+            fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
+            fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
+            fdef->type.func_def.return_type = Str_new("Str");
+            fdef->type.func_def.variadic_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->data.decl.name = Str_new("to_str");
-            decl->data.decl.is_namespace = true;
+            decl->type.decl.name = Str_new("to_str");
+            decl->type.decl.is_namespace = true;
             expr_add_child(decl, fdef);
             expr_add_child(body, decl);
         }
@@ -1067,11 +1067,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Uses total_struct_size computed above for correct values (includes alignment padding)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
         Expr *def = expr_child(stmt, 0);
-        if (def->type != NODE_STRUCT_DEF && def->type != NODE_ENUM_DEF) continue;
+        if (def->type.tag != NODE_STRUCT_DEF && def->type.tag != NODE_ENUM_DEF) continue;
 
-        Str *sname = stmt->data.decl.name;
+        Str *sname = stmt->type.decl.name;
 
         // Skip meta-types
         if (Str_eq_c(sname, "StructDef") ||
@@ -1087,8 +1087,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Bool has_size = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
-            if (field->type == NODE_DECL && field->data.decl.is_namespace &&
-                Str_eq_c(field->data.decl.name, "size")) {
+            if (field->type.tag == NODE_DECL && field->type.decl.is_namespace &&
+                Str_eq_c(field->type.decl.name, "size")) {
                 has_size = 1;
                 break;
             }
@@ -1100,7 +1100,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Str *path = stmt->path;
 
         // Use computed total_struct_size for structs, 8 for enums (I64 or pointer)
-        I32 sz = def->type == NODE_ENUM_DEF
+        I32 sz = def->type.tag == NODE_ENUM_DEF
             ? (enum_has_payloads(def) ? 8 : 4)
             : def->total_struct_size;
         char sz_buf[16];
@@ -1109,28 +1109,28 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // size := func() returns I64 { return <literal> }
         Expr *func_body = expr_new(NODE_BODY, line, col, path);
         Expr *size_expr = expr_new(NODE_LITERAL_NUM, line, col, path);
-        size_expr->data.str_val = Str_new(sz_buf);
+        size_expr->type.str_val = Str_new(sz_buf);
         Expr *ret = expr_new(NODE_RETURN, line, col, path);
         expr_add_child(ret, size_expr);
         expr_add_child(func_body, ret);
 
         Expr *func_def = expr_new(NODE_FUNC_DEF, line, col, path);
-        func_def->data.func_def.func_type = FUNC_FUNC;
-        func_def->data.func_def.nparam = 0;
-        func_def->data.func_def.param_names = NULL;
-        func_def->data.func_def.param_types = NULL;
-        func_def->data.func_def.param_muts = NULL;
-        func_def->data.func_def.param_owns = NULL;
-        func_def->data.func_def.param_defaults = NULL;
-        func_def->data.func_def.return_type = Str_new("I64");
-        func_def->data.func_def.variadic_index = -1;
+        func_def->type.func_def.func_type = FUNC_FUNC;
+        func_def->type.func_def.nparam = 0;
+        func_def->type.func_def.param_names = NULL;
+        func_def->type.func_def.param_types = NULL;
+        func_def->type.func_def.param_muts = NULL;
+        func_def->type.func_def.param_owns = NULL;
+        func_def->type.func_def.param_defaults = NULL;
+        func_def->type.func_def.return_type = Str_new("I64");
+        func_def->type.func_def.variadic_index = -1;
         expr_add_child(func_def, func_body);
 
         Expr *decl = expr_new(NODE_DECL, line, col, path);
-        decl->data.decl.name = Str_new("size");
-        decl->data.decl.is_namespace = true;
-        decl->data.decl.is_mut = false;
-        decl->data.decl.explicit_type = NULL;
+        decl->type.decl.name = Str_new("size");
+        decl->type.decl.is_namespace = true;
+        decl->type.decl.is_mut = false;
+        decl->type.decl.explicit_type = NULL;
         expr_add_child(decl, func_def);
 
         expr_add_child(body, decl);
@@ -1140,11 +1140,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Any struct/enum with cmp gets: eq, neq, lt, gt, lte, gte (if missing)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
         Expr *def = expr_child(stmt, 0);
-        if (def->type != NODE_STRUCT_DEF && def->type != NODE_ENUM_DEF) continue;
+        if (def->type.tag != NODE_STRUCT_DEF && def->type.tag != NODE_ENUM_DEF) continue;
 
-        Str *sname = stmt->data.decl.name;
+        Str *sname = stmt->type.decl.name;
         if (Str_eq_c(sname, "StructDef") || Str_eq_c(sname, "FunctionDef") ||
             Str_eq_c(sname, "Dynamic")) continue;
 
@@ -1153,15 +1153,15 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Bool has_lt = 0, has_gt = 0, has_lte = 0, has_gte = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *f = expr_child(body, j);
-            if (f->type != NODE_DECL || !f->data.decl.is_namespace) continue;
-            if (f->children.count == 0 || expr_child(f, 0)->type != NODE_FUNC_DEF) continue;
-            if (Str_eq_c(f->data.decl.name, "cmp")) has_cmp = 1;
-            if (Str_eq_c(f->data.decl.name, "eq")) has_eq = 1;
-            if (Str_eq_c(f->data.decl.name, "neq")) has_neq = 1;
-            if (Str_eq_c(f->data.decl.name, "lt")) has_lt = 1;
-            if (Str_eq_c(f->data.decl.name, "gt")) has_gt = 1;
-            if (Str_eq_c(f->data.decl.name, "lte")) has_lte = 1;
-            if (Str_eq_c(f->data.decl.name, "gte")) has_gte = 1;
+            if (f->type.tag != NODE_DECL || !f->type.decl.is_namespace) continue;
+            if (f->children.count == 0 || expr_child(f, 0)->type.tag != NODE_FUNC_DEF) continue;
+            if (Str_eq_c(f->type.decl.name, "cmp")) has_cmp = 1;
+            if (Str_eq_c(f->type.decl.name, "eq")) has_eq = 1;
+            if (Str_eq_c(f->type.decl.name, "neq")) has_neq = 1;
+            if (Str_eq_c(f->type.decl.name, "lt")) has_lt = 1;
+            if (Str_eq_c(f->type.decl.name, "gt")) has_gt = 1;
+            if (Str_eq_c(f->type.decl.name, "lte")) has_lte = 1;
+            if (Str_eq_c(f->type.decl.name, "gte")) has_gte = 1;
         }
         if (!has_cmp) continue;
 
@@ -1171,9 +1171,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Helper macros for building AST nodes inline
         #define MK(type) expr_new(type, line, col, path)
-        #define ID(s) ({ Expr *_e = MK(NODE_IDENT); _e->data.str_val = Str_new(s); _e; })
-        #define NUM(s) ({ Expr *_e = MK(NODE_LITERAL_NUM); _e->data.str_val = Str_new(s); _e; })
-        #define ACC(obj, field) ({ Expr *_e = MK(NODE_FIELD_ACCESS); _e->data.str_val = Str_new(field); expr_add_child(_e, obj); _e; })
+        #define ID(s) ({ Expr *_e = MK(NODE_IDENT); _e->type.str_val = Str_new(s); _e; })
+        #define NUM(s) ({ Expr *_e = MK(NODE_LITERAL_NUM); _e->type.str_val = Str_new(s); _e; })
+        #define ACC(obj, field) ({ Expr *_e = MK(NODE_FIELD_ACCESS); _e->type.str_val = Str_new(field); expr_add_child(_e, obj); _e; })
         #define CALL0(callee) ({ Expr *_e = MK(NODE_FCALL); expr_add_child(_e, callee); _e; })
         #define CALL1(callee, arg1) ({ Expr *_e = MK(NODE_FCALL); expr_add_child(_e, callee); expr_add_child(_e, arg1); _e; })
         #define RET(val) ({ Expr *_e = MK(NODE_RETURN); expr_add_child(_e, val); _e; })
@@ -1188,23 +1188,23 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *fb = MK(NODE_BODY); \
             expr_add_child(fb, body_expr); \
             Expr *fd = MK(NODE_FUNC_DEF); \
-            fd->data.func_def.func_type = FUNC_FUNC; \
-            fd->data.func_def.nparam = 2; \
-            fd->data.func_def.param_names = malloc(2 * sizeof(Str *)); \
-            fd->data.func_def.param_names[0] = Str_new("a"); \
-            fd->data.func_def.param_names[1] = Str_new("b"); \
-            fd->data.func_def.param_types = malloc(2 * sizeof(Str *)); \
-            fd->data.func_def.param_types[0] = sname; \
-            fd->data.func_def.param_types[1] = sname; \
-            fd->data.func_def.param_muts = calloc(2, sizeof(bool)); \
-            fd->data.func_def.param_owns = calloc(2, sizeof(bool)); \
-            fd->data.func_def.param_defaults = calloc(2, sizeof(Expr *)); \
-            fd->data.func_def.return_type = Str_new("Bool"); \
-            fd->data.func_def.variadic_index = -1; \
+            fd->type.func_def.func_type = FUNC_FUNC; \
+            fd->type.func_def.nparam = 2; \
+            fd->type.func_def.param_names = malloc(2 * sizeof(Str *)); \
+            fd->type.func_def.param_names[0] = Str_new("a"); \
+            fd->type.func_def.param_names[1] = Str_new("b"); \
+            fd->type.func_def.param_types = malloc(2 * sizeof(Str *)); \
+            fd->type.func_def.param_types[0] = sname; \
+            fd->type.func_def.param_types[1] = sname; \
+            fd->type.func_def.param_muts = calloc(2, sizeof(bool)); \
+            fd->type.func_def.param_owns = calloc(2, sizeof(bool)); \
+            fd->type.func_def.param_defaults = calloc(2, sizeof(Expr *)); \
+            fd->type.func_def.return_type = Str_new("Bool"); \
+            fd->type.func_def.variadic_index = -1; \
             expr_add_child(fd, fb); \
             Expr *dc = MK(NODE_DECL); \
-            dc->data.decl.name = Str_new(method_name); \
-            dc->data.decl.is_namespace = true; \
+            dc->type.decl.name = Str_new(method_name); \
+            dc->type.decl.is_namespace = true; \
             expr_add_child(dc, fd); \
             expr_add_child(body, dc); \
         } while(0)
@@ -1254,17 +1254,17 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 2: register all func/proc definitions
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->type != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type != NODE_FUNC_DEF) continue;
+        if (stmt->type.tag != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_FUNC_DEF) continue;
 
-        FuncType ft = expr_child(stmt, 0)->data.func_def.func_type;
+        FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
         I32 callee_is_proc = (ft == FUNC_TEST) ? 2 : (ft == FUNC_PROC || ft == FUNC_EXT_PROC) ? 1 : 0;
         TilType rt = TIL_TYPE_NONE;
-        if (expr_child(stmt, 0)->data.func_def.return_type) {
-            rt = type_from_name_init(expr_child(stmt, 0)->data.func_def.return_type, scope);
+        if (expr_child(stmt, 0)->type.func_def.return_type) {
+            rt = type_from_name_init(expr_child(stmt, 0)->type.func_def.return_type, scope);
         }
-        tscope_set(scope, stmt->data.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = tscope_find(scope, stmt->data.decl.name);
+        tscope_set(scope, stmt->type.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
+        TypeBinding *fb = tscope_find(scope, stmt->type.decl.name);
         if (fb) {
             fb->func_def = expr_child(stmt, 0);
             if (ft == FUNC_EXT_FUNC || ft == FUNC_EXT_PROC)
