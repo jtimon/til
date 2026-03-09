@@ -61,6 +61,9 @@ NATURALS := array("I64", 0, 2, 4, 5, 7, 9, 11)
 NAMES_SOL := array("Str", "do", "re", "mi", "fa", "sol", "la", "si")
 NAMES_AME := array("Str", "C", "D", "E", "F", "G", "A", "B")
 
+// Triad suffixes: M, m, dim, aug
+TRIAD_SUFFIXES := array("Str", "-M", "-m", "-dim", "-aug")
+
 // Frequencies for chromatic notes C4..B4
 FREQS := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
 
@@ -100,6 +103,20 @@ acc_text := func(acc: I64) returns Str {
 
 staff_y := func(diat_idx: I64, octave: I64) returns I64 {
     return STAFF_BASE_Y.sub(diat_idx.sub(2).add(octave.mul(7)).mul(STAFF_SP))
+}
+
+start_scale := proc(mut playing: Bool, mut play_idx: I64, mut play_timer: I64) {
+    playing = true
+    play_idx = 0
+    play_timer = 300
+}
+
+play_note := proc(freq: I64, mut clicked_note: I64, mut clicked_timer: I64, note_idx: I64) {
+    if freq.gt(0) {
+        play_tone(freq, 250)
+        clicked_note = note_idx
+        clicked_timer = 300
+    }
 }
 
 main := proc() {
@@ -153,9 +170,7 @@ main := proc() {
                         }
                     }
                     need_recompute = true
-                    playing = true
-                    play_idx = 0
-                    play_timer = 300
+                    start_scale(playing, play_idx, play_timer)
                 }
             }
 
@@ -165,9 +180,7 @@ main := proc() {
                 if col.gte(0).and(col.lt(7)).and(mx.gte(MARGIN)) {
                     sel_mode = col
                     need_recompute = true
-                    playing = true
-                    play_idx = 0
-                    play_timer = 300
+                    start_scale(playing, play_idx, play_timer)
                 }
             }
 
@@ -196,11 +209,7 @@ main := proc() {
                 hit := NOTE_R.mul(3)
                 if mx.sub(cnx).abs().lt(hit).and(my.sub(cny).abs().lt(hit)) {
                     ref cf : I64 = sc_freq.get(ci)
-                    if cf.gt(0) {
-                        play_tone(cf, 250)
-                        clicked_note = ci
-                        clicked_timer = 300
-                    }
+                    play_note(cf, clicked_note, clicked_timer, ci)
                 }
             }
         }
@@ -274,9 +283,7 @@ main := proc() {
                 play_timer = 0
                 if play_idx.lt(8) {
                     ref pf : I64 = sc_freq.get(play_idx)
-                    if pf.gt(0) {
-                        play_tone(pf, 250)
-                    }
+                    play_note(pf, clicked_note, clicked_timer, play_idx)
                     play_idx = play_idx.add(1)
                 } else {
                     playing = false
@@ -424,14 +431,9 @@ main := proc() {
             mut ncr := 255
             mut ncg := 255
             mut ncb := 0
-            if playing.and(play_idx.sub(1).gt(dni)) {
+            if playing.and(play_idx.gt(dni)) {
                 ncr = 100
                 ncg = 100
-                ncb = 0
-            }
-            if playing.and(play_idx.sub(1).eq(dni)) {
-                ncr = 0
-                ncg = 255
                 ncb = 0
             }
             if clicked_note.eq(dni) {
@@ -458,10 +460,8 @@ main := proc() {
             mut nn := nn_base.concat(nn_acc)
             if dni.lt(7) {
                 ref trt2 : I64 = sc_triad.get(dni)
-                if trt2.eq(0) { nn = nn.concat("-M") }
-                if trt2.eq(1) { nn = nn.concat("-m") }
-                if trt2.eq(2) { nn = nn.concat("-dim") }
-                if trt2.eq(3) { nn = nn.concat("-aug") }
+                ref tsuf : Str = TRIAD_SUFFIXES.get(trt2)
+                nn = nn.concat(tsuf)
             }
             draw_text(nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 180, 180, 180, 255)
         }
