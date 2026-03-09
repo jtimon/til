@@ -1,0 +1,804 @@
+mode gui
+
+// Go (Weiqi / Baduk)
+// 2-player or 1-player vs AI (random legal moves)
+// Click intersection to place stone, P to pass
+// Full rules: captures, ko, suicide prevention
+// Chinese scoring (area) with 6.5 komi
+// Board sizes: 9x9, 13x13, 19x19
+
+WINDOW_WIDTH := 800
+WINDOW_HEIGHT := 860
+FPS := 60
+FONT_SZ := 20
+FONT_LG := 40
+MAX_CELLS := 361
+
+// Board colors
+BOARD_R := 220
+BOARD_G := 179
+BOARD_B := 92
+
+// Copy board
+copy_board := proc(mut dst: Array, mut src: Array, total: I64) {
+    mut i := 0
+    while i.lt(total) {
+        ref v : I64 = src.get(i)
+        dst.set(i, own v.clone())
+        i = i.add(1)
+    }
+}
+
+// Compare two boards
+boards_equal := func(mut a: Array, mut b: Array, total: I64) returns Bool {
+    mut i := 0
+    while i.lt(total) {
+        ref va : I64 = a.get(i)
+        ref vb : I64 = b.get(i)
+        if va.neq(vb) { return false }
+        i = i.add(1)
+    }
+    return true
+}
+
+// Clear array to 0
+clear_arr := proc(mut arr: Array, total: I64) {
+    mut i := 0
+    while i.lt(total) {
+        arr.set(i, own 0)
+        i = i.add(1)
+    }
+}
+
+// Count liberties of group containing stone at idx
+// Uses visited and lib_seen arrays (caller must clear them first)
+// Returns number of unique liberties
+count_liberties := proc(mut board: Array, mut visited: Array, mut lib_seen: Array,
+                         mut stk: Vec, idx: I64, size: I64, color: I64) returns I64 {
+    mut libs := 0
+    stk.push(own idx.clone())
+    visited.set(idx, own 1)
+
+    while stk.len().gt(0) {
+        ref top_ref : I64 = stk.get(stk.len().sub(1))
+        cur := top_ref
+        stk.count = stk.count.sub(1)
+
+        cr := cur.div(size)
+        cc := cur.mod(size)
+
+        // up
+        if cr.gt(0) {
+            ni := cur.sub(size)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                } else {
+                    if np.eq(0) {
+                        ref ls : I64 = lib_seen.get(ni)
+                        if ls.eq(0) {
+                            lib_seen.set(ni, own 1)
+                            libs = libs.add(1)
+                        }
+                    }
+                }
+            }
+        }
+        // down
+        if cr.lt(size.sub(1)) {
+            ni := cur.add(size)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                } else {
+                    if np.eq(0) {
+                        ref ls : I64 = lib_seen.get(ni)
+                        if ls.eq(0) {
+                            lib_seen.set(ni, own 1)
+                            libs = libs.add(1)
+                        }
+                    }
+                }
+            }
+        }
+        // left
+        if cc.gt(0) {
+            ni := cur.sub(1)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                } else {
+                    if np.eq(0) {
+                        ref ls : I64 = lib_seen.get(ni)
+                        if ls.eq(0) {
+                            lib_seen.set(ni, own 1)
+                            libs = libs.add(1)
+                        }
+                    }
+                }
+            }
+        }
+        // right
+        if cc.lt(size.sub(1)) {
+            ni := cur.add(1)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                } else {
+                    if np.eq(0) {
+                        ref ls : I64 = lib_seen.get(ni)
+                        if ls.eq(0) {
+                            lib_seen.set(ni, own 1)
+                            libs = libs.add(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return libs
+}
+
+// Remove group containing stone at idx, returns stones removed
+// Caller must clear visited before calling
+remove_group := proc(mut board: Array, mut visited: Array, mut stk: Vec,
+                      idx: I64, size: I64, color: I64) returns I64 {
+    mut removed := 0
+    stk.push(own idx.clone())
+    visited.set(idx, own 1)
+
+    while stk.len().gt(0) {
+        ref top_ref : I64 = stk.get(stk.len().sub(1))
+        cur := top_ref
+        stk.count = stk.count.sub(1)
+
+        board.set(cur, own 0)
+        removed = removed.add(1)
+
+        cr := cur.div(size)
+        cc := cur.mod(size)
+
+        // up
+        if cr.gt(0) {
+            ni := cur.sub(size)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                }
+            }
+        }
+        // down
+        if cr.lt(size.sub(1)) {
+            ni := cur.add(size)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                }
+            }
+        }
+        // left
+        if cc.gt(0) {
+            ni := cur.sub(1)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                }
+            }
+        }
+        // right
+        if cc.lt(size.sub(1)) {
+            ni := cur.add(1)
+            ref nv : I64 = visited.get(ni)
+            if nv.eq(0) {
+                ref np : I64 = board.get(ni)
+                if np.eq(color) {
+                    visited.set(ni, own 1)
+                    stk.push(own ni)
+                }
+            }
+        }
+    }
+
+    return removed
+}
+
+// Try placing a stone on tmp_board (copy of board). Returns captures, or -1 if illegal.
+// Does NOT modify board — caller must copy tmp to board if legal.
+// ko_board is the board state from before the last move (for ko detection).
+try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
+                   mut stk: Vec, idx: I64, size: I64, color: I64,
+                   mut ko_board: Array, has_ko: Bool) returns I64 {
+    total := size.mul(size)
+
+    // Must be empty
+    ref cur : I64 = tmp.get(idx)
+    if cur.neq(0) { return 0.sub(1) }
+
+    // Place stone
+    tmp.set(idx, own color.clone())
+
+    opp := 3.sub(color)
+    r := idx.div(size)
+    c := idx.mod(size)
+    mut captured := 0
+
+    // Check each neighbor for opponent groups with 0 liberties
+    // up
+    if r.gt(0) {
+        ni := idx.sub(size)
+        ref np : I64 = tmp.get(ni)
+        if np.eq(opp) {
+            clear_arr(visited, total)
+            clear_arr(lib_seen, total)
+            libs := count_liberties(tmp, visited, lib_seen, stk, ni, size, opp)
+            if libs.eq(0) {
+                clear_arr(visited, total)
+                captured = captured.add(remove_group(tmp, visited, stk, ni, size, opp))
+            }
+        }
+    }
+    // down
+    if r.lt(size.sub(1)) {
+        ni := idx.add(size)
+        ref np : I64 = tmp.get(ni)
+        if np.eq(opp) {
+            clear_arr(visited, total)
+            clear_arr(lib_seen, total)
+            libs := count_liberties(tmp, visited, lib_seen, stk, ni, size, opp)
+            if libs.eq(0) {
+                clear_arr(visited, total)
+                captured = captured.add(remove_group(tmp, visited, stk, ni, size, opp))
+            }
+        }
+    }
+    // left
+    if c.gt(0) {
+        ni := idx.sub(1)
+        ref np : I64 = tmp.get(ni)
+        if np.eq(opp) {
+            clear_arr(visited, total)
+            clear_arr(lib_seen, total)
+            libs := count_liberties(tmp, visited, lib_seen, stk, ni, size, opp)
+            if libs.eq(0) {
+                clear_arr(visited, total)
+                captured = captured.add(remove_group(tmp, visited, stk, ni, size, opp))
+            }
+        }
+    }
+    // right
+    if c.lt(size.sub(1)) {
+        ni := idx.add(1)
+        ref np : I64 = tmp.get(ni)
+        if np.eq(opp) {
+            clear_arr(visited, total)
+            clear_arr(lib_seen, total)
+            libs := count_liberties(tmp, visited, lib_seen, stk, ni, size, opp)
+            if libs.eq(0) {
+                clear_arr(visited, total)
+                captured = captured.add(remove_group(tmp, visited, stk, ni, size, opp))
+            }
+        }
+    }
+
+    // Check suicide: our group must have liberties after captures
+    clear_arr(visited, total)
+    clear_arr(lib_seen, total)
+    own_libs := count_liberties(tmp, visited, lib_seen, stk, idx, size, color)
+    if own_libs.eq(0) {
+        // Suicide — undo placement (caller's tmp is now dirty, but that's OK
+        // because caller will discard it)
+        return 0.sub(1)
+    }
+
+    // Check ko
+    if has_ko {
+        if boards_equal(tmp, ko_board, total) {
+            return 0.sub(1)
+        }
+    }
+
+    return captured
+}
+
+// Score the game using Chinese rules (area scoring)
+// Returns black_score * 10000 + white_score
+score_game := proc(mut board: Array, mut visited: Array, mut stk: Vec,
+                    size: I64) returns I64 {
+    total := size.mul(size)
+    clear_arr(visited, total)
+
+    mut black_score := 0
+    mut white_score := 0
+
+    // Count stones
+    mut i := 0
+    while i.lt(total) {
+        ref p : I64 = board.get(i)
+        if p.eq(1) { black_score = black_score.add(1) }
+        if p.eq(2) { white_score = white_score.add(1) }
+        i = i.add(1)
+    }
+
+    // Flood fill empty regions to assign territory
+    i = 0
+    while i.lt(total) {
+        ref p : I64 = board.get(i)
+        ref v : I64 = visited.get(i)
+        if p.eq(0).and(v.eq(0)) {
+            mut region_size := 0
+            mut touches_black := false
+            mut touches_white := false
+
+            stk.push(own i.clone())
+            visited.set(i, own 1)
+
+            while stk.len().gt(0) {
+                ref top_ref : I64 = stk.get(stk.len().sub(1))
+                cur := top_ref
+                stk.count = stk.count.sub(1)
+
+                region_size = region_size.add(1)
+                cr := cur.div(size)
+                cc := cur.mod(size)
+
+                // up
+                if cr.gt(0) {
+                    ni := cur.sub(size)
+                    ref nv : I64 = visited.get(ni)
+                    if nv.eq(0) {
+                        ref np : I64 = board.get(ni)
+                        if np.eq(0) {
+                            visited.set(ni, own 1)
+                            stk.push(own ni)
+                        } else {
+                            visited.set(ni, own 1)
+                            if np.eq(1) { touches_black = true }
+                            if np.eq(2) { touches_white = true }
+                        }
+                    }
+                }
+                // down
+                if cr.lt(size.sub(1)) {
+                    ni := cur.add(size)
+                    ref nv : I64 = visited.get(ni)
+                    if nv.eq(0) {
+                        ref np : I64 = board.get(ni)
+                        if np.eq(0) {
+                            visited.set(ni, own 1)
+                            stk.push(own ni)
+                        } else {
+                            visited.set(ni, own 1)
+                            if np.eq(1) { touches_black = true }
+                            if np.eq(2) { touches_white = true }
+                        }
+                    }
+                }
+                // left
+                if cc.gt(0) {
+                    ni := cur.sub(1)
+                    ref nv : I64 = visited.get(ni)
+                    if nv.eq(0) {
+                        ref np : I64 = board.get(ni)
+                        if np.eq(0) {
+                            visited.set(ni, own 1)
+                            stk.push(own ni)
+                        } else {
+                            visited.set(ni, own 1)
+                            if np.eq(1) { touches_black = true }
+                            if np.eq(2) { touches_white = true }
+                        }
+                    }
+                }
+                // right
+                if cc.lt(size.sub(1)) {
+                    ni := cur.add(1)
+                    ref nv : I64 = visited.get(ni)
+                    if nv.eq(0) {
+                        ref np : I64 = board.get(ni)
+                        if np.eq(0) {
+                            visited.set(ni, own 1)
+                            stk.push(own ni)
+                        } else {
+                            visited.set(ni, own 1)
+                            if np.eq(1) { touches_black = true }
+                            if np.eq(2) { touches_white = true }
+                        }
+                    }
+                }
+            }
+
+            // Assign territory if bordered by only one color
+            if touches_black.and(touches_white.not()) {
+                black_score = black_score.add(region_size)
+            }
+            if touches_white.and(touches_black.not()) {
+                white_score = white_score.add(region_size)
+            }
+        }
+        i = i.add(1)
+    }
+
+    return black_score.mul(10000).add(white_score)
+}
+
+main := proc() {
+    init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "go")
+    set_target_fps(FPS)
+
+    // Shared work arrays
+    mut board := Array.new("I64", 8, MAX_CELLS)
+    mut tmp_board := Array.new("I64", 8, MAX_CELLS)
+    mut ko_board := Array.new("I64", 8, MAX_CELLS)
+    mut visited := Array.new("I64", 8, MAX_CELLS)
+    mut lib_seen := Array.new("I64", 8, MAX_CELLS)
+    mut stk := Vec.new("I64", 8)
+
+    // Game state
+    mut board_size := 0
+    mut vs_ai := 0
+    mut turn := 1
+    mut pass_count := 0
+    mut game_over := false
+    mut black_caps := 0
+    mut white_caps := 0
+    mut black_score := 0
+    mut white_score := 0
+    mut ai_timer := 0
+    mut last_move := 0.sub(1)
+    mut has_ko := false
+    mut move_num := 0
+
+    while window_should_close().not() {
+        // --- SIZE MENU ---
+        if board_size.eq(0) {
+            if is_key_pressed(57) { board_size = 9 }
+            if is_key_pressed(51) { board_size = 13 }
+            if is_key_pressed(49) { board_size = 19 }
+
+            begin_drawing()
+            clear_background(30, 30, 30, 255)
+            draw_text("GO / WEIQI / BADUK", WINDOW_WIDTH.div(2).sub(180), 150, FONT_LG, 255, 255, 255, 255)
+            draw_text("press 9:  9x9  board", WINDOW_WIDTH.div(2).sub(110), 260, FONT_SZ, 200, 200, 200, 255)
+            draw_text("press 3:  13x13 board", WINDOW_WIDTH.div(2).sub(116), 300, FONT_SZ, 200, 200, 200, 255)
+            draw_text("press 1:  19x19 board", WINDOW_WIDTH.div(2).sub(116), 340, FONT_SZ, 200, 200, 200, 255)
+            end_drawing()
+        } else {
+            if vs_ai.eq(0) {
+                // --- MODE MENU ---
+                if is_key_pressed(49) { vs_ai = 1 }
+                if is_key_pressed(50) { vs_ai = 2 }
+
+                if vs_ai.gt(0) {
+                    // Initialize board
+                    total := board_size.mul(board_size)
+                    clear_arr(board, total)
+                    clear_arr(ko_board, total)
+                    turn = 1
+                    pass_count = 0
+                    game_over = false
+                    black_caps = 0
+                    white_caps = 0
+                    black_score = 0
+                    white_score = 0
+                    ai_timer = 0
+                    last_move = 0.sub(1)
+                    has_ko = false
+                    move_num = 0
+                }
+
+                begin_drawing()
+                clear_background(30, 30, 30, 255)
+                draw_text(format(board_size.to_str(), "x", board_size.to_str()), WINDOW_WIDTH.div(2).sub(40), 200, FONT_LG, 255, 255, 255, 255)
+                draw_text("press 1: two players", WINDOW_WIDTH.div(2).sub(110), 300, FONT_SZ, 200, 200, 200, 255)
+                draw_text("press 2: vs computer (you=black)", WINDOW_WIDTH.div(2).sub(170), 340, FONT_SZ, 200, 200, 200, 255)
+                end_drawing()
+            } else {
+                // --- GAME ---
+                total := board_size.mul(board_size)
+                margin := 40
+                cell_size := WINDOW_WIDTH.sub(margin.mul(2)).div(board_size.sub(1))
+                board_px := margin
+                board_py := 60
+                stone_r := cell_size.mul(4).div(10)
+
+                // Restart
+                if is_key_pressed(82) {
+                    board_size = 0
+                    vs_ai = 0
+                }
+
+                // AI move
+                if vs_ai.eq(2).and(turn.eq(2)).and(game_over.not()) {
+                    ai_timer = ai_timer.add(1)
+                    if ai_timer.gt(20) {
+                        ai_timer = 0
+                        mut ai_moved := false
+                        mut attempts := 0
+                        while attempts.lt(300).and(ai_moved.not()) {
+                            ri := get_random_value(0, total.sub(1))
+                            ref rp : I64 = board.get(ri)
+                            if rp.eq(0) {
+                                copy_board(tmp_board, board, total)
+                                cap := try_place(tmp_board, visited, lib_seen, stk, ri, board_size, 2, ko_board, has_ko)
+                                if cap.gte(0) {
+                                    // Legal: save ko state and apply
+                                    copy_board(ko_board, board, total)
+                                    copy_board(board, tmp_board, total)
+                                    has_ko = true
+                                    white_caps = white_caps.add(cap)
+                                    last_move = ri
+                                    pass_count = 0
+                                    turn = 1
+                                    move_num = move_num.add(1)
+                                    ai_moved = true
+                                }
+                            }
+                            attempts = attempts.add(1)
+                        }
+
+                        if ai_moved.not() {
+                            // AI passes
+                            pass_count = pass_count.add(1)
+                            has_ko = false
+                            last_move = 0.sub(1)
+                            turn = 1
+                            if pass_count.gte(2) {
+                                game_over = true
+                                scores := score_game(board, visited, stk, board_size)
+                                black_score = scores.div(10000)
+                                white_score = scores.mod(10000)
+                            }
+                        }
+                    }
+                }
+
+                // Human input
+                if game_over.not() {
+                    mut is_human := true
+                    if vs_ai.eq(2).and(turn.eq(2)) { is_human = false }
+
+                    if is_human {
+                        // Pass with P
+                        if is_key_pressed(80) {
+                            pass_count = pass_count.add(1)
+                            has_ko = false
+                            last_move = 0.sub(1)
+                            if turn.eq(1) { turn = 2 } else { turn = 1 }
+                            if pass_count.gte(2) {
+                                game_over = true
+                                scores := score_game(board, visited, stk, board_size)
+                                black_score = scores.div(10000)
+                                white_score = scores.mod(10000)
+                            }
+                        }
+
+                        // Click to place
+                        if is_mouse_button_pressed(0) {
+                            mx := get_mouse_x().sub(board_px)
+                            my := get_mouse_y().sub(board_py)
+                            half := cell_size.div(2)
+                            col := mx.add(half).div(cell_size)
+                            row := my.add(half).div(cell_size)
+
+                            if row.gte(0).and(row.lt(board_size)).and(col.gte(0)).and(col.lt(board_size)) {
+                                idx := row.mul(board_size).add(col)
+                                copy_board(tmp_board, board, total)
+                                cap := try_place(tmp_board, visited, lib_seen, stk, idx, board_size, turn, ko_board, has_ko)
+                                if cap.gte(0) {
+                                    // Legal move
+                                    copy_board(ko_board, board, total)
+                                    copy_board(board, tmp_board, total)
+                                    has_ko = true
+                                    if turn.eq(1) {
+                                        black_caps = black_caps.add(cap)
+                                    } else {
+                                        white_caps = white_caps.add(cap)
+                                    }
+                                    last_move = idx
+                                    pass_count = 0
+                                    move_num = move_num.add(1)
+                                    if turn.eq(1) { turn = 2 } else { turn = 1 }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- DRAW ---
+                begin_drawing()
+                clear_background(30, 30, 30, 255)
+
+                // Board background
+                grid_span := cell_size.mul(board_size.sub(1))
+                draw_rectangle(board_px.sub(margin.div(2)), board_py.sub(margin.div(2)),
+                               grid_span.add(margin), grid_span.add(margin),
+                               BOARD_R, BOARD_G, BOARD_B, 255)
+
+                // Grid lines
+                mut gi := 0
+                while gi.lt(board_size) {
+                    // Horizontal
+                    hy := board_py.add(gi.mul(cell_size))
+                    draw_rectangle(board_px, hy, grid_span, 1, 40, 30, 10, 255)
+                    // Vertical
+                    vx := board_px.add(gi.mul(cell_size))
+                    draw_rectangle(vx, board_py, 1, grid_span, 40, 30, 10, 255)
+                    gi = gi.add(1)
+                }
+
+                // Star points (hoshi)
+                if board_size.eq(9) {
+                    HOSHI := array("I64", 2, 2, 2, 6, 4, 4, 6, 2, 6, 6)
+                    mut hi := 0
+                    while hi.lt(10) {
+                        ref hr : I64 = HOSHI.get(hi)
+                        ref hc : I64 = HOSHI.get(hi.add(1))
+                        draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
+                        hi = hi.add(2)
+                    }
+                }
+                if board_size.eq(13) {
+                    HOSHI := array("I64", 3, 3, 3, 9, 6, 6, 9, 3, 9, 9)
+                    mut hi := 0
+                    while hi.lt(10) {
+                        ref hr : I64 = HOSHI.get(hi)
+                        ref hc : I64 = HOSHI.get(hi.add(1))
+                        draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
+                        hi = hi.add(2)
+                    }
+                }
+                if board_size.eq(19) {
+                    HOSHI := array("I64", 3, 3, 3, 9, 3, 15, 9, 3, 9, 9, 9, 15, 15, 3, 15, 9, 15, 15)
+                    mut hi := 0
+                    while hi.lt(18) {
+                        ref hr : I64 = HOSHI.get(hi)
+                        ref hc : I64 = HOSHI.get(hi.add(1))
+                        draw_circle(board_px.add(hc.mul(cell_size)), board_py.add(hr.mul(cell_size)), 4, 40, 30, 10, 255)
+                        hi = hi.add(2)
+                    }
+                }
+
+                // Coordinate labels
+                COL_LABELS := array("Str", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")
+                mut ci := 0
+                while ci.lt(board_size) {
+                    ref cl : Str = COL_LABELS.get(ci)
+                    lx := board_px.add(ci.mul(cell_size)).sub(4)
+                    // Top
+                    draw_text(cl, lx, board_py.sub(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
+                    // Bottom
+                    draw_text(cl, lx, board_py.add(grid_span).add(margin.div(2)).sub(6), 14, 80, 60, 30, 255)
+                    // Row number (Go counts from bottom)
+                    row_num := board_size.sub(ci).to_str()
+                    ry := board_py.add(ci.mul(cell_size)).sub(6)
+                    draw_text(row_num, board_px.sub(margin.div(2)).sub(10), ry, 14, 80, 60, 30, 255)
+                    draw_text(row_num, board_px.add(grid_span).add(margin.div(2)).sub(4), ry, 14, 80, 60, 30, 255)
+                    ci = ci.add(1)
+                }
+
+                // Stones
+                mut si := 0
+                while si.lt(total) {
+                    ref sp : I64 = board.get(si)
+                    if sp.neq(0) {
+                        sr := si.div(board_size)
+                        sc := si.mod(board_size)
+                        sx := board_px.add(sc.mul(cell_size))
+                        sy := board_py.add(sr.mul(cell_size))
+
+                        if sp.eq(1) {
+                            draw_circle(sx, sy, stone_r, 10, 10, 10, 255)
+                            draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 60, 60, 60, 120)
+                        } else {
+                            draw_circle(sx, sy, stone_r, 230, 230, 230, 255)
+                            draw_circle(sx.sub(stone_r.div(4)), sy.sub(stone_r.div(4)), stone_r.div(3), 255, 255, 255, 120)
+                        }
+
+                        // Mark last move
+                        if si.eq(last_move) {
+                            if sp.eq(1) {
+                                draw_circle(sx, sy, 4, 255, 255, 255, 255)
+                            } else {
+                                draw_circle(sx, sy, 4, 10, 10, 10, 255)
+                            }
+                        }
+                    }
+                    si = si.add(1)
+                }
+
+                // Hover indicator
+                if game_over.not() {
+                    mut show_hover := true
+                    if vs_ai.eq(2).and(turn.eq(2)) { show_hover = false }
+                    if show_hover {
+                        mx := get_mouse_x().sub(board_px)
+                        my := get_mouse_y().sub(board_py)
+                        half := cell_size.div(2)
+                        hcol := mx.add(half).div(cell_size)
+                        hrow := my.add(half).div(cell_size)
+                        if hrow.gte(0).and(hrow.lt(board_size)).and(hcol.gte(0)).and(hcol.lt(board_size)) {
+                            hidx := hrow.mul(board_size).add(hcol)
+                            ref hp : I64 = board.get(hidx)
+                            if hp.eq(0) {
+                                hx := board_px.add(hcol.mul(cell_size))
+                                hy := board_py.add(hrow.mul(cell_size))
+                                if turn.eq(1) {
+                                    draw_circle(hx, hy, stone_r, 30, 30, 30, 100)
+                                } else {
+                                    draw_circle(hx, hy, stone_r, 220, 220, 220, 100)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Status bar
+                status_y := board_py.add(grid_span).add(margin).add(10)
+
+                if game_over {
+                    // Komi: 6.5 points for white
+                    bsx10 := black_score.mul(10)
+                    wsx10 := white_score.mul(10).add(65)
+                    bs_str := format("Black: ", black_score.to_str(), ".0")
+                    ws_int := wsx10.div(10)
+                    ws_frac := wsx10.mod(10)
+                    ws_str := format("  White: ", ws_int.to_str(), ".", ws_frac.to_str(), " (komi 6.5)")
+                    draw_text(bs_str, 10, status_y, FONT_SZ, 255, 255, 255, 255)
+                    draw_text(ws_str, 160, status_y, FONT_SZ, 200, 200, 200, 255)
+                    if bsx10.gt(wsx10) {
+                        draw_text("Black wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+                    } else {
+                        if bsx10.eq(wsx10) {
+                            draw_text("Draw!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+                        } else {
+                            draw_text("White wins!", 10, status_y.add(28), FONT_SZ, 255, 255, 0, 255)
+                        }
+                    }
+                } else {
+                    if turn.eq(1) {
+                        draw_text("Black to play", 10, status_y, FONT_SZ, 255, 255, 255, 255)
+                    } else {
+                        draw_text("White to play", 10, status_y, FONT_SZ, 200, 200, 200, 255)
+                    }
+                    cap_str := format("captures  B:", black_caps.to_str(), "  W:", white_caps.to_str(), "  move:", move_num.to_str())
+                    draw_text(cap_str, 10, status_y.add(25), 16, 150, 150, 150, 255)
+                }
+
+                draw_text("P=pass  R=menu", WINDOW_WIDTH.sub(170), status_y, 16, 100, 100, 100, 255)
+
+                if vs_ai.eq(1) {
+                    draw_text("2 players", WINDOW_WIDTH.sub(120), 10, 16, 100, 100, 100, 255)
+                } else {
+                    draw_text("vs computer", WINDOW_WIDTH.sub(130), 10, 16, 100, 100, 100, 255)
+                }
+                draw_text(format(board_size.to_str(), "x", board_size.to_str()), WINDOW_WIDTH.sub(130), 30, 16, 100, 100, 100, 255)
+
+                end_drawing()
+            }
+        }
+    }
+
+    close_window()
+}
