@@ -345,14 +345,22 @@
   individual notes, audio playback via play_tone (til-native sine
   wave), language radio (PT/ES/EN), notation radio (solfege/american,
   translated per language), resolution-independent layout with fixed
-  staff positioning (precalculated from note range).
+  staff positioning (precalculated from note range), 2-octave piano
+  roll visualization with key highlighting, DejaVuSans custom font
+  (bundled in assets/), Makita teal color scheme for UI elements.
 
-  Data-driven: note names, mode names, language strings, and notation
-  labels stored in constant arrays (LANGS array-of-arrays pattern).
-  Uses for..in range loops throughout.
+  Code is organized with extracted helper functions: triad_type,
+  note_name, acc_text, staff_y, lang_str, start_scale, play_note,
+  draw_note, recompute_scale, draw_piano. Data-driven: note names,
+  mode names, language strings, notation labels, triad suffixes stored
+  in constant arrays (LANGS array-of-arrays pattern). Uses for..in
+  range loops throughout.
+
+  Octave calculation uses separate diatonic octave (for staff position)
+  and chromatic octave (for frequency), correctly handling scales that
+  cross the C boundary (e.g. F Locrian where Cb is B4 not B5).
 
 *** TODO Richer audio (sustain, chords, drone note under scale)
-*** TODO Piano keyboard visualization
 *** TODO Chord progressions
 *** TODO Key signatures on staff
 
