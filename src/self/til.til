@@ -165,7 +165,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             abs = til_realpath(try_path)
         }
         if abs.eq("") {
-            println(format("error: could not find import '{}' (from {}/)", import_path, base_dir))
+            println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
             return I32.from_i64(1)
         }
 
@@ -199,12 +199,12 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Validate imported file cur_mode
         if sub_mode_str.len().gt(0) {
             sm := til_mode_resolve(sub_mode_str)
-            if sm.eq(NULL).or(
+            if til_mode_eq(sm, til_mode_none()).or(
                 til_mode_eq(sm, til_mode_lib()).not()
                 .and(til_mode_eq(sm, til_mode_liba()).not())
                 .and(til_mode_eq(sm, til_mode_pure()).not())
                 .and(til_mode_eq(sm, til_mode_pura()).not())) {
-                println(format("error: imported file '{}' cannot use mode '{}'", abs, sub_mode_str))
+                println("error: imported file '".concat(abs).concat("' cannot use mode '").concat(sub_mode_str).concat("'"))
                 return I32.from_i64(1)
             }
         }
@@ -266,7 +266,8 @@ main := proc(args: ..Str) {
         panic("no arguments")
     }
 
-    mut command : Str = args.get(0)
+    ref cmd_ref : Str = args.get(0)
+    mut command := cmd_ref.clone()
     mut path : Str = ""
 
     if args.len().eq(1) {
@@ -278,7 +279,7 @@ main := proc(args: ..Str) {
         command = "interpret"
     } else {
         ref p : Str = args.get(1)
-        path = p
+        path = p.clone()
     }
 
     if command.eq("help").or(command.eq("--help")) {
@@ -289,8 +290,8 @@ main := proc(args: ..Str) {
     // Resolve paths relative to binary location
     // In til mode cli, we get args starting from argv[1].
     // We need bin_dir to find core.til and ext.c.
-    // For now, use ".." as bin_dir (assumes bin/c/til binary location)
-    bin_dir := ".."
+    // When interpreted, we run from project root, so use "."
+    bin_dir := "."
     core_path := bin_dir.concat("/src/core/core.til")
     ext_c_path := bin_dir.concat("/src/c/ext.c")
 
@@ -328,8 +329,8 @@ main := proc(args: ..Str) {
     mut cur_mode : Mode = til_mode_none()
     if mode_str.len().gt(0) {
         cur_mode = til_mode_resolve(mode_str)
-        if cur_mode.eq(til_mode_none()) {
-            panic(format("unknown mode '{}'", mode_str))
+        if til_mode_eq(cur_mode, til_mode_none()) {
+            panic("unknown mode '".concat(mode_str).concat("'"))
         }
     }
 
@@ -337,7 +338,7 @@ main := proc(args: ..Str) {
     mut mode_ast : Expr = expr_null()
     auto_import := til_mode_auto_import(cur_mode)
     if auto_import.len().gt(0) {
-        mode_til_path := format("{}/src/modes/{}.til", bin_dir, auto_import)
+        mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
         mode_source := readfile(mode_til_path)
         mode_tokens := til_tokenize(mode_source, mode_til_path)
         mode_count := til_tok_count()
@@ -460,7 +461,7 @@ main := proc(args: ..Str) {
     type_errors := til_type_check(ast, scope, cur_mode)
     tscope_free(scope)
     if type_errors.gt(I32.from_i64(0)) {
-        panic(format("{} type error(s) found", type_errors))
+        panic(type_errors.to_str().concat(" type error(s) found"))
     }
 
     run_tests := command.eq("test")
@@ -489,16 +490,17 @@ main := proc(args: ..Str) {
     mut user_argv := Vec.new("Str", Str.size())
     mut ai := 2
     while ai.lt(args.len()) {
-        arg := args.get(ai)
+        ref arg : Str = args.get(ai)
         if arg.starts_with("-l") {
-            lib := arg.substr(2, arg.len())
+            mut lib := arg.substr(2, arg.len())
             if lib.len().eq(0).and(ai.add(1).lt(args.len())) {
                 ai = ai.add(1)
-                lib = args.get(ai)
+                ref next_arg : Str = args.get(ai)
+                lib = next_arg.clone()
             }
             link_flags = link_flags.concat(" -l").concat(lib)
         } else {
-            user_argv.push(arg)
+            user_argv.push(own arg.clone())
         }
         ai = ai.add(1)
     }
@@ -539,8 +541,8 @@ main := proc(args: ..Str) {
         }
         name := basename.substr(0, name_len)
 
-        c_path := format("gen/c/{}.c", name)
-        bin_path := format("bin/c/{}", name)
+        c_path := "gen/c/".concat(name).concat(".c")
+        bin_path := "bin/c/".concat(name)
 
         do_lib := til_mode_is_lib_output(cur_mode).and(command.eq("run").not())
 
@@ -554,31 +556,31 @@ main := proc(args: ..Str) {
 
         // For lib/pure: generate .h header and .til binding
         if result.eq(I32.from_i64(0)).and(do_lib) {
-            h_path := format("gen/c/{}.h", name)
-            til_path := format("gen/til/{}.til", name)
+            h_path := "gen/c/".concat(name).concat(".h")
+            til_path := "gen/til/".concat(name).concat(".til")
             result = til_build_header(ast, h_path)
             if result.eq(I32.from_i64(0)) {
                 result = til_build_til_binding(ast, til_path, name)
             }
             if result.eq(I32.from_i64(0)).and(command.eq("translate")) {
-                println(format("Generated: {}", c_path))
-                println(format("Generated: {}", h_path))
-                println(format("Generated: {}", til_path))
+                println("Generated: ".concat(c_path))
+                println("Generated: ".concat(h_path))
+                println("Generated: ".concat(til_path))
             }
             if result.eq(I32.from_i64(0)).and(command.eq("build")) {
                 result = til_compile_lib(c_path, name, ext_c_path, user_c, lflags)
                 if result.eq(I32.from_i64(0)) {
-                    println(format("Generated: {}", c_path))
-                    println(format("Generated: {}", h_path))
-                    println(format("Generated: {}", til_path))
-                    println(format("Generated: gen/lib/lib{}.so", name))
-                    println(format("Generated: gen/lib/lib{}.a", name))
+                    println("Generated: ".concat(c_path))
+                    println("Generated: ".concat(h_path))
+                    println("Generated: ".concat(til_path))
+                    println("Generated: gen/lib/lib".concat(name).concat(".so"))
+                    println("Generated: gen/lib/lib".concat(name).concat(".a"))
                 }
             }
         }
 
         if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("translate")) {
-            println(format("Generated: {}", c_path))
+            println("Generated: ".concat(c_path))
         }
         if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("translate").not()) {
             result = til_compile_c(c_path, bin_path, ext_c_path, user_c, lflags)
@@ -595,14 +597,14 @@ main := proc(args: ..Str) {
             result = til_system(cmd)
         }
     } else if command.eq("ast") {
-        if cur_mode.eq(til_mode_none()).not() {
-            println(format("mode: {}", til_mode_name(cur_mode)))
+        if til_mode_eq(cur_mode, til_mode_none()).not() {
+            println("mode: ".concat(til_mode_name(cur_mode)))
         } else {
             println("mode: (none)")
         }
         til_ast_print(ast, U32.from_i64(0))
     } else {
-        println(format("error: unknown command '{}'", command))
+        println("error: unknown command '".concat(command).concat("'"))
         usage()
         result = I32.from_i64(1)
     }

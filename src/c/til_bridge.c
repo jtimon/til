@@ -34,6 +34,7 @@ Str *til_parse_mode(void) { return _parse_mode; }
 // --- Expr field accessors ---
 
 Expr *expr_null(void) { return NULL; }
+Bool expr_is_null(Expr *e) { return e == NULL; }
 Bool Expr_eq(Expr *a, Expr *b) { return a == b; }
 I32 expr_get_tag(Expr *e) { return (I32)e->type.tag; }
 Str *expr_get_str_val(Expr *e) { return e->type.str_val; }
@@ -211,7 +212,10 @@ void til_set_free(Set *s) {
 }
 
 // til_prepare: exposed for self-hosting (til.til can call the C version)
-extern Expr *til_prepare(Str *path, Str *bin_dir);
+// When compiled as part of ctil, til_prepare is defined in ctil.c.
+// When compiled standalone (e.g. til.til compiled binary), it may not exist.
+extern Expr *til_prepare(Str *path, Str *bin_dir) __attribute__((weak));
 Expr *til_prepare_s(Str *path, Str *bin_dir) {
-    return til_prepare(path, bin_dir);
+    if (til_prepare) return til_prepare(path, bin_dir);
+    return NULL;
 }
