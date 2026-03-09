@@ -203,37 +203,39 @@ recompute_scale := proc(sel_diatonic: I64, sel_accidental: I64, sel_mode: I64,
                         mut sc_acc: Array, mut sc_freq: Array, mut sc_triad: Array) {
     ref nat_c : I64 = NATURALS.get(sel_diatonic)
     root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
-    mut chrom_pos := root_chromatic
+    mut chrom_total := root_chromatic
     mut diat_pos := sel_diatonic
-    mut octave := 0
+    mut diat_oct := 0
     mut prev_diat := sel_diatonic
 
     for k in 0..8 {
-        sc_chrom.set(k, own chrom_pos.clone())
+        chrom_mod := chrom_total.mod(12)
+        chrom_oct := chrom_total.div(12)
+        sc_chrom.set(k, own chrom_mod.clone())
         sc_diat.set(k, own diat_pos.clone())
-        sc_oct.set(k, own octave.clone())
+        sc_oct.set(k, own diat_oct.clone())
 
         // Compute accidental
         ref nat_ref : I64 = NATURALS.get(diat_pos)
-        mut acc := chrom_pos.sub(nat_ref)
+        mut acc := chrom_mod.sub(nat_ref)
         if acc.gt(6) { acc = acc.sub(12) }
         if acc.lt(0.sub(6)) { acc = acc.add(12) }
         sc_acc.set(k, own acc)
 
         // Frequency
-        ref f : I64 = FREQS.get(chrom_pos.mod(12))
+        ref f : I64 = FREQS.get(chrom_mod)
         mut freq := f
-        if octave.gt(0) { freq = freq.mul(2) }
+        if chrom_oct.gt(0) { freq = freq.mul(2) }
         sc_freq.set(k, own freq)
 
         // Next note
         if k.lt(7) {
             ref step : I64 = INTERVALS.get(sel_mode.mul(7).add(k))
-            chrom_pos = chrom_pos.add(step).mod(12)
+            chrom_total = chrom_total.add(step)
             prev_diat = diat_pos
             diat_pos = diat_pos.add(1).mod(7)
             if diat_pos.lt(prev_diat) {
-                octave = octave.add(1)
+                diat_oct = diat_oct.add(1)
             }
         }
     }
@@ -532,9 +534,10 @@ main := proc() {
         mut active_oct := 0
         if clicked_note.gte(0) {
             ref ac : I64 = sc_chrom.get(clicked_note)
-            ref ao : I64 = sc_oct.get(clicked_note)
+            ref af : I64 = sc_freq.get(clicked_note)
+            ref base_f : I64 = FREQS.get(ac)
             active_chrom = ac
-            active_oct = ao
+            if af.gt(base_f) { active_oct = 1 }
         }
         draw_piano(active_chrom, active_oct)
 
