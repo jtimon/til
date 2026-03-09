@@ -1,4 +1,4 @@
-.PHONY: all clean test
+.PHONY: all clean test lib
 
 all: bin/ctil
 
@@ -11,6 +11,11 @@ bin/ctil: $(SRCS) $(HDRS)
 
 test: bin/ctil
 	@bin/ctil interpret src/tests.til $(if $(J),-j$(J))
+
+lib: bin/ctil
+	@bin/ctil translate src/core/core.til
+	@cp gen/c/core.c src/lib/core.c
+	@cp gen/c/core.h src/lib/core.h
 
 clean:
 	rm -rf bin/*
