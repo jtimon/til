@@ -415,6 +415,8 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "&");
             emit_expr(f, e, depth);
         }
+    } else if (e->type.tag == NODE_LITERAL_NULL) {
+        fprintf(f, "NULL");
     } else {
         const char *ctype = c_type_name(e->til_type, e->struct_name);
         fprintf(f, "&(%s){", ctype);
