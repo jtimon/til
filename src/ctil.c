@@ -128,7 +128,11 @@ static int resolve_imports(Vec *import_paths, const char *base_dir,
         Expr *sub_ast = parse(toks, tok_count, abs, &sub_mode);
         Vec sub_imports = extract_imports(sub_ast);
 
-        if (sub_mode) {
+        if (!sub_mode) {
+            fprintf(stderr, "error: imported file '%s' has no mode declaration (must be lib/liba/pure/pura)\n", abs);
+            free(abs);
+            return 1;
+        } else {
             const Mode *sm = mode_resolve(sub_mode->c_str);
             if (!sm || !(sm == &MODE_LIB || sm == &MODE_LIBA || sm == &MODE_PURE || sm == &MODE_PURA)) {
                 fprintf(stderr, "error: imported file '%s' cannot use mode '%s'\n", abs, sub_mode->c_str);
@@ -187,6 +191,18 @@ static void mark_core(Expr *e) {
 // Loads core.til, resolves imports, merges ASTs, strips link() directives.
 // Returns merged AST ready for type checking, or NULL on error.
 Expr *til_prepare(const char *path, const char *bin_dir) {
+    // Single resolved set for all imports
+    Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
+    Vec resolve_stack = Vec_new(sizeof(Str *));
+
+    // Add user file to resolved set early
+    char *user_abs = realpath(path, NULL);
+    if (user_abs) {
+        Str *user_abs_str = Str_new(user_abs);
+        Set_add(&resolved, &user_abs_str);
+        free(user_abs);
+    }
+
     // Load core.til
     char core_path[256];
     snprintf(core_path, sizeof(core_path), "%s/src/core/core.til", bin_dir);
@@ -194,7 +210,16 @@ Expr *til_prepare(const char *path, const char *bin_dir) {
     if (!core_source) return NULL;
     U32 core_count;
     Token *core_tokens = tokenize(core_source, core_path, &core_count);
-    Expr *core_ast = parse(core_tokens, core_count, core_path, NULL);
+    Str *core_mode = NULL;
+    Expr *core_ast = parse(core_tokens, core_count, core_path, &core_mode);
+
+    // Add core.til to resolved set
+    char *core_abs = realpath(core_path, NULL);
+    if (core_abs) {
+        Str *core_abs_str = Str_new(core_abs);
+        Set_add(&resolved, &core_abs_str);
+        free(core_abs);
+    }
 
     // Resolve core imports
     Vec core_import_decls = Vec_new(sizeof(Expr *));
@@ -202,15 +227,14 @@ Expr *til_prepare(const char *path, const char *bin_dir) {
     if (core_imports.count > 0) {
         char core_dir[PATH_MAX];
         snprintf(core_dir, sizeof(core_dir), "%s/src/core", bin_dir);
-        Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
-        Vec resolve_stack = Vec_new(sizeof(Str *));
         int err = resolve_imports(&core_imports, core_dir, &resolved, &resolve_stack,
                                   &core_import_decls, NULL);
-        Set_delete(&resolved);
-        Vec_delete(&resolve_stack);
         if (err) return NULL;
     }
     Vec_delete(&core_imports);
+
+    Set_delete(&resolved);
+    Vec_delete(&resolve_stack);
 
     // Load user file
     char *source = read_file(path);
@@ -298,10 +322,40 @@ int main(int argc, char **argv) {
             snprintf(ext_c_path, sizeof(ext_c_path), "../src/c/ext.c");
         }
     }
+    // Single resolved set for all imports (core + user), so no file is loaded twice
+    Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
+    Vec resolve_stack = Vec_new(sizeof(Str *));
+
+    // Add user file to resolved set early (so core imports skip it if it overlaps)
+    char user_dir[PATH_MAX];
+    char *user_abs_path = realpath(path, NULL);
+    if (user_abs_path) {
+        strncpy(user_dir, user_abs_path, sizeof(user_dir));
+        user_dir[sizeof(user_dir) - 1] = '\0';
+        char *slash = strrchr(user_dir, '/');
+        if (slash) *slash = '\0';
+        Str *user_abs_str = Str_new(user_abs_path);
+        Set_add(&resolved, &user_abs_str);
+        free(user_abs_path);
+    } else {
+        snprintf(user_dir, sizeof(user_dir), ".");
+    }
+
     char *core_source = read_file(core_path);
     U32 core_count;
     Token *core_tokens = core_source ? tokenize(core_source, core_path, &core_count) : NULL;
-    Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, NULL) : NULL;
+    Str *core_mode = NULL;
+    Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, &core_mode) : NULL;
+
+    // Add core.til to resolved set
+    if (core_ast) {
+        char *core_abs = realpath(core_path, NULL);
+        if (core_abs) {
+            Str *core_abs_str = Str_new(core_abs);
+            Set_add(&resolved, &core_abs_str);
+            free(core_abs);
+        }
+    }
 
     // Resolve imports from core.til (relative to src/core/)
     Vec core_import_decls = Vec_new(sizeof(Expr *));
@@ -310,12 +364,8 @@ int main(int argc, char **argv) {
         if (core_imports.count > 0) {
             char core_dir[PATH_MAX];
             snprintf(core_dir, sizeof(core_dir), "%s/src/core", bin_dir);
-            Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
-            Vec resolve_stack = Vec_new(sizeof(Str *));
             int err = resolve_imports(&core_imports, core_dir, &resolved, &resolve_stack,
                                       &core_import_decls, NULL);
-            Set_delete(&resolved);
-            Vec_delete(&resolve_stack);
             if (err) return 1;
         }
         Vec_delete(&core_imports);
@@ -356,40 +406,20 @@ int main(int argc, char **argv) {
         mode_ast = parse(mode_tokens, mode_count, mode_til_path, NULL);
     }
 
-    // Resolve imports recursively
+    // Resolve user imports (using same resolved set — skips files already loaded by core)
     Vec import_decls = Vec_new(sizeof(Expr *));
     if (imports.count > 0) {
-        Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
-        Vec resolve_stack = Vec_new(sizeof(Str *));
-
-        // Compute base directory of user file
-        char user_dir[PATH_MAX];
-        char *abs_path = realpath(path, NULL);
-        if (abs_path) {
-            strncpy(user_dir, abs_path, sizeof(user_dir));
-            user_dir[sizeof(user_dir) - 1] = '\0';
-            char *slash = strrchr(user_dir, '/');
-            if (slash) *slash = '\0';
-            // Add user file itself to resolved set (so it can't import itself)
-            Str *abs_str = Str_new(abs_path);
-            Set_add(&resolved, &abs_str);
-            Vec_push(&resolve_stack, &abs_str);
-            free(abs_path);
-        } else {
-            snprintf(user_dir, sizeof(user_dir), ".");
-        }
-
-        // Standard library path
         char lib_dir[PATH_MAX];
         snprintf(lib_dir, sizeof(lib_dir), "%s/src/lib", bin_dir);
 
         int err = resolve_imports(&imports, user_dir, &resolved, &resolve_stack,
                                   &import_decls, lib_dir);
-        Set_delete(&resolved);
-        Vec_delete(&resolve_stack);
         Vec_delete(&imports);
         if (err) return 1;
     }
+
+    Set_delete(&resolved);
+    Vec_delete(&resolve_stack);
 
     // Prepend core declarations (and mode .til + imports) to program AST
     if (core_ast && core_ast->children.count > 0) {
