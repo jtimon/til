@@ -10,7 +10,7 @@
   Some call sites pass the location string as a single argument instead of
   using __LOC__ as the first parameter. Every panic call should be checked.
 
-** OPEN #48 Builder: hoist shallow args to stack values (50x regression fix)
+** WIP #48 Builder: hoist shallow args to stack values (50x regression fix)
   The builder heap-allocates every scalar temporary, even for operations on
   shallow parameters. Vec_push does 8 mallocs per call, Str_eq does ~40
   mallocs for a 10-byte comparison, every integer literal is heap-allocated.
@@ -30,6 +30,31 @@
   // Fixed: stack values, no allocation
   U64 _t = U64_add(self->count, _t2);
   #+end_src
+
+  *** Done
+  - 35df6c6: Fixed builder to handle ~returns shallow~ correctly:
+    - Forward declarations (ext_func, namespace methods, top-level functions)
+      use value return types when ~return_is_shallow~ is set.
+    - ~emit_func_def~ checks flag for return type.
+    - ~NODE_RETURN~ handles shallow-returning functions correctly.
+    - Nested ext_funcs (e.g. ~U8_from_i64_ext~) registered in ~func_defs~ map.
+    - Fixed C signature mismatches: ~U8_from_i64_ext~ return, ~U64_to_str_ext~ param.
+  - 2578a19: Fixed remaining hardcoded return types in builder:
+    - ~_size()~ functions respect ~return_is_shallow~.
+    - Enum ~eq~ and ~is_Variant~ forward declarations respect flag.
+    - ~dyn_has_method~ body emission respects flag.
+  - 70d3a30: Added ~returns shallow~ to scalar ext_funcs in core.til:
+    - 8 clone functions (U8, I16, I32, F32, U32, U64, I64, Bool).
+    - 5 from_i64_ext functions (I16, I32, F32, U32, U64).
+    - 5 system functions (dyn_has_method, check_cmd_status, file_mtime,
+      clock_ms, get_thread_count).
+    - Updated C implementations in ccore.c, ext.c, compat.c to return by value.
+    - Fixed builder clone codegen in vec/array variadic helpers and struct
+      field-assignment patterns.
+
+  *** Remaining
+  - Hoist shallow parameters to stack values at call sites (the actual 50x fix):
+    emit ~U64 _t = expr~ instead of ~U64 *_t = malloc(...); *_t = expr~.
 
 ** OPEN #47 Cross-namespace method calls fail inside ext_struct
   Calling a namespace method of one struct from inside another struct's
