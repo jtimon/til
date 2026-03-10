@@ -279,7 +279,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                  method->c_str);
                     } else {
                         snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
-                                 method->c_str, type_name ? type_name->c_str : "unknown");
+                                 (const char *)method->c_str, type_name ? (const char *)type_name->c_str : "unknown");
                     }
                     type_error(e, buf);
                     e->til_type = TIL_TYPE_UNKNOWN;

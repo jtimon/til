@@ -1225,7 +1225,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                         ? type_name_to_c_value(fdef->type.func_def.return_type)
                         : type_name_to_c(fdef->type.func_def.return_type);
                 }
-                Bool fwd_static = is_lib && is_scalar_method_type(sname) && !func_has_shallow_params(fdef);
+                Bool is_ext = (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC);
+                Bool fwd_static = is_lib && is_scalar_method_type(sname) && !is_ext && !func_has_shallow_params(fdef);
                 fprintf(f, "%s%s %s_%s(", fwd_static ? "static " : "", ret, sname->c_str, field->type.decl.name->c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
@@ -1608,6 +1609,21 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         }
         fprintf(f, "    return 0;\n");
         fprintf(f, "}\n");
+    }
+
+    // Lib mode: emit constructor to initialize top-level globals
+    if (!run_tests && !is_script && is_lib && has_script_globals) {
+        fprintf(f, "__attribute__((constructor))\nstatic void _til_lib_init(void) {\n");
+        emit_ns_inits(f, 1);
+        for (U32 i = 0; i < codegen_program->children.count; i++) {
+            Expr *gs = expr_child(codegen_program, i);
+            if (gs->type.tag != NODE_DECL) continue;
+            Expr *rhs = expr_child(gs, 0);
+            if (rhs->type.tag == NODE_FUNC_DEF || rhs->type.tag == NODE_STRUCT_DEF ||
+                rhs->type.tag == NODE_ENUM_DEF) continue;
+            emit_stmt(f, gs, 1);
+        }
+        fprintf(f, "}\n\n");
     }
 
     // Script mode: wrap top-level statements in main()
