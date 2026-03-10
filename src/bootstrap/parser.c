@@ -13,6 +13,7 @@ typedef struct Range Range;
 typedef struct Map Map;
 typedef struct Set Set;
 typedef struct Vec Vec;
+typedef struct Tuple Tuple;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -299,6 +300,15 @@ Vec * Vec_clone(Vec * self);
 U64 * Vec_size(void);
 Vec * split(Str * s, Str * delim);
 Str * join(Vec * parts, Str * sep);
+Tuple * Tuple_new(void);
+U64 * Tuple_len(Tuple * self);
+void Tuple_push(Tuple * self, Str * elem_type, U64 * elem_size, void * val);
+void * Tuple_get(Tuple * self, U64 * i);
+Str * Tuple_type_at(Tuple * self, U64 * i);
+U64 * Tuple_size_at(Tuple * self, U64 * i);
+void Tuple_delete(Tuple * self, Bool * call_free);
+Tuple * Tuple_clone(Tuple * self);
+U64 * Tuple_size(void);
 Bool * TokenType_is_Eof(TokenType * self);
 Bool * TokenType_is_LParen(TokenType * self);
 Bool * TokenType_is_RParen(TokenType * self);
@@ -688,6 +698,15 @@ typedef struct Vec {
 } Vec;
 
 
+typedef struct Tuple {
+    U8 *data;
+    U64 total_size;
+    U64 cap;
+    Vec type_names;
+    Vec type_sizes;
+} Tuple;
+
+
 struct TokenType {
     TokenType_tag tag;
 };
@@ -794,16 +813,16 @@ static void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t3098;
-static I64 *_t3099;
-static I64 *_t3100;
+static I64 *_t3168;
+static I64 *_t3169;
+static I64 *_t3170;
 static U64 *CAP_LIT;
-static I64 *_t3101;
-static I64 *_t3102;
-static I64 *_t3103;
+static I64 *_t3171;
+static I64 *_t3172;
+static I64 *_t3173;
 static U64 *CAP_VIEW;
-static I64 *_t3104;
-static I64 *_t3105;
+static I64 *_t3174;
+static I64 *_t3175;
 static I64 *NONE;
 
 EnumDef * EnumDef_clone(EnumDef * self) {
@@ -4354,6 +4373,274 @@ Str * join(Vec * parts, Str * sep) {
     return result;
 }
 
+Tuple * Tuple_new(void) {
+    U64 _t1038 = 8;
+    Str *_t1039 = Str_lit("Str", 3ULL);
+    U64 _t1040; { U64 *_hp = Str_size(); _t1040 = *_hp; free(_hp); }
+    Str *_t1041 = Str_lit("U64", 3ULL);
+    U64 _t1042; { U64 *_hp = U64_size(); _t1042 = *_hp; free(_hp); }
+    void *_t1043 = malloc(_t1038);
+    ;
+    U64 _t1044 = 0;
+    I64 _t1045 = 8;
+    Tuple *_t1046 = malloc(sizeof(Tuple));
+    _t1046->data = _t1043;
+    _t1046->total_size = _t1044;
+    _t1046->cap = _t1045;
+    { Vec *_ca = Vec_new(_t1039, &(U64){_t1040}); _t1046->type_names = *_ca; free(_ca); }
+    { Vec *_ca = Vec_new(_t1041, &(U64){_t1042}); _t1046->type_sizes = *_ca; free(_ca); }
+    Str_delete(_t1039, &(Bool){1});
+    ;
+    Str_delete(_t1041, &(Bool){1});
+    ;
+    ;
+    ;
+    return _t1046;
+}
+
+U64 * Tuple_len(Tuple * self) {
+    (void)self;
+    U64 _t1047; { U64 *_hp = Vec_len(&self->type_names); _t1047 = *_hp; free(_hp); }
+    { U64 *_r = malloc(sizeof(U64)); *_r = _t1047; return _r; }
+}
+
+void Tuple_push(Tuple * self, Str * elem_type, U64 * elem_size, void * val) {
+    (void)self;
+    U64 new_total = U64_add(self->total_size, DEREF(elem_size));
+    Bool _t1054; { Bool *_hp = U64_gt(&(U64){new_total}, &self->cap); _t1054 = *_hp; free(_hp); }
+    if (_t1054) {
+        U64 _t1051 = 2;
+        U64 new_cap = U64_mul(self->cap, _t1051);
+        ;
+        while (1) {
+            Bool _wcond1048; { Bool *_hp = U64_lt(&(U64){new_cap}, &(U64){new_total}); _wcond1048 = *_hp; free(_hp); }
+            if (_wcond1048) {
+            } else {
+                ;
+                break;
+            }
+            ;
+            U64 _t1049 = 2;
+            U64 _t1050 = U64_mul(new_cap, _t1049);
+            ;
+            new_cap = _t1050;
+            ;
+        }
+        void *_t1052 = realloc(self->data, new_cap);
+        self->data = _t1052;
+        U64 _t1053 = U64_clone(&(U64){new_cap});
+        ;
+        self->cap = _t1053;
+        ;
+    }
+    ;
+    void *_t1055 = ptr_add(self->data, self->total_size);
+    memcpy(_t1055, val, DEREF(elem_size));
+    free(val);
+    Str *_t1056 = Str_clone(elem_type);
+    Vec_push(&self->type_names, _t1056);
+    U64 _t1057 = U64_clone(elem_size);
+    Vec_push(&self->type_sizes, ({ U64 *_oa = malloc(sizeof(U64)); *_oa = _t1057; _oa; }));
+    U64 _t1058 = U64_clone(&(U64){new_total});
+    ;
+    self->total_size = _t1058;
+    ;
+}
+
+void * Tuple_get(Tuple * self, U64 * i) {
+    (void)self;
+    U64 _t1078; { U64 *_hp = Vec_len(&self->type_names); _t1078 = *_hp; free(_hp); }
+    Bool _t1079; { Bool *_hp = U64_gte(i, &(U64){_t1078}); _t1079 = *_hp; free(_hp); }
+    ;
+    if (_t1079) {
+        Str *_t1059 = Str_lit("Str", 3ULL);
+        U64 _t1060; { U64 *_hp = Str_size(); _t1060 = *_hp; free(_hp); }
+        U64 _t1061 = 5;
+        Array *_va19 = Array_new(_t1059, &(U64){_t1060}, &(U64){_t1061});
+        Str_delete(_t1059, &(Bool){1});
+        ;
+        ;
+        U64 _t1062 = 0;
+        Str *_t1063 = Str_lit("index ", 6ULL);
+        Array_set(_va19, &(U64){_t1062}, _t1063);
+        ;
+        U64 _t1064 = 1;
+        Str *_t1065 = U64_to_str(DEREF(i));
+        Array_set(_va19, &(U64){_t1064}, _t1065);
+        ;
+        U64 _t1066 = 2;
+        Str *_t1067 = Str_lit(" out of bounds (len ", 20ULL);
+        Array_set(_va19, &(U64){_t1066}, _t1067);
+        ;
+        U64 _t1068; { U64 *_hp = Vec_len(&self->type_names); _t1068 = *_hp; free(_hp); }
+        U64 _t1069 = 3;
+        Str *_t1070 = U64_to_str(_t1068);
+        ;
+        Array_set(_va19, &(U64){_t1069}, _t1070);
+        ;
+        U64 _t1071 = 4;
+        Str *_t1072 = Str_lit(")", 1ULL);
+        Array_set(_va19, &(U64){_t1071}, _t1072);
+        ;
+        Str *_t1073 = Str_lit("Tuple.get", 9ULL);
+        panic(_t1073, _va19);
+        Str_delete(_t1073, &(Bool){1});
+    }
+    ;
+    U64 *offset = malloc(sizeof(U64));
+    *offset = 0;
+    U64 *j = malloc(sizeof(U64));
+    *j = 0;
+    while (1) {
+        Bool _wcond1074; { Bool *_hp = U64_lt(j, i); _wcond1074 = *_hp; free(_hp); }
+        if (_wcond1074) {
+        } else {
+            ;
+            break;
+        }
+        ;
+        U64 *sz = Vec_get(&self->type_sizes, j);
+        U64 _t1075 = U64_add(DEREF(offset), DEREF(sz));
+        *offset = _t1075;
+        ;
+        U64 _t1076 = 1;
+        U64 _t1077 = U64_add(DEREF(j), _t1076);
+        ;
+        *j = _t1077;
+        ;
+    }
+    U64_delete(j, &(Bool){1});
+    void *_t1080 = ptr_add(self->data, DEREF(offset));
+    U64_delete(offset, &(Bool){1});
+    return _t1080;
+}
+
+Str * Tuple_type_at(Tuple * self, U64 * i) {
+    (void)self;
+    void *_t1081 = Vec_get(&self->type_names, i);
+    return _t1081;
+}
+
+U64 * Tuple_size_at(Tuple * self, U64 * i) {
+    (void)self;
+    void *_t1082 = Vec_get(&self->type_sizes, i);
+    return _t1082;
+}
+
+void Tuple_delete(Tuple * self, Bool * call_free) {
+    (void)self;
+    U64 *offset = malloc(sizeof(U64));
+    *offset = 0;
+    U64 *i = malloc(sizeof(U64));
+    *i = 0;
+    while (1) {
+        U64 _t1084; { U64 *_hp = Vec_len(&self->type_names); _t1084 = *_hp; free(_hp); }
+        Bool _wcond1083; { Bool *_hp = U64_lt(i, &(U64){_t1084}); _wcond1083 = *_hp; free(_hp); }
+        ;
+        if (_wcond1083) {
+        } else {
+            ;
+            break;
+        }
+        ;
+        Str *tn = Vec_get(&self->type_names, i);
+        U64 *ts = Vec_get(&self->type_sizes, i);
+        void *_t1085 = ptr_add(self->data, DEREF(offset));
+        Bool _t1086 = 0;
+        dyn_call_delete(tn, _t1085, &(Bool){_t1086});
+        ;
+        U64 _t1087 = U64_add(DEREF(offset), DEREF(ts));
+        *offset = _t1087;
+        ;
+        U64 _t1088 = 1;
+        U64 _t1089 = U64_add(DEREF(i), _t1088);
+        ;
+        *i = _t1089;
+        ;
+    }
+    U64_delete(i, &(Bool){1});
+    U64_delete(offset, &(Bool){1});
+    free(self->data);
+    Bool _t1090 = 0;
+    Vec_delete(&self->type_names, &(Bool){_t1090});
+    ;
+    Bool _t1091 = 0;
+    Vec_delete(&self->type_sizes, &(Bool){_t1091});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
+Tuple * Tuple_clone(Tuple * self) {
+    (void)self;
+    U64 new_cap = self->cap;
+    U64 _t1101 = 0;
+    Bool _t1102 = U64_eq(new_cap, _t1101);
+    ;
+    if (_t1102) {
+        I64 _t1092 = 8;
+        U64 _t1093; { U64 *_hp = U64_from_i64(&(I64){_t1092}); _t1093 = *_hp; free(_hp); }
+        ;
+        new_cap = _t1093;
+        ;
+    }
+    ;
+    U8 *new_data = malloc(new_cap);
+    U64 *offset = malloc(sizeof(U64));
+    *offset = 0;
+    U64 *i = malloc(sizeof(U64));
+    *i = 0;
+    while (1) {
+        U64 _t1095; { U64 *_hp = Vec_len(&self->type_names); _t1095 = *_hp; free(_hp); }
+        Bool _wcond1094; { Bool *_hp = U64_lt(i, &(U64){_t1095}); _wcond1094 = *_hp; free(_hp); }
+        ;
+        if (_wcond1094) {
+        } else {
+            ;
+            break;
+        }
+        ;
+        Str *tn = Vec_get(&self->type_names, i);
+        U64 *ts = Vec_get(&self->type_sizes, i);
+        void *_t1096 = ptr_add(self->data, DEREF(offset));
+        void *cloned = dyn_call_clone(tn, _t1096);
+        void *_t1097 = ptr_add(new_data, DEREF(offset));
+        memcpy(_t1097, cloned, DEREF(ts));
+        free(cloned);
+        U64 _t1098 = U64_add(DEREF(offset), DEREF(ts));
+        *offset = _t1098;
+        ;
+        U64 _t1099 = 1;
+        U64 _t1100 = U64_add(DEREF(i), _t1099);
+        ;
+        *i = _t1100;
+        ;
+    }
+    U64_delete(i, &(Bool){1});
+    U64_delete(offset, &(Bool){1});
+    U64 _t1103 = U64_clone(&(U64){new_cap});
+    ;
+    Vec *_t1104 = Vec_clone(&self->type_names);
+    Vec *_t1105 = Vec_clone(&self->type_sizes);
+    Tuple *_t1106 = malloc(sizeof(Tuple));
+    _t1106->data = new_data;
+    _t1106->total_size = self->total_size;
+    _t1106->cap = _t1103;
+    { Vec *_ca = Vec_clone(_t1104); _t1106->type_names = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(_t1105); _t1106->type_sizes = *_ca; free(_ca); }
+    ;
+    Vec_delete(_t1104, &(Bool){1});
+    Vec_delete(_t1105, &(Bool){1});
+    return _t1106;
+}
+
+U64 *Tuple_size(void) {
+    U64 *r = malloc(sizeof(U64));
+    *r = (U64)sizeof(Tuple);
+    return r;
+}
+
 TokenType *TokenType_Eof() {
     TokenType *r = malloc(sizeof(TokenType));
     *r = (TokenType){ .tag = TokenType_TAG_Eof };
@@ -5006,847 +5293,847 @@ Bool *TokenType_is_Error(TokenType *self) {
 }
 Bool * TokenType_eq(TokenType * self, TokenType * other) {
     (void)self;
-    Bool _t1103; { Bool *_hp = TokenType_is_Eof(self); _t1103 = *_hp; free(_hp); }
-    if (_t1103) {
-        Bool _t1038; { Bool *_hp = TokenType_is_Eof(other); _t1038 = *_hp; free(_hp); }
+    Bool _t1173; { Bool *_hp = TokenType_is_Eof(self); _t1173 = *_hp; free(_hp); }
+    if (_t1173) {
+        Bool _t1108; { Bool *_hp = TokenType_is_Eof(other); _t1108 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1038; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1108; return _r; }
     }
     ;
-    Bool _t1104; { Bool *_hp = TokenType_is_LParen(self); _t1104 = *_hp; free(_hp); }
-    if (_t1104) {
-        Bool _t1039; { Bool *_hp = TokenType_is_LParen(other); _t1039 = *_hp; free(_hp); }
+    Bool _t1174; { Bool *_hp = TokenType_is_LParen(self); _t1174 = *_hp; free(_hp); }
+    if (_t1174) {
+        Bool _t1109; { Bool *_hp = TokenType_is_LParen(other); _t1109 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1039; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1109; return _r; }
     }
     ;
-    Bool _t1105; { Bool *_hp = TokenType_is_RParen(self); _t1105 = *_hp; free(_hp); }
-    if (_t1105) {
-        Bool _t1040; { Bool *_hp = TokenType_is_RParen(other); _t1040 = *_hp; free(_hp); }
+    Bool _t1175; { Bool *_hp = TokenType_is_RParen(self); _t1175 = *_hp; free(_hp); }
+    if (_t1175) {
+        Bool _t1110; { Bool *_hp = TokenType_is_RParen(other); _t1110 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1040; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1110; return _r; }
     }
     ;
-    Bool _t1106; { Bool *_hp = TokenType_is_LBrace(self); _t1106 = *_hp; free(_hp); }
-    if (_t1106) {
-        Bool _t1041; { Bool *_hp = TokenType_is_LBrace(other); _t1041 = *_hp; free(_hp); }
+    Bool _t1176; { Bool *_hp = TokenType_is_LBrace(self); _t1176 = *_hp; free(_hp); }
+    if (_t1176) {
+        Bool _t1111; { Bool *_hp = TokenType_is_LBrace(other); _t1111 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1041; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1111; return _r; }
     }
     ;
-    Bool _t1107; { Bool *_hp = TokenType_is_RBrace(self); _t1107 = *_hp; free(_hp); }
-    if (_t1107) {
-        Bool _t1042; { Bool *_hp = TokenType_is_RBrace(other); _t1042 = *_hp; free(_hp); }
+    Bool _t1177; { Bool *_hp = TokenType_is_RBrace(self); _t1177 = *_hp; free(_hp); }
+    if (_t1177) {
+        Bool _t1112; { Bool *_hp = TokenType_is_RBrace(other); _t1112 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1042; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1112; return _r; }
     }
     ;
-    Bool _t1108; { Bool *_hp = TokenType_is_LBracket(self); _t1108 = *_hp; free(_hp); }
-    if (_t1108) {
-        Bool _t1043; { Bool *_hp = TokenType_is_LBracket(other); _t1043 = *_hp; free(_hp); }
+    Bool _t1178; { Bool *_hp = TokenType_is_LBracket(self); _t1178 = *_hp; free(_hp); }
+    if (_t1178) {
+        Bool _t1113; { Bool *_hp = TokenType_is_LBracket(other); _t1113 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1043; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1113; return _r; }
     }
     ;
-    Bool _t1109; { Bool *_hp = TokenType_is_RBracket(self); _t1109 = *_hp; free(_hp); }
-    if (_t1109) {
-        Bool _t1044; { Bool *_hp = TokenType_is_RBracket(other); _t1044 = *_hp; free(_hp); }
+    Bool _t1179; { Bool *_hp = TokenType_is_RBracket(self); _t1179 = *_hp; free(_hp); }
+    if (_t1179) {
+        Bool _t1114; { Bool *_hp = TokenType_is_RBracket(other); _t1114 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1044; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1114; return _r; }
     }
     ;
-    Bool _t1110; { Bool *_hp = TokenType_is_Comma(self); _t1110 = *_hp; free(_hp); }
-    if (_t1110) {
-        Bool _t1045; { Bool *_hp = TokenType_is_Comma(other); _t1045 = *_hp; free(_hp); }
+    Bool _t1180; { Bool *_hp = TokenType_is_Comma(self); _t1180 = *_hp; free(_hp); }
+    if (_t1180) {
+        Bool _t1115; { Bool *_hp = TokenType_is_Comma(other); _t1115 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1045; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1115; return _r; }
     }
     ;
-    Bool _t1111; { Bool *_hp = TokenType_is_Colon(self); _t1111 = *_hp; free(_hp); }
-    if (_t1111) {
-        Bool _t1046; { Bool *_hp = TokenType_is_Colon(other); _t1046 = *_hp; free(_hp); }
+    Bool _t1181; { Bool *_hp = TokenType_is_Colon(self); _t1181 = *_hp; free(_hp); }
+    if (_t1181) {
+        Bool _t1116; { Bool *_hp = TokenType_is_Colon(other); _t1116 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1046; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1116; return _r; }
     }
     ;
-    Bool _t1112; { Bool *_hp = TokenType_is_Question(self); _t1112 = *_hp; free(_hp); }
-    if (_t1112) {
-        Bool _t1047; { Bool *_hp = TokenType_is_Question(other); _t1047 = *_hp; free(_hp); }
+    Bool _t1182; { Bool *_hp = TokenType_is_Question(self); _t1182 = *_hp; free(_hp); }
+    if (_t1182) {
+        Bool _t1117; { Bool *_hp = TokenType_is_Question(other); _t1117 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1047; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1117; return _r; }
     }
     ;
-    Bool _t1113; { Bool *_hp = TokenType_is_Bang(self); _t1113 = *_hp; free(_hp); }
-    if (_t1113) {
-        Bool _t1048; { Bool *_hp = TokenType_is_Bang(other); _t1048 = *_hp; free(_hp); }
+    Bool _t1183; { Bool *_hp = TokenType_is_Bang(self); _t1183 = *_hp; free(_hp); }
+    if (_t1183) {
+        Bool _t1118; { Bool *_hp = TokenType_is_Bang(other); _t1118 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1048; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1118; return _r; }
     }
     ;
-    Bool _t1114; { Bool *_hp = TokenType_is_Minus(self); _t1114 = *_hp; free(_hp); }
-    if (_t1114) {
-        Bool _t1049; { Bool *_hp = TokenType_is_Minus(other); _t1049 = *_hp; free(_hp); }
+    Bool _t1184; { Bool *_hp = TokenType_is_Minus(self); _t1184 = *_hp; free(_hp); }
+    if (_t1184) {
+        Bool _t1119; { Bool *_hp = TokenType_is_Minus(other); _t1119 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1049; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1119; return _r; }
     }
     ;
-    Bool _t1115; { Bool *_hp = TokenType_is_Plus(self); _t1115 = *_hp; free(_hp); }
-    if (_t1115) {
-        Bool _t1050; { Bool *_hp = TokenType_is_Plus(other); _t1050 = *_hp; free(_hp); }
+    Bool _t1185; { Bool *_hp = TokenType_is_Plus(self); _t1185 = *_hp; free(_hp); }
+    if (_t1185) {
+        Bool _t1120; { Bool *_hp = TokenType_is_Plus(other); _t1120 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1050; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1120; return _r; }
     }
     ;
-    Bool _t1116; { Bool *_hp = TokenType_is_Star(self); _t1116 = *_hp; free(_hp); }
-    if (_t1116) {
-        Bool _t1051; { Bool *_hp = TokenType_is_Star(other); _t1051 = *_hp; free(_hp); }
+    Bool _t1186; { Bool *_hp = TokenType_is_Star(self); _t1186 = *_hp; free(_hp); }
+    if (_t1186) {
+        Bool _t1121; { Bool *_hp = TokenType_is_Star(other); _t1121 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1051; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1121; return _r; }
     }
     ;
-    Bool _t1117; { Bool *_hp = TokenType_is_Slash(self); _t1117 = *_hp; free(_hp); }
-    if (_t1117) {
-        Bool _t1052; { Bool *_hp = TokenType_is_Slash(other); _t1052 = *_hp; free(_hp); }
+    Bool _t1187; { Bool *_hp = TokenType_is_Slash(self); _t1187 = *_hp; free(_hp); }
+    if (_t1187) {
+        Bool _t1122; { Bool *_hp = TokenType_is_Slash(other); _t1122 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1052; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1122; return _r; }
     }
     ;
-    Bool _t1118; { Bool *_hp = TokenType_is_Dot(self); _t1118 = *_hp; free(_hp); }
-    if (_t1118) {
-        Bool _t1053; { Bool *_hp = TokenType_is_Dot(other); _t1053 = *_hp; free(_hp); }
+    Bool _t1188; { Bool *_hp = TokenType_is_Dot(self); _t1188 = *_hp; free(_hp); }
+    if (_t1188) {
+        Bool _t1123; { Bool *_hp = TokenType_is_Dot(other); _t1123 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1053; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1123; return _r; }
     }
     ;
-    Bool _t1119; { Bool *_hp = TokenType_is_DotDot(self); _t1119 = *_hp; free(_hp); }
-    if (_t1119) {
-        Bool _t1054; { Bool *_hp = TokenType_is_DotDot(other); _t1054 = *_hp; free(_hp); }
+    Bool _t1189; { Bool *_hp = TokenType_is_DotDot(self); _t1189 = *_hp; free(_hp); }
+    if (_t1189) {
+        Bool _t1124; { Bool *_hp = TokenType_is_DotDot(other); _t1124 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1054; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1124; return _r; }
     }
     ;
-    Bool _t1120; { Bool *_hp = TokenType_is_Eq(self); _t1120 = *_hp; free(_hp); }
-    if (_t1120) {
-        Bool _t1055; { Bool *_hp = TokenType_is_Eq(other); _t1055 = *_hp; free(_hp); }
+    Bool _t1190; { Bool *_hp = TokenType_is_Eq(self); _t1190 = *_hp; free(_hp); }
+    if (_t1190) {
+        Bool _t1125; { Bool *_hp = TokenType_is_Eq(other); _t1125 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1055; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1125; return _r; }
     }
     ;
-    Bool _t1121; { Bool *_hp = TokenType_is_EqEq(self); _t1121 = *_hp; free(_hp); }
-    if (_t1121) {
-        Bool _t1056; { Bool *_hp = TokenType_is_EqEq(other); _t1056 = *_hp; free(_hp); }
+    Bool _t1191; { Bool *_hp = TokenType_is_EqEq(self); _t1191 = *_hp; free(_hp); }
+    if (_t1191) {
+        Bool _t1126; { Bool *_hp = TokenType_is_EqEq(other); _t1126 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1056; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1126; return _r; }
     }
     ;
-    Bool _t1122; { Bool *_hp = TokenType_is_Neq(self); _t1122 = *_hp; free(_hp); }
-    if (_t1122) {
-        Bool _t1057; { Bool *_hp = TokenType_is_Neq(other); _t1057 = *_hp; free(_hp); }
+    Bool _t1192; { Bool *_hp = TokenType_is_Neq(self); _t1192 = *_hp; free(_hp); }
+    if (_t1192) {
+        Bool _t1127; { Bool *_hp = TokenType_is_Neq(other); _t1127 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1057; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1127; return _r; }
     }
     ;
-    Bool _t1123; { Bool *_hp = TokenType_is_Lt(self); _t1123 = *_hp; free(_hp); }
-    if (_t1123) {
-        Bool _t1058; { Bool *_hp = TokenType_is_Lt(other); _t1058 = *_hp; free(_hp); }
+    Bool _t1193; { Bool *_hp = TokenType_is_Lt(self); _t1193 = *_hp; free(_hp); }
+    if (_t1193) {
+        Bool _t1128; { Bool *_hp = TokenType_is_Lt(other); _t1128 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1058; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1128; return _r; }
     }
     ;
-    Bool _t1124; { Bool *_hp = TokenType_is_LtEq(self); _t1124 = *_hp; free(_hp); }
-    if (_t1124) {
-        Bool _t1059; { Bool *_hp = TokenType_is_LtEq(other); _t1059 = *_hp; free(_hp); }
+    Bool _t1194; { Bool *_hp = TokenType_is_LtEq(self); _t1194 = *_hp; free(_hp); }
+    if (_t1194) {
+        Bool _t1129; { Bool *_hp = TokenType_is_LtEq(other); _t1129 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1059; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1129; return _r; }
     }
     ;
-    Bool _t1125; { Bool *_hp = TokenType_is_Gt(self); _t1125 = *_hp; free(_hp); }
-    if (_t1125) {
-        Bool _t1060; { Bool *_hp = TokenType_is_Gt(other); _t1060 = *_hp; free(_hp); }
+    Bool _t1195; { Bool *_hp = TokenType_is_Gt(self); _t1195 = *_hp; free(_hp); }
+    if (_t1195) {
+        Bool _t1130; { Bool *_hp = TokenType_is_Gt(other); _t1130 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1060; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1130; return _r; }
     }
     ;
-    Bool _t1126; { Bool *_hp = TokenType_is_GtEq(self); _t1126 = *_hp; free(_hp); }
-    if (_t1126) {
-        Bool _t1061; { Bool *_hp = TokenType_is_GtEq(other); _t1061 = *_hp; free(_hp); }
+    Bool _t1196; { Bool *_hp = TokenType_is_GtEq(self); _t1196 = *_hp; free(_hp); }
+    if (_t1196) {
+        Bool _t1131; { Bool *_hp = TokenType_is_GtEq(other); _t1131 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1061; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1131; return _r; }
     }
     ;
-    Bool _t1127; { Bool *_hp = TokenType_is_ColonEq(self); _t1127 = *_hp; free(_hp); }
-    if (_t1127) {
-        Bool _t1062; { Bool *_hp = TokenType_is_ColonEq(other); _t1062 = *_hp; free(_hp); }
+    Bool _t1197; { Bool *_hp = TokenType_is_ColonEq(self); _t1197 = *_hp; free(_hp); }
+    if (_t1197) {
+        Bool _t1132; { Bool *_hp = TokenType_is_ColonEq(other); _t1132 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1062; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1132; return _r; }
     }
     ;
-    Bool _t1128; { Bool *_hp = TokenType_is_Ident(self); _t1128 = *_hp; free(_hp); }
-    if (_t1128) {
-        Bool _t1063; { Bool *_hp = TokenType_is_Ident(other); _t1063 = *_hp; free(_hp); }
+    Bool _t1198; { Bool *_hp = TokenType_is_Ident(self); _t1198 = *_hp; free(_hp); }
+    if (_t1198) {
+        Bool _t1133; { Bool *_hp = TokenType_is_Ident(other); _t1133 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1063; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1133; return _r; }
     }
     ;
-    Bool _t1129; { Bool *_hp = TokenType_is_StringTok(self); _t1129 = *_hp; free(_hp); }
-    if (_t1129) {
-        Bool _t1064; { Bool *_hp = TokenType_is_StringTok(other); _t1064 = *_hp; free(_hp); }
+    Bool _t1199; { Bool *_hp = TokenType_is_StringTok(self); _t1199 = *_hp; free(_hp); }
+    if (_t1199) {
+        Bool _t1134; { Bool *_hp = TokenType_is_StringTok(other); _t1134 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1064; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1134; return _r; }
     }
     ;
-    Bool _t1130; { Bool *_hp = TokenType_is_Number(self); _t1130 = *_hp; free(_hp); }
-    if (_t1130) {
-        Bool _t1065; { Bool *_hp = TokenType_is_Number(other); _t1065 = *_hp; free(_hp); }
+    Bool _t1200; { Bool *_hp = TokenType_is_Number(self); _t1200 = *_hp; free(_hp); }
+    if (_t1200) {
+        Bool _t1135; { Bool *_hp = TokenType_is_Number(other); _t1135 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1065; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1135; return _r; }
     }
     ;
-    Bool _t1131; { Bool *_hp = TokenType_is_Char(self); _t1131 = *_hp; free(_hp); }
-    if (_t1131) {
-        Bool _t1066; { Bool *_hp = TokenType_is_Char(other); _t1066 = *_hp; free(_hp); }
+    Bool _t1201; { Bool *_hp = TokenType_is_Char(self); _t1201 = *_hp; free(_hp); }
+    if (_t1201) {
+        Bool _t1136; { Bool *_hp = TokenType_is_Char(other); _t1136 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1066; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1136; return _r; }
     }
     ;
-    Bool _t1132; { Bool *_hp = TokenType_is_KwMode(self); _t1132 = *_hp; free(_hp); }
-    if (_t1132) {
-        Bool _t1067; { Bool *_hp = TokenType_is_KwMode(other); _t1067 = *_hp; free(_hp); }
+    Bool _t1202; { Bool *_hp = TokenType_is_KwMode(self); _t1202 = *_hp; free(_hp); }
+    if (_t1202) {
+        Bool _t1137; { Bool *_hp = TokenType_is_KwMode(other); _t1137 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1067; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1137; return _r; }
     }
     ;
-    Bool _t1133; { Bool *_hp = TokenType_is_KwMut(self); _t1133 = *_hp; free(_hp); }
-    if (_t1133) {
-        Bool _t1068; { Bool *_hp = TokenType_is_KwMut(other); _t1068 = *_hp; free(_hp); }
+    Bool _t1203; { Bool *_hp = TokenType_is_KwMut(self); _t1203 = *_hp; free(_hp); }
+    if (_t1203) {
+        Bool _t1138; { Bool *_hp = TokenType_is_KwMut(other); _t1138 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1068; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1138; return _r; }
     }
     ;
-    Bool _t1134; { Bool *_hp = TokenType_is_KwOwn(self); _t1134 = *_hp; free(_hp); }
-    if (_t1134) {
-        Bool _t1069; { Bool *_hp = TokenType_is_KwOwn(other); _t1069 = *_hp; free(_hp); }
+    Bool _t1204; { Bool *_hp = TokenType_is_KwOwn(self); _t1204 = *_hp; free(_hp); }
+    if (_t1204) {
+        Bool _t1139; { Bool *_hp = TokenType_is_KwOwn(other); _t1139 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1069; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1139; return _r; }
     }
     ;
-    Bool _t1135; { Bool *_hp = TokenType_is_KwRef(self); _t1135 = *_hp; free(_hp); }
-    if (_t1135) {
-        Bool _t1070; { Bool *_hp = TokenType_is_KwRef(other); _t1070 = *_hp; free(_hp); }
+    Bool _t1205; { Bool *_hp = TokenType_is_KwRef(self); _t1205 = *_hp; free(_hp); }
+    if (_t1205) {
+        Bool _t1140; { Bool *_hp = TokenType_is_KwRef(other); _t1140 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1070; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1140; return _r; }
     }
     ;
-    Bool _t1136; { Bool *_hp = TokenType_is_KwShallow(self); _t1136 = *_hp; free(_hp); }
-    if (_t1136) {
-        Bool _t1071; { Bool *_hp = TokenType_is_KwShallow(other); _t1071 = *_hp; free(_hp); }
+    Bool _t1206; { Bool *_hp = TokenType_is_KwShallow(self); _t1206 = *_hp; free(_hp); }
+    if (_t1206) {
+        Bool _t1141; { Bool *_hp = TokenType_is_KwShallow(other); _t1141 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1071; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1141; return _r; }
     }
     ;
-    Bool _t1137; { Bool *_hp = TokenType_is_KwStruct(self); _t1137 = *_hp; free(_hp); }
-    if (_t1137) {
-        Bool _t1072; { Bool *_hp = TokenType_is_KwStruct(other); _t1072 = *_hp; free(_hp); }
+    Bool _t1207; { Bool *_hp = TokenType_is_KwStruct(self); _t1207 = *_hp; free(_hp); }
+    if (_t1207) {
+        Bool _t1142; { Bool *_hp = TokenType_is_KwStruct(other); _t1142 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1072; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1142; return _r; }
     }
     ;
-    Bool _t1138; { Bool *_hp = TokenType_is_KwExtStruct(self); _t1138 = *_hp; free(_hp); }
-    if (_t1138) {
-        Bool _t1073; { Bool *_hp = TokenType_is_KwExtStruct(other); _t1073 = *_hp; free(_hp); }
+    Bool _t1208; { Bool *_hp = TokenType_is_KwExtStruct(self); _t1208 = *_hp; free(_hp); }
+    if (_t1208) {
+        Bool _t1143; { Bool *_hp = TokenType_is_KwExtStruct(other); _t1143 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1073; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1143; return _r; }
     }
     ;
-    Bool _t1139; { Bool *_hp = TokenType_is_KwEnum(self); _t1139 = *_hp; free(_hp); }
-    if (_t1139) {
-        Bool _t1074; { Bool *_hp = TokenType_is_KwEnum(other); _t1074 = *_hp; free(_hp); }
+    Bool _t1209; { Bool *_hp = TokenType_is_KwEnum(self); _t1209 = *_hp; free(_hp); }
+    if (_t1209) {
+        Bool _t1144; { Bool *_hp = TokenType_is_KwEnum(other); _t1144 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1074; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1144; return _r; }
     }
     ;
-    Bool _t1140; { Bool *_hp = TokenType_is_KwNamespace(self); _t1140 = *_hp; free(_hp); }
-    if (_t1140) {
-        Bool _t1075; { Bool *_hp = TokenType_is_KwNamespace(other); _t1075 = *_hp; free(_hp); }
+    Bool _t1210; { Bool *_hp = TokenType_is_KwNamespace(self); _t1210 = *_hp; free(_hp); }
+    if (_t1210) {
+        Bool _t1145; { Bool *_hp = TokenType_is_KwNamespace(other); _t1145 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1075; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1145; return _r; }
     }
     ;
-    Bool _t1141; { Bool *_hp = TokenType_is_KwFunc(self); _t1141 = *_hp; free(_hp); }
-    if (_t1141) {
-        Bool _t1076; { Bool *_hp = TokenType_is_KwFunc(other); _t1076 = *_hp; free(_hp); }
+    Bool _t1211; { Bool *_hp = TokenType_is_KwFunc(self); _t1211 = *_hp; free(_hp); }
+    if (_t1211) {
+        Bool _t1146; { Bool *_hp = TokenType_is_KwFunc(other); _t1146 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1076; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1146; return _r; }
     }
     ;
-    Bool _t1142; { Bool *_hp = TokenType_is_KwProc(self); _t1142 = *_hp; free(_hp); }
-    if (_t1142) {
-        Bool _t1077; { Bool *_hp = TokenType_is_KwProc(other); _t1077 = *_hp; free(_hp); }
+    Bool _t1212; { Bool *_hp = TokenType_is_KwProc(self); _t1212 = *_hp; free(_hp); }
+    if (_t1212) {
+        Bool _t1147; { Bool *_hp = TokenType_is_KwProc(other); _t1147 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1077; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1147; return _r; }
     }
     ;
-    Bool _t1143; { Bool *_hp = TokenType_is_KwTest(self); _t1143 = *_hp; free(_hp); }
-    if (_t1143) {
-        Bool _t1078; { Bool *_hp = TokenType_is_KwTest(other); _t1078 = *_hp; free(_hp); }
+    Bool _t1213; { Bool *_hp = TokenType_is_KwTest(self); _t1213 = *_hp; free(_hp); }
+    if (_t1213) {
+        Bool _t1148; { Bool *_hp = TokenType_is_KwTest(other); _t1148 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1078; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1148; return _r; }
     }
     ;
-    Bool _t1144; { Bool *_hp = TokenType_is_KwMacro(self); _t1144 = *_hp; free(_hp); }
-    if (_t1144) {
-        Bool _t1079; { Bool *_hp = TokenType_is_KwMacro(other); _t1079 = *_hp; free(_hp); }
+    Bool _t1214; { Bool *_hp = TokenType_is_KwMacro(self); _t1214 = *_hp; free(_hp); }
+    if (_t1214) {
+        Bool _t1149; { Bool *_hp = TokenType_is_KwMacro(other); _t1149 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1079; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1149; return _r; }
     }
     ;
-    Bool _t1145; { Bool *_hp = TokenType_is_KwExtFunc(self); _t1145 = *_hp; free(_hp); }
-    if (_t1145) {
-        Bool _t1080; { Bool *_hp = TokenType_is_KwExtFunc(other); _t1080 = *_hp; free(_hp); }
+    Bool _t1215; { Bool *_hp = TokenType_is_KwExtFunc(self); _t1215 = *_hp; free(_hp); }
+    if (_t1215) {
+        Bool _t1150; { Bool *_hp = TokenType_is_KwExtFunc(other); _t1150 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1080; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1150; return _r; }
     }
     ;
-    Bool _t1146; { Bool *_hp = TokenType_is_KwExtProc(self); _t1146 = *_hp; free(_hp); }
-    if (_t1146) {
-        Bool _t1081; { Bool *_hp = TokenType_is_KwExtProc(other); _t1081 = *_hp; free(_hp); }
+    Bool _t1216; { Bool *_hp = TokenType_is_KwExtProc(self); _t1216 = *_hp; free(_hp); }
+    if (_t1216) {
+        Bool _t1151; { Bool *_hp = TokenType_is_KwExtProc(other); _t1151 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1081; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1151; return _r; }
     }
     ;
-    Bool _t1147; { Bool *_hp = TokenType_is_KwReturns(self); _t1147 = *_hp; free(_hp); }
-    if (_t1147) {
-        Bool _t1082; { Bool *_hp = TokenType_is_KwReturns(other); _t1082 = *_hp; free(_hp); }
+    Bool _t1217; { Bool *_hp = TokenType_is_KwReturns(self); _t1217 = *_hp; free(_hp); }
+    if (_t1217) {
+        Bool _t1152; { Bool *_hp = TokenType_is_KwReturns(other); _t1152 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1082; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1152; return _r; }
     }
     ;
-    Bool _t1148; { Bool *_hp = TokenType_is_KwThrows(self); _t1148 = *_hp; free(_hp); }
-    if (_t1148) {
-        Bool _t1083; { Bool *_hp = TokenType_is_KwThrows(other); _t1083 = *_hp; free(_hp); }
+    Bool _t1218; { Bool *_hp = TokenType_is_KwThrows(self); _t1218 = *_hp; free(_hp); }
+    if (_t1218) {
+        Bool _t1153; { Bool *_hp = TokenType_is_KwThrows(other); _t1153 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1083; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1153; return _r; }
     }
     ;
-    Bool _t1149; { Bool *_hp = TokenType_is_KwIf(self); _t1149 = *_hp; free(_hp); }
-    if (_t1149) {
-        Bool _t1084; { Bool *_hp = TokenType_is_KwIf(other); _t1084 = *_hp; free(_hp); }
+    Bool _t1219; { Bool *_hp = TokenType_is_KwIf(self); _t1219 = *_hp; free(_hp); }
+    if (_t1219) {
+        Bool _t1154; { Bool *_hp = TokenType_is_KwIf(other); _t1154 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1084; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1154; return _r; }
     }
     ;
-    Bool _t1150; { Bool *_hp = TokenType_is_KwElse(self); _t1150 = *_hp; free(_hp); }
-    if (_t1150) {
-        Bool _t1085; { Bool *_hp = TokenType_is_KwElse(other); _t1085 = *_hp; free(_hp); }
+    Bool _t1220; { Bool *_hp = TokenType_is_KwElse(self); _t1220 = *_hp; free(_hp); }
+    if (_t1220) {
+        Bool _t1155; { Bool *_hp = TokenType_is_KwElse(other); _t1155 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1085; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1155; return _r; }
     }
     ;
-    Bool _t1151; { Bool *_hp = TokenType_is_KwWhile(self); _t1151 = *_hp; free(_hp); }
-    if (_t1151) {
-        Bool _t1086; { Bool *_hp = TokenType_is_KwWhile(other); _t1086 = *_hp; free(_hp); }
+    Bool _t1221; { Bool *_hp = TokenType_is_KwWhile(self); _t1221 = *_hp; free(_hp); }
+    if (_t1221) {
+        Bool _t1156; { Bool *_hp = TokenType_is_KwWhile(other); _t1156 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1086; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1156; return _r; }
     }
     ;
-    Bool _t1152; { Bool *_hp = TokenType_is_KwFor(self); _t1152 = *_hp; free(_hp); }
-    if (_t1152) {
-        Bool _t1087; { Bool *_hp = TokenType_is_KwFor(other); _t1087 = *_hp; free(_hp); }
+    Bool _t1222; { Bool *_hp = TokenType_is_KwFor(self); _t1222 = *_hp; free(_hp); }
+    if (_t1222) {
+        Bool _t1157; { Bool *_hp = TokenType_is_KwFor(other); _t1157 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1087; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1157; return _r; }
     }
     ;
-    Bool _t1153; { Bool *_hp = TokenType_is_KwIn(self); _t1153 = *_hp; free(_hp); }
-    if (_t1153) {
-        Bool _t1088; { Bool *_hp = TokenType_is_KwIn(other); _t1088 = *_hp; free(_hp); }
+    Bool _t1223; { Bool *_hp = TokenType_is_KwIn(self); _t1223 = *_hp; free(_hp); }
+    if (_t1223) {
+        Bool _t1158; { Bool *_hp = TokenType_is_KwIn(other); _t1158 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1088; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1158; return _r; }
     }
     ;
-    Bool _t1154; { Bool *_hp = TokenType_is_KwSwitch(self); _t1154 = *_hp; free(_hp); }
-    if (_t1154) {
-        Bool _t1089; { Bool *_hp = TokenType_is_KwSwitch(other); _t1089 = *_hp; free(_hp); }
+    Bool _t1224; { Bool *_hp = TokenType_is_KwSwitch(self); _t1224 = *_hp; free(_hp); }
+    if (_t1224) {
+        Bool _t1159; { Bool *_hp = TokenType_is_KwSwitch(other); _t1159 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1089; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1159; return _r; }
     }
     ;
-    Bool _t1155; { Bool *_hp = TokenType_is_KwMatch(self); _t1155 = *_hp; free(_hp); }
-    if (_t1155) {
-        Bool _t1090; { Bool *_hp = TokenType_is_KwMatch(other); _t1090 = *_hp; free(_hp); }
+    Bool _t1225; { Bool *_hp = TokenType_is_KwMatch(self); _t1225 = *_hp; free(_hp); }
+    if (_t1225) {
+        Bool _t1160; { Bool *_hp = TokenType_is_KwMatch(other); _t1160 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1090; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1160; return _r; }
     }
     ;
-    Bool _t1156; { Bool *_hp = TokenType_is_KwCase(self); _t1156 = *_hp; free(_hp); }
-    if (_t1156) {
-        Bool _t1091; { Bool *_hp = TokenType_is_KwCase(other); _t1091 = *_hp; free(_hp); }
+    Bool _t1226; { Bool *_hp = TokenType_is_KwCase(self); _t1226 = *_hp; free(_hp); }
+    if (_t1226) {
+        Bool _t1161; { Bool *_hp = TokenType_is_KwCase(other); _t1161 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1091; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1161; return _r; }
     }
     ;
-    Bool _t1157; { Bool *_hp = TokenType_is_KwDefault(self); _t1157 = *_hp; free(_hp); }
-    if (_t1157) {
-        Bool _t1092; { Bool *_hp = TokenType_is_KwDefault(other); _t1092 = *_hp; free(_hp); }
+    Bool _t1227; { Bool *_hp = TokenType_is_KwDefault(self); _t1227 = *_hp; free(_hp); }
+    if (_t1227) {
+        Bool _t1162; { Bool *_hp = TokenType_is_KwDefault(other); _t1162 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1092; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1162; return _r; }
     }
     ;
-    Bool _t1158; { Bool *_hp = TokenType_is_KwReturn(self); _t1158 = *_hp; free(_hp); }
-    if (_t1158) {
-        Bool _t1093; { Bool *_hp = TokenType_is_KwReturn(other); _t1093 = *_hp; free(_hp); }
+    Bool _t1228; { Bool *_hp = TokenType_is_KwReturn(self); _t1228 = *_hp; free(_hp); }
+    if (_t1228) {
+        Bool _t1163; { Bool *_hp = TokenType_is_KwReturn(other); _t1163 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1093; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1163; return _r; }
     }
     ;
-    Bool _t1159; { Bool *_hp = TokenType_is_KwThrow(self); _t1159 = *_hp; free(_hp); }
-    if (_t1159) {
-        Bool _t1094; { Bool *_hp = TokenType_is_KwThrow(other); _t1094 = *_hp; free(_hp); }
+    Bool _t1229; { Bool *_hp = TokenType_is_KwThrow(self); _t1229 = *_hp; free(_hp); }
+    if (_t1229) {
+        Bool _t1164; { Bool *_hp = TokenType_is_KwThrow(other); _t1164 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1094; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1164; return _r; }
     }
     ;
-    Bool _t1160; { Bool *_hp = TokenType_is_KwCatch(self); _t1160 = *_hp; free(_hp); }
-    if (_t1160) {
-        Bool _t1095; { Bool *_hp = TokenType_is_KwCatch(other); _t1095 = *_hp; free(_hp); }
+    Bool _t1230; { Bool *_hp = TokenType_is_KwCatch(self); _t1230 = *_hp; free(_hp); }
+    if (_t1230) {
+        Bool _t1165; { Bool *_hp = TokenType_is_KwCatch(other); _t1165 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1095; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1165; return _r; }
     }
     ;
-    Bool _t1161; { Bool *_hp = TokenType_is_KwBreak(self); _t1161 = *_hp; free(_hp); }
-    if (_t1161) {
-        Bool _t1096; { Bool *_hp = TokenType_is_KwBreak(other); _t1096 = *_hp; free(_hp); }
+    Bool _t1231; { Bool *_hp = TokenType_is_KwBreak(self); _t1231 = *_hp; free(_hp); }
+    if (_t1231) {
+        Bool _t1166; { Bool *_hp = TokenType_is_KwBreak(other); _t1166 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1096; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1166; return _r; }
     }
     ;
-    Bool _t1162; { Bool *_hp = TokenType_is_KwContinue(self); _t1162 = *_hp; free(_hp); }
-    if (_t1162) {
-        Bool _t1097; { Bool *_hp = TokenType_is_KwContinue(other); _t1097 = *_hp; free(_hp); }
+    Bool _t1232; { Bool *_hp = TokenType_is_KwContinue(self); _t1232 = *_hp; free(_hp); }
+    if (_t1232) {
+        Bool _t1167; { Bool *_hp = TokenType_is_KwContinue(other); _t1167 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1097; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1167; return _r; }
     }
     ;
-    Bool _t1163; { Bool *_hp = TokenType_is_KwDefer(self); _t1163 = *_hp; free(_hp); }
-    if (_t1163) {
-        Bool _t1098; { Bool *_hp = TokenType_is_KwDefer(other); _t1098 = *_hp; free(_hp); }
+    Bool _t1233; { Bool *_hp = TokenType_is_KwDefer(self); _t1233 = *_hp; free(_hp); }
+    if (_t1233) {
+        Bool _t1168; { Bool *_hp = TokenType_is_KwDefer(other); _t1168 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1098; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1168; return _r; }
     }
     ;
-    Bool _t1164; { Bool *_hp = TokenType_is_KwTrue(self); _t1164 = *_hp; free(_hp); }
-    if (_t1164) {
-        Bool _t1099; { Bool *_hp = TokenType_is_KwTrue(other); _t1099 = *_hp; free(_hp); }
+    Bool _t1234; { Bool *_hp = TokenType_is_KwTrue(self); _t1234 = *_hp; free(_hp); }
+    if (_t1234) {
+        Bool _t1169; { Bool *_hp = TokenType_is_KwTrue(other); _t1169 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1099; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1169; return _r; }
     }
     ;
-    Bool _t1165; { Bool *_hp = TokenType_is_KwFalse(self); _t1165 = *_hp; free(_hp); }
-    if (_t1165) {
-        Bool _t1100; { Bool *_hp = TokenType_is_KwFalse(other); _t1100 = *_hp; free(_hp); }
+    Bool _t1235; { Bool *_hp = TokenType_is_KwFalse(self); _t1235 = *_hp; free(_hp); }
+    if (_t1235) {
+        Bool _t1170; { Bool *_hp = TokenType_is_KwFalse(other); _t1170 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1100; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1170; return _r; }
     }
     ;
-    Bool _t1166; { Bool *_hp = TokenType_is_KwNull(self); _t1166 = *_hp; free(_hp); }
-    if (_t1166) {
-        Bool _t1101; { Bool *_hp = TokenType_is_KwNull(other); _t1101 = *_hp; free(_hp); }
+    Bool _t1236; { Bool *_hp = TokenType_is_KwNull(self); _t1236 = *_hp; free(_hp); }
+    if (_t1236) {
+        Bool _t1171; { Bool *_hp = TokenType_is_KwNull(other); _t1171 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1101; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1171; return _r; }
     }
     ;
-    Bool _t1167; { Bool *_hp = TokenType_is_Error(self); _t1167 = *_hp; free(_hp); }
-    if (_t1167) {
-        Bool _t1102; { Bool *_hp = TokenType_is_Error(other); _t1102 = *_hp; free(_hp); }
+    Bool _t1237; { Bool *_hp = TokenType_is_Error(self); _t1237 = *_hp; free(_hp); }
+    if (_t1237) {
+        Bool _t1172; { Bool *_hp = TokenType_is_Error(other); _t1172 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1102; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1172; return _r; }
     }
     ;
-    Bool _t1168 = 0;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1168; return _r; }
+    Bool _t1238 = 0;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1238; return _r; }
 }
 
 TokenType * TokenType_clone(TokenType * self) {
     (void)self;
-    Bool _t1169; { Bool *_hp = TokenType_eq(self, TokenType_Eof()); _t1169 = *_hp; free(_hp); }
-    if (_t1169) {
+    Bool _t1239; { Bool *_hp = TokenType_eq(self, TokenType_Eof()); _t1239 = *_hp; free(_hp); }
+    if (_t1239) {
         ;
         return TokenType_Eof();
     }
     ;
-    Bool _t1170; { Bool *_hp = TokenType_eq(self, TokenType_LParen()); _t1170 = *_hp; free(_hp); }
-    if (_t1170) {
+    Bool _t1240; { Bool *_hp = TokenType_eq(self, TokenType_LParen()); _t1240 = *_hp; free(_hp); }
+    if (_t1240) {
         ;
         return TokenType_LParen();
     }
     ;
-    Bool _t1171; { Bool *_hp = TokenType_eq(self, TokenType_RParen()); _t1171 = *_hp; free(_hp); }
-    if (_t1171) {
+    Bool _t1241; { Bool *_hp = TokenType_eq(self, TokenType_RParen()); _t1241 = *_hp; free(_hp); }
+    if (_t1241) {
         ;
         return TokenType_RParen();
     }
     ;
-    Bool _t1172; { Bool *_hp = TokenType_eq(self, TokenType_LBrace()); _t1172 = *_hp; free(_hp); }
-    if (_t1172) {
+    Bool _t1242; { Bool *_hp = TokenType_eq(self, TokenType_LBrace()); _t1242 = *_hp; free(_hp); }
+    if (_t1242) {
         ;
         return TokenType_LBrace();
     }
     ;
-    Bool _t1173; { Bool *_hp = TokenType_eq(self, TokenType_RBrace()); _t1173 = *_hp; free(_hp); }
-    if (_t1173) {
+    Bool _t1243; { Bool *_hp = TokenType_eq(self, TokenType_RBrace()); _t1243 = *_hp; free(_hp); }
+    if (_t1243) {
         ;
         return TokenType_RBrace();
     }
     ;
-    Bool _t1174; { Bool *_hp = TokenType_eq(self, TokenType_LBracket()); _t1174 = *_hp; free(_hp); }
-    if (_t1174) {
+    Bool _t1244; { Bool *_hp = TokenType_eq(self, TokenType_LBracket()); _t1244 = *_hp; free(_hp); }
+    if (_t1244) {
         ;
         return TokenType_LBracket();
     }
     ;
-    Bool _t1175; { Bool *_hp = TokenType_eq(self, TokenType_RBracket()); _t1175 = *_hp; free(_hp); }
-    if (_t1175) {
+    Bool _t1245; { Bool *_hp = TokenType_eq(self, TokenType_RBracket()); _t1245 = *_hp; free(_hp); }
+    if (_t1245) {
         ;
         return TokenType_RBracket();
     }
     ;
-    Bool _t1176; { Bool *_hp = TokenType_eq(self, TokenType_Comma()); _t1176 = *_hp; free(_hp); }
-    if (_t1176) {
+    Bool _t1246; { Bool *_hp = TokenType_eq(self, TokenType_Comma()); _t1246 = *_hp; free(_hp); }
+    if (_t1246) {
         ;
         return TokenType_Comma();
     }
     ;
-    Bool _t1177; { Bool *_hp = TokenType_eq(self, TokenType_Colon()); _t1177 = *_hp; free(_hp); }
-    if (_t1177) {
+    Bool _t1247; { Bool *_hp = TokenType_eq(self, TokenType_Colon()); _t1247 = *_hp; free(_hp); }
+    if (_t1247) {
         ;
         return TokenType_Colon();
     }
     ;
-    Bool _t1178; { Bool *_hp = TokenType_eq(self, TokenType_Question()); _t1178 = *_hp; free(_hp); }
-    if (_t1178) {
+    Bool _t1248; { Bool *_hp = TokenType_eq(self, TokenType_Question()); _t1248 = *_hp; free(_hp); }
+    if (_t1248) {
         ;
         return TokenType_Question();
     }
     ;
-    Bool _t1179; { Bool *_hp = TokenType_eq(self, TokenType_Bang()); _t1179 = *_hp; free(_hp); }
-    if (_t1179) {
+    Bool _t1249; { Bool *_hp = TokenType_eq(self, TokenType_Bang()); _t1249 = *_hp; free(_hp); }
+    if (_t1249) {
         ;
         return TokenType_Bang();
     }
     ;
-    Bool _t1180; { Bool *_hp = TokenType_eq(self, TokenType_Minus()); _t1180 = *_hp; free(_hp); }
-    if (_t1180) {
+    Bool _t1250; { Bool *_hp = TokenType_eq(self, TokenType_Minus()); _t1250 = *_hp; free(_hp); }
+    if (_t1250) {
         ;
         return TokenType_Minus();
     }
     ;
-    Bool _t1181; { Bool *_hp = TokenType_eq(self, TokenType_Plus()); _t1181 = *_hp; free(_hp); }
-    if (_t1181) {
+    Bool _t1251; { Bool *_hp = TokenType_eq(self, TokenType_Plus()); _t1251 = *_hp; free(_hp); }
+    if (_t1251) {
         ;
         return TokenType_Plus();
     }
     ;
-    Bool _t1182; { Bool *_hp = TokenType_eq(self, TokenType_Star()); _t1182 = *_hp; free(_hp); }
-    if (_t1182) {
+    Bool _t1252; { Bool *_hp = TokenType_eq(self, TokenType_Star()); _t1252 = *_hp; free(_hp); }
+    if (_t1252) {
         ;
         return TokenType_Star();
     }
     ;
-    Bool _t1183; { Bool *_hp = TokenType_eq(self, TokenType_Slash()); _t1183 = *_hp; free(_hp); }
-    if (_t1183) {
+    Bool _t1253; { Bool *_hp = TokenType_eq(self, TokenType_Slash()); _t1253 = *_hp; free(_hp); }
+    if (_t1253) {
         ;
         return TokenType_Slash();
     }
     ;
-    Bool _t1184; { Bool *_hp = TokenType_eq(self, TokenType_Dot()); _t1184 = *_hp; free(_hp); }
-    if (_t1184) {
+    Bool _t1254; { Bool *_hp = TokenType_eq(self, TokenType_Dot()); _t1254 = *_hp; free(_hp); }
+    if (_t1254) {
         ;
         return TokenType_Dot();
     }
     ;
-    Bool _t1185; { Bool *_hp = TokenType_eq(self, TokenType_DotDot()); _t1185 = *_hp; free(_hp); }
-    if (_t1185) {
+    Bool _t1255; { Bool *_hp = TokenType_eq(self, TokenType_DotDot()); _t1255 = *_hp; free(_hp); }
+    if (_t1255) {
         ;
         return TokenType_DotDot();
     }
     ;
-    Bool _t1186; { Bool *_hp = TokenType_eq(self, TokenType_Eq()); _t1186 = *_hp; free(_hp); }
-    if (_t1186) {
+    Bool _t1256; { Bool *_hp = TokenType_eq(self, TokenType_Eq()); _t1256 = *_hp; free(_hp); }
+    if (_t1256) {
         ;
         return TokenType_Eq();
     }
     ;
-    Bool _t1187; { Bool *_hp = TokenType_eq(self, TokenType_EqEq()); _t1187 = *_hp; free(_hp); }
-    if (_t1187) {
+    Bool _t1257; { Bool *_hp = TokenType_eq(self, TokenType_EqEq()); _t1257 = *_hp; free(_hp); }
+    if (_t1257) {
         ;
         return TokenType_EqEq();
     }
     ;
-    Bool _t1188; { Bool *_hp = TokenType_eq(self, TokenType_Neq()); _t1188 = *_hp; free(_hp); }
-    if (_t1188) {
+    Bool _t1258; { Bool *_hp = TokenType_eq(self, TokenType_Neq()); _t1258 = *_hp; free(_hp); }
+    if (_t1258) {
         ;
         return TokenType_Neq();
     }
     ;
-    Bool _t1189; { Bool *_hp = TokenType_eq(self, TokenType_Lt()); _t1189 = *_hp; free(_hp); }
-    if (_t1189) {
+    Bool _t1259; { Bool *_hp = TokenType_eq(self, TokenType_Lt()); _t1259 = *_hp; free(_hp); }
+    if (_t1259) {
         ;
         return TokenType_Lt();
     }
     ;
-    Bool _t1190; { Bool *_hp = TokenType_eq(self, TokenType_LtEq()); _t1190 = *_hp; free(_hp); }
-    if (_t1190) {
+    Bool _t1260; { Bool *_hp = TokenType_eq(self, TokenType_LtEq()); _t1260 = *_hp; free(_hp); }
+    if (_t1260) {
         ;
         return TokenType_LtEq();
     }
     ;
-    Bool _t1191; { Bool *_hp = TokenType_eq(self, TokenType_Gt()); _t1191 = *_hp; free(_hp); }
-    if (_t1191) {
+    Bool _t1261; { Bool *_hp = TokenType_eq(self, TokenType_Gt()); _t1261 = *_hp; free(_hp); }
+    if (_t1261) {
         ;
         return TokenType_Gt();
     }
     ;
-    Bool _t1192; { Bool *_hp = TokenType_eq(self, TokenType_GtEq()); _t1192 = *_hp; free(_hp); }
-    if (_t1192) {
+    Bool _t1262; { Bool *_hp = TokenType_eq(self, TokenType_GtEq()); _t1262 = *_hp; free(_hp); }
+    if (_t1262) {
         ;
         return TokenType_GtEq();
     }
     ;
-    Bool _t1193; { Bool *_hp = TokenType_eq(self, TokenType_ColonEq()); _t1193 = *_hp; free(_hp); }
-    if (_t1193) {
+    Bool _t1263; { Bool *_hp = TokenType_eq(self, TokenType_ColonEq()); _t1263 = *_hp; free(_hp); }
+    if (_t1263) {
         ;
         return TokenType_ColonEq();
     }
     ;
-    Bool _t1194; { Bool *_hp = TokenType_eq(self, TokenType_Ident()); _t1194 = *_hp; free(_hp); }
-    if (_t1194) {
+    Bool _t1264; { Bool *_hp = TokenType_eq(self, TokenType_Ident()); _t1264 = *_hp; free(_hp); }
+    if (_t1264) {
         ;
         return TokenType_Ident();
     }
     ;
-    Bool _t1195; { Bool *_hp = TokenType_eq(self, TokenType_StringTok()); _t1195 = *_hp; free(_hp); }
-    if (_t1195) {
+    Bool _t1265; { Bool *_hp = TokenType_eq(self, TokenType_StringTok()); _t1265 = *_hp; free(_hp); }
+    if (_t1265) {
         ;
         return TokenType_StringTok();
     }
     ;
-    Bool _t1196; { Bool *_hp = TokenType_eq(self, TokenType_Number()); _t1196 = *_hp; free(_hp); }
-    if (_t1196) {
+    Bool _t1266; { Bool *_hp = TokenType_eq(self, TokenType_Number()); _t1266 = *_hp; free(_hp); }
+    if (_t1266) {
         ;
         return TokenType_Number();
     }
     ;
-    Bool _t1197; { Bool *_hp = TokenType_eq(self, TokenType_Char()); _t1197 = *_hp; free(_hp); }
-    if (_t1197) {
+    Bool _t1267; { Bool *_hp = TokenType_eq(self, TokenType_Char()); _t1267 = *_hp; free(_hp); }
+    if (_t1267) {
         ;
         return TokenType_Char();
     }
     ;
-    Bool _t1198; { Bool *_hp = TokenType_eq(self, TokenType_KwMode()); _t1198 = *_hp; free(_hp); }
-    if (_t1198) {
+    Bool _t1268; { Bool *_hp = TokenType_eq(self, TokenType_KwMode()); _t1268 = *_hp; free(_hp); }
+    if (_t1268) {
         ;
         return TokenType_KwMode();
     }
     ;
-    Bool _t1199; { Bool *_hp = TokenType_eq(self, TokenType_KwMut()); _t1199 = *_hp; free(_hp); }
-    if (_t1199) {
+    Bool _t1269; { Bool *_hp = TokenType_eq(self, TokenType_KwMut()); _t1269 = *_hp; free(_hp); }
+    if (_t1269) {
         ;
         return TokenType_KwMut();
     }
     ;
-    Bool _t1200; { Bool *_hp = TokenType_eq(self, TokenType_KwOwn()); _t1200 = *_hp; free(_hp); }
-    if (_t1200) {
+    Bool _t1270; { Bool *_hp = TokenType_eq(self, TokenType_KwOwn()); _t1270 = *_hp; free(_hp); }
+    if (_t1270) {
         ;
         return TokenType_KwOwn();
     }
     ;
-    Bool _t1201; { Bool *_hp = TokenType_eq(self, TokenType_KwRef()); _t1201 = *_hp; free(_hp); }
-    if (_t1201) {
+    Bool _t1271; { Bool *_hp = TokenType_eq(self, TokenType_KwRef()); _t1271 = *_hp; free(_hp); }
+    if (_t1271) {
         ;
         return TokenType_KwRef();
     }
     ;
-    Bool _t1202; { Bool *_hp = TokenType_eq(self, TokenType_KwShallow()); _t1202 = *_hp; free(_hp); }
-    if (_t1202) {
+    Bool _t1272; { Bool *_hp = TokenType_eq(self, TokenType_KwShallow()); _t1272 = *_hp; free(_hp); }
+    if (_t1272) {
         ;
         return TokenType_KwShallow();
     }
     ;
-    Bool _t1203; { Bool *_hp = TokenType_eq(self, TokenType_KwStruct()); _t1203 = *_hp; free(_hp); }
-    if (_t1203) {
+    Bool _t1273; { Bool *_hp = TokenType_eq(self, TokenType_KwStruct()); _t1273 = *_hp; free(_hp); }
+    if (_t1273) {
         ;
         return TokenType_KwStruct();
     }
     ;
-    Bool _t1204; { Bool *_hp = TokenType_eq(self, TokenType_KwExtStruct()); _t1204 = *_hp; free(_hp); }
-    if (_t1204) {
+    Bool _t1274; { Bool *_hp = TokenType_eq(self, TokenType_KwExtStruct()); _t1274 = *_hp; free(_hp); }
+    if (_t1274) {
         ;
         return TokenType_KwExtStruct();
     }
     ;
-    Bool _t1205; { Bool *_hp = TokenType_eq(self, TokenType_KwEnum()); _t1205 = *_hp; free(_hp); }
-    if (_t1205) {
+    Bool _t1275; { Bool *_hp = TokenType_eq(self, TokenType_KwEnum()); _t1275 = *_hp; free(_hp); }
+    if (_t1275) {
         ;
         return TokenType_KwEnum();
     }
     ;
-    Bool _t1206; { Bool *_hp = TokenType_eq(self, TokenType_KwNamespace()); _t1206 = *_hp; free(_hp); }
-    if (_t1206) {
+    Bool _t1276; { Bool *_hp = TokenType_eq(self, TokenType_KwNamespace()); _t1276 = *_hp; free(_hp); }
+    if (_t1276) {
         ;
         return TokenType_KwNamespace();
     }
     ;
-    Bool _t1207; { Bool *_hp = TokenType_eq(self, TokenType_KwFunc()); _t1207 = *_hp; free(_hp); }
-    if (_t1207) {
+    Bool _t1277; { Bool *_hp = TokenType_eq(self, TokenType_KwFunc()); _t1277 = *_hp; free(_hp); }
+    if (_t1277) {
         ;
         return TokenType_KwFunc();
     }
     ;
-    Bool _t1208; { Bool *_hp = TokenType_eq(self, TokenType_KwProc()); _t1208 = *_hp; free(_hp); }
-    if (_t1208) {
+    Bool _t1278; { Bool *_hp = TokenType_eq(self, TokenType_KwProc()); _t1278 = *_hp; free(_hp); }
+    if (_t1278) {
         ;
         return TokenType_KwProc();
     }
     ;
-    Bool _t1209; { Bool *_hp = TokenType_eq(self, TokenType_KwTest()); _t1209 = *_hp; free(_hp); }
-    if (_t1209) {
+    Bool _t1279; { Bool *_hp = TokenType_eq(self, TokenType_KwTest()); _t1279 = *_hp; free(_hp); }
+    if (_t1279) {
         ;
         return TokenType_KwTest();
     }
     ;
-    Bool _t1210; { Bool *_hp = TokenType_eq(self, TokenType_KwMacro()); _t1210 = *_hp; free(_hp); }
-    if (_t1210) {
+    Bool _t1280; { Bool *_hp = TokenType_eq(self, TokenType_KwMacro()); _t1280 = *_hp; free(_hp); }
+    if (_t1280) {
         ;
         return TokenType_KwMacro();
     }
     ;
-    Bool _t1211; { Bool *_hp = TokenType_eq(self, TokenType_KwExtFunc()); _t1211 = *_hp; free(_hp); }
-    if (_t1211) {
+    Bool _t1281; { Bool *_hp = TokenType_eq(self, TokenType_KwExtFunc()); _t1281 = *_hp; free(_hp); }
+    if (_t1281) {
         ;
         return TokenType_KwExtFunc();
     }
     ;
-    Bool _t1212; { Bool *_hp = TokenType_eq(self, TokenType_KwExtProc()); _t1212 = *_hp; free(_hp); }
-    if (_t1212) {
+    Bool _t1282; { Bool *_hp = TokenType_eq(self, TokenType_KwExtProc()); _t1282 = *_hp; free(_hp); }
+    if (_t1282) {
         ;
         return TokenType_KwExtProc();
     }
     ;
-    Bool _t1213; { Bool *_hp = TokenType_eq(self, TokenType_KwReturns()); _t1213 = *_hp; free(_hp); }
-    if (_t1213) {
+    Bool _t1283; { Bool *_hp = TokenType_eq(self, TokenType_KwReturns()); _t1283 = *_hp; free(_hp); }
+    if (_t1283) {
         ;
         return TokenType_KwReturns();
     }
     ;
-    Bool _t1214; { Bool *_hp = TokenType_eq(self, TokenType_KwThrows()); _t1214 = *_hp; free(_hp); }
-    if (_t1214) {
+    Bool _t1284; { Bool *_hp = TokenType_eq(self, TokenType_KwThrows()); _t1284 = *_hp; free(_hp); }
+    if (_t1284) {
         ;
         return TokenType_KwThrows();
     }
     ;
-    Bool _t1215; { Bool *_hp = TokenType_eq(self, TokenType_KwIf()); _t1215 = *_hp; free(_hp); }
-    if (_t1215) {
+    Bool _t1285; { Bool *_hp = TokenType_eq(self, TokenType_KwIf()); _t1285 = *_hp; free(_hp); }
+    if (_t1285) {
         ;
         return TokenType_KwIf();
     }
     ;
-    Bool _t1216; { Bool *_hp = TokenType_eq(self, TokenType_KwElse()); _t1216 = *_hp; free(_hp); }
-    if (_t1216) {
+    Bool _t1286; { Bool *_hp = TokenType_eq(self, TokenType_KwElse()); _t1286 = *_hp; free(_hp); }
+    if (_t1286) {
         ;
         return TokenType_KwElse();
     }
     ;
-    Bool _t1217; { Bool *_hp = TokenType_eq(self, TokenType_KwWhile()); _t1217 = *_hp; free(_hp); }
-    if (_t1217) {
+    Bool _t1287; { Bool *_hp = TokenType_eq(self, TokenType_KwWhile()); _t1287 = *_hp; free(_hp); }
+    if (_t1287) {
         ;
         return TokenType_KwWhile();
     }
     ;
-    Bool _t1218; { Bool *_hp = TokenType_eq(self, TokenType_KwFor()); _t1218 = *_hp; free(_hp); }
-    if (_t1218) {
+    Bool _t1288; { Bool *_hp = TokenType_eq(self, TokenType_KwFor()); _t1288 = *_hp; free(_hp); }
+    if (_t1288) {
         ;
         return TokenType_KwFor();
     }
     ;
-    Bool _t1219; { Bool *_hp = TokenType_eq(self, TokenType_KwIn()); _t1219 = *_hp; free(_hp); }
-    if (_t1219) {
+    Bool _t1289; { Bool *_hp = TokenType_eq(self, TokenType_KwIn()); _t1289 = *_hp; free(_hp); }
+    if (_t1289) {
         ;
         return TokenType_KwIn();
     }
     ;
-    Bool _t1220; { Bool *_hp = TokenType_eq(self, TokenType_KwSwitch()); _t1220 = *_hp; free(_hp); }
-    if (_t1220) {
+    Bool _t1290; { Bool *_hp = TokenType_eq(self, TokenType_KwSwitch()); _t1290 = *_hp; free(_hp); }
+    if (_t1290) {
         ;
         return TokenType_KwSwitch();
     }
     ;
-    Bool _t1221; { Bool *_hp = TokenType_eq(self, TokenType_KwMatch()); _t1221 = *_hp; free(_hp); }
-    if (_t1221) {
+    Bool _t1291; { Bool *_hp = TokenType_eq(self, TokenType_KwMatch()); _t1291 = *_hp; free(_hp); }
+    if (_t1291) {
         ;
         return TokenType_KwMatch();
     }
     ;
-    Bool _t1222; { Bool *_hp = TokenType_eq(self, TokenType_KwCase()); _t1222 = *_hp; free(_hp); }
-    if (_t1222) {
+    Bool _t1292; { Bool *_hp = TokenType_eq(self, TokenType_KwCase()); _t1292 = *_hp; free(_hp); }
+    if (_t1292) {
         ;
         return TokenType_KwCase();
     }
     ;
-    Bool _t1223; { Bool *_hp = TokenType_eq(self, TokenType_KwDefault()); _t1223 = *_hp; free(_hp); }
-    if (_t1223) {
+    Bool _t1293; { Bool *_hp = TokenType_eq(self, TokenType_KwDefault()); _t1293 = *_hp; free(_hp); }
+    if (_t1293) {
         ;
         return TokenType_KwDefault();
     }
     ;
-    Bool _t1224; { Bool *_hp = TokenType_eq(self, TokenType_KwReturn()); _t1224 = *_hp; free(_hp); }
-    if (_t1224) {
+    Bool _t1294; { Bool *_hp = TokenType_eq(self, TokenType_KwReturn()); _t1294 = *_hp; free(_hp); }
+    if (_t1294) {
         ;
         return TokenType_KwReturn();
     }
     ;
-    Bool _t1225; { Bool *_hp = TokenType_eq(self, TokenType_KwThrow()); _t1225 = *_hp; free(_hp); }
-    if (_t1225) {
+    Bool _t1295; { Bool *_hp = TokenType_eq(self, TokenType_KwThrow()); _t1295 = *_hp; free(_hp); }
+    if (_t1295) {
         ;
         return TokenType_KwThrow();
     }
     ;
-    Bool _t1226; { Bool *_hp = TokenType_eq(self, TokenType_KwCatch()); _t1226 = *_hp; free(_hp); }
-    if (_t1226) {
+    Bool _t1296; { Bool *_hp = TokenType_eq(self, TokenType_KwCatch()); _t1296 = *_hp; free(_hp); }
+    if (_t1296) {
         ;
         return TokenType_KwCatch();
     }
     ;
-    Bool _t1227; { Bool *_hp = TokenType_eq(self, TokenType_KwBreak()); _t1227 = *_hp; free(_hp); }
-    if (_t1227) {
+    Bool _t1297; { Bool *_hp = TokenType_eq(self, TokenType_KwBreak()); _t1297 = *_hp; free(_hp); }
+    if (_t1297) {
         ;
         return TokenType_KwBreak();
     }
     ;
-    Bool _t1228; { Bool *_hp = TokenType_eq(self, TokenType_KwContinue()); _t1228 = *_hp; free(_hp); }
-    if (_t1228) {
+    Bool _t1298; { Bool *_hp = TokenType_eq(self, TokenType_KwContinue()); _t1298 = *_hp; free(_hp); }
+    if (_t1298) {
         ;
         return TokenType_KwContinue();
     }
     ;
-    Bool _t1229; { Bool *_hp = TokenType_eq(self, TokenType_KwDefer()); _t1229 = *_hp; free(_hp); }
-    if (_t1229) {
+    Bool _t1299; { Bool *_hp = TokenType_eq(self, TokenType_KwDefer()); _t1299 = *_hp; free(_hp); }
+    if (_t1299) {
         ;
         return TokenType_KwDefer();
     }
     ;
-    Bool _t1230; { Bool *_hp = TokenType_eq(self, TokenType_KwTrue()); _t1230 = *_hp; free(_hp); }
-    if (_t1230) {
+    Bool _t1300; { Bool *_hp = TokenType_eq(self, TokenType_KwTrue()); _t1300 = *_hp; free(_hp); }
+    if (_t1300) {
         ;
         return TokenType_KwTrue();
     }
     ;
-    Bool _t1231; { Bool *_hp = TokenType_eq(self, TokenType_KwFalse()); _t1231 = *_hp; free(_hp); }
-    if (_t1231) {
+    Bool _t1301; { Bool *_hp = TokenType_eq(self, TokenType_KwFalse()); _t1301 = *_hp; free(_hp); }
+    if (_t1301) {
         ;
         return TokenType_KwFalse();
     }
     ;
-    Bool _t1232; { Bool *_hp = TokenType_eq(self, TokenType_KwNull()); _t1232 = *_hp; free(_hp); }
-    if (_t1232) {
+    Bool _t1302; { Bool *_hp = TokenType_eq(self, TokenType_KwNull()); _t1302 = *_hp; free(_hp); }
+    if (_t1302) {
         ;
         return TokenType_KwNull();
     }
@@ -5863,463 +6150,463 @@ void TokenType_delete(TokenType * self, Bool * call_free) {
 
 Str * TokenType_to_str(TokenType * self) {
     (void)self;
-    Bool _t1298; { Bool *_hp = TokenType_eq(self, TokenType_Eof()); _t1298 = *_hp; free(_hp); }
-    if (_t1298) {
-        Str *_t1233 = Str_lit("Eof", 3ULL);
+    Bool _t1368; { Bool *_hp = TokenType_eq(self, TokenType_Eof()); _t1368 = *_hp; free(_hp); }
+    if (_t1368) {
+        Str *_t1303 = Str_lit("Eof", 3ULL);
         ;
-        return _t1233;
+        return _t1303;
     }
     ;
-    Bool _t1299; { Bool *_hp = TokenType_eq(self, TokenType_LParen()); _t1299 = *_hp; free(_hp); }
-    if (_t1299) {
-        Str *_t1234 = Str_lit("LParen", 6ULL);
+    Bool _t1369; { Bool *_hp = TokenType_eq(self, TokenType_LParen()); _t1369 = *_hp; free(_hp); }
+    if (_t1369) {
+        Str *_t1304 = Str_lit("LParen", 6ULL);
         ;
-        return _t1234;
+        return _t1304;
     }
     ;
-    Bool _t1300; { Bool *_hp = TokenType_eq(self, TokenType_RParen()); _t1300 = *_hp; free(_hp); }
-    if (_t1300) {
-        Str *_t1235 = Str_lit("RParen", 6ULL);
+    Bool _t1370; { Bool *_hp = TokenType_eq(self, TokenType_RParen()); _t1370 = *_hp; free(_hp); }
+    if (_t1370) {
+        Str *_t1305 = Str_lit("RParen", 6ULL);
         ;
-        return _t1235;
+        return _t1305;
     }
     ;
-    Bool _t1301; { Bool *_hp = TokenType_eq(self, TokenType_LBrace()); _t1301 = *_hp; free(_hp); }
-    if (_t1301) {
-        Str *_t1236 = Str_lit("LBrace", 6ULL);
+    Bool _t1371; { Bool *_hp = TokenType_eq(self, TokenType_LBrace()); _t1371 = *_hp; free(_hp); }
+    if (_t1371) {
+        Str *_t1306 = Str_lit("LBrace", 6ULL);
         ;
-        return _t1236;
+        return _t1306;
     }
     ;
-    Bool _t1302; { Bool *_hp = TokenType_eq(self, TokenType_RBrace()); _t1302 = *_hp; free(_hp); }
-    if (_t1302) {
-        Str *_t1237 = Str_lit("RBrace", 6ULL);
+    Bool _t1372; { Bool *_hp = TokenType_eq(self, TokenType_RBrace()); _t1372 = *_hp; free(_hp); }
+    if (_t1372) {
+        Str *_t1307 = Str_lit("RBrace", 6ULL);
         ;
-        return _t1237;
+        return _t1307;
     }
     ;
-    Bool _t1303; { Bool *_hp = TokenType_eq(self, TokenType_LBracket()); _t1303 = *_hp; free(_hp); }
-    if (_t1303) {
-        Str *_t1238 = Str_lit("LBracket", 8ULL);
+    Bool _t1373; { Bool *_hp = TokenType_eq(self, TokenType_LBracket()); _t1373 = *_hp; free(_hp); }
+    if (_t1373) {
+        Str *_t1308 = Str_lit("LBracket", 8ULL);
         ;
-        return _t1238;
+        return _t1308;
     }
     ;
-    Bool _t1304; { Bool *_hp = TokenType_eq(self, TokenType_RBracket()); _t1304 = *_hp; free(_hp); }
-    if (_t1304) {
-        Str *_t1239 = Str_lit("RBracket", 8ULL);
+    Bool _t1374; { Bool *_hp = TokenType_eq(self, TokenType_RBracket()); _t1374 = *_hp; free(_hp); }
+    if (_t1374) {
+        Str *_t1309 = Str_lit("RBracket", 8ULL);
         ;
-        return _t1239;
+        return _t1309;
     }
     ;
-    Bool _t1305; { Bool *_hp = TokenType_eq(self, TokenType_Comma()); _t1305 = *_hp; free(_hp); }
-    if (_t1305) {
-        Str *_t1240 = Str_lit("Comma", 5ULL);
+    Bool _t1375; { Bool *_hp = TokenType_eq(self, TokenType_Comma()); _t1375 = *_hp; free(_hp); }
+    if (_t1375) {
+        Str *_t1310 = Str_lit("Comma", 5ULL);
         ;
-        return _t1240;
+        return _t1310;
     }
     ;
-    Bool _t1306; { Bool *_hp = TokenType_eq(self, TokenType_Colon()); _t1306 = *_hp; free(_hp); }
-    if (_t1306) {
-        Str *_t1241 = Str_lit("Colon", 5ULL);
+    Bool _t1376; { Bool *_hp = TokenType_eq(self, TokenType_Colon()); _t1376 = *_hp; free(_hp); }
+    if (_t1376) {
+        Str *_t1311 = Str_lit("Colon", 5ULL);
         ;
-        return _t1241;
+        return _t1311;
     }
     ;
-    Bool _t1307; { Bool *_hp = TokenType_eq(self, TokenType_Question()); _t1307 = *_hp; free(_hp); }
-    if (_t1307) {
-        Str *_t1242 = Str_lit("Question", 8ULL);
+    Bool _t1377; { Bool *_hp = TokenType_eq(self, TokenType_Question()); _t1377 = *_hp; free(_hp); }
+    if (_t1377) {
+        Str *_t1312 = Str_lit("Question", 8ULL);
         ;
-        return _t1242;
+        return _t1312;
     }
     ;
-    Bool _t1308; { Bool *_hp = TokenType_eq(self, TokenType_Bang()); _t1308 = *_hp; free(_hp); }
-    if (_t1308) {
-        Str *_t1243 = Str_lit("Bang", 4ULL);
+    Bool _t1378; { Bool *_hp = TokenType_eq(self, TokenType_Bang()); _t1378 = *_hp; free(_hp); }
+    if (_t1378) {
+        Str *_t1313 = Str_lit("Bang", 4ULL);
         ;
-        return _t1243;
+        return _t1313;
     }
     ;
-    Bool _t1309; { Bool *_hp = TokenType_eq(self, TokenType_Minus()); _t1309 = *_hp; free(_hp); }
-    if (_t1309) {
-        Str *_t1244 = Str_lit("Minus", 5ULL);
+    Bool _t1379; { Bool *_hp = TokenType_eq(self, TokenType_Minus()); _t1379 = *_hp; free(_hp); }
+    if (_t1379) {
+        Str *_t1314 = Str_lit("Minus", 5ULL);
         ;
-        return _t1244;
+        return _t1314;
     }
     ;
-    Bool _t1310; { Bool *_hp = TokenType_eq(self, TokenType_Plus()); _t1310 = *_hp; free(_hp); }
-    if (_t1310) {
-        Str *_t1245 = Str_lit("Plus", 4ULL);
+    Bool _t1380; { Bool *_hp = TokenType_eq(self, TokenType_Plus()); _t1380 = *_hp; free(_hp); }
+    if (_t1380) {
+        Str *_t1315 = Str_lit("Plus", 4ULL);
         ;
-        return _t1245;
+        return _t1315;
     }
     ;
-    Bool _t1311; { Bool *_hp = TokenType_eq(self, TokenType_Star()); _t1311 = *_hp; free(_hp); }
-    if (_t1311) {
-        Str *_t1246 = Str_lit("Star", 4ULL);
+    Bool _t1381; { Bool *_hp = TokenType_eq(self, TokenType_Star()); _t1381 = *_hp; free(_hp); }
+    if (_t1381) {
+        Str *_t1316 = Str_lit("Star", 4ULL);
         ;
-        return _t1246;
+        return _t1316;
     }
     ;
-    Bool _t1312; { Bool *_hp = TokenType_eq(self, TokenType_Slash()); _t1312 = *_hp; free(_hp); }
-    if (_t1312) {
-        Str *_t1247 = Str_lit("Slash", 5ULL);
+    Bool _t1382; { Bool *_hp = TokenType_eq(self, TokenType_Slash()); _t1382 = *_hp; free(_hp); }
+    if (_t1382) {
+        Str *_t1317 = Str_lit("Slash", 5ULL);
         ;
-        return _t1247;
+        return _t1317;
     }
     ;
-    Bool _t1313; { Bool *_hp = TokenType_eq(self, TokenType_Dot()); _t1313 = *_hp; free(_hp); }
-    if (_t1313) {
-        Str *_t1248 = Str_lit("Dot", 3ULL);
+    Bool _t1383; { Bool *_hp = TokenType_eq(self, TokenType_Dot()); _t1383 = *_hp; free(_hp); }
+    if (_t1383) {
+        Str *_t1318 = Str_lit("Dot", 3ULL);
         ;
-        return _t1248;
+        return _t1318;
     }
     ;
-    Bool _t1314; { Bool *_hp = TokenType_eq(self, TokenType_DotDot()); _t1314 = *_hp; free(_hp); }
-    if (_t1314) {
-        Str *_t1249 = Str_lit("DotDot", 6ULL);
+    Bool _t1384; { Bool *_hp = TokenType_eq(self, TokenType_DotDot()); _t1384 = *_hp; free(_hp); }
+    if (_t1384) {
+        Str *_t1319 = Str_lit("DotDot", 6ULL);
         ;
-        return _t1249;
+        return _t1319;
     }
     ;
-    Bool _t1315; { Bool *_hp = TokenType_eq(self, TokenType_Eq()); _t1315 = *_hp; free(_hp); }
-    if (_t1315) {
-        Str *_t1250 = Str_lit("Eq", 2ULL);
+    Bool _t1385; { Bool *_hp = TokenType_eq(self, TokenType_Eq()); _t1385 = *_hp; free(_hp); }
+    if (_t1385) {
+        Str *_t1320 = Str_lit("Eq", 2ULL);
         ;
-        return _t1250;
+        return _t1320;
     }
     ;
-    Bool _t1316; { Bool *_hp = TokenType_eq(self, TokenType_EqEq()); _t1316 = *_hp; free(_hp); }
-    if (_t1316) {
-        Str *_t1251 = Str_lit("EqEq", 4ULL);
+    Bool _t1386; { Bool *_hp = TokenType_eq(self, TokenType_EqEq()); _t1386 = *_hp; free(_hp); }
+    if (_t1386) {
+        Str *_t1321 = Str_lit("EqEq", 4ULL);
         ;
-        return _t1251;
+        return _t1321;
     }
     ;
-    Bool _t1317; { Bool *_hp = TokenType_eq(self, TokenType_Neq()); _t1317 = *_hp; free(_hp); }
-    if (_t1317) {
-        Str *_t1252 = Str_lit("Neq", 3ULL);
+    Bool _t1387; { Bool *_hp = TokenType_eq(self, TokenType_Neq()); _t1387 = *_hp; free(_hp); }
+    if (_t1387) {
+        Str *_t1322 = Str_lit("Neq", 3ULL);
         ;
-        return _t1252;
+        return _t1322;
     }
     ;
-    Bool _t1318; { Bool *_hp = TokenType_eq(self, TokenType_Lt()); _t1318 = *_hp; free(_hp); }
-    if (_t1318) {
-        Str *_t1253 = Str_lit("Lt", 2ULL);
+    Bool _t1388; { Bool *_hp = TokenType_eq(self, TokenType_Lt()); _t1388 = *_hp; free(_hp); }
+    if (_t1388) {
+        Str *_t1323 = Str_lit("Lt", 2ULL);
         ;
-        return _t1253;
+        return _t1323;
     }
     ;
-    Bool _t1319; { Bool *_hp = TokenType_eq(self, TokenType_LtEq()); _t1319 = *_hp; free(_hp); }
-    if (_t1319) {
-        Str *_t1254 = Str_lit("LtEq", 4ULL);
+    Bool _t1389; { Bool *_hp = TokenType_eq(self, TokenType_LtEq()); _t1389 = *_hp; free(_hp); }
+    if (_t1389) {
+        Str *_t1324 = Str_lit("LtEq", 4ULL);
         ;
-        return _t1254;
+        return _t1324;
     }
     ;
-    Bool _t1320; { Bool *_hp = TokenType_eq(self, TokenType_Gt()); _t1320 = *_hp; free(_hp); }
-    if (_t1320) {
-        Str *_t1255 = Str_lit("Gt", 2ULL);
+    Bool _t1390; { Bool *_hp = TokenType_eq(self, TokenType_Gt()); _t1390 = *_hp; free(_hp); }
+    if (_t1390) {
+        Str *_t1325 = Str_lit("Gt", 2ULL);
         ;
-        return _t1255;
+        return _t1325;
     }
     ;
-    Bool _t1321; { Bool *_hp = TokenType_eq(self, TokenType_GtEq()); _t1321 = *_hp; free(_hp); }
-    if (_t1321) {
-        Str *_t1256 = Str_lit("GtEq", 4ULL);
+    Bool _t1391; { Bool *_hp = TokenType_eq(self, TokenType_GtEq()); _t1391 = *_hp; free(_hp); }
+    if (_t1391) {
+        Str *_t1326 = Str_lit("GtEq", 4ULL);
         ;
-        return _t1256;
+        return _t1326;
     }
     ;
-    Bool _t1322; { Bool *_hp = TokenType_eq(self, TokenType_ColonEq()); _t1322 = *_hp; free(_hp); }
-    if (_t1322) {
-        Str *_t1257 = Str_lit("ColonEq", 7ULL);
+    Bool _t1392; { Bool *_hp = TokenType_eq(self, TokenType_ColonEq()); _t1392 = *_hp; free(_hp); }
+    if (_t1392) {
+        Str *_t1327 = Str_lit("ColonEq", 7ULL);
         ;
-        return _t1257;
+        return _t1327;
     }
     ;
-    Bool _t1323; { Bool *_hp = TokenType_eq(self, TokenType_Ident()); _t1323 = *_hp; free(_hp); }
-    if (_t1323) {
-        Str *_t1258 = Str_lit("Ident", 5ULL);
+    Bool _t1393; { Bool *_hp = TokenType_eq(self, TokenType_Ident()); _t1393 = *_hp; free(_hp); }
+    if (_t1393) {
+        Str *_t1328 = Str_lit("Ident", 5ULL);
         ;
-        return _t1258;
+        return _t1328;
     }
     ;
-    Bool _t1324; { Bool *_hp = TokenType_eq(self, TokenType_StringTok()); _t1324 = *_hp; free(_hp); }
-    if (_t1324) {
-        Str *_t1259 = Str_lit("StringTok", 9ULL);
+    Bool _t1394; { Bool *_hp = TokenType_eq(self, TokenType_StringTok()); _t1394 = *_hp; free(_hp); }
+    if (_t1394) {
+        Str *_t1329 = Str_lit("StringTok", 9ULL);
         ;
-        return _t1259;
+        return _t1329;
     }
     ;
-    Bool _t1325; { Bool *_hp = TokenType_eq(self, TokenType_Number()); _t1325 = *_hp; free(_hp); }
-    if (_t1325) {
-        Str *_t1260 = Str_lit("Number", 6ULL);
+    Bool _t1395; { Bool *_hp = TokenType_eq(self, TokenType_Number()); _t1395 = *_hp; free(_hp); }
+    if (_t1395) {
+        Str *_t1330 = Str_lit("Number", 6ULL);
         ;
-        return _t1260;
+        return _t1330;
     }
     ;
-    Bool _t1326; { Bool *_hp = TokenType_eq(self, TokenType_Char()); _t1326 = *_hp; free(_hp); }
-    if (_t1326) {
-        Str *_t1261 = Str_lit("Char", 4ULL);
+    Bool _t1396; { Bool *_hp = TokenType_eq(self, TokenType_Char()); _t1396 = *_hp; free(_hp); }
+    if (_t1396) {
+        Str *_t1331 = Str_lit("Char", 4ULL);
         ;
-        return _t1261;
+        return _t1331;
     }
     ;
-    Bool _t1327; { Bool *_hp = TokenType_eq(self, TokenType_KwMode()); _t1327 = *_hp; free(_hp); }
-    if (_t1327) {
-        Str *_t1262 = Str_lit("KwMode", 6ULL);
+    Bool _t1397; { Bool *_hp = TokenType_eq(self, TokenType_KwMode()); _t1397 = *_hp; free(_hp); }
+    if (_t1397) {
+        Str *_t1332 = Str_lit("KwMode", 6ULL);
         ;
-        return _t1262;
+        return _t1332;
     }
     ;
-    Bool _t1328; { Bool *_hp = TokenType_eq(self, TokenType_KwMut()); _t1328 = *_hp; free(_hp); }
-    if (_t1328) {
-        Str *_t1263 = Str_lit("KwMut", 5ULL);
+    Bool _t1398; { Bool *_hp = TokenType_eq(self, TokenType_KwMut()); _t1398 = *_hp; free(_hp); }
+    if (_t1398) {
+        Str *_t1333 = Str_lit("KwMut", 5ULL);
         ;
-        return _t1263;
+        return _t1333;
     }
     ;
-    Bool _t1329; { Bool *_hp = TokenType_eq(self, TokenType_KwOwn()); _t1329 = *_hp; free(_hp); }
-    if (_t1329) {
-        Str *_t1264 = Str_lit("KwOwn", 5ULL);
+    Bool _t1399; { Bool *_hp = TokenType_eq(self, TokenType_KwOwn()); _t1399 = *_hp; free(_hp); }
+    if (_t1399) {
+        Str *_t1334 = Str_lit("KwOwn", 5ULL);
         ;
-        return _t1264;
+        return _t1334;
     }
     ;
-    Bool _t1330; { Bool *_hp = TokenType_eq(self, TokenType_KwRef()); _t1330 = *_hp; free(_hp); }
-    if (_t1330) {
-        Str *_t1265 = Str_lit("KwRef", 5ULL);
+    Bool _t1400; { Bool *_hp = TokenType_eq(self, TokenType_KwRef()); _t1400 = *_hp; free(_hp); }
+    if (_t1400) {
+        Str *_t1335 = Str_lit("KwRef", 5ULL);
         ;
-        return _t1265;
+        return _t1335;
     }
     ;
-    Bool _t1331; { Bool *_hp = TokenType_eq(self, TokenType_KwShallow()); _t1331 = *_hp; free(_hp); }
-    if (_t1331) {
-        Str *_t1266 = Str_lit("KwShallow", 9ULL);
+    Bool _t1401; { Bool *_hp = TokenType_eq(self, TokenType_KwShallow()); _t1401 = *_hp; free(_hp); }
+    if (_t1401) {
+        Str *_t1336 = Str_lit("KwShallow", 9ULL);
         ;
-        return _t1266;
+        return _t1336;
     }
     ;
-    Bool _t1332; { Bool *_hp = TokenType_eq(self, TokenType_KwStruct()); _t1332 = *_hp; free(_hp); }
-    if (_t1332) {
-        Str *_t1267 = Str_lit("KwStruct", 8ULL);
+    Bool _t1402; { Bool *_hp = TokenType_eq(self, TokenType_KwStruct()); _t1402 = *_hp; free(_hp); }
+    if (_t1402) {
+        Str *_t1337 = Str_lit("KwStruct", 8ULL);
         ;
-        return _t1267;
+        return _t1337;
     }
     ;
-    Bool _t1333; { Bool *_hp = TokenType_eq(self, TokenType_KwExtStruct()); _t1333 = *_hp; free(_hp); }
-    if (_t1333) {
-        Str *_t1268 = Str_lit("KwExtStruct", 11ULL);
+    Bool _t1403; { Bool *_hp = TokenType_eq(self, TokenType_KwExtStruct()); _t1403 = *_hp; free(_hp); }
+    if (_t1403) {
+        Str *_t1338 = Str_lit("KwExtStruct", 11ULL);
         ;
-        return _t1268;
+        return _t1338;
     }
     ;
-    Bool _t1334; { Bool *_hp = TokenType_eq(self, TokenType_KwEnum()); _t1334 = *_hp; free(_hp); }
-    if (_t1334) {
-        Str *_t1269 = Str_lit("KwEnum", 6ULL);
+    Bool _t1404; { Bool *_hp = TokenType_eq(self, TokenType_KwEnum()); _t1404 = *_hp; free(_hp); }
+    if (_t1404) {
+        Str *_t1339 = Str_lit("KwEnum", 6ULL);
         ;
-        return _t1269;
+        return _t1339;
     }
     ;
-    Bool _t1335; { Bool *_hp = TokenType_eq(self, TokenType_KwNamespace()); _t1335 = *_hp; free(_hp); }
-    if (_t1335) {
-        Str *_t1270 = Str_lit("KwNamespace", 11ULL);
+    Bool _t1405; { Bool *_hp = TokenType_eq(self, TokenType_KwNamespace()); _t1405 = *_hp; free(_hp); }
+    if (_t1405) {
+        Str *_t1340 = Str_lit("KwNamespace", 11ULL);
         ;
-        return _t1270;
+        return _t1340;
     }
     ;
-    Bool _t1336; { Bool *_hp = TokenType_eq(self, TokenType_KwFunc()); _t1336 = *_hp; free(_hp); }
-    if (_t1336) {
-        Str *_t1271 = Str_lit("KwFunc", 6ULL);
+    Bool _t1406; { Bool *_hp = TokenType_eq(self, TokenType_KwFunc()); _t1406 = *_hp; free(_hp); }
+    if (_t1406) {
+        Str *_t1341 = Str_lit("KwFunc", 6ULL);
         ;
-        return _t1271;
+        return _t1341;
     }
     ;
-    Bool _t1337; { Bool *_hp = TokenType_eq(self, TokenType_KwProc()); _t1337 = *_hp; free(_hp); }
-    if (_t1337) {
-        Str *_t1272 = Str_lit("KwProc", 6ULL);
+    Bool _t1407; { Bool *_hp = TokenType_eq(self, TokenType_KwProc()); _t1407 = *_hp; free(_hp); }
+    if (_t1407) {
+        Str *_t1342 = Str_lit("KwProc", 6ULL);
         ;
-        return _t1272;
+        return _t1342;
     }
     ;
-    Bool _t1338; { Bool *_hp = TokenType_eq(self, TokenType_KwTest()); _t1338 = *_hp; free(_hp); }
-    if (_t1338) {
-        Str *_t1273 = Str_lit("KwTest", 6ULL);
+    Bool _t1408; { Bool *_hp = TokenType_eq(self, TokenType_KwTest()); _t1408 = *_hp; free(_hp); }
+    if (_t1408) {
+        Str *_t1343 = Str_lit("KwTest", 6ULL);
         ;
-        return _t1273;
+        return _t1343;
     }
     ;
-    Bool _t1339; { Bool *_hp = TokenType_eq(self, TokenType_KwMacro()); _t1339 = *_hp; free(_hp); }
-    if (_t1339) {
-        Str *_t1274 = Str_lit("KwMacro", 7ULL);
+    Bool _t1409; { Bool *_hp = TokenType_eq(self, TokenType_KwMacro()); _t1409 = *_hp; free(_hp); }
+    if (_t1409) {
+        Str *_t1344 = Str_lit("KwMacro", 7ULL);
         ;
-        return _t1274;
+        return _t1344;
     }
     ;
-    Bool _t1340; { Bool *_hp = TokenType_eq(self, TokenType_KwExtFunc()); _t1340 = *_hp; free(_hp); }
-    if (_t1340) {
-        Str *_t1275 = Str_lit("KwExtFunc", 9ULL);
+    Bool _t1410; { Bool *_hp = TokenType_eq(self, TokenType_KwExtFunc()); _t1410 = *_hp; free(_hp); }
+    if (_t1410) {
+        Str *_t1345 = Str_lit("KwExtFunc", 9ULL);
         ;
-        return _t1275;
+        return _t1345;
     }
     ;
-    Bool _t1341; { Bool *_hp = TokenType_eq(self, TokenType_KwExtProc()); _t1341 = *_hp; free(_hp); }
-    if (_t1341) {
-        Str *_t1276 = Str_lit("KwExtProc", 9ULL);
+    Bool _t1411; { Bool *_hp = TokenType_eq(self, TokenType_KwExtProc()); _t1411 = *_hp; free(_hp); }
+    if (_t1411) {
+        Str *_t1346 = Str_lit("KwExtProc", 9ULL);
         ;
-        return _t1276;
+        return _t1346;
     }
     ;
-    Bool _t1342; { Bool *_hp = TokenType_eq(self, TokenType_KwReturns()); _t1342 = *_hp; free(_hp); }
-    if (_t1342) {
-        Str *_t1277 = Str_lit("KwReturns", 9ULL);
+    Bool _t1412; { Bool *_hp = TokenType_eq(self, TokenType_KwReturns()); _t1412 = *_hp; free(_hp); }
+    if (_t1412) {
+        Str *_t1347 = Str_lit("KwReturns", 9ULL);
         ;
-        return _t1277;
+        return _t1347;
     }
     ;
-    Bool _t1343; { Bool *_hp = TokenType_eq(self, TokenType_KwThrows()); _t1343 = *_hp; free(_hp); }
-    if (_t1343) {
-        Str *_t1278 = Str_lit("KwThrows", 8ULL);
+    Bool _t1413; { Bool *_hp = TokenType_eq(self, TokenType_KwThrows()); _t1413 = *_hp; free(_hp); }
+    if (_t1413) {
+        Str *_t1348 = Str_lit("KwThrows", 8ULL);
         ;
-        return _t1278;
+        return _t1348;
     }
     ;
-    Bool _t1344; { Bool *_hp = TokenType_eq(self, TokenType_KwIf()); _t1344 = *_hp; free(_hp); }
-    if (_t1344) {
-        Str *_t1279 = Str_lit("KwIf", 4ULL);
+    Bool _t1414; { Bool *_hp = TokenType_eq(self, TokenType_KwIf()); _t1414 = *_hp; free(_hp); }
+    if (_t1414) {
+        Str *_t1349 = Str_lit("KwIf", 4ULL);
         ;
-        return _t1279;
+        return _t1349;
     }
     ;
-    Bool _t1345; { Bool *_hp = TokenType_eq(self, TokenType_KwElse()); _t1345 = *_hp; free(_hp); }
-    if (_t1345) {
-        Str *_t1280 = Str_lit("KwElse", 6ULL);
+    Bool _t1415; { Bool *_hp = TokenType_eq(self, TokenType_KwElse()); _t1415 = *_hp; free(_hp); }
+    if (_t1415) {
+        Str *_t1350 = Str_lit("KwElse", 6ULL);
         ;
-        return _t1280;
+        return _t1350;
     }
     ;
-    Bool _t1346; { Bool *_hp = TokenType_eq(self, TokenType_KwWhile()); _t1346 = *_hp; free(_hp); }
-    if (_t1346) {
-        Str *_t1281 = Str_lit("KwWhile", 7ULL);
+    Bool _t1416; { Bool *_hp = TokenType_eq(self, TokenType_KwWhile()); _t1416 = *_hp; free(_hp); }
+    if (_t1416) {
+        Str *_t1351 = Str_lit("KwWhile", 7ULL);
         ;
-        return _t1281;
+        return _t1351;
     }
     ;
-    Bool _t1347; { Bool *_hp = TokenType_eq(self, TokenType_KwFor()); _t1347 = *_hp; free(_hp); }
-    if (_t1347) {
-        Str *_t1282 = Str_lit("KwFor", 5ULL);
+    Bool _t1417; { Bool *_hp = TokenType_eq(self, TokenType_KwFor()); _t1417 = *_hp; free(_hp); }
+    if (_t1417) {
+        Str *_t1352 = Str_lit("KwFor", 5ULL);
         ;
-        return _t1282;
+        return _t1352;
     }
     ;
-    Bool _t1348; { Bool *_hp = TokenType_eq(self, TokenType_KwIn()); _t1348 = *_hp; free(_hp); }
-    if (_t1348) {
-        Str *_t1283 = Str_lit("KwIn", 4ULL);
+    Bool _t1418; { Bool *_hp = TokenType_eq(self, TokenType_KwIn()); _t1418 = *_hp; free(_hp); }
+    if (_t1418) {
+        Str *_t1353 = Str_lit("KwIn", 4ULL);
         ;
-        return _t1283;
+        return _t1353;
     }
     ;
-    Bool _t1349; { Bool *_hp = TokenType_eq(self, TokenType_KwSwitch()); _t1349 = *_hp; free(_hp); }
-    if (_t1349) {
-        Str *_t1284 = Str_lit("KwSwitch", 8ULL);
+    Bool _t1419; { Bool *_hp = TokenType_eq(self, TokenType_KwSwitch()); _t1419 = *_hp; free(_hp); }
+    if (_t1419) {
+        Str *_t1354 = Str_lit("KwSwitch", 8ULL);
         ;
-        return _t1284;
+        return _t1354;
     }
     ;
-    Bool _t1350; { Bool *_hp = TokenType_eq(self, TokenType_KwMatch()); _t1350 = *_hp; free(_hp); }
-    if (_t1350) {
-        Str *_t1285 = Str_lit("KwMatch", 7ULL);
+    Bool _t1420; { Bool *_hp = TokenType_eq(self, TokenType_KwMatch()); _t1420 = *_hp; free(_hp); }
+    if (_t1420) {
+        Str *_t1355 = Str_lit("KwMatch", 7ULL);
         ;
-        return _t1285;
+        return _t1355;
     }
     ;
-    Bool _t1351; { Bool *_hp = TokenType_eq(self, TokenType_KwCase()); _t1351 = *_hp; free(_hp); }
-    if (_t1351) {
-        Str *_t1286 = Str_lit("KwCase", 6ULL);
+    Bool _t1421; { Bool *_hp = TokenType_eq(self, TokenType_KwCase()); _t1421 = *_hp; free(_hp); }
+    if (_t1421) {
+        Str *_t1356 = Str_lit("KwCase", 6ULL);
         ;
-        return _t1286;
+        return _t1356;
     }
     ;
-    Bool _t1352; { Bool *_hp = TokenType_eq(self, TokenType_KwDefault()); _t1352 = *_hp; free(_hp); }
-    if (_t1352) {
-        Str *_t1287 = Str_lit("KwDefault", 9ULL);
+    Bool _t1422; { Bool *_hp = TokenType_eq(self, TokenType_KwDefault()); _t1422 = *_hp; free(_hp); }
+    if (_t1422) {
+        Str *_t1357 = Str_lit("KwDefault", 9ULL);
         ;
-        return _t1287;
+        return _t1357;
     }
     ;
-    Bool _t1353; { Bool *_hp = TokenType_eq(self, TokenType_KwReturn()); _t1353 = *_hp; free(_hp); }
-    if (_t1353) {
-        Str *_t1288 = Str_lit("KwReturn", 8ULL);
+    Bool _t1423; { Bool *_hp = TokenType_eq(self, TokenType_KwReturn()); _t1423 = *_hp; free(_hp); }
+    if (_t1423) {
+        Str *_t1358 = Str_lit("KwReturn", 8ULL);
         ;
-        return _t1288;
+        return _t1358;
     }
     ;
-    Bool _t1354; { Bool *_hp = TokenType_eq(self, TokenType_KwThrow()); _t1354 = *_hp; free(_hp); }
-    if (_t1354) {
-        Str *_t1289 = Str_lit("KwThrow", 7ULL);
+    Bool _t1424; { Bool *_hp = TokenType_eq(self, TokenType_KwThrow()); _t1424 = *_hp; free(_hp); }
+    if (_t1424) {
+        Str *_t1359 = Str_lit("KwThrow", 7ULL);
         ;
-        return _t1289;
+        return _t1359;
     }
     ;
-    Bool _t1355; { Bool *_hp = TokenType_eq(self, TokenType_KwCatch()); _t1355 = *_hp; free(_hp); }
-    if (_t1355) {
-        Str *_t1290 = Str_lit("KwCatch", 7ULL);
+    Bool _t1425; { Bool *_hp = TokenType_eq(self, TokenType_KwCatch()); _t1425 = *_hp; free(_hp); }
+    if (_t1425) {
+        Str *_t1360 = Str_lit("KwCatch", 7ULL);
         ;
-        return _t1290;
+        return _t1360;
     }
     ;
-    Bool _t1356; { Bool *_hp = TokenType_eq(self, TokenType_KwBreak()); _t1356 = *_hp; free(_hp); }
-    if (_t1356) {
-        Str *_t1291 = Str_lit("KwBreak", 7ULL);
+    Bool _t1426; { Bool *_hp = TokenType_eq(self, TokenType_KwBreak()); _t1426 = *_hp; free(_hp); }
+    if (_t1426) {
+        Str *_t1361 = Str_lit("KwBreak", 7ULL);
         ;
-        return _t1291;
+        return _t1361;
     }
     ;
-    Bool _t1357; { Bool *_hp = TokenType_eq(self, TokenType_KwContinue()); _t1357 = *_hp; free(_hp); }
-    if (_t1357) {
-        Str *_t1292 = Str_lit("KwContinue", 10ULL);
+    Bool _t1427; { Bool *_hp = TokenType_eq(self, TokenType_KwContinue()); _t1427 = *_hp; free(_hp); }
+    if (_t1427) {
+        Str *_t1362 = Str_lit("KwContinue", 10ULL);
         ;
-        return _t1292;
+        return _t1362;
     }
     ;
-    Bool _t1358; { Bool *_hp = TokenType_eq(self, TokenType_KwDefer()); _t1358 = *_hp; free(_hp); }
-    if (_t1358) {
-        Str *_t1293 = Str_lit("KwDefer", 7ULL);
+    Bool _t1428; { Bool *_hp = TokenType_eq(self, TokenType_KwDefer()); _t1428 = *_hp; free(_hp); }
+    if (_t1428) {
+        Str *_t1363 = Str_lit("KwDefer", 7ULL);
         ;
-        return _t1293;
+        return _t1363;
     }
     ;
-    Bool _t1359; { Bool *_hp = TokenType_eq(self, TokenType_KwTrue()); _t1359 = *_hp; free(_hp); }
-    if (_t1359) {
-        Str *_t1294 = Str_lit("KwTrue", 6ULL);
+    Bool _t1429; { Bool *_hp = TokenType_eq(self, TokenType_KwTrue()); _t1429 = *_hp; free(_hp); }
+    if (_t1429) {
+        Str *_t1364 = Str_lit("KwTrue", 6ULL);
         ;
-        return _t1294;
+        return _t1364;
     }
     ;
-    Bool _t1360; { Bool *_hp = TokenType_eq(self, TokenType_KwFalse()); _t1360 = *_hp; free(_hp); }
-    if (_t1360) {
-        Str *_t1295 = Str_lit("KwFalse", 7ULL);
+    Bool _t1430; { Bool *_hp = TokenType_eq(self, TokenType_KwFalse()); _t1430 = *_hp; free(_hp); }
+    if (_t1430) {
+        Str *_t1365 = Str_lit("KwFalse", 7ULL);
         ;
-        return _t1295;
+        return _t1365;
     }
     ;
-    Bool _t1361; { Bool *_hp = TokenType_eq(self, TokenType_KwNull()); _t1361 = *_hp; free(_hp); }
-    if (_t1361) {
-        Str *_t1296 = Str_lit("KwNull", 6ULL);
+    Bool _t1431; { Bool *_hp = TokenType_eq(self, TokenType_KwNull()); _t1431 = *_hp; free(_hp); }
+    if (_t1431) {
+        Str *_t1366 = Str_lit("KwNull", 6ULL);
         ;
-        return _t1296;
+        return _t1366;
     }
     ;
-    Bool _t1362; { Bool *_hp = TokenType_eq(self, TokenType_Error()); _t1362 = *_hp; free(_hp); }
-    if (_t1362) {
-        Str *_t1297 = Str_lit("Error", 5ULL);
+    Bool _t1432; { Bool *_hp = TokenType_eq(self, TokenType_Error()); _t1432 = *_hp; free(_hp); }
+    if (_t1432) {
+        Str *_t1367 = Str_lit("Error", 5ULL);
         ;
-        return _t1297;
+        return _t1367;
     }
     ;
-    Str *_t1363 = Str_lit("unknown", 7ULL);
-    return _t1363;
+    Str *_t1433 = Str_lit("unknown", 7ULL);
+    return _t1433;
 }
 
 U64 *TokenType_size(void) {
@@ -6331,31 +6618,31 @@ U64 *TokenType_size(void) {
 
 Token * Token_clone(Token * self) {
     (void)self;
-    I64 _t1365 = I64_clone(&self->line);
-    I64 _t1366 = I64_clone(&self->col);
-    Token *_t1367 = malloc(sizeof(Token));
-    { TokenType *_ca = TokenType_clone(&self->type); _t1367->type = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->text); _t1367->text = *_ca; free(_ca); }
-    _t1367->line = _t1365;
-    _t1367->col = _t1366;
+    I64 _t1435 = I64_clone(&self->line);
+    I64 _t1436 = I64_clone(&self->col);
+    Token *_t1437 = malloc(sizeof(Token));
+    { TokenType *_ca = TokenType_clone(&self->type); _t1437->type = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->text); _t1437->text = *_ca; free(_ca); }
+    _t1437->line = _t1435;
+    _t1437->col = _t1436;
     ;
     ;
-    return _t1367;
+    return _t1437;
 }
 
 void Token_delete(Token * self, Bool * call_free) {
     (void)self;
-    Bool _t1368 = 0;
-    TokenType_delete(&self->type, &(Bool){_t1368});
+    Bool _t1438 = 0;
+    TokenType_delete(&self->type, &(Bool){_t1438});
     ;
-    Bool _t1369 = 0;
-    Str_delete(&self->text, &(Bool){_t1369});
+    Bool _t1439 = 0;
+    Str_delete(&self->text, &(Bool){_t1439});
     ;
-    Bool _t1370 = 0;
-    I64_delete(&self->line, &(Bool){_t1370});
+    Bool _t1440 = 0;
+    I64_delete(&self->line, &(Bool){_t1440});
     ;
-    Bool _t1371 = 0;
-    I64_delete(&self->col, &(Bool){_t1371});
+    Bool _t1441 = 0;
+    I64_delete(&self->col, &(Bool){_t1441});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -6369,134 +6656,134 @@ U64 *Token_size(void) {
 }
 
 Bool * is_digit(U8 * c) {
-    U8 _t1373 = 48;
-    U8 _t1374 = 57;
-    Bool _t1375; { Bool *_hp = U8_gte(c, &(U8){_t1373}); _t1375 = *_hp; free(_hp); }
+    U8 _t1443 = 48;
+    U8 _t1444 = 57;
+    Bool _t1445; { Bool *_hp = U8_gte(c, &(U8){_t1443}); _t1445 = *_hp; free(_hp); }
     ;
-    Bool _t1376; { Bool *_hp = U8_lte(c, &(U8){_t1374}); _t1376 = *_hp; free(_hp); }
+    Bool _t1446; { Bool *_hp = U8_lte(c, &(U8){_t1444}); _t1446 = *_hp; free(_hp); }
     ;
-    Bool _t1377 = Bool_and(_t1375, _t1376);
+    Bool _t1447 = Bool_and(_t1445, _t1446);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1377; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1447; return _r; }
 }
 
 Bool * is_alpha(U8 * c) {
-    U8 _t1378 = 97;
-    U8 _t1379 = 122;
-    Bool _t1380; { Bool *_hp = U8_gte(c, &(U8){_t1378}); _t1380 = *_hp; free(_hp); }
+    U8 _t1448 = 97;
+    U8 _t1449 = 122;
+    Bool _t1450; { Bool *_hp = U8_gte(c, &(U8){_t1448}); _t1450 = *_hp; free(_hp); }
     ;
-    Bool _t1381; { Bool *_hp = U8_lte(c, &(U8){_t1379}); _t1381 = *_hp; free(_hp); }
+    Bool _t1451; { Bool *_hp = U8_lte(c, &(U8){_t1449}); _t1451 = *_hp; free(_hp); }
     ;
-    U8 _t1382 = 65;
-    U8 _t1383 = 90;
-    Bool _t1384; { Bool *_hp = U8_gte(c, &(U8){_t1382}); _t1384 = *_hp; free(_hp); }
+    U8 _t1452 = 65;
+    U8 _t1453 = 90;
+    Bool _t1454; { Bool *_hp = U8_gte(c, &(U8){_t1452}); _t1454 = *_hp; free(_hp); }
     ;
-    Bool _t1385; { Bool *_hp = U8_lte(c, &(U8){_t1383}); _t1385 = *_hp; free(_hp); }
+    Bool _t1455; { Bool *_hp = U8_lte(c, &(U8){_t1453}); _t1455 = *_hp; free(_hp); }
     ;
-    Bool _t1386 = Bool_and(_t1380, _t1381);
-    ;
-    ;
-    Bool _t1387 = Bool_and(_t1384, _t1385);
+    Bool _t1456 = Bool_and(_t1450, _t1451);
     ;
     ;
-    U8 _t1388 = 95;
-    Bool _t1389 = Bool_or(_t1386, _t1387);
+    Bool _t1457 = Bool_and(_t1454, _t1455);
     ;
     ;
-    Bool _t1390 = U8_eq(DEREF(c), _t1388);
+    U8 _t1458 = 95;
+    Bool _t1459 = Bool_or(_t1456, _t1457);
     ;
-    Bool _t1391 = Bool_or(_t1389, _t1390);
+    ;
+    Bool _t1460 = U8_eq(DEREF(c), _t1458);
+    ;
+    Bool _t1461 = Bool_or(_t1459, _t1460);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1391; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1461; return _r; }
 }
 
 Bool * is_alnum(U8 * c) {
-    Bool _t1392; { Bool *_hp = is_alpha(c); _t1392 = *_hp; free(_hp); }
-    Bool _t1393; { Bool *_hp = is_digit(c); _t1393 = *_hp; free(_hp); }
-    Bool _t1394 = Bool_or(_t1392, _t1393);
+    Bool _t1462; { Bool *_hp = is_alpha(c); _t1462 = *_hp; free(_hp); }
+    Bool _t1463; { Bool *_hp = is_digit(c); _t1463 = *_hp; free(_hp); }
+    Bool _t1464 = Bool_or(_t1462, _t1463);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1394; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1464; return _r; }
 }
 
 Str * tok_name(TokenType * type) {
     {
-        TokenType *_sw1395 = TokenType_clone(type);
-        Bool _t1526; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Eof()); _t1526 = *_hp; free(_hp); }
-        if (_t1526) {
-            Str *_t1396 = Str_lit("eof", 3ULL);
-            TokenType_delete(_sw1395, &(Bool){1});
+        TokenType *_sw1465 = TokenType_clone(type);
+        Bool _t1596; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Eof()); _t1596 = *_hp; free(_hp); }
+        if (_t1596) {
+            Str *_t1466 = Str_lit("eof", 3ULL);
+            TokenType_delete(_sw1465, &(Bool){1});
             ;
-            return _t1396;
+            return _t1466;
         } else {
-            Bool _t1525; { Bool *_hp = TokenType_eq(_sw1395, TokenType_LParen()); _t1525 = *_hp; free(_hp); }
-            if (_t1525) {
-                Str *_t1397 = Str_lit("(", 1ULL);
+            Bool _t1595; { Bool *_hp = TokenType_eq(_sw1465, TokenType_LParen()); _t1595 = *_hp; free(_hp); }
+            if (_t1595) {
+                Str *_t1467 = Str_lit("(", 1ULL);
                 ;
-                TokenType_delete(_sw1395, &(Bool){1});
+                TokenType_delete(_sw1465, &(Bool){1});
                 ;
-                return _t1397;
+                return _t1467;
             } else {
-                Bool _t1524; { Bool *_hp = TokenType_eq(_sw1395, TokenType_RParen()); _t1524 = *_hp; free(_hp); }
-                if (_t1524) {
-                    Str *_t1398 = Str_lit(")", 1ULL);
+                Bool _t1594; { Bool *_hp = TokenType_eq(_sw1465, TokenType_RParen()); _t1594 = *_hp; free(_hp); }
+                if (_t1594) {
+                    Str *_t1468 = Str_lit(")", 1ULL);
                     ;
                     ;
-                    TokenType_delete(_sw1395, &(Bool){1});
+                    TokenType_delete(_sw1465, &(Bool){1});
                     ;
-                    return _t1398;
+                    return _t1468;
                 } else {
-                    Bool _t1523; { Bool *_hp = TokenType_eq(_sw1395, TokenType_LBrace()); _t1523 = *_hp; free(_hp); }
-                    if (_t1523) {
-                        Str *_t1399 = Str_lit("{", 1ULL);
+                    Bool _t1593; { Bool *_hp = TokenType_eq(_sw1465, TokenType_LBrace()); _t1593 = *_hp; free(_hp); }
+                    if (_t1593) {
+                        Str *_t1469 = Str_lit("{", 1ULL);
                         ;
                         ;
                         ;
-                        TokenType_delete(_sw1395, &(Bool){1});
+                        TokenType_delete(_sw1465, &(Bool){1});
                         ;
-                        return _t1399;
+                        return _t1469;
                     } else {
-                        Bool _t1522; { Bool *_hp = TokenType_eq(_sw1395, TokenType_RBrace()); _t1522 = *_hp; free(_hp); }
-                        if (_t1522) {
-                            Str *_t1400 = Str_lit("}", 1ULL);
+                        Bool _t1592; { Bool *_hp = TokenType_eq(_sw1465, TokenType_RBrace()); _t1592 = *_hp; free(_hp); }
+                        if (_t1592) {
+                            Str *_t1470 = Str_lit("}", 1ULL);
                             ;
                             ;
                             ;
                             ;
-                            TokenType_delete(_sw1395, &(Bool){1});
+                            TokenType_delete(_sw1465, &(Bool){1});
                             ;
-                            return _t1400;
+                            return _t1470;
                         } else {
-                            Bool _t1521; { Bool *_hp = TokenType_eq(_sw1395, TokenType_LBracket()); _t1521 = *_hp; free(_hp); }
-                            if (_t1521) {
-                                Str *_t1401 = Str_lit("[", 1ULL);
+                            Bool _t1591; { Bool *_hp = TokenType_eq(_sw1465, TokenType_LBracket()); _t1591 = *_hp; free(_hp); }
+                            if (_t1591) {
+                                Str *_t1471 = Str_lit("[", 1ULL);
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                TokenType_delete(_sw1395, &(Bool){1});
+                                TokenType_delete(_sw1465, &(Bool){1});
                                 ;
-                                return _t1401;
+                                return _t1471;
                             } else {
-                                Bool _t1520; { Bool *_hp = TokenType_eq(_sw1395, TokenType_RBracket()); _t1520 = *_hp; free(_hp); }
-                                if (_t1520) {
-                                    Str *_t1402 = Str_lit("]", 1ULL);
+                                Bool _t1590; { Bool *_hp = TokenType_eq(_sw1465, TokenType_RBracket()); _t1590 = *_hp; free(_hp); }
+                                if (_t1590) {
+                                    Str *_t1472 = Str_lit("]", 1ULL);
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    TokenType_delete(_sw1395, &(Bool){1});
+                                    TokenType_delete(_sw1465, &(Bool){1});
                                     ;
-                                    return _t1402;
+                                    return _t1472;
                                 } else {
-                                    Bool _t1519; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Comma()); _t1519 = *_hp; free(_hp); }
-                                    if (_t1519) {
-                                        Str *_t1403 = Str_lit(",", 1ULL);
+                                    Bool _t1589; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Comma()); _t1589 = *_hp; free(_hp); }
+                                    if (_t1589) {
+                                        Str *_t1473 = Str_lit(",", 1ULL);
                                         ;
                                         ;
                                         ;
@@ -6504,13 +6791,13 @@ Str * tok_name(TokenType * type) {
                                         ;
                                         ;
                                         ;
-                                        TokenType_delete(_sw1395, &(Bool){1});
+                                        TokenType_delete(_sw1465, &(Bool){1});
                                         ;
-                                        return _t1403;
+                                        return _t1473;
                                     } else {
-                                        Bool _t1518; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Colon()); _t1518 = *_hp; free(_hp); }
-                                        if (_t1518) {
-                                            Str *_t1404 = Str_lit(":", 1ULL);
+                                        Bool _t1588; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Colon()); _t1588 = *_hp; free(_hp); }
+                                        if (_t1588) {
+                                            Str *_t1474 = Str_lit(":", 1ULL);
                                             ;
                                             ;
                                             ;
@@ -6519,13 +6806,13 @@ Str * tok_name(TokenType * type) {
                                             ;
                                             ;
                                             ;
-                                            TokenType_delete(_sw1395, &(Bool){1});
+                                            TokenType_delete(_sw1465, &(Bool){1});
                                             ;
-                                            return _t1404;
+                                            return _t1474;
                                         } else {
-                                            Bool _t1517; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Question()); _t1517 = *_hp; free(_hp); }
-                                            if (_t1517) {
-                                                Str *_t1405 = Str_lit("?", 1ULL);
+                                            Bool _t1587; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Question()); _t1587 = *_hp; free(_hp); }
+                                            if (_t1587) {
+                                                Str *_t1475 = Str_lit("?", 1ULL);
                                                 ;
                                                 ;
                                                 ;
@@ -6535,13 +6822,13 @@ Str * tok_name(TokenType * type) {
                                                 ;
                                                 ;
                                                 ;
-                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                TokenType_delete(_sw1465, &(Bool){1});
                                                 ;
-                                                return _t1405;
+                                                return _t1475;
                                             } else {
-                                                Bool _t1516; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Bang()); _t1516 = *_hp; free(_hp); }
-                                                if (_t1516) {
-                                                    Str *_t1406 = Str_lit("!", 1ULL);
+                                                Bool _t1586; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Bang()); _t1586 = *_hp; free(_hp); }
+                                                if (_t1586) {
+                                                    Str *_t1476 = Str_lit("!", 1ULL);
                                                     ;
                                                     ;
                                                     ;
@@ -6552,13 +6839,13 @@ Str * tok_name(TokenType * type) {
                                                     ;
                                                     ;
                                                     ;
-                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                     ;
-                                                    return _t1406;
+                                                    return _t1476;
                                                 } else {
-                                                    Bool _t1515; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Minus()); _t1515 = *_hp; free(_hp); }
-                                                    if (_t1515) {
-                                                        Str *_t1407 = Str_lit("-", 1ULL);
+                                                    Bool _t1585; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Minus()); _t1585 = *_hp; free(_hp); }
+                                                    if (_t1585) {
+                                                        Str *_t1477 = Str_lit("-", 1ULL);
                                                         ;
                                                         ;
                                                         ;
@@ -6570,13 +6857,13 @@ Str * tok_name(TokenType * type) {
                                                         ;
                                                         ;
                                                         ;
-                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                         ;
-                                                        return _t1407;
+                                                        return _t1477;
                                                     } else {
-                                                        Bool _t1514; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Plus()); _t1514 = *_hp; free(_hp); }
-                                                        if (_t1514) {
-                                                            Str *_t1408 = Str_lit("+", 1ULL);
+                                                        Bool _t1584; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Plus()); _t1584 = *_hp; free(_hp); }
+                                                        if (_t1584) {
+                                                            Str *_t1478 = Str_lit("+", 1ULL);
                                                             ;
                                                             ;
                                                             ;
@@ -6589,13 +6876,13 @@ Str * tok_name(TokenType * type) {
                                                             ;
                                                             ;
                                                             ;
-                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                             ;
-                                                            return _t1408;
+                                                            return _t1478;
                                                         } else {
-                                                            Bool _t1513; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Star()); _t1513 = *_hp; free(_hp); }
-                                                            if (_t1513) {
-                                                                Str *_t1409 = Str_lit("*", 1ULL);
+                                                            Bool _t1583; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Star()); _t1583 = *_hp; free(_hp); }
+                                                            if (_t1583) {
+                                                                Str *_t1479 = Str_lit("*", 1ULL);
                                                                 ;
                                                                 ;
                                                                 ;
@@ -6609,13 +6896,13 @@ Str * tok_name(TokenType * type) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                 ;
-                                                                return _t1409;
+                                                                return _t1479;
                                                             } else {
-                                                                Bool _t1512; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Slash()); _t1512 = *_hp; free(_hp); }
-                                                                if (_t1512) {
-                                                                    Str *_t1410 = Str_lit("/", 1ULL);
+                                                                Bool _t1582; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Slash()); _t1582 = *_hp; free(_hp); }
+                                                                if (_t1582) {
+                                                                    Str *_t1480 = Str_lit("/", 1ULL);
                                                                     ;
                                                                     ;
                                                                     ;
@@ -6630,13 +6917,13 @@ Str * tok_name(TokenType * type) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                     ;
-                                                                    return _t1410;
+                                                                    return _t1480;
                                                                 } else {
-                                                                    Bool _t1511; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Dot()); _t1511 = *_hp; free(_hp); }
-                                                                    if (_t1511) {
-                                                                        Str *_t1411 = Str_lit(".", 1ULL);
+                                                                    Bool _t1581; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Dot()); _t1581 = *_hp; free(_hp); }
+                                                                    if (_t1581) {
+                                                                        Str *_t1481 = Str_lit(".", 1ULL);
                                                                         ;
                                                                         ;
                                                                         ;
@@ -6652,13 +6939,13 @@ Str * tok_name(TokenType * type) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                         ;
-                                                                        return _t1411;
+                                                                        return _t1481;
                                                                     } else {
-                                                                        Bool _t1510; { Bool *_hp = TokenType_eq(_sw1395, TokenType_DotDot()); _t1510 = *_hp; free(_hp); }
-                                                                        if (_t1510) {
-                                                                            Str *_t1412 = Str_lit("..", 2ULL);
+                                                                        Bool _t1580; { Bool *_hp = TokenType_eq(_sw1465, TokenType_DotDot()); _t1580 = *_hp; free(_hp); }
+                                                                        if (_t1580) {
+                                                                            Str *_t1482 = Str_lit("..", 2ULL);
                                                                             ;
                                                                             ;
                                                                             ;
@@ -6675,13 +6962,13 @@ Str * tok_name(TokenType * type) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                             ;
-                                                                            return _t1412;
+                                                                            return _t1482;
                                                                         } else {
-                                                                            Bool _t1509; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Eq()); _t1509 = *_hp; free(_hp); }
-                                                                            if (_t1509) {
-                                                                                Str *_t1413 = Str_lit("=", 1ULL);
+                                                                            Bool _t1579; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Eq()); _t1579 = *_hp; free(_hp); }
+                                                                            if (_t1579) {
+                                                                                Str *_t1483 = Str_lit("=", 1ULL);
                                                                                 ;
                                                                                 ;
                                                                                 ;
@@ -6699,13 +6986,13 @@ Str * tok_name(TokenType * type) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                 ;
-                                                                                return _t1413;
+                                                                                return _t1483;
                                                                             } else {
-                                                                                Bool _t1508; { Bool *_hp = TokenType_eq(_sw1395, TokenType_EqEq()); _t1508 = *_hp; free(_hp); }
-                                                                                if (_t1508) {
-                                                                                    Str *_t1414 = Str_lit("==", 2ULL);
+                                                                                Bool _t1578; { Bool *_hp = TokenType_eq(_sw1465, TokenType_EqEq()); _t1578 = *_hp; free(_hp); }
+                                                                                if (_t1578) {
+                                                                                    Str *_t1484 = Str_lit("==", 2ULL);
                                                                                     ;
                                                                                     ;
                                                                                     ;
@@ -6724,13 +7011,13 @@ Str * tok_name(TokenType * type) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                     ;
-                                                                                    return _t1414;
+                                                                                    return _t1484;
                                                                                 } else {
-                                                                                    Bool _t1507; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Neq()); _t1507 = *_hp; free(_hp); }
-                                                                                    if (_t1507) {
-                                                                                        Str *_t1415 = Str_lit("!=", 2ULL);
+                                                                                    Bool _t1577; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Neq()); _t1577 = *_hp; free(_hp); }
+                                                                                    if (_t1577) {
+                                                                                        Str *_t1485 = Str_lit("!=", 2ULL);
                                                                                         ;
                                                                                         ;
                                                                                         ;
@@ -6750,13 +7037,13 @@ Str * tok_name(TokenType * type) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                         ;
-                                                                                        return _t1415;
+                                                                                        return _t1485;
                                                                                     } else {
-                                                                                        Bool _t1506; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Lt()); _t1506 = *_hp; free(_hp); }
-                                                                                        if (_t1506) {
-                                                                                            Str *_t1416 = Str_lit("<", 1ULL);
+                                                                                        Bool _t1576; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Lt()); _t1576 = *_hp; free(_hp); }
+                                                                                        if (_t1576) {
+                                                                                            Str *_t1486 = Str_lit("<", 1ULL);
                                                                                             ;
                                                                                             ;
                                                                                             ;
@@ -6777,13 +7064,13 @@ Str * tok_name(TokenType * type) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                             ;
-                                                                                            return _t1416;
+                                                                                            return _t1486;
                                                                                         } else {
-                                                                                            Bool _t1505; { Bool *_hp = TokenType_eq(_sw1395, TokenType_LtEq()); _t1505 = *_hp; free(_hp); }
-                                                                                            if (_t1505) {
-                                                                                                Str *_t1417 = Str_lit("<=", 2ULL);
+                                                                                            Bool _t1575; { Bool *_hp = TokenType_eq(_sw1465, TokenType_LtEq()); _t1575 = *_hp; free(_hp); }
+                                                                                            if (_t1575) {
+                                                                                                Str *_t1487 = Str_lit("<=", 2ULL);
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
@@ -6805,13 +7092,13 @@ Str * tok_name(TokenType * type) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                 ;
-                                                                                                return _t1417;
+                                                                                                return _t1487;
                                                                                             } else {
-                                                                                                Bool _t1504; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Gt()); _t1504 = *_hp; free(_hp); }
-                                                                                                if (_t1504) {
-                                                                                                    Str *_t1418 = Str_lit(">", 1ULL);
+                                                                                                Bool _t1574; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Gt()); _t1574 = *_hp; free(_hp); }
+                                                                                                if (_t1574) {
+                                                                                                    Str *_t1488 = Str_lit(">", 1ULL);
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
@@ -6834,13 +7121,13 @@ Str * tok_name(TokenType * type) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                     ;
-                                                                                                    return _t1418;
+                                                                                                    return _t1488;
                                                                                                 } else {
-                                                                                                    Bool _t1503; { Bool *_hp = TokenType_eq(_sw1395, TokenType_GtEq()); _t1503 = *_hp; free(_hp); }
-                                                                                                    if (_t1503) {
-                                                                                                        Str *_t1419 = Str_lit(">=", 2ULL);
+                                                                                                    Bool _t1573; { Bool *_hp = TokenType_eq(_sw1465, TokenType_GtEq()); _t1573 = *_hp; free(_hp); }
+                                                                                                    if (_t1573) {
+                                                                                                        Str *_t1489 = Str_lit(">=", 2ULL);
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
@@ -6864,13 +7151,13 @@ Str * tok_name(TokenType * type) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                         ;
-                                                                                                        return _t1419;
+                                                                                                        return _t1489;
                                                                                                     } else {
-                                                                                                        Bool _t1502; { Bool *_hp = TokenType_eq(_sw1395, TokenType_ColonEq()); _t1502 = *_hp; free(_hp); }
-                                                                                                        if (_t1502) {
-                                                                                                            Str *_t1420 = Str_lit(":=", 2ULL);
+                                                                                                        Bool _t1572; { Bool *_hp = TokenType_eq(_sw1465, TokenType_ColonEq()); _t1572 = *_hp; free(_hp); }
+                                                                                                        if (_t1572) {
+                                                                                                            Str *_t1490 = Str_lit(":=", 2ULL);
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
@@ -6895,13 +7182,13 @@ Str * tok_name(TokenType * type) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                             ;
-                                                                                                            return _t1420;
+                                                                                                            return _t1490;
                                                                                                         } else {
-                                                                                                            Bool _t1501; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Ident()); _t1501 = *_hp; free(_hp); }
-                                                                                                            if (_t1501) {
-                                                                                                                Str *_t1421 = Str_lit("identifier", 10ULL);
+                                                                                                            Bool _t1571; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Ident()); _t1571 = *_hp; free(_hp); }
+                                                                                                            if (_t1571) {
+                                                                                                                Str *_t1491 = Str_lit("identifier", 10ULL);
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
@@ -6927,13 +7214,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
-                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                 ;
-                                                                                                                return _t1421;
+                                                                                                                return _t1491;
                                                                                                             } else {
-                                                                                                                Bool _t1500; { Bool *_hp = TokenType_eq(_sw1395, TokenType_StringTok()); _t1500 = *_hp; free(_hp); }
-                                                                                                                if (_t1500) {
-                                                                                                                    Str *_t1422 = Str_lit("string", 6ULL);
+                                                                                                                Bool _t1570; { Bool *_hp = TokenType_eq(_sw1465, TokenType_StringTok()); _t1570 = *_hp; free(_hp); }
+                                                                                                                if (_t1570) {
+                                                                                                                    Str *_t1492 = Str_lit("string", 6ULL);
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
@@ -6960,13 +7247,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
-                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                     ;
-                                                                                                                    return _t1422;
+                                                                                                                    return _t1492;
                                                                                                                 } else {
-                                                                                                                    Bool _t1499; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Number()); _t1499 = *_hp; free(_hp); }
-                                                                                                                    if (_t1499) {
-                                                                                                                        Str *_t1423 = Str_lit("number", 6ULL);
+                                                                                                                    Bool _t1569; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Number()); _t1569 = *_hp; free(_hp); }
+                                                                                                                    if (_t1569) {
+                                                                                                                        Str *_t1493 = Str_lit("number", 6ULL);
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
@@ -6994,13 +7281,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
-                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                         ;
-                                                                                                                        return _t1423;
+                                                                                                                        return _t1493;
                                                                                                                     } else {
-                                                                                                                        Bool _t1498; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Char()); _t1498 = *_hp; free(_hp); }
-                                                                                                                        if (_t1498) {
-                                                                                                                            Str *_t1424 = Str_lit("char", 4ULL);
+                                                                                                                        Bool _t1568; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Char()); _t1568 = *_hp; free(_hp); }
+                                                                                                                        if (_t1568) {
+                                                                                                                            Str *_t1494 = Str_lit("char", 4ULL);
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
@@ -7029,13 +7316,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
-                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                             ;
-                                                                                                                            return _t1424;
+                                                                                                                            return _t1494;
                                                                                                                         } else {
-                                                                                                                            Bool _t1497; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwMode()); _t1497 = *_hp; free(_hp); }
-                                                                                                                            if (_t1497) {
-                                                                                                                                Str *_t1425 = Str_lit("mode", 4ULL);
+                                                                                                                            Bool _t1567; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwMode()); _t1567 = *_hp; free(_hp); }
+                                                                                                                            if (_t1567) {
+                                                                                                                                Str *_t1495 = Str_lit("mode", 4ULL);
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
@@ -7065,13 +7352,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
-                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                 ;
-                                                                                                                                return _t1425;
+                                                                                                                                return _t1495;
                                                                                                                             } else {
-                                                                                                                                Bool _t1496; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwMut()); _t1496 = *_hp; free(_hp); }
-                                                                                                                                if (_t1496) {
-                                                                                                                                    Str *_t1426 = Str_lit("mut", 3ULL);
+                                                                                                                                Bool _t1566; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwMut()); _t1566 = *_hp; free(_hp); }
+                                                                                                                                if (_t1566) {
+                                                                                                                                    Str *_t1496 = Str_lit("mut", 3ULL);
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
@@ -7102,13 +7389,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
-                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                     ;
-                                                                                                                                    return _t1426;
+                                                                                                                                    return _t1496;
                                                                                                                                 } else {
-                                                                                                                                    Bool _t1495; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwOwn()); _t1495 = *_hp; free(_hp); }
-                                                                                                                                    if (_t1495) {
-                                                                                                                                        Str *_t1427 = Str_lit("own", 3ULL);
+                                                                                                                                    Bool _t1565; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwOwn()); _t1565 = *_hp; free(_hp); }
+                                                                                                                                    if (_t1565) {
+                                                                                                                                        Str *_t1497 = Str_lit("own", 3ULL);
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
@@ -7140,13 +7427,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
-                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                         ;
-                                                                                                                                        return _t1427;
+                                                                                                                                        return _t1497;
                                                                                                                                     } else {
-                                                                                                                                        Bool _t1494; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwRef()); _t1494 = *_hp; free(_hp); }
-                                                                                                                                        if (_t1494) {
-                                                                                                                                            Str *_t1428 = Str_lit("ref", 3ULL);
+                                                                                                                                        Bool _t1564; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwRef()); _t1564 = *_hp; free(_hp); }
+                                                                                                                                        if (_t1564) {
+                                                                                                                                            Str *_t1498 = Str_lit("ref", 3ULL);
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
@@ -7179,13 +7466,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
-                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                             ;
-                                                                                                                                            return _t1428;
+                                                                                                                                            return _t1498;
                                                                                                                                         } else {
-                                                                                                                                            Bool _t1493; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwShallow()); _t1493 = *_hp; free(_hp); }
-                                                                                                                                            if (_t1493) {
-                                                                                                                                                Str *_t1429 = Str_lit("shallow", 7ULL);
+                                                                                                                                            Bool _t1563; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwShallow()); _t1563 = *_hp; free(_hp); }
+                                                                                                                                            if (_t1563) {
+                                                                                                                                                Str *_t1499 = Str_lit("shallow", 7ULL);
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
@@ -7219,13 +7506,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
-                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                 ;
-                                                                                                                                                return _t1429;
+                                                                                                                                                return _t1499;
                                                                                                                                             } else {
-                                                                                                                                                Bool _t1492; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwStruct()); _t1492 = *_hp; free(_hp); }
-                                                                                                                                                if (_t1492) {
-                                                                                                                                                    Str *_t1430 = Str_lit("struct", 6ULL);
+                                                                                                                                                Bool _t1562; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwStruct()); _t1562 = *_hp; free(_hp); }
+                                                                                                                                                if (_t1562) {
+                                                                                                                                                    Str *_t1500 = Str_lit("struct", 6ULL);
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
@@ -7260,13 +7547,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                     ;
-                                                                                                                                                    return _t1430;
+                                                                                                                                                    return _t1500;
                                                                                                                                                 } else {
-                                                                                                                                                    Bool _t1491; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwExtStruct()); _t1491 = *_hp; free(_hp); }
-                                                                                                                                                    if (_t1491) {
-                                                                                                                                                        Str *_t1431 = Str_lit("ext_struct", 10ULL);
+                                                                                                                                                    Bool _t1561; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwExtStruct()); _t1561 = *_hp; free(_hp); }
+                                                                                                                                                    if (_t1561) {
+                                                                                                                                                        Str *_t1501 = Str_lit("ext_struct", 10ULL);
                                                                                                                                                         ;
                                                                                                                                                         ;
                                                                                                                                                         ;
@@ -7302,13 +7589,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                         ;
                                                                                                                                                         ;
                                                                                                                                                         ;
-                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                         ;
-                                                                                                                                                        return _t1431;
+                                                                                                                                                        return _t1501;
                                                                                                                                                     } else {
-                                                                                                                                                        Bool _t1490; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwEnum()); _t1490 = *_hp; free(_hp); }
-                                                                                                                                                        if (_t1490) {
-                                                                                                                                                            Str *_t1432 = Str_lit("enum", 4ULL);
+                                                                                                                                                        Bool _t1560; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwEnum()); _t1560 = *_hp; free(_hp); }
+                                                                                                                                                        if (_t1560) {
+                                                                                                                                                            Str *_t1502 = Str_lit("enum", 4ULL);
                                                                                                                                                             ;
                                                                                                                                                             ;
                                                                                                                                                             ;
@@ -7345,13 +7632,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                             ;
                                                                                                                                                             ;
                                                                                                                                                             ;
-                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                             ;
-                                                                                                                                                            return _t1432;
+                                                                                                                                                            return _t1502;
                                                                                                                                                         } else {
-                                                                                                                                                            Bool _t1489; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwNamespace()); _t1489 = *_hp; free(_hp); }
-                                                                                                                                                            if (_t1489) {
-                                                                                                                                                                Str *_t1433 = Str_lit("namespace", 9ULL);
+                                                                                                                                                            Bool _t1559; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwNamespace()); _t1559 = *_hp; free(_hp); }
+                                                                                                                                                            if (_t1559) {
+                                                                                                                                                                Str *_t1503 = Str_lit("namespace", 9ULL);
                                                                                                                                                                 ;
                                                                                                                                                                 ;
                                                                                                                                                                 ;
@@ -7389,13 +7676,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                 ;
                                                                                                                                                                 ;
                                                                                                                                                                 ;
-                                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                 ;
-                                                                                                                                                                return _t1433;
+                                                                                                                                                                return _t1503;
                                                                                                                                                             } else {
-                                                                                                                                                                Bool _t1488; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwFunc()); _t1488 = *_hp; free(_hp); }
-                                                                                                                                                                if (_t1488) {
-                                                                                                                                                                    Str *_t1434 = Str_lit("func", 4ULL);
+                                                                                                                                                                Bool _t1558; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwFunc()); _t1558 = *_hp; free(_hp); }
+                                                                                                                                                                if (_t1558) {
+                                                                                                                                                                    Str *_t1504 = Str_lit("func", 4ULL);
                                                                                                                                                                     ;
                                                                                                                                                                     ;
                                                                                                                                                                     ;
@@ -7434,13 +7721,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                     ;
                                                                                                                                                                     ;
                                                                                                                                                                     ;
-                                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                     ;
-                                                                                                                                                                    return _t1434;
+                                                                                                                                                                    return _t1504;
                                                                                                                                                                 } else {
-                                                                                                                                                                    Bool _t1487; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwProc()); _t1487 = *_hp; free(_hp); }
-                                                                                                                                                                    if (_t1487) {
-                                                                                                                                                                        Str *_t1435 = Str_lit("proc", 4ULL);
+                                                                                                                                                                    Bool _t1557; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwProc()); _t1557 = *_hp; free(_hp); }
+                                                                                                                                                                    if (_t1557) {
+                                                                                                                                                                        Str *_t1505 = Str_lit("proc", 4ULL);
                                                                                                                                                                         ;
                                                                                                                                                                         ;
                                                                                                                                                                         ;
@@ -7480,13 +7767,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                         ;
                                                                                                                                                                         ;
                                                                                                                                                                         ;
-                                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                         ;
-                                                                                                                                                                        return _t1435;
+                                                                                                                                                                        return _t1505;
                                                                                                                                                                     } else {
-                                                                                                                                                                        Bool _t1486; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwTest()); _t1486 = *_hp; free(_hp); }
-                                                                                                                                                                        if (_t1486) {
-                                                                                                                                                                            Str *_t1436 = Str_lit("test", 4ULL);
+                                                                                                                                                                        Bool _t1556; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwTest()); _t1556 = *_hp; free(_hp); }
+                                                                                                                                                                        if (_t1556) {
+                                                                                                                                                                            Str *_t1506 = Str_lit("test", 4ULL);
                                                                                                                                                                             ;
                                                                                                                                                                             ;
                                                                                                                                                                             ;
@@ -7527,13 +7814,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                             ;
                                                                                                                                                                             ;
                                                                                                                                                                             ;
-                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                             ;
-                                                                                                                                                                            return _t1436;
+                                                                                                                                                                            return _t1506;
                                                                                                                                                                         } else {
-                                                                                                                                                                            Bool _t1485; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwMacro()); _t1485 = *_hp; free(_hp); }
-                                                                                                                                                                            if (_t1485) {
-                                                                                                                                                                                Str *_t1437 = Str_lit("macro", 5ULL);
+                                                                                                                                                                            Bool _t1555; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwMacro()); _t1555 = *_hp; free(_hp); }
+                                                                                                                                                                            if (_t1555) {
+                                                                                                                                                                                Str *_t1507 = Str_lit("macro", 5ULL);
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
@@ -7575,13 +7862,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
-                                                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                 ;
-                                                                                                                                                                                return _t1437;
+                                                                                                                                                                                return _t1507;
                                                                                                                                                                             } else {
-                                                                                                                                                                                Bool _t1484; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwExtFunc()); _t1484 = *_hp; free(_hp); }
-                                                                                                                                                                                if (_t1484) {
-                                                                                                                                                                                    Str *_t1438 = Str_lit("ext_func", 8ULL);
+                                                                                                                                                                                Bool _t1554; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwExtFunc()); _t1554 = *_hp; free(_hp); }
+                                                                                                                                                                                if (_t1554) {
+                                                                                                                                                                                    Str *_t1508 = Str_lit("ext_func", 8ULL);
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
@@ -7624,13 +7911,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
-                                                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                     ;
-                                                                                                                                                                                    return _t1438;
+                                                                                                                                                                                    return _t1508;
                                                                                                                                                                                 } else {
-                                                                                                                                                                                    Bool _t1483; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwExtProc()); _t1483 = *_hp; free(_hp); }
-                                                                                                                                                                                    if (_t1483) {
-                                                                                                                                                                                        Str *_t1439 = Str_lit("ext_proc", 8ULL);
+                                                                                                                                                                                    Bool _t1553; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwExtProc()); _t1553 = *_hp; free(_hp); }
+                                                                                                                                                                                    if (_t1553) {
+                                                                                                                                                                                        Str *_t1509 = Str_lit("ext_proc", 8ULL);
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
@@ -7674,13 +7961,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
-                                                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                         ;
-                                                                                                                                                                                        return _t1439;
+                                                                                                                                                                                        return _t1509;
                                                                                                                                                                                     } else {
-                                                                                                                                                                                        Bool _t1482; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwReturns()); _t1482 = *_hp; free(_hp); }
-                                                                                                                                                                                        if (_t1482) {
-                                                                                                                                                                                            Str *_t1440 = Str_lit("returns", 7ULL);
+                                                                                                                                                                                        Bool _t1552; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwReturns()); _t1552 = *_hp; free(_hp); }
+                                                                                                                                                                                        if (_t1552) {
+                                                                                                                                                                                            Str *_t1510 = Str_lit("returns", 7ULL);
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
@@ -7725,13 +8012,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
-                                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                             ;
-                                                                                                                                                                                            return _t1440;
+                                                                                                                                                                                            return _t1510;
                                                                                                                                                                                         } else {
-                                                                                                                                                                                            Bool _t1481; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwThrows()); _t1481 = *_hp; free(_hp); }
-                                                                                                                                                                                            if (_t1481) {
-                                                                                                                                                                                                Str *_t1441 = Str_lit("throws", 6ULL);
+                                                                                                                                                                                            Bool _t1551; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwThrows()); _t1551 = *_hp; free(_hp); }
+                                                                                                                                                                                            if (_t1551) {
+                                                                                                                                                                                                Str *_t1511 = Str_lit("throws", 6ULL);
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
@@ -7777,13 +8064,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
-                                                                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                 ;
-                                                                                                                                                                                                return _t1441;
+                                                                                                                                                                                                return _t1511;
                                                                                                                                                                                             } else {
-                                                                                                                                                                                                Bool _t1480; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwIf()); _t1480 = *_hp; free(_hp); }
-                                                                                                                                                                                                if (_t1480) {
-                                                                                                                                                                                                    Str *_t1442 = Str_lit("if", 2ULL);
+                                                                                                                                                                                                Bool _t1550; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwIf()); _t1550 = *_hp; free(_hp); }
+                                                                                                                                                                                                if (_t1550) {
+                                                                                                                                                                                                    Str *_t1512 = Str_lit("if", 2ULL);
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
@@ -7830,13 +8117,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
-                                                                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                     ;
-                                                                                                                                                                                                    return _t1442;
+                                                                                                                                                                                                    return _t1512;
                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                    Bool _t1479; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwElse()); _t1479 = *_hp; free(_hp); }
-                                                                                                                                                                                                    if (_t1479) {
-                                                                                                                                                                                                        Str *_t1443 = Str_lit("else", 4ULL);
+                                                                                                                                                                                                    Bool _t1549; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwElse()); _t1549 = *_hp; free(_hp); }
+                                                                                                                                                                                                    if (_t1549) {
+                                                                                                                                                                                                        Str *_t1513 = Str_lit("else", 4ULL);
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
@@ -7884,13 +8171,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
-                                                                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                         ;
-                                                                                                                                                                                                        return _t1443;
+                                                                                                                                                                                                        return _t1513;
                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                        Bool _t1478; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwWhile()); _t1478 = *_hp; free(_hp); }
-                                                                                                                                                                                                        if (_t1478) {
-                                                                                                                                                                                                            Str *_t1444 = Str_lit("while", 5ULL);
+                                                                                                                                                                                                        Bool _t1548; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwWhile()); _t1548 = *_hp; free(_hp); }
+                                                                                                                                                                                                        if (_t1548) {
+                                                                                                                                                                                                            Str *_t1514 = Str_lit("while", 5ULL);
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
@@ -7939,13 +8226,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
-                                                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                             ;
-                                                                                                                                                                                                            return _t1444;
+                                                                                                                                                                                                            return _t1514;
                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                            Bool _t1477; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwFor()); _t1477 = *_hp; free(_hp); }
-                                                                                                                                                                                                            if (_t1477) {
-                                                                                                                                                                                                                Str *_t1445 = Str_lit("for", 3ULL);
+                                                                                                                                                                                                            Bool _t1547; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwFor()); _t1547 = *_hp; free(_hp); }
+                                                                                                                                                                                                            if (_t1547) {
+                                                                                                                                                                                                                Str *_t1515 = Str_lit("for", 3ULL);
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
@@ -7995,13 +8282,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                return _t1445;
+                                                                                                                                                                                                                return _t1515;
                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                Bool _t1476; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwIn()); _t1476 = *_hp; free(_hp); }
-                                                                                                                                                                                                                if (_t1476) {
-                                                                                                                                                                                                                    Str *_t1446 = Str_lit("in", 2ULL);
+                                                                                                                                                                                                                Bool _t1546; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwIn()); _t1546 = *_hp; free(_hp); }
+                                                                                                                                                                                                                if (_t1546) {
+                                                                                                                                                                                                                    Str *_t1516 = Str_lit("in", 2ULL);
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
@@ -8052,13 +8339,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                    return _t1446;
+                                                                                                                                                                                                                    return _t1516;
                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                    Bool _t1475; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwSwitch()); _t1475 = *_hp; free(_hp); }
-                                                                                                                                                                                                                    if (_t1475) {
-                                                                                                                                                                                                                        Str *_t1447 = Str_lit("switch", 6ULL);
+                                                                                                                                                                                                                    Bool _t1545; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwSwitch()); _t1545 = *_hp; free(_hp); }
+                                                                                                                                                                                                                    if (_t1545) {
+                                                                                                                                                                                                                        Str *_t1517 = Str_lit("switch", 6ULL);
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
@@ -8110,13 +8397,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                        return _t1447;
+                                                                                                                                                                                                                        return _t1517;
                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                        Bool _t1474; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwMatch()); _t1474 = *_hp; free(_hp); }
-                                                                                                                                                                                                                        if (_t1474) {
-                                                                                                                                                                                                                            Str *_t1448 = Str_lit("match", 5ULL);
+                                                                                                                                                                                                                        Bool _t1544; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwMatch()); _t1544 = *_hp; free(_hp); }
+                                                                                                                                                                                                                        if (_t1544) {
+                                                                                                                                                                                                                            Str *_t1518 = Str_lit("match", 5ULL);
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
@@ -8169,13 +8456,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                            return _t1448;
+                                                                                                                                                                                                                            return _t1518;
                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                            Bool _t1473; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwCase()); _t1473 = *_hp; free(_hp); }
-                                                                                                                                                                                                                            if (_t1473) {
-                                                                                                                                                                                                                                Str *_t1449 = Str_lit("case", 4ULL);
+                                                                                                                                                                                                                            Bool _t1543; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwCase()); _t1543 = *_hp; free(_hp); }
+                                                                                                                                                                                                                            if (_t1543) {
+                                                                                                                                                                                                                                Str *_t1519 = Str_lit("case", 4ULL);
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
@@ -8229,13 +8516,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                return _t1449;
+                                                                                                                                                                                                                                return _t1519;
                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                Bool _t1472; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwDefault()); _t1472 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                if (_t1472) {
-                                                                                                                                                                                                                                    Str *_t1450 = Str_lit("default", 7ULL);
+                                                                                                                                                                                                                                Bool _t1542; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwDefault()); _t1542 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                if (_t1542) {
+                                                                                                                                                                                                                                    Str *_t1520 = Str_lit("default", 7ULL);
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
@@ -8290,13 +8577,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                    return _t1450;
+                                                                                                                                                                                                                                    return _t1520;
                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                    Bool _t1471; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwReturn()); _t1471 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                    if (_t1471) {
-                                                                                                                                                                                                                                        Str *_t1451 = Str_lit("return", 6ULL);
+                                                                                                                                                                                                                                    Bool _t1541; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwReturn()); _t1541 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                    if (_t1541) {
+                                                                                                                                                                                                                                        Str *_t1521 = Str_lit("return", 6ULL);
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
@@ -8352,13 +8639,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                        return _t1451;
+                                                                                                                                                                                                                                        return _t1521;
                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                        Bool _t1470; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwThrow()); _t1470 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                        if (_t1470) {
-                                                                                                                                                                                                                                            Str *_t1452 = Str_lit("throw", 5ULL);
+                                                                                                                                                                                                                                        Bool _t1540; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwThrow()); _t1540 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                        if (_t1540) {
+                                                                                                                                                                                                                                            Str *_t1522 = Str_lit("throw", 5ULL);
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
@@ -8415,13 +8702,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                            return _t1452;
+                                                                                                                                                                                                                                            return _t1522;
                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                            Bool _t1469; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwCatch()); _t1469 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                            if (_t1469) {
-                                                                                                                                                                                                                                                Str *_t1453 = Str_lit("catch", 5ULL);
+                                                                                                                                                                                                                                            Bool _t1539; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwCatch()); _t1539 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                            if (_t1539) {
+                                                                                                                                                                                                                                                Str *_t1523 = Str_lit("catch", 5ULL);
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
@@ -8479,13 +8766,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                return _t1453;
+                                                                                                                                                                                                                                                return _t1523;
                                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                                Bool _t1468; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwBreak()); _t1468 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                if (_t1468) {
-                                                                                                                                                                                                                                                    Str *_t1454 = Str_lit("break", 5ULL);
+                                                                                                                                                                                                                                                Bool _t1538; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwBreak()); _t1538 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                if (_t1538) {
+                                                                                                                                                                                                                                                    Str *_t1524 = Str_lit("break", 5ULL);
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
@@ -8544,13 +8831,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                    return _t1454;
+                                                                                                                                                                                                                                                    return _t1524;
                                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                                    Bool _t1467; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwContinue()); _t1467 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                    if (_t1467) {
-                                                                                                                                                                                                                                                        Str *_t1455 = Str_lit("continue", 8ULL);
+                                                                                                                                                                                                                                                    Bool _t1537; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwContinue()); _t1537 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                    if (_t1537) {
+                                                                                                                                                                                                                                                        Str *_t1525 = Str_lit("continue", 8ULL);
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
@@ -8610,13 +8897,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                        return _t1455;
+                                                                                                                                                                                                                                                        return _t1525;
                                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                                        Bool _t1466; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwDefer()); _t1466 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                        if (_t1466) {
-                                                                                                                                                                                                                                                            Str *_t1456 = Str_lit("defer", 5ULL);
+                                                                                                                                                                                                                                                        Bool _t1536; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwDefer()); _t1536 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                        if (_t1536) {
+                                                                                                                                                                                                                                                            Str *_t1526 = Str_lit("defer", 5ULL);
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
@@ -8677,13 +8964,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                            return _t1456;
+                                                                                                                                                                                                                                                            return _t1526;
                                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                                            Bool _t1465; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwTrue()); _t1465 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                            if (_t1465) {
-                                                                                                                                                                                                                                                                Str *_t1457 = Str_lit("true", 4ULL);
+                                                                                                                                                                                                                                                            Bool _t1535; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwTrue()); _t1535 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                            if (_t1535) {
+                                                                                                                                                                                                                                                                Str *_t1527 = Str_lit("true", 4ULL);
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
@@ -8745,13 +9032,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                                TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                                TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                                return _t1457;
+                                                                                                                                                                                                                                                                return _t1527;
                                                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                                                Bool _t1464; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwFalse()); _t1464 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                                if (_t1464) {
-                                                                                                                                                                                                                                                                    Str *_t1458 = Str_lit("false", 5ULL);
+                                                                                                                                                                                                                                                                Bool _t1534; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwFalse()); _t1534 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                if (_t1534) {
+                                                                                                                                                                                                                                                                    Str *_t1528 = Str_lit("false", 5ULL);
                                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                                     ;
@@ -8814,13 +9101,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                                    TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                                    TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                                    return _t1458;
+                                                                                                                                                                                                                                                                    return _t1528;
                                                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                                                    Bool _t1463; { Bool *_hp = TokenType_eq(_sw1395, TokenType_KwNull()); _t1463 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                                    if (_t1463) {
-                                                                                                                                                                                                                                                                        Str *_t1459 = Str_lit("NULL", 4ULL);
+                                                                                                                                                                                                                                                                    Bool _t1533; { Bool *_hp = TokenType_eq(_sw1465, TokenType_KwNull()); _t1533 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                    if (_t1533) {
+                                                                                                                                                                                                                                                                        Str *_t1529 = Str_lit("NULL", 4ULL);
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
@@ -8884,13 +9171,13 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                                        TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                                        TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                                        return _t1459;
+                                                                                                                                                                                                                                                                        return _t1529;
                                                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                                                        Bool _t1462; { Bool *_hp = TokenType_eq(_sw1395, TokenType_Error()); _t1462 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                                        if (_t1462) {
-                                                                                                                                                                                                                                                                            Str *_t1460 = Str_lit("error", 5ULL);
+                                                                                                                                                                                                                                                                        Bool _t1532; { Bool *_hp = TokenType_eq(_sw1465, TokenType_Error()); _t1532 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                        if (_t1532) {
+                                                                                                                                                                                                                                                                            Str *_t1530 = Str_lit("error", 5ULL);
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
@@ -8955,11 +9242,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            return _t1460;
+                                                                                                                                                                                                                                                                            return _t1530;
                                                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                                                            Str *_t1461 = Str_lit("?", 1ULL);
+                                                                                                                                                                                                                                                                            Str *_t1531 = Str_lit("?", 1ULL);
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
@@ -9024,9 +9311,9 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            TokenType_delete(_sw1395, &(Bool){1});
+                                                                                                                                                                                                                                                                            TokenType_delete(_sw1465, &(Bool){1});
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            return _t1461;
+                                                                                                                                                                                                                                                                            return _t1531;
                                                                                                                                                                                                                                                                         }
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                     }
@@ -9156,95 +9443,95 @@ Str * tok_name(TokenType * type) {
             }
             ;
         }
-        TokenType_delete(_sw1395, &(Bool){1});
+        TokenType_delete(_sw1465, &(Bool){1});
         ;
     }
 }
 
 TokenType * lookup_keyword(Str * word) {
     {
-        Str *_sw1527 = Str_clone(word);
-        Str *_t1596 = Str_lit("mode", 4ULL);
-        Bool _t1597; { Bool *_hp = Str_eq(_sw1527, _t1596); _t1597 = *_hp; free(_hp); }
-        Str_delete(_t1596, &(Bool){1});
-        if (_t1597) {
-            Str_delete(_sw1527, &(Bool){1});
+        Str *_sw1597 = Str_clone(word);
+        Str *_t1666 = Str_lit("mode", 4ULL);
+        Bool _t1667; { Bool *_hp = Str_eq(_sw1597, _t1666); _t1667 = *_hp; free(_hp); }
+        Str_delete(_t1666, &(Bool){1});
+        if (_t1667) {
+            Str_delete(_sw1597, &(Bool){1});
             ;
             return TokenType_KwMode();
         } else {
-            Str *_t1594 = Str_lit("mut", 3ULL);
-            Bool _t1595; { Bool *_hp = Str_eq(_sw1527, _t1594); _t1595 = *_hp; free(_hp); }
-            Str_delete(_t1594, &(Bool){1});
-            if (_t1595) {
+            Str *_t1664 = Str_lit("mut", 3ULL);
+            Bool _t1665; { Bool *_hp = Str_eq(_sw1597, _t1664); _t1665 = *_hp; free(_hp); }
+            Str_delete(_t1664, &(Bool){1});
+            if (_t1665) {
                 ;
-                Str_delete(_sw1527, &(Bool){1});
+                Str_delete(_sw1597, &(Bool){1});
                 ;
                 return TokenType_KwMut();
             } else {
-                Str *_t1592 = Str_lit("own", 3ULL);
-                Bool _t1593; { Bool *_hp = Str_eq(_sw1527, _t1592); _t1593 = *_hp; free(_hp); }
-                Str_delete(_t1592, &(Bool){1});
-                if (_t1593) {
+                Str *_t1662 = Str_lit("own", 3ULL);
+                Bool _t1663; { Bool *_hp = Str_eq(_sw1597, _t1662); _t1663 = *_hp; free(_hp); }
+                Str_delete(_t1662, &(Bool){1});
+                if (_t1663) {
                     ;
                     ;
-                    Str_delete(_sw1527, &(Bool){1});
+                    Str_delete(_sw1597, &(Bool){1});
                     ;
                     return TokenType_KwOwn();
                 } else {
-                    Str *_t1590 = Str_lit("ref", 3ULL);
-                    Bool _t1591; { Bool *_hp = Str_eq(_sw1527, _t1590); _t1591 = *_hp; free(_hp); }
-                    Str_delete(_t1590, &(Bool){1});
-                    if (_t1591) {
+                    Str *_t1660 = Str_lit("ref", 3ULL);
+                    Bool _t1661; { Bool *_hp = Str_eq(_sw1597, _t1660); _t1661 = *_hp; free(_hp); }
+                    Str_delete(_t1660, &(Bool){1});
+                    if (_t1661) {
                         ;
                         ;
                         ;
-                        Str_delete(_sw1527, &(Bool){1});
+                        Str_delete(_sw1597, &(Bool){1});
                         ;
                         return TokenType_KwRef();
                     } else {
-                        Str *_t1588 = Str_lit("shallow", 7ULL);
-                        Bool _t1589; { Bool *_hp = Str_eq(_sw1527, _t1588); _t1589 = *_hp; free(_hp); }
-                        Str_delete(_t1588, &(Bool){1});
-                        if (_t1589) {
+                        Str *_t1658 = Str_lit("shallow", 7ULL);
+                        Bool _t1659; { Bool *_hp = Str_eq(_sw1597, _t1658); _t1659 = *_hp; free(_hp); }
+                        Str_delete(_t1658, &(Bool){1});
+                        if (_t1659) {
                             ;
                             ;
                             ;
                             ;
-                            Str_delete(_sw1527, &(Bool){1});
+                            Str_delete(_sw1597, &(Bool){1});
                             ;
                             return TokenType_KwShallow();
                         } else {
-                            Str *_t1586 = Str_lit("struct", 6ULL);
-                            Bool _t1587; { Bool *_hp = Str_eq(_sw1527, _t1586); _t1587 = *_hp; free(_hp); }
-                            Str_delete(_t1586, &(Bool){1});
-                            if (_t1587) {
+                            Str *_t1656 = Str_lit("struct", 6ULL);
+                            Bool _t1657; { Bool *_hp = Str_eq(_sw1597, _t1656); _t1657 = *_hp; free(_hp); }
+                            Str_delete(_t1656, &(Bool){1});
+                            if (_t1657) {
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                Str_delete(_sw1527, &(Bool){1});
+                                Str_delete(_sw1597, &(Bool){1});
                                 ;
                                 return TokenType_KwStruct();
                             } else {
-                                Str *_t1584 = Str_lit("ext_struct", 10ULL);
-                                Bool _t1585; { Bool *_hp = Str_eq(_sw1527, _t1584); _t1585 = *_hp; free(_hp); }
-                                Str_delete(_t1584, &(Bool){1});
-                                if (_t1585) {
+                                Str *_t1654 = Str_lit("ext_struct", 10ULL);
+                                Bool _t1655; { Bool *_hp = Str_eq(_sw1597, _t1654); _t1655 = *_hp; free(_hp); }
+                                Str_delete(_t1654, &(Bool){1});
+                                if (_t1655) {
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    Str_delete(_sw1527, &(Bool){1});
+                                    Str_delete(_sw1597, &(Bool){1});
                                     ;
                                     return TokenType_KwExtStruct();
                                 } else {
-                                    Str *_t1582 = Str_lit("enum", 4ULL);
-                                    Bool _t1583; { Bool *_hp = Str_eq(_sw1527, _t1582); _t1583 = *_hp; free(_hp); }
-                                    Str_delete(_t1582, &(Bool){1});
-                                    if (_t1583) {
+                                    Str *_t1652 = Str_lit("enum", 4ULL);
+                                    Bool _t1653; { Bool *_hp = Str_eq(_sw1597, _t1652); _t1653 = *_hp; free(_hp); }
+                                    Str_delete(_t1652, &(Bool){1});
+                                    if (_t1653) {
                                         ;
                                         ;
                                         ;
@@ -9252,14 +9539,14 @@ TokenType * lookup_keyword(Str * word) {
                                         ;
                                         ;
                                         ;
-                                        Str_delete(_sw1527, &(Bool){1});
+                                        Str_delete(_sw1597, &(Bool){1});
                                         ;
                                         return TokenType_KwEnum();
                                     } else {
-                                        Str *_t1580 = Str_lit("namespace", 9ULL);
-                                        Bool _t1581; { Bool *_hp = Str_eq(_sw1527, _t1580); _t1581 = *_hp; free(_hp); }
-                                        Str_delete(_t1580, &(Bool){1});
-                                        if (_t1581) {
+                                        Str *_t1650 = Str_lit("namespace", 9ULL);
+                                        Bool _t1651; { Bool *_hp = Str_eq(_sw1597, _t1650); _t1651 = *_hp; free(_hp); }
+                                        Str_delete(_t1650, &(Bool){1});
+                                        if (_t1651) {
                                             ;
                                             ;
                                             ;
@@ -9268,14 +9555,14 @@ TokenType * lookup_keyword(Str * word) {
                                             ;
                                             ;
                                             ;
-                                            Str_delete(_sw1527, &(Bool){1});
+                                            Str_delete(_sw1597, &(Bool){1});
                                             ;
                                             return TokenType_KwNamespace();
                                         } else {
-                                            Str *_t1578 = Str_lit("func", 4ULL);
-                                            Bool _t1579; { Bool *_hp = Str_eq(_sw1527, _t1578); _t1579 = *_hp; free(_hp); }
-                                            Str_delete(_t1578, &(Bool){1});
-                                            if (_t1579) {
+                                            Str *_t1648 = Str_lit("func", 4ULL);
+                                            Bool _t1649; { Bool *_hp = Str_eq(_sw1597, _t1648); _t1649 = *_hp; free(_hp); }
+                                            Str_delete(_t1648, &(Bool){1});
+                                            if (_t1649) {
                                                 ;
                                                 ;
                                                 ;
@@ -9285,14 +9572,14 @@ TokenType * lookup_keyword(Str * word) {
                                                 ;
                                                 ;
                                                 ;
-                                                Str_delete(_sw1527, &(Bool){1});
+                                                Str_delete(_sw1597, &(Bool){1});
                                                 ;
                                                 return TokenType_KwFunc();
                                             } else {
-                                                Str *_t1576 = Str_lit("proc", 4ULL);
-                                                Bool _t1577; { Bool *_hp = Str_eq(_sw1527, _t1576); _t1577 = *_hp; free(_hp); }
-                                                Str_delete(_t1576, &(Bool){1});
-                                                if (_t1577) {
+                                                Str *_t1646 = Str_lit("proc", 4ULL);
+                                                Bool _t1647; { Bool *_hp = Str_eq(_sw1597, _t1646); _t1647 = *_hp; free(_hp); }
+                                                Str_delete(_t1646, &(Bool){1});
+                                                if (_t1647) {
                                                     ;
                                                     ;
                                                     ;
@@ -9303,14 +9590,14 @@ TokenType * lookup_keyword(Str * word) {
                                                     ;
                                                     ;
                                                     ;
-                                                    Str_delete(_sw1527, &(Bool){1});
+                                                    Str_delete(_sw1597, &(Bool){1});
                                                     ;
                                                     return TokenType_KwProc();
                                                 } else {
-                                                    Str *_t1574 = Str_lit("test", 4ULL);
-                                                    Bool _t1575; { Bool *_hp = Str_eq(_sw1527, _t1574); _t1575 = *_hp; free(_hp); }
-                                                    Str_delete(_t1574, &(Bool){1});
-                                                    if (_t1575) {
+                                                    Str *_t1644 = Str_lit("test", 4ULL);
+                                                    Bool _t1645; { Bool *_hp = Str_eq(_sw1597, _t1644); _t1645 = *_hp; free(_hp); }
+                                                    Str_delete(_t1644, &(Bool){1});
+                                                    if (_t1645) {
                                                         ;
                                                         ;
                                                         ;
@@ -9322,14 +9609,14 @@ TokenType * lookup_keyword(Str * word) {
                                                         ;
                                                         ;
                                                         ;
-                                                        Str_delete(_sw1527, &(Bool){1});
+                                                        Str_delete(_sw1597, &(Bool){1});
                                                         ;
                                                         return TokenType_KwTest();
                                                     } else {
-                                                        Str *_t1572 = Str_lit("macro", 5ULL);
-                                                        Bool _t1573; { Bool *_hp = Str_eq(_sw1527, _t1572); _t1573 = *_hp; free(_hp); }
-                                                        Str_delete(_t1572, &(Bool){1});
-                                                        if (_t1573) {
+                                                        Str *_t1642 = Str_lit("macro", 5ULL);
+                                                        Bool _t1643; { Bool *_hp = Str_eq(_sw1597, _t1642); _t1643 = *_hp; free(_hp); }
+                                                        Str_delete(_t1642, &(Bool){1});
+                                                        if (_t1643) {
                                                             ;
                                                             ;
                                                             ;
@@ -9342,14 +9629,14 @@ TokenType * lookup_keyword(Str * word) {
                                                             ;
                                                             ;
                                                             ;
-                                                            Str_delete(_sw1527, &(Bool){1});
+                                                            Str_delete(_sw1597, &(Bool){1});
                                                             ;
                                                             return TokenType_KwMacro();
                                                         } else {
-                                                            Str *_t1570 = Str_lit("ext_func", 8ULL);
-                                                            Bool _t1571; { Bool *_hp = Str_eq(_sw1527, _t1570); _t1571 = *_hp; free(_hp); }
-                                                            Str_delete(_t1570, &(Bool){1});
-                                                            if (_t1571) {
+                                                            Str *_t1640 = Str_lit("ext_func", 8ULL);
+                                                            Bool _t1641; { Bool *_hp = Str_eq(_sw1597, _t1640); _t1641 = *_hp; free(_hp); }
+                                                            Str_delete(_t1640, &(Bool){1});
+                                                            if (_t1641) {
                                                                 ;
                                                                 ;
                                                                 ;
@@ -9363,14 +9650,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                Str_delete(_sw1527, &(Bool){1});
+                                                                Str_delete(_sw1597, &(Bool){1});
                                                                 ;
                                                                 return TokenType_KwExtFunc();
                                                             } else {
-                                                                Str *_t1568 = Str_lit("ext_proc", 8ULL);
-                                                                Bool _t1569; { Bool *_hp = Str_eq(_sw1527, _t1568); _t1569 = *_hp; free(_hp); }
-                                                                Str_delete(_t1568, &(Bool){1});
-                                                                if (_t1569) {
+                                                                Str *_t1638 = Str_lit("ext_proc", 8ULL);
+                                                                Bool _t1639; { Bool *_hp = Str_eq(_sw1597, _t1638); _t1639 = *_hp; free(_hp); }
+                                                                Str_delete(_t1638, &(Bool){1});
+                                                                if (_t1639) {
                                                                     ;
                                                                     ;
                                                                     ;
@@ -9385,14 +9672,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    Str_delete(_sw1527, &(Bool){1});
+                                                                    Str_delete(_sw1597, &(Bool){1});
                                                                     ;
                                                                     return TokenType_KwExtProc();
                                                                 } else {
-                                                                    Str *_t1566 = Str_lit("returns", 7ULL);
-                                                                    Bool _t1567; { Bool *_hp = Str_eq(_sw1527, _t1566); _t1567 = *_hp; free(_hp); }
-                                                                    Str_delete(_t1566, &(Bool){1});
-                                                                    if (_t1567) {
+                                                                    Str *_t1636 = Str_lit("returns", 7ULL);
+                                                                    Bool _t1637; { Bool *_hp = Str_eq(_sw1597, _t1636); _t1637 = *_hp; free(_hp); }
+                                                                    Str_delete(_t1636, &(Bool){1});
+                                                                    if (_t1637) {
                                                                         ;
                                                                         ;
                                                                         ;
@@ -9408,14 +9695,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        Str_delete(_sw1527, &(Bool){1});
+                                                                        Str_delete(_sw1597, &(Bool){1});
                                                                         ;
                                                                         return TokenType_KwReturns();
                                                                     } else {
-                                                                        Str *_t1564 = Str_lit("throws", 6ULL);
-                                                                        Bool _t1565; { Bool *_hp = Str_eq(_sw1527, _t1564); _t1565 = *_hp; free(_hp); }
-                                                                        Str_delete(_t1564, &(Bool){1});
-                                                                        if (_t1565) {
+                                                                        Str *_t1634 = Str_lit("throws", 6ULL);
+                                                                        Bool _t1635; { Bool *_hp = Str_eq(_sw1597, _t1634); _t1635 = *_hp; free(_hp); }
+                                                                        Str_delete(_t1634, &(Bool){1});
+                                                                        if (_t1635) {
                                                                             ;
                                                                             ;
                                                                             ;
@@ -9432,14 +9719,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            Str_delete(_sw1527, &(Bool){1});
+                                                                            Str_delete(_sw1597, &(Bool){1});
                                                                             ;
                                                                             return TokenType_KwThrows();
                                                                         } else {
-                                                                            Str *_t1562 = Str_lit("if", 2ULL);
-                                                                            Bool _t1563; { Bool *_hp = Str_eq(_sw1527, _t1562); _t1563 = *_hp; free(_hp); }
-                                                                            Str_delete(_t1562, &(Bool){1});
-                                                                            if (_t1563) {
+                                                                            Str *_t1632 = Str_lit("if", 2ULL);
+                                                                            Bool _t1633; { Bool *_hp = Str_eq(_sw1597, _t1632); _t1633 = *_hp; free(_hp); }
+                                                                            Str_delete(_t1632, &(Bool){1});
+                                                                            if (_t1633) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
@@ -9457,14 +9744,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                Str_delete(_sw1527, &(Bool){1});
+                                                                                Str_delete(_sw1597, &(Bool){1});
                                                                                 ;
                                                                                 return TokenType_KwIf();
                                                                             } else {
-                                                                                Str *_t1560 = Str_lit("else", 4ULL);
-                                                                                Bool _t1561; { Bool *_hp = Str_eq(_sw1527, _t1560); _t1561 = *_hp; free(_hp); }
-                                                                                Str_delete(_t1560, &(Bool){1});
-                                                                                if (_t1561) {
+                                                                                Str *_t1630 = Str_lit("else", 4ULL);
+                                                                                Bool _t1631; { Bool *_hp = Str_eq(_sw1597, _t1630); _t1631 = *_hp; free(_hp); }
+                                                                                Str_delete(_t1630, &(Bool){1});
+                                                                                if (_t1631) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
@@ -9483,14 +9770,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    Str_delete(_sw1527, &(Bool){1});
+                                                                                    Str_delete(_sw1597, &(Bool){1});
                                                                                     ;
                                                                                     return TokenType_KwElse();
                                                                                 } else {
-                                                                                    Str *_t1558 = Str_lit("while", 5ULL);
-                                                                                    Bool _t1559; { Bool *_hp = Str_eq(_sw1527, _t1558); _t1559 = *_hp; free(_hp); }
-                                                                                    Str_delete(_t1558, &(Bool){1});
-                                                                                    if (_t1559) {
+                                                                                    Str *_t1628 = Str_lit("while", 5ULL);
+                                                                                    Bool _t1629; { Bool *_hp = Str_eq(_sw1597, _t1628); _t1629 = *_hp; free(_hp); }
+                                                                                    Str_delete(_t1628, &(Bool){1});
+                                                                                    if (_t1629) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
@@ -9510,14 +9797,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        Str_delete(_sw1527, &(Bool){1});
+                                                                                        Str_delete(_sw1597, &(Bool){1});
                                                                                         ;
                                                                                         return TokenType_KwWhile();
                                                                                     } else {
-                                                                                        Str *_t1556 = Str_lit("for", 3ULL);
-                                                                                        Bool _t1557; { Bool *_hp = Str_eq(_sw1527, _t1556); _t1557 = *_hp; free(_hp); }
-                                                                                        Str_delete(_t1556, &(Bool){1});
-                                                                                        if (_t1557) {
+                                                                                        Str *_t1626 = Str_lit("for", 3ULL);
+                                                                                        Bool _t1627; { Bool *_hp = Str_eq(_sw1597, _t1626); _t1627 = *_hp; free(_hp); }
+                                                                                        Str_delete(_t1626, &(Bool){1});
+                                                                                        if (_t1627) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
@@ -9538,14 +9825,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            Str_delete(_sw1527, &(Bool){1});
+                                                                                            Str_delete(_sw1597, &(Bool){1});
                                                                                             ;
                                                                                             return TokenType_KwFor();
                                                                                         } else {
-                                                                                            Str *_t1554 = Str_lit("in", 2ULL);
-                                                                                            Bool _t1555; { Bool *_hp = Str_eq(_sw1527, _t1554); _t1555 = *_hp; free(_hp); }
-                                                                                            Str_delete(_t1554, &(Bool){1});
-                                                                                            if (_t1555) {
+                                                                                            Str *_t1624 = Str_lit("in", 2ULL);
+                                                                                            Bool _t1625; { Bool *_hp = Str_eq(_sw1597, _t1624); _t1625 = *_hp; free(_hp); }
+                                                                                            Str_delete(_t1624, &(Bool){1});
+                                                                                            if (_t1625) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
@@ -9567,14 +9854,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                Str_delete(_sw1527, &(Bool){1});
+                                                                                                Str_delete(_sw1597, &(Bool){1});
                                                                                                 ;
                                                                                                 return TokenType_KwIn();
                                                                                             } else {
-                                                                                                Str *_t1552 = Str_lit("switch", 6ULL);
-                                                                                                Bool _t1553; { Bool *_hp = Str_eq(_sw1527, _t1552); _t1553 = *_hp; free(_hp); }
-                                                                                                Str_delete(_t1552, &(Bool){1});
-                                                                                                if (_t1553) {
+                                                                                                Str *_t1622 = Str_lit("switch", 6ULL);
+                                                                                                Bool _t1623; { Bool *_hp = Str_eq(_sw1597, _t1622); _t1623 = *_hp; free(_hp); }
+                                                                                                Str_delete(_t1622, &(Bool){1});
+                                                                                                if (_t1623) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
@@ -9597,14 +9884,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    Str_delete(_sw1527, &(Bool){1});
+                                                                                                    Str_delete(_sw1597, &(Bool){1});
                                                                                                     ;
                                                                                                     return TokenType_KwSwitch();
                                                                                                 } else {
-                                                                                                    Str *_t1550 = Str_lit("match", 5ULL);
-                                                                                                    Bool _t1551; { Bool *_hp = Str_eq(_sw1527, _t1550); _t1551 = *_hp; free(_hp); }
-                                                                                                    Str_delete(_t1550, &(Bool){1});
-                                                                                                    if (_t1551) {
+                                                                                                    Str *_t1620 = Str_lit("match", 5ULL);
+                                                                                                    Bool _t1621; { Bool *_hp = Str_eq(_sw1597, _t1620); _t1621 = *_hp; free(_hp); }
+                                                                                                    Str_delete(_t1620, &(Bool){1});
+                                                                                                    if (_t1621) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
@@ -9628,14 +9915,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        Str_delete(_sw1527, &(Bool){1});
+                                                                                                        Str_delete(_sw1597, &(Bool){1});
                                                                                                         ;
                                                                                                         return TokenType_KwMatch();
                                                                                                     } else {
-                                                                                                        Str *_t1548 = Str_lit("case", 4ULL);
-                                                                                                        Bool _t1549; { Bool *_hp = Str_eq(_sw1527, _t1548); _t1549 = *_hp; free(_hp); }
-                                                                                                        Str_delete(_t1548, &(Bool){1});
-                                                                                                        if (_t1549) {
+                                                                                                        Str *_t1618 = Str_lit("case", 4ULL);
+                                                                                                        Bool _t1619; { Bool *_hp = Str_eq(_sw1597, _t1618); _t1619 = *_hp; free(_hp); }
+                                                                                                        Str_delete(_t1618, &(Bool){1});
+                                                                                                        if (_t1619) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
@@ -9660,14 +9947,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            Str_delete(_sw1527, &(Bool){1});
+                                                                                                            Str_delete(_sw1597, &(Bool){1});
                                                                                                             ;
                                                                                                             return TokenType_KwCase();
                                                                                                         } else {
-                                                                                                            Str *_t1546 = Str_lit("default", 7ULL);
-                                                                                                            Bool _t1547; { Bool *_hp = Str_eq(_sw1527, _t1546); _t1547 = *_hp; free(_hp); }
-                                                                                                            Str_delete(_t1546, &(Bool){1});
-                                                                                                            if (_t1547) {
+                                                                                                            Str *_t1616 = Str_lit("default", 7ULL);
+                                                                                                            Bool _t1617; { Bool *_hp = Str_eq(_sw1597, _t1616); _t1617 = *_hp; free(_hp); }
+                                                                                                            Str_delete(_t1616, &(Bool){1});
+                                                                                                            if (_t1617) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
@@ -9693,14 +9980,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
-                                                                                                                Str_delete(_sw1527, &(Bool){1});
+                                                                                                                Str_delete(_sw1597, &(Bool){1});
                                                                                                                 ;
                                                                                                                 return TokenType_KwDefault();
                                                                                                             } else {
-                                                                                                                Str *_t1544 = Str_lit("return", 6ULL);
-                                                                                                                Bool _t1545; { Bool *_hp = Str_eq(_sw1527, _t1544); _t1545 = *_hp; free(_hp); }
-                                                                                                                Str_delete(_t1544, &(Bool){1});
-                                                                                                                if (_t1545) {
+                                                                                                                Str *_t1614 = Str_lit("return", 6ULL);
+                                                                                                                Bool _t1615; { Bool *_hp = Str_eq(_sw1597, _t1614); _t1615 = *_hp; free(_hp); }
+                                                                                                                Str_delete(_t1614, &(Bool){1});
+                                                                                                                if (_t1615) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
@@ -9727,14 +10014,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
-                                                                                                                    Str_delete(_sw1527, &(Bool){1});
+                                                                                                                    Str_delete(_sw1597, &(Bool){1});
                                                                                                                     ;
                                                                                                                     return TokenType_KwReturn();
                                                                                                                 } else {
-                                                                                                                    Str *_t1542 = Str_lit("throw", 5ULL);
-                                                                                                                    Bool _t1543; { Bool *_hp = Str_eq(_sw1527, _t1542); _t1543 = *_hp; free(_hp); }
-                                                                                                                    Str_delete(_t1542, &(Bool){1});
-                                                                                                                    if (_t1543) {
+                                                                                                                    Str *_t1612 = Str_lit("throw", 5ULL);
+                                                                                                                    Bool _t1613; { Bool *_hp = Str_eq(_sw1597, _t1612); _t1613 = *_hp; free(_hp); }
+                                                                                                                    Str_delete(_t1612, &(Bool){1});
+                                                                                                                    if (_t1613) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
@@ -9762,14 +10049,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
-                                                                                                                        Str_delete(_sw1527, &(Bool){1});
+                                                                                                                        Str_delete(_sw1597, &(Bool){1});
                                                                                                                         ;
                                                                                                                         return TokenType_KwThrow();
                                                                                                                     } else {
-                                                                                                                        Str *_t1540 = Str_lit("catch", 5ULL);
-                                                                                                                        Bool _t1541; { Bool *_hp = Str_eq(_sw1527, _t1540); _t1541 = *_hp; free(_hp); }
-                                                                                                                        Str_delete(_t1540, &(Bool){1});
-                                                                                                                        if (_t1541) {
+                                                                                                                        Str *_t1610 = Str_lit("catch", 5ULL);
+                                                                                                                        Bool _t1611; { Bool *_hp = Str_eq(_sw1597, _t1610); _t1611 = *_hp; free(_hp); }
+                                                                                                                        Str_delete(_t1610, &(Bool){1});
+                                                                                                                        if (_t1611) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
@@ -9798,14 +10085,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
-                                                                                                                            Str_delete(_sw1527, &(Bool){1});
+                                                                                                                            Str_delete(_sw1597, &(Bool){1});
                                                                                                                             ;
                                                                                                                             return TokenType_KwCatch();
                                                                                                                         } else {
-                                                                                                                            Str *_t1538 = Str_lit("break", 5ULL);
-                                                                                                                            Bool _t1539; { Bool *_hp = Str_eq(_sw1527, _t1538); _t1539 = *_hp; free(_hp); }
-                                                                                                                            Str_delete(_t1538, &(Bool){1});
-                                                                                                                            if (_t1539) {
+                                                                                                                            Str *_t1608 = Str_lit("break", 5ULL);
+                                                                                                                            Bool _t1609; { Bool *_hp = Str_eq(_sw1597, _t1608); _t1609 = *_hp; free(_hp); }
+                                                                                                                            Str_delete(_t1608, &(Bool){1});
+                                                                                                                            if (_t1609) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
@@ -9835,14 +10122,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
-                                                                                                                                Str_delete(_sw1527, &(Bool){1});
+                                                                                                                                Str_delete(_sw1597, &(Bool){1});
                                                                                                                                 ;
                                                                                                                                 return TokenType_KwBreak();
                                                                                                                             } else {
-                                                                                                                                Str *_t1536 = Str_lit("continue", 8ULL);
-                                                                                                                                Bool _t1537; { Bool *_hp = Str_eq(_sw1527, _t1536); _t1537 = *_hp; free(_hp); }
-                                                                                                                                Str_delete(_t1536, &(Bool){1});
-                                                                                                                                if (_t1537) {
+                                                                                                                                Str *_t1606 = Str_lit("continue", 8ULL);
+                                                                                                                                Bool _t1607; { Bool *_hp = Str_eq(_sw1597, _t1606); _t1607 = *_hp; free(_hp); }
+                                                                                                                                Str_delete(_t1606, &(Bool){1});
+                                                                                                                                if (_t1607) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
@@ -9873,14 +10160,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
-                                                                                                                                    Str_delete(_sw1527, &(Bool){1});
+                                                                                                                                    Str_delete(_sw1597, &(Bool){1});
                                                                                                                                     ;
                                                                                                                                     return TokenType_KwContinue();
                                                                                                                                 } else {
-                                                                                                                                    Str *_t1534 = Str_lit("defer", 5ULL);
-                                                                                                                                    Bool _t1535; { Bool *_hp = Str_eq(_sw1527, _t1534); _t1535 = *_hp; free(_hp); }
-                                                                                                                                    Str_delete(_t1534, &(Bool){1});
-                                                                                                                                    if (_t1535) {
+                                                                                                                                    Str *_t1604 = Str_lit("defer", 5ULL);
+                                                                                                                                    Bool _t1605; { Bool *_hp = Str_eq(_sw1597, _t1604); _t1605 = *_hp; free(_hp); }
+                                                                                                                                    Str_delete(_t1604, &(Bool){1});
+                                                                                                                                    if (_t1605) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
@@ -9912,14 +10199,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
-                                                                                                                                        Str_delete(_sw1527, &(Bool){1});
+                                                                                                                                        Str_delete(_sw1597, &(Bool){1});
                                                                                                                                         ;
                                                                                                                                         return TokenType_KwDefer();
                                                                                                                                     } else {
-                                                                                                                                        Str *_t1532 = Str_lit("true", 4ULL);
-                                                                                                                                        Bool _t1533; { Bool *_hp = Str_eq(_sw1527, _t1532); _t1533 = *_hp; free(_hp); }
-                                                                                                                                        Str_delete(_t1532, &(Bool){1});
-                                                                                                                                        if (_t1533) {
+                                                                                                                                        Str *_t1602 = Str_lit("true", 4ULL);
+                                                                                                                                        Bool _t1603; { Bool *_hp = Str_eq(_sw1597, _t1602); _t1603 = *_hp; free(_hp); }
+                                                                                                                                        Str_delete(_t1602, &(Bool){1});
+                                                                                                                                        if (_t1603) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
@@ -9952,14 +10239,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
-                                                                                                                                            Str_delete(_sw1527, &(Bool){1});
+                                                                                                                                            Str_delete(_sw1597, &(Bool){1});
                                                                                                                                             ;
                                                                                                                                             return TokenType_KwTrue();
                                                                                                                                         } else {
-                                                                                                                                            Str *_t1530 = Str_lit("false", 5ULL);
-                                                                                                                                            Bool _t1531; { Bool *_hp = Str_eq(_sw1527, _t1530); _t1531 = *_hp; free(_hp); }
-                                                                                                                                            Str_delete(_t1530, &(Bool){1});
-                                                                                                                                            if (_t1531) {
+                                                                                                                                            Str *_t1600 = Str_lit("false", 5ULL);
+                                                                                                                                            Bool _t1601; { Bool *_hp = Str_eq(_sw1597, _t1600); _t1601 = *_hp; free(_hp); }
+                                                                                                                                            Str_delete(_t1600, &(Bool){1});
+                                                                                                                                            if (_t1601) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
@@ -9993,14 +10280,14 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
-                                                                                                                                                Str_delete(_sw1527, &(Bool){1});
+                                                                                                                                                Str_delete(_sw1597, &(Bool){1});
                                                                                                                                                 ;
                                                                                                                                                 return TokenType_KwFalse();
                                                                                                                                             } else {
-                                                                                                                                                Str *_t1528 = Str_lit("NULL", 4ULL);
-                                                                                                                                                Bool _t1529; { Bool *_hp = Str_eq(_sw1527, _t1528); _t1529 = *_hp; free(_hp); }
-                                                                                                                                                Str_delete(_t1528, &(Bool){1});
-                                                                                                                                                if (_t1529) {
+                                                                                                                                                Str *_t1598 = Str_lit("NULL", 4ULL);
+                                                                                                                                                Bool _t1599; { Bool *_hp = Str_eq(_sw1597, _t1598); _t1599 = *_hp; free(_hp); }
+                                                                                                                                                Str_delete(_t1598, &(Bool){1});
+                                                                                                                                                if (_t1599) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
@@ -10035,7 +10322,7 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    Str_delete(_sw1527, &(Bool){1});
+                                                                                                                                                    Str_delete(_sw1597, &(Bool){1});
                                                                                                                                                     ;
                                                                                                                                                     return TokenType_KwNull();
                                                                                                                                                 } else {
@@ -10073,7 +10360,7 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    Str_delete(_sw1527, &(Bool){1});
+                                                                                                                                                    Str_delete(_sw1597, &(Bool){1});
                                                                                                                                                     ;
                                                                                                                                                     return TokenType_Ident();
                                                                                                                                                 }
@@ -10145,16 +10432,16 @@ TokenType * lookup_keyword(Str * word) {
             }
             ;
         }
-        Str_delete(_sw1527, &(Bool){1});
+        Str_delete(_sw1597, &(Bool){1});
         ;
     }
 }
 
 Vec * tokenize(Str * src, Str * path) {
-    Str *_t1934 = Str_lit("Token", 5ULL);
-    U64 _t1935; { U64 *_hp = Token_size(); _t1935 = *_hp; free(_hp); }
-    Vec *tokens = Vec_new(_t1934, &(U64){_t1935});
-    Str_delete(_t1934, &(Bool){1});
+    Str *_t2004 = Str_lit("Token", 5ULL);
+    U64 _t2005; { U64 *_hp = Token_size(); _t2005 = *_hp; free(_hp); }
+    Vec *tokens = Vec_new(_t2004, &(U64){_t2005});
+    Str_delete(_t2004, &(Bool){1});
     ;
     U64 *pos = malloc(sizeof(U64));
     *pos = 0;
@@ -10162,93 +10449,93 @@ Vec * tokenize(Str * src, Str * path) {
     U64 line_start = 0;
     U64 src_len; { U64 *_hp = Str_len(src); src_len = *_hp; free(_hp); }
     while (1) {
-        Bool _wcond1598; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1598 = *_hp; free(_hp); }
-        if (_wcond1598) {
+        Bool _wcond1668; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1668 = *_hp; free(_hp); }
+        if (_wcond1668) {
         } else {
             ;
             break;
         }
         ;
         U8 *c = Str_byte_at(src, pos);
-        U8 _t1880 = 32;
-        U8 _t1881 = 9;
-        Bool _t1882 = U8_eq(DEREF(c), _t1880);
+        U8 _t1950 = 32;
+        U8 _t1951 = 9;
+        Bool _t1952 = U8_eq(DEREF(c), _t1950);
         ;
-        Bool _t1883 = U8_eq(DEREF(c), _t1881);
+        Bool _t1953 = U8_eq(DEREF(c), _t1951);
         ;
-        U8 _t1884 = 13;
-        Bool _t1885 = Bool_or(_t1882, _t1883);
-        ;
-        ;
-        Bool _t1886 = U8_eq(DEREF(c), _t1884);
-        ;
-        U8 _t1887 = 59;
-        Bool _t1888 = Bool_or(_t1885, _t1886);
+        U8 _t1954 = 13;
+        Bool _t1955 = Bool_or(_t1952, _t1953);
         ;
         ;
-        Bool _t1889 = U8_eq(DEREF(c), _t1887);
+        Bool _t1956 = U8_eq(DEREF(c), _t1954);
         ;
-        Bool _t1890 = Bool_or(_t1888, _t1889);
+        U8 _t1957 = 59;
+        Bool _t1958 = Bool_or(_t1955, _t1956);
         ;
         ;
-        if (_t1890) {
-            U64 _t1599 = U64_inc(DEREF(pos));
-            *pos = _t1599;
+        Bool _t1959 = U8_eq(DEREF(c), _t1957);
+        ;
+        Bool _t1960 = Bool_or(_t1958, _t1959);
+        ;
+        ;
+        if (_t1960) {
+            U64 _t1669 = U64_inc(DEREF(pos));
+            *pos = _t1669;
             ;
             ;
             continue;
         }
         ;
-        U8 _t1891 = 10;
-        Bool _t1892 = U8_eq(DEREF(c), _t1891);
+        U8 _t1961 = 10;
+        Bool _t1962 = U8_eq(DEREF(c), _t1961);
         ;
-        if (_t1892) {
-            U64 _t1600 = U64_inc(DEREF(pos));
-            *pos = _t1600;
+        if (_t1962) {
+            U64 _t1670 = U64_inc(DEREF(pos));
+            *pos = _t1670;
             ;
-            I64 _t1601 = 1;
-            I64 _t1602 = I64_add(line, _t1601);
+            I64 _t1671 = 1;
+            I64 _t1672 = I64_add(line, _t1671);
             ;
-            line = _t1602;
+            line = _t1672;
             ;
-            U64 _t1603 = U64_clone(pos);
-            line_start = _t1603;
+            U64 _t1673 = U64_clone(pos);
+            line_start = _t1673;
             ;
             ;
             continue;
         }
         ;
-        U64 _t1893 = U64_sub(DEREF(pos), line_start);
-        U64 _t1894 = 1;
-        U64 _t1895 = U64_add(_t1893, _t1894);
+        U64 _t1963 = U64_sub(DEREF(pos), line_start);
+        U64 _t1964 = 1;
+        U64 _t1965 = U64_add(_t1963, _t1964);
         ;
         ;
-        I64 col = U64_to_i64(_t1895);
+        I64 col = U64_to_i64(_t1965);
         ;
         U64 start = U64_clone(pos);
-        U8 _t1896 = 35;
-        Bool _t1897 = U8_eq(DEREF(c), _t1896);
+        U8 _t1966 = 35;
+        Bool _t1967 = U8_eq(DEREF(c), _t1966);
         ;
-        if (_t1897) {
+        if (_t1967) {
             while (1) {
-                Bool _wcond1604; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1604 = *_hp; free(_hp); }
-                if (_wcond1604) {
+                Bool _wcond1674; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1674 = *_hp; free(_hp); }
+                if (_wcond1674) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U8 *_t1605 = Str_byte_at(src, pos);
-                U8 _t1606 = 10;
-                Bool _t1607 = U8_eq(DEREF(_t1605), _t1606);
+                U8 *_t1675 = Str_byte_at(src, pos);
+                U8 _t1676 = 10;
+                Bool _t1677 = U8_eq(DEREF(_t1675), _t1676);
                 ;
-                if (_t1607) {
+                if (_t1677) {
                     ;
                     break;
                 }
                 ;
-                U64 _t1608 = U64_inc(DEREF(pos));
-                *pos = _t1608;
+                U64 _t1678 = U64_inc(DEREF(pos));
+                *pos = _t1678;
                 ;
             }
             ;
@@ -10257,590 +10544,590 @@ Vec * tokenize(Str * src, Str * path) {
             continue;
         }
         ;
-        U8 _t1898 = 47;
-        U64 _t1899 = 1;
-        U64 _t1900 = U64_add(DEREF(pos), _t1899);
+        U8 _t1968 = 47;
+        U64 _t1969 = 1;
+        U64 _t1970 = U64_add(DEREF(pos), _t1969);
         ;
-        Bool _t1901 = U8_eq(DEREF(c), _t1898);
+        Bool _t1971 = U8_eq(DEREF(c), _t1968);
         ;
-        Bool _t1902; { Bool *_hp = U64_lt(&(U64){_t1900}, &(U64){src_len}); _t1902 = *_hp; free(_hp); }
+        Bool _t1972; { Bool *_hp = U64_lt(&(U64){_t1970}, &(U64){src_len}); _t1972 = *_hp; free(_hp); }
         ;
-        Bool _t1903 = Bool_and(_t1901, _t1902);
+        Bool _t1973 = Bool_and(_t1971, _t1972);
         ;
         ;
-        if (_t1903) {
-            U64 _t1667 = 1;
-            U64 *_t1668 = malloc(sizeof(U64)); *_t1668 = U64_add(DEREF(pos), _t1667);
+        if (_t1973) {
+            U64 _t1737 = 1;
+            U64 *_t1738 = malloc(sizeof(U64)); *_t1738 = U64_add(DEREF(pos), _t1737);
             ;
-            U8 *c2 = Str_byte_at(src, _t1668);
-            U8 _t1669 = 47;
-            Bool _t1670 = U8_eq(DEREF(c2), _t1669);
+            U8 *c2 = Str_byte_at(src, _t1738);
+            U8 _t1739 = 47;
+            Bool _t1740 = U8_eq(DEREF(c2), _t1739);
             ;
-            if (_t1670) {
+            if (_t1740) {
                 while (1) {
-                    Bool _wcond1609; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1609 = *_hp; free(_hp); }
-                    if (_wcond1609) {
+                    Bool _wcond1679; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1679 = *_hp; free(_hp); }
+                    if (_wcond1679) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U8 *_t1610 = Str_byte_at(src, pos);
-                    U8 _t1611 = 10;
-                    Bool _t1612 = U8_eq(DEREF(_t1610), _t1611);
+                    U8 *_t1680 = Str_byte_at(src, pos);
+                    U8 _t1681 = 10;
+                    Bool _t1682 = U8_eq(DEREF(_t1680), _t1681);
                     ;
-                    if (_t1612) {
+                    if (_t1682) {
                         ;
                         break;
                     }
                     ;
-                    U64 _t1613 = U64_inc(DEREF(pos));
-                    *pos = _t1613;
-                    ;
-                }
-                U64_delete(_t1668, &(Bool){1});
-                ;
-                ;
-                ;
-                ;
-                continue;
-            }
-            ;
-            U8 _t1671 = 42;
-            Bool _t1672 = U8_eq(DEREF(c2), _t1671);
-            U64_delete(_t1668, &(Bool){1});
-            ;
-            if (_t1672) {
-                U64 _t1663 = 2;
-                U64 _t1664 = U64_add(DEREF(pos), _t1663);
-                ;
-                *pos = _t1664;
-                ;
-                I64 depth = 1;
-                while (1) {
-                    Bool _wcond1614; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1614 = *_hp; free(_hp); }
-                    if (_wcond1614) {
-                    } else {
-                        ;
-                        break;
-                    }
-                    ;
-                    I64 _t1639 = 0;
-                    Bool _t1640; { Bool *_hp = I64_lte(&(I64){depth}, &(I64){_t1639}); _t1640 = *_hp; free(_hp); }
-                    ;
-                    if (_t1640) {
-                        ;
-                        break;
-                    }
-                    ;
-                    U64 _t1641 = 1;
-                    U64 _t1642 = U64_add(DEREF(pos), _t1641);
-                    ;
-                    Bool _t1643; { Bool *_hp = U64_lt(&(U64){_t1642}, &(U64){src_len}); _t1643 = *_hp; free(_hp); }
-                    ;
-                    if (_t1643) {
-                        U8 *b1 = Str_byte_at(src, pos);
-                        U64 _t1623 = 1;
-                        U64 *_t1624 = malloc(sizeof(U64)); *_t1624 = U64_add(DEREF(pos), _t1623);
-                        ;
-                        U8 *b2 = Str_byte_at(src, _t1624);
-                        U8 _t1625 = 47;
-                        U8 _t1626 = 42;
-                        Bool _t1627 = U8_eq(DEREF(b1), _t1625);
-                        ;
-                        Bool _t1628 = U8_eq(DEREF(b2), _t1626);
-                        ;
-                        Bool _t1629 = Bool_and(_t1627, _t1628);
-                        ;
-                        ;
-                        if (_t1629) {
-                            I64 _t1615 = 1;
-                            I64 _t1616 = I64_add(depth, _t1615);
-                            ;
-                            depth = _t1616;
-                            ;
-                            U64 _t1617 = 2;
-                            U64 _t1618 = U64_add(DEREF(pos), _t1617);
-                            ;
-                            *pos = _t1618;
-                            ;
-                            U64_delete(_t1624, &(Bool){1});
-                            ;
-                            ;
-                            continue;
-                        }
-                        ;
-                        U8 _t1630 = 42;
-                        U8 _t1631 = 47;
-                        Bool _t1632 = U8_eq(DEREF(b1), _t1630);
-                        ;
-                        Bool _t1633 = U8_eq(DEREF(b2), _t1631);
-                        U64_delete(_t1624, &(Bool){1});
-                        ;
-                        Bool _t1634 = Bool_and(_t1632, _t1633);
-                        ;
-                        ;
-                        if (_t1634) {
-                            I64 _t1619 = 1;
-                            I64 _t1620 = I64_sub(depth, _t1619);
-                            ;
-                            depth = _t1620;
-                            ;
-                            U64 _t1621 = 2;
-                            U64 _t1622 = U64_add(DEREF(pos), _t1621);
-                            ;
-                            *pos = _t1622;
-                            ;
-                            ;
-                            ;
-                            continue;
-                        }
-                        ;
-                    }
-                    ;
-                    U8 *_t1644 = Str_byte_at(src, pos);
-                    U8 _t1645 = 10;
-                    Bool _t1646 = U8_eq(DEREF(_t1644), _t1645);
-                    ;
-                    if (_t1646) {
-                        I64 _t1635 = 1;
-                        I64 _t1636 = I64_add(line, _t1635);
-                        ;
-                        line = _t1636;
-                        ;
-                        U64 _t1637 = 1;
-                        U64 _t1638 = U64_add(DEREF(pos), _t1637);
-                        ;
-                        line_start = _t1638;
-                        ;
-                    }
-                    ;
-                    U64 _t1647 = U64_inc(DEREF(pos));
-                    *pos = _t1647;
-                    ;
-                }
-                I64 _t1665 = 0;
-                Bool _t1666; { Bool *_hp = I64_gt(&(I64){depth}, &(I64){_t1665}); _t1666 = *_hp; free(_hp); }
-                ;
-                ;
-                if (_t1666) {
-                    Str *_t1648 = Str_lit("Str", 3ULL);
-                    U64 _t1649; { U64 *_hp = Str_size(); _t1649 = *_hp; free(_hp); }
-                    U64 _t1650 = 6;
-                    Array *_va19 = Array_new(_t1648, &(U64){_t1649}, &(U64){_t1650});
-                    Str_delete(_t1648, &(Bool){1});
-                    ;
-                    ;
-                    U64 _t1651 = 0;
-                    Str *_t1652 = Str_clone(path);
-                    Array_set(_va19, &(U64){_t1651}, _t1652);
-                    ;
-                    U64 _t1653 = 1;
-                    Str *_t1654 = Str_lit(":", 1ULL);
-                    Array_set(_va19, &(U64){_t1653}, _t1654);
-                    ;
-                    U64 _t1655 = 2;
-                    Str *_t1656 = I64_to_str(&(I64){line});
-                    Array_set(_va19, &(U64){_t1655}, _t1656);
-                    ;
-                    U64 _t1657 = 3;
-                    Str *_t1658 = Str_lit(":", 1ULL);
-                    Array_set(_va19, &(U64){_t1657}, _t1658);
-                    ;
-                    U64 _t1659 = 4;
-                    Str *_t1660 = I64_to_str(&(I64){col});
-                    Array_set(_va19, &(U64){_t1659}, _t1660);
-                    ;
-                    U64 _t1661 = 5;
-                    Str *_t1662 = Str_lit(": error: unterminated comment", 29ULL);
-                    Array_set(_va19, &(U64){_t1661}, _t1662);
-                    ;
-                    println(_va19);
-                }
-                ;
-                ;
-                ;
-                ;
-                ;
-                continue;
-            }
-            ;
-        }
-        ;
-        Bool _t1904; { Bool *_hp = is_digit(c); _t1904 = *_hp; free(_hp); }
-        if (_t1904) {
-            while (1) {
-                Bool _wcond1673; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1673 = *_hp; free(_hp); }
-                if (_wcond1673) {
-                } else {
-                    ;
-                    break;
-                }
-                ;
-                U8 *_t1674 = Str_byte_at(src, pos);
-                Bool _t1675; { Bool *_hp = is_digit(_t1674); _t1675 = *_hp; free(_hp); }
-                Bool _t1676 = Bool_not(_t1675);
-                ;
-                if (_t1676) {
-                    ;
-                    break;
-                }
-                ;
-                U64 _t1677 = U64_inc(DEREF(pos));
-                *pos = _t1677;
-                ;
-            }
-            U64 _t1692 = 1;
-            U64 _t1693 = U64_add(DEREF(pos), _t1692);
-            ;
-            Bool _t1694; { Bool *_hp = U64_lt(&(U64){_t1693}, &(U64){src_len}); _t1694 = *_hp; free(_hp); }
-            ;
-            if (_t1694) {
-                U8 *_t1684 = Str_byte_at(src, pos);
-                U8 _t1685 = 46;
-                U64 _t1686 = 1;
-                U64 *_t1687 = malloc(sizeof(U64)); *_t1687 = U64_add(DEREF(pos), _t1686);
-                ;
-                U8 *_t1688 = Str_byte_at(src, _t1687);
-                Bool _t1689 = U8_eq(DEREF(_t1684), _t1685);
-                ;
-                Bool _t1690; { Bool *_hp = is_digit(_t1688); _t1690 = *_hp; free(_hp); }
-                U64_delete(_t1687, &(Bool){1});
-                Bool _t1691 = Bool_and(_t1689, _t1690);
-                ;
-                ;
-                if (_t1691) {
                     U64 _t1683 = U64_inc(DEREF(pos));
                     *pos = _t1683;
                     ;
-                    while (1) {
-                        Bool _wcond1678; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1678 = *_hp; free(_hp); }
-                        if (_wcond1678) {
-                        } else {
-                            ;
-                            break;
-                        }
+                }
+                U64_delete(_t1738, &(Bool){1});
+                ;
+                ;
+                ;
+                ;
+                continue;
+            }
+            ;
+            U8 _t1741 = 42;
+            Bool _t1742 = U8_eq(DEREF(c2), _t1741);
+            U64_delete(_t1738, &(Bool){1});
+            ;
+            if (_t1742) {
+                U64 _t1733 = 2;
+                U64 _t1734 = U64_add(DEREF(pos), _t1733);
+                ;
+                *pos = _t1734;
+                ;
+                I64 depth = 1;
+                while (1) {
+                    Bool _wcond1684; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1684 = *_hp; free(_hp); }
+                    if (_wcond1684) {
+                    } else {
                         ;
-                        U8 *_t1679 = Str_byte_at(src, pos);
-                        Bool _t1680; { Bool *_hp = is_digit(_t1679); _t1680 = *_hp; free(_hp); }
-                        Bool _t1681 = Bool_not(_t1680);
-                        ;
-                        if (_t1681) {
-                            ;
-                            break;
-                        }
-                        ;
-                        U64 _t1682 = U64_inc(DEREF(pos));
-                        *pos = _t1682;
-                        ;
+                        break;
                     }
-                }
-                ;
-            }
-            ;
-            U64 _t1695 = U64_sub(DEREF(pos), start);
-            I64 _t1696 = I64_clone(&(I64){col});
-            Token *_t1697 = malloc(sizeof(Token));
-            { TokenType *_ca = TokenType_clone(TokenType_Number()); _t1697->type = *_ca; free(_ca); }
-            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1695}); _t1697->text = *_ca; free(_ca); }
-            _t1697->line = I64_clone(&(I64){line});
-            _t1697->col = _t1696;
-            ;
-            ;
-            Vec_push(tokens, _t1697);
-            ;
-            ;
-            ;
-            continue;
-        }
-        ;
-        Bool _t1905; { Bool *_hp = is_alpha(c); _t1905 = *_hp; free(_hp); }
-        if (_t1905) {
-            while (1) {
-                Bool _wcond1698; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1698 = *_hp; free(_hp); }
-                if (_wcond1698) {
-                } else {
                     ;
-                    break;
-                }
-                ;
-                U8 *_t1699 = Str_byte_at(src, pos);
-                Bool _t1700; { Bool *_hp = is_alnum(_t1699); _t1700 = *_hp; free(_hp); }
-                Bool _t1701 = Bool_not(_t1700);
-                ;
-                if (_t1701) {
+                    I64 _t1709 = 0;
+                    Bool _t1710; { Bool *_hp = I64_lte(&(I64){depth}, &(I64){_t1709}); _t1710 = *_hp; free(_hp); }
                     ;
-                    break;
-                }
-                ;
-                U64 _t1702 = U64_inc(DEREF(pos));
-                *pos = _t1702;
-                ;
-            }
-            U64 _t1703 = U64_sub(DEREF(pos), start);
-            Str *word = Str_substr(src, &(U64){start}, &(U64){_t1703});
-            ;
-            TokenType *type = lookup_keyword(word);
-            I64 _t1704 = I64_clone(&(I64){line});
-            I64 _t1705 = I64_clone(&(I64){col});
-            Token *_t1706 = malloc(sizeof(Token));
-            { TokenType *_ca = TokenType_clone(type); _t1706->type = *_ca; free(_ca); }
-            { Str *_ca = Str_clone(word); _t1706->text = *_ca; free(_ca); }
-            _t1706->line = _t1704;
-            _t1706->col = _t1705;
-            ;
-            ;
-            TokenType_delete(type, &(Bool){1});
-            Str_delete(word, &(Bool){1});
-            Vec_push(tokens, _t1706);
-            ;
-            ;
-            ;
-            continue;
-        }
-        ;
-        U8 _t1906 = 34;
-        Bool _t1907 = U8_eq(DEREF(c), _t1906);
-        ;
-        if (_t1907) {
-            U64 _t1753 = U64_inc(DEREF(pos));
-            *pos = _t1753;
-            ;
-            while (1) {
-                Bool _wcond1707; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1707 = *_hp; free(_hp); }
-                if (_wcond1707) {
-                } else {
-                    ;
-                    break;
-                }
-                ;
-                U8 *_t1713 = Str_byte_at(src, pos);
-                U8 _t1714 = 34;
-                Bool _t1715 = U8_eq(DEREF(_t1713), _t1714);
-                ;
-                if (_t1715) {
-                    ;
-                    break;
-                }
-                ;
-                U8 *_t1716 = Str_byte_at(src, pos);
-                U8 _t1717 = 92;
-                U64 _t1718 = 1;
-                U64 _t1719 = U64_add(DEREF(pos), _t1718);
-                ;
-                Bool _t1720 = U8_eq(DEREF(_t1716), _t1717);
-                ;
-                Bool _t1721; { Bool *_hp = U64_lt(&(U64){_t1719}, &(U64){src_len}); _t1721 = *_hp; free(_hp); }
-                ;
-                Bool _t1722 = Bool_and(_t1720, _t1721);
-                ;
-                ;
-                if (_t1722) {
-                    U64 _t1708 = U64_inc(DEREF(pos));
-                    *pos = _t1708;
-                    ;
-                }
-                ;
-                U8 *_t1723 = Str_byte_at(src, pos);
-                U8 _t1724 = 10;
-                Bool _t1725 = U8_eq(DEREF(_t1723), _t1724);
-                ;
-                if (_t1725) {
-                    I64 _t1709 = 1;
-                    I64 _t1710 = I64_add(line, _t1709);
-                    ;
-                    line = _t1710;
+                    if (_t1710) {
+                        ;
+                        break;
+                    }
                     ;
                     U64 _t1711 = 1;
                     U64 _t1712 = U64_add(DEREF(pos), _t1711);
                     ;
-                    line_start = _t1712;
+                    Bool _t1713; { Bool *_hp = U64_lt(&(U64){_t1712}, &(U64){src_len}); _t1713 = *_hp; free(_hp); }
+                    ;
+                    if (_t1713) {
+                        U8 *b1 = Str_byte_at(src, pos);
+                        U64 _t1693 = 1;
+                        U64 *_t1694 = malloc(sizeof(U64)); *_t1694 = U64_add(DEREF(pos), _t1693);
+                        ;
+                        U8 *b2 = Str_byte_at(src, _t1694);
+                        U8 _t1695 = 47;
+                        U8 _t1696 = 42;
+                        Bool _t1697 = U8_eq(DEREF(b1), _t1695);
+                        ;
+                        Bool _t1698 = U8_eq(DEREF(b2), _t1696);
+                        ;
+                        Bool _t1699 = Bool_and(_t1697, _t1698);
+                        ;
+                        ;
+                        if (_t1699) {
+                            I64 _t1685 = 1;
+                            I64 _t1686 = I64_add(depth, _t1685);
+                            ;
+                            depth = _t1686;
+                            ;
+                            U64 _t1687 = 2;
+                            U64 _t1688 = U64_add(DEREF(pos), _t1687);
+                            ;
+                            *pos = _t1688;
+                            ;
+                            U64_delete(_t1694, &(Bool){1});
+                            ;
+                            ;
+                            continue;
+                        }
+                        ;
+                        U8 _t1700 = 42;
+                        U8 _t1701 = 47;
+                        Bool _t1702 = U8_eq(DEREF(b1), _t1700);
+                        ;
+                        Bool _t1703 = U8_eq(DEREF(b2), _t1701);
+                        U64_delete(_t1694, &(Bool){1});
+                        ;
+                        Bool _t1704 = Bool_and(_t1702, _t1703);
+                        ;
+                        ;
+                        if (_t1704) {
+                            I64 _t1689 = 1;
+                            I64 _t1690 = I64_sub(depth, _t1689);
+                            ;
+                            depth = _t1690;
+                            ;
+                            U64 _t1691 = 2;
+                            U64 _t1692 = U64_add(DEREF(pos), _t1691);
+                            ;
+                            *pos = _t1692;
+                            ;
+                            ;
+                            ;
+                            continue;
+                        }
+                        ;
+                    }
+                    ;
+                    U8 *_t1714 = Str_byte_at(src, pos);
+                    U8 _t1715 = 10;
+                    Bool _t1716 = U8_eq(DEREF(_t1714), _t1715);
+                    ;
+                    if (_t1716) {
+                        I64 _t1705 = 1;
+                        I64 _t1706 = I64_add(line, _t1705);
+                        ;
+                        line = _t1706;
+                        ;
+                        U64 _t1707 = 1;
+                        U64 _t1708 = U64_add(DEREF(pos), _t1707);
+                        ;
+                        line_start = _t1708;
+                        ;
+                    }
+                    ;
+                    U64 _t1717 = U64_inc(DEREF(pos));
+                    *pos = _t1717;
+                    ;
+                }
+                I64 _t1735 = 0;
+                Bool _t1736; { Bool *_hp = I64_gt(&(I64){depth}, &(I64){_t1735}); _t1736 = *_hp; free(_hp); }
+                ;
+                ;
+                if (_t1736) {
+                    Str *_t1718 = Str_lit("Str", 3ULL);
+                    U64 _t1719; { U64 *_hp = Str_size(); _t1719 = *_hp; free(_hp); }
+                    U64 _t1720 = 6;
+                    Array *_va20 = Array_new(_t1718, &(U64){_t1719}, &(U64){_t1720});
+                    Str_delete(_t1718, &(Bool){1});
+                    ;
+                    ;
+                    U64 _t1721 = 0;
+                    Str *_t1722 = Str_clone(path);
+                    Array_set(_va20, &(U64){_t1721}, _t1722);
+                    ;
+                    U64 _t1723 = 1;
+                    Str *_t1724 = Str_lit(":", 1ULL);
+                    Array_set(_va20, &(U64){_t1723}, _t1724);
+                    ;
+                    U64 _t1725 = 2;
+                    Str *_t1726 = I64_to_str(&(I64){line});
+                    Array_set(_va20, &(U64){_t1725}, _t1726);
+                    ;
+                    U64 _t1727 = 3;
+                    Str *_t1728 = Str_lit(":", 1ULL);
+                    Array_set(_va20, &(U64){_t1727}, _t1728);
+                    ;
+                    U64 _t1729 = 4;
+                    Str *_t1730 = I64_to_str(&(I64){col});
+                    Array_set(_va20, &(U64){_t1729}, _t1730);
+                    ;
+                    U64 _t1731 = 5;
+                    Str *_t1732 = Str_lit(": error: unterminated comment", 29ULL);
+                    Array_set(_va20, &(U64){_t1731}, _t1732);
+                    ;
+                    println(_va20);
+                }
+                ;
+                ;
+                ;
+                ;
+                ;
+                continue;
+            }
+            ;
+        }
+        ;
+        Bool _t1974; { Bool *_hp = is_digit(c); _t1974 = *_hp; free(_hp); }
+        if (_t1974) {
+            while (1) {
+                Bool _wcond1743; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1743 = *_hp; free(_hp); }
+                if (_wcond1743) {
+                } else {
+                    ;
+                    break;
+                }
+                ;
+                U8 *_t1744 = Str_byte_at(src, pos);
+                Bool _t1745; { Bool *_hp = is_digit(_t1744); _t1745 = *_hp; free(_hp); }
+                Bool _t1746 = Bool_not(_t1745);
+                ;
+                if (_t1746) {
+                    ;
+                    break;
+                }
+                ;
+                U64 _t1747 = U64_inc(DEREF(pos));
+                *pos = _t1747;
+                ;
+            }
+            U64 _t1762 = 1;
+            U64 _t1763 = U64_add(DEREF(pos), _t1762);
+            ;
+            Bool _t1764; { Bool *_hp = U64_lt(&(U64){_t1763}, &(U64){src_len}); _t1764 = *_hp; free(_hp); }
+            ;
+            if (_t1764) {
+                U8 *_t1754 = Str_byte_at(src, pos);
+                U8 _t1755 = 46;
+                U64 _t1756 = 1;
+                U64 *_t1757 = malloc(sizeof(U64)); *_t1757 = U64_add(DEREF(pos), _t1756);
+                ;
+                U8 *_t1758 = Str_byte_at(src, _t1757);
+                Bool _t1759 = U8_eq(DEREF(_t1754), _t1755);
+                ;
+                Bool _t1760; { Bool *_hp = is_digit(_t1758); _t1760 = *_hp; free(_hp); }
+                U64_delete(_t1757, &(Bool){1});
+                Bool _t1761 = Bool_and(_t1759, _t1760);
+                ;
+                ;
+                if (_t1761) {
+                    U64 _t1753 = U64_inc(DEREF(pos));
+                    *pos = _t1753;
+                    ;
+                    while (1) {
+                        Bool _wcond1748; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1748 = *_hp; free(_hp); }
+                        if (_wcond1748) {
+                        } else {
+                            ;
+                            break;
+                        }
+                        ;
+                        U8 *_t1749 = Str_byte_at(src, pos);
+                        Bool _t1750; { Bool *_hp = is_digit(_t1749); _t1750 = *_hp; free(_hp); }
+                        Bool _t1751 = Bool_not(_t1750);
+                        ;
+                        if (_t1751) {
+                            ;
+                            break;
+                        }
+                        ;
+                        U64 _t1752 = U64_inc(DEREF(pos));
+                        *pos = _t1752;
+                        ;
+                    }
+                }
+                ;
+            }
+            ;
+            U64 _t1765 = U64_sub(DEREF(pos), start);
+            I64 _t1766 = I64_clone(&(I64){col});
+            Token *_t1767 = malloc(sizeof(Token));
+            { TokenType *_ca = TokenType_clone(TokenType_Number()); _t1767->type = *_ca; free(_ca); }
+            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1765}); _t1767->text = *_ca; free(_ca); }
+            _t1767->line = I64_clone(&(I64){line});
+            _t1767->col = _t1766;
+            ;
+            ;
+            Vec_push(tokens, _t1767);
+            ;
+            ;
+            ;
+            continue;
+        }
+        ;
+        Bool _t1975; { Bool *_hp = is_alpha(c); _t1975 = *_hp; free(_hp); }
+        if (_t1975) {
+            while (1) {
+                Bool _wcond1768; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1768 = *_hp; free(_hp); }
+                if (_wcond1768) {
+                } else {
+                    ;
+                    break;
+                }
+                ;
+                U8 *_t1769 = Str_byte_at(src, pos);
+                Bool _t1770; { Bool *_hp = is_alnum(_t1769); _t1770 = *_hp; free(_hp); }
+                Bool _t1771 = Bool_not(_t1770);
+                ;
+                if (_t1771) {
+                    ;
+                    break;
+                }
+                ;
+                U64 _t1772 = U64_inc(DEREF(pos));
+                *pos = _t1772;
+                ;
+            }
+            U64 _t1773 = U64_sub(DEREF(pos), start);
+            Str *word = Str_substr(src, &(U64){start}, &(U64){_t1773});
+            ;
+            TokenType *type = lookup_keyword(word);
+            I64 _t1774 = I64_clone(&(I64){line});
+            I64 _t1775 = I64_clone(&(I64){col});
+            Token *_t1776 = malloc(sizeof(Token));
+            { TokenType *_ca = TokenType_clone(type); _t1776->type = *_ca; free(_ca); }
+            { Str *_ca = Str_clone(word); _t1776->text = *_ca; free(_ca); }
+            _t1776->line = _t1774;
+            _t1776->col = _t1775;
+            ;
+            ;
+            TokenType_delete(type, &(Bool){1});
+            Str_delete(word, &(Bool){1});
+            Vec_push(tokens, _t1776);
+            ;
+            ;
+            ;
+            continue;
+        }
+        ;
+        U8 _t1976 = 34;
+        Bool _t1977 = U8_eq(DEREF(c), _t1976);
+        ;
+        if (_t1977) {
+            U64 _t1823 = U64_inc(DEREF(pos));
+            *pos = _t1823;
+            ;
+            while (1) {
+                Bool _wcond1777; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _wcond1777 = *_hp; free(_hp); }
+                if (_wcond1777) {
+                } else {
+                    ;
+                    break;
+                }
+                ;
+                U8 *_t1783 = Str_byte_at(src, pos);
+                U8 _t1784 = 34;
+                Bool _t1785 = U8_eq(DEREF(_t1783), _t1784);
+                ;
+                if (_t1785) {
+                    ;
+                    break;
+                }
+                ;
+                U8 *_t1786 = Str_byte_at(src, pos);
+                U8 _t1787 = 92;
+                U64 _t1788 = 1;
+                U64 _t1789 = U64_add(DEREF(pos), _t1788);
+                ;
+                Bool _t1790 = U8_eq(DEREF(_t1786), _t1787);
+                ;
+                Bool _t1791; { Bool *_hp = U64_lt(&(U64){_t1789}, &(U64){src_len}); _t1791 = *_hp; free(_hp); }
+                ;
+                Bool _t1792 = Bool_and(_t1790, _t1791);
+                ;
+                ;
+                if (_t1792) {
+                    U64 _t1778 = U64_inc(DEREF(pos));
+                    *pos = _t1778;
                     ;
                 }
                 ;
-                U64 _t1726 = U64_inc(DEREF(pos));
-                *pos = _t1726;
+                U8 *_t1793 = Str_byte_at(src, pos);
+                U8 _t1794 = 10;
+                Bool _t1795 = U8_eq(DEREF(_t1793), _t1794);
+                ;
+                if (_t1795) {
+                    I64 _t1779 = 1;
+                    I64 _t1780 = I64_add(line, _t1779);
+                    ;
+                    line = _t1780;
+                    ;
+                    U64 _t1781 = 1;
+                    U64 _t1782 = U64_add(DEREF(pos), _t1781);
+                    ;
+                    line_start = _t1782;
+                    ;
+                }
+                ;
+                U64 _t1796 = U64_inc(DEREF(pos));
+                *pos = _t1796;
                 ;
             }
-            U8 *_t1754 = Str_byte_at(src, pos);
-            U8 _t1755 = 34;
-            Bool _t1756; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _t1756 = *_hp; free(_hp); }
-            Bool _t1757 = U8_eq(DEREF(_t1754), _t1755);
+            U8 *_t1824 = Str_byte_at(src, pos);
+            U8 _t1825 = 34;
+            Bool _t1826; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _t1826 = *_hp; free(_hp); }
+            Bool _t1827 = U8_eq(DEREF(_t1824), _t1825);
             ;
-            Bool _t1758 = Bool_and(_t1756, _t1757);
+            Bool _t1828 = Bool_and(_t1826, _t1827);
             ;
             ;
-            if (_t1758) {
-                U64 _t1727 = U64_inc(DEREF(pos));
-                *pos = _t1727;
+            if (_t1828) {
+                U64 _t1797 = U64_inc(DEREF(pos));
+                *pos = _t1797;
                 ;
-                U64 _t1728 = 1;
-                U64 _t1729 = U64_sub(DEREF(pos), start);
-                U64 _t1730 = 2;
-                U64 _t1731 = U64_add(start, _t1728);
+                U64 _t1798 = 1;
+                U64 _t1799 = U64_sub(DEREF(pos), start);
+                U64 _t1800 = 2;
+                U64 _t1801 = U64_add(start, _t1798);
                 ;
-                U64 _t1732 = U64_sub(_t1729, _t1730);
-                ;
-                ;
-                I64 _t1733 = I64_clone(&(I64){col});
-                Token *_t1734 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_StringTok()); _t1734->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){_t1731}, &(U64){_t1732}); _t1734->text = *_ca; free(_ca); }
-                _t1734->line = I64_clone(&(I64){line});
-                _t1734->col = _t1733;
+                U64 _t1802 = U64_sub(_t1799, _t1800);
                 ;
                 ;
+                I64 _t1803 = I64_clone(&(I64){col});
+                Token *_t1804 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_StringTok()); _t1804->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){_t1801}, &(U64){_t1802}); _t1804->text = *_ca; free(_ca); }
+                _t1804->line = I64_clone(&(I64){line});
+                _t1804->col = _t1803;
                 ;
-                Vec_push(tokens, _t1734);
+                ;
+                ;
+                Vec_push(tokens, _t1804);
             } else {
-                Str *_t1735 = Str_lit("Str", 3ULL);
-                U64 _t1736; { U64 *_hp = Str_size(); _t1736 = *_hp; free(_hp); }
-                U64 _t1737 = 6;
-                Array *_va20 = Array_new(_t1735, &(U64){_t1736}, &(U64){_t1737});
-                Str_delete(_t1735, &(Bool){1});
+                Str *_t1805 = Str_lit("Str", 3ULL);
+                U64 _t1806; { U64 *_hp = Str_size(); _t1806 = *_hp; free(_hp); }
+                U64 _t1807 = 6;
+                Array *_va21 = Array_new(_t1805, &(U64){_t1806}, &(U64){_t1807});
+                Str_delete(_t1805, &(Bool){1});
                 ;
                 ;
-                U64 _t1738 = 0;
-                Str *_t1739 = Str_clone(path);
-                Array_set(_va20, &(U64){_t1738}, _t1739);
+                U64 _t1808 = 0;
+                Str *_t1809 = Str_clone(path);
+                Array_set(_va21, &(U64){_t1808}, _t1809);
                 ;
-                U64 _t1740 = 1;
-                Str *_t1741 = Str_lit(":", 1ULL);
-                Array_set(_va20, &(U64){_t1740}, _t1741);
+                U64 _t1810 = 1;
+                Str *_t1811 = Str_lit(":", 1ULL);
+                Array_set(_va21, &(U64){_t1810}, _t1811);
                 ;
-                U64 _t1742 = 2;
-                Str *_t1743 = I64_to_str(&(I64){line});
-                Array_set(_va20, &(U64){_t1742}, _t1743);
+                U64 _t1812 = 2;
+                Str *_t1813 = I64_to_str(&(I64){line});
+                Array_set(_va21, &(U64){_t1812}, _t1813);
                 ;
-                U64 _t1744 = 3;
-                Str *_t1745 = Str_lit(":", 1ULL);
-                Array_set(_va20, &(U64){_t1744}, _t1745);
+                U64 _t1814 = 3;
+                Str *_t1815 = Str_lit(":", 1ULL);
+                Array_set(_va21, &(U64){_t1814}, _t1815);
                 ;
-                U64 _t1746 = 4;
-                Str *_t1747 = I64_to_str(&(I64){col});
-                Array_set(_va20, &(U64){_t1746}, _t1747);
+                U64 _t1816 = 4;
+                Str *_t1817 = I64_to_str(&(I64){col});
+                Array_set(_va21, &(U64){_t1816}, _t1817);
                 ;
-                U64 _t1748 = 5;
-                Str *_t1749 = Str_lit(": error: unterminated string", 28ULL);
-                Array_set(_va20, &(U64){_t1748}, _t1749);
-                ;
-                println(_va20);
-                U64 _t1750 = U64_sub(DEREF(pos), start);
-                I64 _t1751 = I64_clone(&(I64){col});
-                Token *_t1752 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1752->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1750}); _t1752->text = *_ca; free(_ca); }
-                _t1752->line = I64_clone(&(I64){line});
-                _t1752->col = _t1751;
-                ;
-                ;
-                Vec_push(tokens, _t1752);
-            }
-            ;
-            ;
-            ;
-            ;
-            continue;
-        }
-        ;
-        U8 _t1908 = 39;
-        Bool _t1909 = U8_eq(DEREF(c), _t1908);
-        ;
-        if (_t1909) {
-            U64 _t1782 = U64_inc(DEREF(pos));
-            *pos = _t1782;
-            ;
-            U64 ch_start = U64_clone(pos);
-            U8 *_t1783 = Str_byte_at(src, pos);
-            U8 _t1784 = 92;
-            U64 _t1785 = 1;
-            U64 _t1786 = U64_add(DEREF(pos), _t1785);
-            ;
-            Bool _t1787 = U8_eq(DEREF(_t1783), _t1784);
-            ;
-            Bool _t1788; { Bool *_hp = U64_lt(&(U64){_t1786}, &(U64){src_len}); _t1788 = *_hp; free(_hp); }
-            ;
-            Bool _t1789; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _t1789 = *_hp; free(_hp); }
-            Bool _t1790 = Bool_and(_t1787, _t1788);
-            ;
-            ;
-            Bool _t1791 = Bool_and(_t1789, _t1790);
-            ;
-            ;
-            if (_t1791) {
-                U64 _t1759 = U64_inc(DEREF(pos));
-                *pos = _t1759;
-                ;
-            }
-            ;
-            U64 _t1792 = U64_inc(DEREF(pos));
-            *pos = _t1792;
-            ;
-            U8 *_t1793 = Str_byte_at(src, pos);
-            U8 _t1794 = 39;
-            Bool _t1795; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _t1795 = *_hp; free(_hp); }
-            Bool _t1796 = U8_eq(DEREF(_t1793), _t1794);
-            ;
-            Bool _t1797 = Bool_and(_t1795, _t1796);
-            ;
-            ;
-            if (_t1797) {
-                U64 _t1760 = U64_sub(DEREF(pos), ch_start);
-                I64 _t1761 = I64_clone(&(I64){col});
-                Token *_t1762 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_Char()); _t1762->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){ch_start}, &(U64){_t1760}); _t1762->text = *_ca; free(_ca); }
-                _t1762->line = I64_clone(&(I64){line});
-                _t1762->col = _t1761;
-                ;
-                ;
-                Vec_push(tokens, _t1762);
-                U64 _t1763 = U64_inc(DEREF(pos));
-                *pos = _t1763;
-                ;
-            } else {
-                Str *_t1764 = Str_lit("Str", 3ULL);
-                U64 _t1765; { U64 *_hp = Str_size(); _t1765 = *_hp; free(_hp); }
-                U64 _t1766 = 6;
-                Array *_va21 = Array_new(_t1764, &(U64){_t1765}, &(U64){_t1766});
-                Str_delete(_t1764, &(Bool){1});
-                ;
-                ;
-                U64 _t1767 = 0;
-                Str *_t1768 = Str_clone(path);
-                Array_set(_va21, &(U64){_t1767}, _t1768);
-                ;
-                U64 _t1769 = 1;
-                Str *_t1770 = Str_lit(":", 1ULL);
-                Array_set(_va21, &(U64){_t1769}, _t1770);
-                ;
-                U64 _t1771 = 2;
-                Str *_t1772 = I64_to_str(&(I64){line});
-                Array_set(_va21, &(U64){_t1771}, _t1772);
-                ;
-                U64 _t1773 = 3;
-                Str *_t1774 = Str_lit(":", 1ULL);
-                Array_set(_va21, &(U64){_t1773}, _t1774);
-                ;
-                U64 _t1775 = 4;
-                Str *_t1776 = I64_to_str(&(I64){col});
-                Array_set(_va21, &(U64){_t1775}, _t1776);
-                ;
-                U64 _t1777 = 5;
-                Str *_t1778 = Str_lit(": error: unterminated character literal", 39ULL);
-                Array_set(_va21, &(U64){_t1777}, _t1778);
+                U64 _t1818 = 5;
+                Str *_t1819 = Str_lit(": error: unterminated string", 28ULL);
+                Array_set(_va21, &(U64){_t1818}, _t1819);
                 ;
                 println(_va21);
-                U64 _t1779 = U64_sub(DEREF(pos), start);
-                I64 _t1780 = I64_clone(&(I64){col});
-                Token *_t1781 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1781->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1779}); _t1781->text = *_ca; free(_ca); }
-                _t1781->line = I64_clone(&(I64){line});
-                _t1781->col = _t1780;
+                U64 _t1820 = U64_sub(DEREF(pos), start);
+                I64 _t1821 = I64_clone(&(I64){col});
+                Token *_t1822 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1822->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1820}); _t1822->text = *_ca; free(_ca); }
+                _t1822->line = I64_clone(&(I64){line});
+                _t1822->col = _t1821;
                 ;
                 ;
-                Vec_push(tokens, _t1781);
+                Vec_push(tokens, _t1822);
+            }
+            ;
+            ;
+            ;
+            ;
+            continue;
+        }
+        ;
+        U8 _t1978 = 39;
+        Bool _t1979 = U8_eq(DEREF(c), _t1978);
+        ;
+        if (_t1979) {
+            U64 _t1852 = U64_inc(DEREF(pos));
+            *pos = _t1852;
+            ;
+            U64 ch_start = U64_clone(pos);
+            U8 *_t1853 = Str_byte_at(src, pos);
+            U8 _t1854 = 92;
+            U64 _t1855 = 1;
+            U64 _t1856 = U64_add(DEREF(pos), _t1855);
+            ;
+            Bool _t1857 = U8_eq(DEREF(_t1853), _t1854);
+            ;
+            Bool _t1858; { Bool *_hp = U64_lt(&(U64){_t1856}, &(U64){src_len}); _t1858 = *_hp; free(_hp); }
+            ;
+            Bool _t1859; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _t1859 = *_hp; free(_hp); }
+            Bool _t1860 = Bool_and(_t1857, _t1858);
+            ;
+            ;
+            Bool _t1861 = Bool_and(_t1859, _t1860);
+            ;
+            ;
+            if (_t1861) {
+                U64 _t1829 = U64_inc(DEREF(pos));
+                *pos = _t1829;
+                ;
+            }
+            ;
+            U64 _t1862 = U64_inc(DEREF(pos));
+            *pos = _t1862;
+            ;
+            U8 *_t1863 = Str_byte_at(src, pos);
+            U8 _t1864 = 39;
+            Bool _t1865; { Bool *_hp = U64_lt(pos, &(U64){src_len}); _t1865 = *_hp; free(_hp); }
+            Bool _t1866 = U8_eq(DEREF(_t1863), _t1864);
+            ;
+            Bool _t1867 = Bool_and(_t1865, _t1866);
+            ;
+            ;
+            if (_t1867) {
+                U64 _t1830 = U64_sub(DEREF(pos), ch_start);
+                I64 _t1831 = I64_clone(&(I64){col});
+                Token *_t1832 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_Char()); _t1832->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){ch_start}, &(U64){_t1830}); _t1832->text = *_ca; free(_ca); }
+                _t1832->line = I64_clone(&(I64){line});
+                _t1832->col = _t1831;
+                ;
+                ;
+                Vec_push(tokens, _t1832);
+                U64 _t1833 = U64_inc(DEREF(pos));
+                *pos = _t1833;
+                ;
+            } else {
+                Str *_t1834 = Str_lit("Str", 3ULL);
+                U64 _t1835; { U64 *_hp = Str_size(); _t1835 = *_hp; free(_hp); }
+                U64 _t1836 = 6;
+                Array *_va22 = Array_new(_t1834, &(U64){_t1835}, &(U64){_t1836});
+                Str_delete(_t1834, &(Bool){1});
+                ;
+                ;
+                U64 _t1837 = 0;
+                Str *_t1838 = Str_clone(path);
+                Array_set(_va22, &(U64){_t1837}, _t1838);
+                ;
+                U64 _t1839 = 1;
+                Str *_t1840 = Str_lit(":", 1ULL);
+                Array_set(_va22, &(U64){_t1839}, _t1840);
+                ;
+                U64 _t1841 = 2;
+                Str *_t1842 = I64_to_str(&(I64){line});
+                Array_set(_va22, &(U64){_t1841}, _t1842);
+                ;
+                U64 _t1843 = 3;
+                Str *_t1844 = Str_lit(":", 1ULL);
+                Array_set(_va22, &(U64){_t1843}, _t1844);
+                ;
+                U64 _t1845 = 4;
+                Str *_t1846 = I64_to_str(&(I64){col});
+                Array_set(_va22, &(U64){_t1845}, _t1846);
+                ;
+                U64 _t1847 = 5;
+                Str *_t1848 = Str_lit(": error: unterminated character literal", 39ULL);
+                Array_set(_va22, &(U64){_t1847}, _t1848);
+                ;
+                println(_va22);
+                U64 _t1849 = U64_sub(DEREF(pos), start);
+                I64 _t1850 = I64_clone(&(I64){col});
+                Token *_t1851 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1851->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1849}); _t1851->text = *_ca; free(_ca); }
+                _t1851->line = I64_clone(&(I64){line});
+                _t1851->col = _t1850;
+                ;
+                ;
+                Vec_push(tokens, _t1851);
             }
             ;
             ;
@@ -10850,87 +11137,87 @@ Vec * tokenize(Str * src, Str * path) {
             continue;
         }
         ;
-        U64 _t1910 = 1;
-        U64 _t1911 = U64_add(DEREF(pos), _t1910);
+        U64 _t1980 = 1;
+        U64 _t1981 = U64_add(DEREF(pos), _t1980);
         ;
-        Bool _t1912; { Bool *_hp = U64_lt(&(U64){_t1911}, &(U64){src_len}); _t1912 = *_hp; free(_hp); }
+        Bool _t1982; { Bool *_hp = U64_lt(&(U64){_t1981}, &(U64){src_len}); _t1982 = *_hp; free(_hp); }
         ;
-        if (_t1912) {
-            U64 _t1829 = 1;
-            U64 *_t1830 = malloc(sizeof(U64)); *_t1830 = U64_add(DEREF(pos), _t1829);
+        if (_t1982) {
+            U64 _t1899 = 1;
+            U64 *_t1900 = malloc(sizeof(U64)); *_t1900 = U64_add(DEREF(pos), _t1899);
             ;
-            U8 *c2 = Str_byte_at(src, _t1830);
+            U8 *c2 = Str_byte_at(src, _t1900);
             TokenType *two = TokenType_clone(TokenType_Eof());
-            U8 _t1831 = 58;
-            U8 _t1832 = 61;
-            Bool _t1833 = U8_eq(DEREF(c), _t1831);
+            U8 _t1901 = 58;
+            U8 _t1902 = 61;
+            Bool _t1903 = U8_eq(DEREF(c), _t1901);
             ;
-            Bool _t1834 = U8_eq(DEREF(c2), _t1832);
+            Bool _t1904 = U8_eq(DEREF(c2), _t1902);
             ;
-            Bool _t1835 = Bool_and(_t1833, _t1834);
+            Bool _t1905 = Bool_and(_t1903, _t1904);
             ;
             ;
-            if (_t1835) {
+            if (_t1905) {
                 two = TokenType_clone(TokenType_ColonEq());
             } else {
-                U8 _t1818 = 61;
-                U8 _t1819 = 61;
-                Bool _t1820 = U8_eq(DEREF(c), _t1818);
+                U8 _t1888 = 61;
+                U8 _t1889 = 61;
+                Bool _t1890 = U8_eq(DEREF(c), _t1888);
                 ;
-                Bool _t1821 = U8_eq(DEREF(c2), _t1819);
+                Bool _t1891 = U8_eq(DEREF(c2), _t1889);
                 ;
-                Bool _t1822 = Bool_and(_t1820, _t1821);
+                Bool _t1892 = Bool_and(_t1890, _t1891);
                 ;
                 ;
-                if (_t1822) {
+                if (_t1892) {
                     two = TokenType_clone(TokenType_EqEq());
                 } else {
-                    U8 _t1813 = 33;
-                    U8 _t1814 = 61;
-                    Bool _t1815 = U8_eq(DEREF(c), _t1813);
+                    U8 _t1883 = 33;
+                    U8 _t1884 = 61;
+                    Bool _t1885 = U8_eq(DEREF(c), _t1883);
                     ;
-                    Bool _t1816 = U8_eq(DEREF(c2), _t1814);
+                    Bool _t1886 = U8_eq(DEREF(c2), _t1884);
                     ;
-                    Bool _t1817 = Bool_and(_t1815, _t1816);
+                    Bool _t1887 = Bool_and(_t1885, _t1886);
                     ;
                     ;
-                    if (_t1817) {
+                    if (_t1887) {
                         two = TokenType_clone(TokenType_Neq());
                     } else {
-                        U8 _t1808 = 60;
-                        U8 _t1809 = 61;
-                        Bool _t1810 = U8_eq(DEREF(c), _t1808);
+                        U8 _t1878 = 60;
+                        U8 _t1879 = 61;
+                        Bool _t1880 = U8_eq(DEREF(c), _t1878);
                         ;
-                        Bool _t1811 = U8_eq(DEREF(c2), _t1809);
+                        Bool _t1881 = U8_eq(DEREF(c2), _t1879);
                         ;
-                        Bool _t1812 = Bool_and(_t1810, _t1811);
+                        Bool _t1882 = Bool_and(_t1880, _t1881);
                         ;
                         ;
-                        if (_t1812) {
+                        if (_t1882) {
                             two = TokenType_clone(TokenType_LtEq());
                         } else {
-                            U8 _t1803 = 62;
-                            U8 _t1804 = 61;
-                            Bool _t1805 = U8_eq(DEREF(c), _t1803);
+                            U8 _t1873 = 62;
+                            U8 _t1874 = 61;
+                            Bool _t1875 = U8_eq(DEREF(c), _t1873);
                             ;
-                            Bool _t1806 = U8_eq(DEREF(c2), _t1804);
+                            Bool _t1876 = U8_eq(DEREF(c2), _t1874);
                             ;
-                            Bool _t1807 = Bool_and(_t1805, _t1806);
+                            Bool _t1877 = Bool_and(_t1875, _t1876);
                             ;
                             ;
-                            if (_t1807) {
+                            if (_t1877) {
                                 two = TokenType_clone(TokenType_GtEq());
                             } else {
-                                U8 _t1798 = 46;
-                                U8 _t1799 = 46;
-                                Bool _t1800 = U8_eq(DEREF(c), _t1798);
+                                U8 _t1868 = 46;
+                                U8 _t1869 = 46;
+                                Bool _t1870 = U8_eq(DEREF(c), _t1868);
                                 ;
-                                Bool _t1801 = U8_eq(DEREF(c2), _t1799);
+                                Bool _t1871 = U8_eq(DEREF(c2), _t1869);
                                 ;
-                                Bool _t1802 = Bool_and(_t1800, _t1801);
+                                Bool _t1872 = Bool_and(_t1870, _t1871);
                                 ;
                                 ;
-                                if (_t1802) {
+                                if (_t1872) {
                                     two = TokenType_clone(TokenType_DotDot());
                                 }
                                 ;
@@ -10943,28 +11230,28 @@ Vec * tokenize(Str * src, Str * path) {
                 }
                 ;
             }
-            U64_delete(_t1830, &(Bool){1});
+            U64_delete(_t1900, &(Bool){1});
             ;
-            Bool _t1836; { Bool *_hp = TokenType_eq(two, TokenType_Eof()); _t1836 = *_hp; free(_hp); }
-            Bool _t1837 = Bool_not(_t1836);
+            Bool _t1906; { Bool *_hp = TokenType_eq(two, TokenType_Eof()); _t1906 = *_hp; free(_hp); }
+            Bool _t1907 = Bool_not(_t1906);
             ;
-            if (_t1837) {
-                U64 _t1823 = 2;
-                I64 _t1824 = I64_clone(&(I64){line});
-                I64 _t1825 = I64_clone(&(I64){col});
-                Token *_t1826 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(two); _t1826->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1823}); _t1826->text = *_ca; free(_ca); }
-                _t1826->line = _t1824;
-                _t1826->col = _t1825;
+            if (_t1907) {
+                U64 _t1893 = 2;
+                I64 _t1894 = I64_clone(&(I64){line});
+                I64 _t1895 = I64_clone(&(I64){col});
+                Token *_t1896 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(two); _t1896->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1893}); _t1896->text = *_ca; free(_ca); }
+                _t1896->line = _t1894;
+                _t1896->col = _t1895;
                 ;
                 ;
                 ;
-                Vec_push(tokens, _t1826);
-                U64 _t1827 = 2;
-                U64 _t1828 = U64_add(DEREF(pos), _t1827);
+                Vec_push(tokens, _t1896);
+                U64 _t1897 = 2;
+                U64 _t1898 = U64_add(DEREF(pos), _t1897);
                 ;
-                *pos = _t1828;
+                *pos = _t1898;
                 ;
                 ;
                 TokenType_delete(two, &(Bool){1});
@@ -10979,113 +11266,113 @@ Vec * tokenize(Str * src, Str * path) {
         ;
         TokenType *single = TokenType_clone(TokenType_Eof());
         {
-            U8 _sw1838 = U8_clone(c);
-            U8 _t1873 = 40;
-            Bool _t1874 = U8_eq(_sw1838, _t1873);
+            U8 _sw1908 = U8_clone(c);
+            U8 _t1943 = 40;
+            Bool _t1944 = U8_eq(_sw1908, _t1943);
             ;
-            if (_t1874) {
+            if (_t1944) {
                 single = TokenType_clone(TokenType_LParen());
             } else {
-                U8 _t1871 = 41;
-                Bool _t1872 = U8_eq(_sw1838, _t1871);
+                U8 _t1941 = 41;
+                Bool _t1942 = U8_eq(_sw1908, _t1941);
                 ;
-                if (_t1872) {
+                if (_t1942) {
                     single = TokenType_clone(TokenType_RParen());
                 } else {
-                    U8 _t1869 = 123;
-                    Bool _t1870 = U8_eq(_sw1838, _t1869);
+                    U8 _t1939 = 123;
+                    Bool _t1940 = U8_eq(_sw1908, _t1939);
                     ;
-                    if (_t1870) {
+                    if (_t1940) {
                         single = TokenType_clone(TokenType_LBrace());
                     } else {
-                        U8 _t1867 = 125;
-                        Bool _t1868 = U8_eq(_sw1838, _t1867);
+                        U8 _t1937 = 125;
+                        Bool _t1938 = U8_eq(_sw1908, _t1937);
                         ;
-                        if (_t1868) {
+                        if (_t1938) {
                             single = TokenType_clone(TokenType_RBrace());
                         } else {
-                            U8 _t1865 = 91;
-                            Bool _t1866 = U8_eq(_sw1838, _t1865);
+                            U8 _t1935 = 91;
+                            Bool _t1936 = U8_eq(_sw1908, _t1935);
                             ;
-                            if (_t1866) {
+                            if (_t1936) {
                                 single = TokenType_clone(TokenType_LBracket());
                             } else {
-                                U8 _t1863 = 93;
-                                Bool _t1864 = U8_eq(_sw1838, _t1863);
+                                U8 _t1933 = 93;
+                                Bool _t1934 = U8_eq(_sw1908, _t1933);
                                 ;
-                                if (_t1864) {
+                                if (_t1934) {
                                     single = TokenType_clone(TokenType_RBracket());
                                 } else {
-                                    U8 _t1861 = 44;
-                                    Bool _t1862 = U8_eq(_sw1838, _t1861);
+                                    U8 _t1931 = 44;
+                                    Bool _t1932 = U8_eq(_sw1908, _t1931);
                                     ;
-                                    if (_t1862) {
+                                    if (_t1932) {
                                         single = TokenType_clone(TokenType_Comma());
                                     } else {
-                                        U8 _t1859 = 58;
-                                        Bool _t1860 = U8_eq(_sw1838, _t1859);
+                                        U8 _t1929 = 58;
+                                        Bool _t1930 = U8_eq(_sw1908, _t1929);
                                         ;
-                                        if (_t1860) {
+                                        if (_t1930) {
                                             single = TokenType_clone(TokenType_Colon());
                                         } else {
-                                            U8 _t1857 = 46;
-                                            Bool _t1858 = U8_eq(_sw1838, _t1857);
+                                            U8 _t1927 = 46;
+                                            Bool _t1928 = U8_eq(_sw1908, _t1927);
                                             ;
-                                            if (_t1858) {
+                                            if (_t1928) {
                                                 single = TokenType_clone(TokenType_Dot());
                                             } else {
-                                                U8 _t1855 = 63;
-                                                Bool _t1856 = U8_eq(_sw1838, _t1855);
+                                                U8 _t1925 = 63;
+                                                Bool _t1926 = U8_eq(_sw1908, _t1925);
                                                 ;
-                                                if (_t1856) {
+                                                if (_t1926) {
                                                     single = TokenType_clone(TokenType_Question());
                                                 } else {
-                                                    U8 _t1853 = 33;
-                                                    Bool _t1854 = U8_eq(_sw1838, _t1853);
+                                                    U8 _t1923 = 33;
+                                                    Bool _t1924 = U8_eq(_sw1908, _t1923);
                                                     ;
-                                                    if (_t1854) {
+                                                    if (_t1924) {
                                                         single = TokenType_clone(TokenType_Bang());
                                                     } else {
-                                                        U8 _t1851 = 43;
-                                                        Bool _t1852 = U8_eq(_sw1838, _t1851);
+                                                        U8 _t1921 = 43;
+                                                        Bool _t1922 = U8_eq(_sw1908, _t1921);
                                                         ;
-                                                        if (_t1852) {
+                                                        if (_t1922) {
                                                             single = TokenType_clone(TokenType_Plus());
                                                         } else {
-                                                            U8 _t1849 = 45;
-                                                            Bool _t1850 = U8_eq(_sw1838, _t1849);
+                                                            U8 _t1919 = 45;
+                                                            Bool _t1920 = U8_eq(_sw1908, _t1919);
                                                             ;
-                                                            if (_t1850) {
+                                                            if (_t1920) {
                                                                 single = TokenType_clone(TokenType_Minus());
                                                             } else {
-                                                                U8 _t1847 = 42;
-                                                                Bool _t1848 = U8_eq(_sw1838, _t1847);
+                                                                U8 _t1917 = 42;
+                                                                Bool _t1918 = U8_eq(_sw1908, _t1917);
                                                                 ;
-                                                                if (_t1848) {
+                                                                if (_t1918) {
                                                                     single = TokenType_clone(TokenType_Star());
                                                                 } else {
-                                                                    U8 _t1845 = 47;
-                                                                    Bool _t1846 = U8_eq(_sw1838, _t1845);
+                                                                    U8 _t1915 = 47;
+                                                                    Bool _t1916 = U8_eq(_sw1908, _t1915);
                                                                     ;
-                                                                    if (_t1846) {
+                                                                    if (_t1916) {
                                                                         single = TokenType_clone(TokenType_Slash());
                                                                     } else {
-                                                                        U8 _t1843 = 61;
-                                                                        Bool _t1844 = U8_eq(_sw1838, _t1843);
+                                                                        U8 _t1913 = 61;
+                                                                        Bool _t1914 = U8_eq(_sw1908, _t1913);
                                                                         ;
-                                                                        if (_t1844) {
+                                                                        if (_t1914) {
                                                                             single = TokenType_clone(TokenType_Eq());
                                                                         } else {
-                                                                            U8 _t1841 = 60;
-                                                                            Bool _t1842 = U8_eq(_sw1838, _t1841);
+                                                                            U8 _t1911 = 60;
+                                                                            Bool _t1912 = U8_eq(_sw1908, _t1911);
                                                                             ;
-                                                                            if (_t1842) {
+                                                                            if (_t1912) {
                                                                                 single = TokenType_clone(TokenType_Lt());
                                                                             } else {
-                                                                                U8 _t1839 = 62;
-                                                                                Bool _t1840 = U8_eq(_sw1838, _t1839);
+                                                                                U8 _t1909 = 62;
+                                                                                Bool _t1910 = U8_eq(_sw1908, _t1909);
                                                                                 ;
-                                                                                if (_t1840) {
+                                                                                if (_t1910) {
                                                                                     single = TokenType_clone(TokenType_Gt());
                                                                                 }
                                                                                 ;
@@ -11125,24 +11412,24 @@ Vec * tokenize(Str * src, Str * path) {
             ;
             ;
         }
-        Bool _t1913; { Bool *_hp = TokenType_eq(single, TokenType_Eof()); _t1913 = *_hp; free(_hp); }
-        Bool _t1914 = Bool_not(_t1913);
+        Bool _t1983; { Bool *_hp = TokenType_eq(single, TokenType_Eof()); _t1983 = *_hp; free(_hp); }
+        Bool _t1984 = Bool_not(_t1983);
         ;
-        if (_t1914) {
-            U64 _t1875 = 1;
-            I64 _t1876 = I64_clone(&(I64){line});
-            I64 _t1877 = I64_clone(&(I64){col});
-            Token *_t1878 = malloc(sizeof(Token));
-            { TokenType *_ca = TokenType_clone(single); _t1878->type = *_ca; free(_ca); }
-            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1875}); _t1878->text = *_ca; free(_ca); }
-            _t1878->line = _t1876;
-            _t1878->col = _t1877;
+        if (_t1984) {
+            U64 _t1945 = 1;
+            I64 _t1946 = I64_clone(&(I64){line});
+            I64 _t1947 = I64_clone(&(I64){col});
+            Token *_t1948 = malloc(sizeof(Token));
+            { TokenType *_ca = TokenType_clone(single); _t1948->type = *_ca; free(_ca); }
+            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1945}); _t1948->text = *_ca; free(_ca); }
+            _t1948->line = _t1946;
+            _t1948->col = _t1947;
             ;
             ;
             ;
-            Vec_push(tokens, _t1878);
-            U64 _t1879 = U64_inc(DEREF(pos));
-            *pos = _t1879;
+            Vec_push(tokens, _t1948);
+            U64 _t1949 = U64_inc(DEREF(pos));
+            *pos = _t1949;
             ;
             ;
             ;
@@ -11152,74 +11439,74 @@ Vec * tokenize(Str * src, Str * path) {
         }
         ;
         TokenType_delete(single, &(Bool){1});
-        Str *_t1915 = Str_lit("Str", 3ULL);
-        U64 _t1916; { U64 *_hp = Str_size(); _t1916 = *_hp; free(_hp); }
-        U64 _t1917 = 6;
-        Array *_va22 = Array_new(_t1915, &(U64){_t1916}, &(U64){_t1917});
-        Str_delete(_t1915, &(Bool){1});
+        Str *_t1985 = Str_lit("Str", 3ULL);
+        U64 _t1986; { U64 *_hp = Str_size(); _t1986 = *_hp; free(_hp); }
+        U64 _t1987 = 6;
+        Array *_va23 = Array_new(_t1985, &(U64){_t1986}, &(U64){_t1987});
+        Str_delete(_t1985, &(Bool){1});
         ;
         ;
-        U64 _t1918 = 0;
-        Str *_t1919 = Str_clone(path);
-        Array_set(_va22, &(U64){_t1918}, _t1919);
+        U64 _t1988 = 0;
+        Str *_t1989 = Str_clone(path);
+        Array_set(_va23, &(U64){_t1988}, _t1989);
         ;
-        U64 _t1920 = 1;
-        Str *_t1921 = Str_lit(":", 1ULL);
-        Array_set(_va22, &(U64){_t1920}, _t1921);
+        U64 _t1990 = 1;
+        Str *_t1991 = Str_lit(":", 1ULL);
+        Array_set(_va23, &(U64){_t1990}, _t1991);
         ;
-        U64 _t1922 = 2;
-        Str *_t1923 = I64_to_str(&(I64){line});
-        Array_set(_va22, &(U64){_t1922}, _t1923);
+        U64 _t1992 = 2;
+        Str *_t1993 = I64_to_str(&(I64){line});
+        Array_set(_va23, &(U64){_t1992}, _t1993);
         ;
-        U64 _t1924 = 3;
-        Str *_t1925 = Str_lit(":", 1ULL);
-        Array_set(_va22, &(U64){_t1924}, _t1925);
+        U64 _t1994 = 3;
+        Str *_t1995 = Str_lit(":", 1ULL);
+        Array_set(_va23, &(U64){_t1994}, _t1995);
         ;
-        U64 _t1926 = 4;
-        Str *_t1927 = I64_to_str(&(I64){col});
-        Array_set(_va22, &(U64){_t1926}, _t1927);
+        U64 _t1996 = 4;
+        Str *_t1997 = I64_to_str(&(I64){col});
+        Array_set(_va23, &(U64){_t1996}, _t1997);
         ;
-        U64 _t1928 = 5;
-        Str *_t1929 = Str_lit(": error: unexpected character", 29ULL);
-        Array_set(_va22, &(U64){_t1928}, _t1929);
+        U64 _t1998 = 5;
+        Str *_t1999 = Str_lit(": error: unexpected character", 29ULL);
+        Array_set(_va23, &(U64){_t1998}, _t1999);
         ;
-        println(_va22);
-        U64 _t1930 = 1;
-        I64 _t1931 = I64_clone(&(I64){col});
+        println(_va23);
+        U64 _t2000 = 1;
+        I64 _t2001 = I64_clone(&(I64){col});
         ;
-        Token *_t1932 = malloc(sizeof(Token));
-        { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1932->type = *_ca; free(_ca); }
-        { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1930}); _t1932->text = *_ca; free(_ca); }
-        _t1932->line = I64_clone(&(I64){line});
-        _t1932->col = _t1931;
+        Token *_t2002 = malloc(sizeof(Token));
+        { TokenType *_ca = TokenType_clone(TokenType_Error()); _t2002->type = *_ca; free(_ca); }
+        { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t2000}); _t2002->text = *_ca; free(_ca); }
+        _t2002->line = I64_clone(&(I64){line});
+        _t2002->col = _t2001;
         ;
         ;
         ;
-        Vec_push(tokens, _t1932);
-        U64 _t1933 = U64_inc(DEREF(pos));
-        *pos = _t1933;
+        Vec_push(tokens, _t2002);
+        U64 _t2003 = U64_inc(DEREF(pos));
+        *pos = _t2003;
         ;
     }
     ;
-    U64 _t1936 = U64_sub(DEREF(pos), line_start);
+    U64 _t2006 = U64_sub(DEREF(pos), line_start);
     ;
     U64_delete(pos, &(Bool){1});
-    U64 _t1937 = 1;
-    U64 _t1938 = U64_add(_t1936, _t1937);
+    U64 _t2007 = 1;
+    U64 _t2008 = U64_add(_t2006, _t2007);
     ;
     ;
-    I64 col = U64_to_i64(_t1938);
+    I64 col = U64_to_i64(_t2008);
     ;
-    I64 _t1939 = I64_clone(&(I64){col});
+    I64 _t2009 = I64_clone(&(I64){col});
     ;
-    Token *_t1940 = malloc(sizeof(Token));
-    { TokenType *_ca = TokenType_clone(TokenType_Eof()); _t1940->type = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t1940->text = *_ca; free(_ca); }
-    _t1940->line = I64_clone(&(I64){line});
-    _t1940->col = _t1939;
+    Token *_t2010 = malloc(sizeof(Token));
+    { TokenType *_ca = TokenType_clone(TokenType_Eof()); _t2010->type = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t2010->text = *_ca; free(_ca); }
+    _t2010->line = I64_clone(&(I64){line});
+    _t2010->col = _t2009;
     ;
     ;
-    Vec_push(tokens, _t1940);
+    Vec_push(tokens, _t2010);
     return tokens;
 }
 
@@ -11465,314 +11752,314 @@ Bool *NodeType_is_Case(NodeType *self) {
 }
 Bool * NodeType_eq(NodeType * self, NodeType * other) {
     (void)self;
-    Bool _t1965; { Bool *_hp = NodeType_is_Body(self); _t1965 = *_hp; free(_hp); }
-    if (_t1965) {
-        Bool _t1941; { Bool *_hp = NodeType_is_Body(other); _t1941 = *_hp; free(_hp); }
+    Bool _t2035; { Bool *_hp = NodeType_is_Body(self); _t2035 = *_hp; free(_hp); }
+    if (_t2035) {
+        Bool _t2011; { Bool *_hp = NodeType_is_Body(other); _t2011 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1941; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2011; return _r; }
     }
     ;
-    Bool _t1966; { Bool *_hp = NodeType_is_LiteralStr(self); _t1966 = *_hp; free(_hp); }
-    if (_t1966) {
-        Bool _t1942; { Bool *_hp = NodeType_is_LiteralStr(other); _t1942 = *_hp; free(_hp); }
+    Bool _t2036; { Bool *_hp = NodeType_is_LiteralStr(self); _t2036 = *_hp; free(_hp); }
+    if (_t2036) {
+        Bool _t2012; { Bool *_hp = NodeType_is_LiteralStr(other); _t2012 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1942; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2012; return _r; }
     }
     ;
-    Bool _t1967; { Bool *_hp = NodeType_is_LiteralNum(self); _t1967 = *_hp; free(_hp); }
-    if (_t1967) {
-        Bool _t1943; { Bool *_hp = NodeType_is_LiteralNum(other); _t1943 = *_hp; free(_hp); }
+    Bool _t2037; { Bool *_hp = NodeType_is_LiteralNum(self); _t2037 = *_hp; free(_hp); }
+    if (_t2037) {
+        Bool _t2013; { Bool *_hp = NodeType_is_LiteralNum(other); _t2013 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1943; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2013; return _r; }
     }
     ;
-    Bool _t1968; { Bool *_hp = NodeType_is_LiteralBool(self); _t1968 = *_hp; free(_hp); }
-    if (_t1968) {
-        Bool _t1944; { Bool *_hp = NodeType_is_LiteralBool(other); _t1944 = *_hp; free(_hp); }
+    Bool _t2038; { Bool *_hp = NodeType_is_LiteralBool(self); _t2038 = *_hp; free(_hp); }
+    if (_t2038) {
+        Bool _t2014; { Bool *_hp = NodeType_is_LiteralBool(other); _t2014 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1944; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2014; return _r; }
     }
     ;
-    Bool _t1969; { Bool *_hp = NodeType_is_Ident(self); _t1969 = *_hp; free(_hp); }
-    if (_t1969) {
-        Bool _t1945; { Bool *_hp = NodeType_is_Ident(other); _t1945 = *_hp; free(_hp); }
+    Bool _t2039; { Bool *_hp = NodeType_is_Ident(self); _t2039 = *_hp; free(_hp); }
+    if (_t2039) {
+        Bool _t2015; { Bool *_hp = NodeType_is_Ident(other); _t2015 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1945; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2015; return _r; }
     }
     ;
-    Bool _t1970; { Bool *_hp = NodeType_is_Decl(self); _t1970 = *_hp; free(_hp); }
-    if (_t1970) {
-        Bool _t1946; { Bool *_hp = NodeType_is_Decl(other); _t1946 = *_hp; free(_hp); }
+    Bool _t2040; { Bool *_hp = NodeType_is_Decl(self); _t2040 = *_hp; free(_hp); }
+    if (_t2040) {
+        Bool _t2016; { Bool *_hp = NodeType_is_Decl(other); _t2016 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1946; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2016; return _r; }
     }
     ;
-    Bool _t1971; { Bool *_hp = NodeType_is_Assign(self); _t1971 = *_hp; free(_hp); }
-    if (_t1971) {
-        Bool _t1947; { Bool *_hp = NodeType_is_Assign(other); _t1947 = *_hp; free(_hp); }
+    Bool _t2041; { Bool *_hp = NodeType_is_Assign(self); _t2041 = *_hp; free(_hp); }
+    if (_t2041) {
+        Bool _t2017; { Bool *_hp = NodeType_is_Assign(other); _t2017 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1947; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2017; return _r; }
     }
     ;
-    Bool _t1972; { Bool *_hp = NodeType_is_FCall(self); _t1972 = *_hp; free(_hp); }
-    if (_t1972) {
-        Bool _t1948; { Bool *_hp = NodeType_is_FCall(other); _t1948 = *_hp; free(_hp); }
+    Bool _t2042; { Bool *_hp = NodeType_is_FCall(self); _t2042 = *_hp; free(_hp); }
+    if (_t2042) {
+        Bool _t2018; { Bool *_hp = NodeType_is_FCall(other); _t2018 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1948; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2018; return _r; }
     }
     ;
-    Bool _t1973; { Bool *_hp = NodeType_is_FuncDef(self); _t1973 = *_hp; free(_hp); }
-    if (_t1973) {
-        Bool _t1949; { Bool *_hp = NodeType_is_FuncDef(other); _t1949 = *_hp; free(_hp); }
+    Bool _t2043; { Bool *_hp = NodeType_is_FuncDef(self); _t2043 = *_hp; free(_hp); }
+    if (_t2043) {
+        Bool _t2019; { Bool *_hp = NodeType_is_FuncDef(other); _t2019 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1949; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2019; return _r; }
     }
     ;
-    Bool _t1974; { Bool *_hp = NodeType_is_StructDef(self); _t1974 = *_hp; free(_hp); }
-    if (_t1974) {
-        Bool _t1950; { Bool *_hp = NodeType_is_StructDef(other); _t1950 = *_hp; free(_hp); }
+    Bool _t2044; { Bool *_hp = NodeType_is_StructDef(self); _t2044 = *_hp; free(_hp); }
+    if (_t2044) {
+        Bool _t2020; { Bool *_hp = NodeType_is_StructDef(other); _t2020 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1950; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2020; return _r; }
     }
     ;
-    Bool _t1975; { Bool *_hp = NodeType_is_EnumDef(self); _t1975 = *_hp; free(_hp); }
-    if (_t1975) {
-        Bool _t1951; { Bool *_hp = NodeType_is_EnumDef(other); _t1951 = *_hp; free(_hp); }
+    Bool _t2045; { Bool *_hp = NodeType_is_EnumDef(self); _t2045 = *_hp; free(_hp); }
+    if (_t2045) {
+        Bool _t2021; { Bool *_hp = NodeType_is_EnumDef(other); _t2021 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1951; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2021; return _r; }
     }
     ;
-    Bool _t1976; { Bool *_hp = NodeType_is_FieldAccess(self); _t1976 = *_hp; free(_hp); }
-    if (_t1976) {
-        Bool _t1952; { Bool *_hp = NodeType_is_FieldAccess(other); _t1952 = *_hp; free(_hp); }
+    Bool _t2046; { Bool *_hp = NodeType_is_FieldAccess(self); _t2046 = *_hp; free(_hp); }
+    if (_t2046) {
+        Bool _t2022; { Bool *_hp = NodeType_is_FieldAccess(other); _t2022 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1952; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2022; return _r; }
     }
     ;
-    Bool _t1977; { Bool *_hp = NodeType_is_FieldAssign(self); _t1977 = *_hp; free(_hp); }
-    if (_t1977) {
-        Bool _t1953; { Bool *_hp = NodeType_is_FieldAssign(other); _t1953 = *_hp; free(_hp); }
+    Bool _t2047; { Bool *_hp = NodeType_is_FieldAssign(self); _t2047 = *_hp; free(_hp); }
+    if (_t2047) {
+        Bool _t2023; { Bool *_hp = NodeType_is_FieldAssign(other); _t2023 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1953; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2023; return _r; }
     }
     ;
-    Bool _t1978; { Bool *_hp = NodeType_is_Return(self); _t1978 = *_hp; free(_hp); }
-    if (_t1978) {
-        Bool _t1954; { Bool *_hp = NodeType_is_Return(other); _t1954 = *_hp; free(_hp); }
+    Bool _t2048; { Bool *_hp = NodeType_is_Return(self); _t2048 = *_hp; free(_hp); }
+    if (_t2048) {
+        Bool _t2024; { Bool *_hp = NodeType_is_Return(other); _t2024 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1954; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2024; return _r; }
     }
     ;
-    Bool _t1979; { Bool *_hp = NodeType_is_If(self); _t1979 = *_hp; free(_hp); }
-    if (_t1979) {
-        Bool _t1955; { Bool *_hp = NodeType_is_If(other); _t1955 = *_hp; free(_hp); }
+    Bool _t2049; { Bool *_hp = NodeType_is_If(self); _t2049 = *_hp; free(_hp); }
+    if (_t2049) {
+        Bool _t2025; { Bool *_hp = NodeType_is_If(other); _t2025 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1955; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2025; return _r; }
     }
     ;
-    Bool _t1980; { Bool *_hp = NodeType_is_While(self); _t1980 = *_hp; free(_hp); }
-    if (_t1980) {
-        Bool _t1956; { Bool *_hp = NodeType_is_While(other); _t1956 = *_hp; free(_hp); }
+    Bool _t2050; { Bool *_hp = NodeType_is_While(self); _t2050 = *_hp; free(_hp); }
+    if (_t2050) {
+        Bool _t2026; { Bool *_hp = NodeType_is_While(other); _t2026 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1956; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2026; return _r; }
     }
     ;
-    Bool _t1981; { Bool *_hp = NodeType_is_ForIn(self); _t1981 = *_hp; free(_hp); }
-    if (_t1981) {
-        Bool _t1957; { Bool *_hp = NodeType_is_ForIn(other); _t1957 = *_hp; free(_hp); }
+    Bool _t2051; { Bool *_hp = NodeType_is_ForIn(self); _t2051 = *_hp; free(_hp); }
+    if (_t2051) {
+        Bool _t2027; { Bool *_hp = NodeType_is_ForIn(other); _t2027 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1957; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2027; return _r; }
     }
     ;
-    Bool _t1982; { Bool *_hp = NodeType_is_NamedArg(self); _t1982 = *_hp; free(_hp); }
-    if (_t1982) {
-        Bool _t1958; { Bool *_hp = NodeType_is_NamedArg(other); _t1958 = *_hp; free(_hp); }
+    Bool _t2052; { Bool *_hp = NodeType_is_NamedArg(self); _t2052 = *_hp; free(_hp); }
+    if (_t2052) {
+        Bool _t2028; { Bool *_hp = NodeType_is_NamedArg(other); _t2028 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1958; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2028; return _r; }
     }
     ;
-    Bool _t1983; { Bool *_hp = NodeType_is_Break(self); _t1983 = *_hp; free(_hp); }
-    if (_t1983) {
-        Bool _t1959; { Bool *_hp = NodeType_is_Break(other); _t1959 = *_hp; free(_hp); }
+    Bool _t2053; { Bool *_hp = NodeType_is_Break(self); _t2053 = *_hp; free(_hp); }
+    if (_t2053) {
+        Bool _t2029; { Bool *_hp = NodeType_is_Break(other); _t2029 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1959; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2029; return _r; }
     }
     ;
-    Bool _t1984; { Bool *_hp = NodeType_is_Continue(self); _t1984 = *_hp; free(_hp); }
-    if (_t1984) {
-        Bool _t1960; { Bool *_hp = NodeType_is_Continue(other); _t1960 = *_hp; free(_hp); }
+    Bool _t2054; { Bool *_hp = NodeType_is_Continue(self); _t2054 = *_hp; free(_hp); }
+    if (_t2054) {
+        Bool _t2030; { Bool *_hp = NodeType_is_Continue(other); _t2030 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1960; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2030; return _r; }
     }
     ;
-    Bool _t1985; { Bool *_hp = NodeType_is_MapLit(self); _t1985 = *_hp; free(_hp); }
-    if (_t1985) {
-        Bool _t1961; { Bool *_hp = NodeType_is_MapLit(other); _t1961 = *_hp; free(_hp); }
+    Bool _t2055; { Bool *_hp = NodeType_is_MapLit(self); _t2055 = *_hp; free(_hp); }
+    if (_t2055) {
+        Bool _t2031; { Bool *_hp = NodeType_is_MapLit(other); _t2031 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1961; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2031; return _r; }
     }
     ;
-    Bool _t1986; { Bool *_hp = NodeType_is_SetLit(self); _t1986 = *_hp; free(_hp); }
-    if (_t1986) {
-        Bool _t1962; { Bool *_hp = NodeType_is_SetLit(other); _t1962 = *_hp; free(_hp); }
+    Bool _t2056; { Bool *_hp = NodeType_is_SetLit(self); _t2056 = *_hp; free(_hp); }
+    if (_t2056) {
+        Bool _t2032; { Bool *_hp = NodeType_is_SetLit(other); _t2032 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1962; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2032; return _r; }
     }
     ;
-    Bool _t1987; { Bool *_hp = NodeType_is_Switch(self); _t1987 = *_hp; free(_hp); }
-    if (_t1987) {
-        Bool _t1963; { Bool *_hp = NodeType_is_Switch(other); _t1963 = *_hp; free(_hp); }
+    Bool _t2057; { Bool *_hp = NodeType_is_Switch(self); _t2057 = *_hp; free(_hp); }
+    if (_t2057) {
+        Bool _t2033; { Bool *_hp = NodeType_is_Switch(other); _t2033 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1963; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2033; return _r; }
     }
     ;
-    Bool _t1988; { Bool *_hp = NodeType_is_Case(self); _t1988 = *_hp; free(_hp); }
-    if (_t1988) {
-        Bool _t1964; { Bool *_hp = NodeType_is_Case(other); _t1964 = *_hp; free(_hp); }
+    Bool _t2058; { Bool *_hp = NodeType_is_Case(self); _t2058 = *_hp; free(_hp); }
+    if (_t2058) {
+        Bool _t2034; { Bool *_hp = NodeType_is_Case(other); _t2034 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1964; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2034; return _r; }
     }
     ;
-    Bool _t1989 = 0;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1989; return _r; }
+    Bool _t2059 = 0;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2059; return _r; }
 }
 
 NodeType * NodeType_clone(NodeType * self) {
     (void)self;
-    Bool _t1990; { Bool *_hp = NodeType_eq(self, NodeType_Body()); _t1990 = *_hp; free(_hp); }
-    if (_t1990) {
+    Bool _t2060; { Bool *_hp = NodeType_eq(self, NodeType_Body()); _t2060 = *_hp; free(_hp); }
+    if (_t2060) {
         ;
         return NodeType_Body();
     }
     ;
-    Bool _t1991; { Bool *_hp = NodeType_eq(self, NodeType_LiteralStr()); _t1991 = *_hp; free(_hp); }
-    if (_t1991) {
+    Bool _t2061; { Bool *_hp = NodeType_eq(self, NodeType_LiteralStr()); _t2061 = *_hp; free(_hp); }
+    if (_t2061) {
         ;
         return NodeType_LiteralStr();
     }
     ;
-    Bool _t1992; { Bool *_hp = NodeType_eq(self, NodeType_LiteralNum()); _t1992 = *_hp; free(_hp); }
-    if (_t1992) {
+    Bool _t2062; { Bool *_hp = NodeType_eq(self, NodeType_LiteralNum()); _t2062 = *_hp; free(_hp); }
+    if (_t2062) {
         ;
         return NodeType_LiteralNum();
     }
     ;
-    Bool _t1993; { Bool *_hp = NodeType_eq(self, NodeType_LiteralBool()); _t1993 = *_hp; free(_hp); }
-    if (_t1993) {
+    Bool _t2063; { Bool *_hp = NodeType_eq(self, NodeType_LiteralBool()); _t2063 = *_hp; free(_hp); }
+    if (_t2063) {
         ;
         return NodeType_LiteralBool();
     }
     ;
-    Bool _t1994; { Bool *_hp = NodeType_eq(self, NodeType_Ident()); _t1994 = *_hp; free(_hp); }
-    if (_t1994) {
+    Bool _t2064; { Bool *_hp = NodeType_eq(self, NodeType_Ident()); _t2064 = *_hp; free(_hp); }
+    if (_t2064) {
         ;
         return NodeType_Ident();
     }
     ;
-    Bool _t1995; { Bool *_hp = NodeType_eq(self, NodeType_Decl()); _t1995 = *_hp; free(_hp); }
-    if (_t1995) {
+    Bool _t2065; { Bool *_hp = NodeType_eq(self, NodeType_Decl()); _t2065 = *_hp; free(_hp); }
+    if (_t2065) {
         ;
         return NodeType_Decl();
     }
     ;
-    Bool _t1996; { Bool *_hp = NodeType_eq(self, NodeType_Assign()); _t1996 = *_hp; free(_hp); }
-    if (_t1996) {
+    Bool _t2066; { Bool *_hp = NodeType_eq(self, NodeType_Assign()); _t2066 = *_hp; free(_hp); }
+    if (_t2066) {
         ;
         return NodeType_Assign();
     }
     ;
-    Bool _t1997; { Bool *_hp = NodeType_eq(self, NodeType_FCall()); _t1997 = *_hp; free(_hp); }
-    if (_t1997) {
+    Bool _t2067; { Bool *_hp = NodeType_eq(self, NodeType_FCall()); _t2067 = *_hp; free(_hp); }
+    if (_t2067) {
         ;
         return NodeType_FCall();
     }
     ;
-    Bool _t1998; { Bool *_hp = NodeType_eq(self, NodeType_FuncDef()); _t1998 = *_hp; free(_hp); }
-    if (_t1998) {
+    Bool _t2068; { Bool *_hp = NodeType_eq(self, NodeType_FuncDef()); _t2068 = *_hp; free(_hp); }
+    if (_t2068) {
         ;
         return NodeType_FuncDef();
     }
     ;
-    Bool _t1999; { Bool *_hp = NodeType_eq(self, NodeType_StructDef()); _t1999 = *_hp; free(_hp); }
-    if (_t1999) {
+    Bool _t2069; { Bool *_hp = NodeType_eq(self, NodeType_StructDef()); _t2069 = *_hp; free(_hp); }
+    if (_t2069) {
         ;
         return NodeType_StructDef();
     }
     ;
-    Bool _t2000; { Bool *_hp = NodeType_eq(self, NodeType_EnumDef()); _t2000 = *_hp; free(_hp); }
-    if (_t2000) {
+    Bool _t2070; { Bool *_hp = NodeType_eq(self, NodeType_EnumDef()); _t2070 = *_hp; free(_hp); }
+    if (_t2070) {
         ;
         return NodeType_EnumDef();
     }
     ;
-    Bool _t2001; { Bool *_hp = NodeType_eq(self, NodeType_FieldAccess()); _t2001 = *_hp; free(_hp); }
-    if (_t2001) {
+    Bool _t2071; { Bool *_hp = NodeType_eq(self, NodeType_FieldAccess()); _t2071 = *_hp; free(_hp); }
+    if (_t2071) {
         ;
         return NodeType_FieldAccess();
     }
     ;
-    Bool _t2002; { Bool *_hp = NodeType_eq(self, NodeType_FieldAssign()); _t2002 = *_hp; free(_hp); }
-    if (_t2002) {
+    Bool _t2072; { Bool *_hp = NodeType_eq(self, NodeType_FieldAssign()); _t2072 = *_hp; free(_hp); }
+    if (_t2072) {
         ;
         return NodeType_FieldAssign();
     }
     ;
-    Bool _t2003; { Bool *_hp = NodeType_eq(self, NodeType_Return()); _t2003 = *_hp; free(_hp); }
-    if (_t2003) {
+    Bool _t2073; { Bool *_hp = NodeType_eq(self, NodeType_Return()); _t2073 = *_hp; free(_hp); }
+    if (_t2073) {
         ;
         return NodeType_Return();
     }
     ;
-    Bool _t2004; { Bool *_hp = NodeType_eq(self, NodeType_If()); _t2004 = *_hp; free(_hp); }
-    if (_t2004) {
+    Bool _t2074; { Bool *_hp = NodeType_eq(self, NodeType_If()); _t2074 = *_hp; free(_hp); }
+    if (_t2074) {
         ;
         return NodeType_If();
     }
     ;
-    Bool _t2005; { Bool *_hp = NodeType_eq(self, NodeType_While()); _t2005 = *_hp; free(_hp); }
-    if (_t2005) {
+    Bool _t2075; { Bool *_hp = NodeType_eq(self, NodeType_While()); _t2075 = *_hp; free(_hp); }
+    if (_t2075) {
         ;
         return NodeType_While();
     }
     ;
-    Bool _t2006; { Bool *_hp = NodeType_eq(self, NodeType_ForIn()); _t2006 = *_hp; free(_hp); }
-    if (_t2006) {
+    Bool _t2076; { Bool *_hp = NodeType_eq(self, NodeType_ForIn()); _t2076 = *_hp; free(_hp); }
+    if (_t2076) {
         ;
         return NodeType_ForIn();
     }
     ;
-    Bool _t2007; { Bool *_hp = NodeType_eq(self, NodeType_NamedArg()); _t2007 = *_hp; free(_hp); }
-    if (_t2007) {
+    Bool _t2077; { Bool *_hp = NodeType_eq(self, NodeType_NamedArg()); _t2077 = *_hp; free(_hp); }
+    if (_t2077) {
         ;
         return NodeType_NamedArg();
     }
     ;
-    Bool _t2008; { Bool *_hp = NodeType_eq(self, NodeType_Break()); _t2008 = *_hp; free(_hp); }
-    if (_t2008) {
+    Bool _t2078; { Bool *_hp = NodeType_eq(self, NodeType_Break()); _t2078 = *_hp; free(_hp); }
+    if (_t2078) {
         ;
         return NodeType_Break();
     }
     ;
-    Bool _t2009; { Bool *_hp = NodeType_eq(self, NodeType_Continue()); _t2009 = *_hp; free(_hp); }
-    if (_t2009) {
+    Bool _t2079; { Bool *_hp = NodeType_eq(self, NodeType_Continue()); _t2079 = *_hp; free(_hp); }
+    if (_t2079) {
         ;
         return NodeType_Continue();
     }
     ;
-    Bool _t2010; { Bool *_hp = NodeType_eq(self, NodeType_MapLit()); _t2010 = *_hp; free(_hp); }
-    if (_t2010) {
+    Bool _t2080; { Bool *_hp = NodeType_eq(self, NodeType_MapLit()); _t2080 = *_hp; free(_hp); }
+    if (_t2080) {
         ;
         return NodeType_MapLit();
     }
     ;
-    Bool _t2011; { Bool *_hp = NodeType_eq(self, NodeType_SetLit()); _t2011 = *_hp; free(_hp); }
-    if (_t2011) {
+    Bool _t2081; { Bool *_hp = NodeType_eq(self, NodeType_SetLit()); _t2081 = *_hp; free(_hp); }
+    if (_t2081) {
         ;
         return NodeType_SetLit();
     }
     ;
-    Bool _t2012; { Bool *_hp = NodeType_eq(self, NodeType_Switch()); _t2012 = *_hp; free(_hp); }
-    if (_t2012) {
+    Bool _t2082; { Bool *_hp = NodeType_eq(self, NodeType_Switch()); _t2082 = *_hp; free(_hp); }
+    if (_t2082) {
         ;
         return NodeType_Switch();
     }
@@ -11789,176 +12076,176 @@ void NodeType_delete(NodeType * self, Bool * call_free) {
 
 Str * NodeType_to_str(NodeType * self) {
     (void)self;
-    Bool _t2037; { Bool *_hp = NodeType_eq(self, NodeType_Body()); _t2037 = *_hp; free(_hp); }
-    if (_t2037) {
-        Str *_t2013 = Str_lit("Body", 4ULL);
+    Bool _t2107; { Bool *_hp = NodeType_eq(self, NodeType_Body()); _t2107 = *_hp; free(_hp); }
+    if (_t2107) {
+        Str *_t2083 = Str_lit("Body", 4ULL);
         ;
-        return _t2013;
+        return _t2083;
     }
     ;
-    Bool _t2038; { Bool *_hp = NodeType_eq(self, NodeType_LiteralStr()); _t2038 = *_hp; free(_hp); }
-    if (_t2038) {
-        Str *_t2014 = Str_lit("LiteralStr", 10ULL);
+    Bool _t2108; { Bool *_hp = NodeType_eq(self, NodeType_LiteralStr()); _t2108 = *_hp; free(_hp); }
+    if (_t2108) {
+        Str *_t2084 = Str_lit("LiteralStr", 10ULL);
         ;
-        return _t2014;
+        return _t2084;
     }
     ;
-    Bool _t2039; { Bool *_hp = NodeType_eq(self, NodeType_LiteralNum()); _t2039 = *_hp; free(_hp); }
-    if (_t2039) {
-        Str *_t2015 = Str_lit("LiteralNum", 10ULL);
+    Bool _t2109; { Bool *_hp = NodeType_eq(self, NodeType_LiteralNum()); _t2109 = *_hp; free(_hp); }
+    if (_t2109) {
+        Str *_t2085 = Str_lit("LiteralNum", 10ULL);
         ;
-        return _t2015;
+        return _t2085;
     }
     ;
-    Bool _t2040; { Bool *_hp = NodeType_eq(self, NodeType_LiteralBool()); _t2040 = *_hp; free(_hp); }
-    if (_t2040) {
-        Str *_t2016 = Str_lit("LiteralBool", 11ULL);
+    Bool _t2110; { Bool *_hp = NodeType_eq(self, NodeType_LiteralBool()); _t2110 = *_hp; free(_hp); }
+    if (_t2110) {
+        Str *_t2086 = Str_lit("LiteralBool", 11ULL);
         ;
-        return _t2016;
+        return _t2086;
     }
     ;
-    Bool _t2041; { Bool *_hp = NodeType_eq(self, NodeType_Ident()); _t2041 = *_hp; free(_hp); }
-    if (_t2041) {
-        Str *_t2017 = Str_lit("Ident", 5ULL);
+    Bool _t2111; { Bool *_hp = NodeType_eq(self, NodeType_Ident()); _t2111 = *_hp; free(_hp); }
+    if (_t2111) {
+        Str *_t2087 = Str_lit("Ident", 5ULL);
         ;
-        return _t2017;
+        return _t2087;
     }
     ;
-    Bool _t2042; { Bool *_hp = NodeType_eq(self, NodeType_Decl()); _t2042 = *_hp; free(_hp); }
-    if (_t2042) {
-        Str *_t2018 = Str_lit("Decl", 4ULL);
+    Bool _t2112; { Bool *_hp = NodeType_eq(self, NodeType_Decl()); _t2112 = *_hp; free(_hp); }
+    if (_t2112) {
+        Str *_t2088 = Str_lit("Decl", 4ULL);
         ;
-        return _t2018;
+        return _t2088;
     }
     ;
-    Bool _t2043; { Bool *_hp = NodeType_eq(self, NodeType_Assign()); _t2043 = *_hp; free(_hp); }
-    if (_t2043) {
-        Str *_t2019 = Str_lit("Assign", 6ULL);
+    Bool _t2113; { Bool *_hp = NodeType_eq(self, NodeType_Assign()); _t2113 = *_hp; free(_hp); }
+    if (_t2113) {
+        Str *_t2089 = Str_lit("Assign", 6ULL);
         ;
-        return _t2019;
+        return _t2089;
     }
     ;
-    Bool _t2044; { Bool *_hp = NodeType_eq(self, NodeType_FCall()); _t2044 = *_hp; free(_hp); }
-    if (_t2044) {
-        Str *_t2020 = Str_lit("FCall", 5ULL);
+    Bool _t2114; { Bool *_hp = NodeType_eq(self, NodeType_FCall()); _t2114 = *_hp; free(_hp); }
+    if (_t2114) {
+        Str *_t2090 = Str_lit("FCall", 5ULL);
         ;
-        return _t2020;
+        return _t2090;
     }
     ;
-    Bool _t2045; { Bool *_hp = NodeType_eq(self, NodeType_FuncDef()); _t2045 = *_hp; free(_hp); }
-    if (_t2045) {
-        Str *_t2021 = Str_lit("FuncDef", 7ULL);
+    Bool _t2115; { Bool *_hp = NodeType_eq(self, NodeType_FuncDef()); _t2115 = *_hp; free(_hp); }
+    if (_t2115) {
+        Str *_t2091 = Str_lit("FuncDef", 7ULL);
         ;
-        return _t2021;
+        return _t2091;
     }
     ;
-    Bool _t2046; { Bool *_hp = NodeType_eq(self, NodeType_StructDef()); _t2046 = *_hp; free(_hp); }
-    if (_t2046) {
-        Str *_t2022 = Str_lit("StructDef", 9ULL);
+    Bool _t2116; { Bool *_hp = NodeType_eq(self, NodeType_StructDef()); _t2116 = *_hp; free(_hp); }
+    if (_t2116) {
+        Str *_t2092 = Str_lit("StructDef", 9ULL);
         ;
-        return _t2022;
+        return _t2092;
     }
     ;
-    Bool _t2047; { Bool *_hp = NodeType_eq(self, NodeType_EnumDef()); _t2047 = *_hp; free(_hp); }
-    if (_t2047) {
-        Str *_t2023 = Str_lit("EnumDef", 7ULL);
+    Bool _t2117; { Bool *_hp = NodeType_eq(self, NodeType_EnumDef()); _t2117 = *_hp; free(_hp); }
+    if (_t2117) {
+        Str *_t2093 = Str_lit("EnumDef", 7ULL);
         ;
-        return _t2023;
+        return _t2093;
     }
     ;
-    Bool _t2048; { Bool *_hp = NodeType_eq(self, NodeType_FieldAccess()); _t2048 = *_hp; free(_hp); }
-    if (_t2048) {
-        Str *_t2024 = Str_lit("FieldAccess", 11ULL);
+    Bool _t2118; { Bool *_hp = NodeType_eq(self, NodeType_FieldAccess()); _t2118 = *_hp; free(_hp); }
+    if (_t2118) {
+        Str *_t2094 = Str_lit("FieldAccess", 11ULL);
         ;
-        return _t2024;
+        return _t2094;
     }
     ;
-    Bool _t2049; { Bool *_hp = NodeType_eq(self, NodeType_FieldAssign()); _t2049 = *_hp; free(_hp); }
-    if (_t2049) {
-        Str *_t2025 = Str_lit("FieldAssign", 11ULL);
+    Bool _t2119; { Bool *_hp = NodeType_eq(self, NodeType_FieldAssign()); _t2119 = *_hp; free(_hp); }
+    if (_t2119) {
+        Str *_t2095 = Str_lit("FieldAssign", 11ULL);
         ;
-        return _t2025;
+        return _t2095;
     }
     ;
-    Bool _t2050; { Bool *_hp = NodeType_eq(self, NodeType_Return()); _t2050 = *_hp; free(_hp); }
-    if (_t2050) {
-        Str *_t2026 = Str_lit("Return", 6ULL);
+    Bool _t2120; { Bool *_hp = NodeType_eq(self, NodeType_Return()); _t2120 = *_hp; free(_hp); }
+    if (_t2120) {
+        Str *_t2096 = Str_lit("Return", 6ULL);
         ;
-        return _t2026;
+        return _t2096;
     }
     ;
-    Bool _t2051; { Bool *_hp = NodeType_eq(self, NodeType_If()); _t2051 = *_hp; free(_hp); }
-    if (_t2051) {
-        Str *_t2027 = Str_lit("If", 2ULL);
+    Bool _t2121; { Bool *_hp = NodeType_eq(self, NodeType_If()); _t2121 = *_hp; free(_hp); }
+    if (_t2121) {
+        Str *_t2097 = Str_lit("If", 2ULL);
         ;
-        return _t2027;
+        return _t2097;
     }
     ;
-    Bool _t2052; { Bool *_hp = NodeType_eq(self, NodeType_While()); _t2052 = *_hp; free(_hp); }
-    if (_t2052) {
-        Str *_t2028 = Str_lit("While", 5ULL);
+    Bool _t2122; { Bool *_hp = NodeType_eq(self, NodeType_While()); _t2122 = *_hp; free(_hp); }
+    if (_t2122) {
+        Str *_t2098 = Str_lit("While", 5ULL);
         ;
-        return _t2028;
+        return _t2098;
     }
     ;
-    Bool _t2053; { Bool *_hp = NodeType_eq(self, NodeType_ForIn()); _t2053 = *_hp; free(_hp); }
-    if (_t2053) {
-        Str *_t2029 = Str_lit("ForIn", 5ULL);
+    Bool _t2123; { Bool *_hp = NodeType_eq(self, NodeType_ForIn()); _t2123 = *_hp; free(_hp); }
+    if (_t2123) {
+        Str *_t2099 = Str_lit("ForIn", 5ULL);
         ;
-        return _t2029;
+        return _t2099;
     }
     ;
-    Bool _t2054; { Bool *_hp = NodeType_eq(self, NodeType_NamedArg()); _t2054 = *_hp; free(_hp); }
-    if (_t2054) {
-        Str *_t2030 = Str_lit("NamedArg", 8ULL);
+    Bool _t2124; { Bool *_hp = NodeType_eq(self, NodeType_NamedArg()); _t2124 = *_hp; free(_hp); }
+    if (_t2124) {
+        Str *_t2100 = Str_lit("NamedArg", 8ULL);
         ;
-        return _t2030;
+        return _t2100;
     }
     ;
-    Bool _t2055; { Bool *_hp = NodeType_eq(self, NodeType_Break()); _t2055 = *_hp; free(_hp); }
-    if (_t2055) {
-        Str *_t2031 = Str_lit("Break", 5ULL);
+    Bool _t2125; { Bool *_hp = NodeType_eq(self, NodeType_Break()); _t2125 = *_hp; free(_hp); }
+    if (_t2125) {
+        Str *_t2101 = Str_lit("Break", 5ULL);
         ;
-        return _t2031;
+        return _t2101;
     }
     ;
-    Bool _t2056; { Bool *_hp = NodeType_eq(self, NodeType_Continue()); _t2056 = *_hp; free(_hp); }
-    if (_t2056) {
-        Str *_t2032 = Str_lit("Continue", 8ULL);
+    Bool _t2126; { Bool *_hp = NodeType_eq(self, NodeType_Continue()); _t2126 = *_hp; free(_hp); }
+    if (_t2126) {
+        Str *_t2102 = Str_lit("Continue", 8ULL);
         ;
-        return _t2032;
+        return _t2102;
     }
     ;
-    Bool _t2057; { Bool *_hp = NodeType_eq(self, NodeType_MapLit()); _t2057 = *_hp; free(_hp); }
-    if (_t2057) {
-        Str *_t2033 = Str_lit("MapLit", 6ULL);
+    Bool _t2127; { Bool *_hp = NodeType_eq(self, NodeType_MapLit()); _t2127 = *_hp; free(_hp); }
+    if (_t2127) {
+        Str *_t2103 = Str_lit("MapLit", 6ULL);
         ;
-        return _t2033;
+        return _t2103;
     }
     ;
-    Bool _t2058; { Bool *_hp = NodeType_eq(self, NodeType_SetLit()); _t2058 = *_hp; free(_hp); }
-    if (_t2058) {
-        Str *_t2034 = Str_lit("SetLit", 6ULL);
+    Bool _t2128; { Bool *_hp = NodeType_eq(self, NodeType_SetLit()); _t2128 = *_hp; free(_hp); }
+    if (_t2128) {
+        Str *_t2104 = Str_lit("SetLit", 6ULL);
         ;
-        return _t2034;
+        return _t2104;
     }
     ;
-    Bool _t2059; { Bool *_hp = NodeType_eq(self, NodeType_Switch()); _t2059 = *_hp; free(_hp); }
-    if (_t2059) {
-        Str *_t2035 = Str_lit("Switch", 6ULL);
+    Bool _t2129; { Bool *_hp = NodeType_eq(self, NodeType_Switch()); _t2129 = *_hp; free(_hp); }
+    if (_t2129) {
+        Str *_t2105 = Str_lit("Switch", 6ULL);
         ;
-        return _t2035;
+        return _t2105;
     }
     ;
-    Bool _t2060; { Bool *_hp = NodeType_eq(self, NodeType_Case()); _t2060 = *_hp; free(_hp); }
-    if (_t2060) {
-        Str *_t2036 = Str_lit("Case", 4ULL);
+    Bool _t2130; { Bool *_hp = NodeType_eq(self, NodeType_Case()); _t2130 = *_hp; free(_hp); }
+    if (_t2130) {
+        Str *_t2106 = Str_lit("Case", 4ULL);
         ;
-        return _t2036;
+        return _t2106;
     }
     ;
-    Str *_t2061 = Str_lit("unknown", 7ULL);
-    return _t2061;
+    Str *_t2131 = Str_lit("unknown", 7ULL);
+    return _t2131;
 }
 
 U64 *NodeType_size(void) {
@@ -11970,80 +12257,80 @@ U64 *NodeType_size(void) {
 
 Str * node_type_name(NodeType * t) {
     {
-        NodeType *_sw2063 = NodeType_clone(t);
-        Bool _t2112; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Body()); _t2112 = *_hp; free(_hp); }
-        if (_t2112) {
-            Str *_t2064 = Str_lit("body", 4ULL);
-            NodeType_delete(_sw2063, &(Bool){1});
+        NodeType *_sw2133 = NodeType_clone(t);
+        Bool _t2182; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Body()); _t2182 = *_hp; free(_hp); }
+        if (_t2182) {
+            Str *_t2134 = Str_lit("body", 4ULL);
+            NodeType_delete(_sw2133, &(Bool){1});
             ;
-            return _t2064;
+            return _t2134;
         } else {
-            Bool _t2111; { Bool *_hp = NodeType_eq(_sw2063, NodeType_LiteralStr()); _t2111 = *_hp; free(_hp); }
-            if (_t2111) {
-                Str *_t2065 = Str_lit("str", 3ULL);
+            Bool _t2181; { Bool *_hp = NodeType_eq(_sw2133, NodeType_LiteralStr()); _t2181 = *_hp; free(_hp); }
+            if (_t2181) {
+                Str *_t2135 = Str_lit("str", 3ULL);
                 ;
-                NodeType_delete(_sw2063, &(Bool){1});
+                NodeType_delete(_sw2133, &(Bool){1});
                 ;
-                return _t2065;
+                return _t2135;
             } else {
-                Bool _t2110; { Bool *_hp = NodeType_eq(_sw2063, NodeType_LiteralNum()); _t2110 = *_hp; free(_hp); }
-                if (_t2110) {
-                    Str *_t2066 = Str_lit("num", 3ULL);
+                Bool _t2180; { Bool *_hp = NodeType_eq(_sw2133, NodeType_LiteralNum()); _t2180 = *_hp; free(_hp); }
+                if (_t2180) {
+                    Str *_t2136 = Str_lit("num", 3ULL);
                     ;
                     ;
-                    NodeType_delete(_sw2063, &(Bool){1});
+                    NodeType_delete(_sw2133, &(Bool){1});
                     ;
-                    return _t2066;
+                    return _t2136;
                 } else {
-                    Bool _t2109; { Bool *_hp = NodeType_eq(_sw2063, NodeType_LiteralBool()); _t2109 = *_hp; free(_hp); }
-                    if (_t2109) {
-                        Str *_t2067 = Str_lit("bool", 4ULL);
+                    Bool _t2179; { Bool *_hp = NodeType_eq(_sw2133, NodeType_LiteralBool()); _t2179 = *_hp; free(_hp); }
+                    if (_t2179) {
+                        Str *_t2137 = Str_lit("bool", 4ULL);
                         ;
                         ;
                         ;
-                        NodeType_delete(_sw2063, &(Bool){1});
+                        NodeType_delete(_sw2133, &(Bool){1});
                         ;
-                        return _t2067;
+                        return _t2137;
                     } else {
-                        Bool _t2108; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Ident()); _t2108 = *_hp; free(_hp); }
-                        if (_t2108) {
-                            Str *_t2068 = Str_lit("ident", 5ULL);
+                        Bool _t2178; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Ident()); _t2178 = *_hp; free(_hp); }
+                        if (_t2178) {
+                            Str *_t2138 = Str_lit("ident", 5ULL);
                             ;
                             ;
                             ;
                             ;
-                            NodeType_delete(_sw2063, &(Bool){1});
+                            NodeType_delete(_sw2133, &(Bool){1});
                             ;
-                            return _t2068;
+                            return _t2138;
                         } else {
-                            Bool _t2107; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Decl()); _t2107 = *_hp; free(_hp); }
-                            if (_t2107) {
-                                Str *_t2069 = Str_lit("decl", 4ULL);
+                            Bool _t2177; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Decl()); _t2177 = *_hp; free(_hp); }
+                            if (_t2177) {
+                                Str *_t2139 = Str_lit("decl", 4ULL);
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                NodeType_delete(_sw2063, &(Bool){1});
+                                NodeType_delete(_sw2133, &(Bool){1});
                                 ;
-                                return _t2069;
+                                return _t2139;
                             } else {
-                                Bool _t2106; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Assign()); _t2106 = *_hp; free(_hp); }
-                                if (_t2106) {
-                                    Str *_t2070 = Str_lit("assign", 6ULL);
+                                Bool _t2176; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Assign()); _t2176 = *_hp; free(_hp); }
+                                if (_t2176) {
+                                    Str *_t2140 = Str_lit("assign", 6ULL);
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    NodeType_delete(_sw2063, &(Bool){1});
+                                    NodeType_delete(_sw2133, &(Bool){1});
                                     ;
-                                    return _t2070;
+                                    return _t2140;
                                 } else {
-                                    Bool _t2105; { Bool *_hp = NodeType_eq(_sw2063, NodeType_FCall()); _t2105 = *_hp; free(_hp); }
-                                    if (_t2105) {
-                                        Str *_t2071 = Str_lit("fcall", 5ULL);
+                                    Bool _t2175; { Bool *_hp = NodeType_eq(_sw2133, NodeType_FCall()); _t2175 = *_hp; free(_hp); }
+                                    if (_t2175) {
+                                        Str *_t2141 = Str_lit("fcall", 5ULL);
                                         ;
                                         ;
                                         ;
@@ -12051,13 +12338,13 @@ Str * node_type_name(NodeType * t) {
                                         ;
                                         ;
                                         ;
-                                        NodeType_delete(_sw2063, &(Bool){1});
+                                        NodeType_delete(_sw2133, &(Bool){1});
                                         ;
-                                        return _t2071;
+                                        return _t2141;
                                     } else {
-                                        Bool _t2104; { Bool *_hp = NodeType_eq(_sw2063, NodeType_FuncDef()); _t2104 = *_hp; free(_hp); }
-                                        if (_t2104) {
-                                            Str *_t2072 = Str_lit("func_def", 8ULL);
+                                        Bool _t2174; { Bool *_hp = NodeType_eq(_sw2133, NodeType_FuncDef()); _t2174 = *_hp; free(_hp); }
+                                        if (_t2174) {
+                                            Str *_t2142 = Str_lit("func_def", 8ULL);
                                             ;
                                             ;
                                             ;
@@ -12066,13 +12353,13 @@ Str * node_type_name(NodeType * t) {
                                             ;
                                             ;
                                             ;
-                                            NodeType_delete(_sw2063, &(Bool){1});
+                                            NodeType_delete(_sw2133, &(Bool){1});
                                             ;
-                                            return _t2072;
+                                            return _t2142;
                                         } else {
-                                            Bool _t2103; { Bool *_hp = NodeType_eq(_sw2063, NodeType_StructDef()); _t2103 = *_hp; free(_hp); }
-                                            if (_t2103) {
-                                                Str *_t2073 = Str_lit("struct_def", 10ULL);
+                                            Bool _t2173; { Bool *_hp = NodeType_eq(_sw2133, NodeType_StructDef()); _t2173 = *_hp; free(_hp); }
+                                            if (_t2173) {
+                                                Str *_t2143 = Str_lit("struct_def", 10ULL);
                                                 ;
                                                 ;
                                                 ;
@@ -12082,13 +12369,13 @@ Str * node_type_name(NodeType * t) {
                                                 ;
                                                 ;
                                                 ;
-                                                NodeType_delete(_sw2063, &(Bool){1});
+                                                NodeType_delete(_sw2133, &(Bool){1});
                                                 ;
-                                                return _t2073;
+                                                return _t2143;
                                             } else {
-                                                Bool _t2102; { Bool *_hp = NodeType_eq(_sw2063, NodeType_EnumDef()); _t2102 = *_hp; free(_hp); }
-                                                if (_t2102) {
-                                                    Str *_t2074 = Str_lit("enum_def", 8ULL);
+                                                Bool _t2172; { Bool *_hp = NodeType_eq(_sw2133, NodeType_EnumDef()); _t2172 = *_hp; free(_hp); }
+                                                if (_t2172) {
+                                                    Str *_t2144 = Str_lit("enum_def", 8ULL);
                                                     ;
                                                     ;
                                                     ;
@@ -12099,13 +12386,13 @@ Str * node_type_name(NodeType * t) {
                                                     ;
                                                     ;
                                                     ;
-                                                    NodeType_delete(_sw2063, &(Bool){1});
+                                                    NodeType_delete(_sw2133, &(Bool){1});
                                                     ;
-                                                    return _t2074;
+                                                    return _t2144;
                                                 } else {
-                                                    Bool _t2101; { Bool *_hp = NodeType_eq(_sw2063, NodeType_FieldAccess()); _t2101 = *_hp; free(_hp); }
-                                                    if (_t2101) {
-                                                        Str *_t2075 = Str_lit("field_access", 12ULL);
+                                                    Bool _t2171; { Bool *_hp = NodeType_eq(_sw2133, NodeType_FieldAccess()); _t2171 = *_hp; free(_hp); }
+                                                    if (_t2171) {
+                                                        Str *_t2145 = Str_lit("field_access", 12ULL);
                                                         ;
                                                         ;
                                                         ;
@@ -12117,13 +12404,13 @@ Str * node_type_name(NodeType * t) {
                                                         ;
                                                         ;
                                                         ;
-                                                        NodeType_delete(_sw2063, &(Bool){1});
+                                                        NodeType_delete(_sw2133, &(Bool){1});
                                                         ;
-                                                        return _t2075;
+                                                        return _t2145;
                                                     } else {
-                                                        Bool _t2100; { Bool *_hp = NodeType_eq(_sw2063, NodeType_FieldAssign()); _t2100 = *_hp; free(_hp); }
-                                                        if (_t2100) {
-                                                            Str *_t2076 = Str_lit("field_assign", 12ULL);
+                                                        Bool _t2170; { Bool *_hp = NodeType_eq(_sw2133, NodeType_FieldAssign()); _t2170 = *_hp; free(_hp); }
+                                                        if (_t2170) {
+                                                            Str *_t2146 = Str_lit("field_assign", 12ULL);
                                                             ;
                                                             ;
                                                             ;
@@ -12136,13 +12423,13 @@ Str * node_type_name(NodeType * t) {
                                                             ;
                                                             ;
                                                             ;
-                                                            NodeType_delete(_sw2063, &(Bool){1});
+                                                            NodeType_delete(_sw2133, &(Bool){1});
                                                             ;
-                                                            return _t2076;
+                                                            return _t2146;
                                                         } else {
-                                                            Bool _t2099; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Return()); _t2099 = *_hp; free(_hp); }
-                                                            if (_t2099) {
-                                                                Str *_t2077 = Str_lit("return", 6ULL);
+                                                            Bool _t2169; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Return()); _t2169 = *_hp; free(_hp); }
+                                                            if (_t2169) {
+                                                                Str *_t2147 = Str_lit("return", 6ULL);
                                                                 ;
                                                                 ;
                                                                 ;
@@ -12156,13 +12443,13 @@ Str * node_type_name(NodeType * t) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                NodeType_delete(_sw2063, &(Bool){1});
+                                                                NodeType_delete(_sw2133, &(Bool){1});
                                                                 ;
-                                                                return _t2077;
+                                                                return _t2147;
                                                             } else {
-                                                                Bool _t2098; { Bool *_hp = NodeType_eq(_sw2063, NodeType_If()); _t2098 = *_hp; free(_hp); }
-                                                                if (_t2098) {
-                                                                    Str *_t2078 = Str_lit("if", 2ULL);
+                                                                Bool _t2168; { Bool *_hp = NodeType_eq(_sw2133, NodeType_If()); _t2168 = *_hp; free(_hp); }
+                                                                if (_t2168) {
+                                                                    Str *_t2148 = Str_lit("if", 2ULL);
                                                                     ;
                                                                     ;
                                                                     ;
@@ -12177,13 +12464,13 @@ Str * node_type_name(NodeType * t) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    NodeType_delete(_sw2063, &(Bool){1});
+                                                                    NodeType_delete(_sw2133, &(Bool){1});
                                                                     ;
-                                                                    return _t2078;
+                                                                    return _t2148;
                                                                 } else {
-                                                                    Bool _t2097; { Bool *_hp = NodeType_eq(_sw2063, NodeType_While()); _t2097 = *_hp; free(_hp); }
-                                                                    if (_t2097) {
-                                                                        Str *_t2079 = Str_lit("while", 5ULL);
+                                                                    Bool _t2167; { Bool *_hp = NodeType_eq(_sw2133, NodeType_While()); _t2167 = *_hp; free(_hp); }
+                                                                    if (_t2167) {
+                                                                        Str *_t2149 = Str_lit("while", 5ULL);
                                                                         ;
                                                                         ;
                                                                         ;
@@ -12199,13 +12486,13 @@ Str * node_type_name(NodeType * t) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        NodeType_delete(_sw2063, &(Bool){1});
+                                                                        NodeType_delete(_sw2133, &(Bool){1});
                                                                         ;
-                                                                        return _t2079;
+                                                                        return _t2149;
                                                                     } else {
-                                                                        Bool _t2096; { Bool *_hp = NodeType_eq(_sw2063, NodeType_ForIn()); _t2096 = *_hp; free(_hp); }
-                                                                        if (_t2096) {
-                                                                            Str *_t2080 = Str_lit("for_in", 6ULL);
+                                                                        Bool _t2166; { Bool *_hp = NodeType_eq(_sw2133, NodeType_ForIn()); _t2166 = *_hp; free(_hp); }
+                                                                        if (_t2166) {
+                                                                            Str *_t2150 = Str_lit("for_in", 6ULL);
                                                                             ;
                                                                             ;
                                                                             ;
@@ -12222,13 +12509,13 @@ Str * node_type_name(NodeType * t) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            NodeType_delete(_sw2063, &(Bool){1});
+                                                                            NodeType_delete(_sw2133, &(Bool){1});
                                                                             ;
-                                                                            return _t2080;
+                                                                            return _t2150;
                                                                         } else {
-                                                                            Bool _t2095; { Bool *_hp = NodeType_eq(_sw2063, NodeType_NamedArg()); _t2095 = *_hp; free(_hp); }
-                                                                            if (_t2095) {
-                                                                                Str *_t2081 = Str_lit("named_arg", 9ULL);
+                                                                            Bool _t2165; { Bool *_hp = NodeType_eq(_sw2133, NodeType_NamedArg()); _t2165 = *_hp; free(_hp); }
+                                                                            if (_t2165) {
+                                                                                Str *_t2151 = Str_lit("named_arg", 9ULL);
                                                                                 ;
                                                                                 ;
                                                                                 ;
@@ -12246,13 +12533,13 @@ Str * node_type_name(NodeType * t) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                NodeType_delete(_sw2063, &(Bool){1});
+                                                                                NodeType_delete(_sw2133, &(Bool){1});
                                                                                 ;
-                                                                                return _t2081;
+                                                                                return _t2151;
                                                                             } else {
-                                                                                Bool _t2094; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Break()); _t2094 = *_hp; free(_hp); }
-                                                                                if (_t2094) {
-                                                                                    Str *_t2082 = Str_lit("break", 5ULL);
+                                                                                Bool _t2164; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Break()); _t2164 = *_hp; free(_hp); }
+                                                                                if (_t2164) {
+                                                                                    Str *_t2152 = Str_lit("break", 5ULL);
                                                                                     ;
                                                                                     ;
                                                                                     ;
@@ -12271,13 +12558,13 @@ Str * node_type_name(NodeType * t) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    NodeType_delete(_sw2063, &(Bool){1});
+                                                                                    NodeType_delete(_sw2133, &(Bool){1});
                                                                                     ;
-                                                                                    return _t2082;
+                                                                                    return _t2152;
                                                                                 } else {
-                                                                                    Bool _t2093; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Continue()); _t2093 = *_hp; free(_hp); }
-                                                                                    if (_t2093) {
-                                                                                        Str *_t2083 = Str_lit("continue", 8ULL);
+                                                                                    Bool _t2163; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Continue()); _t2163 = *_hp; free(_hp); }
+                                                                                    if (_t2163) {
+                                                                                        Str *_t2153 = Str_lit("continue", 8ULL);
                                                                                         ;
                                                                                         ;
                                                                                         ;
@@ -12297,13 +12584,13 @@ Str * node_type_name(NodeType * t) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        NodeType_delete(_sw2063, &(Bool){1});
+                                                                                        NodeType_delete(_sw2133, &(Bool){1});
                                                                                         ;
-                                                                                        return _t2083;
+                                                                                        return _t2153;
                                                                                     } else {
-                                                                                        Bool _t2092; { Bool *_hp = NodeType_eq(_sw2063, NodeType_MapLit()); _t2092 = *_hp; free(_hp); }
-                                                                                        if (_t2092) {
-                                                                                            Str *_t2084 = Str_lit("map_lit", 7ULL);
+                                                                                        Bool _t2162; { Bool *_hp = NodeType_eq(_sw2133, NodeType_MapLit()); _t2162 = *_hp; free(_hp); }
+                                                                                        if (_t2162) {
+                                                                                            Str *_t2154 = Str_lit("map_lit", 7ULL);
                                                                                             ;
                                                                                             ;
                                                                                             ;
@@ -12324,13 +12611,13 @@ Str * node_type_name(NodeType * t) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            NodeType_delete(_sw2063, &(Bool){1});
+                                                                                            NodeType_delete(_sw2133, &(Bool){1});
                                                                                             ;
-                                                                                            return _t2084;
+                                                                                            return _t2154;
                                                                                         } else {
-                                                                                            Bool _t2091; { Bool *_hp = NodeType_eq(_sw2063, NodeType_SetLit()); _t2091 = *_hp; free(_hp); }
-                                                                                            if (_t2091) {
-                                                                                                Str *_t2085 = Str_lit("set_lit", 7ULL);
+                                                                                            Bool _t2161; { Bool *_hp = NodeType_eq(_sw2133, NodeType_SetLit()); _t2161 = *_hp; free(_hp); }
+                                                                                            if (_t2161) {
+                                                                                                Str *_t2155 = Str_lit("set_lit", 7ULL);
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
@@ -12352,13 +12639,13 @@ Str * node_type_name(NodeType * t) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                NodeType_delete(_sw2063, &(Bool){1});
+                                                                                                NodeType_delete(_sw2133, &(Bool){1});
                                                                                                 ;
-                                                                                                return _t2085;
+                                                                                                return _t2155;
                                                                                             } else {
-                                                                                                Bool _t2090; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Switch()); _t2090 = *_hp; free(_hp); }
-                                                                                                if (_t2090) {
-                                                                                                    Str *_t2086 = Str_lit("switch", 6ULL);
+                                                                                                Bool _t2160; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Switch()); _t2160 = *_hp; free(_hp); }
+                                                                                                if (_t2160) {
+                                                                                                    Str *_t2156 = Str_lit("switch", 6ULL);
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
@@ -12381,13 +12668,13 @@ Str * node_type_name(NodeType * t) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    NodeType_delete(_sw2063, &(Bool){1});
+                                                                                                    NodeType_delete(_sw2133, &(Bool){1});
                                                                                                     ;
-                                                                                                    return _t2086;
+                                                                                                    return _t2156;
                                                                                                 } else {
-                                                                                                    Bool _t2089; { Bool *_hp = NodeType_eq(_sw2063, NodeType_Case()); _t2089 = *_hp; free(_hp); }
-                                                                                                    if (_t2089) {
-                                                                                                        Str *_t2087 = Str_lit("case", 4ULL);
+                                                                                                    Bool _t2159; { Bool *_hp = NodeType_eq(_sw2133, NodeType_Case()); _t2159 = *_hp; free(_hp); }
+                                                                                                    if (_t2159) {
+                                                                                                        Str *_t2157 = Str_lit("case", 4ULL);
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
@@ -12411,11 +12698,11 @@ Str * node_type_name(NodeType * t) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        NodeType_delete(_sw2063, &(Bool){1});
+                                                                                                        NodeType_delete(_sw2133, &(Bool){1});
                                                                                                         ;
-                                                                                                        return _t2087;
+                                                                                                        return _t2157;
                                                                                                     } else {
-                                                                                                        Str *_t2088 = Str_lit("?", 1ULL);
+                                                                                                        Str *_t2158 = Str_lit("?", 1ULL);
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
@@ -12439,9 +12726,9 @@ Str * node_type_name(NodeType * t) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        NodeType_delete(_sw2063, &(Bool){1});
+                                                                                                        NodeType_delete(_sw2133, &(Bool){1});
                                                                                                         ;
-                                                                                                        return _t2088;
+                                                                                                        return _t2158;
                                                                                                     }
                                                                                                     ;
                                                                                                 }
@@ -12489,7 +12776,7 @@ Str * node_type_name(NodeType * t) {
             }
             ;
         }
-        NodeType_delete(_sw2063, &(Bool){1});
+        NodeType_delete(_sw2133, &(Bool){1});
         ;
     }
 }
@@ -12556,80 +12843,80 @@ Bool *FuncType_is_ExtProc(FuncType *self) {
 }
 Bool * FuncType_eq(FuncType * self, FuncType * other) {
     (void)self;
-    Bool _t2119; { Bool *_hp = FuncType_is_Func(self); _t2119 = *_hp; free(_hp); }
-    if (_t2119) {
-        Bool _t2113; { Bool *_hp = FuncType_is_Func(other); _t2113 = *_hp; free(_hp); }
+    Bool _t2189; { Bool *_hp = FuncType_is_Func(self); _t2189 = *_hp; free(_hp); }
+    if (_t2189) {
+        Bool _t2183; { Bool *_hp = FuncType_is_Func(other); _t2183 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2113; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2183; return _r; }
     }
     ;
-    Bool _t2120; { Bool *_hp = FuncType_is_Proc(self); _t2120 = *_hp; free(_hp); }
-    if (_t2120) {
-        Bool _t2114; { Bool *_hp = FuncType_is_Proc(other); _t2114 = *_hp; free(_hp); }
+    Bool _t2190; { Bool *_hp = FuncType_is_Proc(self); _t2190 = *_hp; free(_hp); }
+    if (_t2190) {
+        Bool _t2184; { Bool *_hp = FuncType_is_Proc(other); _t2184 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2114; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2184; return _r; }
     }
     ;
-    Bool _t2121; { Bool *_hp = FuncType_is_Test(self); _t2121 = *_hp; free(_hp); }
-    if (_t2121) {
-        Bool _t2115; { Bool *_hp = FuncType_is_Test(other); _t2115 = *_hp; free(_hp); }
+    Bool _t2191; { Bool *_hp = FuncType_is_Test(self); _t2191 = *_hp; free(_hp); }
+    if (_t2191) {
+        Bool _t2185; { Bool *_hp = FuncType_is_Test(other); _t2185 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2115; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2185; return _r; }
     }
     ;
-    Bool _t2122; { Bool *_hp = FuncType_is_Macro(self); _t2122 = *_hp; free(_hp); }
-    if (_t2122) {
-        Bool _t2116; { Bool *_hp = FuncType_is_Macro(other); _t2116 = *_hp; free(_hp); }
+    Bool _t2192; { Bool *_hp = FuncType_is_Macro(self); _t2192 = *_hp; free(_hp); }
+    if (_t2192) {
+        Bool _t2186; { Bool *_hp = FuncType_is_Macro(other); _t2186 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2116; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2186; return _r; }
     }
     ;
-    Bool _t2123; { Bool *_hp = FuncType_is_ExtFunc(self); _t2123 = *_hp; free(_hp); }
-    if (_t2123) {
-        Bool _t2117; { Bool *_hp = FuncType_is_ExtFunc(other); _t2117 = *_hp; free(_hp); }
+    Bool _t2193; { Bool *_hp = FuncType_is_ExtFunc(self); _t2193 = *_hp; free(_hp); }
+    if (_t2193) {
+        Bool _t2187; { Bool *_hp = FuncType_is_ExtFunc(other); _t2187 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2117; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2187; return _r; }
     }
     ;
-    Bool _t2124; { Bool *_hp = FuncType_is_ExtProc(self); _t2124 = *_hp; free(_hp); }
-    if (_t2124) {
-        Bool _t2118; { Bool *_hp = FuncType_is_ExtProc(other); _t2118 = *_hp; free(_hp); }
+    Bool _t2194; { Bool *_hp = FuncType_is_ExtProc(self); _t2194 = *_hp; free(_hp); }
+    if (_t2194) {
+        Bool _t2188; { Bool *_hp = FuncType_is_ExtProc(other); _t2188 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2118; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2188; return _r; }
     }
     ;
-    Bool _t2125 = 0;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2125; return _r; }
+    Bool _t2195 = 0;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2195; return _r; }
 }
 
 FuncType * FuncType_clone(FuncType * self) {
     (void)self;
-    Bool _t2126; { Bool *_hp = FuncType_eq(self, FuncType_Func()); _t2126 = *_hp; free(_hp); }
-    if (_t2126) {
+    Bool _t2196; { Bool *_hp = FuncType_eq(self, FuncType_Func()); _t2196 = *_hp; free(_hp); }
+    if (_t2196) {
         ;
         return FuncType_Func();
     }
     ;
-    Bool _t2127; { Bool *_hp = FuncType_eq(self, FuncType_Proc()); _t2127 = *_hp; free(_hp); }
-    if (_t2127) {
+    Bool _t2197; { Bool *_hp = FuncType_eq(self, FuncType_Proc()); _t2197 = *_hp; free(_hp); }
+    if (_t2197) {
         ;
         return FuncType_Proc();
     }
     ;
-    Bool _t2128; { Bool *_hp = FuncType_eq(self, FuncType_Test()); _t2128 = *_hp; free(_hp); }
-    if (_t2128) {
+    Bool _t2198; { Bool *_hp = FuncType_eq(self, FuncType_Test()); _t2198 = *_hp; free(_hp); }
+    if (_t2198) {
         ;
         return FuncType_Test();
     }
     ;
-    Bool _t2129; { Bool *_hp = FuncType_eq(self, FuncType_Macro()); _t2129 = *_hp; free(_hp); }
-    if (_t2129) {
+    Bool _t2199; { Bool *_hp = FuncType_eq(self, FuncType_Macro()); _t2199 = *_hp; free(_hp); }
+    if (_t2199) {
         ;
         return FuncType_Macro();
     }
     ;
-    Bool _t2130; { Bool *_hp = FuncType_eq(self, FuncType_ExtFunc()); _t2130 = *_hp; free(_hp); }
-    if (_t2130) {
+    Bool _t2200; { Bool *_hp = FuncType_eq(self, FuncType_ExtFunc()); _t2200 = *_hp; free(_hp); }
+    if (_t2200) {
         ;
         return FuncType_ExtFunc();
     }
@@ -12646,50 +12933,50 @@ void FuncType_delete(FuncType * self, Bool * call_free) {
 
 Str * FuncType_to_str(FuncType * self) {
     (void)self;
-    Bool _t2137; { Bool *_hp = FuncType_eq(self, FuncType_Func()); _t2137 = *_hp; free(_hp); }
-    if (_t2137) {
-        Str *_t2131 = Str_lit("Func", 4ULL);
+    Bool _t2207; { Bool *_hp = FuncType_eq(self, FuncType_Func()); _t2207 = *_hp; free(_hp); }
+    if (_t2207) {
+        Str *_t2201 = Str_lit("Func", 4ULL);
         ;
-        return _t2131;
+        return _t2201;
     }
     ;
-    Bool _t2138; { Bool *_hp = FuncType_eq(self, FuncType_Proc()); _t2138 = *_hp; free(_hp); }
-    if (_t2138) {
-        Str *_t2132 = Str_lit("Proc", 4ULL);
+    Bool _t2208; { Bool *_hp = FuncType_eq(self, FuncType_Proc()); _t2208 = *_hp; free(_hp); }
+    if (_t2208) {
+        Str *_t2202 = Str_lit("Proc", 4ULL);
         ;
-        return _t2132;
+        return _t2202;
     }
     ;
-    Bool _t2139; { Bool *_hp = FuncType_eq(self, FuncType_Test()); _t2139 = *_hp; free(_hp); }
-    if (_t2139) {
-        Str *_t2133 = Str_lit("Test", 4ULL);
+    Bool _t2209; { Bool *_hp = FuncType_eq(self, FuncType_Test()); _t2209 = *_hp; free(_hp); }
+    if (_t2209) {
+        Str *_t2203 = Str_lit("Test", 4ULL);
         ;
-        return _t2133;
+        return _t2203;
     }
     ;
-    Bool _t2140; { Bool *_hp = FuncType_eq(self, FuncType_Macro()); _t2140 = *_hp; free(_hp); }
-    if (_t2140) {
-        Str *_t2134 = Str_lit("Macro", 5ULL);
+    Bool _t2210; { Bool *_hp = FuncType_eq(self, FuncType_Macro()); _t2210 = *_hp; free(_hp); }
+    if (_t2210) {
+        Str *_t2204 = Str_lit("Macro", 5ULL);
         ;
-        return _t2134;
+        return _t2204;
     }
     ;
-    Bool _t2141; { Bool *_hp = FuncType_eq(self, FuncType_ExtFunc()); _t2141 = *_hp; free(_hp); }
-    if (_t2141) {
-        Str *_t2135 = Str_lit("ExtFunc", 7ULL);
+    Bool _t2211; { Bool *_hp = FuncType_eq(self, FuncType_ExtFunc()); _t2211 = *_hp; free(_hp); }
+    if (_t2211) {
+        Str *_t2205 = Str_lit("ExtFunc", 7ULL);
         ;
-        return _t2135;
+        return _t2205;
     }
     ;
-    Bool _t2142; { Bool *_hp = FuncType_eq(self, FuncType_ExtProc()); _t2142 = *_hp; free(_hp); }
-    if (_t2142) {
-        Str *_t2136 = Str_lit("ExtProc", 7ULL);
+    Bool _t2212; { Bool *_hp = FuncType_eq(self, FuncType_ExtProc()); _t2212 = *_hp; free(_hp); }
+    if (_t2212) {
+        Str *_t2206 = Str_lit("ExtProc", 7ULL);
         ;
-        return _t2136;
+        return _t2206;
     }
     ;
-    Str *_t2143 = Str_lit("unknown", 7ULL);
-    return _t2143;
+    Str *_t2213 = Str_lit("unknown", 7ULL);
+    return _t2213;
 }
 
 U64 *FuncType_size(void) {
@@ -12701,73 +12988,73 @@ U64 *FuncType_size(void) {
 
 Str * func_type_name(FuncType * ft) {
     {
-        FuncType *_sw2145 = FuncType_clone(ft);
-        Bool _t2158; { Bool *_hp = FuncType_eq(_sw2145, FuncType_Func()); _t2158 = *_hp; free(_hp); }
-        if (_t2158) {
-            Str *_t2146 = Str_lit("func", 4ULL);
-            FuncType_delete(_sw2145, &(Bool){1});
+        FuncType *_sw2215 = FuncType_clone(ft);
+        Bool _t2228; { Bool *_hp = FuncType_eq(_sw2215, FuncType_Func()); _t2228 = *_hp; free(_hp); }
+        if (_t2228) {
+            Str *_t2216 = Str_lit("func", 4ULL);
+            FuncType_delete(_sw2215, &(Bool){1});
             ;
-            return _t2146;
+            return _t2216;
         } else {
-            Bool _t2157; { Bool *_hp = FuncType_eq(_sw2145, FuncType_Proc()); _t2157 = *_hp; free(_hp); }
-            if (_t2157) {
-                Str *_t2147 = Str_lit("proc", 4ULL);
+            Bool _t2227; { Bool *_hp = FuncType_eq(_sw2215, FuncType_Proc()); _t2227 = *_hp; free(_hp); }
+            if (_t2227) {
+                Str *_t2217 = Str_lit("proc", 4ULL);
                 ;
-                FuncType_delete(_sw2145, &(Bool){1});
+                FuncType_delete(_sw2215, &(Bool){1});
                 ;
-                return _t2147;
+                return _t2217;
             } else {
-                Bool _t2156; { Bool *_hp = FuncType_eq(_sw2145, FuncType_Test()); _t2156 = *_hp; free(_hp); }
-                if (_t2156) {
-                    Str *_t2148 = Str_lit("test", 4ULL);
+                Bool _t2226; { Bool *_hp = FuncType_eq(_sw2215, FuncType_Test()); _t2226 = *_hp; free(_hp); }
+                if (_t2226) {
+                    Str *_t2218 = Str_lit("test", 4ULL);
                     ;
                     ;
-                    FuncType_delete(_sw2145, &(Bool){1});
+                    FuncType_delete(_sw2215, &(Bool){1});
                     ;
-                    return _t2148;
+                    return _t2218;
                 } else {
-                    Bool _t2155; { Bool *_hp = FuncType_eq(_sw2145, FuncType_Macro()); _t2155 = *_hp; free(_hp); }
-                    if (_t2155) {
-                        Str *_t2149 = Str_lit("macro", 5ULL);
+                    Bool _t2225; { Bool *_hp = FuncType_eq(_sw2215, FuncType_Macro()); _t2225 = *_hp; free(_hp); }
+                    if (_t2225) {
+                        Str *_t2219 = Str_lit("macro", 5ULL);
                         ;
                         ;
                         ;
-                        FuncType_delete(_sw2145, &(Bool){1});
+                        FuncType_delete(_sw2215, &(Bool){1});
                         ;
-                        return _t2149;
+                        return _t2219;
                     } else {
-                        Bool _t2154; { Bool *_hp = FuncType_eq(_sw2145, FuncType_ExtFunc()); _t2154 = *_hp; free(_hp); }
-                        if (_t2154) {
-                            Str *_t2150 = Str_lit("ext_func", 8ULL);
+                        Bool _t2224; { Bool *_hp = FuncType_eq(_sw2215, FuncType_ExtFunc()); _t2224 = *_hp; free(_hp); }
+                        if (_t2224) {
+                            Str *_t2220 = Str_lit("ext_func", 8ULL);
                             ;
                             ;
                             ;
                             ;
-                            FuncType_delete(_sw2145, &(Bool){1});
+                            FuncType_delete(_sw2215, &(Bool){1});
                             ;
-                            return _t2150;
+                            return _t2220;
                         } else {
-                            Bool _t2153; { Bool *_hp = FuncType_eq(_sw2145, FuncType_ExtProc()); _t2153 = *_hp; free(_hp); }
-                            if (_t2153) {
-                                Str *_t2151 = Str_lit("ext_proc", 8ULL);
+                            Bool _t2223; { Bool *_hp = FuncType_eq(_sw2215, FuncType_ExtProc()); _t2223 = *_hp; free(_hp); }
+                            if (_t2223) {
+                                Str *_t2221 = Str_lit("ext_proc", 8ULL);
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                FuncType_delete(_sw2145, &(Bool){1});
+                                FuncType_delete(_sw2215, &(Bool){1});
                                 ;
-                                return _t2151;
+                                return _t2221;
                             } else {
-                                Str *_t2152 = Str_lit("?", 1ULL);
+                                Str *_t2222 = Str_lit("?", 1ULL);
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                FuncType_delete(_sw2145, &(Bool){1});
+                                FuncType_delete(_sw2215, &(Bool){1});
                                 ;
-                                return _t2152;
+                                return _t2222;
                             }
                             ;
                         }
@@ -12779,7 +13066,7 @@ Str * func_type_name(FuncType * ft) {
             }
             ;
         }
-        FuncType_delete(_sw2145, &(Bool){1});
+        FuncType_delete(_sw2215, &(Bool){1});
         ;
     }
 }
@@ -12926,184 +13213,184 @@ Bool *TilType_is_TypeDynamic(TilType *self) {
 }
 Bool * TilType_eq(TilType * self, TilType * other) {
     (void)self;
-    Bool _t2173; { Bool *_hp = TilType_is_Unknown(self); _t2173 = *_hp; free(_hp); }
-    if (_t2173) {
-        Bool _t2159; { Bool *_hp = TilType_is_Unknown(other); _t2159 = *_hp; free(_hp); }
+    Bool _t2243; { Bool *_hp = TilType_is_Unknown(self); _t2243 = *_hp; free(_hp); }
+    if (_t2243) {
+        Bool _t2229; { Bool *_hp = TilType_is_Unknown(other); _t2229 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2159; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2229; return _r; }
     }
     ;
-    Bool _t2174; { Bool *_hp = TilType_is_None(self); _t2174 = *_hp; free(_hp); }
-    if (_t2174) {
-        Bool _t2160; { Bool *_hp = TilType_is_None(other); _t2160 = *_hp; free(_hp); }
+    Bool _t2244; { Bool *_hp = TilType_is_None(self); _t2244 = *_hp; free(_hp); }
+    if (_t2244) {
+        Bool _t2230; { Bool *_hp = TilType_is_None(other); _t2230 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2160; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2230; return _r; }
     }
     ;
-    Bool _t2175; { Bool *_hp = TilType_is_TypeI64(self); _t2175 = *_hp; free(_hp); }
-    if (_t2175) {
-        Bool _t2161; { Bool *_hp = TilType_is_TypeI64(other); _t2161 = *_hp; free(_hp); }
+    Bool _t2245; { Bool *_hp = TilType_is_TypeI64(self); _t2245 = *_hp; free(_hp); }
+    if (_t2245) {
+        Bool _t2231; { Bool *_hp = TilType_is_TypeI64(other); _t2231 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2161; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2231; return _r; }
     }
     ;
-    Bool _t2176; { Bool *_hp = TilType_is_TypeU8(self); _t2176 = *_hp; free(_hp); }
-    if (_t2176) {
-        Bool _t2162; { Bool *_hp = TilType_is_TypeU8(other); _t2162 = *_hp; free(_hp); }
+    Bool _t2246; { Bool *_hp = TilType_is_TypeU8(self); _t2246 = *_hp; free(_hp); }
+    if (_t2246) {
+        Bool _t2232; { Bool *_hp = TilType_is_TypeU8(other); _t2232 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2162; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2232; return _r; }
     }
     ;
-    Bool _t2177; { Bool *_hp = TilType_is_TypeI16(self); _t2177 = *_hp; free(_hp); }
-    if (_t2177) {
-        Bool _t2163; { Bool *_hp = TilType_is_TypeI16(other); _t2163 = *_hp; free(_hp); }
+    Bool _t2247; { Bool *_hp = TilType_is_TypeI16(self); _t2247 = *_hp; free(_hp); }
+    if (_t2247) {
+        Bool _t2233; { Bool *_hp = TilType_is_TypeI16(other); _t2233 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2163; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2233; return _r; }
     }
     ;
-    Bool _t2178; { Bool *_hp = TilType_is_TypeI32(self); _t2178 = *_hp; free(_hp); }
-    if (_t2178) {
-        Bool _t2164; { Bool *_hp = TilType_is_TypeI32(other); _t2164 = *_hp; free(_hp); }
+    Bool _t2248; { Bool *_hp = TilType_is_TypeI32(self); _t2248 = *_hp; free(_hp); }
+    if (_t2248) {
+        Bool _t2234; { Bool *_hp = TilType_is_TypeI32(other); _t2234 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2164; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2234; return _r; }
     }
     ;
-    Bool _t2179; { Bool *_hp = TilType_is_TypeU32(self); _t2179 = *_hp; free(_hp); }
-    if (_t2179) {
-        Bool _t2165; { Bool *_hp = TilType_is_TypeU32(other); _t2165 = *_hp; free(_hp); }
+    Bool _t2249; { Bool *_hp = TilType_is_TypeU32(self); _t2249 = *_hp; free(_hp); }
+    if (_t2249) {
+        Bool _t2235; { Bool *_hp = TilType_is_TypeU32(other); _t2235 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2165; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2235; return _r; }
     }
     ;
-    Bool _t2180; { Bool *_hp = TilType_is_TypeBool(self); _t2180 = *_hp; free(_hp); }
-    if (_t2180) {
-        Bool _t2166; { Bool *_hp = TilType_is_TypeBool(other); _t2166 = *_hp; free(_hp); }
+    Bool _t2250; { Bool *_hp = TilType_is_TypeBool(self); _t2250 = *_hp; free(_hp); }
+    if (_t2250) {
+        Bool _t2236; { Bool *_hp = TilType_is_TypeBool(other); _t2236 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2166; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2236; return _r; }
     }
     ;
-    Bool _t2181; { Bool *_hp = TilType_is_TypeStruct(self); _t2181 = *_hp; free(_hp); }
-    if (_t2181) {
-        Bool _t2167; { Bool *_hp = TilType_is_TypeStruct(other); _t2167 = *_hp; free(_hp); }
+    Bool _t2251; { Bool *_hp = TilType_is_TypeStruct(self); _t2251 = *_hp; free(_hp); }
+    if (_t2251) {
+        Bool _t2237; { Bool *_hp = TilType_is_TypeStruct(other); _t2237 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2167; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2237; return _r; }
     }
     ;
-    Bool _t2182; { Bool *_hp = TilType_is_TypeStructDef(self); _t2182 = *_hp; free(_hp); }
-    if (_t2182) {
-        Bool _t2168; { Bool *_hp = TilType_is_TypeStructDef(other); _t2168 = *_hp; free(_hp); }
+    Bool _t2252; { Bool *_hp = TilType_is_TypeStructDef(self); _t2252 = *_hp; free(_hp); }
+    if (_t2252) {
+        Bool _t2238; { Bool *_hp = TilType_is_TypeStructDef(other); _t2238 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2168; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2238; return _r; }
     }
     ;
-    Bool _t2183; { Bool *_hp = TilType_is_TypeEnum(self); _t2183 = *_hp; free(_hp); }
-    if (_t2183) {
-        Bool _t2169; { Bool *_hp = TilType_is_TypeEnum(other); _t2169 = *_hp; free(_hp); }
+    Bool _t2253; { Bool *_hp = TilType_is_TypeEnum(self); _t2253 = *_hp; free(_hp); }
+    if (_t2253) {
+        Bool _t2239; { Bool *_hp = TilType_is_TypeEnum(other); _t2239 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2169; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2239; return _r; }
     }
     ;
-    Bool _t2184; { Bool *_hp = TilType_is_TypeEnumDef(self); _t2184 = *_hp; free(_hp); }
-    if (_t2184) {
-        Bool _t2170; { Bool *_hp = TilType_is_TypeEnumDef(other); _t2170 = *_hp; free(_hp); }
+    Bool _t2254; { Bool *_hp = TilType_is_TypeEnumDef(self); _t2254 = *_hp; free(_hp); }
+    if (_t2254) {
+        Bool _t2240; { Bool *_hp = TilType_is_TypeEnumDef(other); _t2240 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2170; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2240; return _r; }
     }
     ;
-    Bool _t2185; { Bool *_hp = TilType_is_TypeFuncDef(self); _t2185 = *_hp; free(_hp); }
-    if (_t2185) {
-        Bool _t2171; { Bool *_hp = TilType_is_TypeFuncDef(other); _t2171 = *_hp; free(_hp); }
+    Bool _t2255; { Bool *_hp = TilType_is_TypeFuncDef(self); _t2255 = *_hp; free(_hp); }
+    if (_t2255) {
+        Bool _t2241; { Bool *_hp = TilType_is_TypeFuncDef(other); _t2241 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2171; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2241; return _r; }
     }
     ;
-    Bool _t2186; { Bool *_hp = TilType_is_TypeDynamic(self); _t2186 = *_hp; free(_hp); }
-    if (_t2186) {
-        Bool _t2172; { Bool *_hp = TilType_is_TypeDynamic(other); _t2172 = *_hp; free(_hp); }
+    Bool _t2256; { Bool *_hp = TilType_is_TypeDynamic(self); _t2256 = *_hp; free(_hp); }
+    if (_t2256) {
+        Bool _t2242; { Bool *_hp = TilType_is_TypeDynamic(other); _t2242 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2172; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2242; return _r; }
     }
     ;
-    Bool _t2187 = 0;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2187; return _r; }
+    Bool _t2257 = 0;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2257; return _r; }
 }
 
 TilType * TilType_clone(TilType * self) {
     (void)self;
-    Bool _t2188; { Bool *_hp = TilType_eq(self, TilType_Unknown()); _t2188 = *_hp; free(_hp); }
-    if (_t2188) {
+    Bool _t2258; { Bool *_hp = TilType_eq(self, TilType_Unknown()); _t2258 = *_hp; free(_hp); }
+    if (_t2258) {
         ;
         return TilType_Unknown();
     }
     ;
-    Bool _t2189; { Bool *_hp = TilType_eq(self, TilType_None()); _t2189 = *_hp; free(_hp); }
-    if (_t2189) {
+    Bool _t2259; { Bool *_hp = TilType_eq(self, TilType_None()); _t2259 = *_hp; free(_hp); }
+    if (_t2259) {
         ;
         return TilType_None();
     }
     ;
-    Bool _t2190; { Bool *_hp = TilType_eq(self, TilType_TypeI64()); _t2190 = *_hp; free(_hp); }
-    if (_t2190) {
+    Bool _t2260; { Bool *_hp = TilType_eq(self, TilType_TypeI64()); _t2260 = *_hp; free(_hp); }
+    if (_t2260) {
         ;
         return TilType_TypeI64();
     }
     ;
-    Bool _t2191; { Bool *_hp = TilType_eq(self, TilType_TypeU8()); _t2191 = *_hp; free(_hp); }
-    if (_t2191) {
+    Bool _t2261; { Bool *_hp = TilType_eq(self, TilType_TypeU8()); _t2261 = *_hp; free(_hp); }
+    if (_t2261) {
         ;
         return TilType_TypeU8();
     }
     ;
-    Bool _t2192; { Bool *_hp = TilType_eq(self, TilType_TypeI16()); _t2192 = *_hp; free(_hp); }
-    if (_t2192) {
+    Bool _t2262; { Bool *_hp = TilType_eq(self, TilType_TypeI16()); _t2262 = *_hp; free(_hp); }
+    if (_t2262) {
         ;
         return TilType_TypeI16();
     }
     ;
-    Bool _t2193; { Bool *_hp = TilType_eq(self, TilType_TypeI32()); _t2193 = *_hp; free(_hp); }
-    if (_t2193) {
+    Bool _t2263; { Bool *_hp = TilType_eq(self, TilType_TypeI32()); _t2263 = *_hp; free(_hp); }
+    if (_t2263) {
         ;
         return TilType_TypeI32();
     }
     ;
-    Bool _t2194; { Bool *_hp = TilType_eq(self, TilType_TypeU32()); _t2194 = *_hp; free(_hp); }
-    if (_t2194) {
+    Bool _t2264; { Bool *_hp = TilType_eq(self, TilType_TypeU32()); _t2264 = *_hp; free(_hp); }
+    if (_t2264) {
         ;
         return TilType_TypeU32();
     }
     ;
-    Bool _t2195; { Bool *_hp = TilType_eq(self, TilType_TypeBool()); _t2195 = *_hp; free(_hp); }
-    if (_t2195) {
+    Bool _t2265; { Bool *_hp = TilType_eq(self, TilType_TypeBool()); _t2265 = *_hp; free(_hp); }
+    if (_t2265) {
         ;
         return TilType_TypeBool();
     }
     ;
-    Bool _t2196; { Bool *_hp = TilType_eq(self, TilType_TypeStruct()); _t2196 = *_hp; free(_hp); }
-    if (_t2196) {
+    Bool _t2266; { Bool *_hp = TilType_eq(self, TilType_TypeStruct()); _t2266 = *_hp; free(_hp); }
+    if (_t2266) {
         ;
         return TilType_TypeStruct();
     }
     ;
-    Bool _t2197; { Bool *_hp = TilType_eq(self, TilType_TypeStructDef()); _t2197 = *_hp; free(_hp); }
-    if (_t2197) {
+    Bool _t2267; { Bool *_hp = TilType_eq(self, TilType_TypeStructDef()); _t2267 = *_hp; free(_hp); }
+    if (_t2267) {
         ;
         return TilType_TypeStructDef();
     }
     ;
-    Bool _t2198; { Bool *_hp = TilType_eq(self, TilType_TypeEnum()); _t2198 = *_hp; free(_hp); }
-    if (_t2198) {
+    Bool _t2268; { Bool *_hp = TilType_eq(self, TilType_TypeEnum()); _t2268 = *_hp; free(_hp); }
+    if (_t2268) {
         ;
         return TilType_TypeEnum();
     }
     ;
-    Bool _t2199; { Bool *_hp = TilType_eq(self, TilType_TypeEnumDef()); _t2199 = *_hp; free(_hp); }
-    if (_t2199) {
+    Bool _t2269; { Bool *_hp = TilType_eq(self, TilType_TypeEnumDef()); _t2269 = *_hp; free(_hp); }
+    if (_t2269) {
         ;
         return TilType_TypeEnumDef();
     }
     ;
-    Bool _t2200; { Bool *_hp = TilType_eq(self, TilType_TypeFuncDef()); _t2200 = *_hp; free(_hp); }
-    if (_t2200) {
+    Bool _t2270; { Bool *_hp = TilType_eq(self, TilType_TypeFuncDef()); _t2270 = *_hp; free(_hp); }
+    if (_t2270) {
         ;
         return TilType_TypeFuncDef();
     }
@@ -13120,106 +13407,106 @@ void TilType_delete(TilType * self, Bool * call_free) {
 
 Str * TilType_to_str(TilType * self) {
     (void)self;
-    Bool _t2215; { Bool *_hp = TilType_eq(self, TilType_Unknown()); _t2215 = *_hp; free(_hp); }
-    if (_t2215) {
-        Str *_t2201 = Str_lit("Unknown", 7ULL);
+    Bool _t2285; { Bool *_hp = TilType_eq(self, TilType_Unknown()); _t2285 = *_hp; free(_hp); }
+    if (_t2285) {
+        Str *_t2271 = Str_lit("Unknown", 7ULL);
         ;
-        return _t2201;
+        return _t2271;
     }
     ;
-    Bool _t2216; { Bool *_hp = TilType_eq(self, TilType_None()); _t2216 = *_hp; free(_hp); }
-    if (_t2216) {
-        Str *_t2202 = Str_lit("None", 4ULL);
+    Bool _t2286; { Bool *_hp = TilType_eq(self, TilType_None()); _t2286 = *_hp; free(_hp); }
+    if (_t2286) {
+        Str *_t2272 = Str_lit("None", 4ULL);
         ;
-        return _t2202;
+        return _t2272;
     }
     ;
-    Bool _t2217; { Bool *_hp = TilType_eq(self, TilType_TypeI64()); _t2217 = *_hp; free(_hp); }
-    if (_t2217) {
-        Str *_t2203 = Str_lit("TypeI64", 7ULL);
+    Bool _t2287; { Bool *_hp = TilType_eq(self, TilType_TypeI64()); _t2287 = *_hp; free(_hp); }
+    if (_t2287) {
+        Str *_t2273 = Str_lit("TypeI64", 7ULL);
         ;
-        return _t2203;
+        return _t2273;
     }
     ;
-    Bool _t2218; { Bool *_hp = TilType_eq(self, TilType_TypeU8()); _t2218 = *_hp; free(_hp); }
-    if (_t2218) {
-        Str *_t2204 = Str_lit("TypeU8", 6ULL);
+    Bool _t2288; { Bool *_hp = TilType_eq(self, TilType_TypeU8()); _t2288 = *_hp; free(_hp); }
+    if (_t2288) {
+        Str *_t2274 = Str_lit("TypeU8", 6ULL);
         ;
-        return _t2204;
+        return _t2274;
     }
     ;
-    Bool _t2219; { Bool *_hp = TilType_eq(self, TilType_TypeI16()); _t2219 = *_hp; free(_hp); }
-    if (_t2219) {
-        Str *_t2205 = Str_lit("TypeI16", 7ULL);
+    Bool _t2289; { Bool *_hp = TilType_eq(self, TilType_TypeI16()); _t2289 = *_hp; free(_hp); }
+    if (_t2289) {
+        Str *_t2275 = Str_lit("TypeI16", 7ULL);
         ;
-        return _t2205;
+        return _t2275;
     }
     ;
-    Bool _t2220; { Bool *_hp = TilType_eq(self, TilType_TypeI32()); _t2220 = *_hp; free(_hp); }
-    if (_t2220) {
-        Str *_t2206 = Str_lit("TypeI32", 7ULL);
+    Bool _t2290; { Bool *_hp = TilType_eq(self, TilType_TypeI32()); _t2290 = *_hp; free(_hp); }
+    if (_t2290) {
+        Str *_t2276 = Str_lit("TypeI32", 7ULL);
         ;
-        return _t2206;
+        return _t2276;
     }
     ;
-    Bool _t2221; { Bool *_hp = TilType_eq(self, TilType_TypeU32()); _t2221 = *_hp; free(_hp); }
-    if (_t2221) {
-        Str *_t2207 = Str_lit("TypeU32", 7ULL);
+    Bool _t2291; { Bool *_hp = TilType_eq(self, TilType_TypeU32()); _t2291 = *_hp; free(_hp); }
+    if (_t2291) {
+        Str *_t2277 = Str_lit("TypeU32", 7ULL);
         ;
-        return _t2207;
+        return _t2277;
     }
     ;
-    Bool _t2222; { Bool *_hp = TilType_eq(self, TilType_TypeBool()); _t2222 = *_hp; free(_hp); }
-    if (_t2222) {
-        Str *_t2208 = Str_lit("TypeBool", 8ULL);
+    Bool _t2292; { Bool *_hp = TilType_eq(self, TilType_TypeBool()); _t2292 = *_hp; free(_hp); }
+    if (_t2292) {
+        Str *_t2278 = Str_lit("TypeBool", 8ULL);
         ;
-        return _t2208;
+        return _t2278;
     }
     ;
-    Bool _t2223; { Bool *_hp = TilType_eq(self, TilType_TypeStruct()); _t2223 = *_hp; free(_hp); }
-    if (_t2223) {
-        Str *_t2209 = Str_lit("TypeStruct", 10ULL);
+    Bool _t2293; { Bool *_hp = TilType_eq(self, TilType_TypeStruct()); _t2293 = *_hp; free(_hp); }
+    if (_t2293) {
+        Str *_t2279 = Str_lit("TypeStruct", 10ULL);
         ;
-        return _t2209;
+        return _t2279;
     }
     ;
-    Bool _t2224; { Bool *_hp = TilType_eq(self, TilType_TypeStructDef()); _t2224 = *_hp; free(_hp); }
-    if (_t2224) {
-        Str *_t2210 = Str_lit("TypeStructDef", 13ULL);
+    Bool _t2294; { Bool *_hp = TilType_eq(self, TilType_TypeStructDef()); _t2294 = *_hp; free(_hp); }
+    if (_t2294) {
+        Str *_t2280 = Str_lit("TypeStructDef", 13ULL);
         ;
-        return _t2210;
+        return _t2280;
     }
     ;
-    Bool _t2225; { Bool *_hp = TilType_eq(self, TilType_TypeEnum()); _t2225 = *_hp; free(_hp); }
-    if (_t2225) {
-        Str *_t2211 = Str_lit("TypeEnum", 8ULL);
+    Bool _t2295; { Bool *_hp = TilType_eq(self, TilType_TypeEnum()); _t2295 = *_hp; free(_hp); }
+    if (_t2295) {
+        Str *_t2281 = Str_lit("TypeEnum", 8ULL);
         ;
-        return _t2211;
+        return _t2281;
     }
     ;
-    Bool _t2226; { Bool *_hp = TilType_eq(self, TilType_TypeEnumDef()); _t2226 = *_hp; free(_hp); }
-    if (_t2226) {
-        Str *_t2212 = Str_lit("TypeEnumDef", 11ULL);
+    Bool _t2296; { Bool *_hp = TilType_eq(self, TilType_TypeEnumDef()); _t2296 = *_hp; free(_hp); }
+    if (_t2296) {
+        Str *_t2282 = Str_lit("TypeEnumDef", 11ULL);
         ;
-        return _t2212;
+        return _t2282;
     }
     ;
-    Bool _t2227; { Bool *_hp = TilType_eq(self, TilType_TypeFuncDef()); _t2227 = *_hp; free(_hp); }
-    if (_t2227) {
-        Str *_t2213 = Str_lit("TypeFuncDef", 11ULL);
+    Bool _t2297; { Bool *_hp = TilType_eq(self, TilType_TypeFuncDef()); _t2297 = *_hp; free(_hp); }
+    if (_t2297) {
+        Str *_t2283 = Str_lit("TypeFuncDef", 11ULL);
         ;
-        return _t2213;
+        return _t2283;
     }
     ;
-    Bool _t2228; { Bool *_hp = TilType_eq(self, TilType_TypeDynamic()); _t2228 = *_hp; free(_hp); }
-    if (_t2228) {
-        Str *_t2214 = Str_lit("TypeDynamic", 11ULL);
+    Bool _t2298; { Bool *_hp = TilType_eq(self, TilType_TypeDynamic()); _t2298 = *_hp; free(_hp); }
+    if (_t2298) {
+        Str *_t2284 = Str_lit("TypeDynamic", 11ULL);
         ;
-        return _t2214;
+        return _t2284;
     }
     ;
-    Str *_t2229 = Str_lit("unknown", 7ULL);
-    return _t2229;
+    Str *_t2299 = Str_lit("unknown", 7ULL);
+    return _t2299;
 }
 
 U64 *TilType_size(void) {
@@ -13230,8 +13517,8 @@ U64 *TilType_size(void) {
 
 
 Bool * DeclData_eq(DeclData * a, DeclData * b) {
-    Bool _t2231; { Bool *_hp = Str_eq(&a->name, &b->name); _t2231 = *_hp; free(_hp); }
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2231; return _r; }
+    Bool _t2301; { Bool *_hp = Str_eq(&a->name, &b->name); _t2301 = *_hp; free(_hp); }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2301; return _r; }
 }
 
 Str * DeclData_to_str(DeclData * self) {
@@ -13241,55 +13528,55 @@ Str * DeclData_to_str(DeclData * self) {
 
 DeclData * DeclData_clone(DeclData * self) {
     (void)self;
-    Bool _t2232 = Bool_clone(&self->is_mut);
-    Bool _t2233 = Bool_clone(&self->is_namespace);
-    Bool _t2234 = Bool_clone(&self->is_ref);
-    Bool _t2235 = Bool_clone(&self->is_own);
-    I64 _t2236 = I64_clone(&self->field_offset);
-    I64 _t2237 = I64_clone(&self->field_size);
-    DeclData *_t2238 = malloc(sizeof(DeclData));
-    { Str *_ca = Str_clone(&self->name); _t2238->name = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->explicit_type); _t2238->explicit_type = *_ca; free(_ca); }
-    _t2238->is_mut = _t2232;
-    _t2238->is_namespace = _t2233;
-    _t2238->is_ref = _t2234;
-    _t2238->is_own = _t2235;
-    _t2238->field_offset = _t2236;
-    _t2238->field_size = _t2237;
+    Bool _t2302 = Bool_clone(&self->is_mut);
+    Bool _t2303 = Bool_clone(&self->is_namespace);
+    Bool _t2304 = Bool_clone(&self->is_ref);
+    Bool _t2305 = Bool_clone(&self->is_own);
+    I64 _t2306 = I64_clone(&self->field_offset);
+    I64 _t2307 = I64_clone(&self->field_size);
+    DeclData *_t2308 = malloc(sizeof(DeclData));
+    { Str *_ca = Str_clone(&self->name); _t2308->name = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->explicit_type); _t2308->explicit_type = *_ca; free(_ca); }
+    _t2308->is_mut = _t2302;
+    _t2308->is_namespace = _t2303;
+    _t2308->is_ref = _t2304;
+    _t2308->is_own = _t2305;
+    _t2308->field_offset = _t2306;
+    _t2308->field_size = _t2307;
     ;
     ;
     ;
     ;
     ;
     ;
-    return _t2238;
+    return _t2308;
 }
 
 void DeclData_delete(DeclData * self, Bool * call_free) {
     (void)self;
-    Bool _t2239 = 0;
-    Str_delete(&self->name, &(Bool){_t2239});
+    Bool _t2309 = 0;
+    Str_delete(&self->name, &(Bool){_t2309});
     ;
-    Bool _t2240 = 0;
-    Str_delete(&self->explicit_type, &(Bool){_t2240});
+    Bool _t2310 = 0;
+    Str_delete(&self->explicit_type, &(Bool){_t2310});
     ;
-    Bool _t2241 = 0;
-    Bool_delete(&self->is_mut, &(Bool){_t2241});
+    Bool _t2311 = 0;
+    Bool_delete(&self->is_mut, &(Bool){_t2311});
     ;
-    Bool _t2242 = 0;
-    Bool_delete(&self->is_namespace, &(Bool){_t2242});
+    Bool _t2312 = 0;
+    Bool_delete(&self->is_namespace, &(Bool){_t2312});
     ;
-    Bool _t2243 = 0;
-    Bool_delete(&self->is_ref, &(Bool){_t2243});
+    Bool _t2313 = 0;
+    Bool_delete(&self->is_ref, &(Bool){_t2313});
     ;
-    Bool _t2244 = 0;
-    Bool_delete(&self->is_own, &(Bool){_t2244});
+    Bool _t2314 = 0;
+    Bool_delete(&self->is_own, &(Bool){_t2314});
     ;
-    Bool _t2245 = 0;
-    I64_delete(&self->field_offset, &(Bool){_t2245});
+    Bool _t2315 = 0;
+    I64_delete(&self->field_offset, &(Bool){_t2315});
     ;
-    Bool _t2246 = 0;
-    I64_delete(&self->field_size, &(Bool){_t2246});
+    Bool _t2316 = 0;
+    I64_delete(&self->field_size, &(Bool){_t2316});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -13303,8 +13590,8 @@ U64 *DeclData_size(void) {
 }
 
 Bool * FuncDefData_eq(FuncDefData * a, FuncDefData * b) {
-    Bool _t2248; { Bool *_hp = Str_eq(&a->return_type, &b->return_type); _t2248 = *_hp; free(_hp); }
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2248; return _r; }
+    Bool _t2318; { Bool *_hp = Str_eq(&a->return_type, &b->return_type); _t2318 = *_hp; free(_hp); }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2318; return _r; }
 }
 
 Str * FuncDefData_to_str(FuncDefData * self) {
@@ -13314,51 +13601,51 @@ Str * FuncDefData_to_str(FuncDefData * self) {
 
 FuncDefData * FuncDefData_clone(FuncDefData * self) {
     (void)self;
-    Bool _t2249 = Bool_clone(&self->return_is_ref);
-    I64 _t2250 = I64_clone(&self->variadic_index);
-    FuncDefData *_t2251 = malloc(sizeof(FuncDefData));
-    { FuncType *_ca = FuncType_clone(&self->func_type); _t2251->func_type = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->return_type); _t2251->return_type = *_ca; free(_ca); }
-    _t2251->return_is_ref = _t2249;
-    _t2251->variadic_index = _t2250;
-    { Vec *_ca = Vec_clone(&self->param_names); _t2251->param_names = *_ca; free(_ca); }
-    { Vec *_ca = Vec_clone(&self->param_types); _t2251->param_types = *_ca; free(_ca); }
-    { Vec *_ca = Vec_clone(&self->param_muts); _t2251->param_muts = *_ca; free(_ca); }
-    { Vec *_ca = Vec_clone(&self->param_owns); _t2251->param_owns = *_ca; free(_ca); }
-    { Vec *_ca = Vec_clone(&self->param_defaults); _t2251->param_defaults = *_ca; free(_ca); }
+    Bool _t2319 = Bool_clone(&self->return_is_ref);
+    I64 _t2320 = I64_clone(&self->variadic_index);
+    FuncDefData *_t2321 = malloc(sizeof(FuncDefData));
+    { FuncType *_ca = FuncType_clone(&self->func_type); _t2321->func_type = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->return_type); _t2321->return_type = *_ca; free(_ca); }
+    _t2321->return_is_ref = _t2319;
+    _t2321->variadic_index = _t2320;
+    { Vec *_ca = Vec_clone(&self->param_names); _t2321->param_names = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_types); _t2321->param_types = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_muts); _t2321->param_muts = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_owns); _t2321->param_owns = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_defaults); _t2321->param_defaults = *_ca; free(_ca); }
     ;
     ;
-    return _t2251;
+    return _t2321;
 }
 
 void FuncDefData_delete(FuncDefData * self, Bool * call_free) {
     (void)self;
-    Bool _t2252 = 0;
-    FuncType_delete(&self->func_type, &(Bool){_t2252});
+    Bool _t2322 = 0;
+    FuncType_delete(&self->func_type, &(Bool){_t2322});
     ;
-    Bool _t2253 = 0;
-    Str_delete(&self->return_type, &(Bool){_t2253});
+    Bool _t2323 = 0;
+    Str_delete(&self->return_type, &(Bool){_t2323});
     ;
-    Bool _t2254 = 0;
-    Bool_delete(&self->return_is_ref, &(Bool){_t2254});
+    Bool _t2324 = 0;
+    Bool_delete(&self->return_is_ref, &(Bool){_t2324});
     ;
-    Bool _t2255 = 0;
-    I64_delete(&self->variadic_index, &(Bool){_t2255});
+    Bool _t2325 = 0;
+    I64_delete(&self->variadic_index, &(Bool){_t2325});
     ;
-    Bool _t2256 = 0;
-    Vec_delete(&self->param_names, &(Bool){_t2256});
+    Bool _t2326 = 0;
+    Vec_delete(&self->param_names, &(Bool){_t2326});
     ;
-    Bool _t2257 = 0;
-    Vec_delete(&self->param_types, &(Bool){_t2257});
+    Bool _t2327 = 0;
+    Vec_delete(&self->param_types, &(Bool){_t2327});
     ;
-    Bool _t2258 = 0;
-    Vec_delete(&self->param_muts, &(Bool){_t2258});
+    Bool _t2328 = 0;
+    Vec_delete(&self->param_muts, &(Bool){_t2328});
     ;
-    Bool _t2259 = 0;
-    Vec_delete(&self->param_owns, &(Bool){_t2259});
+    Bool _t2329 = 0;
+    Vec_delete(&self->param_owns, &(Bool){_t2329});
     ;
-    Bool _t2260 = 0;
-    Vec_delete(&self->param_defaults, &(Bool){_t2260});
+    Bool _t2330 = 0;
+    Vec_delete(&self->param_defaults, &(Bool){_t2330});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -13425,107 +13712,107 @@ FuncDefData * ExprData_get_FuncDef(ExprData *self) {
 }
 Bool * ExprData_eq(ExprData * self, ExprData * other) {
     (void)self;
-    Bool _t2281; { Bool *_hp = ExprData_is_StrVal(self); _t2281 = *_hp; free(_hp); }
-    if (_t2281) {
-        Bool _t2263; { Bool *_hp = ExprData_is_StrVal(other); _t2263 = *_hp; free(_hp); }
-        Bool _t2264 = Bool_not(_t2263);
+    Bool _t2351; { Bool *_hp = ExprData_is_StrVal(self); _t2351 = *_hp; free(_hp); }
+    if (_t2351) {
+        Bool _t2333; { Bool *_hp = ExprData_is_StrVal(other); _t2333 = *_hp; free(_hp); }
+        Bool _t2334 = Bool_not(_t2333);
         ;
-        if (_t2264) {
-            Bool _t2262 = 0;
+        if (_t2334) {
+            Bool _t2332 = 0;
             ;
             ;
-            { Bool *_r = malloc(sizeof(Bool)); *_r = _t2262; return _r; }
+            { Bool *_r = malloc(sizeof(Bool)); *_r = _t2332; return _r; }
         }
         ;
-        Str *_t2265 = ExprData_get_StrVal(self);
-        Str *_t2266 = ExprData_get_StrVal(other);
-        Bool _t2267; { Bool *_hp = Str_eq(_t2265, _t2266); _t2267 = *_hp; free(_hp); }
-        Str_delete(_t2265, &(Bool){1});
-        Str_delete(_t2266, &(Bool){1});
+        Str *_t2335 = ExprData_get_StrVal(self);
+        Str *_t2336 = ExprData_get_StrVal(other);
+        Bool _t2337; { Bool *_hp = Str_eq(_t2335, _t2336); _t2337 = *_hp; free(_hp); }
+        Str_delete(_t2335, &(Bool){1});
+        Str_delete(_t2336, &(Bool){1});
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2267; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2337; return _r; }
     }
     ;
-    Bool _t2282; { Bool *_hp = ExprData_is_Decl(self); _t2282 = *_hp; free(_hp); }
-    if (_t2282) {
-        Bool _t2269; { Bool *_hp = ExprData_is_Decl(other); _t2269 = *_hp; free(_hp); }
-        Bool _t2270 = Bool_not(_t2269);
+    Bool _t2352; { Bool *_hp = ExprData_is_Decl(self); _t2352 = *_hp; free(_hp); }
+    if (_t2352) {
+        Bool _t2339; { Bool *_hp = ExprData_is_Decl(other); _t2339 = *_hp; free(_hp); }
+        Bool _t2340 = Bool_not(_t2339);
         ;
-        if (_t2270) {
-            Bool _t2268 = 0;
+        if (_t2340) {
+            Bool _t2338 = 0;
             ;
             ;
-            { Bool *_r = malloc(sizeof(Bool)); *_r = _t2268; return _r; }
+            { Bool *_r = malloc(sizeof(Bool)); *_r = _t2338; return _r; }
         }
         ;
-        DeclData *_t2271 = ExprData_get_Decl(self);
-        DeclData *_t2272 = ExprData_get_Decl(other);
-        Bool _t2273; { Bool *_hp = DeclData_eq(_t2271, _t2272); _t2273 = *_hp; free(_hp); }
-        DeclData_delete(_t2271, &(Bool){1});
-        DeclData_delete(_t2272, &(Bool){1});
+        DeclData *_t2341 = ExprData_get_Decl(self);
+        DeclData *_t2342 = ExprData_get_Decl(other);
+        Bool _t2343; { Bool *_hp = DeclData_eq(_t2341, _t2342); _t2343 = *_hp; free(_hp); }
+        DeclData_delete(_t2341, &(Bool){1});
+        DeclData_delete(_t2342, &(Bool){1});
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2273; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2343; return _r; }
     }
     ;
-    Bool _t2283; { Bool *_hp = ExprData_is_FuncDef(self); _t2283 = *_hp; free(_hp); }
-    if (_t2283) {
-        Bool _t2275; { Bool *_hp = ExprData_is_FuncDef(other); _t2275 = *_hp; free(_hp); }
-        Bool _t2276 = Bool_not(_t2275);
+    Bool _t2353; { Bool *_hp = ExprData_is_FuncDef(self); _t2353 = *_hp; free(_hp); }
+    if (_t2353) {
+        Bool _t2345; { Bool *_hp = ExprData_is_FuncDef(other); _t2345 = *_hp; free(_hp); }
+        Bool _t2346 = Bool_not(_t2345);
         ;
-        if (_t2276) {
-            Bool _t2274 = 0;
+        if (_t2346) {
+            Bool _t2344 = 0;
             ;
             ;
-            { Bool *_r = malloc(sizeof(Bool)); *_r = _t2274; return _r; }
+            { Bool *_r = malloc(sizeof(Bool)); *_r = _t2344; return _r; }
         }
         ;
-        FuncDefData *_t2277 = ExprData_get_FuncDef(self);
-        FuncDefData *_t2278 = ExprData_get_FuncDef(other);
-        Bool _t2279; { Bool *_hp = FuncDefData_eq(_t2277, _t2278); _t2279 = *_hp; free(_hp); }
-        FuncDefData_delete(_t2277, &(Bool){1});
-        FuncDefData_delete(_t2278, &(Bool){1});
+        FuncDefData *_t2347 = ExprData_get_FuncDef(self);
+        FuncDefData *_t2348 = ExprData_get_FuncDef(other);
+        Bool _t2349; { Bool *_hp = FuncDefData_eq(_t2347, _t2348); _t2349 = *_hp; free(_hp); }
+        FuncDefData_delete(_t2347, &(Bool){1});
+        FuncDefData_delete(_t2348, &(Bool){1});
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2279; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2349; return _r; }
     }
     ;
-    Bool _t2284; { Bool *_hp = ExprData_is_None(self); _t2284 = *_hp; free(_hp); }
-    if (_t2284) {
-        Bool _t2280; { Bool *_hp = ExprData_is_None(other); _t2280 = *_hp; free(_hp); }
+    Bool _t2354; { Bool *_hp = ExprData_is_None(self); _t2354 = *_hp; free(_hp); }
+    if (_t2354) {
+        Bool _t2350; { Bool *_hp = ExprData_is_None(other); _t2350 = *_hp; free(_hp); }
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2280; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2350; return _r; }
     }
     ;
-    Bool _t2285 = 0;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2285; return _r; }
+    Bool _t2355 = 0;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2355; return _r; }
 }
 
 ExprData * ExprData_clone(ExprData * self) {
     (void)self;
-    Bool _t2292; { Bool *_hp = ExprData_is_StrVal(self); _t2292 = *_hp; free(_hp); }
-    if (_t2292) {
-        Str *_t2286 = ExprData_get_StrVal(self);
-        ExprData *_t2287 = ExprData_StrVal(_t2286);
-        Str_delete(_t2286, &(Bool){1});
+    Bool _t2362; { Bool *_hp = ExprData_is_StrVal(self); _t2362 = *_hp; free(_hp); }
+    if (_t2362) {
+        Str *_t2356 = ExprData_get_StrVal(self);
+        ExprData *_t2357 = ExprData_StrVal(_t2356);
+        Str_delete(_t2356, &(Bool){1});
         ;
-        return _t2287;
+        return _t2357;
     }
     ;
-    Bool _t2293; { Bool *_hp = ExprData_is_Decl(self); _t2293 = *_hp; free(_hp); }
-    if (_t2293) {
-        DeclData *_t2288 = ExprData_get_Decl(self);
-        ExprData *_t2289 = ExprData_Decl(_t2288);
-        DeclData_delete(_t2288, &(Bool){1});
+    Bool _t2363; { Bool *_hp = ExprData_is_Decl(self); _t2363 = *_hp; free(_hp); }
+    if (_t2363) {
+        DeclData *_t2358 = ExprData_get_Decl(self);
+        ExprData *_t2359 = ExprData_Decl(_t2358);
+        DeclData_delete(_t2358, &(Bool){1});
         ;
-        return _t2289;
+        return _t2359;
     }
     ;
-    Bool _t2294; { Bool *_hp = ExprData_is_FuncDef(self); _t2294 = *_hp; free(_hp); }
-    if (_t2294) {
-        FuncDefData *_t2290 = ExprData_get_FuncDef(self);
-        ExprData *_t2291 = ExprData_FuncDef(_t2290);
-        FuncDefData_delete(_t2290, &(Bool){1});
+    Bool _t2364; { Bool *_hp = ExprData_is_FuncDef(self); _t2364 = *_hp; free(_hp); }
+    if (_t2364) {
+        FuncDefData *_t2360 = ExprData_get_FuncDef(self);
+        ExprData *_t2361 = ExprData_FuncDef(_t2360);
+        FuncDefData_delete(_t2360, &(Bool){1});
         ;
-        return _t2291;
+        return _t2361;
     }
     ;
     return ExprData_None();
@@ -13540,99 +13827,99 @@ void ExprData_delete(ExprData * self, Bool * call_free) {
 
 Str * ExprData_to_str(ExprData * self) {
     (void)self;
-    Bool _t2329; { Bool *_hp = ExprData_is_StrVal(self); _t2329 = *_hp; free(_hp); }
-    if (_t2329) {
-        Str *_t2295 = Str_lit("Str", 3ULL);
-        U64 _t2296; { U64 *_hp = Str_size(); _t2296 = *_hp; free(_hp); }
-        U64 _t2297 = 3;
-        Array *_va23 = Array_new(_t2295, &(U64){_t2296}, &(U64){_t2297});
-        Str_delete(_t2295, &(Bool){1});
+    Bool _t2399; { Bool *_hp = ExprData_is_StrVal(self); _t2399 = *_hp; free(_hp); }
+    if (_t2399) {
+        Str *_t2365 = Str_lit("Str", 3ULL);
+        U64 _t2366; { U64 *_hp = Str_size(); _t2366 = *_hp; free(_hp); }
+        U64 _t2367 = 3;
+        Array *_va24 = Array_new(_t2365, &(U64){_t2366}, &(U64){_t2367});
+        Str_delete(_t2365, &(Bool){1});
         ;
         ;
-        U64 _t2298 = 0;
-        Str *_t2299 = Str_lit("StrVal(", 7ULL);
-        Array_set(_va23, &(U64){_t2298}, _t2299);
+        U64 _t2368 = 0;
+        Str *_t2369 = Str_lit("StrVal(", 7ULL);
+        Array_set(_va24, &(U64){_t2368}, _t2369);
         ;
-        Str *_t2300 = ExprData_get_StrVal(self);
-        U64 _t2301 = 1;
-        Str *_t2302 = Str_to_str(_t2300);
-        Str_delete(_t2300, &(Bool){1});
-        Array_set(_va23, &(U64){_t2301}, _t2302);
+        Str *_t2370 = ExprData_get_StrVal(self);
+        U64 _t2371 = 1;
+        Str *_t2372 = Str_to_str(_t2370);
+        Str_delete(_t2370, &(Bool){1});
+        Array_set(_va24, &(U64){_t2371}, _t2372);
         ;
-        U64 _t2303 = 2;
-        Str *_t2304 = Str_lit(")", 1ULL);
-        Array_set(_va23, &(U64){_t2303}, _t2304);
+        U64 _t2373 = 2;
+        Str *_t2374 = Str_lit(")", 1ULL);
+        Array_set(_va24, &(U64){_t2373}, _t2374);
         ;
-        Str *_t2305 = format(_va23);
+        Str *_t2375 = format(_va24);
         ;
-        return _t2305;
+        return _t2375;
     }
     ;
-    Bool _t2330; { Bool *_hp = ExprData_is_Decl(self); _t2330 = *_hp; free(_hp); }
-    if (_t2330) {
-        Str *_t2306 = Str_lit("Str", 3ULL);
-        U64 _t2307; { U64 *_hp = Str_size(); _t2307 = *_hp; free(_hp); }
-        U64 _t2308 = 3;
-        Array *_va24 = Array_new(_t2306, &(U64){_t2307}, &(U64){_t2308});
-        Str_delete(_t2306, &(Bool){1});
+    Bool _t2400; { Bool *_hp = ExprData_is_Decl(self); _t2400 = *_hp; free(_hp); }
+    if (_t2400) {
+        Str *_t2376 = Str_lit("Str", 3ULL);
+        U64 _t2377; { U64 *_hp = Str_size(); _t2377 = *_hp; free(_hp); }
+        U64 _t2378 = 3;
+        Array *_va25 = Array_new(_t2376, &(U64){_t2377}, &(U64){_t2378});
+        Str_delete(_t2376, &(Bool){1});
         ;
         ;
-        U64 _t2309 = 0;
-        Str *_t2310 = Str_lit("Decl(", 5ULL);
-        Array_set(_va24, &(U64){_t2309}, _t2310);
+        U64 _t2379 = 0;
+        Str *_t2380 = Str_lit("Decl(", 5ULL);
+        Array_set(_va25, &(U64){_t2379}, _t2380);
         ;
-        DeclData *_t2311 = ExprData_get_Decl(self);
-        U64 _t2312 = 1;
-        Str *_t2313 = DeclData_to_str(_t2311);
-        DeclData_delete(_t2311, &(Bool){1});
-        Array_set(_va24, &(U64){_t2312}, _t2313);
+        DeclData *_t2381 = ExprData_get_Decl(self);
+        U64 _t2382 = 1;
+        Str *_t2383 = DeclData_to_str(_t2381);
+        DeclData_delete(_t2381, &(Bool){1});
+        Array_set(_va25, &(U64){_t2382}, _t2383);
         ;
-        U64 _t2314 = 2;
-        Str *_t2315 = Str_lit(")", 1ULL);
-        Array_set(_va24, &(U64){_t2314}, _t2315);
+        U64 _t2384 = 2;
+        Str *_t2385 = Str_lit(")", 1ULL);
+        Array_set(_va25, &(U64){_t2384}, _t2385);
         ;
-        Str *_t2316 = format(_va24);
+        Str *_t2386 = format(_va25);
         ;
-        return _t2316;
+        return _t2386;
     }
     ;
-    Bool _t2331; { Bool *_hp = ExprData_is_FuncDef(self); _t2331 = *_hp; free(_hp); }
-    if (_t2331) {
-        Str *_t2317 = Str_lit("Str", 3ULL);
-        U64 _t2318; { U64 *_hp = Str_size(); _t2318 = *_hp; free(_hp); }
-        U64 _t2319 = 3;
-        Array *_va25 = Array_new(_t2317, &(U64){_t2318}, &(U64){_t2319});
-        Str_delete(_t2317, &(Bool){1});
+    Bool _t2401; { Bool *_hp = ExprData_is_FuncDef(self); _t2401 = *_hp; free(_hp); }
+    if (_t2401) {
+        Str *_t2387 = Str_lit("Str", 3ULL);
+        U64 _t2388; { U64 *_hp = Str_size(); _t2388 = *_hp; free(_hp); }
+        U64 _t2389 = 3;
+        Array *_va26 = Array_new(_t2387, &(U64){_t2388}, &(U64){_t2389});
+        Str_delete(_t2387, &(Bool){1});
         ;
         ;
-        U64 _t2320 = 0;
-        Str *_t2321 = Str_lit("FuncDef(", 8ULL);
-        Array_set(_va25, &(U64){_t2320}, _t2321);
+        U64 _t2390 = 0;
+        Str *_t2391 = Str_lit("FuncDef(", 8ULL);
+        Array_set(_va26, &(U64){_t2390}, _t2391);
         ;
-        FuncDefData *_t2322 = ExprData_get_FuncDef(self);
-        U64 _t2323 = 1;
-        Str *_t2324 = FuncDefData_to_str(_t2322);
-        FuncDefData_delete(_t2322, &(Bool){1});
-        Array_set(_va25, &(U64){_t2323}, _t2324);
+        FuncDefData *_t2392 = ExprData_get_FuncDef(self);
+        U64 _t2393 = 1;
+        Str *_t2394 = FuncDefData_to_str(_t2392);
+        FuncDefData_delete(_t2392, &(Bool){1});
+        Array_set(_va26, &(U64){_t2393}, _t2394);
         ;
-        U64 _t2325 = 2;
-        Str *_t2326 = Str_lit(")", 1ULL);
-        Array_set(_va25, &(U64){_t2325}, _t2326);
+        U64 _t2395 = 2;
+        Str *_t2396 = Str_lit(")", 1ULL);
+        Array_set(_va26, &(U64){_t2395}, _t2396);
         ;
-        Str *_t2327 = format(_va25);
+        Str *_t2397 = format(_va26);
         ;
-        return _t2327;
+        return _t2397;
     }
     ;
-    Bool _t2332; { Bool *_hp = ExprData_is_None(self); _t2332 = *_hp; free(_hp); }
-    if (_t2332) {
-        Str *_t2328 = Str_lit("None", 4ULL);
+    Bool _t2402; { Bool *_hp = ExprData_is_None(self); _t2402 = *_hp; free(_hp); }
+    if (_t2402) {
+        Str *_t2398 = Str_lit("None", 4ULL);
         ;
-        return _t2328;
+        return _t2398;
     }
     ;
-    Str *_t2333 = Str_lit("unknown", 7ULL);
-    return _t2333;
+    Str *_t2403 = Str_lit("unknown", 7ULL);
+    return _t2403;
 }
 
 U64 *ExprData_size(void) {
@@ -13644,35 +13931,35 @@ U64 *ExprData_size(void) {
 
 Expr * Expr_clone(Expr * self) {
     (void)self;
-    Bool _t2335 = Bool_clone(&self->is_own_arg);
-    Bool _t2336 = Bool_clone(&self->is_splat);
-    Bool _t2337 = Bool_clone(&self->is_own_field);
-    Bool _t2338 = Bool_clone(&self->is_ns_field);
-    Bool _t2339 = Bool_clone(&self->is_ext);
-    Bool _t2340 = Bool_clone(&self->is_core);
-    I64 _t2341 = I64_clone(&self->total_struct_size);
-    I64 _t2342 = I64_clone(&self->variadic_index);
-    I64 _t2343 = I64_clone(&self->variadic_count);
-    I64 _t2344 = I64_clone(&self->line);
-    I64 _t2345 = I64_clone(&self->col);
-    Expr *_t2346 = malloc(sizeof(Expr));
-    { NodeType *_ca = NodeType_clone(&self->type); _t2346->type = *_ca; free(_ca); }
-    { TilType *_ca = TilType_clone(&self->til_type); _t2346->til_type = *_ca; free(_ca); }
-    { ExprData *_ca = ExprData_clone(&self->data); _t2346->data = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->struct_name); _t2346->struct_name = *_ca; free(_ca); }
-    _t2346->is_own_arg = _t2335;
-    _t2346->is_splat = _t2336;
-    _t2346->is_own_field = _t2337;
-    _t2346->is_ns_field = _t2338;
-    _t2346->is_ext = _t2339;
-    _t2346->is_core = _t2340;
-    _t2346->total_struct_size = _t2341;
-    _t2346->variadic_index = _t2342;
-    _t2346->variadic_count = _t2343;
-    { Vec *_ca = Vec_clone(&self->children); _t2346->children = *_ca; free(_ca); }
-    _t2346->line = _t2344;
-    _t2346->col = _t2345;
-    { Str *_ca = Str_clone(&self->path); _t2346->path = *_ca; free(_ca); }
+    Bool _t2405 = Bool_clone(&self->is_own_arg);
+    Bool _t2406 = Bool_clone(&self->is_splat);
+    Bool _t2407 = Bool_clone(&self->is_own_field);
+    Bool _t2408 = Bool_clone(&self->is_ns_field);
+    Bool _t2409 = Bool_clone(&self->is_ext);
+    Bool _t2410 = Bool_clone(&self->is_core);
+    I64 _t2411 = I64_clone(&self->total_struct_size);
+    I64 _t2412 = I64_clone(&self->variadic_index);
+    I64 _t2413 = I64_clone(&self->variadic_count);
+    I64 _t2414 = I64_clone(&self->line);
+    I64 _t2415 = I64_clone(&self->col);
+    Expr *_t2416 = malloc(sizeof(Expr));
+    { NodeType *_ca = NodeType_clone(&self->type); _t2416->type = *_ca; free(_ca); }
+    { TilType *_ca = TilType_clone(&self->til_type); _t2416->til_type = *_ca; free(_ca); }
+    { ExprData *_ca = ExprData_clone(&self->data); _t2416->data = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->struct_name); _t2416->struct_name = *_ca; free(_ca); }
+    _t2416->is_own_arg = _t2405;
+    _t2416->is_splat = _t2406;
+    _t2416->is_own_field = _t2407;
+    _t2416->is_ns_field = _t2408;
+    _t2416->is_ext = _t2409;
+    _t2416->is_core = _t2410;
+    _t2416->total_struct_size = _t2411;
+    _t2416->variadic_index = _t2412;
+    _t2416->variadic_count = _t2413;
+    { Vec *_ca = Vec_clone(&self->children); _t2416->children = *_ca; free(_ca); }
+    _t2416->line = _t2414;
+    _t2416->col = _t2415;
+    { Str *_ca = Str_clone(&self->path); _t2416->path = *_ca; free(_ca); }
     ;
     ;
     ;
@@ -13684,61 +13971,61 @@ Expr * Expr_clone(Expr * self) {
     ;
     ;
     ;
-    return _t2346;
+    return _t2416;
 }
 
 void Expr_delete(Expr * self, Bool * call_free) {
     (void)self;
-    Bool _t2347 = 0;
-    NodeType_delete(&self->type, &(Bool){_t2347});
+    Bool _t2417 = 0;
+    NodeType_delete(&self->type, &(Bool){_t2417});
     ;
-    Bool _t2348 = 0;
-    TilType_delete(&self->til_type, &(Bool){_t2348});
+    Bool _t2418 = 0;
+    TilType_delete(&self->til_type, &(Bool){_t2418});
     ;
-    Bool _t2349 = 0;
-    ExprData_delete(&self->data, &(Bool){_t2349});
+    Bool _t2419 = 0;
+    ExprData_delete(&self->data, &(Bool){_t2419});
     ;
-    Bool _t2350 = 0;
-    Str_delete(&self->struct_name, &(Bool){_t2350});
+    Bool _t2420 = 0;
+    Str_delete(&self->struct_name, &(Bool){_t2420});
     ;
-    Bool _t2351 = 0;
-    Bool_delete(&self->is_own_arg, &(Bool){_t2351});
+    Bool _t2421 = 0;
+    Bool_delete(&self->is_own_arg, &(Bool){_t2421});
     ;
-    Bool _t2352 = 0;
-    Bool_delete(&self->is_splat, &(Bool){_t2352});
+    Bool _t2422 = 0;
+    Bool_delete(&self->is_splat, &(Bool){_t2422});
     ;
-    Bool _t2353 = 0;
-    Bool_delete(&self->is_own_field, &(Bool){_t2353});
+    Bool _t2423 = 0;
+    Bool_delete(&self->is_own_field, &(Bool){_t2423});
     ;
-    Bool _t2354 = 0;
-    Bool_delete(&self->is_ns_field, &(Bool){_t2354});
+    Bool _t2424 = 0;
+    Bool_delete(&self->is_ns_field, &(Bool){_t2424});
     ;
-    Bool _t2355 = 0;
-    Bool_delete(&self->is_ext, &(Bool){_t2355});
+    Bool _t2425 = 0;
+    Bool_delete(&self->is_ext, &(Bool){_t2425});
     ;
-    Bool _t2356 = 0;
-    Bool_delete(&self->is_core, &(Bool){_t2356});
+    Bool _t2426 = 0;
+    Bool_delete(&self->is_core, &(Bool){_t2426});
     ;
-    Bool _t2357 = 0;
-    I64_delete(&self->total_struct_size, &(Bool){_t2357});
+    Bool _t2427 = 0;
+    I64_delete(&self->total_struct_size, &(Bool){_t2427});
     ;
-    Bool _t2358 = 0;
-    I64_delete(&self->variadic_index, &(Bool){_t2358});
+    Bool _t2428 = 0;
+    I64_delete(&self->variadic_index, &(Bool){_t2428});
     ;
-    Bool _t2359 = 0;
-    I64_delete(&self->variadic_count, &(Bool){_t2359});
+    Bool _t2429 = 0;
+    I64_delete(&self->variadic_count, &(Bool){_t2429});
     ;
-    Bool _t2360 = 0;
-    Vec_delete(&self->children, &(Bool){_t2360});
+    Bool _t2430 = 0;
+    Vec_delete(&self->children, &(Bool){_t2430});
     ;
-    Bool _t2361 = 0;
-    I64_delete(&self->line, &(Bool){_t2361});
+    Bool _t2431 = 0;
+    I64_delete(&self->line, &(Bool){_t2431});
     ;
-    Bool _t2362 = 0;
-    I64_delete(&self->col, &(Bool){_t2362});
+    Bool _t2432 = 0;
+    I64_delete(&self->col, &(Bool){_t2432});
     ;
-    Bool _t2363 = 0;
-    Str_delete(&self->path, &(Bool){_t2363});
+    Bool _t2433 = 0;
+    Str_delete(&self->path, &(Bool){_t2433});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -13752,45 +14039,42 @@ U64 *Expr_size(void) {
 }
 
 Expr * expr_new(NodeType * type, I64 * line, I64 * col, Str * path) {
-    I64 _t2365 = 0;
-    I64 _t2366 = 1;
-    Str *_t2367 = Str_lit("Expr", 4ULL);
-    U64 _t2368; { U64 *_hp = Expr_size(); _t2368 = *_hp; free(_hp); }
-    Bool _t2369 = 0;
-    Bool _t2370 = 0;
-    Bool _t2371 = 0;
-    Bool _t2372 = 0;
-    Bool _t2373 = 0;
-    Bool _t2374 = 0;
-    I64 _t2375 = 0;
-    I64 _t2376 = I64_sub(_t2365, _t2366);
+    I64 _t2435 = 0;
+    I64 _t2436 = 1;
+    Str *_t2437 = Str_lit("Expr", 4ULL);
+    U64 _t2438; { U64 *_hp = Expr_size(); _t2438 = *_hp; free(_hp); }
+    Bool _t2439 = 0;
+    Bool _t2440 = 0;
+    Bool _t2441 = 0;
+    Bool _t2442 = 0;
+    Bool _t2443 = 0;
+    Bool _t2444 = 0;
+    I64 _t2445 = 0;
+    I64 _t2446 = I64_sub(_t2435, _t2436);
     ;
     ;
-    I64 _t2377 = 0;
-    I64 _t2378 = I64_clone(line);
-    I64 _t2379 = I64_clone(col);
-    Expr *_t2380 = malloc(sizeof(Expr));
-    { NodeType *_ca = NodeType_clone(type); _t2380->type = *_ca; free(_ca); }
-    { TilType *_ca = TilType_clone(TilType_Unknown()); _t2380->til_type = *_ca; free(_ca); }
-    { ExprData *_ca = ExprData_clone(ExprData_None()); _t2380->data = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t2380->struct_name = *_ca; free(_ca); }
-    _t2380->is_own_arg = _t2369;
-    _t2380->is_splat = _t2370;
-    _t2380->is_own_field = _t2371;
-    _t2380->is_ns_field = _t2372;
-    _t2380->is_ext = _t2373;
-    _t2380->is_core = _t2374;
-    _t2380->total_struct_size = _t2375;
-    _t2380->variadic_index = _t2376;
-    _t2380->variadic_count = _t2377;
-    { Vec *_ca = Vec_new(_t2367, &(U64){_t2368}); _t2380->children = *_ca; free(_ca); }
-    _t2380->line = _t2378;
-    _t2380->col = _t2379;
-    { Str *_ca = Str_clone(path); _t2380->path = *_ca; free(_ca); }
-    Str_delete(_t2367, &(Bool){1});
-    ;
-    ;
-    ;
+    I64 _t2447 = 0;
+    I64 _t2448 = I64_clone(line);
+    I64 _t2449 = I64_clone(col);
+    Expr *_t2450 = malloc(sizeof(Expr));
+    { NodeType *_ca = NodeType_clone(type); _t2450->type = *_ca; free(_ca); }
+    { TilType *_ca = TilType_clone(TilType_Unknown()); _t2450->til_type = *_ca; free(_ca); }
+    { ExprData *_ca = ExprData_clone(ExprData_None()); _t2450->data = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t2450->struct_name = *_ca; free(_ca); }
+    _t2450->is_own_arg = _t2439;
+    _t2450->is_splat = _t2440;
+    _t2450->is_own_field = _t2441;
+    _t2450->is_ns_field = _t2442;
+    _t2450->is_ext = _t2443;
+    _t2450->is_core = _t2444;
+    _t2450->total_struct_size = _t2445;
+    _t2450->variadic_index = _t2446;
+    _t2450->variadic_count = _t2447;
+    { Vec *_ca = Vec_new(_t2437, &(U64){_t2438}); _t2450->children = *_ca; free(_ca); }
+    _t2450->line = _t2448;
+    _t2450->col = _t2449;
+    { Str *_ca = Str_clone(path); _t2450->path = *_ca; free(_ca); }
+    Str_delete(_t2437, &(Bool){1});
     ;
     ;
     ;
@@ -13800,7 +14084,10 @@ Expr * expr_new(NodeType * type, I64 * line, I64 * col, Str * path) {
     ;
     ;
     ;
-    return _t2380;
+    ;
+    ;
+    ;
+    return _t2450;
 }
 
 void expr_add_child(Expr * parent, Expr * child) {
@@ -13808,39 +14095,39 @@ void expr_add_child(Expr * parent, Expr * child) {
 }
 
 Expr * expr_child(Expr * parent, I64 * i) {
-    U64 *_t2381 = malloc(sizeof(U64)); *_t2381 = I64_to_u64(DEREF(i));
-    Expr *c = Vec_get(&parent->children, _t2381);
-    U64_delete(_t2381, &(Bool){1});
+    U64 *_t2451 = malloc(sizeof(U64)); *_t2451 = I64_to_u64(DEREF(i));
+    Expr *c = Vec_get(&parent->children, _t2451);
+    U64_delete(_t2451, &(Bool){1});
     return c;
 }
 
 Parser * Parser_clone(Parser * self) {
     (void)self;
-    I64 _t2382 = I64_clone(&self->count);
-    I64 _t2383 = I64_clone(&self->pos);
-    Parser *_t2384 = malloc(sizeof(Parser));
-    { Vec *_ca = Vec_clone(&self->tokens); _t2384->tokens = *_ca; free(_ca); }
-    _t2384->count = _t2382;
-    _t2384->pos = _t2383;
-    { Str *_ca = Str_clone(&self->path); _t2384->path = *_ca; free(_ca); }
+    I64 _t2452 = I64_clone(&self->count);
+    I64 _t2453 = I64_clone(&self->pos);
+    Parser *_t2454 = malloc(sizeof(Parser));
+    { Vec *_ca = Vec_clone(&self->tokens); _t2454->tokens = *_ca; free(_ca); }
+    _t2454->count = _t2452;
+    _t2454->pos = _t2453;
+    { Str *_ca = Str_clone(&self->path); _t2454->path = *_ca; free(_ca); }
     ;
     ;
-    return _t2384;
+    return _t2454;
 }
 
 void Parser_delete(Parser * self, Bool * call_free) {
     (void)self;
-    Bool _t2385 = 0;
-    Vec_delete(&self->tokens, &(Bool){_t2385});
+    Bool _t2455 = 0;
+    Vec_delete(&self->tokens, &(Bool){_t2455});
     ;
-    Bool _t2386 = 0;
-    I64_delete(&self->count, &(Bool){_t2386});
+    Bool _t2456 = 0;
+    I64_delete(&self->count, &(Bool){_t2456});
     ;
-    Bool _t2387 = 0;
-    I64_delete(&self->pos, &(Bool){_t2387});
+    Bool _t2457 = 0;
+    I64_delete(&self->pos, &(Bool){_t2457});
     ;
-    Bool _t2388 = 0;
-    Str_delete(&self->path, &(Bool){_t2388});
+    Bool _t2458 = 0;
+    Str_delete(&self->path, &(Bool){_t2458});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -13854,152 +14141,152 @@ U64 *Parser_size(void) {
 }
 
 Token * peek(Parser * p) {
-    U64 *_t2390 = malloc(sizeof(U64)); *_t2390 = I64_to_u64(p->pos);
-    Token *t = Vec_get(&p->tokens, _t2390);
-    U64_delete(_t2390, &(Bool){1});
+    U64 *_t2460 = malloc(sizeof(U64)); *_t2460 = I64_to_u64(p->pos);
+    Token *t = Vec_get(&p->tokens, _t2460);
+    U64_delete(_t2460, &(Bool){1});
     return t;
 }
 
 Token * advance(Parser * p) {
-    U64 *_t2393 = malloc(sizeof(U64)); *_t2393 = I64_to_u64(p->pos);
-    Token *t = Vec_get(&p->tokens, _t2393);
-    Bool _t2394; { Bool *_hp = TokenType_eq(&t->type, TokenType_Eof()); _t2394 = *_hp; free(_hp); }
-    Bool _t2395 = Bool_not(_t2394);
+    U64 *_t2463 = malloc(sizeof(U64)); *_t2463 = I64_to_u64(p->pos);
+    Token *t = Vec_get(&p->tokens, _t2463);
+    Bool _t2464; { Bool *_hp = TokenType_eq(&t->type, TokenType_Eof()); _t2464 = *_hp; free(_hp); }
+    Bool _t2465 = Bool_not(_t2464);
     ;
-    if (_t2395) {
-        I64 _t2391 = 1;
-        I64 _t2392 = I64_add(p->pos, _t2391);
+    if (_t2465) {
+        I64 _t2461 = 1;
+        I64 _t2462 = I64_add(p->pos, _t2461);
         ;
-        p->pos = _t2392;
+        p->pos = _t2462;
         ;
     }
     ;
-    U64_delete(_t2393, &(Bool){1});
+    U64_delete(_t2463, &(Bool){1});
     return t;
 }
 
 Bool * check(Parser * p, TokenType * type) {
-    Bool _t2396; { Bool *_hp = TokenType_eq(&peek(p)->type, type); _t2396 = *_hp; free(_hp); }
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2396; return _r; }
+    Bool _t2466; { Bool *_hp = TokenType_eq(&peek(p)->type, type); _t2466 = *_hp; free(_hp); }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2466; return _r; }
 }
 
 void expect(Parser * p, TokenType * type) {
     Token *t = peek(p);
-    Bool _t2419; { Bool *_hp = TokenType_eq(&t->type, type); _t2419 = *_hp; free(_hp); }
-    Bool _t2420 = Bool_not(_t2419);
+    Bool _t2489; { Bool *_hp = TokenType_eq(&t->type, type); _t2489 = *_hp; free(_hp); }
+    Bool _t2490 = Bool_not(_t2489);
     ;
-    if (_t2420) {
-        Str *_t2397 = Str_lit("Str", 3ULL);
-        U64 _t2398; { U64 *_hp = Str_size(); _t2398 = *_hp; free(_hp); }
-        U64 _t2399 = 10;
-        Array *_va26 = Array_new(_t2397, &(U64){_t2398}, &(U64){_t2399});
-        Str_delete(_t2397, &(Bool){1});
+    if (_t2490) {
+        Str *_t2467 = Str_lit("Str", 3ULL);
+        U64 _t2468; { U64 *_hp = Str_size(); _t2468 = *_hp; free(_hp); }
+        U64 _t2469 = 10;
+        Array *_va27 = Array_new(_t2467, &(U64){_t2468}, &(U64){_t2469});
+        Str_delete(_t2467, &(Bool){1});
         ;
         ;
-        U64 _t2400 = 0;
-        Array_set(_va26, &(U64){_t2400}, &p->path);
+        U64 _t2470 = 0;
+        Array_set(_va27, &(U64){_t2470}, &p->path);
         ;
-        U64 _t2401 = 1;
-        Str *_t2402 = Str_lit(":", 1ULL);
-        Array_set(_va26, &(U64){_t2401}, _t2402);
+        U64 _t2471 = 1;
+        Str *_t2472 = Str_lit(":", 1ULL);
+        Array_set(_va27, &(U64){_t2471}, _t2472);
         ;
-        U64 _t2403 = 2;
-        Str *_t2404 = I64_to_str(&t->line);
-        Array_set(_va26, &(U64){_t2403}, _t2404);
+        U64 _t2473 = 2;
+        Str *_t2474 = I64_to_str(&t->line);
+        Array_set(_va27, &(U64){_t2473}, _t2474);
         ;
-        U64 _t2405 = 3;
-        Str *_t2406 = Str_lit(":", 1ULL);
-        Array_set(_va26, &(U64){_t2405}, _t2406);
+        U64 _t2475 = 3;
+        Str *_t2476 = Str_lit(":", 1ULL);
+        Array_set(_va27, &(U64){_t2475}, _t2476);
         ;
-        U64 _t2407 = 4;
-        Str *_t2408 = I64_to_str(&t->col);
-        Array_set(_va26, &(U64){_t2407}, _t2408);
+        U64 _t2477 = 4;
+        Str *_t2478 = I64_to_str(&t->col);
+        Array_set(_va27, &(U64){_t2477}, _t2478);
         ;
-        U64 _t2409 = 5;
-        Str *_t2410 = Str_lit(": expected '", 12ULL);
-        Array_set(_va26, &(U64){_t2409}, _t2410);
+        U64 _t2479 = 5;
+        Str *_t2480 = Str_lit(": expected '", 12ULL);
+        Array_set(_va27, &(U64){_t2479}, _t2480);
         ;
-        U64 _t2411 = 6;
-        Str *_t2412 = tok_name(type);
-        Array_set(_va26, &(U64){_t2411}, _t2412);
+        U64 _t2481 = 6;
+        Str *_t2482 = tok_name(type);
+        Array_set(_va27, &(U64){_t2481}, _t2482);
         ;
-        U64 _t2413 = 7;
-        Str *_t2414 = Str_lit("', found '", 10ULL);
-        Array_set(_va26, &(U64){_t2413}, _t2414);
+        U64 _t2483 = 7;
+        Str *_t2484 = Str_lit("', found '", 10ULL);
+        Array_set(_va27, &(U64){_t2483}, _t2484);
         ;
-        U64 _t2415 = 8;
-        Array_set(_va26, &(U64){_t2415}, &t->text);
+        U64 _t2485 = 8;
+        Array_set(_va27, &(U64){_t2485}, &t->text);
         ;
-        U64 _t2416 = 9;
-        Str *_t2417 = Str_lit("'", 1ULL);
-        Array_set(_va26, &(U64){_t2416}, _t2417);
+        U64 _t2486 = 9;
+        Str *_t2487 = Str_lit("'", 1ULL);
+        Array_set(_va27, &(U64){_t2486}, _t2487);
         ;
-        Str *_t2418 = Str_lit("src/self/parser.til:35:15", 25ULL);
-        panic(_t2418, _va26);
-        Str_delete(_t2418, &(Bool){1});
+        Str *_t2488 = Str_lit("src/self/parser.til:35:15", 25ULL);
+        panic(_t2488, _va27);
+        Str_delete(_t2488, &(Bool){1});
     }
     ;
-    Token *_t2421 = advance(p);
+    Token *_t2491 = advance(p);
 }
 
 Str * expect_text(Parser * p, TokenType * type) {
     Token *t = peek(p);
-    Bool _t2444; { Bool *_hp = TokenType_eq(&t->type, type); _t2444 = *_hp; free(_hp); }
-    Bool _t2445 = Bool_not(_t2444);
+    Bool _t2514; { Bool *_hp = TokenType_eq(&t->type, type); _t2514 = *_hp; free(_hp); }
+    Bool _t2515 = Bool_not(_t2514);
     ;
-    if (_t2445) {
-        Str *_t2422 = Str_lit("Str", 3ULL);
-        U64 _t2423; { U64 *_hp = Str_size(); _t2423 = *_hp; free(_hp); }
-        U64 _t2424 = 10;
-        Array *_va27 = Array_new(_t2422, &(U64){_t2423}, &(U64){_t2424});
-        Str_delete(_t2422, &(Bool){1});
+    if (_t2515) {
+        Str *_t2492 = Str_lit("Str", 3ULL);
+        U64 _t2493; { U64 *_hp = Str_size(); _t2493 = *_hp; free(_hp); }
+        U64 _t2494 = 10;
+        Array *_va28 = Array_new(_t2492, &(U64){_t2493}, &(U64){_t2494});
+        Str_delete(_t2492, &(Bool){1});
         ;
         ;
-        U64 _t2425 = 0;
-        Array_set(_va27, &(U64){_t2425}, &p->path);
+        U64 _t2495 = 0;
+        Array_set(_va28, &(U64){_t2495}, &p->path);
         ;
-        U64 _t2426 = 1;
-        Str *_t2427 = Str_lit(":", 1ULL);
-        Array_set(_va27, &(U64){_t2426}, _t2427);
+        U64 _t2496 = 1;
+        Str *_t2497 = Str_lit(":", 1ULL);
+        Array_set(_va28, &(U64){_t2496}, _t2497);
         ;
-        U64 _t2428 = 2;
-        Str *_t2429 = I64_to_str(&t->line);
-        Array_set(_va27, &(U64){_t2428}, _t2429);
+        U64 _t2498 = 2;
+        Str *_t2499 = I64_to_str(&t->line);
+        Array_set(_va28, &(U64){_t2498}, _t2499);
         ;
-        U64 _t2430 = 3;
-        Str *_t2431 = Str_lit(":", 1ULL);
-        Array_set(_va27, &(U64){_t2430}, _t2431);
+        U64 _t2500 = 3;
+        Str *_t2501 = Str_lit(":", 1ULL);
+        Array_set(_va28, &(U64){_t2500}, _t2501);
         ;
-        U64 _t2432 = 4;
-        Str *_t2433 = I64_to_str(&t->col);
-        Array_set(_va27, &(U64){_t2432}, _t2433);
+        U64 _t2502 = 4;
+        Str *_t2503 = I64_to_str(&t->col);
+        Array_set(_va28, &(U64){_t2502}, _t2503);
         ;
-        U64 _t2434 = 5;
-        Str *_t2435 = Str_lit(": expected '", 12ULL);
-        Array_set(_va27, &(U64){_t2434}, _t2435);
+        U64 _t2504 = 5;
+        Str *_t2505 = Str_lit(": expected '", 12ULL);
+        Array_set(_va28, &(U64){_t2504}, _t2505);
         ;
-        U64 _t2436 = 6;
-        Str *_t2437 = tok_name(type);
-        Array_set(_va27, &(U64){_t2436}, _t2437);
+        U64 _t2506 = 6;
+        Str *_t2507 = tok_name(type);
+        Array_set(_va28, &(U64){_t2506}, _t2507);
         ;
-        U64 _t2438 = 7;
-        Str *_t2439 = Str_lit("', found '", 10ULL);
-        Array_set(_va27, &(U64){_t2438}, _t2439);
+        U64 _t2508 = 7;
+        Str *_t2509 = Str_lit("', found '", 10ULL);
+        Array_set(_va28, &(U64){_t2508}, _t2509);
         ;
-        U64 _t2440 = 8;
-        Array_set(_va27, &(U64){_t2440}, &t->text);
+        U64 _t2510 = 8;
+        Array_set(_va28, &(U64){_t2510}, &t->text);
         ;
-        U64 _t2441 = 9;
-        Str *_t2442 = Str_lit("'", 1ULL);
-        Array_set(_va27, &(U64){_t2441}, _t2442);
+        U64 _t2511 = 9;
+        Str *_t2512 = Str_lit("'", 1ULL);
+        Array_set(_va28, &(U64){_t2511}, _t2512);
         ;
-        Str *_t2443 = Str_lit("src/self/parser.til:45:15", 25ULL);
-        panic(_t2443, _va27);
-        Str_delete(_t2443, &(Bool){1});
+        Str *_t2513 = Str_lit("src/self/parser.til:45:15", 25ULL);
+        panic(_t2513, _va28);
+        Str_delete(_t2513, &(Bool){1});
     }
     ;
     Str *text = Str_clone(&t->text);
-    Token *_t2446 = advance(p);
+    Token *_t2516 = advance(p);
     return text;
 }
 
@@ -14012,29 +14299,29 @@ I64 * peek_col(Parser * p) {
 }
 
 Expr * parse_block(Parser * p) {
-    I64 _t2453; { I64 *_hp = peek_line(p); _t2453 = *_hp; free(_hp); }
-    I64 _t2454; { I64 *_hp = peek_col(p); _t2454 = *_hp; free(_hp); }
-    Expr *body = expr_new(NodeType_Body(), &(I64){_t2453}, &(I64){_t2454}, &p->path);
+    I64 _t2523; { I64 *_hp = peek_line(p); _t2523 = *_hp; free(_hp); }
+    I64 _t2524; { I64 *_hp = peek_col(p); _t2524 = *_hp; free(_hp); }
+    Expr *body = expr_new(NodeType_Body(), &(I64){_t2523}, &(I64){_t2524}, &p->path);
     ;
     ;
     while (1) {
-        Bool _t2448; { Bool *_hp = check(p, TokenType_RBrace()); _t2448 = *_hp; free(_hp); }
-        Bool _t2449; { Bool *_hp = check(p, TokenType_Eof()); _t2449 = *_hp; free(_hp); }
-        Bool _t2450 = Bool_not(_t2448);
+        Bool _t2518; { Bool *_hp = check(p, TokenType_RBrace()); _t2518 = *_hp; free(_hp); }
+        Bool _t2519; { Bool *_hp = check(p, TokenType_Eof()); _t2519 = *_hp; free(_hp); }
+        Bool _t2520 = Bool_not(_t2518);
         ;
-        Bool _t2451 = Bool_not(_t2449);
+        Bool _t2521 = Bool_not(_t2519);
         ;
-        Bool _wcond2447 = Bool_and(_t2450, _t2451);
+        Bool _wcond2517 = Bool_and(_t2520, _t2521);
         ;
         ;
-        if (_wcond2447) {
+        if (_wcond2517) {
         } else {
             ;
             break;
         }
         ;
-        Expr *_t2452 = parse_statement(p);
-        expr_add_child(body, _t2452);
+        Expr *_t2522 = parse_statement(p);
+        expr_add_child(body, _t2522);
     }
     expect(p, TokenType_RBrace());
     return body;
@@ -14046,45 +14333,45 @@ Expr * parse_func_def(Parser * p) {
     Token *kw = advance(p);
     FuncType *ft = FuncType_clone(FuncType_Func());
     {
-        TokenType *_sw2455 = TokenType_clone(&kw->type);
-        Bool _t2467; { Bool *_hp = TokenType_eq(_sw2455, TokenType_KwFunc()); _t2467 = *_hp; free(_hp); }
-        if (_t2467) {
+        TokenType *_sw2525 = TokenType_clone(&kw->type);
+        Bool _t2537; { Bool *_hp = TokenType_eq(_sw2525, TokenType_KwFunc()); _t2537 = *_hp; free(_hp); }
+        if (_t2537) {
             ft = FuncType_clone(FuncType_Func());
         } else {
-            Bool _t2466; { Bool *_hp = TokenType_eq(_sw2455, TokenType_KwProc()); _t2466 = *_hp; free(_hp); }
-            if (_t2466) {
+            Bool _t2536; { Bool *_hp = TokenType_eq(_sw2525, TokenType_KwProc()); _t2536 = *_hp; free(_hp); }
+            if (_t2536) {
                 ft = FuncType_clone(FuncType_Proc());
             } else {
-                Bool _t2465; { Bool *_hp = TokenType_eq(_sw2455, TokenType_KwTest()); _t2465 = *_hp; free(_hp); }
-                if (_t2465) {
+                Bool _t2535; { Bool *_hp = TokenType_eq(_sw2525, TokenType_KwTest()); _t2535 = *_hp; free(_hp); }
+                if (_t2535) {
                     ft = FuncType_clone(FuncType_Test());
                 } else {
-                    Bool _t2464; { Bool *_hp = TokenType_eq(_sw2455, TokenType_KwMacro()); _t2464 = *_hp; free(_hp); }
-                    if (_t2464) {
+                    Bool _t2534; { Bool *_hp = TokenType_eq(_sw2525, TokenType_KwMacro()); _t2534 = *_hp; free(_hp); }
+                    if (_t2534) {
                         ft = FuncType_clone(FuncType_Macro());
                     } else {
-                        Bool _t2463; { Bool *_hp = TokenType_eq(_sw2455, TokenType_KwExtFunc()); _t2463 = *_hp; free(_hp); }
-                        if (_t2463) {
+                        Bool _t2533; { Bool *_hp = TokenType_eq(_sw2525, TokenType_KwExtFunc()); _t2533 = *_hp; free(_hp); }
+                        if (_t2533) {
                             ft = FuncType_clone(FuncType_ExtFunc());
                         } else {
-                            Bool _t2462; { Bool *_hp = TokenType_eq(_sw2455, TokenType_KwExtProc()); _t2462 = *_hp; free(_hp); }
-                            if (_t2462) {
+                            Bool _t2532; { Bool *_hp = TokenType_eq(_sw2525, TokenType_KwExtProc()); _t2532 = *_hp; free(_hp); }
+                            if (_t2532) {
                                 ft = FuncType_clone(FuncType_ExtProc());
                             } else {
-                                Str *_t2456 = Str_lit("Str", 3ULL);
-                                U64 _t2457; { U64 *_hp = Str_size(); _t2457 = *_hp; free(_hp); }
-                                U64 _t2458 = 1;
-                                Array *_va28 = Array_new(_t2456, &(U64){_t2457}, &(U64){_t2458});
-                                Str_delete(_t2456, &(Bool){1});
+                                Str *_t2526 = Str_lit("Str", 3ULL);
+                                U64 _t2527; { U64 *_hp = Str_size(); _t2527 = *_hp; free(_hp); }
+                                U64 _t2528 = 1;
+                                Array *_va29 = Array_new(_t2526, &(U64){_t2527}, &(U64){_t2528});
+                                Str_delete(_t2526, &(Bool){1});
                                 ;
                                 ;
-                                U64 _t2459 = 0;
-                                Str *_t2460 = Str_lit("expected function keyword", 25ULL);
-                                Array_set(_va28, &(U64){_t2459}, _t2460);
+                                U64 _t2529 = 0;
+                                Str *_t2530 = Str_lit("expected function keyword", 25ULL);
+                                Array_set(_va29, &(U64){_t2529}, _t2530);
                                 ;
-                                Str *_t2461 = Str_lit("src/self/parser.til:82:17", 25ULL);
-                                panic(_t2461, _va28);
-                                Str_delete(_t2461, &(Bool){1});
+                                Str *_t2531 = Str_lit("src/self/parser.til:82:17", 25ULL);
+                                panic(_t2531, _va29);
+                                Str_delete(_t2531, &(Bool){1});
                             }
                             ;
                         }
@@ -14096,159 +14383,159 @@ Expr * parse_func_def(Parser * p) {
             }
             ;
         }
-        TokenType_delete(_sw2455, &(Bool){1});
+        TokenType_delete(_sw2525, &(Bool){1});
         ;
     }
     expect(p, TokenType_LParen());
-    I64 _t2547 = 0;
-    I64 _t2548 = 1;
-    Str *_t2549 = Str_lit("Str", 3ULL);
-    U64 _t2550; { U64 *_hp = Str_size(); _t2550 = *_hp; free(_hp); }
-    Str *_t2551 = Str_lit("Str", 3ULL);
-    U64 _t2552; { U64 *_hp = Str_size(); _t2552 = *_hp; free(_hp); }
-    Str *_t2553 = Str_lit("Bool", 4ULL);
-    U64 _t2554; { U64 *_hp = Bool_size(); _t2554 = *_hp; free(_hp); }
-    Str *_t2555 = Str_lit("Bool", 4ULL);
-    U64 _t2556; { U64 *_hp = Bool_size(); _t2556 = *_hp; free(_hp); }
-    Str *_t2557 = Str_lit("I64", 3ULL);
-    U64 _t2558; { U64 *_hp = I64_size(); _t2558 = *_hp; free(_hp); }
-    Bool _t2559 = 0;
-    I64 _t2560 = I64_sub(_t2547, _t2548);
+    I64 _t2617 = 0;
+    I64 _t2618 = 1;
+    Str *_t2619 = Str_lit("Str", 3ULL);
+    U64 _t2620; { U64 *_hp = Str_size(); _t2620 = *_hp; free(_hp); }
+    Str *_t2621 = Str_lit("Str", 3ULL);
+    U64 _t2622; { U64 *_hp = Str_size(); _t2622 = *_hp; free(_hp); }
+    Str *_t2623 = Str_lit("Bool", 4ULL);
+    U64 _t2624; { U64 *_hp = Bool_size(); _t2624 = *_hp; free(_hp); }
+    Str *_t2625 = Str_lit("Bool", 4ULL);
+    U64 _t2626; { U64 *_hp = Bool_size(); _t2626 = *_hp; free(_hp); }
+    Str *_t2627 = Str_lit("I64", 3ULL);
+    U64 _t2628; { U64 *_hp = I64_size(); _t2628 = *_hp; free(_hp); }
+    Bool _t2629 = 0;
+    I64 _t2630 = I64_sub(_t2617, _t2618);
     ;
     ;
     FuncDefData *fd = malloc(sizeof(FuncDefData));
     { FuncType *_ca = FuncType_clone(FuncType_Func()); fd->func_type = *_ca; free(_ca); }
     { Str *_ca = Str_clone(Str_lit("", 0ULL)); fd->return_type = *_ca; free(_ca); }
-    fd->return_is_ref = _t2559;
-    fd->variadic_index = _t2560;
-    { Vec *_ca = Vec_new(_t2549, &(U64){_t2550}); fd->param_names = *_ca; free(_ca); }
-    { Vec *_ca = Vec_new(_t2551, &(U64){_t2552}); fd->param_types = *_ca; free(_ca); }
-    { Vec *_ca = Vec_new(_t2553, &(U64){_t2554}); fd->param_muts = *_ca; free(_ca); }
-    { Vec *_ca = Vec_new(_t2555, &(U64){_t2556}); fd->param_owns = *_ca; free(_ca); }
-    { Vec *_ca = Vec_new(_t2557, &(U64){_t2558}); fd->param_defaults = *_ca; free(_ca); }
-    Str_delete(_t2549, &(Bool){1});
+    fd->return_is_ref = _t2629;
+    fd->variadic_index = _t2630;
+    { Vec *_ca = Vec_new(_t2619, &(U64){_t2620}); fd->param_names = *_ca; free(_ca); }
+    { Vec *_ca = Vec_new(_t2621, &(U64){_t2622}); fd->param_types = *_ca; free(_ca); }
+    { Vec *_ca = Vec_new(_t2623, &(U64){_t2624}); fd->param_muts = *_ca; free(_ca); }
+    { Vec *_ca = Vec_new(_t2625, &(U64){_t2626}); fd->param_owns = *_ca; free(_ca); }
+    { Vec *_ca = Vec_new(_t2627, &(U64){_t2628}); fd->param_defaults = *_ca; free(_ca); }
+    Str_delete(_t2619, &(Bool){1});
     ;
-    Str_delete(_t2551, &(Bool){1});
+    Str_delete(_t2621, &(Bool){1});
     ;
-    Str_delete(_t2553, &(Bool){1});
+    Str_delete(_t2623, &(Bool){1});
     ;
-    Str_delete(_t2555, &(Bool){1});
+    Str_delete(_t2625, &(Bool){1});
     ;
-    Str_delete(_t2557, &(Bool){1});
+    Str_delete(_t2627, &(Bool){1});
     ;
     ;
     ;
     FuncType_delete(&fd->func_type, &(Bool){0});
     { FuncType *_fa = FuncType_clone(ft); fd->func_type = *_fa; free(_fa); }
     FuncType_delete(ft, &(Bool){1});
-    Str *_t2561 = Str_lit("Expr", 4ULL);
-    U64 _t2562; { U64 *_hp = Expr_size(); _t2562 = *_hp; free(_hp); }
-    Vec *def_exprs = Vec_new(_t2561, &(U64){_t2562});
-    Str_delete(_t2561, &(Bool){1});
+    Str *_t2631 = Str_lit("Expr", 4ULL);
+    U64 _t2632; { U64 *_hp = Expr_size(); _t2632 = *_hp; free(_hp); }
+    Vec *def_exprs = Vec_new(_t2631, &(U64){_t2632});
+    Str_delete(_t2631, &(Bool){1});
     ;
     while (1) {
-        Bool _t2509; { Bool *_hp = check(p, TokenType_RParen()); _t2509 = *_hp; free(_hp); }
-        Bool _t2510; { Bool *_hp = check(p, TokenType_Eof()); _t2510 = *_hp; free(_hp); }
-        Bool _t2511 = Bool_not(_t2509);
+        Bool _t2579; { Bool *_hp = check(p, TokenType_RParen()); _t2579 = *_hp; free(_hp); }
+        Bool _t2580; { Bool *_hp = check(p, TokenType_Eof()); _t2580 = *_hp; free(_hp); }
+        Bool _t2581 = Bool_not(_t2579);
         ;
-        Bool _t2512 = Bool_not(_t2510);
+        Bool _t2582 = Bool_not(_t2580);
         ;
-        Bool _wcond2468 = Bool_and(_t2511, _t2512);
+        Bool _wcond2538 = Bool_and(_t2581, _t2582);
         ;
         ;
-        if (_wcond2468) {
+        if (_wcond2538) {
         } else {
             ;
             break;
         }
         ;
         Bool is_own = 0;
-        Bool _t2513; { Bool *_hp = check(p, TokenType_KwOwn()); _t2513 = *_hp; free(_hp); }
-        if (_t2513) {
-            Token *_t2469 = advance(p);
-            Bool _t2470 = 1;
-            is_own = _t2470;
+        Bool _t2583; { Bool *_hp = check(p, TokenType_KwOwn()); _t2583 = *_hp; free(_hp); }
+        if (_t2583) {
+            Token *_t2539 = advance(p);
+            Bool _t2540 = 1;
+            is_own = _t2540;
             ;
         }
         ;
         Bool is_mut = 0;
-        Bool _t2514; { Bool *_hp = check(p, TokenType_KwMut()); _t2514 = *_hp; free(_hp); }
-        if (_t2514) {
-            Token *_t2471 = advance(p);
-            Bool _t2472 = 1;
-            is_mut = _t2472;
+        Bool _t2584; { Bool *_hp = check(p, TokenType_KwMut()); _t2584 = *_hp; free(_hp); }
+        if (_t2584) {
+            Token *_t2541 = advance(p);
+            Bool _t2542 = 1;
+            is_mut = _t2542;
             ;
         }
         ;
         Str *pname = expect_text(p, TokenType_Ident());
         expect(p, TokenType_Colon());
         Bool is_variadic = 0;
-        Bool _t2515; { Bool *_hp = check(p, TokenType_DotDot()); _t2515 = *_hp; free(_hp); }
-        if (_t2515) {
-            Token *_t2491 = advance(p);
+        Bool _t2585; { Bool *_hp = check(p, TokenType_DotDot()); _t2585 = *_hp; free(_hp); }
+        if (_t2585) {
+            Token *_t2561 = advance(p);
             if (is_own) {
-                Str *_t2473 = Str_lit("Str", 3ULL);
-                U64 _t2474; { U64 *_hp = Str_size(); _t2474 = *_hp; free(_hp); }
-                U64 _t2475 = 1;
-                Array *_va29 = Array_new(_t2473, &(U64){_t2474}, &(U64){_t2475});
-                Str_delete(_t2473, &(Bool){1});
+                Str *_t2543 = Str_lit("Str", 3ULL);
+                U64 _t2544; { U64 *_hp = Str_size(); _t2544 = *_hp; free(_hp); }
+                U64 _t2545 = 1;
+                Array *_va30 = Array_new(_t2543, &(U64){_t2544}, &(U64){_t2545});
+                Str_delete(_t2543, &(Bool){1});
                 ;
                 ;
-                U64 _t2476 = 0;
-                Str *_t2477 = Str_lit("variadic param cannot be 'own'", 30ULL);
-                Array_set(_va29, &(U64){_t2476}, _t2477);
+                U64 _t2546 = 0;
+                Str *_t2547 = Str_lit("variadic param cannot be 'own'", 30ULL);
+                Array_set(_va30, &(U64){_t2546}, _t2547);
                 ;
-                Str *_t2478 = Str_lit("src/self/parser.til:103:31", 26ULL);
-                panic(_t2478, _va29);
-                Str_delete(_t2478, &(Bool){1});
+                Str *_t2548 = Str_lit("src/self/parser.til:103:31", 26ULL);
+                panic(_t2548, _va30);
+                Str_delete(_t2548, &(Bool){1});
             }
             if (is_mut) {
-                Str *_t2479 = Str_lit("Str", 3ULL);
-                U64 _t2480; { U64 *_hp = Str_size(); _t2480 = *_hp; free(_hp); }
-                U64 _t2481 = 1;
-                Array *_va30 = Array_new(_t2479, &(U64){_t2480}, &(U64){_t2481});
-                Str_delete(_t2479, &(Bool){1});
+                Str *_t2549 = Str_lit("Str", 3ULL);
+                U64 _t2550; { U64 *_hp = Str_size(); _t2550 = *_hp; free(_hp); }
+                U64 _t2551 = 1;
+                Array *_va31 = Array_new(_t2549, &(U64){_t2550}, &(U64){_t2551});
+                Str_delete(_t2549, &(Bool){1});
                 ;
                 ;
-                U64 _t2482 = 0;
-                Str *_t2483 = Str_lit("variadic param cannot be 'mut'", 30ULL);
-                Array_set(_va30, &(U64){_t2482}, _t2483);
+                U64 _t2552 = 0;
+                Str *_t2553 = Str_lit("variadic param cannot be 'mut'", 30ULL);
+                Array_set(_va31, &(U64){_t2552}, _t2553);
                 ;
-                Str *_t2484 = Str_lit("src/self/parser.til:104:31", 26ULL);
-                panic(_t2484, _va30);
-                Str_delete(_t2484, &(Bool){1});
+                Str *_t2554 = Str_lit("src/self/parser.til:104:31", 26ULL);
+                panic(_t2554, _va31);
+                Str_delete(_t2554, &(Bool){1});
             }
-            I64 _t2492 = 0;
-            I64 _t2493 = 1;
-            I64 _t2494 = I64_sub(_t2492, _t2493);
+            I64 _t2562 = 0;
+            I64 _t2563 = 1;
+            I64 _t2564 = I64_sub(_t2562, _t2563);
             ;
             ;
-            Bool _t2495; { Bool *_hp = I64_neq(&fd->variadic_index, &(I64){_t2494}); _t2495 = *_hp; free(_hp); }
+            Bool _t2565; { Bool *_hp = I64_neq(&fd->variadic_index, &(I64){_t2564}); _t2565 = *_hp; free(_hp); }
             ;
-            if (_t2495) {
-                Str *_t2485 = Str_lit("Str", 3ULL);
-                U64 _t2486; { U64 *_hp = Str_size(); _t2486 = *_hp; free(_hp); }
-                U64 _t2487 = 1;
-                Array *_va31 = Array_new(_t2485, &(U64){_t2486}, &(U64){_t2487});
-                Str_delete(_t2485, &(Bool){1});
+            if (_t2565) {
+                Str *_t2555 = Str_lit("Str", 3ULL);
+                U64 _t2556; { U64 *_hp = Str_size(); _t2556 = *_hp; free(_hp); }
+                U64 _t2557 = 1;
+                Array *_va32 = Array_new(_t2555, &(U64){_t2556}, &(U64){_t2557});
+                Str_delete(_t2555, &(Bool){1});
                 ;
                 ;
-                U64 _t2488 = 0;
-                Str *_t2489 = Str_lit("only one variadic param allowed", 31ULL);
-                Array_set(_va31, &(U64){_t2488}, _t2489);
+                U64 _t2558 = 0;
+                Str *_t2559 = Str_lit("only one variadic param allowed", 31ULL);
+                Array_set(_va32, &(U64){_t2558}, _t2559);
                 ;
-                Str *_t2490 = Str_lit("src/self/parser.til:105:56", 26ULL);
-                panic(_t2490, _va31);
-                Str_delete(_t2490, &(Bool){1});
+                Str *_t2560 = Str_lit("src/self/parser.til:105:56", 26ULL);
+                panic(_t2560, _va32);
+                Str_delete(_t2560, &(Bool){1});
             }
             ;
-            U64 _t2496; { U64 *_hp = Vec_len(&fd->param_names); _t2496 = *_hp; free(_hp); }
-            I64 _t2497 = U64_to_i64(_t2496);
+            U64 _t2566; { U64 *_hp = Vec_len(&fd->param_names); _t2566 = *_hp; free(_hp); }
+            I64 _t2567 = U64_to_i64(_t2566);
             ;
-            fd->variadic_index = _t2497;
+            fd->variadic_index = _t2567;
             ;
-            Bool _t2498 = 1;
-            is_variadic = _t2498;
+            Bool _t2568 = 1;
+            is_variadic = _t2568;
             ;
         }
         ;
@@ -14257,78 +14544,78 @@ Expr * parse_func_def(Parser * p) {
         Vec_push(&fd->param_types, ptype);
         Vec_push(&fd->param_muts, ({ Bool *_oa = malloc(sizeof(Bool)); *_oa = is_mut; _oa; }));
         Vec_push(&fd->param_owns, ({ Bool *_oa = malloc(sizeof(Bool)); *_oa = is_own; _oa; }));
-        I64 _t2516 = 0;
-        I64 _t2517 = 1;
-        I64 has_default = I64_sub(_t2516, _t2517);
+        I64 _t2586 = 0;
+        I64 _t2587 = 1;
+        I64 has_default = I64_sub(_t2586, _t2587);
         ;
         ;
-        Bool _t2518; { Bool *_hp = check(p, TokenType_Eq()); _t2518 = *_hp; free(_hp); }
-        if (_t2518) {
-            Token *_t2499 = advance(p);
-            U64 _t2500; { U64 *_hp = Vec_len(def_exprs); _t2500 = *_hp; free(_hp); }
-            I64 _t2501 = U64_to_i64(_t2500);
+        Bool _t2588; { Bool *_hp = check(p, TokenType_Eq()); _t2588 = *_hp; free(_hp); }
+        if (_t2588) {
+            Token *_t2569 = advance(p);
+            U64 _t2570; { U64 *_hp = Vec_len(def_exprs); _t2570 = *_hp; free(_hp); }
+            I64 _t2571 = U64_to_i64(_t2570);
             ;
-            has_default = _t2501;
+            has_default = _t2571;
             ;
             Expr *def_expr = parse_expression(p);
             Vec_push(def_exprs, def_expr);
         }
         ;
-        I64 _t2519 = 0;
-        I64 _t2520 = 1;
-        I64 _t2521 = I64_sub(_t2519, _t2520);
+        I64 _t2589 = 0;
+        I64 _t2590 = 1;
+        I64 _t2591 = I64_sub(_t2589, _t2590);
         ;
         ;
-        Bool _t2522; { Bool *_hp = I64_neq(&fd->variadic_index, &(I64){_t2521}); _t2522 = *_hp; free(_hp); }
+        Bool _t2592; { Bool *_hp = I64_neq(&fd->variadic_index, &(I64){_t2591}); _t2592 = *_hp; free(_hp); }
         ;
-        Bool _t2523 = Bool_not(is_variadic);
+        Bool _t2593 = Bool_not(is_variadic);
         ;
-        I64 _t2524 = 0;
-        I64 _t2525 = 1;
-        I64 _t2526 = I64_sub(_t2524, _t2525);
-        ;
-        ;
-        Bool _t2527 = Bool_and(_t2522, _t2523);
+        I64 _t2594 = 0;
+        I64 _t2595 = 1;
+        I64 _t2596 = I64_sub(_t2594, _t2595);
         ;
         ;
-        Bool _t2528 = I64_eq(has_default, _t2526);
-        ;
-        Bool _t2529 = Bool_and(_t2527, _t2528);
+        Bool _t2597 = Bool_and(_t2592, _t2593);
         ;
         ;
-        if (_t2529) {
-            Str *_t2502 = Str_lit("Str", 3ULL);
-            U64 _t2503; { U64 *_hp = Str_size(); _t2503 = *_hp; free(_hp); }
-            U64 _t2504 = 1;
-            Array *_va32 = Array_new(_t2502, &(U64){_t2503}, &(U64){_t2504});
-            Str_delete(_t2502, &(Bool){1});
+        Bool _t2598 = I64_eq(has_default, _t2596);
+        ;
+        Bool _t2599 = Bool_and(_t2597, _t2598);
+        ;
+        ;
+        if (_t2599) {
+            Str *_t2572 = Str_lit("Str", 3ULL);
+            U64 _t2573; { U64 *_hp = Str_size(); _t2573 = *_hp; free(_hp); }
+            U64 _t2574 = 1;
+            Array *_va33 = Array_new(_t2572, &(U64){_t2573}, &(U64){_t2574});
+            Str_delete(_t2572, &(Bool){1});
             ;
             ;
-            U64 _t2505 = 0;
-            Str *_t2506 = Str_lit("positional param not allowed after variadic", 43ULL);
-            Array_set(_va32, &(U64){_t2505}, _t2506);
+            U64 _t2575 = 0;
+            Str *_t2576 = Str_lit("positional param not allowed after variadic", 43ULL);
+            Array_set(_va33, &(U64){_t2575}, _t2576);
             ;
-            Str *_t2507 = Str_lit("src/self/parser.til:125:19", 26ULL);
-            panic(_t2507, _va32);
-            Str_delete(_t2507, &(Bool){1});
+            Str *_t2577 = Str_lit("src/self/parser.til:125:19", 26ULL);
+            panic(_t2577, _va33);
+            Str_delete(_t2577, &(Bool){1});
         }
         ;
         Vec_push(&fd->param_defaults, ({ I64 *_oa = malloc(sizeof(I64)); *_oa = has_default; _oa; }));
-        Bool _t2530; { Bool *_hp = check(p, TokenType_Comma()); _t2530 = *_hp; free(_hp); }
-        if (_t2530) {
-            Token *_t2508 = advance(p);
+        Bool _t2600; { Bool *_hp = check(p, TokenType_Comma()); _t2600 = *_hp; free(_hp); }
+        if (_t2600) {
+            Token *_t2578 = advance(p);
         }
         ;
     }
     expect(p, TokenType_RParen());
-    Bool _t2563; { Bool *_hp = check(p, TokenType_KwReturns()); _t2563 = *_hp; free(_hp); }
-    if (_t2563) {
-        Token *_t2533 = advance(p);
-        Bool _t2534; { Bool *_hp = check(p, TokenType_KwRef()); _t2534 = *_hp; free(_hp); }
-        if (_t2534) {
-            Token *_t2531 = advance(p);
-            Bool _t2532 = 1;
-            fd->return_is_ref = _t2532;
+    Bool _t2633; { Bool *_hp = check(p, TokenType_KwReturns()); _t2633 = *_hp; free(_hp); }
+    if (_t2633) {
+        Token *_t2603 = advance(p);
+        Bool _t2604; { Bool *_hp = check(p, TokenType_KwRef()); _t2604 = *_hp; free(_hp); }
+        if (_t2604) {
+            Token *_t2601 = advance(p);
+            Bool _t2602 = 1;
+            fd->return_is_ref = _t2602;
             ;
         }
         ;
@@ -14343,42 +14630,42 @@ Expr * parse_func_def(Parser * p) {
     { ExprData *_fa = ExprData_FuncDef(fd); def->data = *_fa; free(_fa); }
     FuncDefData_delete(fd, &(Bool){1});
     expect(p, TokenType_LBrace());
-    Expr *_t2564 = parse_block(p);
-    expr_add_child(def, _t2564);
+    Expr *_t2634 = parse_block(p);
+    expr_add_child(def, _t2634);
     {
-        U64 _fi2535 = 0;
+        U64 _fi2605 = 0;
         while (1) {
-            U64 _t2537 = 0;
-            U64 _t2538; { U64 *_hp = Vec_len(def_exprs); _t2538 = *_hp; free(_hp); }
-            Range *_t2539 = Range_new(_t2537, _t2538);
+            U64 _t2607 = 0;
+            U64 _t2608; { U64 *_hp = Vec_len(def_exprs); _t2608 = *_hp; free(_hp); }
+            Range *_t2609 = Range_new(_t2607, _t2608);
             ;
             ;
-            U64 _t2540; { U64 *_hp = Range_len(_t2539); _t2540 = *_hp; free(_hp); }
-            Range_delete(_t2539, &(Bool){1});
-            Bool _wcond2536; { Bool *_hp = U64_lt(&(U64){_fi2535}, &(U64){_t2540}); _wcond2536 = *_hp; free(_hp); }
+            U64 _t2610; { U64 *_hp = Range_len(_t2609); _t2610 = *_hp; free(_hp); }
+            Range_delete(_t2609, &(Bool){1});
+            Bool _wcond2606; { Bool *_hp = U64_lt(&(U64){_fi2605}, &(U64){_t2610}); _wcond2606 = *_hp; free(_hp); }
             ;
-            if (_wcond2536) {
+            if (_wcond2606) {
             } else {
                 ;
                 break;
             }
             ;
-            U64 _t2541 = 0;
-            U64 _t2542; { U64 *_hp = Vec_len(def_exprs); _t2542 = *_hp; free(_hp); }
-            Range *_t2543 = Range_new(_t2541, _t2542);
+            U64 _t2611 = 0;
+            U64 _t2612; { U64 *_hp = Vec_len(def_exprs); _t2612 = *_hp; free(_hp); }
+            Range *_t2613 = Range_new(_t2611, _t2612);
             ;
             ;
-            U64 *i = Range_get(_t2543, _fi2535);
-            Range_delete(_t2543, &(Bool){1});
-            U64 _t2544 = 1;
-            U64 _t2545 = U64_add(_fi2535, _t2544);
+            U64 *i = Range_get(_t2613, _fi2605);
+            Range_delete(_t2613, &(Bool){1});
+            U64 _t2614 = 1;
+            U64 _t2615 = U64_add(_fi2605, _t2614);
             ;
-            _fi2535 = _t2545;
+            _fi2605 = _t2615;
             ;
             Expr *de = Vec_get(def_exprs, i);
-            Expr *_t2546 = Expr_clone(de);
+            Expr *_t2616 = Expr_clone(de);
             U64_delete(i, &(Bool){1});
-            expr_add_child(def, _t2546);
+            expr_add_child(def, _t2616);
         }
         ;
     }
@@ -14390,58 +14677,58 @@ Expr * parse_struct_def(Parser * p) {
     I64 kw_line; { I64 *_hp = peek_line(p); kw_line = *_hp; free(_hp); }
     I64 kw_col; { I64 *_hp = peek_col(p); kw_col = *_hp; free(_hp); }
     Bool is_ext; { Bool *_hp = check(p, TokenType_KwExtStruct()); is_ext = *_hp; free(_hp); }
-    Token *_t2577 = advance(p);
+    Token *_t2647 = advance(p);
     Expr *def = expr_new(NodeType_StructDef(), &(I64){kw_line}, &(I64){kw_col}, &p->path);
     ;
     ;
-    Bool _t2578 = Bool_clone(&(Bool){is_ext});
+    Bool _t2648 = Bool_clone(&(Bool){is_ext});
     ;
-    def->is_ext = _t2578;
+    def->is_ext = _t2648;
     ;
     expect(p, TokenType_LBrace());
-    I64 _t2579; { I64 *_hp = peek_line(p); _t2579 = *_hp; free(_hp); }
-    I64 _t2580; { I64 *_hp = peek_col(p); _t2580 = *_hp; free(_hp); }
-    Expr *body = expr_new(NodeType_Body(), &(I64){_t2579}, &(I64){_t2580}, &p->path);
+    I64 _t2649; { I64 *_hp = peek_line(p); _t2649 = *_hp; free(_hp); }
+    I64 _t2650; { I64 *_hp = peek_col(p); _t2650 = *_hp; free(_hp); }
+    Expr *body = expr_new(NodeType_Body(), &(I64){_t2649}, &(I64){_t2650}, &p->path);
     ;
     ;
     Bool in_namespace = 0;
     while (1) {
-        Bool _t2570; { Bool *_hp = check(p, TokenType_RBrace()); _t2570 = *_hp; free(_hp); }
-        Bool _t2571; { Bool *_hp = check(p, TokenType_Eof()); _t2571 = *_hp; free(_hp); }
-        Bool _t2572 = Bool_not(_t2570);
+        Bool _t2640; { Bool *_hp = check(p, TokenType_RBrace()); _t2640 = *_hp; free(_hp); }
+        Bool _t2641; { Bool *_hp = check(p, TokenType_Eof()); _t2641 = *_hp; free(_hp); }
+        Bool _t2642 = Bool_not(_t2640);
         ;
-        Bool _t2573 = Bool_not(_t2571);
+        Bool _t2643 = Bool_not(_t2641);
         ;
-        Bool _wcond2565 = Bool_and(_t2572, _t2573);
+        Bool _wcond2635 = Bool_and(_t2642, _t2643);
         ;
         ;
-        if (_wcond2565) {
+        if (_wcond2635) {
         } else {
             ;
             break;
         }
         ;
-        Bool _t2574; { Bool *_hp = check(p, TokenType_KwNamespace()); _t2574 = *_hp; free(_hp); }
-        if (_t2574) {
-            Token *_t2566 = advance(p);
+        Bool _t2644; { Bool *_hp = check(p, TokenType_KwNamespace()); _t2644 = *_hp; free(_hp); }
+        if (_t2644) {
+            Token *_t2636 = advance(p);
             expect(p, TokenType_Colon());
-            Bool _t2567 = 1;
-            in_namespace = _t2567;
+            Bool _t2637 = 1;
+            in_namespace = _t2637;
             ;
             ;
             continue;
         }
         ;
         Expr *stmt = parse_statement(p);
-        Bool _t2575; { Bool *_hp = NodeType_eq(&stmt->type, NodeType_Decl()); _t2575 = *_hp; free(_hp); }
-        Bool _t2576 = Bool_and(in_namespace, _t2575);
+        Bool _t2645; { Bool *_hp = NodeType_eq(&stmt->type, NodeType_Decl()); _t2645 = *_hp; free(_hp); }
+        Bool _t2646 = Bool_and(in_namespace, _t2645);
         ;
-        if (_t2576) {
-            Bool _t2569; { Bool *_hp = ExprData_is_Decl(&stmt->data); _t2569 = *_hp; free(_hp); }
-            if (_t2569) {
+        if (_t2646) {
+            Bool _t2639; { Bool *_hp = ExprData_is_Decl(&stmt->data); _t2639 = *_hp; free(_hp); }
+            if (_t2639) {
                 DeclData *dd = ExprData_get_Decl(&stmt->data);
-                Bool _t2568 = 1;
-                dd->is_namespace = _t2568;
+                Bool _t2638 = 1;
+                dd->is_namespace = _t2638;
                 ;
                 ExprData_delete(&stmt->data, &(Bool){0});
                 { ExprData *_fa = ExprData_Decl(dd); stmt->data = *_fa; free(_fa); }
@@ -14461,39 +14748,39 @@ Expr * parse_struct_def(Parser * p) {
 Expr * parse_enum_def(Parser * p) {
     I64 kw_line; { I64 *_hp = peek_line(p); kw_line = *_hp; free(_hp); }
     I64 kw_col; { I64 *_hp = peek_col(p); kw_col = *_hp; free(_hp); }
-    Token *_t2602 = advance(p);
+    Token *_t2672 = advance(p);
     Expr *def = expr_new(NodeType_EnumDef(), &(I64){kw_line}, &(I64){kw_col}, &p->path);
     ;
     ;
     expect(p, TokenType_LBrace());
-    I64 _t2603; { I64 *_hp = peek_line(p); _t2603 = *_hp; free(_hp); }
-    I64 _t2604; { I64 *_hp = peek_col(p); _t2604 = *_hp; free(_hp); }
-    Expr *body = expr_new(NodeType_Body(), &(I64){_t2603}, &(I64){_t2604}, &p->path);
+    I64 _t2673; { I64 *_hp = peek_line(p); _t2673 = *_hp; free(_hp); }
+    I64 _t2674; { I64 *_hp = peek_col(p); _t2674 = *_hp; free(_hp); }
+    Expr *body = expr_new(NodeType_Body(), &(I64){_t2673}, &(I64){_t2674}, &p->path);
     ;
     ;
     Bool in_namespace = 0;
     while (1) {
-        Bool _t2597; { Bool *_hp = check(p, TokenType_RBrace()); _t2597 = *_hp; free(_hp); }
-        Bool _t2598; { Bool *_hp = check(p, TokenType_Eof()); _t2598 = *_hp; free(_hp); }
-        Bool _t2599 = Bool_not(_t2597);
+        Bool _t2667; { Bool *_hp = check(p, TokenType_RBrace()); _t2667 = *_hp; free(_hp); }
+        Bool _t2668; { Bool *_hp = check(p, TokenType_Eof()); _t2668 = *_hp; free(_hp); }
+        Bool _t2669 = Bool_not(_t2667);
         ;
-        Bool _t2600 = Bool_not(_t2598);
+        Bool _t2670 = Bool_not(_t2668);
         ;
-        Bool _wcond2581 = Bool_and(_t2599, _t2600);
+        Bool _wcond2651 = Bool_and(_t2669, _t2670);
         ;
         ;
-        if (_wcond2581) {
+        if (_wcond2651) {
         } else {
             ;
             break;
         }
         ;
-        Bool _t2601; { Bool *_hp = check(p, TokenType_KwNamespace()); _t2601 = *_hp; free(_hp); }
-        if (_t2601) {
-            Token *_t2582 = advance(p);
+        Bool _t2671; { Bool *_hp = check(p, TokenType_KwNamespace()); _t2671 = *_hp; free(_hp); }
+        if (_t2671) {
+            Token *_t2652 = advance(p);
             expect(p, TokenType_Colon());
-            Bool _t2583 = 1;
-            in_namespace = _t2583;
+            Bool _t2653 = 1;
+            in_namespace = _t2653;
             ;
             ;
             continue;
@@ -14501,13 +14788,13 @@ Expr * parse_enum_def(Parser * p) {
         ;
         if (in_namespace) {
             Expr *stmt = parse_statement(p);
-            Bool _t2586; { Bool *_hp = NodeType_eq(&stmt->type, NodeType_Decl()); _t2586 = *_hp; free(_hp); }
-            if (_t2586) {
-                Bool _t2585; { Bool *_hp = ExprData_is_Decl(&stmt->data); _t2585 = *_hp; free(_hp); }
-                if (_t2585) {
+            Bool _t2656; { Bool *_hp = NodeType_eq(&stmt->type, NodeType_Decl()); _t2656 = *_hp; free(_hp); }
+            if (_t2656) {
+                Bool _t2655; { Bool *_hp = ExprData_is_Decl(&stmt->data); _t2655 = *_hp; free(_hp); }
+                if (_t2655) {
                     DeclData *dd = ExprData_get_Decl(&stmt->data);
-                    Bool _t2584 = 1;
-                    dd->is_namespace = _t2584;
+                    Bool _t2654 = 1;
+                    dd->is_namespace = _t2654;
                     ;
                     ExprData_delete(&stmt->data, &(Bool){0});
                     { ExprData *_fa = ExprData_Decl(dd); stmt->data = *_fa; free(_fa); }
@@ -14521,21 +14808,21 @@ Expr * parse_enum_def(Parser * p) {
             I64 v_line; { I64 *_hp = peek_line(p); v_line = *_hp; free(_hp); }
             I64 v_col; { I64 *_hp = peek_col(p); v_col = *_hp; free(_hp); }
             Str *vname = expect_text(p, TokenType_Ident());
-            Bool _t2589 = 0;
-            Bool _t2590 = 0;
-            Bool _t2591 = 0;
-            Bool _t2592 = 0;
-            I64 _t2593 = 0;
-            I64 _t2594 = 0;
+            Bool _t2659 = 0;
+            Bool _t2660 = 0;
+            Bool _t2661 = 0;
+            Bool _t2662 = 0;
+            I64 _t2663 = 0;
+            I64 _t2664 = 0;
             DeclData *dd = malloc(sizeof(DeclData));
             { Str *_ca = Str_clone(vname); dd->name = *_ca; free(_ca); }
             { Str *_ca = Str_clone(Str_lit("", 0ULL)); dd->explicit_type = *_ca; free(_ca); }
-            dd->is_mut = _t2589;
-            dd->is_namespace = _t2590;
-            dd->is_ref = _t2591;
-            dd->is_own = _t2592;
-            dd->field_offset = _t2593;
-            dd->field_size = _t2594;
+            dd->is_mut = _t2659;
+            dd->is_namespace = _t2660;
+            dd->is_ref = _t2661;
+            dd->is_own = _t2662;
+            dd->field_offset = _t2663;
+            dd->field_size = _t2664;
             ;
             ;
             ;
@@ -14543,9 +14830,9 @@ Expr * parse_enum_def(Parser * p) {
             ;
             ;
             Str_delete(vname, &(Bool){1});
-            Bool _t2595; { Bool *_hp = check(p, TokenType_Colon()); _t2595 = *_hp; free(_hp); }
-            if (_t2595) {
-                Token *_t2587 = advance(p);
+            Bool _t2665; { Bool *_hp = check(p, TokenType_Colon()); _t2665 = *_hp; free(_hp); }
+            if (_t2665) {
+                Token *_t2657 = advance(p);
                 Str_delete(&dd->explicit_type, &(Bool){0});
                 { Str *_fa = expect_text(p, TokenType_Ident()); dd->explicit_type = *_fa; free(_fa); }
             }
@@ -14557,9 +14844,9 @@ Expr * parse_enum_def(Parser * p) {
             { ExprData *_fa = ExprData_Decl(dd); variant->data = *_fa; free(_fa); }
             DeclData_delete(dd, &(Bool){1});
             expr_add_child(body, variant);
-            Bool _t2596; { Bool *_hp = check(p, TokenType_Comma()); _t2596 = *_hp; free(_hp); }
-            if (_t2596) {
-                Token *_t2588 = advance(p);
+            Bool _t2666; { Bool *_hp = check(p, TokenType_Comma()); _t2666 = *_hp; free(_hp); }
+            if (_t2666) {
+                Token *_t2658 = advance(p);
             }
             ;
         }
@@ -14571,63 +14858,63 @@ Expr * parse_enum_def(Parser * p) {
 }
 
 Expr * parse_call(Parser * p, Str * name, I64 * call_line, I64 * call_col) {
-    Token *_t2632 = advance(p);
+    Token *_t2702 = advance(p);
     Expr *call = expr_new(NodeType_FCall(), call_line, call_col, &p->path);
     Expr *callee = expr_new(NodeType_Ident(), call_line, call_col, &p->path);
-    Str *_t2633 = Str_clone(name);
+    Str *_t2703 = Str_clone(name);
     ExprData_delete(&callee->data, &(Bool){0});
-    { ExprData *_fa = ExprData_StrVal(_t2633); callee->data = *_fa; free(_fa); }
-    Str_delete(_t2633, &(Bool){1});
+    { ExprData *_fa = ExprData_StrVal(_t2703); callee->data = *_fa; free(_fa); }
+    Str_delete(_t2703, &(Bool){1});
     expr_add_child(call, callee);
     while (1) {
-        Bool _t2622; { Bool *_hp = check(p, TokenType_RParen()); _t2622 = *_hp; free(_hp); }
-        Bool _t2623; { Bool *_hp = check(p, TokenType_Eof()); _t2623 = *_hp; free(_hp); }
-        Bool _t2624 = Bool_not(_t2622);
+        Bool _t2692; { Bool *_hp = check(p, TokenType_RParen()); _t2692 = *_hp; free(_hp); }
+        Bool _t2693; { Bool *_hp = check(p, TokenType_Eof()); _t2693 = *_hp; free(_hp); }
+        Bool _t2694 = Bool_not(_t2692);
         ;
-        Bool _t2625 = Bool_not(_t2623);
+        Bool _t2695 = Bool_not(_t2693);
         ;
-        Bool _wcond2605 = Bool_and(_t2624, _t2625);
+        Bool _wcond2675 = Bool_and(_t2694, _t2695);
         ;
         ;
-        if (_wcond2605) {
+        if (_wcond2675) {
         } else {
             ;
             break;
         }
         ;
-        Bool _t2626; { Bool *_hp = check(p, TokenType_Ident()); _t2626 = *_hp; free(_hp); }
-        if (_t2626) {
-            I64 _t2614 = 1;
-            I64 _t2615 = I64_add(p->pos, _t2614);
+        Bool _t2696; { Bool *_hp = check(p, TokenType_Ident()); _t2696 = *_hp; free(_hp); }
+        if (_t2696) {
+            I64 _t2684 = 1;
+            I64 _t2685 = I64_add(p->pos, _t2684);
             ;
-            Bool _t2616; { Bool *_hp = I64_lt(&(I64){_t2615}, &p->count); _t2616 = *_hp; free(_hp); }
+            Bool _t2686; { Bool *_hp = I64_lt(&(I64){_t2685}, &p->count); _t2686 = *_hp; free(_hp); }
             ;
-            if (_t2616) {
-                I64 _t2610 = 1;
-                I64 _t2611 = I64_add(p->pos, _t2610);
+            if (_t2686) {
+                I64 _t2680 = 1;
+                I64 _t2681 = I64_add(p->pos, _t2680);
                 ;
-                U64 *_t2612 = malloc(sizeof(U64)); *_t2612 = I64_to_u64(_t2611);
+                U64 *_t2682 = malloc(sizeof(U64)); *_t2682 = I64_to_u64(_t2681);
                 ;
-                Token *next_tok = Vec_get(&p->tokens, _t2612);
-                Bool _t2613; { Bool *_hp = TokenType_eq(&next_tok->type, TokenType_Eq()); _t2613 = *_hp; free(_hp); }
-                U64_delete(_t2612, &(Bool){1});
-                if (_t2613) {
+                Token *next_tok = Vec_get(&p->tokens, _t2682);
+                Bool _t2683; { Bool *_hp = TokenType_eq(&next_tok->type, TokenType_Eq()); _t2683 = *_hp; free(_hp); }
+                U64_delete(_t2682, &(Bool){1});
+                if (_t2683) {
                     I64 na_line; { I64 *_hp = peek_line(p); na_line = *_hp; free(_hp); }
                     I64 na_col; { I64 *_hp = peek_col(p); na_col = *_hp; free(_hp); }
                     Str *aname = expect_text(p, TokenType_Ident());
-                    Token *_t2607 = advance(p);
+                    Token *_t2677 = advance(p);
                     Expr *na = expr_new(NodeType_NamedArg(), &(I64){na_line}, &(I64){na_col}, &p->path);
                     ;
                     ;
                     ExprData_delete(&na->data, &(Bool){0});
                     { ExprData *_fa = ExprData_StrVal(aname); na->data = *_fa; free(_fa); }
                     Str_delete(aname, &(Bool){1});
-                    Expr *_t2608 = parse_expression(p);
-                    expr_add_child(na, _t2608);
+                    Expr *_t2678 = parse_expression(p);
+                    expr_add_child(na, _t2678);
                     expr_add_child(call, na);
-                    Bool _t2609; { Bool *_hp = check(p, TokenType_Comma()); _t2609 = *_hp; free(_hp); }
-                    if (_t2609) {
-                        Token *_t2606 = advance(p);
+                    Bool _t2679; { Bool *_hp = check(p, TokenType_Comma()); _t2679 = *_hp; free(_hp); }
+                    if (_t2679) {
+                        Token *_t2676 = advance(p);
                     }
                     ;
                     ;
@@ -14641,36 +14928,36 @@ Expr * parse_call(Parser * p, Str * name, I64 * call_line, I64 * call_col) {
         }
         ;
         Bool is_splat = 0;
-        Bool _t2627; { Bool *_hp = check(p, TokenType_DotDot()); _t2627 = *_hp; free(_hp); }
-        if (_t2627) {
-            Token *_t2617 = advance(p);
-            Bool _t2618 = 1;
-            is_splat = _t2618;
+        Bool _t2697; { Bool *_hp = check(p, TokenType_DotDot()); _t2697 = *_hp; free(_hp); }
+        if (_t2697) {
+            Token *_t2687 = advance(p);
+            Bool _t2688 = 1;
+            is_splat = _t2688;
             ;
         }
         ;
         Bool is_own_arg = 0;
-        Bool _t2628; { Bool *_hp = check(p, TokenType_KwOwn()); _t2628 = *_hp; free(_hp); }
-        if (_t2628) {
-            Token *_t2619 = advance(p);
-            Bool _t2620 = 1;
-            is_own_arg = _t2620;
+        Bool _t2698; { Bool *_hp = check(p, TokenType_KwOwn()); _t2698 = *_hp; free(_hp); }
+        if (_t2698) {
+            Token *_t2689 = advance(p);
+            Bool _t2690 = 1;
+            is_own_arg = _t2690;
             ;
         }
         ;
         Expr *arg = parse_expression(p);
-        Bool _t2629 = Bool_clone(&(Bool){is_own_arg});
+        Bool _t2699 = Bool_clone(&(Bool){is_own_arg});
         ;
-        arg->is_own_arg = _t2629;
+        arg->is_own_arg = _t2699;
         ;
-        Bool _t2630 = Bool_clone(&(Bool){is_splat});
+        Bool _t2700 = Bool_clone(&(Bool){is_splat});
         ;
-        arg->is_splat = _t2630;
+        arg->is_splat = _t2700;
         ;
         expr_add_child(call, arg);
-        Bool _t2631; { Bool *_hp = check(p, TokenType_Comma()); _t2631 = *_hp; free(_hp); }
-        if (_t2631) {
-            Token *_t2621 = advance(p);
+        Bool _t2701; { Bool *_hp = check(p, TokenType_Comma()); _t2701 = *_hp; free(_hp); }
+        if (_t2701) {
+            Token *_t2691 = advance(p);
         }
         ;
     }
@@ -14682,126 +14969,126 @@ Expr * parse_expression(Parser * p) {
     I64 t_line; { I64 *_hp = peek_line(p); t_line = *_hp; free(_hp); }
     I64 t_col; { I64 *_hp = peek_col(p); t_col = *_hp; free(_hp); }
     Token *t = peek(p);
-    I64 _t2797 = 0;
-    I64 _t2798 = 0;
-    Expr *e = expr_new(NodeType_Body(), &(I64){_t2797}, &(I64){_t2798}, &p->path);
+    I64 _t2867 = 0;
+    I64 _t2868 = 0;
+    Expr *e = expr_new(NodeType_Body(), &(I64){_t2867}, &(I64){_t2868}, &p->path);
     ;
     ;
     Bool e_set = 0;
-    Bool _t2799; { Bool *_hp = TokenType_eq(&t->type, TokenType_StringTok()); _t2799 = *_hp; free(_hp); }
-    if (_t2799) {
-        Token *_t2634 = advance(p);
+    Bool _t2869; { Bool *_hp = TokenType_eq(&t->type, TokenType_StringTok()); _t2869 = *_hp; free(_hp); }
+    if (_t2869) {
+        Token *_t2704 = advance(p);
         e = expr_new(NodeType_LiteralStr(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Str *_t2635 = Str_clone(&t->text);
+        Str *_t2705 = Str_clone(&t->text);
         ExprData_delete(&e->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2635); e->data = *_fa; free(_fa); }
-        Str_delete(_t2635, &(Bool){1});
-        Bool _t2636 = 1;
-        e_set = _t2636;
+        { ExprData *_fa = ExprData_StrVal(_t2705); e->data = *_fa; free(_fa); }
+        Str_delete(_t2705, &(Bool){1});
+        Bool _t2706 = 1;
+        e_set = _t2706;
         ;
     }
     ;
-    Bool _t2800 = Bool_not(e_set);
-    Bool _t2801; { Bool *_hp = TokenType_eq(&t->type, TokenType_Number()); _t2801 = *_hp; free(_hp); }
-    Bool _t2802 = Bool_and(_t2800, _t2801);
+    Bool _t2870 = Bool_not(e_set);
+    Bool _t2871; { Bool *_hp = TokenType_eq(&t->type, TokenType_Number()); _t2871 = *_hp; free(_hp); }
+    Bool _t2872 = Bool_and(_t2870, _t2871);
     ;
     ;
-    if (_t2802) {
-        Token *_t2637 = advance(p);
+    if (_t2872) {
+        Token *_t2707 = advance(p);
         e = expr_new(NodeType_LiteralNum(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Str *_t2638 = Str_clone(&t->text);
+        Str *_t2708 = Str_clone(&t->text);
         ExprData_delete(&e->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2638); e->data = *_fa; free(_fa); }
-        Str_delete(_t2638, &(Bool){1});
-        Bool _t2639 = 1;
-        e_set = _t2639;
+        { ExprData *_fa = ExprData_StrVal(_t2708); e->data = *_fa; free(_fa); }
+        Str_delete(_t2708, &(Bool){1});
+        Bool _t2709 = 1;
+        e_set = _t2709;
         ;
     }
     ;
-    Bool _t2803 = Bool_not(e_set);
-    Bool _t2804; { Bool *_hp = TokenType_eq(&t->type, TokenType_Char()); _t2804 = *_hp; free(_hp); }
-    Bool _t2805 = Bool_and(_t2803, _t2804);
+    Bool _t2873 = Bool_not(e_set);
+    Bool _t2874; { Bool *_hp = TokenType_eq(&t->type, TokenType_Char()); _t2874 = *_hp; free(_hp); }
+    Bool _t2875 = Bool_and(_t2873, _t2874);
     ;
     ;
-    if (_t2805) {
-        Token *_t2669 = advance(p);
+    if (_t2875) {
+        Token *_t2739 = advance(p);
         Str *ch = Str_clone(&t->text);
         I64 byte_val = 0;
-        U64 _t2670; { U64 *_hp = Str_len(ch); _t2670 = *_hp; free(_hp); }
-        U64 _t2671 = 0;
-        U64 *_t2672 = malloc(sizeof(U64));
-        *_t2672 = 0;
-        U8 *_t2673 = Str_get(ch, _t2672);
-        U8 _t2674 = 92;
-        Bool _t2675; { Bool *_hp = U64_gt(&(U64){_t2670}, &(U64){_t2671}); _t2675 = *_hp; free(_hp); }
+        U64 _t2740; { U64 *_hp = Str_len(ch); _t2740 = *_hp; free(_hp); }
+        U64 _t2741 = 0;
+        U64 *_t2742 = malloc(sizeof(U64));
+        *_t2742 = 0;
+        U8 *_t2743 = Str_get(ch, _t2742);
+        U8 _t2744 = 92;
+        Bool _t2745; { Bool *_hp = U64_gt(&(U64){_t2740}, &(U64){_t2741}); _t2745 = *_hp; free(_hp); }
         ;
         ;
-        Bool _t2676 = U8_eq(DEREF(_t2673), _t2674);
-        U64_delete(_t2672, &(Bool){1});
+        Bool _t2746 = U8_eq(DEREF(_t2743), _t2744);
+        U64_delete(_t2742, &(Bool){1});
         ;
-        Bool _t2677 = Bool_and(_t2675, _t2676);
+        Bool _t2747 = Bool_and(_t2745, _t2746);
         ;
         ;
-        if (_t2677) {
-            U64 _t2660; { U64 *_hp = Str_len(ch); _t2660 = *_hp; free(_hp); }
-            U64 _t2661 = 1;
-            Bool _t2662; { Bool *_hp = U64_gt(&(U64){_t2660}, &(U64){_t2661}); _t2662 = *_hp; free(_hp); }
+        if (_t2747) {
+            U64 _t2730; { U64 *_hp = Str_len(ch); _t2730 = *_hp; free(_hp); }
+            U64 _t2731 = 1;
+            Bool _t2732; { Bool *_hp = U64_gt(&(U64){_t2730}, &(U64){_t2731}); _t2732 = *_hp; free(_hp); }
             ;
             ;
-            if (_t2662) {
-                U64 *_t2657 = malloc(sizeof(U64));
-                *_t2657 = 1;
-                U8 *c2 = Str_get(ch, _t2657);
-                U8 _t2658 = 110;
-                Bool _t2659 = U8_eq(DEREF(c2), _t2658);
+            if (_t2732) {
+                U64 *_t2727 = malloc(sizeof(U64));
+                *_t2727 = 1;
+                U8 *c2 = Str_get(ch, _t2727);
+                U8 _t2728 = 110;
+                Bool _t2729 = U8_eq(DEREF(c2), _t2728);
                 ;
-                if (_t2659) {
-                    I64 _t2640 = 10;
-                    byte_val = _t2640;
+                if (_t2729) {
+                    I64 _t2710 = 10;
+                    byte_val = _t2710;
                     ;
                 } else {
-                    U8 _t2655 = 116;
-                    Bool _t2656 = U8_eq(DEREF(c2), _t2655);
+                    U8 _t2725 = 116;
+                    Bool _t2726 = U8_eq(DEREF(c2), _t2725);
                     ;
-                    if (_t2656) {
-                        I64 _t2641 = 9;
-                        byte_val = _t2641;
+                    if (_t2726) {
+                        I64 _t2711 = 9;
+                        byte_val = _t2711;
                         ;
                     } else {
-                        U8 _t2653 = 114;
-                        Bool _t2654 = U8_eq(DEREF(c2), _t2653);
+                        U8 _t2723 = 114;
+                        Bool _t2724 = U8_eq(DEREF(c2), _t2723);
                         ;
-                        if (_t2654) {
-                            I64 _t2642 = 13;
-                            byte_val = _t2642;
+                        if (_t2724) {
+                            I64 _t2712 = 13;
+                            byte_val = _t2712;
                             ;
                         } else {
-                            U8 _t2651 = 92;
-                            Bool _t2652 = U8_eq(DEREF(c2), _t2651);
+                            U8 _t2721 = 92;
+                            Bool _t2722 = U8_eq(DEREF(c2), _t2721);
                             ;
-                            if (_t2652) {
-                                I64 _t2643 = 92;
-                                byte_val = _t2643;
+                            if (_t2722) {
+                                I64 _t2713 = 92;
+                                byte_val = _t2713;
                                 ;
                             } else {
-                                U8 _t2649 = 39;
-                                Bool _t2650 = U8_eq(DEREF(c2), _t2649);
+                                U8 _t2719 = 39;
+                                Bool _t2720 = U8_eq(DEREF(c2), _t2719);
                                 ;
-                                if (_t2650) {
-                                    I64 _t2644 = 39;
-                                    byte_val = _t2644;
+                                if (_t2720) {
+                                    I64 _t2714 = 39;
+                                    byte_val = _t2714;
                                     ;
                                 } else {
-                                    U8 _t2647 = 48;
-                                    Bool _t2648 = U8_eq(DEREF(c2), _t2647);
+                                    U8 _t2717 = 48;
+                                    Bool _t2718 = U8_eq(DEREF(c2), _t2717);
                                     ;
-                                    if (_t2648) {
-                                        I64 _t2645 = 0;
-                                        byte_val = _t2645;
+                                    if (_t2718) {
+                                        I64 _t2715 = 0;
+                                        byte_val = _t2715;
                                         ;
                                     } else {
-                                        I64 _t2646 = U8_to_i64(DEREF(c2));
-                                        byte_val = _t2646;
+                                        I64 _t2716 = U8_to_i64(DEREF(c2));
+                                        byte_val = _t2716;
                                         ;
                                     }
                                     ;
@@ -14814,23 +15101,23 @@ Expr * parse_expression(Parser * p) {
                     }
                     ;
                 }
-                U64_delete(_t2657, &(Bool){1});
+                U64_delete(_t2727, &(Bool){1});
                 ;
             }
             ;
         } else {
-            U64 _t2666; { U64 *_hp = Str_len(ch); _t2666 = *_hp; free(_hp); }
-            U64 _t2667 = 0;
-            Bool _t2668; { Bool *_hp = U64_gt(&(U64){_t2666}, &(U64){_t2667}); _t2668 = *_hp; free(_hp); }
+            U64 _t2736; { U64 *_hp = Str_len(ch); _t2736 = *_hp; free(_hp); }
+            U64 _t2737 = 0;
+            Bool _t2738; { Bool *_hp = U64_gt(&(U64){_t2736}, &(U64){_t2737}); _t2738 = *_hp; free(_hp); }
             ;
             ;
-            if (_t2668) {
-                U64 *_t2663 = malloc(sizeof(U64));
-                *_t2663 = 0;
-                U8 *_t2664 = Str_get(ch, _t2663);
-                I64 _t2665 = U8_to_i64(DEREF(_t2664));
-                U64_delete(_t2663, &(Bool){1});
-                byte_val = _t2665;
+            if (_t2738) {
+                U64 *_t2733 = malloc(sizeof(U64));
+                *_t2733 = 0;
+                U8 *_t2734 = Str_get(ch, _t2733);
+                I64 _t2735 = U8_to_i64(DEREF(_t2734));
+                U64_delete(_t2733, &(Bool){1});
+                byte_val = _t2735;
                 ;
             }
             ;
@@ -14838,137 +15125,137 @@ Expr * parse_expression(Parser * p) {
         ;
         Str_delete(ch, &(Bool){1});
         e = expr_new(NodeType_LiteralNum(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Str *_t2678 = I64_to_str(&(I64){byte_val});
+        Str *_t2748 = I64_to_str(&(I64){byte_val});
         ;
         ExprData_delete(&e->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2678); e->data = *_fa; free(_fa); }
-        Str_delete(_t2678, &(Bool){1});
+        { ExprData *_fa = ExprData_StrVal(_t2748); e->data = *_fa; free(_fa); }
+        Str_delete(_t2748, &(Bool){1});
         TilType_delete(&e->til_type, &(Bool){0});
         { TilType *_fa = TilType_clone(TilType_TypeU8()); e->til_type = *_fa; free(_fa); }
-        Bool _t2679 = 1;
-        e_set = _t2679;
+        Bool _t2749 = 1;
+        e_set = _t2749;
         ;
     }
     ;
-    Bool _t2806; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwTrue()); _t2806 = *_hp; free(_hp); }
-    Bool _t2807; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFalse()); _t2807 = *_hp; free(_hp); }
-    Bool _t2808 = Bool_not(e_set);
-    Bool _t2809 = Bool_or(_t2806, _t2807);
+    Bool _t2876; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwTrue()); _t2876 = *_hp; free(_hp); }
+    Bool _t2877; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFalse()); _t2877 = *_hp; free(_hp); }
+    Bool _t2878 = Bool_not(e_set);
+    Bool _t2879 = Bool_or(_t2876, _t2877);
     ;
     ;
-    Bool _t2810 = Bool_and(_t2808, _t2809);
+    Bool _t2880 = Bool_and(_t2878, _t2879);
     ;
     ;
-    if (_t2810) {
-        Token *_t2680 = advance(p);
+    if (_t2880) {
+        Token *_t2750 = advance(p);
         e = expr_new(NodeType_LiteralBool(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Str *_t2681 = Str_clone(&t->text);
+        Str *_t2751 = Str_clone(&t->text);
         ExprData_delete(&e->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2681); e->data = *_fa; free(_fa); }
-        Str_delete(_t2681, &(Bool){1});
-        Bool _t2682 = 1;
-        e_set = _t2682;
+        { ExprData *_fa = ExprData_StrVal(_t2751); e->data = *_fa; free(_fa); }
+        Str_delete(_t2751, &(Bool){1});
+        Bool _t2752 = 1;
+        e_set = _t2752;
         ;
     }
     ;
-    Bool _t2811 = Bool_not(e_set);
-    Bool _t2812; { Bool *_hp = TokenType_eq(&t->type, TokenType_Ident()); _t2812 = *_hp; free(_hp); }
-    Bool _t2813 = Bool_and(_t2811, _t2812);
+    Bool _t2881 = Bool_not(e_set);
+    Bool _t2882; { Bool *_hp = TokenType_eq(&t->type, TokenType_Ident()); _t2882 = *_hp; free(_hp); }
+    Bool _t2883 = Bool_and(_t2881, _t2882);
     ;
     ;
-    if (_t2813) {
-        Token *_t2712 = advance(p);
+    if (_t2883) {
+        Token *_t2782 = advance(p);
         Str *name = Str_clone(&t->text);
-        Str *_t2713 = Str_lit("__LOC__", 7ULL);
-        Bool _t2714; { Bool *_hp = Str_eq(name, _t2713); _t2714 = *_hp; free(_hp); }
-        Str_delete(_t2713, &(Bool){1});
-        if (_t2714) {
+        Str *_t2783 = Str_lit("__LOC__", 7ULL);
+        Bool _t2784; { Bool *_hp = Str_eq(name, _t2783); _t2784 = *_hp; free(_hp); }
+        Str_delete(_t2783, &(Bool){1});
+        if (_t2784) {
             e = expr_new(NodeType_LiteralStr(), &(I64){t_line}, &(I64){t_col}, &p->path);
-            Str *_t2683 = Str_lit("Str", 3ULL);
-            U64 _t2684; { U64 *_hp = Str_size(); _t2684 = *_hp; free(_hp); }
-            U64 _t2685 = 5;
-            Array *_va33 = Array_new(_t2683, &(U64){_t2684}, &(U64){_t2685});
-            Str_delete(_t2683, &(Bool){1});
+            Str *_t2753 = Str_lit("Str", 3ULL);
+            U64 _t2754; { U64 *_hp = Str_size(); _t2754 = *_hp; free(_hp); }
+            U64 _t2755 = 5;
+            Array *_va34 = Array_new(_t2753, &(U64){_t2754}, &(U64){_t2755});
+            Str_delete(_t2753, &(Bool){1});
             ;
             ;
-            U64 _t2686 = 0;
-            Array_set(_va33, &(U64){_t2686}, &p->path);
+            U64 _t2756 = 0;
+            Array_set(_va34, &(U64){_t2756}, &p->path);
             ;
-            U64 _t2687 = 1;
-            Str *_t2688 = Str_lit(":", 1ULL);
-            Array_set(_va33, &(U64){_t2687}, _t2688);
+            U64 _t2757 = 1;
+            Str *_t2758 = Str_lit(":", 1ULL);
+            Array_set(_va34, &(U64){_t2757}, _t2758);
             ;
-            U64 _t2689 = 2;
-            Str *_t2690 = I64_to_str(&(I64){t_line});
-            Array_set(_va33, &(U64){_t2689}, _t2690);
+            U64 _t2759 = 2;
+            Str *_t2760 = I64_to_str(&(I64){t_line});
+            Array_set(_va34, &(U64){_t2759}, _t2760);
             ;
-            U64 _t2691 = 3;
-            Str *_t2692 = Str_lit(":", 1ULL);
-            Array_set(_va33, &(U64){_t2691}, _t2692);
+            U64 _t2761 = 3;
+            Str *_t2762 = Str_lit(":", 1ULL);
+            Array_set(_va34, &(U64){_t2761}, _t2762);
             ;
-            U64 _t2693 = 4;
-            Str *_t2694 = I64_to_str(&(I64){t_col});
-            Array_set(_va33, &(U64){_t2693}, _t2694);
+            U64 _t2763 = 4;
+            Str *_t2764 = I64_to_str(&(I64){t_col});
+            Array_set(_va34, &(U64){_t2763}, _t2764);
             ;
-            Str *_t2695 = format(_va33);
+            Str *_t2765 = format(_va34);
             ExprData_delete(&e->data, &(Bool){0});
-            { ExprData *_fa = ExprData_StrVal(_t2695); e->data = *_fa; free(_fa); }
-            Str_delete(_t2695, &(Bool){1});
-            Bool _t2696 = 1;
-            e_set = _t2696;
+            { ExprData *_fa = ExprData_StrVal(_t2765); e->data = *_fa; free(_fa); }
+            Str_delete(_t2765, &(Bool){1});
+            Bool _t2766 = 1;
+            e_set = _t2766;
             ;
         } else {
-            Str *_t2710 = Str_lit("__FILE__", 8ULL);
-            Bool _t2711; { Bool *_hp = Str_eq(name, _t2710); _t2711 = *_hp; free(_hp); }
-            Str_delete(_t2710, &(Bool){1});
-            if (_t2711) {
+            Str *_t2780 = Str_lit("__FILE__", 8ULL);
+            Bool _t2781; { Bool *_hp = Str_eq(name, _t2780); _t2781 = *_hp; free(_hp); }
+            Str_delete(_t2780, &(Bool){1});
+            if (_t2781) {
                 e = expr_new(NodeType_LiteralStr(), &(I64){t_line}, &(I64){t_col}, &p->path);
-                Str *_t2697 = Str_clone(&p->path);
+                Str *_t2767 = Str_clone(&p->path);
                 ExprData_delete(&e->data, &(Bool){0});
-                { ExprData *_fa = ExprData_StrVal(_t2697); e->data = *_fa; free(_fa); }
-                Str_delete(_t2697, &(Bool){1});
-                Bool _t2698 = 1;
-                e_set = _t2698;
+                { ExprData *_fa = ExprData_StrVal(_t2767); e->data = *_fa; free(_fa); }
+                Str_delete(_t2767, &(Bool){1});
+                Bool _t2768 = 1;
+                e_set = _t2768;
                 ;
             } else {
-                Str *_t2708 = Str_lit("__LINE__", 8ULL);
-                Bool _t2709; { Bool *_hp = Str_eq(name, _t2708); _t2709 = *_hp; free(_hp); }
-                Str_delete(_t2708, &(Bool){1});
-                if (_t2709) {
+                Str *_t2778 = Str_lit("__LINE__", 8ULL);
+                Bool _t2779; { Bool *_hp = Str_eq(name, _t2778); _t2779 = *_hp; free(_hp); }
+                Str_delete(_t2778, &(Bool){1});
+                if (_t2779) {
                     e = expr_new(NodeType_LiteralNum(), &(I64){t_line}, &(I64){t_col}, &p->path);
-                    Str *_t2699 = I64_to_str(&(I64){t_line});
+                    Str *_t2769 = I64_to_str(&(I64){t_line});
                     ExprData_delete(&e->data, &(Bool){0});
-                    { ExprData *_fa = ExprData_StrVal(_t2699); e->data = *_fa; free(_fa); }
-                    Str_delete(_t2699, &(Bool){1});
-                    Bool _t2700 = 1;
-                    e_set = _t2700;
+                    { ExprData *_fa = ExprData_StrVal(_t2769); e->data = *_fa; free(_fa); }
+                    Str_delete(_t2769, &(Bool){1});
+                    Bool _t2770 = 1;
+                    e_set = _t2770;
                     ;
                 } else {
-                    Str *_t2706 = Str_lit("__COL__", 7ULL);
-                    Bool _t2707; { Bool *_hp = Str_eq(name, _t2706); _t2707 = *_hp; free(_hp); }
-                    Str_delete(_t2706, &(Bool){1});
-                    if (_t2707) {
+                    Str *_t2776 = Str_lit("__COL__", 7ULL);
+                    Bool _t2777; { Bool *_hp = Str_eq(name, _t2776); _t2777 = *_hp; free(_hp); }
+                    Str_delete(_t2776, &(Bool){1});
+                    if (_t2777) {
                         e = expr_new(NodeType_LiteralNum(), &(I64){t_line}, &(I64){t_col}, &p->path);
-                        Str *_t2701 = I64_to_str(&(I64){t_col});
+                        Str *_t2771 = I64_to_str(&(I64){t_col});
                         ExprData_delete(&e->data, &(Bool){0});
-                        { ExprData *_fa = ExprData_StrVal(_t2701); e->data = *_fa; free(_fa); }
-                        Str_delete(_t2701, &(Bool){1});
-                        Bool _t2702 = 1;
-                        e_set = _t2702;
+                        { ExprData *_fa = ExprData_StrVal(_t2771); e->data = *_fa; free(_fa); }
+                        Str_delete(_t2771, &(Bool){1});
+                        Bool _t2772 = 1;
+                        e_set = _t2772;
                         ;
                     } else {
-                        Bool _t2705; { Bool *_hp = check(p, TokenType_LParen()); _t2705 = *_hp; free(_hp); }
-                        if (_t2705) {
+                        Bool _t2775; { Bool *_hp = check(p, TokenType_LParen()); _t2775 = *_hp; free(_hp); }
+                        if (_t2775) {
                             e = parse_call(p, name, &(I64){t_line}, &(I64){t_col});
-                            Bool _t2703 = 1;
-                            e_set = _t2703;
+                            Bool _t2773 = 1;
+                            e_set = _t2773;
                             ;
                         } else {
                             e = expr_new(NodeType_Ident(), &(I64){t_line}, &(I64){t_col}, &p->path);
                             ExprData_delete(&e->data, &(Bool){0});
                             { ExprData *_fa = ExprData_StrVal(name); e->data = *_fa; free(_fa); }
-                            Bool _t2704 = 1;
-                            e_set = _t2704;
+                            Bool _t2774 = 1;
+                            e_set = _t2774;
                             ;
                         }
                         ;
@@ -14983,280 +15270,280 @@ Expr * parse_expression(Parser * p) {
         Str_delete(name, &(Bool){1});
     }
     ;
-    Bool _t2814; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFunc()); _t2814 = *_hp; free(_hp); }
-    Bool _t2815; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwProc()); _t2815 = *_hp; free(_hp); }
-    Bool _t2816 = Bool_or(_t2814, _t2815);
+    Bool _t2884; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFunc()); _t2884 = *_hp; free(_hp); }
+    Bool _t2885; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwProc()); _t2885 = *_hp; free(_hp); }
+    Bool _t2886 = Bool_or(_t2884, _t2885);
     ;
     ;
-    Bool _t2817; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwTest()); _t2817 = *_hp; free(_hp); }
-    Bool _t2818 = Bool_or(_t2816, _t2817);
+    Bool _t2887; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwTest()); _t2887 = *_hp; free(_hp); }
+    Bool _t2888 = Bool_or(_t2886, _t2887);
     ;
     ;
-    Bool _t2819; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwMacro()); _t2819 = *_hp; free(_hp); }
-    Bool _t2820 = Bool_or(_t2818, _t2819);
+    Bool _t2889; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwMacro()); _t2889 = *_hp; free(_hp); }
+    Bool _t2890 = Bool_or(_t2888, _t2889);
     ;
     ;
-    Bool _t2821; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwExtFunc()); _t2821 = *_hp; free(_hp); }
-    Bool _t2822 = Bool_or(_t2820, _t2821);
+    Bool _t2891; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwExtFunc()); _t2891 = *_hp; free(_hp); }
+    Bool _t2892 = Bool_or(_t2890, _t2891);
     ;
     ;
-    Bool _t2823; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwExtProc()); _t2823 = *_hp; free(_hp); }
-    Bool _t2824 = Bool_not(e_set);
-    Bool _t2825 = Bool_or(_t2822, _t2823);
+    Bool _t2893; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwExtProc()); _t2893 = *_hp; free(_hp); }
+    Bool _t2894 = Bool_not(e_set);
+    Bool _t2895 = Bool_or(_t2892, _t2893);
     ;
     ;
-    Bool _t2826 = Bool_and(_t2824, _t2825);
+    Bool _t2896 = Bool_and(_t2894, _t2895);
     ;
     ;
-    if (_t2826) {
-        Expr *_t2715 = parse_func_def(p);
+    if (_t2896) {
+        Expr *_t2785 = parse_func_def(p);
         ;
         Expr_delete(e, &(Bool){1});
         ;
         ;
         ;
-        return _t2715;
+        return _t2785;
     }
     ;
-    Bool _t2827; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwStruct()); _t2827 = *_hp; free(_hp); }
-    Bool _t2828; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwExtStruct()); _t2828 = *_hp; free(_hp); }
-    Bool _t2829 = Bool_not(e_set);
-    Bool _t2830 = Bool_or(_t2827, _t2828);
+    Bool _t2897; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwStruct()); _t2897 = *_hp; free(_hp); }
+    Bool _t2898; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwExtStruct()); _t2898 = *_hp; free(_hp); }
+    Bool _t2899 = Bool_not(e_set);
+    Bool _t2900 = Bool_or(_t2897, _t2898);
     ;
     ;
-    Bool _t2831 = Bool_and(_t2829, _t2830);
+    Bool _t2901 = Bool_and(_t2899, _t2900);
     ;
     ;
-    if (_t2831) {
-        Expr *_t2716 = parse_struct_def(p);
+    if (_t2901) {
+        Expr *_t2786 = parse_struct_def(p);
         ;
         Expr_delete(e, &(Bool){1});
         ;
         ;
         ;
-        return _t2716;
+        return _t2786;
     }
     ;
-    Bool _t2832 = Bool_not(e_set);
-    Bool _t2833; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwEnum()); _t2833 = *_hp; free(_hp); }
-    Bool _t2834 = Bool_and(_t2832, _t2833);
+    Bool _t2902 = Bool_not(e_set);
+    Bool _t2903; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwEnum()); _t2903 = *_hp; free(_hp); }
+    Bool _t2904 = Bool_and(_t2902, _t2903);
     ;
     ;
-    if (_t2834) {
-        Expr *_t2717 = parse_enum_def(p);
+    if (_t2904) {
+        Expr *_t2787 = parse_enum_def(p);
         ;
         Expr_delete(e, &(Bool){1});
         ;
         ;
         ;
-        return _t2717;
+        return _t2787;
     }
     ;
-    Bool _t2835 = Bool_not(e_set);
-    Bool _t2836; { Bool *_hp = TokenType_eq(&t->type, TokenType_LBrace()); _t2836 = *_hp; free(_hp); }
-    Bool _t2837 = Bool_and(_t2835, _t2836);
+    Bool _t2905 = Bool_not(e_set);
+    Bool _t2906; { Bool *_hp = TokenType_eq(&t->type, TokenType_LBrace()); _t2906 = *_hp; free(_hp); }
+    Bool _t2907 = Bool_and(_t2905, _t2906);
     ;
     ;
-    if (_t2837) {
-        Token *_t2741 = advance(p);
+    if (_t2907) {
+        Token *_t2811 = advance(p);
         Expr *first = parse_expression(p);
-        Bool _t2742; { Bool *_hp = check(p, TokenType_Colon()); _t2742 = *_hp; free(_hp); }
-        if (_t2742) {
+        Bool _t2812; { Bool *_hp = check(p, TokenType_Colon()); _t2812 = *_hp; free(_hp); }
+        if (_t2812) {
             e = expr_new(NodeType_MapLit(), &(I64){t_line}, &(I64){t_col}, &p->path);
             expr_add_child(e, first);
-            Token *_t2728 = advance(p);
-            Expr *_t2729 = parse_expression(p);
-            expr_add_child(e, _t2729);
-            Bool _t2730; { Bool *_hp = check(p, TokenType_Comma()); _t2730 = *_hp; free(_hp); }
-            if (_t2730) {
-                Token *_t2718 = advance(p);
+            Token *_t2798 = advance(p);
+            Expr *_t2799 = parse_expression(p);
+            expr_add_child(e, _t2799);
+            Bool _t2800; { Bool *_hp = check(p, TokenType_Comma()); _t2800 = *_hp; free(_hp); }
+            if (_t2800) {
+                Token *_t2788 = advance(p);
             }
             ;
             while (1) {
-                Bool _t2721; { Bool *_hp = check(p, TokenType_RBrace()); _t2721 = *_hp; free(_hp); }
-                Bool _t2722; { Bool *_hp = check(p, TokenType_Eof()); _t2722 = *_hp; free(_hp); }
-                Bool _t2723 = Bool_not(_t2721);
+                Bool _t2791; { Bool *_hp = check(p, TokenType_RBrace()); _t2791 = *_hp; free(_hp); }
+                Bool _t2792; { Bool *_hp = check(p, TokenType_Eof()); _t2792 = *_hp; free(_hp); }
+                Bool _t2793 = Bool_not(_t2791);
                 ;
-                Bool _t2724 = Bool_not(_t2722);
+                Bool _t2794 = Bool_not(_t2792);
                 ;
-                Bool _wcond2719 = Bool_and(_t2723, _t2724);
+                Bool _wcond2789 = Bool_and(_t2793, _t2794);
                 ;
                 ;
-                if (_wcond2719) {
+                if (_wcond2789) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                Expr *_t2725 = parse_expression(p);
-                expr_add_child(e, _t2725);
+                Expr *_t2795 = parse_expression(p);
+                expr_add_child(e, _t2795);
                 expect(p, TokenType_Colon());
-                Expr *_t2726 = parse_expression(p);
-                expr_add_child(e, _t2726);
-                Bool _t2727; { Bool *_hp = check(p, TokenType_Comma()); _t2727 = *_hp; free(_hp); }
-                if (_t2727) {
-                    Token *_t2720 = advance(p);
+                Expr *_t2796 = parse_expression(p);
+                expr_add_child(e, _t2796);
+                Bool _t2797; { Bool *_hp = check(p, TokenType_Comma()); _t2797 = *_hp; free(_hp); }
+                if (_t2797) {
+                    Token *_t2790 = advance(p);
                 }
                 ;
             }
         } else {
             e = expr_new(NodeType_SetLit(), &(I64){t_line}, &(I64){t_col}, &p->path);
             expr_add_child(e, first);
-            Bool _t2740; { Bool *_hp = check(p, TokenType_Comma()); _t2740 = *_hp; free(_hp); }
-            if (_t2740) {
-                Token *_t2731 = advance(p);
+            Bool _t2810; { Bool *_hp = check(p, TokenType_Comma()); _t2810 = *_hp; free(_hp); }
+            if (_t2810) {
+                Token *_t2801 = advance(p);
             }
             ;
             while (1) {
-                Bool _t2734; { Bool *_hp = check(p, TokenType_RBrace()); _t2734 = *_hp; free(_hp); }
-                Bool _t2735; { Bool *_hp = check(p, TokenType_Eof()); _t2735 = *_hp; free(_hp); }
-                Bool _t2736 = Bool_not(_t2734);
+                Bool _t2804; { Bool *_hp = check(p, TokenType_RBrace()); _t2804 = *_hp; free(_hp); }
+                Bool _t2805; { Bool *_hp = check(p, TokenType_Eof()); _t2805 = *_hp; free(_hp); }
+                Bool _t2806 = Bool_not(_t2804);
                 ;
-                Bool _t2737 = Bool_not(_t2735);
+                Bool _t2807 = Bool_not(_t2805);
                 ;
-                Bool _wcond2732 = Bool_and(_t2736, _t2737);
+                Bool _wcond2802 = Bool_and(_t2806, _t2807);
                 ;
                 ;
-                if (_wcond2732) {
+                if (_wcond2802) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                Expr *_t2738 = parse_expression(p);
-                expr_add_child(e, _t2738);
-                Bool _t2739; { Bool *_hp = check(p, TokenType_Comma()); _t2739 = *_hp; free(_hp); }
-                if (_t2739) {
-                    Token *_t2733 = advance(p);
+                Expr *_t2808 = parse_expression(p);
+                expr_add_child(e, _t2808);
+                Bool _t2809; { Bool *_hp = check(p, TokenType_Comma()); _t2809 = *_hp; free(_hp); }
+                if (_t2809) {
+                    Token *_t2803 = advance(p);
                 }
                 ;
             }
         }
         ;
         expect(p, TokenType_RBrace());
-        Bool _t2743 = 1;
-        e_set = _t2743;
+        Bool _t2813 = 1;
+        e_set = _t2813;
         ;
     }
     ;
-    Bool _t2838 = Bool_not(e_set);
+    Bool _t2908 = Bool_not(e_set);
     ;
-    if (_t2838) {
-        Str *_t2744 = Str_lit("Str", 3ULL);
-        U64 _t2745; { U64 *_hp = Str_size(); _t2745 = *_hp; free(_hp); }
-        U64 _t2746 = 8;
-        Array *_va34 = Array_new(_t2744, &(U64){_t2745}, &(U64){_t2746});
-        Str_delete(_t2744, &(Bool){1});
+    if (_t2908) {
+        Str *_t2814 = Str_lit("Str", 3ULL);
+        U64 _t2815; { U64 *_hp = Str_size(); _t2815 = *_hp; free(_hp); }
+        U64 _t2816 = 8;
+        Array *_va35 = Array_new(_t2814, &(U64){_t2815}, &(U64){_t2816});
+        Str_delete(_t2814, &(Bool){1});
         ;
         ;
-        U64 _t2747 = 0;
-        Array_set(_va34, &(U64){_t2747}, &p->path);
+        U64 _t2817 = 0;
+        Array_set(_va35, &(U64){_t2817}, &p->path);
         ;
-        U64 _t2748 = 1;
-        Str *_t2749 = Str_lit(":", 1ULL);
-        Array_set(_va34, &(U64){_t2748}, _t2749);
+        U64 _t2818 = 1;
+        Str *_t2819 = Str_lit(":", 1ULL);
+        Array_set(_va35, &(U64){_t2818}, _t2819);
         ;
-        U64 _t2750 = 2;
-        Str *_t2751 = I64_to_str(&(I64){t_line});
-        Array_set(_va34, &(U64){_t2750}, _t2751);
+        U64 _t2820 = 2;
+        Str *_t2821 = I64_to_str(&(I64){t_line});
+        Array_set(_va35, &(U64){_t2820}, _t2821);
         ;
-        U64 _t2752 = 3;
-        Str *_t2753 = Str_lit(":", 1ULL);
-        Array_set(_va34, &(U64){_t2752}, _t2753);
+        U64 _t2822 = 3;
+        Str *_t2823 = Str_lit(":", 1ULL);
+        Array_set(_va35, &(U64){_t2822}, _t2823);
         ;
-        U64 _t2754 = 4;
-        Str *_t2755 = I64_to_str(&(I64){t_col});
-        Array_set(_va34, &(U64){_t2754}, _t2755);
+        U64 _t2824 = 4;
+        Str *_t2825 = I64_to_str(&(I64){t_col});
+        Array_set(_va35, &(U64){_t2824}, _t2825);
         ;
-        U64 _t2756 = 5;
-        Str *_t2757 = Str_lit(": unexpected token '", 20ULL);
-        Array_set(_va34, &(U64){_t2756}, _t2757);
+        U64 _t2826 = 5;
+        Str *_t2827 = Str_lit(": unexpected token '", 20ULL);
+        Array_set(_va35, &(U64){_t2826}, _t2827);
         ;
-        U64 _t2758 = 6;
-        Array_set(_va34, &(U64){_t2758}, &t->text);
+        U64 _t2828 = 6;
+        Array_set(_va35, &(U64){_t2828}, &t->text);
         ;
-        U64 _t2759 = 7;
-        Str *_t2760 = Str_lit("'", 1ULL);
-        Array_set(_va34, &(U64){_t2759}, _t2760);
+        U64 _t2829 = 7;
+        Str *_t2830 = Str_lit("'", 1ULL);
+        Array_set(_va35, &(U64){_t2829}, _t2830);
         ;
-        Str *_t2761 = Str_lit("src/self/parser.til:415:15", 26ULL);
-        panic(_t2761, _va34);
-        Str_delete(_t2761, &(Bool){1});
+        Str *_t2831 = Str_lit("src/self/parser.til:415:15", 26ULL);
+        panic(_t2831, _va35);
+        Str_delete(_t2831, &(Bool){1});
     }
     ;
     ;
     ;
     while (1) {
-        Bool _wcond2762; { Bool *_hp = check(p, TokenType_Dot()); _wcond2762 = *_hp; free(_hp); }
-        if (_wcond2762) {
+        Bool _wcond2832; { Bool *_hp = check(p, TokenType_Dot()); _wcond2832 = *_hp; free(_hp); }
+        if (_wcond2832) {
         } else {
             ;
             break;
         }
         ;
-        Token *_t2789 = advance(p);
+        Token *_t2859 = advance(p);
         I64 f_line; { I64 *_hp = peek_line(p); f_line = *_hp; free(_hp); }
         I64 f_col; { I64 *_hp = peek_col(p); f_col = *_hp; free(_hp); }
         Str *fname = expect_text(p, TokenType_Ident());
-        Bool _t2790; { Bool *_hp = check(p, TokenType_LParen()); _t2790 = *_hp; free(_hp); }
-        if (_t2790) {
-            Token *_t2786 = advance(p);
+        Bool _t2860; { Bool *_hp = check(p, TokenType_LParen()); _t2860 = *_hp; free(_hp); }
+        if (_t2860) {
+            Token *_t2856 = advance(p);
             Expr *callee = expr_new(NodeType_FieldAccess(), &(I64){f_line}, &(I64){f_col}, &p->path);
             ExprData_delete(&callee->data, &(Bool){0});
             { ExprData *_fa = ExprData_StrVal(fname); callee->data = *_fa; free(_fa); }
-            Expr *_t2787 = Expr_clone(e);
-            expr_add_child(callee, _t2787);
+            Expr *_t2857 = Expr_clone(e);
+            expr_add_child(callee, _t2857);
             Expr *mcall = expr_new(NodeType_FCall(), &(I64){f_line}, &(I64){f_col}, &p->path);
             expr_add_child(mcall, callee);
             while (1) {
-                Bool _t2778; { Bool *_hp = check(p, TokenType_RParen()); _t2778 = *_hp; free(_hp); }
-                Bool _t2779; { Bool *_hp = check(p, TokenType_Eof()); _t2779 = *_hp; free(_hp); }
-                Bool _t2780 = Bool_not(_t2778);
+                Bool _t2848; { Bool *_hp = check(p, TokenType_RParen()); _t2848 = *_hp; free(_hp); }
+                Bool _t2849; { Bool *_hp = check(p, TokenType_Eof()); _t2849 = *_hp; free(_hp); }
+                Bool _t2850 = Bool_not(_t2848);
                 ;
-                Bool _t2781 = Bool_not(_t2779);
+                Bool _t2851 = Bool_not(_t2849);
                 ;
-                Bool _wcond2763 = Bool_and(_t2780, _t2781);
+                Bool _wcond2833 = Bool_and(_t2850, _t2851);
                 ;
                 ;
-                if (_wcond2763) {
+                if (_wcond2833) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                Bool _t2782; { Bool *_hp = check(p, TokenType_Ident()); _t2782 = *_hp; free(_hp); }
-                if (_t2782) {
-                    I64 _t2772 = 1;
-                    I64 _t2773 = I64_add(p->pos, _t2772);
+                Bool _t2852; { Bool *_hp = check(p, TokenType_Ident()); _t2852 = *_hp; free(_hp); }
+                if (_t2852) {
+                    I64 _t2842 = 1;
+                    I64 _t2843 = I64_add(p->pos, _t2842);
                     ;
-                    Bool _t2774; { Bool *_hp = I64_lt(&(I64){_t2773}, &p->count); _t2774 = *_hp; free(_hp); }
+                    Bool _t2844; { Bool *_hp = I64_lt(&(I64){_t2843}, &p->count); _t2844 = *_hp; free(_hp); }
                     ;
-                    if (_t2774) {
-                        I64 _t2768 = 1;
-                        I64 _t2769 = I64_add(p->pos, _t2768);
+                    if (_t2844) {
+                        I64 _t2838 = 1;
+                        I64 _t2839 = I64_add(p->pos, _t2838);
                         ;
-                        U64 *_t2770 = malloc(sizeof(U64)); *_t2770 = I64_to_u64(_t2769);
+                        U64 *_t2840 = malloc(sizeof(U64)); *_t2840 = I64_to_u64(_t2839);
                         ;
-                        Token *nt = Vec_get(&p->tokens, _t2770);
-                        Bool _t2771; { Bool *_hp = TokenType_eq(&nt->type, TokenType_Eq()); _t2771 = *_hp; free(_hp); }
-                        U64_delete(_t2770, &(Bool){1});
-                        if (_t2771) {
+                        Token *nt = Vec_get(&p->tokens, _t2840);
+                        Bool _t2841; { Bool *_hp = TokenType_eq(&nt->type, TokenType_Eq()); _t2841 = *_hp; free(_hp); }
+                        U64_delete(_t2840, &(Bool){1});
+                        if (_t2841) {
                             I64 na_line; { I64 *_hp = peek_line(p); na_line = *_hp; free(_hp); }
                             I64 na_col; { I64 *_hp = peek_col(p); na_col = *_hp; free(_hp); }
                             Str *aname = expect_text(p, TokenType_Ident());
-                            Token *_t2765 = advance(p);
+                            Token *_t2835 = advance(p);
                             Expr *na = expr_new(NodeType_NamedArg(), &(I64){na_line}, &(I64){na_col}, &p->path);
                             ;
                             ;
                             ExprData_delete(&na->data, &(Bool){0});
                             { ExprData *_fa = ExprData_StrVal(aname); na->data = *_fa; free(_fa); }
                             Str_delete(aname, &(Bool){1});
-                            Expr *_t2766 = parse_expression(p);
-                            expr_add_child(na, _t2766);
+                            Expr *_t2836 = parse_expression(p);
+                            expr_add_child(na, _t2836);
                             expr_add_child(mcall, na);
-                            Bool _t2767; { Bool *_hp = check(p, TokenType_Comma()); _t2767 = *_hp; free(_hp); }
-                            if (_t2767) {
-                                Token *_t2764 = advance(p);
+                            Bool _t2837; { Bool *_hp = check(p, TokenType_Comma()); _t2837 = *_hp; free(_hp); }
+                            if (_t2837) {
+                                Token *_t2834 = advance(p);
                             }
                             ;
                             ;
@@ -15270,23 +15557,23 @@ Expr * parse_expression(Parser * p) {
                 }
                 ;
                 Bool is_own_arg = 0;
-                Bool _t2783; { Bool *_hp = check(p, TokenType_KwOwn()); _t2783 = *_hp; free(_hp); }
-                if (_t2783) {
-                    Token *_t2775 = advance(p);
-                    Bool _t2776 = 1;
-                    is_own_arg = _t2776;
+                Bool _t2853; { Bool *_hp = check(p, TokenType_KwOwn()); _t2853 = *_hp; free(_hp); }
+                if (_t2853) {
+                    Token *_t2845 = advance(p);
+                    Bool _t2846 = 1;
+                    is_own_arg = _t2846;
                     ;
                 }
                 ;
                 Expr *marg = parse_expression(p);
-                Bool _t2784 = Bool_clone(&(Bool){is_own_arg});
+                Bool _t2854 = Bool_clone(&(Bool){is_own_arg});
                 ;
-                marg->is_own_arg = _t2784;
+                marg->is_own_arg = _t2854;
                 ;
                 expr_add_child(mcall, marg);
-                Bool _t2785; { Bool *_hp = check(p, TokenType_Comma()); _t2785 = *_hp; free(_hp); }
-                if (_t2785) {
-                    Token *_t2777 = advance(p);
+                Bool _t2855; { Bool *_hp = check(p, TokenType_Comma()); _t2855 = *_hp; free(_hp); }
+                if (_t2855) {
+                    Token *_t2847 = advance(p);
                 }
                 ;
             }
@@ -15297,8 +15584,8 @@ Expr * parse_expression(Parser * p) {
             Expr *access = expr_new(NodeType_FieldAccess(), &(I64){f_line}, &(I64){f_col}, &p->path);
             ExprData_delete(&access->data, &(Bool){0});
             { ExprData *_fa = ExprData_StrVal(fname); access->data = *_fa; free(_fa); }
-            Expr *_t2788 = Expr_clone(e);
-            expr_add_child(access, _t2788);
+            Expr *_t2858 = Expr_clone(e);
+            expr_add_child(access, _t2858);
             e = Expr_clone(access);
             Expr_delete(access, &(Bool){1});
         }
@@ -15307,33 +15594,33 @@ Expr * parse_expression(Parser * p) {
         ;
         Str_delete(fname, &(Bool){1});
     }
-    Bool _t2839; { Bool *_hp = check(p, TokenType_DotDot()); _t2839 = *_hp; free(_hp); }
-    if (_t2839) {
+    Bool _t2909; { Bool *_hp = check(p, TokenType_DotDot()); _t2909 = *_hp; free(_hp); }
+    if (_t2909) {
         I64 dt_line; { I64 *_hp = peek_line(p); dt_line = *_hp; free(_hp); }
         I64 dt_col; { I64 *_hp = peek_col(p); dt_col = *_hp; free(_hp); }
-        Token *_t2791 = advance(p);
+        Token *_t2861 = advance(p);
         Expr *rhs = parse_expression(p);
         Expr *range_ident = expr_new(NodeType_Ident(), &(I64){dt_line}, &(I64){dt_col}, &p->path);
-        Str *_t2792 = Str_lit("Range", 5ULL);
-        Str *_t2793 = Str_clone(_t2792);
-        Str_delete(_t2792, &(Bool){1});
+        Str *_t2862 = Str_lit("Range", 5ULL);
+        Str *_t2863 = Str_clone(_t2862);
+        Str_delete(_t2862, &(Bool){1});
         ExprData_delete(&range_ident->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2793); range_ident->data = *_fa; free(_fa); }
-        Str_delete(_t2793, &(Bool){1});
+        { ExprData *_fa = ExprData_StrVal(_t2863); range_ident->data = *_fa; free(_fa); }
+        Str_delete(_t2863, &(Bool){1});
         Expr *new_access = expr_new(NodeType_FieldAccess(), &(I64){dt_line}, &(I64){dt_col}, &p->path);
-        Str *_t2794 = Str_lit("new", 3ULL);
-        Str *_t2795 = Str_clone(_t2794);
-        Str_delete(_t2794, &(Bool){1});
+        Str *_t2864 = Str_lit("new", 3ULL);
+        Str *_t2865 = Str_clone(_t2864);
+        Str_delete(_t2864, &(Bool){1});
         ExprData_delete(&new_access->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2795); new_access->data = *_fa; free(_fa); }
-        Str_delete(_t2795, &(Bool){1});
+        { ExprData *_fa = ExprData_StrVal(_t2865); new_access->data = *_fa; free(_fa); }
+        Str_delete(_t2865, &(Bool){1});
         expr_add_child(new_access, range_ident);
         Expr *rcall = expr_new(NodeType_FCall(), &(I64){dt_line}, &(I64){dt_col}, &p->path);
         ;
         ;
         expr_add_child(rcall, new_access);
-        Expr *_t2796 = Expr_clone(e);
-        expr_add_child(rcall, _t2796);
+        Expr *_t2866 = Expr_clone(e);
+        expr_add_child(rcall, _t2866);
         expr_add_child(rcall, rhs);
         e = Expr_clone(rcall);
         Expr_delete(rcall, &(Bool){1});
@@ -15346,24 +15633,24 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
     I64 t_line; { I64 *_hp = peek_line(p); t_line = *_hp; free(_hp); }
     I64 t_col; { I64 *_hp = peek_col(p); t_col = *_hp; free(_hp); }
     Str *name = expect_text(p, TokenType_Ident());
-    Bool _t2896; { Bool *_hp = check(p, TokenType_ColonEq()); _t2896 = *_hp; free(_hp); }
-    if (_t2896) {
-        Token *_t2840 = advance(p);
-        Bool _t2841 = Bool_clone(is_mut);
-        Bool _t2842 = 0;
-        Bool _t2843 = 0;
-        Bool _t2844 = Bool_clone(is_own);
-        I64 _t2845 = 0;
-        I64 _t2846 = 0;
+    Bool _t2966; { Bool *_hp = check(p, TokenType_ColonEq()); _t2966 = *_hp; free(_hp); }
+    if (_t2966) {
+        Token *_t2910 = advance(p);
+        Bool _t2911 = Bool_clone(is_mut);
+        Bool _t2912 = 0;
+        Bool _t2913 = 0;
+        Bool _t2914 = Bool_clone(is_own);
+        I64 _t2915 = 0;
+        I64 _t2916 = 0;
         DeclData *dd = malloc(sizeof(DeclData));
         { Str *_ca = Str_clone(name); dd->name = *_ca; free(_ca); }
         { Str *_ca = Str_clone(Str_lit("", 0ULL)); dd->explicit_type = *_ca; free(_ca); }
-        dd->is_mut = _t2841;
-        dd->is_namespace = _t2842;
-        dd->is_ref = _t2843;
-        dd->is_own = _t2844;
-        dd->field_offset = _t2845;
-        dd->field_size = _t2846;
+        dd->is_mut = _t2911;
+        dd->is_namespace = _t2912;
+        dd->is_ref = _t2913;
+        dd->is_own = _t2914;
+        dd->field_offset = _t2915;
+        dd->field_size = _t2916;
         ;
         ;
         ;
@@ -15374,8 +15661,8 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         ExprData_delete(&decl->data, &(Bool){0});
         { ExprData *_fa = ExprData_Decl(dd); decl->data = *_fa; free(_fa); }
         DeclData_delete(dd, &(Bool){1});
-        Expr *_t2847 = parse_expression(p);
-        expr_add_child(decl, _t2847);
+        Expr *_t2917 = parse_expression(p);
+        expr_add_child(decl, _t2917);
         ;
         Str_delete(name, &(Bool){1});
         ;
@@ -15383,26 +15670,26 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         return decl;
     }
     ;
-    Bool _t2897; { Bool *_hp = check(p, TokenType_Colon()); _t2897 = *_hp; free(_hp); }
-    if (_t2897) {
-        Token *_t2848 = advance(p);
+    Bool _t2967; { Bool *_hp = check(p, TokenType_Colon()); _t2967 = *_hp; free(_hp); }
+    if (_t2967) {
+        Token *_t2918 = advance(p);
         Str *type_name = expect_text(p, TokenType_Ident());
         expect(p, TokenType_Eq());
-        Bool _t2849 = Bool_clone(is_mut);
-        Bool _t2850 = 0;
-        Bool _t2851 = 0;
-        Bool _t2852 = Bool_clone(is_own);
-        I64 _t2853 = 0;
-        I64 _t2854 = 0;
+        Bool _t2919 = Bool_clone(is_mut);
+        Bool _t2920 = 0;
+        Bool _t2921 = 0;
+        Bool _t2922 = Bool_clone(is_own);
+        I64 _t2923 = 0;
+        I64 _t2924 = 0;
         DeclData *dd = malloc(sizeof(DeclData));
         { Str *_ca = Str_clone(name); dd->name = *_ca; free(_ca); }
         { Str *_ca = Str_clone(type_name); dd->explicit_type = *_ca; free(_ca); }
-        dd->is_mut = _t2849;
-        dd->is_namespace = _t2850;
-        dd->is_ref = _t2851;
-        dd->is_own = _t2852;
-        dd->field_offset = _t2853;
-        dd->field_size = _t2854;
+        dd->is_mut = _t2919;
+        dd->is_namespace = _t2920;
+        dd->is_ref = _t2921;
+        dd->is_own = _t2922;
+        dd->field_offset = _t2923;
+        dd->field_size = _t2924;
         ;
         ;
         ;
@@ -15414,8 +15701,8 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         ExprData_delete(&decl->data, &(Bool){0});
         { ExprData *_fa = ExprData_Decl(dd); decl->data = *_fa; free(_fa); }
         DeclData_delete(dd, &(Bool){1});
-        Expr *_t2855 = parse_expression(p);
-        expr_add_child(decl, _t2855);
+        Expr *_t2925 = parse_expression(p);
+        expr_add_child(decl, _t2925);
         ;
         Str_delete(name, &(Bool){1});
         ;
@@ -15423,105 +15710,105 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         return decl;
     }
     ;
-    Bool _t2898; { Bool *_hp = check(p, TokenType_Dot()); _t2898 = *_hp; free(_hp); }
-    if (_t2898) {
+    Bool _t2968; { Bool *_hp = check(p, TokenType_Dot()); _t2968 = *_hp; free(_hp); }
+    if (_t2968) {
         Expr *obj = expr_new(NodeType_Ident(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Str *_t2888 = Str_clone(name);
+        Str *_t2958 = Str_clone(name);
         ExprData_delete(&obj->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2888); obj->data = *_fa; free(_fa); }
-        Str_delete(_t2888, &(Bool){1});
+        { ExprData *_fa = ExprData_StrVal(_t2958); obj->data = *_fa; free(_fa); }
+        Str_delete(_t2958, &(Bool){1});
         Str *last_field = Str_lit("", 0ULL);
         I64 last_line = 0;
         I64 last_col = 0;
         while (1) {
-            Bool _wcond2856; { Bool *_hp = check(p, TokenType_Dot()); _wcond2856 = *_hp; free(_hp); }
-            if (_wcond2856) {
+            Bool _wcond2926; { Bool *_hp = check(p, TokenType_Dot()); _wcond2926 = *_hp; free(_hp); }
+            if (_wcond2926) {
             } else {
                 ;
                 break;
             }
             ;
-            Token *_t2859 = advance(p);
-            I64 _t2860; { I64 *_hp = peek_line(p); _t2860 = *_hp; free(_hp); }
-            last_line = _t2860;
+            Token *_t2929 = advance(p);
+            I64 _t2930; { I64 *_hp = peek_line(p); _t2930 = *_hp; free(_hp); }
+            last_line = _t2930;
             ;
-            I64 _t2861; { I64 *_hp = peek_col(p); _t2861 = *_hp; free(_hp); }
-            last_col = _t2861;
+            I64 _t2931; { I64 *_hp = peek_col(p); _t2931 = *_hp; free(_hp); }
+            last_col = _t2931;
             ;
             last_field = expect_text(p, TokenType_Ident());
-            Bool _t2862; { Bool *_hp = check(p, TokenType_Dot()); _t2862 = *_hp; free(_hp); }
-            if (_t2862) {
+            Bool _t2932; { Bool *_hp = check(p, TokenType_Dot()); _t2932 = *_hp; free(_hp); }
+            if (_t2932) {
                 Expr *access = expr_new(NodeType_FieldAccess(), &(I64){last_line}, &(I64){last_col}, &p->path);
-                Str *_t2857 = Str_clone(last_field);
+                Str *_t2927 = Str_clone(last_field);
                 ExprData_delete(&access->data, &(Bool){0});
-                { ExprData *_fa = ExprData_StrVal(_t2857); access->data = *_fa; free(_fa); }
-                Str_delete(_t2857, &(Bool){1});
-                Expr *_t2858 = Expr_clone(obj);
-                expr_add_child(access, _t2858);
+                { ExprData *_fa = ExprData_StrVal(_t2927); access->data = *_fa; free(_fa); }
+                Str_delete(_t2927, &(Bool){1});
+                Expr *_t2928 = Expr_clone(obj);
+                expr_add_child(access, _t2928);
                 obj = Expr_clone(access);
                 Expr_delete(access, &(Bool){1});
             }
             ;
         }
-        Bool _t2889; { Bool *_hp = check(p, TokenType_LParen()); _t2889 = *_hp; free(_hp); }
-        if (_t2889) {
-            Token *_t2886 = advance(p);
+        Bool _t2959; { Bool *_hp = check(p, TokenType_LParen()); _t2959 = *_hp; free(_hp); }
+        if (_t2959) {
+            Token *_t2956 = advance(p);
             Expr *callee = expr_new(NodeType_FieldAccess(), &(I64){last_line}, &(I64){last_col}, &p->path);
             ExprData_delete(&callee->data, &(Bool){0});
             { ExprData *_fa = ExprData_StrVal(last_field); callee->data = *_fa; free(_fa); }
-            Expr *_t2887 = Expr_clone(obj);
-            expr_add_child(callee, _t2887);
+            Expr *_t2957 = Expr_clone(obj);
+            expr_add_child(callee, _t2957);
             Expr *mcall = expr_new(NodeType_FCall(), &(I64){last_line}, &(I64){last_col}, &p->path);
             expr_add_child(mcall, callee);
             while (1) {
-                Bool _t2878; { Bool *_hp = check(p, TokenType_RParen()); _t2878 = *_hp; free(_hp); }
-                Bool _t2879; { Bool *_hp = check(p, TokenType_Eof()); _t2879 = *_hp; free(_hp); }
-                Bool _t2880 = Bool_not(_t2878);
+                Bool _t2948; { Bool *_hp = check(p, TokenType_RParen()); _t2948 = *_hp; free(_hp); }
+                Bool _t2949; { Bool *_hp = check(p, TokenType_Eof()); _t2949 = *_hp; free(_hp); }
+                Bool _t2950 = Bool_not(_t2948);
                 ;
-                Bool _t2881 = Bool_not(_t2879);
+                Bool _t2951 = Bool_not(_t2949);
                 ;
-                Bool _wcond2863 = Bool_and(_t2880, _t2881);
+                Bool _wcond2933 = Bool_and(_t2950, _t2951);
                 ;
                 ;
-                if (_wcond2863) {
+                if (_wcond2933) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                Bool _t2882; { Bool *_hp = check(p, TokenType_Ident()); _t2882 = *_hp; free(_hp); }
-                if (_t2882) {
-                    I64 _t2872 = 1;
-                    I64 _t2873 = I64_add(p->pos, _t2872);
+                Bool _t2952; { Bool *_hp = check(p, TokenType_Ident()); _t2952 = *_hp; free(_hp); }
+                if (_t2952) {
+                    I64 _t2942 = 1;
+                    I64 _t2943 = I64_add(p->pos, _t2942);
                     ;
-                    Bool _t2874; { Bool *_hp = I64_lt(&(I64){_t2873}, &p->count); _t2874 = *_hp; free(_hp); }
+                    Bool _t2944; { Bool *_hp = I64_lt(&(I64){_t2943}, &p->count); _t2944 = *_hp; free(_hp); }
                     ;
-                    if (_t2874) {
-                        I64 _t2868 = 1;
-                        I64 _t2869 = I64_add(p->pos, _t2868);
+                    if (_t2944) {
+                        I64 _t2938 = 1;
+                        I64 _t2939 = I64_add(p->pos, _t2938);
                         ;
-                        U64 *_t2870 = malloc(sizeof(U64)); *_t2870 = I64_to_u64(_t2869);
+                        U64 *_t2940 = malloc(sizeof(U64)); *_t2940 = I64_to_u64(_t2939);
                         ;
-                        Token *nt = Vec_get(&p->tokens, _t2870);
-                        Bool _t2871; { Bool *_hp = TokenType_eq(&nt->type, TokenType_Eq()); _t2871 = *_hp; free(_hp); }
-                        U64_delete(_t2870, &(Bool){1});
-                        if (_t2871) {
+                        Token *nt = Vec_get(&p->tokens, _t2940);
+                        Bool _t2941; { Bool *_hp = TokenType_eq(&nt->type, TokenType_Eq()); _t2941 = *_hp; free(_hp); }
+                        U64_delete(_t2940, &(Bool){1});
+                        if (_t2941) {
                             I64 na_line; { I64 *_hp = peek_line(p); na_line = *_hp; free(_hp); }
                             I64 na_col; { I64 *_hp = peek_col(p); na_col = *_hp; free(_hp); }
                             Str *aname = expect_text(p, TokenType_Ident());
-                            Token *_t2865 = advance(p);
+                            Token *_t2935 = advance(p);
                             Expr *na = expr_new(NodeType_NamedArg(), &(I64){na_line}, &(I64){na_col}, &p->path);
                             ;
                             ;
                             ExprData_delete(&na->data, &(Bool){0});
                             { ExprData *_fa = ExprData_StrVal(aname); na->data = *_fa; free(_fa); }
                             Str_delete(aname, &(Bool){1});
-                            Expr *_t2866 = parse_expression(p);
-                            expr_add_child(na, _t2866);
+                            Expr *_t2936 = parse_expression(p);
+                            expr_add_child(na, _t2936);
                             expr_add_child(mcall, na);
-                            Bool _t2867; { Bool *_hp = check(p, TokenType_Comma()); _t2867 = *_hp; free(_hp); }
-                            if (_t2867) {
-                                Token *_t2864 = advance(p);
+                            Bool _t2937; { Bool *_hp = check(p, TokenType_Comma()); _t2937 = *_hp; free(_hp); }
+                            if (_t2937) {
+                                Token *_t2934 = advance(p);
                             }
                             ;
                             ;
@@ -15535,23 +15822,23 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
                 }
                 ;
                 Bool is_own_arg = 0;
-                Bool _t2883; { Bool *_hp = check(p, TokenType_KwOwn()); _t2883 = *_hp; free(_hp); }
-                if (_t2883) {
-                    Token *_t2875 = advance(p);
-                    Bool _t2876 = 1;
-                    is_own_arg = _t2876;
+                Bool _t2953; { Bool *_hp = check(p, TokenType_KwOwn()); _t2953 = *_hp; free(_hp); }
+                if (_t2953) {
+                    Token *_t2945 = advance(p);
+                    Bool _t2946 = 1;
+                    is_own_arg = _t2946;
                     ;
                 }
                 ;
                 Expr *marg = parse_expression(p);
-                Bool _t2884 = Bool_clone(&(Bool){is_own_arg});
+                Bool _t2954 = Bool_clone(&(Bool){is_own_arg});
                 ;
-                marg->is_own_arg = _t2884;
+                marg->is_own_arg = _t2954;
                 ;
                 expr_add_child(mcall, marg);
-                Bool _t2885; { Bool *_hp = check(p, TokenType_Comma()); _t2885 = *_hp; free(_hp); }
-                if (_t2885) {
-                    Token *_t2877 = advance(p);
+                Bool _t2955; { Bool *_hp = check(p, TokenType_Comma()); _t2955 = *_hp; free(_hp); }
+                if (_t2955) {
+                    Token *_t2947 = advance(p);
                 }
                 ;
             }
@@ -15575,11 +15862,11 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         ExprData_delete(&fa->data, &(Bool){0});
         { ExprData *_fa = ExprData_StrVal(last_field); fa->data = *_fa; free(_fa); }
         Str_delete(last_field, &(Bool){1});
-        Expr *_t2890 = Expr_clone(obj);
+        Expr *_t2960 = Expr_clone(obj);
         Expr_delete(obj, &(Bool){1});
-        expr_add_child(fa, _t2890);
-        Expr *_t2891 = parse_expression(p);
-        expr_add_child(fa, _t2891);
+        expr_add_child(fa, _t2960);
+        Expr *_t2961 = parse_expression(p);
+        expr_add_child(fa, _t2961);
         ;
         Str_delete(name, &(Bool){1});
         ;
@@ -15587,16 +15874,16 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         return fa;
     }
     ;
-    Bool _t2899; { Bool *_hp = check(p, TokenType_Eq()); _t2899 = *_hp; free(_hp); }
-    if (_t2899) {
-        Token *_t2892 = advance(p);
+    Bool _t2969; { Bool *_hp = check(p, TokenType_Eq()); _t2969 = *_hp; free(_hp); }
+    if (_t2969) {
+        Token *_t2962 = advance(p);
         Expr *assign = expr_new(NodeType_Assign(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Str *_t2893 = Str_clone(name);
+        Str *_t2963 = Str_clone(name);
         ExprData_delete(&assign->data, &(Bool){0});
-        { ExprData *_fa = ExprData_StrVal(_t2893); assign->data = *_fa; free(_fa); }
-        Str_delete(_t2893, &(Bool){1});
-        Expr *_t2894 = parse_expression(p);
-        expr_add_child(assign, _t2894);
+        { ExprData *_fa = ExprData_StrVal(_t2963); assign->data = *_fa; free(_fa); }
+        Str_delete(_t2963, &(Bool){1});
+        Expr *_t2964 = parse_expression(p);
+        expr_add_child(assign, _t2964);
         ;
         Str_delete(name, &(Bool){1});
         ;
@@ -15604,115 +15891,115 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         return assign;
     }
     ;
-    Bool _t2900; { Bool *_hp = check(p, TokenType_LParen()); _t2900 = *_hp; free(_hp); }
-    if (_t2900) {
-        Expr *_t2895 = parse_call(p, name, &(I64){t_line}, &(I64){t_col});
+    Bool _t2970; { Bool *_hp = check(p, TokenType_LParen()); _t2970 = *_hp; free(_hp); }
+    if (_t2970) {
+        Expr *_t2965 = parse_call(p, name, &(I64){t_line}, &(I64){t_col});
         ;
         Str_delete(name, &(Bool){1});
         ;
         ;
-        return _t2895;
+        return _t2965;
     }
     ;
-    Str *_t2901 = Str_lit("Str", 3ULL);
-    U64 _t2902; { U64 *_hp = Str_size(); _t2902 = *_hp; free(_hp); }
-    U64 _t2903 = 8;
-    Array *_va35 = Array_new(_t2901, &(U64){_t2902}, &(U64){_t2903});
-    Str_delete(_t2901, &(Bool){1});
+    Str *_t2971 = Str_lit("Str", 3ULL);
+    U64 _t2972; { U64 *_hp = Str_size(); _t2972 = *_hp; free(_hp); }
+    U64 _t2973 = 8;
+    Array *_va36 = Array_new(_t2971, &(U64){_t2972}, &(U64){_t2973});
+    Str_delete(_t2971, &(Bool){1});
     ;
     ;
-    U64 _t2904 = 0;
-    Array_set(_va35, &(U64){_t2904}, &p->path);
+    U64 _t2974 = 0;
+    Array_set(_va36, &(U64){_t2974}, &p->path);
     ;
-    U64 _t2905 = 1;
-    Str *_t2906 = Str_lit(":", 1ULL);
-    Array_set(_va35, &(U64){_t2905}, _t2906);
+    U64 _t2975 = 1;
+    Str *_t2976 = Str_lit(":", 1ULL);
+    Array_set(_va36, &(U64){_t2975}, _t2976);
     ;
-    U64 _t2907 = 2;
-    Str *_t2908 = I64_to_str(&(I64){t_line});
+    U64 _t2977 = 2;
+    Str *_t2978 = I64_to_str(&(I64){t_line});
     ;
-    Array_set(_va35, &(U64){_t2907}, _t2908);
+    Array_set(_va36, &(U64){_t2977}, _t2978);
     ;
-    U64 _t2909 = 3;
-    Str *_t2910 = Str_lit(":", 1ULL);
-    Array_set(_va35, &(U64){_t2909}, _t2910);
+    U64 _t2979 = 3;
+    Str *_t2980 = Str_lit(":", 1ULL);
+    Array_set(_va36, &(U64){_t2979}, _t2980);
     ;
-    U64 _t2911 = 4;
-    Str *_t2912 = I64_to_str(&(I64){t_col});
+    U64 _t2981 = 4;
+    Str *_t2982 = I64_to_str(&(I64){t_col});
     ;
-    Array_set(_va35, &(U64){_t2911}, _t2912);
+    Array_set(_va36, &(U64){_t2981}, _t2982);
     ;
-    U64 _t2913 = 5;
-    Str *_t2914 = Str_lit(": expected ':=', ':', '=' or '(' after identifier '", 51ULL);
-    Array_set(_va35, &(U64){_t2913}, _t2914);
+    U64 _t2983 = 5;
+    Str *_t2984 = Str_lit(": expected ':=', ':', '=' or '(' after identifier '", 51ULL);
+    Array_set(_va36, &(U64){_t2983}, _t2984);
     ;
-    U64 _t2915 = 6;
-    Str *_t2916 = Str_clone(name);
+    U64 _t2985 = 6;
+    Str *_t2986 = Str_clone(name);
     Str_delete(name, &(Bool){1});
-    Array_set(_va35, &(U64){_t2915}, _t2916);
+    Array_set(_va36, &(U64){_t2985}, _t2986);
     ;
-    U64 _t2917 = 7;
-    Str *_t2918 = Str_lit("'", 1ULL);
-    Array_set(_va35, &(U64){_t2917}, _t2918);
+    U64 _t2987 = 7;
+    Str *_t2988 = Str_lit("'", 1ULL);
+    Array_set(_va36, &(U64){_t2987}, _t2988);
     ;
-    Str *_t2919 = Str_lit("src/self/parser.til:598:11", 26ULL);
-    panic(_t2919, _va35);
-    Str_delete(_t2919, &(Bool){1});
-    I64 _t2920 = 0;
-    I64 _t2921 = 0;
-    Expr *_t2922 = expr_new(NodeType_Body(), &(I64){_t2920}, &(I64){_t2921}, &p->path);
+    Str *_t2989 = Str_lit("src/self/parser.til:598:11", 26ULL);
+    panic(_t2989, _va36);
+    Str_delete(_t2989, &(Bool){1});
+    I64 _t2990 = 0;
+    I64 _t2991 = 0;
+    Expr *_t2992 = expr_new(NodeType_Body(), &(I64){_t2990}, &(I64){_t2991}, &p->path);
     ;
     ;
-    return _t2922;
+    return _t2992;
 }
 
 Expr * parse_statement(Parser * p) {
     I64 t_line; { I64 *_hp = peek_line(p); t_line = *_hp; free(_hp); }
     I64 t_col; { I64 *_hp = peek_col(p); t_col = *_hp; free(_hp); }
     Token *t = peek(p);
-    Bool _t3044; { Bool *_hp = TokenType_eq(&t->type, TokenType_Ident()); _t3044 = *_hp; free(_hp); }
-    if (_t3044) {
-        Bool _t2923 = 0;
-        Bool _t2924 = 0;
-        Expr *_t2925 = parse_statement_ident(p, &(Bool){_t2923}, &(Bool){_t2924});
+    Bool _t3114; { Bool *_hp = TokenType_eq(&t->type, TokenType_Ident()); _t3114 = *_hp; free(_hp); }
+    if (_t3114) {
+        Bool _t2993 = 0;
+        Bool _t2994 = 0;
+        Expr *_t2995 = parse_statement_ident(p, &(Bool){_t2993}, &(Bool){_t2994});
         ;
         ;
         ;
         ;
         ;
-        return _t2925;
+        return _t2995;
     }
     ;
-    Bool _t3045; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwRef()); _t3045 = *_hp; free(_hp); }
-    if (_t3045) {
-        Token *_t2930 = advance(p);
+    Bool _t3115; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwRef()); _t3115 = *_hp; free(_hp); }
+    if (_t3115) {
+        Token *_t3000 = advance(p);
         Bool ref_mut = 0;
-        Bool _t2931; { Bool *_hp = check(p, TokenType_KwMut()); _t2931 = *_hp; free(_hp); }
-        if (_t2931) {
-            Token *_t2926 = advance(p);
-            Bool _t2927 = 1;
-            ref_mut = _t2927;
+        Bool _t3001; { Bool *_hp = check(p, TokenType_KwMut()); _t3001 = *_hp; free(_hp); }
+        if (_t3001) {
+            Token *_t2996 = advance(p);
+            Bool _t2997 = 1;
+            ref_mut = _t2997;
             ;
         }
         ;
         I64 i_line; { I64 *_hp = peek_line(p); i_line = *_hp; free(_hp); }
         I64 i_col; { I64 *_hp = peek_col(p); i_col = *_hp; free(_hp); }
         Str *iname = expect_text(p, TokenType_Ident());
-        Bool _t2932 = 0;
-        Bool _t2933 = 0;
-        Bool _t2934 = 1;
-        Bool _t2935 = 0;
-        I64 _t2936 = 0;
-        I64 _t2937 = 0;
+        Bool _t3002 = 0;
+        Bool _t3003 = 0;
+        Bool _t3004 = 1;
+        Bool _t3005 = 0;
+        I64 _t3006 = 0;
+        I64 _t3007 = 0;
         DeclData *dd = malloc(sizeof(DeclData));
         { Str *_ca = Str_clone(iname); dd->name = *_ca; free(_ca); }
         { Str *_ca = Str_clone(Str_lit("", 0ULL)); dd->explicit_type = *_ca; free(_ca); }
-        dd->is_mut = _t2932;
-        dd->is_namespace = _t2933;
-        dd->is_ref = _t2934;
-        dd->is_own = _t2935;
-        dd->field_offset = _t2936;
-        dd->field_size = _t2937;
+        dd->is_mut = _t3002;
+        dd->is_namespace = _t3003;
+        dd->is_ref = _t3004;
+        dd->is_own = _t3005;
+        dd->field_offset = _t3006;
+        dd->field_size = _t3007;
         ;
         ;
         ;
@@ -15721,14 +16008,14 @@ Expr * parse_statement(Parser * p) {
         ;
         Str_delete(iname, &(Bool){1});
         if (ref_mut) {
-            Bool _t2928 = 1;
-            dd->is_mut = _t2928;
+            Bool _t2998 = 1;
+            dd->is_mut = _t2998;
             ;
         }
         ;
-        Bool _t2938; { Bool *_hp = check(p, TokenType_Colon()); _t2938 = *_hp; free(_hp); }
-        if (_t2938) {
-            Token *_t2929 = advance(p);
+        Bool _t3008; { Bool *_hp = check(p, TokenType_Colon()); _t3008 = *_hp; free(_hp); }
+        if (_t3008) {
+            Token *_t2999 = advance(p);
             Str_delete(&dd->explicit_type, &(Bool){0});
             { Str *_fa = expect_text(p, TokenType_Ident()); dd->explicit_type = *_fa; free(_fa); }
             expect(p, TokenType_Eq());
@@ -15742,44 +16029,44 @@ Expr * parse_statement(Parser * p) {
         ExprData_delete(&decl->data, &(Bool){0});
         { ExprData *_fa = ExprData_Decl(dd); decl->data = *_fa; free(_fa); }
         DeclData_delete(dd, &(Bool){1});
-        Expr *_t2939 = parse_expression(p);
-        expr_add_child(decl, _t2939);
+        Expr *_t3009 = parse_expression(p);
+        expr_add_child(decl, _t3009);
         ;
         ;
         ;
         return decl;
     }
     ;
-    Bool _t3046; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwMut()); _t3046 = *_hp; free(_hp); }
-    if (_t3046) {
-        Token *_t2940 = advance(p);
-        Bool _t2941 = 1;
-        Bool _t2942 = 0;
-        Expr *_t2943 = parse_statement_ident(p, &(Bool){_t2941}, &(Bool){_t2942});
+    Bool _t3116; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwMut()); _t3116 = *_hp; free(_hp); }
+    if (_t3116) {
+        Token *_t3010 = advance(p);
+        Bool _t3011 = 1;
+        Bool _t3012 = 0;
+        Expr *_t3013 = parse_statement_ident(p, &(Bool){_t3011}, &(Bool){_t3012});
         ;
         ;
         ;
         ;
         ;
-        return _t2943;
+        return _t3013;
     }
     ;
-    Bool _t3047; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwReturn()); _t3047 = *_hp; free(_hp); }
-    if (_t3047) {
-        Token *_t2945 = advance(p);
+    Bool _t3117; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwReturn()); _t3117 = *_hp; free(_hp); }
+    if (_t3117) {
+        Token *_t3015 = advance(p);
         Expr *ret = expr_new(NodeType_Return(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Bool _t2946; { Bool *_hp = check(p, TokenType_RBrace()); _t2946 = *_hp; free(_hp); }
-        Bool _t2947; { Bool *_hp = check(p, TokenType_Eof()); _t2947 = *_hp; free(_hp); }
-        Bool _t2948 = Bool_not(_t2946);
+        Bool _t3016; { Bool *_hp = check(p, TokenType_RBrace()); _t3016 = *_hp; free(_hp); }
+        Bool _t3017; { Bool *_hp = check(p, TokenType_Eof()); _t3017 = *_hp; free(_hp); }
+        Bool _t3018 = Bool_not(_t3016);
         ;
-        Bool _t2949 = Bool_not(_t2947);
+        Bool _t3019 = Bool_not(_t3017);
         ;
-        Bool _t2950 = Bool_and(_t2948, _t2949);
+        Bool _t3020 = Bool_and(_t3018, _t3019);
         ;
         ;
-        if (_t2950) {
-            Expr *_t2944 = parse_expression(p);
-            expr_add_child(ret, _t2944);
+        if (_t3020) {
+            Expr *_t3014 = parse_expression(p);
+            expr_add_child(ret, _t3014);
         }
         ;
         ;
@@ -15788,32 +16075,32 @@ Expr * parse_statement(Parser * p) {
         return ret;
     }
     ;
-    Bool _t3048; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwIf()); _t3048 = *_hp; free(_hp); }
-    if (_t3048) {
-        Token *_t2957 = advance(p);
+    Bool _t3118; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwIf()); _t3118 = *_hp; free(_hp); }
+    if (_t3118) {
+        Token *_t3027 = advance(p);
         Expr *node = expr_new(NodeType_If(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Expr *_t2958 = parse_expression(p);
-        expr_add_child(node, _t2958);
+        Expr *_t3028 = parse_expression(p);
+        expr_add_child(node, _t3028);
         expect(p, TokenType_LBrace());
-        Expr *_t2959 = parse_block(p);
-        expr_add_child(node, _t2959);
-        Bool _t2960; { Bool *_hp = check(p, TokenType_KwElse()); _t2960 = *_hp; free(_hp); }
-        if (_t2960) {
-            Token *_t2955 = advance(p);
-            Bool _t2956; { Bool *_hp = check(p, TokenType_KwIf()); _t2956 = *_hp; free(_hp); }
-            if (_t2956) {
-                I64 _t2951; { I64 *_hp = peek_line(p); _t2951 = *_hp; free(_hp); }
-                I64 _t2952; { I64 *_hp = peek_col(p); _t2952 = *_hp; free(_hp); }
-                Expr *else_body = expr_new(NodeType_Body(), &(I64){_t2951}, &(I64){_t2952}, &p->path);
+        Expr *_t3029 = parse_block(p);
+        expr_add_child(node, _t3029);
+        Bool _t3030; { Bool *_hp = check(p, TokenType_KwElse()); _t3030 = *_hp; free(_hp); }
+        if (_t3030) {
+            Token *_t3025 = advance(p);
+            Bool _t3026; { Bool *_hp = check(p, TokenType_KwIf()); _t3026 = *_hp; free(_hp); }
+            if (_t3026) {
+                I64 _t3021; { I64 *_hp = peek_line(p); _t3021 = *_hp; free(_hp); }
+                I64 _t3022; { I64 *_hp = peek_col(p); _t3022 = *_hp; free(_hp); }
+                Expr *else_body = expr_new(NodeType_Body(), &(I64){_t3021}, &(I64){_t3022}, &p->path);
                 ;
                 ;
-                Expr *_t2953 = parse_statement(p);
-                expr_add_child(else_body, _t2953);
+                Expr *_t3023 = parse_statement(p);
+                expr_add_child(else_body, _t3023);
                 expr_add_child(node, else_body);
             } else {
                 expect(p, TokenType_LBrace());
-                Expr *_t2954 = parse_block(p);
-                expr_add_child(node, _t2954);
+                Expr *_t3024 = parse_block(p);
+                expr_add_child(node, _t3024);
             }
             ;
         }
@@ -15824,55 +16111,55 @@ Expr * parse_statement(Parser * p) {
         return node;
     }
     ;
-    Bool _t3049; { Bool *_hp = TokenType_eq(&t->type, TokenType_StringTok()); _t3049 = *_hp; free(_hp); }
-    Bool _t3050; { Bool *_hp = TokenType_eq(&t->type, TokenType_Number()); _t3050 = *_hp; free(_hp); }
-    Bool _t3051 = Bool_or(_t3049, _t3050);
+    Bool _t3119; { Bool *_hp = TokenType_eq(&t->type, TokenType_StringTok()); _t3119 = *_hp; free(_hp); }
+    Bool _t3120; { Bool *_hp = TokenType_eq(&t->type, TokenType_Number()); _t3120 = *_hp; free(_hp); }
+    Bool _t3121 = Bool_or(_t3119, _t3120);
     ;
     ;
-    Bool _t3052; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwTrue()); _t3052 = *_hp; free(_hp); }
-    Bool _t3053 = Bool_or(_t3051, _t3052);
+    Bool _t3122; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwTrue()); _t3122 = *_hp; free(_hp); }
+    Bool _t3123 = Bool_or(_t3121, _t3122);
     ;
     ;
-    Bool _t3054; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFalse()); _t3054 = *_hp; free(_hp); }
-    Bool _t3055 = Bool_or(_t3053, _t3054);
+    Bool _t3124; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFalse()); _t3124 = *_hp; free(_hp); }
+    Bool _t3125 = Bool_or(_t3123, _t3124);
     ;
     ;
-    if (_t3055) {
-        Expr *_t2961 = parse_expression(p);
+    if (_t3125) {
+        Expr *_t3031 = parse_expression(p);
         ;
         ;
         ;
-        return _t2961;
+        return _t3031;
     }
     ;
-    Bool _t3056; { Bool *_hp = TokenType_eq(&t->type, TokenType_LBrace()); _t3056 = *_hp; free(_hp); }
-    if (_t3056) {
-        Token *_t2962 = advance(p);
-        Expr *_t2963 = parse_block(p);
+    Bool _t3126; { Bool *_hp = TokenType_eq(&t->type, TokenType_LBrace()); _t3126 = *_hp; free(_hp); }
+    if (_t3126) {
+        Token *_t3032 = advance(p);
+        Expr *_t3033 = parse_block(p);
         ;
         ;
         ;
-        return _t2963;
+        return _t3033;
     }
     ;
-    Bool _t3057; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwWhile()); _t3057 = *_hp; free(_hp); }
-    if (_t3057) {
-        Token *_t2964 = advance(p);
+    Bool _t3127; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwWhile()); _t3127 = *_hp; free(_hp); }
+    if (_t3127) {
+        Token *_t3034 = advance(p);
         Expr *node = expr_new(NodeType_While(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Expr *_t2965 = parse_expression(p);
-        expr_add_child(node, _t2965);
+        Expr *_t3035 = parse_expression(p);
+        expr_add_child(node, _t3035);
         expect(p, TokenType_LBrace());
-        Expr *_t2966 = parse_block(p);
-        expr_add_child(node, _t2966);
+        Expr *_t3036 = parse_block(p);
+        expr_add_child(node, _t3036);
         ;
         ;
         ;
         return node;
     }
     ;
-    Bool _t3058; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFor()); _t3058 = *_hp; free(_hp); }
-    if (_t3058) {
-        Token *_t2968 = advance(p);
+    Bool _t3128; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwFor()); _t3128 = *_hp; free(_hp); }
+    if (_t3128) {
+        Token *_t3038 = advance(p);
         I64 i_line; { I64 *_hp = peek_line(p); i_line = *_hp; free(_hp); }
         I64 i_col; { I64 *_hp = peek_col(p); i_col = *_hp; free(_hp); }
         Str *iname = expect_text(p, TokenType_Ident());
@@ -15882,92 +16169,92 @@ Expr * parse_statement(Parser * p) {
         ExprData_delete(&node->data, &(Bool){0});
         { ExprData *_fa = ExprData_StrVal(iname); node->data = *_fa; free(_fa); }
         Str_delete(iname, &(Bool){1});
-        Bool _t2969; { Bool *_hp = check(p, TokenType_Colon()); _t2969 = *_hp; free(_hp); }
-        if (_t2969) {
-            Token *_t2967 = advance(p);
+        Bool _t3039; { Bool *_hp = check(p, TokenType_Colon()); _t3039 = *_hp; free(_hp); }
+        if (_t3039) {
+            Token *_t3037 = advance(p);
             Str_delete(&node->struct_name, &(Bool){0});
             { Str *_fa = expect_text(p, TokenType_Ident()); node->struct_name = *_fa; free(_fa); }
         }
         ;
         expect(p, TokenType_KwIn());
-        Expr *_t2970 = parse_expression(p);
-        expr_add_child(node, _t2970);
+        Expr *_t3040 = parse_expression(p);
+        expr_add_child(node, _t3040);
         expect(p, TokenType_LBrace());
-        Expr *_t2971 = parse_block(p);
-        expr_add_child(node, _t2971);
+        Expr *_t3041 = parse_block(p);
+        expr_add_child(node, _t3041);
         ;
         ;
         ;
         return node;
     }
     ;
-    Bool _t3059; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwSwitch()); _t3059 = *_hp; free(_hp); }
-    if (_t3059) {
-        Token *_t2993 = advance(p);
+    Bool _t3129; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwSwitch()); _t3129 = *_hp; free(_hp); }
+    if (_t3129) {
+        Token *_t3063 = advance(p);
         Expr *node = expr_new(NodeType_Switch(), &(I64){t_line}, &(I64){t_col}, &p->path);
-        Expr *_t2994 = parse_expression(p);
-        expr_add_child(node, _t2994);
+        Expr *_t3064 = parse_expression(p);
+        expr_add_child(node, _t3064);
         expect(p, TokenType_LBrace());
         while (1) {
-            Bool _t2983; { Bool *_hp = check(p, TokenType_RBrace()); _t2983 = *_hp; free(_hp); }
-            Bool _t2984; { Bool *_hp = check(p, TokenType_Eof()); _t2984 = *_hp; free(_hp); }
-            Bool _t2985 = Bool_not(_t2983);
+            Bool _t3053; { Bool *_hp = check(p, TokenType_RBrace()); _t3053 = *_hp; free(_hp); }
+            Bool _t3054; { Bool *_hp = check(p, TokenType_Eof()); _t3054 = *_hp; free(_hp); }
+            Bool _t3055 = Bool_not(_t3053);
             ;
-            Bool _t2986 = Bool_not(_t2984);
+            Bool _t3056 = Bool_not(_t3054);
             ;
-            Bool _wcond2972 = Bool_and(_t2985, _t2986);
+            Bool _wcond3042 = Bool_and(_t3055, _t3056);
             ;
             ;
-            if (_wcond2972) {
+            if (_wcond3042) {
             } else {
                 ;
                 break;
             }
             ;
             expect(p, TokenType_KwCase());
-            I64 _t2987; { I64 *_hp = peek_line(p); _t2987 = *_hp; free(_hp); }
-            I64 _t2988; { I64 *_hp = peek_col(p); _t2988 = *_hp; free(_hp); }
-            Expr *cn = expr_new(NodeType_Case(), &(I64){_t2987}, &(I64){_t2988}, &p->path);
+            I64 _t3057; { I64 *_hp = peek_line(p); _t3057 = *_hp; free(_hp); }
+            I64 _t3058; { I64 *_hp = peek_col(p); _t3058 = *_hp; free(_hp); }
+            Expr *cn = expr_new(NodeType_Case(), &(I64){_t3057}, &(I64){_t3058}, &p->path);
             ;
             ;
-            Bool _t2989; { Bool *_hp = check(p, TokenType_Colon()); _t2989 = *_hp; free(_hp); }
-            Bool _t2990 = Bool_not(_t2989);
+            Bool _t3059; { Bool *_hp = check(p, TokenType_Colon()); _t3059 = *_hp; free(_hp); }
+            Bool _t3060 = Bool_not(_t3059);
             ;
-            if (_t2990) {
-                Expr *_t2973 = parse_expression(p);
-                expr_add_child(cn, _t2973);
+            if (_t3060) {
+                Expr *_t3043 = parse_expression(p);
+                expr_add_child(cn, _t3043);
             }
             ;
             expect(p, TokenType_Colon());
-            I64 _t2991; { I64 *_hp = peek_line(p); _t2991 = *_hp; free(_hp); }
-            I64 _t2992; { I64 *_hp = peek_col(p); _t2992 = *_hp; free(_hp); }
-            Expr *cb = expr_new(NodeType_Body(), &(I64){_t2991}, &(I64){_t2992}, &p->path);
+            I64 _t3061; { I64 *_hp = peek_line(p); _t3061 = *_hp; free(_hp); }
+            I64 _t3062; { I64 *_hp = peek_col(p); _t3062 = *_hp; free(_hp); }
+            Expr *cb = expr_new(NodeType_Body(), &(I64){_t3061}, &(I64){_t3062}, &p->path);
             ;
             ;
             while (1) {
-                Bool _t2975; { Bool *_hp = check(p, TokenType_KwCase()); _t2975 = *_hp; free(_hp); }
-                Bool _t2976; { Bool *_hp = check(p, TokenType_RBrace()); _t2976 = *_hp; free(_hp); }
-                Bool _t2977 = Bool_not(_t2975);
+                Bool _t3045; { Bool *_hp = check(p, TokenType_KwCase()); _t3045 = *_hp; free(_hp); }
+                Bool _t3046; { Bool *_hp = check(p, TokenType_RBrace()); _t3046 = *_hp; free(_hp); }
+                Bool _t3047 = Bool_not(_t3045);
                 ;
-                Bool _t2978 = Bool_not(_t2976);
+                Bool _t3048 = Bool_not(_t3046);
                 ;
-                Bool _t2979; { Bool *_hp = check(p, TokenType_Eof()); _t2979 = *_hp; free(_hp); }
-                Bool _t2980 = Bool_and(_t2977, _t2978);
-                ;
-                ;
-                Bool _t2981 = Bool_not(_t2979);
-                ;
-                Bool _wcond2974 = Bool_and(_t2980, _t2981);
+                Bool _t3049; { Bool *_hp = check(p, TokenType_Eof()); _t3049 = *_hp; free(_hp); }
+                Bool _t3050 = Bool_and(_t3047, _t3048);
                 ;
                 ;
-                if (_wcond2974) {
+                Bool _t3051 = Bool_not(_t3049);
+                ;
+                Bool _wcond3044 = Bool_and(_t3050, _t3051);
+                ;
+                ;
+                if (_wcond3044) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                Expr *_t2982 = parse_statement(p);
-                expr_add_child(cb, _t2982);
+                Expr *_t3052 = parse_statement(p);
+                expr_add_child(cb, _t3052);
             }
             expr_add_child(cn, cb);
             expr_add_child(node, cn);
@@ -15979,47 +16266,47 @@ Expr * parse_statement(Parser * p) {
         return node;
     }
     ;
-    Bool _t3060; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwOwn()); _t3060 = *_hp; free(_hp); }
-    if (_t3060) {
-        Token *_t3033 = advance(p);
-        Bool _t3034; { Bool *_hp = check(p, TokenType_Ident()); _t3034 = *_hp; free(_hp); }
-        Bool _t3035; { Bool *_hp = check(p, TokenType_KwMut()); _t3035 = *_hp; free(_hp); }
-        Bool _t3036 = Bool_or(_t3034, _t3035);
+    Bool _t3130; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwOwn()); _t3130 = *_hp; free(_hp); }
+    if (_t3130) {
+        Token *_t3103 = advance(p);
+        Bool _t3104; { Bool *_hp = check(p, TokenType_Ident()); _t3104 = *_hp; free(_hp); }
+        Bool _t3105; { Bool *_hp = check(p, TokenType_KwMut()); _t3105 = *_hp; free(_hp); }
+        Bool _t3106 = Bool_or(_t3104, _t3105);
         ;
         ;
-        if (_t3036) {
+        if (_t3106) {
             Bool own_mut = 0;
-            Bool _t3023; { Bool *_hp = check(p, TokenType_KwMut()); _t3023 = *_hp; free(_hp); }
-            if (_t3023) {
-                Token *_t2995 = advance(p);
-                Bool _t2996 = 1;
-                own_mut = _t2996;
+            Bool _t3093; { Bool *_hp = check(p, TokenType_KwMut()); _t3093 = *_hp; free(_hp); }
+            if (_t3093) {
+                Token *_t3065 = advance(p);
+                Bool _t3066 = 1;
+                own_mut = _t3066;
                 ;
             }
             ;
-            Bool _t3024; { Bool *_hp = check(p, TokenType_Ident()); _t3024 = *_hp; free(_hp); }
-            if (_t3024) {
-                I64 _t3005 = 1;
-                I64 _t3006 = I64_add(p->pos, _t3005);
+            Bool _t3094; { Bool *_hp = check(p, TokenType_Ident()); _t3094 = *_hp; free(_hp); }
+            if (_t3094) {
+                I64 _t3075 = 1;
+                I64 _t3076 = I64_add(p->pos, _t3075);
                 ;
-                Bool _t3007; { Bool *_hp = I64_lt(&(I64){_t3006}, &p->count); _t3007 = *_hp; free(_hp); }
+                Bool _t3077; { Bool *_hp = I64_lt(&(I64){_t3076}, &p->count); _t3077 = *_hp; free(_hp); }
                 ;
-                if (_t3007) {
-                    I64 _t2999 = 1;
-                    I64 _t3000 = I64_add(p->pos, _t2999);
+                if (_t3077) {
+                    I64 _t3069 = 1;
+                    I64 _t3070 = I64_add(p->pos, _t3069);
                     ;
-                    U64 *_t3001 = malloc(sizeof(U64)); *_t3001 = I64_to_u64(_t3000);
+                    U64 *_t3071 = malloc(sizeof(U64)); *_t3071 = I64_to_u64(_t3070);
                     ;
-                    Token *nt = Vec_get(&p->tokens, _t3001);
-                    Bool _t3002; { Bool *_hp = TokenType_eq(&nt->type, TokenType_ColonEq()); _t3002 = *_hp; free(_hp); }
-                    Bool _t3003; { Bool *_hp = TokenType_eq(&nt->type, TokenType_Colon()); _t3003 = *_hp; free(_hp); }
-                    U64_delete(_t3001, &(Bool){1});
-                    Bool _t3004 = Bool_or(_t3002, _t3003);
+                    Token *nt = Vec_get(&p->tokens, _t3071);
+                    Bool _t3072; { Bool *_hp = TokenType_eq(&nt->type, TokenType_ColonEq()); _t3072 = *_hp; free(_hp); }
+                    Bool _t3073; { Bool *_hp = TokenType_eq(&nt->type, TokenType_Colon()); _t3073 = *_hp; free(_hp); }
+                    U64_delete(_t3071, &(Bool){1});
+                    Bool _t3074 = Bool_or(_t3072, _t3073);
                     ;
                     ;
-                    if (_t3004) {
-                        Bool _t2997 = 1;
-                        Expr *_t2998 = parse_statement_ident(p, &(Bool){own_mut}, &(Bool){_t2997});
+                    if (_t3074) {
+                        Bool _t3067 = 1;
+                        Expr *_t3068 = parse_statement_ident(p, &(Bool){own_mut}, &(Bool){_t3067});
                         ;
                         ;
                         ;
@@ -16029,7 +16316,7 @@ Expr * parse_statement(Parser * p) {
                         ;
                         ;
                         ;
-                        return _t2998;
+                        return _t3068;
                     }
                     ;
                 }
@@ -16037,79 +16324,79 @@ Expr * parse_statement(Parser * p) {
             }
             ;
             if (own_mut) {
-                Str *_t3008 = Str_lit("Str", 3ULL);
-                U64 _t3009; { U64 *_hp = Str_size(); _t3009 = *_hp; free(_hp); }
-                U64 _t3010 = 6;
-                Array *_va36 = Array_new(_t3008, &(U64){_t3009}, &(U64){_t3010});
-                Str_delete(_t3008, &(Bool){1});
+                Str *_t3078 = Str_lit("Str", 3ULL);
+                U64 _t3079; { U64 *_hp = Str_size(); _t3079 = *_hp; free(_hp); }
+                U64 _t3080 = 6;
+                Array *_va37 = Array_new(_t3078, &(U64){_t3079}, &(U64){_t3080});
+                Str_delete(_t3078, &(Bool){1});
                 ;
                 ;
-                U64 _t3011 = 0;
-                Array_set(_va36, &(U64){_t3011}, &p->path);
+                U64 _t3081 = 0;
+                Array_set(_va37, &(U64){_t3081}, &p->path);
                 ;
-                U64 _t3012 = 1;
-                Str *_t3013 = Str_lit(":", 1ULL);
-                Array_set(_va36, &(U64){_t3012}, _t3013);
+                U64 _t3082 = 1;
+                Str *_t3083 = Str_lit(":", 1ULL);
+                Array_set(_va37, &(U64){_t3082}, _t3083);
                 ;
-                U64 _t3014 = 2;
-                Str *_t3015 = I64_to_str(&(I64){t_line});
-                Array_set(_va36, &(U64){_t3014}, _t3015);
+                U64 _t3084 = 2;
+                Str *_t3085 = I64_to_str(&(I64){t_line});
+                Array_set(_va37, &(U64){_t3084}, _t3085);
                 ;
-                U64 _t3016 = 3;
-                Str *_t3017 = Str_lit(":", 1ULL);
-                Array_set(_va36, &(U64){_t3016}, _t3017);
+                U64 _t3086 = 3;
+                Str *_t3087 = Str_lit(":", 1ULL);
+                Array_set(_va37, &(U64){_t3086}, _t3087);
                 ;
-                U64 _t3018 = 4;
-                Str *_t3019 = I64_to_str(&(I64){t_col});
-                Array_set(_va36, &(U64){_t3018}, _t3019);
+                U64 _t3088 = 4;
+                Str *_t3089 = I64_to_str(&(I64){t_col});
+                Array_set(_va37, &(U64){_t3088}, _t3089);
                 ;
-                U64 _t3020 = 5;
-                Str *_t3021 = Str_lit(": expected identifier after 'own mut'", 37ULL);
-                Array_set(_va36, &(U64){_t3020}, _t3021);
+                U64 _t3090 = 5;
+                Str *_t3091 = Str_lit(": expected identifier after 'own mut'", 37ULL);
+                Array_set(_va37, &(U64){_t3090}, _t3091);
                 ;
-                Str *_t3022 = Str_lit("src/self/parser.til:733:23", 26ULL);
-                panic(_t3022, _va36);
-                Str_delete(_t3022, &(Bool){1});
+                Str *_t3092 = Str_lit("src/self/parser.til:733:23", 26ULL);
+                panic(_t3092, _va37);
+                Str_delete(_t3092, &(Bool){1});
             }
             ;
         }
         ;
         Expr *expr = parse_expression(p);
-        I64 _t3037 = 0;
-        I64 _t3038 = 1;
-        I64 primary_idx = I64_sub(_t3037, _t3038);
+        I64 _t3107 = 0;
+        I64 _t3108 = 1;
+        I64 primary_idx = I64_sub(_t3107, _t3108);
         ;
         ;
         ;
         Expr *cur = Expr_clone(expr);
         while (1) {
-            U64 _t3026; { U64 *_hp = Vec_len(&cur->children); _t3026 = *_hp; free(_hp); }
-            U64 _t3027 = 0;
-            Bool _t3028; { Bool *_hp = NodeType_eq(&cur->type, NodeType_FCall()); _t3028 = *_hp; free(_hp); }
-            Bool _t3029; { Bool *_hp = NodeType_eq(&cur->type, NodeType_FieldAccess()); _t3029 = *_hp; free(_hp); }
-            Bool _t3030; { Bool *_hp = U64_gt(&(U64){_t3026}, &(U64){_t3027}); _t3030 = *_hp; free(_hp); }
+            U64 _t3096; { U64 *_hp = Vec_len(&cur->children); _t3096 = *_hp; free(_hp); }
+            U64 _t3097 = 0;
+            Bool _t3098; { Bool *_hp = NodeType_eq(&cur->type, NodeType_FCall()); _t3098 = *_hp; free(_hp); }
+            Bool _t3099; { Bool *_hp = NodeType_eq(&cur->type, NodeType_FieldAccess()); _t3099 = *_hp; free(_hp); }
+            Bool _t3100; { Bool *_hp = U64_gt(&(U64){_t3096}, &(U64){_t3097}); _t3100 = *_hp; free(_hp); }
             ;
             ;
-            Bool _t3031 = Bool_or(_t3028, _t3029);
+            Bool _t3101 = Bool_or(_t3098, _t3099);
             ;
             ;
-            Bool _wcond3025 = Bool_and(_t3030, _t3031);
+            Bool _wcond3095 = Bool_and(_t3100, _t3101);
             ;
             ;
-            if (_wcond3025) {
+            if (_wcond3095) {
             } else {
                 ;
                 break;
             }
             ;
-            U64 *_t3032 = malloc(sizeof(U64));
-            *_t3032 = 0;
-            Expr *ch = Vec_get(&cur->children, _t3032);
+            U64 *_t3102 = malloc(sizeof(U64));
+            *_t3102 = 0;
+            Expr *ch = Vec_get(&cur->children, _t3102);
             cur = Expr_clone(ch);
-            U64_delete(_t3032, &(Bool){1});
+            U64_delete(_t3102, &(Bool){1});
         }
-        Bool _t3039 = 1;
-        cur->is_own_arg = _t3039;
+        Bool _t3109 = 1;
+        cur->is_own_arg = _t3109;
         ;
         Expr_delete(cur, &(Bool){1});
         ;
@@ -16119,122 +16406,122 @@ Expr * parse_statement(Parser * p) {
         return expr;
     }
     ;
-    Bool _t3061; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwBreak()); _t3061 = *_hp; free(_hp); }
-    if (_t3061) {
-        Token *_t3040 = advance(p);
-        Expr *_t3041 = expr_new(NodeType_Break(), &(I64){t_line}, &(I64){t_col}, &p->path);
+    Bool _t3131; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwBreak()); _t3131 = *_hp; free(_hp); }
+    if (_t3131) {
+        Token *_t3110 = advance(p);
+        Expr *_t3111 = expr_new(NodeType_Break(), &(I64){t_line}, &(I64){t_col}, &p->path);
         ;
         ;
         ;
-        return _t3041;
+        return _t3111;
     }
     ;
-    Bool _t3062; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwContinue()); _t3062 = *_hp; free(_hp); }
-    if (_t3062) {
-        Token *_t3042 = advance(p);
-        Expr *_t3043 = expr_new(NodeType_Continue(), &(I64){t_line}, &(I64){t_col}, &p->path);
+    Bool _t3132; { Bool *_hp = TokenType_eq(&t->type, TokenType_KwContinue()); _t3132 = *_hp; free(_hp); }
+    if (_t3132) {
+        Token *_t3112 = advance(p);
+        Expr *_t3113 = expr_new(NodeType_Continue(), &(I64){t_line}, &(I64){t_col}, &p->path);
         ;
         ;
         ;
-        return _t3043;
+        return _t3113;
     }
     ;
-    Str *_t3063 = Str_lit("Str", 3ULL);
-    U64 _t3064; { U64 *_hp = Str_size(); _t3064 = *_hp; free(_hp); }
-    U64 _t3065 = 8;
-    Array *_va37 = Array_new(_t3063, &(U64){_t3064}, &(U64){_t3065});
-    Str_delete(_t3063, &(Bool){1});
+    Str *_t3133 = Str_lit("Str", 3ULL);
+    U64 _t3134; { U64 *_hp = Str_size(); _t3134 = *_hp; free(_hp); }
+    U64 _t3135 = 8;
+    Array *_va38 = Array_new(_t3133, &(U64){_t3134}, &(U64){_t3135});
+    Str_delete(_t3133, &(Bool){1});
     ;
     ;
-    U64 _t3066 = 0;
-    Array_set(_va37, &(U64){_t3066}, &p->path);
+    U64 _t3136 = 0;
+    Array_set(_va38, &(U64){_t3136}, &p->path);
     ;
-    U64 _t3067 = 1;
-    Str *_t3068 = Str_lit(":", 1ULL);
-    Array_set(_va37, &(U64){_t3067}, _t3068);
+    U64 _t3137 = 1;
+    Str *_t3138 = Str_lit(":", 1ULL);
+    Array_set(_va38, &(U64){_t3137}, _t3138);
     ;
-    U64 _t3069 = 2;
-    Str *_t3070 = I64_to_str(&(I64){t_line});
+    U64 _t3139 = 2;
+    Str *_t3140 = I64_to_str(&(I64){t_line});
     ;
-    Array_set(_va37, &(U64){_t3069}, _t3070);
+    Array_set(_va38, &(U64){_t3139}, _t3140);
     ;
-    U64 _t3071 = 3;
-    Str *_t3072 = Str_lit(":", 1ULL);
-    Array_set(_va37, &(U64){_t3071}, _t3072);
+    U64 _t3141 = 3;
+    Str *_t3142 = Str_lit(":", 1ULL);
+    Array_set(_va38, &(U64){_t3141}, _t3142);
     ;
-    U64 _t3073 = 4;
-    Str *_t3074 = I64_to_str(&(I64){t_col});
+    U64 _t3143 = 4;
+    Str *_t3144 = I64_to_str(&(I64){t_col});
     ;
-    Array_set(_va37, &(U64){_t3073}, _t3074);
+    Array_set(_va38, &(U64){_t3143}, _t3144);
     ;
-    U64 _t3075 = 5;
-    Str *_t3076 = Str_lit(": expected statement, found '", 29ULL);
-    Array_set(_va37, &(U64){_t3075}, _t3076);
+    U64 _t3145 = 5;
+    Str *_t3146 = Str_lit(": expected statement, found '", 29ULL);
+    Array_set(_va38, &(U64){_t3145}, _t3146);
     ;
-    U64 _t3077 = 6;
-    Array_set(_va37, &(U64){_t3077}, &t->text);
+    U64 _t3147 = 6;
+    Array_set(_va38, &(U64){_t3147}, &t->text);
     ;
-    U64 _t3078 = 7;
-    Str *_t3079 = Str_lit("'", 1ULL);
-    Array_set(_va37, &(U64){_t3078}, _t3079);
+    U64 _t3148 = 7;
+    Str *_t3149 = Str_lit("'", 1ULL);
+    Array_set(_va38, &(U64){_t3148}, _t3149);
     ;
-    Str *_t3080 = Str_lit("src/self/parser.til:760:11", 26ULL);
-    panic(_t3080, _va37);
-    Str_delete(_t3080, &(Bool){1});
-    I64 _t3081 = 0;
-    I64 _t3082 = 0;
-    Expr *_t3083 = expr_new(NodeType_Body(), &(I64){_t3081}, &(I64){_t3082}, &p->path);
+    Str *_t3150 = Str_lit("src/self/parser.til:760:11", 26ULL);
+    panic(_t3150, _va38);
+    Str_delete(_t3150, &(Bool){1});
+    I64 _t3151 = 0;
+    I64 _t3152 = 0;
+    Expr *_t3153 = expr_new(NodeType_Body(), &(I64){_t3151}, &(I64){_t3152}, &p->path);
     ;
     ;
-    return _t3083;
+    return _t3153;
 }
 
 Expr * parse(Vec * tokens, Str * path, Str * mode_out) {
-    U64 _t3093; { U64 *_hp = Vec_len(tokens); _t3093 = *_hp; free(_hp); }
-    I64 _t3094 = 0;
+    U64 _t3163; { U64 *_hp = Vec_len(tokens); _t3163 = *_hp; free(_hp); }
+    I64 _t3164 = 0;
     Parser *p = malloc(sizeof(Parser));
     { Vec *_ca = Vec_clone(tokens); p->tokens = *_ca; free(_ca); }
-    p->count = _t3093;
-    p->pos = _t3094;
+    p->count = _t3163;
+    p->pos = _t3164;
     { Str *_ca = Str_clone(path); p->path = *_ca; free(_ca); }
     ;
     ;
-    Bool _t3095; { Bool *_hp = check(p, TokenType_KwMode()); _t3095 = *_hp; free(_hp); }
-    if (_t3095) {
-        Token *_t3086 = advance(p);
-        Bool _t3087; { Bool *_hp = check(p, TokenType_Ident()); _t3087 = *_hp; free(_hp); }
-        Bool _t3088; { Bool *_hp = check(p, TokenType_KwTest()); _t3088 = *_hp; free(_hp); }
-        Bool _t3089 = Bool_or(_t3087, _t3088);
+    Bool _t3165; { Bool *_hp = check(p, TokenType_KwMode()); _t3165 = *_hp; free(_hp); }
+    if (_t3165) {
+        Token *_t3156 = advance(p);
+        Bool _t3157; { Bool *_hp = check(p, TokenType_Ident()); _t3157 = *_hp; free(_hp); }
+        Bool _t3158; { Bool *_hp = check(p, TokenType_KwTest()); _t3158 = *_hp; free(_hp); }
+        Bool _t3159 = Bool_or(_t3157, _t3158);
         ;
         ;
-        if (_t3089) {
-            Str *_t3084 = Str_clone(&peek(p)->text);
-            *mode_out = DEREF(_t3084);
-            Str_delete(_t3084, &(Bool){1});
-            Token *_t3085 = advance(p);
+        if (_t3159) {
+            Str *_t3154 = Str_clone(&peek(p)->text);
+            *mode_out = DEREF(_t3154);
+            Str_delete(_t3154, &(Bool){1});
+            Token *_t3155 = advance(p);
         } else {
             expect(p, TokenType_Ident());
         }
         ;
     }
     ;
-    I64 _t3096 = 1;
-    I64 _t3097 = 1;
-    Expr *root = expr_new(NodeType_Body(), &(I64){_t3096}, &(I64){_t3097}, &p->path);
+    I64 _t3166 = 1;
+    I64 _t3167 = 1;
+    Expr *root = expr_new(NodeType_Body(), &(I64){_t3166}, &(I64){_t3167}, &p->path);
     ;
     ;
     while (1) {
-        Bool _t3091; { Bool *_hp = check(p, TokenType_Eof()); _t3091 = *_hp; free(_hp); }
-        Bool _wcond3090 = Bool_not(_t3091);
+        Bool _t3161; { Bool *_hp = check(p, TokenType_Eof()); _t3161 = *_hp; free(_hp); }
+        Bool _wcond3160 = Bool_not(_t3161);
         ;
-        if (_wcond3090) {
+        if (_wcond3160) {
         } else {
             ;
             break;
         }
         ;
-        Expr *_t3092 = parse_statement(p);
-        expr_add_child(root, _t3092);
+        Expr *_t3162 = parse_statement(p);
+        expr_add_child(root, _t3162);
     }
     Parser_delete(p, &(Bool){1});
     return root;
@@ -16256,6 +16543,7 @@ void dyn_call_delete(Str *type_name, void *val, void *arg2) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0) { Set_delete(val, arg2); return; }
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) { Str_delete(val, arg2); return; }
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0) { Vec_delete(val, arg2); return; }
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Tuple", 5ULL) == 0) { Tuple_delete(val, arg2); return; }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TokenType", 9ULL) == 0) { TokenType_delete(val, arg2); return; }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) { Token_delete(val, arg2); return; }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0) { NodeType_delete(val, arg2); return; }
@@ -16286,6 +16574,7 @@ void *dyn_call_clone(Str *type_name, void *val) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0) return (void *)Set_clone(val);
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return (void *)Str_clone(val);
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0) return (void *)Vec_clone(val);
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Tuple", 5ULL) == 0) return (void *)Tuple_clone(val);
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TokenType", 9ULL) == 0) return (void *)TokenType_clone(val);
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) return (void *)Token_clone(val);
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "NodeType", 8ULL) == 0) return (void *)NodeType_clone(val);
@@ -16330,22 +16619,22 @@ Bool dyn_has_cmp(Str *type_name) {
 
 __attribute__((constructor))
 static void _til_lib_init(void) {
-    _t3098 = malloc(sizeof(I64));
-    *_t3098 = 0;
-    _t3099 = malloc(sizeof(I64));
-    *_t3099 = 1;
-    _t3100 = malloc(sizeof(I64)); *_t3100 = I64_sub(DEREF(_t3098), DEREF(_t3099));
-    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t3100));
-    _t3101 = malloc(sizeof(I64));
-    *_t3101 = 0;
-    _t3102 = malloc(sizeof(I64));
-    *_t3102 = 2;
-    _t3103 = malloc(sizeof(I64)); *_t3103 = I64_sub(DEREF(_t3101), DEREF(_t3102));
-    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t3103));
-    _t3104 = malloc(sizeof(I64));
-    *_t3104 = 0;
-    _t3105 = malloc(sizeof(I64));
-    *_t3105 = 1;
-    NONE = malloc(sizeof(I64)); *NONE = I64_sub(DEREF(_t3104), DEREF(_t3105));
+    _t3168 = malloc(sizeof(I64));
+    *_t3168 = 0;
+    _t3169 = malloc(sizeof(I64));
+    *_t3169 = 1;
+    _t3170 = malloc(sizeof(I64)); *_t3170 = I64_sub(DEREF(_t3168), DEREF(_t3169));
+    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t3170));
+    _t3171 = malloc(sizeof(I64));
+    *_t3171 = 0;
+    _t3172 = malloc(sizeof(I64));
+    *_t3172 = 2;
+    _t3173 = malloc(sizeof(I64)); *_t3173 = I64_sub(DEREF(_t3171), DEREF(_t3172));
+    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t3173));
+    _t3174 = malloc(sizeof(I64));
+    *_t3174 = 0;
+    _t3175 = malloc(sizeof(I64));
+    *_t3175 = 1;
+    NONE = malloc(sizeof(I64)); *NONE = I64_sub(DEREF(_t3174), DEREF(_t3175));
 }
 

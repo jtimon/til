@@ -1,0 +1,91 @@
+mode lib
+
+Tuple := struct {
+    own mut data : U8 = 0
+    mut total_size : U64 = 0
+    mut cap : U64 = 0
+    mut type_names := Vec.new("Str", Str.size())
+    mut type_sizes := Vec.new("U64", U64.size())
+
+namespace:
+    new := func() returns Tuple {
+        return Tuple(data = malloc(8), cap = 8)
+    }
+
+    len := func(self: Tuple) returns U64 { return self.type_names.len() }
+
+    push := proc(mut self: Tuple, elem_type: Str, elem_size: U64, own val: Dynamic) {
+        new_total := self.total_size.add(elem_size)
+        if new_total.gt(self.cap) {
+            mut new_cap := self.cap.mul(2)
+            while new_cap.lt(new_total) {
+                new_cap = new_cap.mul(2)
+            }
+            self.data = realloc(own self.data, new_cap)
+            self.cap = new_cap
+        }
+        memcpy(ptr_add(self.data, self.total_size), val, elem_size)
+        free(own val)
+        self.type_names.push(own elem_type.clone())
+        self.type_sizes.push(own elem_size.clone())
+        self.total_size = new_total
+    }
+
+    get := func(self: Tuple, i: U64) returns ref Dynamic {
+        if i.gte(self.type_names.len()) {
+            panic(__LOC__, "Tuple.get: index ", i.to_str(), " out of bounds (len ", self.type_names.len().to_str(), ")")
+        }
+        mut offset : U64 = 0
+        mut j : U64 = 0
+        while j.lt(i) {
+            ref sz : U64 = self.type_sizes.get(j)
+            offset = offset.add(sz)
+            j = j.add(1)
+        }
+        return ptr_add(self.data, offset)
+    }
+
+    type_at := func(self: Tuple, i: U64) returns ref Str {
+        return self.type_names.get(i)
+    }
+
+    size_at := func(self: Tuple, i: U64) returns ref U64 {
+        return self.type_sizes.get(i)
+    }
+
+    delete := proc(own self: Tuple, call_free: Bool = true) {
+        mut offset : U64 = 0
+        mut i : U64 = 0
+        while i.lt(self.type_names.len()) {
+            ref tn : Str = self.type_names.get(i)
+            ref ts : U64 = self.type_sizes.get(i)
+            dyn_call2(tn, "delete", ptr_add(self.data, offset), false)
+            offset = offset.add(ts)
+            i = i.add(1)
+        }
+        free(own self.data)
+        Vec.delete(own self.type_names, false)
+        Vec.delete(own self.type_sizes, false)
+        if call_free { free(own self) }
+    }
+
+    clone := func(self: Tuple) returns Tuple {
+        mut new_cap := self.cap
+        if new_cap.eq(0) { new_cap = U64.from_i64(8) }
+        own new_data : U8 = malloc(new_cap)
+        mut offset : U64 = 0
+        mut i : U64 = 0
+        while i.lt(self.type_names.len()) {
+            ref tn : Str = self.type_names.get(i)
+            ref ts : U64 = self.type_sizes.get(i)
+            own cloned : Dynamic = dyn_call1_ret(tn, "clone", ptr_add(self.data, offset))
+            memcpy(ptr_add(new_data, offset), cloned, ts)
+            free(own cloned)
+            offset = offset.add(ts)
+            i = i.add(1)
+        }
+        return Tuple(data = new_data, total_size = self.total_size, cap = new_cap,
+                     type_names = self.type_names.clone(),
+                     type_sizes = self.type_sizes.clone())
+    }
+}

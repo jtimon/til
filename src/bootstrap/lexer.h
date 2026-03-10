@@ -9,6 +9,7 @@ typedef struct Range Range;
 typedef struct Map Map;
 typedef struct Set Set;
 typedef struct Vec Vec;
+typedef struct Tuple Tuple;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -145,6 +146,15 @@ typedef struct Vec {
 } Vec;
 
 
+typedef struct Tuple {
+    U8 *data;
+    U64 total_size;
+    U64 cap;
+    Vec type_names;
+    Vec type_sizes;
+} Tuple;
+
+
 struct TokenType {
     TokenType_tag tag;
 };
@@ -240,6 +250,15 @@ Vec * Vec_clone(Vec * self);
 U64 * Vec_size(void);
 Vec * split(Str * s, Str * delim);
 Str * join(Vec * parts, Str * sep);
+Tuple * Tuple_new(void);
+U64 * Tuple_len(Tuple * self);
+void Tuple_push(Tuple * self, Str * elem_type, U64 * elem_size, void * val);
+void * Tuple_get(Tuple * self, U64 * i);
+Str * Tuple_type_at(Tuple * self, U64 * i);
+U64 * Tuple_size_at(Tuple * self, U64 * i);
+void Tuple_delete(Tuple * self, Bool * call_free);
+Tuple * Tuple_clone(Tuple * self);
+U64 * Tuple_size(void);
 Bool * TokenType_eq(TokenType * self, TokenType * other);
 TokenType * TokenType_clone(TokenType * self);
 void TokenType_delete(TokenType * self, Bool * call_free);

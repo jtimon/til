@@ -5,6 +5,7 @@ import("map.til")
 import("set.til")
 import("str.til")
 import("vec.til")
+import("tuple.til")
 
 // builtin types (empty structs for future namespace support)
 StructDef : StructDef = struct {}

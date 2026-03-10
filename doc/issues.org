@@ -257,6 +257,31 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
+** OPEN #28 Aliases: implicit ref for comptime-immutable declarations
+  When `a := b` and b is provably immutable and comptime, `a` should be
+  an alias (implicit ref — pointer to same storage) instead of a clone.
+  No new syntax needed: the compiler detects when aliasing is safe.
+
+  A value is alias-eligible when it is:
+  - A literal (42, "hello", true)
+  - Another alias or constant
+  - The result of a pure func or macro call where all args are comptime
+  - NOT a proc call result
+  - NOT a mut variable
+  - NOT a ref to a mutable binding
+
+  The existing is_comptime helper from precomp.c can help identify
+  compile-time-evaluable expressions. The key insight: if the value
+  can never change, there's no reason to copy it — just point to it.
+
+  Benefits:
+  - Zero-cost naming (naming a constant doesn't allocate)
+  - Enables the compiler to share storage for repeated constants
+  - No user-visible behavior change (immutable either way)
+
+  Ownership: only the original value is deleted, aliases are skipped
+  by ASAP (same as ref declarations today). The typer/ASAP already
+  handles ref lifetime correctly — this extends it to auto-detected cases.
 
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #2
@@ -449,32 +474,6 @@
   Low priority — named args already cover most use cases. Kwargs would mainly
   help with generic wrappers and delegation patterns.
 
-** OPEN #28 Aliases: implicit ref for comptime-immutable declarations
-  When `a := b` and b is provably immutable and comptime, `a` should be
-  an alias (implicit ref — pointer to same storage) instead of a clone.
-  No new syntax needed: the compiler detects when aliasing is safe.
-
-  A value is alias-eligible when it is:
-  - A literal (42, "hello", true)
-  - Another alias or constant
-  - The result of a pure func or macro call where all args are comptime
-  - NOT a proc call result
-  - NOT a mut variable
-  - NOT a ref to a mutable binding
-
-  The existing is_comptime helper from precomp.c can help identify
-  compile-time-evaluable expressions. The key insight: if the value
-  can never change, there's no reason to copy it — just point to it.
-
-  Benefits:
-  - Zero-cost naming (naming a constant doesn't allocate)
-  - Enables the compiler to share storage for repeated constants
-  - No user-visible behavior change (immutable either way)
-
-  Ownership: only the original value is deleted, aliases are skipped
-  by ASAP (same as ref declarations today). The typer/ASAP already
-  handles ref lifetime correctly — this extends it to auto-detected cases.
-
 ** OPEN #25 Support for the 4 main operative systems
   :DEPENDENCIES: #12
   til currently only builds and runs on GNU/Linux. Should support the 4
@@ -651,90 +650,6 @@
    Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
    ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
    ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
-** OPEN #18 Tuple: fixed-size heterogeneous collections
-  Holds a fixed number of elements of different types.
-  Immutable (elements set at construction, no push/pop).
-
-  Syntax:
-    point := (10, 20)              // inferred as (I64, I64)
-    record := (42, "alice", true)  // inferred as (I64, Str, Bool)
-    x := record.0                  // I64, value 42
-    name := record.1               // Str, value "alice"
-    t : (Bool, I64, Str) = (false, 1, "two")  // explicit type annotation
-
-  Literal-only construction (no Tuple() constructor). Minimum 2 elements.
-  Access by numeric index (.0, .1, .N) with compile-time bounds checking.
-  Type annotation uses parenthesized type list: (Bool, I64, Str).
-
-*** Option A: Auto-generated structs (desugared in typer)
-   Each tuple shape generates a hidden struct. The typer rewrites tuple
-   literals into struct constructors before interpreter/codegen runs.
-
-   (I64, Str, Bool) generates:
-     Tuple_I64_Str_Bool := struct { _0 := 0; _1 := ""; _2 := false }
-
-   Pros:
-   - Reuses all existing struct machinery (codegen, interpreter, initer,
-     clone/delete, field access) — very little new code
-   - Zero runtime overhead (typed C struct fields, no offset calcs)
-   - .N becomes field access on _N — works through existing NODE_FIELD_ACCESS
-   - One representation for both interpreter and codegen
-
-   Cons:
-   - Many hidden struct defs (one per unique tuple shape)
-   - Name mangling gets ugly with nesting: Tuple_Tuple_I64_I64_Str
-   - Each shape is a distinct type — can't write generic "any tuple" functions
-
-   Changes needed:
-   - AST: add NODE_TUPLE_LIT
-   - Parser: (expr, expr, ...) syntax; TOK_NUMBER after DOT for .N access;
-     (Type, Type, ...) in type position for annotations
-   - Typer: synthesize struct defs, rewrite NODE_TUPLE_LIT to NODE_FCALL
-   - Interpreter/codegen/initer: no changes (struct machinery handles it)
-
-*** Option B: Single Tuple struct with parallel Vecs (like old rstil List)
-   One Tuple type for all shapes. Raw data buffer + parallel Vecs of
-   type_names and type_sizes as runtime metadata. Compiler validates
-   .N access at compile time using its own type tracking.
-
-   Tuple := struct {
-       mut data : Ptr = Ptr()
-       mut _len : I64 = 0
-       mut type_names : Vec = Vec()  // Vec<Str> per element
-       mut type_sizes : Vec = Vec()  // Vec<I64> per element
-   }
-
-   Pros:
-   - One type for all tuples — simpler type system
-   - Functions can accept any Tuple regardless of shape
-   - Familiar pattern from old rstil List
-
-   Cons:
-   - Runtime overhead (offset calculations, Vec allocations for metadata)
-   - Codegen needs casts: *(int64_t*)(tuple->data + offset)
-   - Clone/delete must iterate Vecs at runtime with dyn_call per element
-   - Doesn't reuse struct machinery — lots of new code needed
-   - .N return type known at compile time but runtime extraction is dynamic
-
-*** Option C: Dynamic list (Lisp-style)
-   Fully dynamic — each element stored as Dynamic, no compile-time type
-   tracking. Like Python lists or Lisp cons cells.
-
-   list := [42, "alice", true]   // all elements are Dynamic
-   x := list.0                   // returns Dynamic, needs cast to use
-
-   Pros:
-   - Simplest implementation — basically a Vec of Dynamic values
-   - Most flexible — can hold anything, mix types freely
-   - No struct generation, no type metadata Vecs
-
-   Cons:
-   - No compile-time type safety — .N returns Dynamic
-   - User must cast/assert types at point of use
-   - Runtime type errors instead of compile-time
-   - Boxing overhead for primitives
-   - Requires allowing Dynamic fields/locals (currently forbidden)
-
 ** WIP #17 Global variable access, explicit capture syntax
   :DEPENDENCIES_OF: #12 #13
   Variables declared in script-mode root scope (or any outer scope) are

@@ -8,6 +8,23 @@
   of running 4 modes × 32 files caused resource contention; the new
   runner handles scheduling with a slot-based pool (default j = thread count).
 
+* FIXED #18 Tuple: dynamic heterogeneous collection
+  A single dynamic Tuple struct in src/core/tuple.til with a raw data
+  buffer and two parallel Vecs (type_names: Vec<Str>, type_sizes: Vec<U64>)
+  for per-element type metadata. Follows the same patterns as Vec, Map,
+  and Set.
+
+  API: Tuple.new(), push(elem_type, elem_size, own val), get(i),
+  type_at(i), size_at(i), clone(), delete(). Data buffer grows
+  dynamically on push. Offset computation sums preceding element sizes.
+
+  Tests in src/test/tuples.til: homogeneous I64, homogeneous Str,
+  mixed types (I64+Str+Bool), type/size introspection, clone, growth.
+
+  Tuple literal syntax ((10, 20), .0/.1 access, compile-time type
+  annotations) are not implemented — those would be separate parser/typer
+  work on top of this runtime struct.
+
 * FIXED #49 Audit panic() call sites for correct __LOC__ usage
   All panic() calls now use __LOC__ as the first argument. Previously,
   core library files (str.til, vec.til, map.til, set.til, array.til) and

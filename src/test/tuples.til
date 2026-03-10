@@ -1,0 +1,90 @@
+mode test
+
+test_tuple_i64 := test() {
+    t := Tuple.new()
+    t.push("I64", I64.size(), own 42)
+    t.push("I64", I64.size(), own 99)
+    t.push("I64", I64.size(), own 7)
+
+    ref a : I64 = t.get(0)
+    ref b : I64 = t.get(1)
+    ref c : I64 = t.get(2)
+
+    assert_eq(__LOC__, a, 42)
+    assert_eq(__LOC__, b, 99)
+    assert_eq(__LOC__, c, 7)
+    assert_eq(__LOC__, t.len().to_i64(), 3)
+}
+
+test_tuple_strings := test() {
+    t := Tuple.new()
+    t.push("Str", Str.size(), own "hello")
+    t.push("Str", Str.size(), own "world")
+
+    ref a : Str = t.get(0)
+    ref b : Str = t.get(1)
+
+    assert_eq_str(__LOC__, a, "hello")
+    assert_eq_str(__LOC__, b, "world")
+    assert_eq(__LOC__, t.len().to_i64(), 2)
+}
+
+test_tuple_mixed := test() {
+    t := Tuple.new()
+    t.push("I64", I64.size(), own 42)
+    t.push("Str", Str.size(), own "hello")
+    t.push("Bool", Bool.size(), own true)
+
+    ref a : I64 = t.get(0)
+    ref b : Str = t.get(1)
+    ref c : Bool = t.get(2)
+
+    assert_eq(__LOC__, a, 42)
+    assert_eq_str(__LOC__, b, "hello")
+    assert(__LOC__, c)
+    assert_eq(__LOC__, t.len().to_i64(), 3)
+}
+
+test_tuple_type_at := test() {
+    t := Tuple.new()
+    t.push("I64", I64.size(), own 10)
+    t.push("Str", Str.size(), own "world")
+
+    ref tn0 : Str = t.type_at(0)
+    ref tn1 : Str = t.type_at(1)
+    assert_eq_str(__LOC__, tn0, "I64")
+    assert_eq_str(__LOC__, tn1, "Str")
+
+    ref sz0 : U64 = t.size_at(0)
+    ref sz1 : U64 = t.size_at(1)
+    assert_eq(__LOC__, sz0.to_i64(), 8)
+    assert_eq(__LOC__, sz1.to_i64(), 24)
+}
+
+test_tuple_clone := test() {
+    t := Tuple.new()
+    t.push("I64", I64.size(), own 42)
+    t.push("Str", Str.size(), own "hello")
+
+    t2 := t.clone()
+    ref a : I64 = t2.get(0)
+    ref b : Str = t2.get(1)
+    assert_eq(__LOC__, a, 42)
+    assert_eq_str(__LOC__, b, "hello")
+    assert_eq(__LOC__, t2.len().to_i64(), 2)
+}
+
+test_tuple_grow := test() {
+    t := Tuple.new()
+    // Push enough data to force realloc (initial cap = 8 bytes)
+    t.push("I64", I64.size(), own 1)
+    t.push("I64", I64.size(), own 2)
+    t.push("I64", I64.size(), own 3)
+    t.push("I64", I64.size(), own 4)
+
+    assert_eq(__LOC__, t.len().to_i64(), 4)
+    ref first : I64 = t.get(0)
+    ref last : I64 = t.get(3)
+    assert_eq(__LOC__, first, 1)
+    assert_eq(__LOC__, last, 4)
+}

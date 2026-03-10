@@ -320,7 +320,7 @@ main := proc(args: ..Str) {
     tests := Vec.new("Test", Test.size())
     flags := mode_flags(en_ci, en_cr, en_ti, en_tr)
 
-    // === 32 mode tests ===
+    // === 33 mode tests ===
     add_mode(tests, "src/test/types.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/operators.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/functions.til", flags, en_ci, en_cr, en_ti, en_tr)
@@ -334,6 +334,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/macros.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/enums.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/vecs.til", flags, en_ci, en_cr, en_ti, en_tr)
+    add_mode(tests, "src/test/tuples.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/arrays.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/sets.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/maps.til", flags, en_ci, en_cr, en_ti, en_tr)
