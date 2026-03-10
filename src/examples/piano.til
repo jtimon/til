@@ -68,18 +68,18 @@ main := proc() {
     fnt := load_font("assets/DejaVuSans.ttf", 48)
 
     // Key state tracking
-    mut key_down := Array.new("I64", 8, NUM_KEYS)
-    mut prev_down := Array.new("I64", 8, NUM_KEYS)
-    for i in 0..NUM_KEYS {
+    mut key_down := Array.new("I64", 8, U64.from_i64(NUM_KEYS))
+    mut prev_down := Array.new("I64", 8, U64.from_i64(NUM_KEYS))
+    for i in 0..U64.from_i64(NUM_KEYS) {
         key_down.set(i, own 0)
         prev_down.set(i, own 0)
     }
 
     // Note events (circular buffer)
-    mut ev_note := Array.new("I64", 8, MAX_NOTES)
-    mut ev_start := Array.new("I64", 8, MAX_NOTES)
-    mut ev_end := Array.new("I64", 8, MAX_NOTES)
-    for i in 0..MAX_NOTES {
+    mut ev_note := Array.new("I64", 8, U64.from_i64(MAX_NOTES))
+    mut ev_start := Array.new("I64", 8, U64.from_i64(MAX_NOTES))
+    mut ev_end := Array.new("I64", 8, U64.from_i64(MAX_NOTES))
+    for i in 0..U64.from_i64(MAX_NOTES) {
         ev_note.set(i, own 0)
         ev_start.set(i, own 0)
         ev_end.set(i, own 0)
@@ -88,8 +88,8 @@ main := proc() {
     mut ev_head := 0
 
     // Pre-generate all 36 sounds for polyphony
-    mut sounds := Array.new("Sound", 32, NUM_KEYS)
-    for i in 0..NUM_KEYS {
+    mut sounds := Array.new("Sound", 32, U64.from_i64(NUM_KEYS))
+    for i in 0..U64.from_i64(NUM_KEYS) {
         ref freq : I64 = FREQS.get(i)
         s := make_tone(freq, 10000)
         sounds.set(i, own s)
@@ -102,7 +102,7 @@ main := proc() {
         timer = timer.add(dt)
 
         // -- Input: reset key_down, then set from keyboard + mouse --
-        for i in 0..NUM_KEYS {
+        for i in 0..U64.from_i64(NUM_KEYS) {
             ref kc : I64 = KEYCODES.get(i)
             if is_key_down(kc) {
                 key_down.set(i, own 1)
@@ -119,12 +119,12 @@ main := proc() {
                 mut mouse_note := 0.sub(1)
                 // Check black keys first (they're on top)
                 if my.lt(PIANO_Y.add(BLACK_H)) {
-                    for oct in 0..3 {
-                        for j in 0..5 {
+                    for oct in 0..U64.from_i64(3) {
+                        for j in 0..U64.from_i64(5) {
                             ref bpos : I64 = BLACK_KEY_POS.get(j)
                             ref bchrom_off : I64 = BLACK_CHROMS.get(j)
-                            chrom := bchrom_off.add(oct.mul(12))
-                            bx := oct.mul(7).add(bpos).add(1).mul(WHITE_W).sub(BLACK_W.div(2))
+                            chrom := bchrom_off.add(oct.to_i64().mul(12))
+                            bx := oct.to_i64().mul(7).add(bpos).add(1).mul(WHITE_W).sub(BLACK_W.div(2))
                             if chrom.lt(NUM_KEYS).and(mx.gte(bx)).and(mx.lt(bx.add(BLACK_W))) {
                                 mouse_note = chrom
                             }
@@ -136,18 +136,18 @@ main := proc() {
                     wk := mx.div(WHITE_W)
                     if wk.gte(0).and(wk.lt(21)) {
                         oct := wk.div(7)
-                        ref nat : I64 = NATURALS.get(wk.mod(7))
+                        ref nat : I64 = NATURALS.get(U64.from_i64(wk.mod(7)))
                         mouse_note = nat.add(oct.mul(12))
                     }
                 }
                 if mouse_note.gte(0).and(mouse_note.lt(NUM_KEYS)) {
-                    key_down.set(mouse_note, own 1)
+                    key_down.set(U64.from_i64(mouse_note), own 1)
                 }
             }
         }
 
         // Detect press/release by comparing with prev_down
-        for i in 0..NUM_KEYS {
+        for i in 0..U64.from_i64(NUM_KEYS) {
             ref kd : I64 = key_down.get(i)
             ref pd : I64 = prev_down.get(i)
             // Newly pressed
@@ -155,9 +155,9 @@ main := proc() {
                 ref s : Sound = sounds.get(i)
                 play_sound(s)
                 // Add note event
-                ev_note.set(ev_head, own i.clone())
-                ev_start.set(ev_head, own timer.clone())
-                ev_end.set(ev_head, own 0.sub(1))
+                ev_note.set(U64.from_i64(ev_head), own i.to_i64().clone())
+                ev_start.set(U64.from_i64(ev_head), own timer.clone())
+                ev_end.set(U64.from_i64(ev_head), own 0.sub(1))
                 ev_head = ev_head.add(1).mod(MAX_NOTES)
                 if ev_count.lt(MAX_NOTES) {
                     ev_count = ev_count.add(1)
@@ -168,12 +168,12 @@ main := proc() {
                 ref s : Sound = sounds.get(i)
                 stop_sound(s)
                 // Close the note event
-                for j in 0..ev_count {
-                    idx := ev_head.sub(1).sub(j).add(MAX_NOTES).mod(MAX_NOTES)
-                    ref en : I64 = ev_note.get(idx)
-                    ref ee : I64 = ev_end.get(idx)
-                    if en.eq(i).and(ee.eq(0.sub(1))) {
-                        ev_end.set(idx, own timer.clone())
+                for j in 0..U64.from_i64(ev_count) {
+                    idx := ev_head.sub(1).sub(j.to_i64()).add(MAX_NOTES).mod(MAX_NOTES)
+                    ref en : I64 = ev_note.get(U64.from_i64(idx))
+                    ref ee : I64 = ev_end.get(U64.from_i64(idx))
+                    if en.eq(i.to_i64()).and(ee.eq(0.sub(1))) {
+                        ev_end.set(U64.from_i64(idx), own timer.clone())
                         break
                     }
                 }
@@ -181,7 +181,7 @@ main := proc() {
         }
 
         // Copy current state to prev
-        for i in 0..NUM_KEYS {
+        for i in 0..U64.from_i64(NUM_KEYS) {
             ref kd : I64 = key_down.get(i)
             prev_down.set(i, own kd.clone())
         }
@@ -195,24 +195,24 @@ main := proc() {
 
         // Piano roll grid lines (one per note, horizontal)
         note_h := ROLL_H.div(NUM_KEYS)
-        for i in 0..NUM_KEYS {
-            ny := i.mul(note_h)
-            ref ib : I64 = IS_BLACK.get(i.mod(12))
+        for i in 0..U64.from_i64(NUM_KEYS) {
+            ny := i.to_i64().mul(note_h)
+            ref ib : I64 = IS_BLACK.get(U64.from_i64(i.to_i64().mod(12)))
             if ib.eq(1) {
                 draw_rectangle(0, ny, WINDOW_WIDTH, note_h, 15, 15, 25, 255)
             }
             // Octave separator
-            if i.mod(12).eq(0).and(i.gt(0)) {
+            if i.to_i64().mod(12).eq(0).and(i.to_i64().gt(0)) {
                 draw_rectangle(0, ny, WINDOW_WIDTH, 1, 40, 40, 60, 255)
             }
         }
 
         // Draw note events
-        for j in 0..ev_count {
-            idx := ev_head.sub(ev_count).add(j).add(MAX_NOTES).mod(MAX_NOTES)
-            ref en : I64 = ev_note.get(idx)
-            ref es : I64 = ev_start.get(idx)
-            ref ee : I64 = ev_end.get(idx)
+        for j in 0..U64.from_i64(ev_count) {
+            idx := ev_head.sub(ev_count).add(j.to_i64()).add(MAX_NOTES).mod(MAX_NOTES)
+            ref en : I64 = ev_note.get(U64.from_i64(idx))
+            ref es : I64 = ev_start.get(U64.from_i64(idx))
+            ref ee : I64 = ev_end.get(U64.from_i64(idx))
 
             // x positions (time → x, scrolling left)
             mut x_right := WINDOW_WIDTH.sub(timer.sub(es).mul(SCROLL_SPEED).div(1000))
@@ -243,26 +243,26 @@ main := proc() {
         }
 
         // Note labels on left side of roll
-        for i in 0..NUM_KEYS {
-            ny := ROLL_H.sub(i.add(1).mul(note_h))
-            ref nn : Str = NOTE_NAMES.get(i.mod(12))
-            oct_label := nn.concat(i.div(12).add(3).to_str())
+        for i in 0..U64.from_i64(NUM_KEYS) {
+            ny := ROLL_H.sub(i.to_i64().add(1).mul(note_h))
+            ref nn : Str = NOTE_NAMES.get(U64.from_i64(i.to_i64().mod(12)))
+            oct_label := nn.concat(i.to_i64().div(12).add(3).to_str())
             draw_text_font(fnt, oct_label, 4, ny, note_h.sub(2), 1, 60, 60, 80, 255)
         }
 
         // -- Piano keyboard --
         // Draw 21 white keys (3 octaves)
-        for i in 0..21 {
-            kx := i.mul(WHITE_W)
-            oct := i.div(7)
-            ref nat : I64 = NATURALS.get(i.mod(7))
+        for i in 0..U64.from_i64(21) {
+            kx := i.to_i64().mul(WHITE_W)
+            oct := i.to_i64().div(7)
+            ref nat : I64 = NATURALS.get(U64.from_i64(i.to_i64().mod(7)))
             chrom := nat.add(oct.mul(12))
 
             mut kr := 240
             mut kg := 240
             mut kb := 240
             if chrom.lt(NUM_KEYS) {
-                ref kd : I64 = key_down.get(chrom)
+                ref kd : I64 = key_down.get(U64.from_i64(chrom))
                 if kd.eq(1) {
                     kr = 0
                     kg = 200
@@ -273,24 +273,24 @@ main := proc() {
 
             // Key label
             if chrom.lt(NUM_KEYS) {
-                ref lbl : Str = KEY_LABELS.get(chrom)
+                ref lbl : Str = KEY_LABELS.get(U64.from_i64(chrom))
                 draw_text_font(fnt, lbl, kx.add(WHITE_W.div(4)), PIANO_Y.add(WHITE_H).sub(30), 18, 1, 80, 80, 80, 255)
             }
         }
 
         // Draw 15 black keys (5 per octave, 3 octaves)
-        for oct in 0..3 {
-            for j in 0..5 {
+        for oct in 0..U64.from_i64(3) {
+            for j in 0..U64.from_i64(5) {
                 ref bpos : I64 = BLACK_KEY_POS.get(j)
                 ref bchrom_off : I64 = BLACK_CHROMS.get(j)
-                chrom := bchrom_off.add(oct.mul(12))
-                bx := oct.mul(7).add(bpos).add(1).mul(WHITE_W).sub(BLACK_W.div(2))
+                chrom := bchrom_off.add(oct.to_i64().mul(12))
+                bx := oct.to_i64().mul(7).add(bpos).add(1).mul(WHITE_W).sub(BLACK_W.div(2))
 
                 mut br := 20
                 mut bg := 20
                 mut bb := 20
                 if chrom.lt(NUM_KEYS) {
-                    ref kd : I64 = key_down.get(chrom)
+                    ref kd : I64 = key_down.get(U64.from_i64(chrom))
                     if kd.eq(1) {
                         br = 0
                         bg = 150
@@ -301,7 +301,7 @@ main := proc() {
 
                 // Key label
                 if chrom.lt(NUM_KEYS) {
-                    ref lbl : Str = KEY_LABELS.get(chrom)
+                    ref lbl : Str = KEY_LABELS.get(U64.from_i64(chrom))
                     draw_text_font(fnt, lbl, bx.add(BLACK_W.div(4)), PIANO_Y.add(BLACK_H).sub(20), 14, 1, 180, 180, 180, 255)
                 }
             }
@@ -313,7 +313,7 @@ main := proc() {
         end_drawing()
     }
 
-    for i in 0..NUM_KEYS {
+    for i in 0..U64.from_i64(NUM_KEYS) {
         ref s : Sound = sounds.get(i)
         unload_sound(s)
     }

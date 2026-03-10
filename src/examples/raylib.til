@@ -23,7 +23,7 @@ color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) re
     return U32.from_i64(r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)))
 }
 
-InitWindow(I32.from_i64(800), I32.from_i64(450), "hello from til!".data)
+InitWindow(I32.from_i64(800), I32.from_i64(450), "hello from til!".c_str)
 SetTargetFPS(I32.from_i64(60))
 
 black := color(0, 0, 0, 255)

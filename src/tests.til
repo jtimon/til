@@ -446,6 +446,30 @@ main := proc(args: ..Str) {
     }
     plot_ms := clock_ms().sub(plot_start)
 
+    // --- Section 6: Build-only tests (GUI/raylib examples) ---
+
+    build_start := clock_ms()
+    gui_examples := array("Str",
+        "src/examples/gui_hello.til",
+        "src/examples/snake.til",
+        "src/examples/piano.til",
+        "src/examples/music.til",
+        "src/examples/font_test.til",
+        "src/examples/minesweeper.til",
+        "src/examples/popcorn.til",
+        "src/examples/chess.til",
+        "src/examples/go.til",
+        "src/examples/raylib.til"
+    )
+    for gf : Str in gui_examples {
+        rc := run_capture(CTIL.concat(" translate ").concat(gf))
+        if rc.neq(0) {
+            println("FAIL (build):     ", gf)
+            fail = 1
+        }
+    }
+    build_ms := clock_ms().sub(build_start)
+
     // --- Summary ---
 
     wall_ms := clock_ms().sub(wall_start)
@@ -457,6 +481,7 @@ main := proc(args: ..Str) {
     println("Typer errors: ", ms_to_str(typer_ms))
     println("CLI tests:    ", ms_to_str(cli_ms))
     println("Plot test:    ", ms_to_str(plot_ms))
+    println("Build tests:  ", ms_to_str(build_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
     println("Passed:       ", passed.to_i64().to_str(), "/", num_files.to_i64().to_str())
     println("")
