@@ -4,4 +4,6 @@
 # Mark auto-generated bootstrap C files so they don't skew language statistics
 src/bootstrap/core.h linguist-generated=true
 src/bootstrap/core.c linguist-generated=true
+src/bootstrap/lexer.h linguist-generated=true
+src/bootstrap/lexer.c linguist-generated=true
 src/bootstrap/til.c linguist-generated=true
