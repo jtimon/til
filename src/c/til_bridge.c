@@ -21,7 +21,7 @@ static U32 _tok_count;
 static Str *_parse_mode;
 
 Token *til_tokenize(Str *source, Str *path) {
-    return tokenize(source->c_str, path, &_tok_count);
+    return tokenize((const char *)source->c_str, path, &_tok_count);
 }
 U32 til_tok_count(void) { return _tok_count; }
 
@@ -178,7 +178,7 @@ void til_expr_free(Expr *ast) { expr_free(ast); }
 // --- Utility wrappers ---
 
 Str *til_realpath(Str *path) {
-    char *abs = realpath(path->c_str, NULL);
+    char *abs = realpath((const char *)path->c_str, NULL);
     if (!abs) return NULL;
     Str *s = Str_new(abs);
     free(abs);
@@ -186,7 +186,7 @@ Str *til_realpath(Str *path) {
 }
 
 I32 til_system(Str *cmd) {
-    return system(cmd->c_str);
+    return system((const char *)cmd->c_str);
 }
 
 // Set operations (bridge for Str set)

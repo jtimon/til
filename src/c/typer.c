@@ -1270,12 +1270,12 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                                        Str_new("Array"), fcall);
         // Arg: elem_type string
         Expr *et = expr_new(NODE_LITERAL_STR, line, col, path);
-        et->type.str_val = Str_new(elem_type->c_str);
+        et->type.str_val = Str_new((const char *)elem_type->c_str);
         et->til_type = TIL_TYPE_STRUCT;
         et->struct_name = Str_new("Str");
         expr_add_child(new_call, et);
         // Arg: ElemType.size()
-        Expr *sz = make_ns_call(elem_type->c_str, "size", TIL_TYPE_U64,
+        Expr *sz = make_ns_call((const char *)elem_type->c_str, "size", TIL_TYPE_U64,
                                  NULL, fcall);
         expr_add_child(new_call, sz);
         // Arg: count
@@ -1611,7 +1611,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
 // --- Delete call insertion ---
 
 static const char *type_to_name(TilType type, Str *struct_name) {
-    if (struct_name) return struct_name->c_str;
+    if (struct_name) return (const char *)struct_name->c_str;
     switch (type) {
         case TIL_TYPE_I64:  return "I64";
         case TIL_TYPE_U8:   return "U8";

@@ -1,14 +1,14 @@
-.PHONY: all clean test lib
+.PHONY: all clean test lib til
 
 all:
 	@$(MAKE) --no-print-directory bin/ctil
 	@bin/ctil translate src/core/core.til
-	@cp gen/c/core.c src/lib/core.c
-	@cp gen/c/core.h src/lib/core.h
+	@cp gen/c/core.c src/bootstrap/core.c
+	@cp gen/c/core.h src/bootstrap/core.h
 	@$(MAKE) --no-print-directory bin/ctil
 
-SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c, $(wildcard src/c/*.c)) src/lib/core.c
-HDRS := $(wildcard src/c/*.h) src/lib/core.h
+SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c, $(wildcard src/c/*.c)) src/bootstrap/core.c
+HDRS := $(wildcard src/c/*.h) src/bootstrap/core.h
 
 bin/ctil: $(SRCS) $(HDRS)
 	@mkdir -p bin
@@ -19,8 +19,12 @@ test: bin/ctil
 
 lib: bin/ctil
 	@bin/ctil translate src/core/core.til
-	@cp gen/c/core.c src/lib/core.c
-	@cp gen/c/core.h src/lib/core.h
+	@cp gen/c/core.c src/bootstrap/core.c
+	@cp gen/c/core.h src/bootstrap/core.h
+
+til: bin/ctil
+	@bin/ctil translate src/self/til.til
+	@cp gen/c/til.c src/bootstrap/til.c
 
 clean:
 	rm -rf bin/*

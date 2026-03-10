@@ -256,7 +256,7 @@ Value make_str_value_own(char *data, U64 len) {
 Str str_view(Value v) {
     char *data = *(char **)v.instance->data;
     U64 len = *(U64 *)((char *)v.instance->data + 8);
-    return (Str){.c_str = data, .count = len};
+    return (Str){.c_str = (U8 *)data, .count = len};
 }
 
 // Deep-clone a Value (for payload enum operations and general use)
@@ -285,7 +285,7 @@ Value clone_value(Value v) {
         if (Str_eq_c(src->struct_name, "Str")) {
             Str *s = (Str *)src->data;
             if (s->count > 0 && s->c_str)
-                *(char **)dst->data = strndup(s->c_str, s->count);
+                *(char **)dst->data = strndup((const char *)s->c_str, s->count);
             return (Value){.type = VAL_STRUCT, .instance = dst};
         }
         // Deep-clone fields that contain heap pointers
@@ -321,7 +321,7 @@ Value clone_value(Value v) {
             if (ftype && Str_eq_c(ftype, "Str")) {
                 Str *s = (Str *)((char *)src->data + foff);
                 if (s->count > 0 && s->c_str) {
-                    *(char **)((char *)dst->data + foff) = strndup(s->c_str, s->count);
+                    *(char **)((char *)dst->data + foff) = strndup((const char *)s->c_str, s->count);
                 }
                 continue;
             }
@@ -455,7 +455,7 @@ Value eval_call(Scope *scope, Expr *e) {
             flat_name_buf[sn->count] = '_';
             memcpy(flat_name_buf + sn->count + 1, fn->c_str, fn->count);
             flat_name_buf[flen] = '\0';
-            Str flat_str = {.c_str = flat_name_buf, .count = flen};
+            Str flat_str = {.c_str = (U8 *)flat_name_buf, .count = flen};
             Expr *orig_callee = expr_child(e, 0);
             Expr flat_ident = *orig_callee;
             flat_ident.type.tag = NODE_IDENT;
@@ -495,7 +495,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     Value arg = arg_cell->val;
                     if (Str_eq_c(ptype, "Str")) {
                         Str *sp = (Str *)arg.ptr;
-                        arg = make_str_value_own(sp->c_str, sp->count);
+                        arg = make_str_value_own((char *)sp->c_str, sp->count);
                     }
                     else if (Str_eq_c(ptype, "I64"))
                         arg = (Value){.type = VAL_I64, .i64 = (I64 *)arg.ptr};
@@ -524,7 +524,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     Str *ptype = func_def->type.func_def.param_types[i];
                     if (Str_eq_c(ptype, "Str")) {
                         Str *sp = (Str *)arg.ptr;
-                        arg = make_str_value_own(sp->c_str, sp->count);
+                        arg = make_str_value_own((char *)sp->c_str, sp->count);
                     }
                     else if (Str_eq_c(ptype, "I64"))
                         arg = (Value){.type = VAL_I64, .i64 = (I64 *)arg.ptr};
@@ -665,21 +665,21 @@ Value eval_call(Scope *scope, Expr *e) {
 Value eval_expr(Scope *scope, Expr *e) {
     switch (e->type.tag) {
     case NODE_LITERAL_STR:
-        return make_str_value(e->type.str_val->c_str, e->type.str_val->count);
+        return make_str_value((const char *)e->type.str_val->c_str, e->type.str_val->count);
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
-            return val_u8(atoll(e->type.str_val->c_str));
+            return val_u8(atoll((const char *)e->type.str_val->c_str));
         if (e->til_type == TIL_TYPE_U32)
-            return val_u32(atoll(e->type.str_val->c_str));
+            return val_u32(atoll((const char *)e->type.str_val->c_str));
         if (e->til_type == TIL_TYPE_U64)
-            return val_u64((U64)strtoull(e->type.str_val->c_str, NULL, 10));
+            return val_u64((U64)strtoull((const char *)e->type.str_val->c_str, NULL, 10));
         if (e->til_type == TIL_TYPE_I16)
-            return val_i16(atoll(e->type.str_val->c_str));
+            return val_i16(atoll((const char *)e->type.str_val->c_str));
         if (e->til_type == TIL_TYPE_I32)
-            return val_i32(atoll(e->type.str_val->c_str));
+            return val_i32(atoll((const char *)e->type.str_val->c_str));
         if (e->til_type == TIL_TYPE_F32)
-            return val_f32((F32)atof(e->type.str_val->c_str));
-        return val_i64(atoll(e->type.str_val->c_str));
+            return val_f32((F32)atof((const char *)e->type.str_val->c_str));
+        return val_i64(atoll((const char *)e->type.str_val->c_str));
     case NODE_LITERAL_BOOL:
         return val_bool(Str_eq_c(e->type.str_val, "true"));
     case NODE_LITERAL_NULL:
@@ -820,7 +820,7 @@ static void eval_body(Scope *scope, Expr *body) {
                         val = (Value){.type = VAL_BOOL, .boolean = (Bool *)val.ptr};
                     else if (Str_eq_c(etype, "Str")) {
                         Str *sp = (Str *)val.ptr;
-                        val = make_str_value_own(sp->c_str, sp->count);
+                        val = make_str_value_own((char *)sp->c_str, sp->count);
                     }
                     else {
                         // User-defined struct: wrap ptr in borrowed StructInstance
@@ -1162,14 +1162,14 @@ static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
     inst->borrowed = 0;
     inst->data = calloc(1, cached_array_def->total_struct_size);
     // Write fields: data, cap, elem_size, elem_type
-    Str fn_data = {.c_str = "data", .count = 4};
-    Str fn_cap = {.c_str = "cap", .count = 3};
-    Str fn_esz = {.c_str = "elem_size", .count = 9};
-    Str fn_et = {.c_str = "elem_type", .count = 9};
+    Str fn_data = {.c_str = (U8 *)"data", .count = 4};
+    Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
+    Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
+    Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
     write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
     write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u64(argc));
     write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u64(esz));
-    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value(elem_type->c_str, elem_type->count));
+    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)elem_type->c_str, elem_type->count));
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
@@ -1227,7 +1227,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *u
 
     // In needs_main mode, call main()
     if (mode && mode->needs_main) {
-        Str main_name = {.c_str = (char *)"main", .count = 4};
+        Str main_name = {.c_str = (U8 *)"main", .count = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
             fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path->c_str, mode->name);

@@ -116,7 +116,7 @@ static Bool is_shallow_param(const char *name) {
     for (U32 i = 0; i < current_fdef->type.func_def.nparam; i++) {
         if (current_fdef->type.func_def.param_shallows &&
             current_fdef->type.func_def.param_shallows[i] &&
-            strcmp(current_fdef->type.func_def.param_names[i]->c_str, name) == 0)
+            strcmp((const char *)current_fdef->type.func_def.param_names[i]->c_str, name) == 0)
             return 1;
     }
     return 0;
@@ -170,7 +170,7 @@ static const char *func_to_c(Str *name) {
     if (Str_eq_c(name, "not")) return "Bool_not";
     // C keyword collision
     if (Str_eq_c(name, "double")) return "double_";
-    return name->c_str;
+    return (const char *)name->c_str;
 }
 
 // --- Expression emission ---
@@ -377,7 +377,7 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         // Dynamic (void *) IS the value — no dereference needed
         emit_expr(f, e, depth);
     } else if (e->type.tag == NODE_IDENT) {
-        if (is_shallow_param(e->type.str_val->c_str)) {
+        if (is_shallow_param((const char *)e->type.str_val->c_str)) {
             emit_expr(f, e, depth); // shallow param is already a value
         } else {
             fprintf(f, "DEREF(");
@@ -400,7 +400,7 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
 // Emit expression as a pointer — after hoisting, args are NODE_IDENT (already pointer)
 // or NODE_FIELD_ACCESS (value needing compound literal wrapping).
 static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
-    if (e->type.tag == NODE_IDENT && is_shallow_param(e->type.str_val->c_str)) {
+    if (e->type.tag == NODE_IDENT && is_shallow_param((const char *)e->type.str_val->c_str)) {
         // Shallow param is a value — wrap in compound literal to get a pointer
         const char *ctype = c_type_name(e->til_type, e->struct_name);
         fprintf(f, "&(%s){", ctype);
@@ -442,7 +442,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
                 if (!expr_child(sbody, fi)->type.decl.is_namespace) {
                     is_own = expr_child(sbody, fi)->type.decl.is_own;
                     is_ref = expr_child(sbody, fi)->type.decl.is_ref;
-                    fname = expr_child(sbody, fi)->type.decl.name->c_str;
+                    fname = (const char *)expr_child(sbody, fi)->type.decl.name->c_str;
                     fi++;
                     break;
                 }
@@ -527,7 +527,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             if (rhs->type.tag == NODE_FCALL && rhs->struct_name &&
                 *Str_eq(expr_child(rhs, 0)->type.str_val, rhs->struct_name)) {
                 // Struct constructor — malloc + field-by-field assignment
-                const char *var = e->type.decl.name->c_str;
+                const char *var = (const char *)e->type.decl.name->c_str;
                 if (is_global)
                     fprintf(f, "%s = malloc(sizeof(%s));\n", var, ctype);
                 else
@@ -538,7 +538,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 // Function calls / enum constructors already return a fresh heap pointer
                 if (rhs->type.tag == NODE_FCALL && fcall_is_shallow_return(rhs)) {
                     // returns shallow: C function returns value, box into pointer
-                    const char *var = e->type.decl.name->c_str;
+                    const char *var = (const char *)e->type.decl.name->c_str;
                     if (is_global)
                         fprintf(f, "%s = malloc(sizeof(%s)); *%s = ", var, ctype, var);
                     else
@@ -779,7 +779,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
                 Str *ptype = func_def->type.func_def.param_types[i];
                 if ((I32)i == vi) {
                     // Build Array[T] from remaining args
-                    const char *et = ptype->c_str;
+                    const char *et = (const char *)ptype->c_str;
                     fprintf(f, "    int _va_argc = argc - %d;\n", argi);
                     fprintf(f, "    Str *_va_et = Str_lit(\"%s\", %lluULL);\n", et, (unsigned long long)ptype->count);
                     fprintf(f, "    U64 *_va_esz = malloc(sizeof(U64)); *_va_esz = sizeof(%s);\n", et);
@@ -1141,9 +1141,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             cmap_set(&func_defs, fname, &fdef);
         }
     }
-    FILE *f = fopen(c_output_path->c_str, "w");
+    FILE *f = fopen((const char *)c_output_path->c_str, "w");
     if (!f) {
-        fprintf(stderr, "error: could not open '%s' for writing\n", c_output_path->c_str);
+        fprintf(stderr, "error: could not open '%s' for writing\n", (const char *)c_output_path->c_str);
         return 1;
     }
 
@@ -1533,7 +1533,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
-            const char *et = ci->type_name->c_str;
+            const char *et = (const char *)ci->type_name->c_str;
             U64 et_len = ci->type_name->count;
             if (ci->is_vec) {
                 fprintf(f, "Vec *vec_of_%s(int count, ...) {\n", et);
@@ -1653,9 +1653,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 }
 
 I32 build_header(Expr *program, Str *h_path) {
-    FILE *f = fopen(h_path->c_str, "w");
+    FILE *f = fopen((const char *)h_path->c_str, "w");
     if (!f) {
-        fprintf(stderr, "error: could not open '%s' for writing\n", h_path->c_str);
+        fprintf(stderr, "error: could not open '%s' for writing\n", (const char *)h_path->c_str);
         return 1;
     }
 
@@ -1794,7 +1794,7 @@ static void emit_til_default(FILE *f, TilType t, Str *struct_name) {
     case TIL_TYPE_BOOL: fprintf(f, "false"); break;
     case TIL_TYPE_STRUCT:
     case TIL_TYPE_ENUM:
-        if (struct_name && strcmp(struct_name->c_str, "Str") == 0)
+        if (struct_name && strcmp((const char *)struct_name->c_str, "Str") == 0)
             fprintf(f, "\"\"");
         else if (struct_name)
             fprintf(f, "%s()", struct_name->c_str);
@@ -1806,9 +1806,9 @@ static void emit_til_default(FILE *f, TilType t, Str *struct_name) {
 }
 
 I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
-    FILE *f = fopen(til_path->c_str, "w");
+    FILE *f = fopen((const char *)til_path->c_str, "w");
     if (!f) {
-        fprintf(stderr, "error: could not open '%s' for writing\n", til_path->c_str);
+        fprintf(stderr, "error: could not open '%s' for writing\n", (const char *)til_path->c_str);
         return 1;
     }
 
@@ -1959,7 +1959,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
         Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
         Str_new(" -c ")), c_path), Str_new(" -o ")), obj_path);
-    int result = system(cmd->c_str);
+    int result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: library compilation failed\n");
         return 1;
@@ -1970,7 +1970,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
         Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
         Str_new(" -c ")), ext_c_path), Str_new(" -o ")), ext_obj);
-    result = system(cmd->c_str);
+    result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: ext.c compilation failed\n");
         return 1;
@@ -1983,7 +1983,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
         cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
             Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
             Str_new(" -c ")), user_c_path), Str_new(" -o ")), user_obj);
-        result = system(cmd->c_str);
+        result = system((const char *)cmd->c_str);
         if (result != 0) {
             fprintf(stderr, "error: user .c compilation failed\n");
             return 1;
@@ -1996,7 +1996,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
         Str_new("cc -shared -o "), so_path),
         Str_new(" ")), obj_path), Str_new(" ")), ext_obj),
         Str_concat(Str_concat(Str_new(" "), user_obj), lf));
-    result = system(cmd->c_str);
+    result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: shared library creation failed\n");
         return 1;
@@ -2008,7 +2008,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
         Str_new("ar rcs "), a_path),
         Str_new(" ")), obj_path), Str_new(" ")), ext_obj),
         Str_concat(Str_new(" "), user_obj));
-    result = system(cmd->c_str);
+    result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: static library creation failed\n");
         return 1;
@@ -2034,7 +2034,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
         Str_new(" ")), c_path),
         Str_new(" ")), Str_concat(Str_concat(ext_c_path, user_part), lf));
 
-    int result = system(cmd->c_str);
+    int result = system((const char *)cmd->c_str);
 
     if (result != 0) {
         fprintf(stderr, "error: C compilation failed\n");

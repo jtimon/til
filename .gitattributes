@@ -1,6 +1,7 @@
 # Use Odin for now, maybe Go would be better? Roc?
 *.til linguist-language=Odin
 
-# Mark auto-generated lib C files so they don't skew language statistics
-src/lib/core.h linguist-generated=true
-src/lib/core.c linguist-generated=true
+# Mark auto-generated bootstrap C files so they don't skew language statistics
+src/bootstrap/core.h linguist-generated=true
+src/bootstrap/core.c linguist-generated=true
+src/bootstrap/til.c linguist-generated=true

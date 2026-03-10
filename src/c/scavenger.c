@@ -65,12 +65,12 @@ static void collect_refs(Expr *e, Vec *refs) {
             Str *cn = expr_child(e, 0)->type.str_val;
             // array()/vec() builtins: their namespace methods are called from
             // C code (ext.c/dispatch.c) which the scavenger can't see
-            if (strcmp(cn->c_str, "array") == 0) {
+            if (strcmp((const char *)cn->c_str, "array") == 0) {
                 Str *arr = gc_str(Str_new("Array"));
                 vec_push_str(refs, qualified_name(arr, gc_str(Str_new("new"))));
                 vec_push_str(refs, qualified_name(arr, gc_str(Str_new("set"))));
                 vec_push_str(refs, qualified_name(arr, gc_str(Str_new("delete"))));
-            } else if (strcmp(cn->c_str, "vec") == 0) {
+            } else if (strcmp((const char *)cn->c_str, "vec") == 0) {
                 Str *vec = gc_str(Str_new("Vec"));
                 vec_push_str(refs, qualified_name(vec, gc_str(Str_new("new"))));
                 vec_push_str(refs, qualified_name(vec, gc_str(Str_new("push"))));

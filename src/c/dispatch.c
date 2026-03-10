@@ -422,14 +422,14 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     si->struct_def = cached_array_def;
     si->borrowed = 0;
     si->data = calloc(1, cached_array_def->total_struct_size);
-    Str fn_data = {.c_str = "data", .count = 4};
-    Str fn_cap = {.c_str = "cap", .count = 3};
-    Str fn_esz = {.c_str = "elem_size", .count = 9};
-    Str fn_et = {.c_str = "elem_type", .count = 9};
+    Str fn_data = {.c_str = (U8 *)"data", .count = 4};
+    Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
+    Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
+    Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
     write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
     write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u64(count));
     write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u64(elem_size));
-    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value(type_name->c_str, type_name->count));
+    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -471,16 +471,16 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     si->struct_def = cached_vec_def;
     si->borrowed = 0;
     si->data = calloc(1, cached_vec_def->total_struct_size);
-    Str fn_data = {.c_str = "data", .count = 4};
-    Str fn_count = {.c_str = "count", .count = 5};
-    Str fn_cap = {.c_str = "cap", .count = 3};
-    Str fn_esz = {.c_str = "elem_size", .count = 9};
-    Str fn_et = {.c_str = "elem_type", .count = 9};
+    Str fn_data = {.c_str = (U8 *)"data", .count = 4};
+    Str fn_count = {.c_str = (U8 *)"count", .count = 5};
+    Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
+    Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
+    Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
     write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
     write_field(si, find_field_decl(cached_vec_def, &fn_count), val_u64(count));
     write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u64(cap));
     write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u64(elem_size));
-    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value(type_name->c_str, type_name->count));
+    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -519,7 +519,7 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
 static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     Str sv = str_view(path);
-    char *p = strndup(sv.c_str, sv.count);
+    char *p = strndup((const char *)sv.c_str, sv.count);
     FILE *f = fopen(p, "rb");
     if (!f) {
         fprintf(stderr, "readfile: could not open '%s'\n", p);
@@ -542,7 +542,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
     Value content = eval_expr(s, expr_child(e,2));
     Str pv = str_view(path);
     Str cv = str_view(content);
-    char *p = strndup(pv.c_str, pv.count);
+    char *p = strndup((const char *)pv.c_str, pv.count);
     FILE *f = fopen(p, "wb");
     if (!f) {
         fprintf(stderr, "writefile: could not open '%s'\n", p);
@@ -559,7 +559,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
 static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
     Value cmd = eval_expr(s, expr_child(e,1));
     Str sv = str_view(cmd);
-    char *c = strndup(sv.c_str, sv.count);
+    char *c = strndup((const char *)sv.c_str, sv.count);
     pid_t pid = fork();
     if (pid == 0) {
         execl("/bin/sh", "sh", "-c", c, NULL);
@@ -594,7 +594,7 @@ static Bool h_sleep(Scope *s, Expr *e, Value *r) {
 static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
     Value path = eval_expr(s, expr_child(e,1));
     Str sv = str_view(path);
-    char *p = strndup(sv.c_str, sv.count);
+    char *p = strndup((const char *)sv.c_str, sv.count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
@@ -972,12 +972,12 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
             Str_new("cc -Wall -Wextra -shared -fPIC -I"), ext_dir),
             Str_new(" -o ")), so_path),
             Str_new(" ")), user_c_path), lf);
-        int rc = system(cmd->c_str);
+        int rc = system((const char *)cmd->c_str);
         if (rc != 0) {
             fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path->c_str);
             return 1;
         }
-        ffi_handle = dlopen(so_path->c_str, RTLD_NOW);
+        ffi_handle = dlopen((const char *)so_path->c_str, RTLD_NOW);
         if (!ffi_handle) {
             fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
             return 1;
@@ -986,7 +986,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
 
     // dlopen linked libraries so their symbols are available via RTLD_DEFAULT
     if (link_flags) {
-        const char *p = link_flags->c_str;
+        const char *p = (const char *)link_flags->c_str;
         while ((p = strstr(p, "-l")) != NULL) {
             p += 2;
             char lib[256];
@@ -1024,7 +1024,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
             FuncType fft = fdef->type.func_def.func_type;
             if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
 
-            void *fn = ffi_dlsym(stmt->type.decl.name->c_str);
+            void *fn = ffi_dlsym((const char *)stmt->type.decl.name->c_str);
             if (!fn) continue;
             ffi_register(stmt->type.decl.name, fn, fdef);
         }
@@ -1058,7 +1058,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
                         if (idef->type.tag != NODE_FUNC_DEF) continue;
                         FuncType ift = idef->type.func_def.func_type;
                         if (ift != FUNC_EXT_FUNC && ift != FUNC_EXT_PROC) continue;
-                        void *fn = ffi_dlsym(inner->type.decl.name->c_str);
+                        void *fn = ffi_dlsym((const char *)inner->type.decl.name->c_str);
                         if (fn) ffi_register(inner->type.decl.name, fn, idef);
                     }
                 }
@@ -1067,7 +1067,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     }
 
     ffi_loaded = 1;
-    if (so_path) unlink(so_path->c_str);
+    if (so_path) unlink((const char *)so_path->c_str);
     return 0;
 }
 

@@ -26,7 +26,7 @@ static const Mode *mode_resolve(const char *name) {
 }
 
 static char *read_file(Str *path) {
-    FILE *f = fopen(path->c_str, "rb");
+    FILE *f = fopen((const char *)path->c_str, "rb");
     if (!f) {
         fprintf(stderr, "error: could not open '%s'\n", path->c_str);
         return NULL;
@@ -80,10 +80,10 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
 
         // Try relative to importing file's directory, then lib_dir
         Str *try_path = Str_concat(Str_concat(base_dir, slash), import_path);
-        char *abs = realpath(try_path->c_str, NULL);
+        char *abs = realpath((const char *)try_path->c_str, NULL);
         if (!abs && lib_dir) {
             try_path = Str_concat(Str_concat(lib_dir, slash), import_path);
-            abs = realpath(try_path->c_str, NULL);
+            abs = realpath((const char *)try_path->c_str, NULL);
         }
         if (!abs) {
             fprintf(stderr, "error: could not find import '%s' (from %s/)\n",
@@ -119,7 +119,7 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
             free(abs);
             return 1;
         } else {
-            const Mode *sm = mode_resolve(sub_mode->c_str);
+            const Mode *sm = mode_resolve((const char *)sub_mode->c_str);
             if (!sm || !(sm == &MODE_LIB || sm == &MODE_LIBA || sm == &MODE_PURE || sm == &MODE_PURA)) {
                 fprintf(stderr, "error: imported file '%s' cannot use mode '%s'\n", abs, sub_mode->c_str);
                 free(abs);
@@ -185,7 +185,7 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     Vec resolve_stack = cvec_new(sizeof(Str *));
 
     // Add user file to resolved set early
-    char *user_abs = realpath(path->c_str, NULL);
+    char *user_abs = realpath((const char *)path->c_str, NULL);
     if (user_abs) {
         Str *user_abs_str = Str_new(user_abs);
         cset_add(&resolved, user_abs_str);
@@ -202,7 +202,7 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     Expr *core_ast = parse(core_tokens, core_count, core_path, &core_mode);
 
     // Add core.til to resolved set
-    char *core_abs = realpath(core_path->c_str, NULL);
+    char *core_abs = realpath((const char *)core_path->c_str, NULL);
     if (core_abs) {
         Str *core_abs_str = Str_new(core_abs);
         cset_add(&resolved, core_abs_str);
@@ -314,7 +314,7 @@ int main(int argc, char **argv) {
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     Str *user_dir;
     {
-        char *user_abs_path = realpath(path->c_str, NULL);
+        char *user_abs_path = realpath((const char *)path->c_str, NULL);
         if (user_abs_path) {
             const char *slash = strrchr(user_abs_path, '/');
             if (slash)
@@ -337,7 +337,7 @@ int main(int argc, char **argv) {
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
     if (core_ast) {
-        char *core_abs = realpath(core_path->c_str, NULL);
+        char *core_abs = realpath((const char *)core_path->c_str, NULL);
         if (core_abs) {
             Str *core_abs_str = Str_new(core_abs);
             if (*Set_has(&resolved, core_abs_str)) {
@@ -374,7 +374,7 @@ int main(int argc, char **argv) {
 
     const Mode *mode = NULL;
     if (mode_str) {
-        mode = mode_resolve(mode_str->c_str);
+        mode = mode_resolve((const char *)mode_str->c_str);
         if (!mode) {
             fprintf(stderr, "error: unknown mode '%s'\n", mode_str->c_str);
             return 1;
@@ -595,7 +595,7 @@ int main(int argc, char **argv) {
                 cmd = Str_concat(Str_concat(Str_concat(cmd, Str_new(" '")),
                                             Str_new(user_argv[i])), Str_new("'"));
             }
-            int status = system(cmd->c_str);
+            int status = system((const char *)cmd->c_str);
             if (WIFEXITED(status))
                 result = WEXITSTATUS(status);
             else
