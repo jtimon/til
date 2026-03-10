@@ -862,10 +862,24 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
     }
 }
 
-static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def, Bool is_core) {
+// Types already defined by ext.h/aliases.h — skip emitting typedefs/forward-decls
+static Bool is_ext_h_type(Str *name) {
+    return Str_eq_c(name, "U8") || Str_eq_c(name, "I16") || Str_eq_c(name, "I32") ||
+           Str_eq_c(name, "F32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") ||
+           Str_eq_c(name, "I64") || Str_eq_c(name, "Bool") || Str_eq_c(name, "Str") ||
+           Str_eq_c(name, "Array");
+}
+
+// ext_func/ext_proc names that conflict with libc or builder-emitted statics
+static Bool is_skip_ext_decl(Str *name) {
+    return Str_eq_c(name, "exit") || Str_eq_c(name, "free") || Str_eq_c(name, "malloc") ||
+           Str_eq_c(name, "calloc") || Str_eq_c(name, "realloc") || Str_eq_c(name, "memcpy") ||
+           Str_eq_c(name, "memmove") || Str_eq_c(name, "print_single") || Str_eq_c(name, "print_flush");
+}
+
+static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
     Expr *body = expr_child(struct_def, 0);
-    if (struct_def->is_ext && is_core) return; // core ext_structs defined in ext.h
-    if (Str_eq_c(name, "Str") || Str_eq_c(name, "Array")) return; // typedefs provided by ext.h
+    if (is_ext_h_type(name)) return; // defined by ext.h/aliases.h
     Bool has_instance_fields = 0;
     for (U32 i = 0; i < body->children.count; i++)
         if (!expr_child(body, i)->type.decl.is_namespace) { has_instance_fields = 1; break; }
@@ -1113,12 +1127,11 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     Bool is_script = !mode || !mode->decls_only;
 
-    // Forward-declare all structs (skip core ext_structs and Str — ext.h provides)
+    // Forward-declare all structs (skip types defined by ext.h)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            if (expr_child(stmt, 0)->is_ext && stmt->is_core) continue;
-            if (Str_eq_c(stmt->type.decl.name, "Str") || Str_eq_c(stmt->type.decl.name, "Array")) continue;
+            if (is_ext_h_type(stmt->type.decl.name)) continue;
             fprintf(f, "typedef struct %s %s;\n", stmt->type.decl.name->c_str, stmt->type.decl.name->c_str);
         }
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
@@ -1141,7 +1154,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     }
     fprintf(f, "\n");
 
-    // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins)
+    // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins + libc conflicts)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->is_core) continue;
@@ -1149,6 +1162,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         Expr *fdef = expr_child(stmt, 0);
         FuncType fft = fdef->type.func_def.func_type;
         if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+        if (is_skip_ext_decl(stmt->type.decl.name)) continue;
         if (fdef->type.func_def.return_type) {
             const char *rt = fdef->type.func_def.return_is_shallow
                 ? type_name_to_c_value(fdef->type.func_def.return_type)
@@ -1292,7 +1306,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0), stmt->is_core);
+            emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0));
             fprintf(f, "\n");
         }
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
@@ -1606,11 +1620,11 @@ I32 build_header(Expr *program, Str *h_path) {
 
     fprintf(f, "#pragma once\n#include \"ext.h\"\n\n");
 
-    // Forward-declare structs
+    // Forward-declare structs (skip types defined by ext.h)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->is_core) continue;
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
+            if (is_ext_h_type(stmt->type.decl.name)) continue;
             fprintf(f, "typedef struct %s %s;\n", stmt->type.decl.name->c_str, stmt->type.decl.name->c_str);
         }
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
@@ -1631,12 +1645,11 @@ I32 build_header(Expr *program, Str *h_path) {
     }
     fprintf(f, "\n");
 
-    // Struct definitions with fields
+    // Struct definitions with fields (emit_struct_typedef skips ext.h types)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->is_core) continue;
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0), 0);
+            emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0));
             fprintf(f, "\n");
         }
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
@@ -1665,7 +1678,6 @@ I32 build_header(Expr *program, Str *h_path) {
     // Function forward declarations (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
-        if (stmt->is_core) continue;
         if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
                                          expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
             Str *sname = stmt->type.decl.name;

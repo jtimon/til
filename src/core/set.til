@@ -9,8 +9,10 @@ Set := struct {
 
 namespace:
     new := func(elem_type: Str, elem_size: U64) returns Set {
-        if dyn_has_method(elem_type, "cmp").not() {
-            panic("Set.new", "type ", elem_type, " must implement cmp")
+        if elem_type.is_empty().not() {
+            if dyn_has_method(elem_type, "cmp").not() {
+                panic("Set.new", "type ", elem_type, " must implement cmp")
+            }
         }
         return Set(data = malloc(elem_size), cap = 1,
                    elem_size = elem_size, elem_type = elem_type)
@@ -49,7 +51,9 @@ namespace:
             }
         }
         if found {
-            dyn_call2(self.elem_type, "delete", val, false)
+            if self.elem_type.is_empty().not() {
+                dyn_call2(self.elem_type, "delete", val, false)
+            }
             free(own val)
         } else {
             if self.count.eq(self.cap) {
@@ -67,12 +71,16 @@ namespace:
     }
 
     delete := proc(own self: Set, call_free: Bool = true) {
-        for i in 0..self.count {
-            dyn_call2(self.elem_type, "delete",
-                      ptr_add(self.data, i.mul(self.elem_size)), false)
+        if self.elem_type.is_empty().not() {
+            for i in 0..self.count {
+                dyn_call2(self.elem_type, "delete",
+                          ptr_add(self.data, i.mul(self.elem_size)), false)
+            }
         }
         free(own self.data)
-        Str.delete(own self.elem_type, false)
+        if self.elem_type.is_empty().not() {
+            Str.delete(own self.elem_type, false)
+        }
         if call_free { free(own self) }
     }
 

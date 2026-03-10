@@ -1,24 +1,14 @@
 #pragma once
 #include "ext.h"
 
-typedef struct Array Array;
 typedef struct Map Map;
 typedef struct Set Set;
-typedef struct Str Str;
 typedef struct Vec Vec;
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
 typedef struct FunctionDef FunctionDef;
 typedef struct Dynamic Dynamic;
-typedef struct U8 U8;
-typedef struct I16 I16;
-typedef struct I32 I32;
-typedef struct F32 F32;
-typedef struct U32 U32;
-typedef struct U64 U64;
-typedef struct I64 I64;
 typedef struct Range Range;
-typedef struct Bool Bool;
 
 
 typedef struct Map {
@@ -72,39 +62,11 @@ typedef struct Dynamic {
 } Dynamic;
 
 
-typedef struct U8 {
-    char _;
-} U8;
 
 
-typedef struct I16 {
-    char _;
-} I16;
 
 
-typedef struct I32 {
-    char _;
-} I32;
 
-
-typedef struct F32 {
-    char _;
-} F32;
-
-
-typedef struct U32 {
-    char _;
-} U32;
-
-
-typedef struct U64 {
-    char _;
-} U64;
-
-
-typedef struct I64 {
-    char _;
-} I64;
 
 
 typedef struct Range {
@@ -112,10 +74,6 @@ typedef struct Range {
     U64 end;
 } Range;
 
-
-typedef struct Bool {
-    char _;
-} Bool;
 
 
 Array * Array_new(Str * elem_type, U64 * elem_size, U64 * cap);

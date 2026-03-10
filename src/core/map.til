@@ -12,8 +12,10 @@ Map := struct {
 
 namespace:
     new := func(key_type: Str, key_size: U64, val_type: Str, val_size: U64) returns Map {
-        if dyn_has_method(key_type, "cmp").not() {
-            panic("Map.new", "type ", key_type, " must implement cmp")
+        if key_type.is_empty().not() {
+            if dyn_has_method(key_type, "cmp").not() {
+                panic("Map.new", "type ", key_type, " must implement cmp")
+            }
         }
         return Map(key_data = malloc(key_size), val_data = malloc(val_size),
                    cap = 1, key_size = key_size, key_type = key_type,
@@ -70,10 +72,14 @@ namespace:
             }
         }
         if found {
-            dyn_call2(self.key_type, "delete", key, false)
+            if self.key_type.is_empty().not() {
+                dyn_call2(self.key_type, "delete", key, false)
+            }
             free(own key)
-            dyn_call2(self.val_type, "delete",
-                      ptr_add(self.val_data, lo.mul(self.val_size)), false)
+            if self.val_type.is_empty().not() {
+                dyn_call2(self.val_type, "delete",
+                          ptr_add(self.val_data, lo.mul(self.val_size)), false)
+            }
             memcpy(ptr_add(self.val_data, lo.mul(self.val_size)), val, self.val_size)
             free(own val)
         } else {
@@ -98,16 +104,26 @@ namespace:
     }
 
     delete := proc(own self: Map, call_free: Bool = true) {
-        for i in 0..self.count {
-            dyn_call2(self.key_type, "delete",
-                      ptr_add(self.key_data, i.mul(self.key_size)), false)
-            dyn_call2(self.val_type, "delete",
-                      ptr_add(self.val_data, i.mul(self.val_size)), false)
+        if self.key_type.is_empty().not() {
+            for i in 0..self.count {
+                dyn_call2(self.key_type, "delete",
+                          ptr_add(self.key_data, i.mul(self.key_size)), false)
+            }
+        }
+        if self.val_type.is_empty().not() {
+            for i in 0..self.count {
+                dyn_call2(self.val_type, "delete",
+                          ptr_add(self.val_data, i.mul(self.val_size)), false)
+            }
         }
         free(own self.key_data)
         free(own self.val_data)
-        Str.delete(own self.key_type, false)
-        Str.delete(own self.val_type, false)
+        if self.key_type.is_empty().not() {
+            Str.delete(own self.key_type, false)
+        }
+        if self.val_type.is_empty().not() {
+            Str.delete(own self.val_type, false)
+        }
         if call_free { free(own self) }
     }
 

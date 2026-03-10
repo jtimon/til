@@ -34,11 +34,15 @@ namespace:
     }
 
     delete := proc(own self: Vec, call_free: Bool = true) {
-        for i in 0..self.count {
-            dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
+        if self.elem_type.is_empty().not() {
+            for i in 0..self.count {
+                dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
+            }
         }
         free(own self.data)
-        Str.delete(own self.elem_type, false)
+        if self.elem_type.is_empty().not() {
+            Str.delete(own self.elem_type, false)
+        }
         if call_free { free(own self) }
     }
 
