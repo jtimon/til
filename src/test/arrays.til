@@ -13,7 +13,7 @@ test_array_new_get_set := test() {
     assert_eq(__LOC__, x, 10)
     assert_eq(__LOC__, y, 20)
     assert_eq(__LOC__, z, 30)
-    assert_eq(__LOC__, a.len(), 3)
+    assert_eq(__LOC__, a.len().to_i64(), 3)
 }
 
 test_array_strings := test() {

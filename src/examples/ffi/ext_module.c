@@ -39,7 +39,7 @@ Point *add_points(Point *a, Point *b) {
 I64 *sum_all(Array *args) {
     I64 *r = malloc(sizeof(I64));
     *r = 0;
-    for (I64 i = 0; i < args->cap; i++) {
+    for (U64 i = 0; i < args->cap; i++) {
         I64 *elem = (I64 *)Array_elem(args, i);
         *r += *elem;
     }

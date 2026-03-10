@@ -13,12 +13,12 @@ Parser := struct {
 }
 
 peek := func(p: Parser) returns ref Token {
-    ref t : Token = p.tokens.get(p.pos)
+    ref t : Token = p.tokens.get(U64.from_i64(p.pos))
     return t
 }
 
 advance := proc(mut p: Parser) returns ref Token {
-    ref t : Token = p.tokens.get(p.pos)
+    ref t : Token = p.tokens.get(U64.from_i64(p.pos))
     if t.type.eq(TokenType.Eof).not() {
         p.pos = p.pos.add(1)
     }
@@ -103,7 +103,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             if is_own { panic(__LOC__, "variadic param cannot be 'own'") }
             if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
             if fd.variadic_index.neq(0.sub(1)) { panic(__LOC__, "only one variadic param allowed") }
-            fd.variadic_index = fd.param_names.len()
+            fd.variadic_index = fd.param_names.len().to_i64()
             is_variadic = true
         }
 
@@ -117,7 +117,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         mut has_default := 0.sub(1)
         if check(p, TokenType.Eq) {
             advance(p)
-            has_default = def_exprs.len()
+            has_default = def_exprs.len().to_i64()
             def_expr := parse_expression(p)
             def_exprs.push(own def_expr)
         }
@@ -254,7 +254,7 @@ parse_call := proc(mut p: Parser, name: Str, call_line: I64, call_col: I64) retu
         // Named arg: IDENT '=' expr
         if check(p, TokenType.Ident) {
             if p.pos.add(1).lt(p.count) {
-                ref next_tok : Token = p.tokens.get(p.pos.add(1))
+                ref next_tok : Token = p.tokens.get(U64.from_i64(p.pos.add(1)))
                 if next_tok.type.eq(TokenType.Eq) {
                     na_line := peek_line(p)
                     na_col := peek_col(p)
@@ -434,7 +434,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
                 // Named arg check
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.count) {
-                        ref nt : Token = p.tokens.get(p.pos.add(1))
+                        ref nt : Token = p.tokens.get(U64.from_i64(p.pos.add(1)))
                         if nt.type.eq(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
@@ -547,7 +547,7 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                 // Named arg check
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.count) {
-                        ref nt : Token = p.tokens.get(p.pos.add(1))
+                        ref nt : Token = p.tokens.get(U64.from_i64(p.pos.add(1)))
                         if nt.type.eq(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
@@ -723,7 +723,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.KwMut) { advance(p); own_mut = true }
             if check(p, TokenType.Ident) {
                 if p.pos.add(1).lt(p.count) {
-                    ref nt : Token = p.tokens.get(p.pos.add(1))
+                    ref nt : Token = p.tokens.get(U64.from_i64(p.pos.add(1)))
                     if nt.type.eq(TokenType.ColonEq).or(nt.type.eq(TokenType.Colon)) {
                         return parse_statement_ident(p, own_mut, true)
                     }

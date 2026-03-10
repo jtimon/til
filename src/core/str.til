@@ -1,25 +1,25 @@
 mode lib
 
-CAP_LIT := 0.sub(1)
-CAP_VIEW := 0.sub(2)
+CAP_LIT : U64 = U64.from_i64(0.sub(1))
+CAP_VIEW : U64 = U64.from_i64(0.sub(2))
 
 Str := struct {
     own mut c_str : U8 = 0
-    mut count : I64 = 0
-    mut cap : I64 = 0
+    mut count : U64 = 0
+    mut cap : U64 = 0
 
 namespace:
-    len := func(self: Str) returns I64 { return self.count }
+    len := func(self: Str) returns U64 { return self.count }
 
-    get := func(self: Str, i: I64) returns ref U8 {
-        if i.lt(0).or(i.gte(self.count)) {
+    get := func(self: Str, i: U64) returns ref U8 {
+        if i.gte(self.count) {
             panic("Str.get", "index out of bounds")
         }
         return ptr_add(self.c_str, i)
     }
 
     cmp := func(a: Str, b: Str) returns I64 {
-        mut i := 0
+        mut i : U64 = 0
         mut min_len := a.count
         if b.count.lt(a.count) { min_len = b.count }
         while i.lt(min_len) {
@@ -41,14 +41,14 @@ namespace:
         return Str(c_str = new_data, count = new_len, cap = new_len)
     }
 
-    with_capacity := func(n: I64) returns Str {
+    with_capacity := func(n: U64) returns Str {
         own buf : U8 = malloc(n.add(1))
         memcpy(buf, U8.from_i64(0), 1)
         return Str(c_str = buf, count = 0, cap = n)
     }
 
     push_str := proc(mut self: Str, s: Str) {
-        if self.cap.lt(0) {
+        if self.cap.gte(CAP_VIEW) {
             panic("Str.push_str", "cannot mutate a string view or literal")
         }
         new_len := self.count.add(s.count)
@@ -68,18 +68,16 @@ namespace:
     }
 
     delete := proc(own self: Str, call_free: Bool = true) {
-        if self.cap.gte(0) { free(own self.c_str) }
+        if self.cap.lt(CAP_VIEW) { free(own self.c_str) }
         if call_free { free(own self) }
     }
 
     to_str := func(val: Str) returns Str { return val.clone() }
 
-    substr := func(s: Str, start: I64, n: I64) returns Str {
+    substr := func(s: Str, start: U64, n: U64) returns Str {
         mut st := start
         mut ln := n
-        if st.lt(0) { st = 0 }
         if st.gt(s.count) { st = s.count }
-        if ln.lt(0) { ln = 0 }
         if st.add(ln).gt(s.count) { ln = s.count.sub(st) }
         return Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
     }
@@ -87,9 +85,9 @@ namespace:
     contains := func(a: Str, b: Str) returns Bool {
         if b.count.eq(0) { return true }
         if b.count.gt(a.count) { return false }
-        mut i := 0
+        mut i : U64 = 0
         while i.lte(a.count.sub(b.count)) {
-            mut j := 0
+            mut j : U64 = 0
             mut found := true
             while j.lt(b.count) {
                 ref ac : U8 = a.get(i.add(j))
@@ -105,7 +103,7 @@ namespace:
 
     starts_with := func(a: Str, b: Str) returns Bool {
         if b.count.gt(a.count) { return false }
-        mut i := 0
+        mut i : U64 = 0
         while i.lt(b.count) {
             ref ac : U8 = a.get(i)
             ref bc : U8 = b.get(i)
@@ -118,7 +116,7 @@ namespace:
     ends_with := func(a: Str, b: Str) returns Bool {
         if b.count.gt(a.count) { return false }
         offset := a.count.sub(b.count)
-        mut i := 0
+        mut i : U64 = 0
         while i.lt(b.count) {
             ref ac : U8 = a.get(offset.add(i))
             ref bc : U8 = b.get(i)
@@ -135,9 +133,9 @@ namespace:
     find := func(self: Str, needle: Str) returns I64 {
         if needle.count.eq(0) { return 0.sub(1) }
         if needle.count.gt(self.count) { return 0.sub(1) }
-        mut i := 0
+        mut i : U64 = 0
         while i.lte(self.count.sub(needle.count)) {
-            mut j := 0
+            mut j : U64 = 0
             mut found := true
             while j.lt(needle.count) {
                 ref ac : U8 = self.get(i.add(j))
@@ -145,7 +143,7 @@ namespace:
                 if ac.neq(bc) { found = false }
                 j = j.add(1)
             }
-            if found { return i }
+            if found { return i.to_i64() }
             i = i.add(1)
         }
         return 0.sub(1)
@@ -155,9 +153,9 @@ namespace:
         if needle.count.eq(0) { return 0.sub(1) }
         if needle.count.gt(self.count) { return 0.sub(1) }
         mut last := 0.sub(1)
-        mut i := 0
+        mut i : U64 = 0
         while i.lte(self.count.sub(needle.count)) {
-            mut j := 0
+            mut j : U64 = 0
             mut found := true
             while j.lt(needle.count) {
                 ref ac : U8 = self.get(i.add(j))
@@ -165,7 +163,7 @@ namespace:
                 if ac.neq(bc) { found = false }
                 j = j.add(1)
             }
-            if found { last = i }
+            if found { last = i.to_i64() }
             i = i.add(1)
         }
         return last
@@ -174,7 +172,7 @@ namespace:
     replace := func(self: Str, from: Str, to: Str) returns Str {
         if from.count.eq(0) { return self.clone() }
         mut result := ""
-        mut start := 0
+        mut start : U64 = 0
         while start.lte(self.count.sub(from.count)) {
             rest := self.substr(start, self.count.sub(start))
             pos := rest.find(from)
@@ -182,9 +180,9 @@ namespace:
                 result = result.concat(rest)
                 return result
             }
-            result = result.concat(self.substr(start, pos))
+            result = result.concat(self.substr(start, U64.from_i64(pos)))
             result = result.concat(to)
-            start = start.add(pos).add(from.count)
+            start = start.add(U64.from_i64(pos)).add(from.count)
         }
         if start.lt(self.count) {
             result = result.concat(self.substr(start, self.count.sub(start)))
@@ -192,7 +190,7 @@ namespace:
         return result
     }
 
-    get_char := func(self: Str, i: I64) returns Str {
+    get_char := func(self: Str, i: U64) returns Str {
         return self.substr(i, 1)
     }
 
@@ -220,12 +218,12 @@ namespace:
     to_i64 := func(self: Str) returns I64 {
         if self.count.eq(0) { panic("Str.to_i64", "empty string") }
         mut result := 0
-        mut i := 0
+        mut i : U64 = 0
         mut neg := false
         ref first : U8 = self.get(0)
         if first.eq(U8.from_i64(45)) {
             neg = true
-            i = 1
+            i = U64.from_i64(1)
         }
         if i.eq(self.count) { panic("Str.to_i64", "no digits") }
         while i.lt(self.count) {

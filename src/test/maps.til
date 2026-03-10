@@ -9,7 +9,7 @@ test_i64_map := test() {
     m.set(own 3, own 30)
     m.set(own 1, own 10)
     m.set(own 2, own 20)
-    assert_eq(__LOC__, m.len(), 3)
+    assert_eq(__LOC__, m.len().to_i64(), 3)
     assert(__LOC__, m.has(1))
     assert(__LOC__, m.has(2))
     assert(__LOC__, m.has(3))
@@ -24,7 +24,7 @@ test_i64_map := test() {
 
     // overwrite existing key
     m.set(own 2, own 99)
-    assert_eq(__LOC__, m.len(), 3)
+    assert_eq(__LOC__, m.len().to_i64(), 3)
     ref v2b : I64 = m.get(2)
     assert_eq(__LOC__, v2b, 99)
 }
@@ -38,7 +38,7 @@ test_str_map := test() {
     sm.set(own "banana", own 2)
     sm.set(own "apple", own 1)
     sm.set(own "cherry", own 3)
-    assert_eq(__LOC__, sm.len(), 3)
+    assert_eq(__LOC__, sm.len().to_i64(), 3)
     assert(__LOC__, sm.has("apple"))
     assert(__LOC__, sm.has("banana"))
     assert(__LOC__, sm.has("cherry"))
@@ -57,7 +57,7 @@ test_map_literal_str_i64 := test() {
     assert_eq_str(__LOC__, "hi".clone(), "hi")
 
     m := {"a": 1, "b": 2, "c": 3}
-    assert_eq(__LOC__, m.len(), 3)
+    assert_eq(__LOC__, m.len().to_i64(), 3)
     assert(__LOC__, m.has("a"))
     assert(__LOC__, m.has("b"))
     assert(__LOC__, m.has("c"))
@@ -73,7 +73,7 @@ test_map_literal_i64_i64 := test() {
     assert_eq(__LOC__, 1.clone(), 1)
 
     m := {0: 100, 1: 200, 2: 300}
-    assert_eq(__LOC__, m.len(), 3)
+    assert_eq(__LOC__, m.len().to_i64(), 3)
     ref v0 : I64 = m.get(0)
     ref v2 : I64 = m.get(2)
     assert_eq(__LOC__, v0, 100)
@@ -87,7 +87,7 @@ test_map_literal_i64_str := test() {
     assert_eq_str(__LOC__, "hi".clone(), "hi")
 
     m := {1: "one", 2: "two"}
-    assert_eq(__LOC__, m.len(), 2)
+    assert_eq(__LOC__, m.len().to_i64(), 2)
     ref v1 : Str = m.get(1)
     assert_eq_str(__LOC__, v1, "one")
 }

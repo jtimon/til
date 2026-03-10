@@ -14,6 +14,7 @@ static I16 *new_i16(I16 v) { I16 *r = malloc(sizeof(I16)); *r = v; return r; }
 static I32 *new_i32(I32 v) { I32 *r = malloc(sizeof(I32)); *r = v; return r; }
 static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
 static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
+static U64 *new_u64(U64 v) { U64 *r = malloc(sizeof(U64)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
 
 // I64 clone/delete
@@ -186,6 +187,46 @@ U32 *U32_from_i64_ext(I64 *a) { return new_u32((U32)*a); }
 U32 *U32_clone(U32 *v) { return new_u32(*v); }
 void U32_delete(U32 *v, Bool *call_free) { if (*call_free) free(v); }
 
+// U64 arithmetic
+U64 U64_add(U64 a, U64 b) { return a + b; }
+U64 U64_sub(U64 a, U64 b) { return a - b; }
+U64 U64_mul(U64 a, U64 b) { return a * b; }
+U64 U64_div(U64 a, U64 b) { return (b == 0) ? 0 : a / b; }
+U64 U64_mod(U64 a, U64 b) { return (b == 0) ? 0 : a % b; }
+U64 U64_and(U64 a, U64 b) { return a & b; }
+U64 U64_or(U64 a, U64 b) { return a | b; }
+U64 U64_xor(U64 a, U64 b) { return a ^ b; }
+U64 U64_inc(U64 a) { return a + 1; }
+U64 U64_dec(U64 a) { return a - 1; }
+
+// U64 comparisons
+Bool U64_eq(U64 a, U64 b) { return a == b; }
+I64 U64_cmp(U64 a, U64 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
+
+// U64 conversions
+I64 U64_to_i64(U64 a) { return (I64)a; }
+U64 *U64_from_i64_ext(I64 *a) { return new_u64((U64)*a); }
+
+// U64 to_str
+Str *U64_to_str(U64 v) {
+    char buf[32];
+    snprintf(buf, 32, "%llu", v);
+    I64 len = strlen(buf);
+    U8 *data = malloc(len);
+    memcpy(data, buf, len);
+    Str *s = malloc(sizeof(Str));
+    s->c_str = data;
+    s->count = len;
+    s->cap = len;
+    return s;
+}
+
+Str *U64_to_str_ext(U64 *v) { return U64_to_str(*v); }
+
+// U64 clone/delete
+U64 *U64_clone(U64 *v) { return new_u64(*v); }
+void U64_delete(U64 *v, Bool *call_free) { if (*call_free) free(v); }
+
 // Bool ops (shallow params, shallow return)
 Bool Bool_eq(Bool a, Bool b) { return a == b; }
 Bool Bool_and(Bool a, Bool b) { return a && b; }
@@ -197,7 +238,7 @@ Bool *Bool_clone(Bool *v) { return new_bool(*v); }
 void Bool_delete(Bool *v, Bool *call_free) { if (*call_free) free(v); }
 
 // Pointer primitives (custom, not in libc)
-void *ptr_add(void *buf, I64 offset) {
+void *ptr_add(void *buf, U64 offset) {
     return (char *)buf + offset;
 }
 Bool is_null(void *p) { return p == NULL; }
@@ -230,6 +271,15 @@ U32 *cli_parse_u32(const char *s) {
     }
     return new_u32((U32)v);
 }
+U64 *cli_parse_u64(const char *s) {
+    char *end;
+    unsigned long long v = strtoull(s, &end, 10);
+    if (*end != '\0') {
+        fprintf(stderr, "error: cannot parse '%s' as U64\n", s);
+        exit(1);
+    }
+    return new_u64((U64)v);
+}
 Bool *cli_parse_bool(const char *s) {
     if (strcmp(s, "true") == 0) return new_bool(1);
     if (strcmp(s, "false") == 0) return new_bool(0);
@@ -238,7 +288,7 @@ Bool *cli_parse_bool(const char *s) {
 }
 
 // --- System primitives ---
-// These use the codegen Str layout: { U8 *c_str, I64 count, I64 cap }.
+// These use the codegen Str layout: { U8 *c_str, U64 count, U64 cap }.
 // For the interpreter, dispatch.c has its own handlers using the compiler Str directly.
 
 Str *readfile(Str *path) {

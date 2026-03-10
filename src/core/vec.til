@@ -2,18 +2,18 @@ mode lib
 
 Vec := struct {
     own mut data : U8 = 0
-    mut count := 0
-    mut cap := 0
-    elem_size := 0
+    mut count : U64 = 0
+    mut cap : U64 = 0
+    elem_size : U64 = 0
     elem_type := ""
 
 namespace:
-    new := func(elem_type: Str, elem_size: I64) returns Vec {
+    new := func(elem_type: Str, elem_size: U64) returns Vec {
         return Vec(data = malloc(elem_size), cap = 1,
                    elem_size = elem_size, elem_type = elem_type)
     }
 
-    len := func(self: Vec) returns I64 { return self.count }
+    len := func(self: Vec) returns U64 { return self.count }
 
     push := proc(mut self: Vec, own val: Dynamic) {
         if self.count.eq(self.cap) {
@@ -26,8 +26,8 @@ namespace:
         self.count = self.count.add(1)
     }
 
-    get := func(self: Vec, i: I64) returns ref Dynamic {
-        if i.lt(0).or(i.gte(self.count)) {
+    get := func(self: Vec, i: U64) returns ref Dynamic {
+        if i.gte(self.count) {
             panic("Vec.get", "index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         return ptr_add(self.data, i.mul(self.elem_size))
@@ -60,8 +60,8 @@ split := func(s: Str, delim: Str) returns Vec {
         parts.push(own s.clone())
         return parts
     }
-    mut start := 0
-    mut pos := 0
+    mut start : U64 = 0
+    mut pos : U64 = 0
     while pos.lte(s.len().sub(delim.len())) {
         if s.substr(pos, delim.len()).eq(delim) {
             parts.push(own s.substr(start, pos.sub(start)).clone())
@@ -78,7 +78,7 @@ split := func(s: Str, delim: Str) returns Vec {
 join := func(parts: Vec, sep: Str) returns Str {
     if parts.len().eq(0) { return "" }
     mut result := ""
-    mut i := 0
+    mut i : U64 = 0
     while i.lt(parts.len()) {
         if i.gt(0) { result = result.concat(sep) }
         ref p : Str = parts.get(i)

@@ -27,7 +27,7 @@ static void gc_free_all(void) {
 
 // Build a qualified name "Type.method"
 static Str *qualified_name(Str *type_name, Str *method_name) {
-    I64 len = type_name->count + 1 + method_name->count;
+    U64 len = type_name->count + 1 + method_name->count;
     char *buf = malloc(len + 1);
     snprintf(buf, len + 1, "%s.%s", type_name->c_str, method_name->c_str);
     Str *s = Str_new(buf);

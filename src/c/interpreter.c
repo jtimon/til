@@ -19,7 +19,7 @@ static Map ns_fields; // Str* "Type.field" → Value
 static Vec ns_keys;   // owns the qualified-name Str*s
 
 static Str *ns_qname(Str *sname, Str *fname) {
-    I64 len = sname->count + 1 + fname->count;
+    U64 len = sname->count + 1 + fname->count;
     char *buf = malloc(len + 1);
     memcpy(buf, sname->c_str, sname->count);
     buf[sname->count] = '.';
@@ -146,6 +146,8 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && Str_eq_c(ftype, "I16"))  return val_i16(*(I16 *)ptr);
     if (ftype && Str_eq_c(ftype, "I32"))  return val_i32(*(I32 *)ptr);
     if (ftype && Str_eq_c(ftype, "U32"))  return val_u32(*(U32 *)ptr);
+    if (ftype && Str_eq_c(ftype, "U64"))  return val_u64(*(U64 *)ptr);
+    if (ftype && Str_eq_c(ftype, "F32"))  return val_f32(*(F32 *)ptr);
     if (ftype && Str_eq_c(ftype, "Bool")) return val_bool(*(Bool *)ptr);
     // Enum field: tagged enums stored as pointer to EnumInstance, simple enums as I32
     if (fdecl->type.decl.field_struct_def &&
@@ -196,6 +198,7 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
     case VAL_I16:  *(I16 *)ptr = *val.i16; free(val.i16); break;
     case VAL_I32:  *(I32 *)ptr = *val.i32; free(val.i32); break;
     case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
+    case VAL_U64:  *(U64 *)ptr = *val.u64; free(val.u64); break;
     case VAL_F32:  *(F32 *)ptr = *val.f32; free(val.f32); break;
     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
     case VAL_STRUCT:
@@ -222,35 +225,35 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
 }
 
 // Build a Str StructInstance from C string data (copies data via strndup)
-Value make_str_value(const char *data, I64 len) {
+Value make_str_value(const char *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
-    inst->data = malloc(24); // Str = {U8 *c_str, I64 count, I64 cap}
+    inst->data = malloc(24); // Str = {U8 *c_str, U64 count, U64 cap}
     inst->borrowed = 0;
     *(char **)inst->data = strndup(data, len);
-    *(I64 *)((char *)inst->data + 8) = len;
-    *(I64 *)((char *)inst->data + 16) = -1;  // CAP_LIT: data not freed by til delete
+    *(U64 *)((char *)inst->data + 8) = len;
+    *(U64 *)((char *)inst->data + 16) = CAP_LIT;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
 // Build a Str StructInstance taking ownership of buffer (no copy)
-Value make_str_value_own(char *data, I64 len) {
+Value make_str_value_own(char *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
     inst->borrowed = 0;
     inst->data = malloc(24);
     *(char **)inst->data = data;
-    *(I64 *)((char *)inst->data + 8) = len;
-    *(I64 *)((char *)inst->data + 16) = len;
+    *(U64 *)((char *)inst->data + 8) = len;
+    *(U64 *)((char *)inst->data + 16) = len;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
 // Extract a C Str view from a Str StructInstance (stack-local, don't free)
 Str str_view(Value v) {
     char *data = *(char **)v.instance->data;
-    I64 len = *(I64 *)((char *)v.instance->data + 8);
+    U64 len = *(U64 *)((char *)v.instance->data + 8);
     return (Str){.c_str = data, .count = len};
 }
 
@@ -262,6 +265,7 @@ Value clone_value(Value v) {
     case VAL_I16:  return val_i16(*v.i16);
     case VAL_I32:  return val_i32(*v.i32);
     case VAL_U32:  return val_u32(*v.u32);
+    case VAL_U64:  return val_u64(*v.u64);
     case VAL_F32:  return val_f32(*v.f32);
     case VAL_BOOL: return val_bool(*v.boolean);
     case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
@@ -368,6 +372,7 @@ void free_value(Value v) {
     case VAL_I16:  free(v.i16); break;
     case VAL_I32:  free(v.i32); break;
     case VAL_U32:  free(v.u32); break;
+    case VAL_U64:  free(v.u64); break;
     case VAL_F32:  free(v.f32); break;
     case VAL_BOOL: free(v.boolean); break;
     case VAL_ENUM:
@@ -388,6 +393,7 @@ Bool values_equal(Value a, Value b) {
     case VAL_I16:  return *a.i16 == *b.i16;
     case VAL_I32:  return *a.i32 == *b.i32;
     case VAL_U32:  return *a.u32 == *b.u32;
+    case VAL_U64:  return *a.u64 == *b.u64;
     case VAL_F32:  return *a.f32 == *b.f32;
     case VAL_U8:   return *a.u8 == *b.u8;
     case VAL_BOOL: return *a.boolean == *b.boolean;
@@ -442,7 +448,7 @@ Value eval_call(Scope *scope, Expr *e) {
             static char flat_name_buf[256];
             Str *sn = expr_child(callee_expr, 0)->struct_name;
             Str *fn = callee_expr->type.str_val;
-            I64 flen = sn->count + 1 + fn->count;
+            U64 flen = sn->count + 1 + fn->count;
             memcpy(flat_name_buf, sn->c_str, sn->count);
             flat_name_buf[sn->count] = '_';
             memcpy(flat_name_buf + sn->count + 1, fn->c_str, fn->count);
@@ -499,6 +505,8 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U32"))
                         arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "U64"))
+                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "F32"))
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
@@ -526,6 +534,8 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "U32"))
                         arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                    else if (Str_eq_c(ptype, "U64"))
+                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
                     else if (Str_eq_c(ptype, "F32"))
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if (Str_eq_c(ptype, "Bool"))
@@ -657,6 +667,14 @@ Value eval_expr(Scope *scope, Expr *e) {
     case NODE_LITERAL_NUM:
         if (e->til_type == TIL_TYPE_U8)
             return val_u8(atoll(e->type.str_val->c_str));
+        if (e->til_type == TIL_TYPE_U32)
+            return val_u32(atoll(e->type.str_val->c_str));
+        if (e->til_type == TIL_TYPE_U64)
+            return val_u64((U64)strtoull(e->type.str_val->c_str, NULL, 10));
+        if (e->til_type == TIL_TYPE_I16)
+            return val_i16(atoll(e->type.str_val->c_str));
+        if (e->til_type == TIL_TYPE_I32)
+            return val_i32(atoll(e->type.str_val->c_str));
         if (e->til_type == TIL_TYPE_F32)
             return val_f32((F32)atof(e->type.str_val->c_str));
         return val_i64(atoll(e->type.str_val->c_str));
@@ -792,6 +810,8 @@ static void eval_body(Scope *scope, Expr *body) {
                         val = (Value){.type = VAL_I32, .i32 = (I32 *)val.ptr};
                     else if (Str_eq_c(etype, "U32"))
                         val = (Value){.type = VAL_U32, .u32 = (U32 *)val.ptr};
+                    else if (Str_eq_c(etype, "U64"))
+                        val = (Value){.type = VAL_U64, .u64 = (U64 *)val.ptr};
                     else if (Str_eq_c(etype, "F32"))
                         val = (Value){.type = VAL_F32, .f32 = (F32 *)val.ptr};
                     else if (Str_eq_c(etype, "Bool"))
@@ -917,6 +937,7 @@ static void eval_body(Scope *scope, Expr *body) {
                     case VAL_I16:  *(I16 *)ptr = *val.i16; free(val.i16); break;
                     case VAL_I32:  *(I32 *)ptr = *val.i32; free(val.i32); break;
                     case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
+                    case VAL_U64:  *(U64 *)ptr = *val.u64; free(val.u64); break;
                     case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
                     case VAL_STRUCT:
                         if (val.instance->borrowed) {
@@ -1144,8 +1165,8 @@ static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
     Str fn_esz = {.c_str = "elem_size", .count = 9};
     Str fn_et = {.c_str = "elem_type", .count = 9};
     write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
-    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_i64(argc));
-    write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_i64(esz));
+    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u64(argc));
+    write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u64(esz));
     write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value(elem_type->c_str, elem_type->count));
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }

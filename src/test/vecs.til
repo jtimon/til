@@ -13,7 +13,7 @@ test_vec_push_get := test() {
     assert_eq(__LOC__, a, 42)
     assert_eq(__LOC__, b, 99)
     assert_eq(__LOC__, c, 7)
-    assert_eq(__LOC__, v.len(), 3)
+    assert_eq(__LOC__, v.len().to_i64(), 3)
 }
 
 test_vec_grow := test() {
@@ -28,7 +28,7 @@ test_vec_grow := test() {
     v.push(own 7)
     v.push(own 8)
 
-    assert_eq(__LOC__, v.len(), 8)
+    assert_eq(__LOC__, v.len().to_i64(), 8)
     ref first : I64 = v.get(0)
     ref last : I64 = v.get(7)
     assert_eq(__LOC__, first, 1)
@@ -45,13 +45,13 @@ test_vec_strings := test() {
 
     assert_eq_str(__LOC__, a, "hello")
     assert_eq_str(__LOC__, b, "world")
-    assert_eq(__LOC__, v.len(), 2)
+    assert_eq(__LOC__, v.len().to_i64(), 2)
 }
 
 test_vec_size := test() {
-    assert_eq(__LOC__, I64.size(), 8)
-    assert_eq(__LOC__, U8.size(), 1)
-    assert_eq(__LOC__, Str.size(), 24)
-    assert_eq(__LOC__, Bool.size(), 1)
-    assert_eq(__LOC__, Vec.size(), 56)
+    assert_eq(__LOC__, I64.size().to_i64(), 8)
+    assert_eq(__LOC__, U8.size().to_i64(), 1)
+    assert_eq(__LOC__, Str.size().to_i64(), 24)
+    assert_eq(__LOC__, Bool.size().to_i64(), 1)
+    assert_eq(__LOC__, Vec.size().to_i64(), 56)
 }

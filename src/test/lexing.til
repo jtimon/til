@@ -3,7 +3,7 @@ mode script
 import("../self/lexer.til")
 
 check_tok := proc(tokens: Vec, i: I64, expected_type: TokenType, expected_text: Str) {
-    ref t : Token = tokens.get(i)
+    ref t : Token = tokens.get(U64.from_i64(i))
     tt := t.type
     test_expect(__LOC__, tt.eq(expected_type),
         "token ", i.to_str(), " type: expected ", expected_type.to_str(),
@@ -13,7 +13,7 @@ check_tok := proc(tokens: Vec, i: I64, expected_type: TokenType, expected_text: 
 
 test_empty := proc() {
     tokens := tokenize("", "test")
-    assert_eq(__LOC__, tokens.len(), 1)
+    assert_eq(__LOC__, tokens.len().to_i64(), 1)
     check_tok(tokens, 0, TokenType.Eof, "")
 }
 

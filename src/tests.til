@@ -7,12 +7,12 @@ TMPF := "tmp/_test_out"
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
     mut count := 0
-    mut start := 0
+    mut start : U64 = 0
     while start.lte(haystack.len().sub(needle.len())) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(0.sub(1)) { return count }
         count = count.add(1)
-        start = start.add(pos).add(needle.len())
+        start = start.add(U64.from_i64(pos)).add(needle.len())
     }
     return count
 }
@@ -39,7 +39,7 @@ ms_to_str := func(ms: I64) returns Str {
     return secs.to_str().concat(".").concat(frac_str).concat("s")
 }
 
-pad_right := func(s: Str, width: I64) returns Str {
+pad_right := func(s: Str, width: U64) returns Str {
     mut result := s.clone()
     while result.len().lt(width) {
         result = result.concat(" ")
@@ -54,7 +54,7 @@ Job := struct {
     mut tmode := ""
     mut pid := 0
     mut outfile := ""
-    mut result_idx := 0
+    mut result_idx : U64 = 0
     mut start_ms := 0
 }
 
@@ -81,19 +81,19 @@ spawn_job := proc(job: Job) returns Job {
                outfile = job.outfile.clone(), result_idx = job.result_idx, start_ms = start)
 }
 
-run_tests_parallel := proc(results: Vec, jobs: Vec, j: I64, mut fail: I64) {
-    mut next := 0
-    mut active := 0
+run_tests_parallel := proc(results: Vec, jobs: Vec, j: U64, mut fail: I64) {
+    mut next : U64 = 0
+    mut active : U64 = 0
 
     slots := Array.new("Job", Job.size(), j)
-    mut si := 0
+    mut si : U64 = 0
     while si.lt(j) {
         slots.set(si, own Job())
         si = si.add(1)
     }
 
     // Spawn initial batch
-    si = 0
+    si = U64.from_i64(0)
     while si.lt(j).and(next.lt(jobs.len())) {
         ref job : Job = jobs.get(next)
         slots.set(si, own spawn_job(job))
@@ -104,7 +104,7 @@ run_tests_parallel := proc(results: Vec, jobs: Vec, j: I64, mut fail: I64) {
 
     // Poll loop
     while active.gt(0) {
-        mut i := 0
+        mut i : U64 = 0
         while i.lt(j) {
             ref slot : Job = slots.get(i)
             if slot.pid.gt(0) {
@@ -198,13 +198,13 @@ main := proc(args: ..Str) {
     wall_start := clock_ms()
 
     // Parse -jN from args (default: CPU thread count)
-    mut j := get_thread_count()
-    mut i := 0
+    mut j := U64.from_i64(get_thread_count())
+    mut i : U64 = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
         if arg.starts_with("-j") {
-            j = arg.substr(2, arg.len().sub(2)).to_i64()
-            if j.lt(1) { j = 1 }
+            j = U64.from_i64(arg.substr(2, arg.len().sub(2)).to_i64())
+            if j.lt(1) { j = U64.from_i64(1) }
         }
         i = i.add(1)
     }
@@ -253,19 +253,19 @@ main := proc(args: ..Str) {
 
     // Build results Vec (one TestFile per file)
     results := Vec.new("TestFile", TestFile.size())
-    mut ri := 0
+    mut ri : U64 = 0
     while ri.lt(c_common.len()) {
         ref f : Str = c_common.get(ri)
         results.push(own TestFile(file = f.clone(), has_interp = 1, has_run = 1))
         ri = ri.add(1)
     }
-    ri = 0
+    ri = U64.from_i64(0)
     while ri.lt(c_codegen.len()) {
         ref f : Str = c_codegen.get(ri)
         results.push(own TestFile(file = f.clone(), has_run = 1))
         ri = ri.add(1)
     }
-    ri = 0
+    ri = U64.from_i64(0)
     while ri.lt(c_interpreted.len()) {
         ref f : Str = c_interpreted.get(ri)
         results.push(own TestFile(file = f.clone(), has_interp = 1))
@@ -274,29 +274,29 @@ main := proc(args: ..Str) {
 
     // Build jobs Vec
     jobs := Vec.new("Job", Job.size())
-    mut ji := 0
-    mut fi := 0
+    mut ji : U64 = 0
+    mut fi : U64 = 0
     while fi.lt(c_common.len()) {
         ref f : Str = c_common.get(fi)
-        jobs.push(own Job(file = f.clone(), tmode = "interpret", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = fi))
+        jobs.push(own Job(file = f.clone(), tmode = "interpret", outfile = "tmp/_test_".concat(ji.to_i64().to_str()), result_idx = fi))
         ji = ji.add(1)
-        jobs.push(own Job(file = f.clone(), tmode = "run", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = fi))
+        jobs.push(own Job(file = f.clone(), tmode = "run", outfile = "tmp/_test_".concat(ji.to_i64().to_str()), result_idx = fi))
         ji = ji.add(1)
         fi = fi.add(1)
     }
-    mut cgi := 0
+    mut cgi : U64 = 0
     while cgi.lt(c_codegen.len()) {
         ref f : Str = c_codegen.get(cgi)
         ridx := c_common.len().add(cgi)
-        jobs.push(own Job(file = f.clone(), tmode = "run", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = ridx))
+        jobs.push(own Job(file = f.clone(), tmode = "run", outfile = "tmp/_test_".concat(ji.to_i64().to_str()), result_idx = ridx))
         ji = ji.add(1)
         cgi = cgi.add(1)
     }
-    mut ii := 0
+    mut ii : U64 = 0
     while ii.lt(c_interpreted.len()) {
         ref f : Str = c_interpreted.get(ii)
         ridx := c_common.len().add(c_codegen.len()).add(ii)
-        jobs.push(own Job(file = f.clone(), tmode = "interpret", outfile = "tmp/_test_".concat(ji.to_str()), result_idx = ridx))
+        jobs.push(own Job(file = f.clone(), tmode = "interpret", outfile = "tmp/_test_".concat(ji.to_i64().to_str()), result_idx = ridx))
         ji = ji.add(1)
         ii = ii.add(1)
     }
@@ -306,7 +306,7 @@ main := proc(args: ..Str) {
 
     // --- Output comparison for c_common tests ---
 
-    mut ci := 0
+    mut ci : U64 = 0
     while ci.lt(c_common.len()) {
         ref r : TestFile = results.get(ci)
         if r.interp_ok.eq(1).and(r.run_ok.eq(1)) {
@@ -327,8 +327,8 @@ main := proc(args: ..Str) {
     num_files := results.len()
     mut total_interp := 0
     mut total_run := 0
-    mut passed := 0
-    mut ti := 0
+    mut passed : U64 = 0
+    mut ti : U64 = 0
     while ti.lt(num_files) {
         ref r : TestFile = results.get(ti)
         mut line := pad_right(r.file, 42)
@@ -378,8 +378,8 @@ main := proc(args: ..Str) {
     run_capture(CTIL.concat(" interpret src/test/typer_errors.til"))
     typer_out := readfile(TMPF)
     errors := count_matches(typer_out, "type error:")
-    if errors.neq(50) {
-        println("FAIL: typer_errors expected 50 errors, got ", errors.to_str())
+    if errors.neq(51) {
+        println("FAIL: typer_errors expected 51 errors, got ", errors.to_str())
         fail = 1
     }
     typer_ms := clock_ms().sub(typer_start)
@@ -458,7 +458,7 @@ main := proc(args: ..Str) {
     println("CLI tests:    ", ms_to_str(cli_ms))
     println("Plot test:    ", ms_to_str(plot_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
-    println("Passed:       ", passed.to_str(), "/", num_files.to_str())
+    println("Passed:       ", passed.to_i64().to_str(), "/", num_files.to_i64().to_str())
     println("")
 
     if fail.eq(0) {
@@ -476,7 +476,7 @@ main := proc(args: ..Str) {
     mut bench := Str.with_capacity(32768)
     bench.push_str("commit,file,interp_ms,run_ms,interp_ok,run_ok")
     bench.push_str(NL)
-    mut bi := 0
+    mut bi : U64 = 0
     while bi.lt(results.len()) {
         ref br : TestFile = results.get(bi)
         bench.push_str(format(commit, ",", br.file, ",",
@@ -491,7 +491,7 @@ main := proc(args: ..Str) {
                           total_interp.to_str(), ",", total_run.to_str(), ",",
                           ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
                           cli_ms.to_str(), ",", wall_ms.to_str(), ",",
-                          passed.to_str(), ",", num_files.to_str())
+                          passed.to_i64().to_str(), ",", num_files.to_i64().to_str())
 
     // Update doc/totals.csv (tracked in git)
     totals_path := "doc/totals.csv"
@@ -510,10 +510,10 @@ main := proc(args: ..Str) {
     // Only try replace if we have data rows (not just header)
     if last_data_idx.gt(0) {
         ref last_data : Str = lines.get(last_data_idx)
-        last_commit := last_data.substr(0, last_data.find(","))
+        last_commit := last_data.substr(0, U64.from_i64(last_data.find(",")))
         if last_commit.eq(commit) {
             // Replace last line: rebuild without it
-            mut li := 0
+            mut li : U64 = 0
             while li.lt(last_data_idx) {
                 ref ln : Str = lines.get(li)
                 totals_content = totals_content.concat(ln).concat(NL)

@@ -119,6 +119,34 @@ U32 *U32_new(U32 val);
 U32 *U32_clone(U32 *v);
 void U32_delete(U32 *v, Bool *call_free);
 
+// --- U64 ---
+
+U64 U64_add(U64 a, U64 b);
+U64 U64_sub(U64 a, U64 b);
+U64 U64_mul(U64 a, U64 b);
+U64 U64_div(U64 a, U64 b);
+U64 U64_mod(U64 a, U64 b);
+U64 U64_and(U64 a, U64 b);
+U64 U64_or(U64 a, U64 b);
+U64 U64_xor(U64 a, U64 b);
+U64 U64_inc(U64 a);
+U64 U64_dec(U64 a);
+Bool U64_eq(U64 a, U64 b);
+I64 U64_cmp(U64 a, U64 b);
+I64 U64_to_i64(U64 v);
+U64 U64_from_i64(I64 v);
+U8 *U8_from_i64_ext(I64 *a);
+I16 *I16_from_i64_ext(I64 *a);
+I32 *I32_from_i64_ext(I64 *a);
+F32 *F32_from_i64_ext(I64 *a);
+U32 *U32_from_i64_ext(I64 *a);
+U64 *U64_from_i64_ext(I64 *a);
+Str *U64_to_str(U64 v);
+Str *U64_to_str_ext(U64 *v);
+U64 *U64_new(U64 val);
+U64 *U64_clone(U64 *v);
+void U64_delete(U64 *v, Bool *call_free);
+
 // --- Bool ---
 
 Bool Bool_eq(Bool a, Bool b);

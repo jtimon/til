@@ -39,7 +39,7 @@ namespace:
     xor := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     clone := ext_func(val: U8) returns U8 {}
     delete := ext_proc(own self: U8, call_free: Bool = true) {}
-    size := func() returns I64 { return 1 }
+    size := func() returns U64 { return 1 }
 }
 
 I16 := ext_struct {
@@ -71,7 +71,7 @@ namespace:
     xor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     clone := ext_func(val: I16) returns I16 {}
     delete := ext_proc(own self: I16, call_free: Bool = true) {}
-    size := func() returns I64 { return 2 }
+    size := func() returns U64 { return 2 }
 }
 
 I32 := ext_struct {
@@ -103,7 +103,7 @@ namespace:
     xor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     clone := ext_func(val: I32) returns I32 {}
     delete := ext_proc(own self: I32, call_free: Bool = true) {}
-    size := func() returns I64 { return 4 }
+    size := func() returns U64 { return 4 }
 }
 
 F32 := ext_struct {
@@ -122,7 +122,7 @@ namespace:
     cmp := ext_func(shallow a: F32, shallow b: F32) returns shallow I64 {}
     clone := ext_func(val: F32) returns F32 {}
     delete := ext_proc(own self: F32, call_free: Bool = true) {}
-    size := func() returns I64 { return 4 }
+    size := func() returns U64 { return 4 }
 }
 
 U32 := ext_struct {
@@ -152,8 +152,37 @@ namespace:
     xor := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     clone := ext_func(val: U32) returns U32 {}
     delete := ext_proc(own self: U32, call_free: Bool = true) {}
-    size := func() returns I64 { return 4 }
+    size := func() returns U64 { return 4 }
 }
+
+U64 := ext_struct {
+namespace:
+    to_i64 := ext_func(shallow val: U64) returns shallow I64 {}
+    to_str := func(shallow val: U64) returns Str {
+        U64_to_str_ext := ext_func(shallow val: U64) returns Str {}
+        return U64_to_str_ext(val)
+    }
+    from_i64 := func(val: I64) returns U64 {
+        U64_from_i64_ext := ext_func(val: I64) returns U64 {}
+        return U64_from_i64_ext(val)
+    }
+    add := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    sub := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    mul := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    div := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    mod := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    inc := ext_func(shallow a: U64) returns shallow U64 {}
+    dec := ext_func(shallow a: U64) returns shallow U64 {}
+    eq := ext_func(shallow a: U64, shallow b: U64) returns shallow Bool {}
+    cmp := ext_func(shallow a: U64, shallow b: U64) returns shallow I64 {}
+    and := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    or := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    xor := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
+    clone := ext_func(val: U64) returns U64 {}
+    delete := ext_proc(own self: U64, call_free: Bool = true) {}
+    size := func() returns U64 { return 8 }
+}
+
 I64 : StructDef = ext_struct {
 namespace:
     to_str := func(val: I64) returns Str {
@@ -169,7 +198,7 @@ namespace:
             is_neg = true
             v = 0.sub(val)
         }
-        mut ndigits := 0
+        mut ndigits : U64 = 0
         mut tmp := v
         while tmp.gt(0) {
             ndigits = ndigits.add(1)
@@ -206,24 +235,24 @@ namespace:
     xor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     clone := ext_func(val: I64) returns I64 {}
     delete := ext_proc(own self: I64, call_free: Bool = true) {}
-    size := func() returns I64 { return 8 }
+    size := func() returns U64 { return 8 }
 }
 
 Range := struct {
-    start := 0
-    end := 0
+    start : U64 = 0
+    end : U64 = 0
 
 namespace:
-    new := func(start: I64, end: I64) returns Range {
+    new := func(shallow start: U64, shallow end: U64) returns Range {
         return Range(start = start, end = end)
     }
 
-    len := func(self: Range) returns I64 {
+    len := func(self: Range) returns U64 {
         if self.start.lte(self.end) { return self.end.sub(self.start) }
         return self.start.sub(self.end)
     }
 
-    get := func(self: Range, i: I64) returns I64 {
+    get := func(self: Range, shallow i: U64) returns U64 {
         if self.start.lte(self.end) {
             return self.start.add(i)
         }
@@ -252,7 +281,7 @@ namespace:
     }
     clone := ext_func(val: Bool) returns Bool {}
     delete := ext_proc(own self: Bool, call_free: Bool = true) {}
-    size := func() returns I64 { return 1 }
+    size := func() returns U64 { return 1 }
 }
 
 // builtin functions and procs
@@ -276,12 +305,12 @@ print := proc(parts: ..Str) {
 }
 
 format := func(parts: ..Str) returns Str {
-    mut total := 0
+    mut total : U64 = 0
     for s : Str in parts {
         total = total.add(s.len())
     }
     own buf : U8 = malloc(total)
-    mut offset := 0
+    mut offset : U64 = 0
     for s : Str in parts {
         memcpy(ptr_add(buf, offset), s.c_str, s.len())
         offset = offset.add(s.len())
@@ -291,12 +320,12 @@ format := func(parts: ..Str) returns Str {
 exit := ext_func(shallow code: I64) {}
 free := ext_func(own elem: Dynamic) {}
 is_null := ext_func(p: Dynamic) returns shallow Bool {}
-malloc := ext_func(shallow count: I64) returns Dynamic {}
-calloc := ext_func(shallow nmemb: I64, shallow size: I64) returns Dynamic {}
-realloc := ext_func(own buf: Dynamic, shallow count: I64) returns Dynamic {}
-ptr_add := ext_func(buf: Dynamic, shallow offset: I64) returns ref Dynamic {}
-memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: I64) {}
-memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: I64) {}
+malloc := ext_func(shallow count: U64) returns Dynamic {}
+calloc := ext_func(shallow nmemb: U64, shallow size: U64) returns Dynamic {}
+realloc := ext_func(own buf: Dynamic, shallow count: U64) returns Dynamic {}
+ptr_add := ext_func(buf: Dynamic, shallow offset: U64) returns ref Dynamic {}
+memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
+memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 dyn_call1 := ext_func(type_name: Str, method: Str, val: Dynamic) {}
 dyn_call2 := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) {}
 dyn_call1_ret := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
@@ -325,7 +354,7 @@ wait_cmd := proc(pid: I64) returns I64 {
 
 run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     mut cmd := ""
-    mut i := 0
+    mut i : U64 = 0
     while i.lt(args.len()) {
         ref arg: Str = args.get(i)
         if i.gt(0) {

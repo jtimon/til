@@ -70,6 +70,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "I16"))  return TIL_TYPE_I16;
     if (Str_eq_c(name, "I32"))  return TIL_TYPE_I32;
     if (Str_eq_c(name, "U32"))  return TIL_TYPE_U32;
+    if (Str_eq_c(name, "U64"))  return TIL_TYPE_U64;
     if (Str_eq_c(name, "Str"))  return TIL_TYPE_STRUCT;
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
     if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
@@ -221,6 +222,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         else if (Str_eq_c(sname, "I16"))        { builtin_type = TIL_TYPE_I16;        is_builtin = 1; }
         else if (Str_eq_c(sname, "I32"))        { builtin_type = TIL_TYPE_I32;        is_builtin = 1; }
         else if (Str_eq_c(sname, "U32"))        { builtin_type = TIL_TYPE_U32;        is_builtin = 1; }
+        else if (Str_eq_c(sname, "U64"))        { builtin_type = TIL_TYPE_U64;        is_builtin = 1; }
         else if (Str_eq_c(sname, "Str"))        { is_builtin = 0; } // Str is a regular struct
         else if (Str_eq_c(sname, "Bool"))       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }
         else if (Str_eq_c(sname, "StructDef"))  { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
@@ -1106,7 +1108,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         char sz_buf[16];
         snprintf(sz_buf, sizeof(sz_buf), "%d", sz);
 
-        // size := func() returns I64 { return <literal> }
+        // size := func() returns U64 { return <literal> }
         Expr *func_body = expr_new(NODE_BODY, line, col, path);
         Expr *size_expr = expr_new(NODE_LITERAL_NUM, line, col, path);
         size_expr->type.str_val = Str_new(sz_buf);
@@ -1122,7 +1124,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         func_def->type.func_def.param_muts = NULL;
         func_def->type.func_def.param_owns = NULL;
         func_def->type.func_def.param_defaults = NULL;
-        func_def->type.func_def.return_type = Str_new("I64");
+        func_def->type.func_def.return_type = Str_new("U64");
         func_def->type.func_def.variadic_index = -1;
         expr_add_child(func_def, func_body);
 

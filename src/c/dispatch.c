@@ -10,9 +10,9 @@
 #include <time.h>
 #include <ffi.h>
 
-// Codegen Str layout (matches ext.h Str: {U8 *data, I64 count, I64 cap})
-// Distinct from compiler-internal Str (str.h: {char *c_str, I64 count, I64 cap})
-typedef struct { U8 *data; I64 count; I64 cap; } ExtStr;
+// Codegen Str layout (matches ext.h Str: {U8 *data, U64 count, U64 cap})
+// Distinct from compiler-internal Str (str.h: {char *c_str, U64 count, U64 cap})
+typedef struct { U8 *data; U64 count; U64 cap; } ExtStr;
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 
@@ -50,6 +50,7 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
     if (Str_eq_c(type_name, "I16"))  return &ffi_type_sint16;
     if (Str_eq_c(type_name, "I32"))  return &ffi_type_sint32;
     if (Str_eq_c(type_name, "U32"))  return &ffi_type_uint32;
+    if (Str_eq_c(type_name, "U64"))  return &ffi_type_uint64;
     if (Str_eq_c(type_name, "F32"))  return &ffi_type_float;
     if (Str_eq_c(type_name, "Bool")) return &ffi_type_uint8;
     // Struct type: look up def and build ffi_type
@@ -69,6 +70,7 @@ static ffi_type *field_ffi_type(Expr *field) {
     if (Str_eq_c(ftype, "I16"))  return &ffi_type_sint16;
     if (Str_eq_c(ftype, "I32"))  return &ffi_type_sint32;
     if (Str_eq_c(ftype, "U32"))  return &ffi_type_uint32;
+    if (Str_eq_c(ftype, "U64"))  return &ffi_type_uint64;
     if (Str_eq_c(ftype, "F32"))  return &ffi_type_float;
     if (Str_eq_c(ftype, "Bool")) return &ffi_type_uint8;
     // Inline struct field
@@ -123,6 +125,7 @@ static Value eval_arg(Scope *s, Expr *e) {
             case TIL_TYPE_I16:   return (Value){.type = VAL_I16, .i16 = (I16 *)v.ptr};
             case TIL_TYPE_I32:   return (Value){.type = VAL_I32, .i32 = (I32 *)v.ptr};
             case TIL_TYPE_U32:   return (Value){.type = VAL_U32, .u32 = (U32 *)v.ptr};
+            case TIL_TYPE_U64:   return (Value){.type = VAL_U64, .u64 = (U64 *)v.ptr};
             case TIL_TYPE_F32:   return (Value){.type = VAL_F32, .f32 = (F32 *)v.ptr};
             case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (Bool *)v.ptr};
             case TIL_TYPE_STRUCT:
@@ -379,7 +382,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Value result = eval_call(s, &fake_call);
     Vec_delete(&fake_call.children);
     Vec_delete(&field_access.children);
-    return (I32)*result.i64;
+    return (I32)*result.u64;
 }
 
 // array("I64", 1, 2, 3)
@@ -403,7 +406,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
                 // Deep-copy Str: copy flat bytes then strndup the data pointer
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
-                I64 slen = *(I64 *)((char *)data + i * elem_size + 8);
+                U64 slen = *(U64 *)((char *)data + i * elem_size + 8);
                 *dp = strndup(*dp, slen);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
@@ -422,8 +425,8 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     Str fn_esz = {.c_str = "elem_size", .count = 9};
     Str fn_et = {.c_str = "elem_type", .count = 9};
     write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
-    write_field(si, find_field_decl(cached_array_def, &fn_cap), val_i64(count));
-    write_field(si, find_field_decl(cached_array_def, &fn_esz), val_i64(elem_size));
+    write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u64(count));
+    write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u64(elem_size));
     write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value(type_name->c_str, type_name->count));
 
     r->type = VAL_STRUCT;
@@ -452,7 +455,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
             if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
-                I64 slen = *(I64 *)((char *)data + i * elem_size + 8);
+                U64 slen = *(U64 *)((char *)data + i * elem_size + 8);
                 *dp = strndup(*dp, slen);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
@@ -472,9 +475,9 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     Str fn_esz = {.c_str = "elem_size", .count = 9};
     Str fn_et = {.c_str = "elem_type", .count = 9};
     write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
-    write_field(si, find_field_decl(cached_vec_def, &fn_count), val_i64(count));
-    write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_i64(cap));
-    write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_i64(elem_size));
+    write_field(si, find_field_decl(cached_vec_def, &fn_count), val_u64(count));
+    write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u64(cap));
+    write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u64(elem_size));
     write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value(type_name->c_str, type_name->count));
 
     r->type = VAL_STRUCT;
@@ -504,7 +507,7 @@ static void *val_to_ptr(Value v) {
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, expr_child(e,1));
     Value offset = eval_expr(s, expr_child(e,2));
-    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + (I32)*offset.i64};
+    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + *offset.u64};
     return 1;
 }
 
@@ -528,7 +531,7 @@ static Bool h_readfile(Scope *s, Expr *e, Value *r) {
     char *buf = malloc(len);
     fread(buf, 1, len, f);
     fclose(f);
-    *r = make_str_value_own(buf, (I64)len);
+    *r = make_str_value_own(buf, (U64)len);
     return 1;
 }
 
@@ -704,6 +707,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         case VAL_I16:  shallow_ptr = v.i16; break;
                         case VAL_I32:  shallow_ptr = v.i32; break;
                         case VAL_U32:  shallow_ptr = v.u32; break;
+                        case VAL_U64:  shallow_ptr = v.u64; break;
                         case VAL_F32:  shallow_ptr = v.f32; break;
                         case VAL_BOOL: shallow_ptr = v.boolean; break;
                         case VAL_PTR:  shallow_ptr = v.ptr; break;
@@ -719,6 +723,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         case VAL_I16:  *(I16 *)&args[i] = *v.i16; break;
                         case VAL_I32:  *(I32 *)&args[i] = *v.i32; break;
                         case VAL_U32:  *(U32 *)&args[i] = *v.u32; break;
+                        case VAL_U64:  *(U64 *)&args[i] = *v.u64; break;
                         case VAL_F32:  *(F32 *)&args[i] = *v.f32; break;
                         case VAL_BOOL: *(U8 *)&args[i] = *v.boolean ? 1 : 0; break;
                         case VAL_PTR:
@@ -733,6 +738,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                                 *(I32 *)&args[i] = *(I32 *)v.ptr;
                             else if (fe->arg_types[i] == &ffi_type_uint32)
                                 *(U32 *)&args[i] = *(U32 *)v.ptr;
+                            else if (fe->arg_types[i] == &ffi_type_uint64)
+                                *(U64 *)&args[i] = *(U64 *)v.ptr;
                             else if (fe->arg_types[i] == &ffi_type_float)
                                 *(F32 *)&args[i] = *(F32 *)v.ptr;
                             else
@@ -748,6 +755,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         case VAL_I16:    args[i] = v.i16; break;
                         case VAL_I32:    args[i] = v.i32; break;
                         case VAL_U32:    args[i] = v.u32; break;
+                        case VAL_U64:    args[i] = v.u64; break;
                         case VAL_F32:    args[i] = v.f32; break;
                         case VAL_BOOL:   args[i] = v.boolean; break;
                         case VAL_PTR:    args[i] = v.ptr; break;
@@ -800,6 +808,9 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 } else if (Str_eq_c(fe->return_type, "U32")) {
                     U32 *p = malloc(sizeof(U32)); *p = (U32)(intptr_t)raw;
                     *result = (Value){.type = VAL_U32, .u32 = p};
+                } else if (Str_eq_c(fe->return_type, "U64")) {
+                    U64 *p = malloc(sizeof(U64)); *p = (U64)(intptr_t)raw;
+                    *result = (Value){.type = VAL_U64, .u64 = p};
                 } else if (Str_eq_c(fe->return_type, "F32")) {
                     F32 *p = malloc(sizeof(F32)); *p = *(F32 *)&raw;
                     *result = (Value){.type = VAL_F32, .f32 = p};
@@ -822,6 +833,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = (Value){.type = VAL_I32, .i32 = (I32 *)raw};
             } else if (Str_eq_c(fe->return_type, "U32")) {
                 *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw};
+            } else if (Str_eq_c(fe->return_type, "U64")) {
+                *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw};
             } else if (Str_eq_c(fe->return_type, "F32")) {
                 *result = (Value){.type = VAL_F32, .f32 = (F32 *)raw};
             } else if (Str_eq_c(fe->return_type, "Bool")) {
@@ -1022,14 +1035,28 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
                 Expr *fdef = expr_child(field, 0);
                 if (fdef->type.tag != NODE_FUNC_DEF) continue;
                 FuncType fft = fdef->type.func_def.func_type;
-                if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
-
-                char flat_name[256];
-                snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->type.decl.name->c_str);
-                void *fn = ffi_dlsym(flat_name);
-                if (!fn) continue;
-                Str *key = Str_new(flat_name);
-                ffi_register(key, fn, fdef);
+                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
+                    char flat_name[256];
+                    snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->type.decl.name->c_str);
+                    void *fn = ffi_dlsym(flat_name);
+                    if (fn) {
+                        Str *key = Str_new(flat_name);
+                        ffi_register(key, fn, fdef);
+                    }
+                } else if (fft == FUNC_FUNC || fft == FUNC_PROC) {
+                    // Scan function body for nested ext_func/ext_proc declarations
+                    Expr *fbody = expr_child(fdef, 0);
+                    for (U32 k = 0; k < fbody->children.count; k++) {
+                        Expr *inner = expr_child(fbody, k);
+                        if (inner->type.tag != NODE_DECL || inner->children.count == 0) continue;
+                        Expr *idef = expr_child(inner, 0);
+                        if (idef->type.tag != NODE_FUNC_DEF) continue;
+                        FuncType ift = idef->type.func_def.func_type;
+                        if (ift != FUNC_EXT_FUNC && ift != FUNC_EXT_PROC) continue;
+                        void *fn = ffi_dlsym(inner->type.decl.name->c_str);
+                        if (fn) ffi_register(inner->type.decl.name, fn, idef);
+                    }
+                }
             }
         }
     }

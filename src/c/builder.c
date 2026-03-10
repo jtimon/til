@@ -179,7 +179,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
     (void)depth;
     switch (e->type.tag) {
     case NODE_LITERAL_STR:
-        fprintf(f, "Str_lit(\"%s\", %lld)", e->type.str_val->c_str, (long long)e->type.str_val->count);
+        fprintf(f, "Str_lit(\"%s\", %lluULL)", e->type.str_val->c_str, (unsigned long long)e->type.str_val->count);
         break;
     case NODE_LITERAL_NUM:
         fprintf(f, "%s", e->type.str_val->c_str);
@@ -290,6 +290,7 @@ static const char *til_type_to_c(TilType t) {
     case TIL_TYPE_I16:  return "I16";
     case TIL_TYPE_I32:  return "I32";
     case TIL_TYPE_U32:  return "U32";
+    case TIL_TYPE_U64:  return "U64";
     case TIL_TYPE_F32:  return "F32";
     case TIL_TYPE_BOOL: return "Bool";
     case TIL_TYPE_NONE:    return "void";
@@ -316,6 +317,7 @@ static const char *type_name_to_c(Str *name) {
     if (Str_eq_c(name, "I16"))  return "I16 *";
     if (Str_eq_c(name, "I32"))  return "I32 *";
     if (Str_eq_c(name, "U32"))  return "U32 *";
+    if (Str_eq_c(name, "U64"))  return "U64 *";
     if (Str_eq_c(name, "F32"))  return "F32 *";
     if (Str_eq_c(name, "Bool")) return "Bool *";
     if (Str_eq_c(name, "Dynamic")) return "void *";
@@ -332,6 +334,7 @@ static const char *type_name_to_c_value(Str *name) {
     if (Str_eq_c(name, "I16"))  return "I16";
     if (Str_eq_c(name, "I32"))  return "I32";
     if (Str_eq_c(name, "U32"))  return "U32";
+    if (Str_eq_c(name, "U64"))  return "U64";
     if (Str_eq_c(name, "F32"))  return "F32";
     if (Str_eq_c(name, "Bool")) return "Bool";
     static char buf2[128];
@@ -341,7 +344,7 @@ static const char *type_name_to_c_value(Str *name) {
 
 static Bool is_primitive_type(Str *name) {
     return Str_eq_c(name, "I64") || Str_eq_c(name, "U8") || Str_eq_c(name, "I16") ||
-           Str_eq_c(name, "I32") || Str_eq_c(name, "U32") || Str_eq_c(name, "F32") || Str_eq_c(name, "Bool");
+           Str_eq_c(name, "I32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") || Str_eq_c(name, "F32") || Str_eq_c(name, "Bool");
 }
 
 // Emit a function parameter list (with variadic support)
@@ -382,8 +385,8 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
             fprintf(f, ")");
         }
     } else if (e->type.tag == NODE_LITERAL_STR) {
-        fprintf(f, "(Str){.c_str=(U8*)\"%s\", .count=%lld, .cap=TIL_CAP_LIT}",
-                e->type.str_val->c_str, (long long)e->type.str_val->count);
+        fprintf(f, "(Str){.c_str=(U8*)\"%s\", .count=%lluULL, .cap=TIL_CAP_LIT}",
+                e->type.str_val->c_str, (unsigned long long)e->type.str_val->count);
     } else if (e->type.tag == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
         // Auto-called constructor returns pointer; dereference it
         fprintf(f, "(*");
@@ -753,6 +756,22 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
             } else {
                 fprintf(f, "    if (argc - 1 != %d) { fprintf(stderr, \"error: main expects %d argument(s), got %%d\\n\", argc - 1); return 1; }\n", nparam, nparam);
             }
+        }
+        // Initialize namespace fields and root-scope globals BEFORE CLI arg
+        // parsing, because Str_delete (called during variadic arg cleanup) needs
+        // CAP_VIEW to be initialized.
+        emit_ns_inits(f, 1);
+        if (has_script_globals) {
+            for (U32 i = 0; i < codegen_program->children.count; i++) {
+                Expr *gs = expr_child(codegen_program, i);
+                if (gs->type.tag != NODE_DECL) continue;
+                Expr *rhs = expr_child(gs, 0);
+                if (rhs->type.tag == NODE_FUNC_DEF || rhs->type.tag == NODE_STRUCT_DEF ||
+                    rhs->type.tag == NODE_ENUM_DEF) continue;
+                emit_stmt(f, gs, 1);
+            }
+        }
+        if (nparam > 0) {
             // Parse and bind each param
             I32 argi = 1; // argv[0] is program name, skip it
             for (U32 i = 0; i < nparam; i++) {
@@ -762,15 +781,15 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
                     // Build Array[T] from remaining args
                     const char *et = ptype->c_str;
                     fprintf(f, "    int _va_argc = argc - %d;\n", argi);
-                    fprintf(f, "    Str *_va_et = Str_lit(\"%s\", %lld);\n", et, (long long)ptype->count);
-                    fprintf(f, "    I64 *_va_esz = malloc(sizeof(I64)); *_va_esz = sizeof(%s);\n", et);
-                    fprintf(f, "    I64 *_va_cap = malloc(sizeof(I64)); *_va_cap = _va_argc;\n");
+                    fprintf(f, "    Str *_va_et = Str_lit(\"%s\", %lluULL);\n", et, (unsigned long long)ptype->count);
+                    fprintf(f, "    U64 *_va_esz = malloc(sizeof(U64)); *_va_esz = sizeof(%s);\n", et);
+                    fprintf(f, "    U64 *_va_cap = malloc(sizeof(U64)); *_va_cap = _va_argc;\n");
                     fprintf(f, "    Array *%s = Array_new(_va_et, _va_esz, _va_cap);\n", pname->c_str);
                     fprintf(f, "    Str_delete(_va_et, &(Bool){1});\n");
-                    fprintf(f, "    I64_delete(_va_esz, &(Bool){1});\n");
-                    fprintf(f, "    I64_delete(_va_cap, &(Bool){1});\n");
+                    fprintf(f, "    U64_delete(_va_esz, &(Bool){1});\n");
+                    fprintf(f, "    U64_delete(_va_cap, &(Bool){1});\n");
                     fprintf(f, "    for (int _i = 0; _i < _va_argc; _i++) {\n");
-                    fprintf(f, "        I64 *_idx = malloc(sizeof(I64)); *_idx = _i;\n");
+                    fprintf(f, "        U64 *_idx = malloc(sizeof(U64)); *_idx = _i;\n");
                     if (Str_eq_c(ptype, "Str"))
                         fprintf(f, "        Str *_val = Str_lit(argv[%d + _i], strlen(argv[%d + _i]));\n", argi, argi);
                     else if (Str_eq_c(ptype, "I64"))
@@ -783,10 +802,12 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
                         fprintf(f, "        I32 *_val = cli_parse_i32(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "U32"))
                         fprintf(f, "        U32 *_val = cli_parse_u32(argv[%d + _i]);\n", argi);
+                    else if (Str_eq_c(ptype, "U64"))
+                        fprintf(f, "        U64 *_val = cli_parse_u64(argv[%d + _i]);\n", argi);
                     else if (Str_eq_c(ptype, "Bool"))
                         fprintf(f, "        Bool *_val = cli_parse_bool(argv[%d + _i]);\n", argi);
                     fprintf(f, "        Array_set(%s, _idx, _val);\n", pname->c_str);
-                    fprintf(f, "        I64_delete(_idx, &(Bool){1});\n");
+                    fprintf(f, "        U64_delete(_idx, &(Bool){1});\n");
                     fprintf(f, "    }\n");
                 } else if (Str_eq_c(ptype, "Str")) {
                     fprintf(f, "    Str *%s = Str_lit(argv[%d], strlen(argv[%d]));\n", pname->c_str, argi, argi);
@@ -806,6 +827,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
                 } else if (Str_eq_c(ptype, "U32")) {
                     fprintf(f, "    U32 *%s = cli_parse_u32(argv[%d]);\n", pname->c_str, argi);
                     argi++;
+                } else if (Str_eq_c(ptype, "U64")) {
+                    fprintf(f, "    U64 *%s = cli_parse_u64(argv[%d]);\n", pname->c_str, argi);
+                    argi++;
                 } else if (Str_eq_c(ptype, "Bool")) {
                     fprintf(f, "    Bool *%s = cli_parse_bool(argv[%d]);\n", pname->c_str, argi);
                     argi++;
@@ -814,18 +838,6 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
                     fprintf(f, "    fprintf(stderr, \"error: unsupported CLI argument type '%s'\\n\"); return 1;\n", ptype->c_str);
                     argi++;
                 }
-            }
-        }
-        emit_ns_inits(f, 1);
-        // Initialize root-scope globals before main body
-        if (has_script_globals) {
-            for (U32 i = 0; i < codegen_program->children.count; i++) {
-                Expr *gs = expr_child(codegen_program, i);
-                if (gs->type.tag != NODE_DECL) continue;
-                Expr *rhs = expr_child(gs, 0);
-                if (rhs->type.tag == NODE_FUNC_DEF || rhs->type.tag == NODE_STRUCT_DEF ||
-                    rhs->type.tag == NODE_ENUM_DEF) continue;
-                emit_stmt(f, gs, 1);
             }
         }
         emit_body(f, body, 1);
@@ -902,10 +914,10 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def) {
         if (Str_eq_c(field->type.decl.name, "size") &&
             fdef->type.func_def.nparam == 0 &&
             fdef->type.func_def.return_type &&
-            Str_eq_c(fdef->type.func_def.return_type, "I64")) {
-            fprintf(f, "I64 *%s_size(void) {\n", name->c_str);
-            fprintf(f, "    I64 *r = malloc(sizeof(I64));\n");
-            fprintf(f, "    *r = (I64)sizeof(%s);\n", name->c_str);
+            Str_eq_c(fdef->type.func_def.return_type, "U64")) {
+            fprintf(f, "U64 *%s_size(void) {\n", name->c_str);
+            fprintf(f, "    U64 *r = malloc(sizeof(U64));\n");
+            fprintf(f, "    *r = (U64)sizeof(%s);\n", name->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n\n");
             continue;
@@ -1041,10 +1053,10 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         if (Str_eq_c(field->type.decl.name, "size") &&
             fdef->type.func_def.nparam == 0 &&
             fdef->type.func_def.return_type &&
-            Str_eq_c(fdef->type.func_def.return_type, "I64")) {
-            fprintf(f, "I64 *%s_size(void) {\n", name->c_str);
-            fprintf(f, "    I64 *r = malloc(sizeof(I64));\n");
-            fprintf(f, "    *r = (I64)sizeof(%s);\n", name->c_str);
+            Str_eq_c(fdef->type.func_def.return_type, "U64")) {
+            fprintf(f, "U64 *%s_size(void) {\n", name->c_str);
+            fprintf(f, "    U64 *r = malloc(sizeof(U64));\n");
+            fprintf(f, "    *r = (U64)sizeof(%s);\n", name->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n\n");
             continue;
@@ -1097,7 +1109,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include \"ext.h\"\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include \"ext.h\"\n\n");
 
     Bool is_script = !mode || !mode->decls_only;
 
@@ -1151,7 +1163,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     fprintf(f, "\n");
 
     // Forward-declare string/print helper functions (implementations after struct defs)
-    fprintf(f, "static Str *Str_lit(const char *s, long long cap);\n");
+    fprintf(f, "static Str *Str_lit(const char *s, unsigned long long len);\n");
     fprintf(f, "static void print_single(Str *s);\n");
     fprintf(f, "static void print_flush();\n\n");
 
@@ -1311,8 +1323,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // String helper functions (after all struct typedefs so Str is complete)
     fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "#define TIL_CAP_LIT (-1LL)\n");
-    fprintf(f, "static Str *Str_lit(const char *s, long long len) {\n");
+    fprintf(f, "#define TIL_CAP_LIT ULLONG_MAX\n");
+    fprintf(f, "static Str *Str_lit(const char *s, unsigned long long len) {\n");
     fprintf(f, "    Str *r = malloc(sizeof(Str));\n");
     fprintf(f, "    r->c_str = (U8 *)s;\n");
     fprintf(f, "    r->count = len;\n");
@@ -1414,24 +1426,24 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                     ? type_name_to_c_value(method_fdef->type.func_def.return_type) : NULL;
                 if (info->nargs == 2) {
                     if (info->returns && ret_shallow)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s, %s); return _r; }\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1, arg2_str);
+                        fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s, %s); return _r; }\n",
+                                (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1, arg2_str);
                     else if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) return (void *)%s_%s(%s, %s);\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
+                        fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return (void *)%s_%s(%s, %s);\n",
+                                (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s_%s(%s, %s); return; }\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
+                        fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s_%s(%s, %s); return; }\n",
+                                (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                 } else {
                     if (info->returns && ret_shallow)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s); return _r; }\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1);
+                        fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s); return _r; }\n",
+                                (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1);
                     else if (info->returns)
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) return (void *)%s_%s(%s);\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1);
+                        fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return (void *)%s_%s(%s);\n",
+                                (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1);
                     else
-                        fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { %s_%s(%s); return; }\n",
-                                (long long)tname->count, tname->c_str, (long long)tname->count, tname->c_str, method->c_str, arg1);
+                        fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s_%s(%s); return; }\n",
+                                (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1);
                 }
             }
             fprintf(f, "    fprintf(stderr, \"dyn_call: unknown type for %s\\n\");\n", method->c_str);
@@ -1466,8 +1478,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                     }
                 }
                 if (!found) continue;
-                fprintf(f, "    if (type_name->count == %lld && memcmp(type_name->c_str, \"%s\", %lld) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n",
-                        (long long)tname->count, tname->c_str, (long long)tname->count);
+                fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n",
+                        (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count);
             }
             fprintf(f, "    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n");
             fprintf(f, "}\n\n");
@@ -1482,14 +1494,14 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, i);
             const char *et = ci->type_name->c_str;
-            I64 et_len = ci->type_name->count;
+            U64 et_len = ci->type_name->count;
             if (ci->is_vec) {
                 fprintf(f, "Vec *vec_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
-                fprintf(f, "    I64 *_esz = malloc(sizeof(I64)); *_esz = sizeof(%s);\n", et);
+                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lluULL);\n", et, (unsigned long long)et_len);
+                fprintf(f, "    U64 *_esz = malloc(sizeof(U64)); *_esz = sizeof(%s);\n", et);
                 fprintf(f, "    Vec *_v = Vec_new(_et, _esz);\n");
                 fprintf(f, "    Str_delete(_et, &(Bool){1});\n");
-                fprintf(f, "    I64_delete(_esz, &(Bool){1});\n");
+                fprintf(f, "    U64_delete(_esz, &(Bool){1});\n");
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
                 fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
@@ -1500,19 +1512,19 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 fprintf(f, "}\n\n");
             } else {
                 fprintf(f, "Array *array_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lld);\n", et, (long long)et_len);
-                fprintf(f, "    I64 *_esz = malloc(sizeof(I64)); *_esz = sizeof(%s);\n", et);
-                fprintf(f, "    I64 *_cap = malloc(sizeof(I64)); *_cap = count;\n");
+                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lluULL);\n", et, (unsigned long long)et_len);
+                fprintf(f, "    U64 *_esz = malloc(sizeof(U64)); *_esz = sizeof(%s);\n", et);
+                fprintf(f, "    U64 *_cap = malloc(sizeof(U64)); *_cap = count;\n");
                 fprintf(f, "    Array *_a = Array_new(_et, _esz, _cap);\n");
                 fprintf(f, "    Str_delete(_et, &(Bool){1});\n");
-                fprintf(f, "    I64_delete(_esz, &(Bool){1});\n");
-                fprintf(f, "    I64_delete(_cap, &(Bool){1});\n");
+                fprintf(f, "    U64_delete(_esz, &(Bool){1});\n");
+                fprintf(f, "    U64_delete(_cap, &(Bool){1});\n");
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
-                fprintf(f, "        I64 *_idx = malloc(sizeof(I64)); *_idx = _i;\n");
+                fprintf(f, "        U64 *_idx = malloc(sizeof(U64)); *_idx = _i;\n");
                 fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
                 fprintf(f, "        Array_set(_a, _idx, _val);\n");
-                fprintf(f, "        I64_delete(_idx, &(Bool){1});\n");
+                fprintf(f, "        U64_delete(_idx, &(Bool){1});\n");
                 fprintf(f, "    }\n");
                 fprintf(f, "    va_end(ap);\n");
                 fprintf(f, "    return _a;\n");
@@ -1723,7 +1735,7 @@ I32 build_header(Expr *program, Str *h_path) {
 static void emit_til_default(FILE *f, TilType t, Str *struct_name) {
     switch (t) {
     case TIL_TYPE_I64: case TIL_TYPE_I16: case TIL_TYPE_I32:
-    case TIL_TYPE_U32: case TIL_TYPE_F32: fprintf(f, "0"); break;
+    case TIL_TYPE_U32: case TIL_TYPE_U64: case TIL_TYPE_F32: fprintf(f, "0"); break;
     case TIL_TYPE_U8:   fprintf(f, "0"); break;
     case TIL_TYPE_BOOL: fprintf(f, "false"); break;
     case TIL_TYPE_STRUCT:

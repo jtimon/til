@@ -163,6 +163,6 @@ expr_add_child := proc(mut parent: Expr, own child: Expr) {
 }
 
 expr_child := func(parent: Expr, i: I64) returns ref Expr {
-    ref c : Expr = parent.children.get(i)
+    ref c : Expr = parent.children.get(U64.from_i64(i))
     return c
 }

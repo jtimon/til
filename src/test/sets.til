@@ -9,7 +9,7 @@ test_i64_set := test() {
     s.add(own 3)
     s.add(own 1)
     s.add(own 2)
-    assert_eq(__LOC__, s.len(), 3)
+    assert_eq(__LOC__, s.len().to_i64(), 3)
     assert(__LOC__, s.has(1))
     assert(__LOC__, s.has(2))
     assert(__LOC__, s.has(3))
@@ -17,7 +17,7 @@ test_i64_set := test() {
 
     // Duplicates ignored
     s.add(own 2)
-    assert_eq(__LOC__, s.len(), 3)
+    assert_eq(__LOC__, s.len().to_i64(), 3)
 }
 
 test_str_set := test() {
@@ -29,13 +29,13 @@ test_str_set := test() {
     ss.add(own "banana")
     ss.add(own "apple")
     ss.add(own "cherry")
-    assert_eq(__LOC__, ss.len(), 3)
+    assert_eq(__LOC__, ss.len().to_i64(), 3)
     assert(__LOC__, ss.has("apple"))
     assert(__LOC__, ss.has("banana"))
     assert(__LOC__, ss.has("cherry"))
     assert(__LOC__, ss.has("date").not())
     ss.add(own "apple")
-    assert_eq(__LOC__, ss.len(), 3)
+    assert_eq(__LOC__, ss.len().to_i64(), 3)
 }
 
 // --- Set literal tests ---
@@ -46,7 +46,7 @@ test_set_literal_i64 := test() {
     assert_eq(__LOC__, 1.clone(), 1)
 
     s := {3, 1, 2}
-    assert_eq(__LOC__, s.len(), 3)
+    assert_eq(__LOC__, s.len().to_i64(), 3)
     assert(__LOC__, s.has(1))
     assert(__LOC__, s.has(2))
     assert(__LOC__, s.has(3))
@@ -59,7 +59,7 @@ test_set_literal_str := test() {
     assert_eq_str(__LOC__, "hi".clone(), "hi")
 
     s := {"apple", "banana", "cherry"}
-    assert_eq(__LOC__, s.len(), 3)
+    assert_eq(__LOC__, s.len().to_i64(), 3)
     assert(__LOC__, s.has("apple"))
     assert(__LOC__, s.has("banana"))
     assert(__LOC__, s.has("cherry"))

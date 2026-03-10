@@ -1,12 +1,19 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 44
+# NEXT_ISSUE: 45
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
 
-
+** OPEN #44 Integer literal coercion to non-I64 types
+  Integer literals (0, 1, 42, etc.) always default to I64. When assigning
+  to or comparing with U64/U8/I16/etc. variables, you need explicit
+  conversions like U64.from_i64(0). The typer should coerce integer
+  literals to the target type when unambiguous (e.g. assigning to a typed
+  variable, passing to a typed parameter). Negative literals should still
+  error for unsigned types, and out-of-range values should error for
+  smaller types (e.g. 256 for U8).
 
 ** OPEN #39 Replace ctil with til (bottom-up C elimination)
   :DEPENDENCIES: #12

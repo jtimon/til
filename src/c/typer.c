@@ -22,6 +22,7 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "I16"))  return TIL_TYPE_I16;
     if (Str_eq_c(name, "I32"))  return TIL_TYPE_I32;
     if (Str_eq_c(name, "U32"))  return TIL_TYPE_U32;
+    if (Str_eq_c(name, "U64"))  return TIL_TYPE_U64;
     if (Str_eq_c(name, "F32"))  return TIL_TYPE_F32;
     if (Str_eq_c(name, "Str"))  return TIL_TYPE_STRUCT;
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
@@ -125,7 +126,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Bool pshallow = e->type.func_def.param_shallows ? e->type.func_def.param_shallows[i] : 0;
                 if (pshallow) {
                     Bool is_scalar = (pt == TIL_TYPE_I64 || pt == TIL_TYPE_U8 || pt == TIL_TYPE_I16 ||
-                                      pt == TIL_TYPE_I32 || pt == TIL_TYPE_U32 || pt == TIL_TYPE_F32 || pt == TIL_TYPE_BOOL);
+                                      pt == TIL_TYPE_I32 || pt == TIL_TYPE_U32 || pt == TIL_TYPE_U64 || pt == TIL_TYPE_F32 || pt == TIL_TYPE_BOOL);
                     if (!is_scalar && pt != TIL_TYPE_STRUCT && pt != TIL_TYPE_STRUCT_DEF) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
@@ -218,6 +219,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 else if (obj->til_type == TIL_TYPE_I16)  type_name = Str_new("I16");
                 else if (obj->til_type == TIL_TYPE_I32)  type_name = Str_new("I32");
                 else if (obj->til_type == TIL_TYPE_U32)  type_name = Str_new("U32");
+                else if (obj->til_type == TIL_TYPE_U64)  type_name = Str_new("U64");
                 else if (obj->til_type == TIL_TYPE_F32)  type_name = Str_new("F32");
                 else if (obj->til_type == TIL_TYPE_BOOL) type_name = Str_new("Bool");
                 else if ((obj->til_type == TIL_TYPE_STRUCT || obj->til_type == TIL_TYPE_ENUM) && obj->struct_name)
@@ -408,7 +410,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type == TIL_TYPE_DYNAMIC) continue;
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) continue;
-                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
+                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_U64 || ptype == TIL_TYPE_F32))
                     continue;
                 if (arg->til_type != ptype) {
                     char buf[256];
@@ -695,7 +697,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type == TIL_TYPE_DYNAMIC) { ci++; continue; }
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) { ci++; continue; }
-                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_F32))
+                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_U64 || ptype == TIL_TYPE_F32))
                     { ci++; continue; }
                 if (arg->til_type != ptype) {
                     char buf[256];
@@ -1269,7 +1271,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         et->struct_name = Str_new("Str");
         expr_add_child(new_call, et);
         // Arg: ElemType.size()
-        Expr *sz = make_ns_call(elem_type->c_str, "size", TIL_TYPE_I64,
+        Expr *sz = make_ns_call(elem_type->c_str, "size", TIL_TYPE_U64,
                                  NULL, fcall);
         expr_add_child(new_call, sz);
         // Arg: count
@@ -1277,7 +1279,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         char cap_buf[16];
         snprintf(cap_buf, sizeof(cap_buf), "%d", vc);
         cap->type.str_val = Str_new(cap_buf);
-        cap->til_type = TIL_TYPE_I64;
+        cap->til_type = TIL_TYPE_U64;
         expr_add_child(new_call, cap);
 
         // DECL _va := Array.new(...)
@@ -1308,7 +1310,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             char idx_buf[16];
             snprintf(idx_buf, sizeof(idx_buf), "%d", j);
             idx->type.str_val = Str_new(idx_buf);
-            idx->til_type = TIL_TYPE_I64;
+            idx->til_type = TIL_TYPE_U64;
             expr_add_child(set_call, idx);
             // Arg: val — clone if NODE_IDENT to preserve caller's variable
             Expr *val = expr_child(fcall, vi + j);
@@ -1612,6 +1614,7 @@ static const char *type_to_name(TilType type, Str *struct_name) {
         case TIL_TYPE_I16:  return "I16";
         case TIL_TYPE_I32:  return "I32";
         case TIL_TYPE_U32:  return "U32";
+        case TIL_TYPE_U64:  return "U64";
         case TIL_TYPE_F32:  return "F32";
         case TIL_TYPE_BOOL: return "Bool";
         default: return NULL;
@@ -2197,6 +2200,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 else if (Str_eq_c(sname, "I16"))  { builtin_type = TIL_TYPE_I16;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "I32"))  { builtin_type = TIL_TYPE_I32;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "U32"))  { builtin_type = TIL_TYPE_U32;  is_builtin = 1; }
+                else if (Str_eq_c(sname, "U64"))  { builtin_type = TIL_TYPE_U64;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "F32"))  { builtin_type = TIL_TYPE_F32;  is_builtin = 1; }
                 else if (Str_eq_c(sname, "Str"))  { is_builtin = 0; } // Str is a regular struct now
                 else if (Str_eq_c(sname, "Bool")) { builtin_type = TIL_TYPE_BOOL; is_builtin = 1; }
@@ -2254,7 +2258,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                              stmt->type.decl.name->c_str);
                     type_error(stmt, buf);
                 } else if (expr_child(stmt, 0)->type.tag == NODE_LITERAL_NUM &&
-                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_I16 || declared == TIL_TYPE_I32 || declared == TIL_TYPE_U32 || declared == TIL_TYPE_F32 || declared == TIL_TYPE_DYNAMIC)) {
+                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_I16 || declared == TIL_TYPE_I32 || declared == TIL_TYPE_U32 || declared == TIL_TYPE_U64 || declared == TIL_TYPE_F32 || declared == TIL_TYPE_DYNAMIC)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
                     expr_child(stmt, 0)->til_type = declared;
                 } else if (expr_child(stmt, 0)->type.tag == NODE_LITERAL_NULL && !stmt->type.decl.is_ref) {
@@ -2803,13 +2807,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
                 break;
             }
-            if (len_func->type.func_def.nparam != 1 || !len_func->type.func_def.return_type ||
-                !Str_eq_c(len_func->type.func_def.return_type, "I64")) {
+            if (len_func->type.func_def.nparam != 1 || !len_func->type.func_def.return_type) {
                 char buf[128];
-                snprintf(buf, sizeof(buf), "type '%s' len() must take 1 param and return I64 for for-in", type_name->c_str);
+                snprintf(buf, sizeof(buf), "type '%s' len() must take 1 param and return a scalar for for-in", type_name->c_str);
                 type_error(stmt, buf);
                 break;
             }
+            Str *idx_type = len_func->type.func_def.return_type;
             if (!get_func) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' has no 'get' method (required for for-in)", type_name->c_str);
@@ -2817,9 +2821,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 break;
             }
             if (get_func->type.func_def.nparam != 2 || !get_func->type.func_def.param_types[1] ||
-                !Str_eq_c(get_func->type.func_def.param_types[1], "I64")) {
+                !Str_eq(get_func->type.func_def.param_types[1], idx_type)) {
                 char buf[128];
-                snprintf(buf, sizeof(buf), "type '%s' get() second param must be I64 for for-in", type_name->c_str);
+                snprintf(buf, sizeof(buf), "type '%s' get() second param must match len() return type for for-in", type_name->c_str);
                 type_error(stmt, buf);
                 break;
             }
@@ -2863,10 +2867,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // Outer block (anonymous scope)
             Expr *block = expr_new(NODE_BODY, line, col, path);
 
-            // mut _fiN := 0
+            // mut _fiN : IdxType = 0
             Expr *idx_decl = expr_new(NODE_DECL, line, col, path);
             idx_decl->type.decl.name = idx_name;
-            idx_decl->type.decl.explicit_type = NULL;
+            idx_decl->type.decl.explicit_type = idx_type;
             idx_decl->type.decl.is_mut = true;
             idx_decl->type.decl.is_namespace = false;
             idx_decl->type.decl.is_ref = false;

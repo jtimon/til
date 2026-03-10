@@ -5,19 +5,19 @@
 
 typedef struct Str {
     U8 *c_str;
-    I64 count;
-    I64 cap;
+    U64 count;
+    U64 cap;
 } Str;
 
 typedef struct Array {
     U8 *data;       // raw element buffer
-    I64 cap;        // number of elements
-    I64 elem_size;  // bytes per element
+    U64 cap;        // number of elements
+    U64 elem_size;  // bytes per element
     Str elem_type;  // element type name
 } Array;
 
 // Get pointer to element i in an Array (C-side helper, not the til function)
-static inline void *Array_elem(Array *a, I64 i) {
+static inline void *Array_elem(Array *a, U64 i) {
     return a->data + i * a->elem_size;
 }
 
@@ -162,6 +162,32 @@ U32 *U32_from_i64_ext(I64 *a);
 U32 *U32_clone(U32 *v);
 void U32_delete(U32 *v, Bool *call_free);
 
+// U64 arithmetic
+U64 U64_add(U64 a, U64 b);
+U64 U64_sub(U64 a, U64 b);
+U64 U64_mul(U64 a, U64 b);
+U64 U64_div(U64 a, U64 b);
+U64 U64_mod(U64 a, U64 b);
+U64 U64_and(U64 a, U64 b);
+U64 U64_or(U64 a, U64 b);
+U64 U64_xor(U64 a, U64 b);
+U64 U64_inc(U64 a);
+U64 U64_dec(U64 a);
+
+// U64 comparisons
+Bool U64_eq(U64 a, U64 b);
+I64 U64_cmp(U64 a, U64 b);
+
+// U64 conversions
+I64 U64_to_i64(U64 a);
+U64 *U64_from_i64_ext(I64 *a);
+Str *U64_to_str(U64 v);
+Str *U64_to_str_ext(U64 *v);
+
+// U64 clone/delete
+U64 *U64_clone(U64 *v);
+void U64_delete(U64 *v, Bool *call_free);
+
 // Bool ops (shallow params)
 Bool Bool_eq(Bool a, Bool b);
 Bool Bool_and(Bool a, Bool b);
@@ -173,13 +199,14 @@ Bool *Bool_clone(Bool *v);
 void Bool_delete(Bool *v, Bool *call_free);
 
 // Pointer primitives (custom, not in libc)
-void *ptr_add(void *buf, I64 offset);
+void *ptr_add(void *buf, U64 offset);
 Bool is_null(void *p);
 
 // CLI arg parsing
 I64 *cli_parse_i64(const char *s);
 U8 *cli_parse_u8(const char *s);
 U32 *cli_parse_u32(const char *s);
+U64 *cli_parse_u64(const char *s);
 Bool *cli_parse_bool(const char *s);
 
 // System primitives

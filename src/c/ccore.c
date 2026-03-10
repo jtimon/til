@@ -194,6 +194,49 @@ U32 *U32_new(U32 val) {
 U32 *U32_clone(U32 *v) { return U32_new(*v); }
 void U32_delete(U32 *v, Bool *call_free) { if (*call_free) free(v); }
 
+// --- U64 ---
+
+U64 U64_add(U64 a, U64 b) { return a + b; }
+U64 U64_sub(U64 a, U64 b) { return a - b; }
+U64 U64_mul(U64 a, U64 b) { return a * b; }
+U64 U64_div(U64 a, U64 b) { return (b == 0) ? 0 : a / b; }
+U64 U64_mod(U64 a, U64 b) { return (b == 0) ? 0 : a % b; }
+U64 U64_and(U64 a, U64 b) { return a & b; }
+U64 U64_or(U64 a, U64 b) { return a | b; }
+U64 U64_xor(U64 a, U64 b) { return a ^ b; }
+U64 U64_inc(U64 a) { return a + 1; }
+U64 U64_dec(U64 a) { return a - 1; }
+
+Bool U64_eq(U64 a, U64 b) { return a == b; }
+I64 U64_cmp(U64 a, U64 b) { return a < b ? -1 : (a > b ? 1 : 0); }
+
+I64 U64_to_i64(U64 v) { return (I64)v; }
+U64 U64_from_i64(I64 v) { return (U64)v; }
+
+// Pointer-adapter versions for interpreter FFI (nested ext_func in core.til)
+U8 *U8_from_i64_ext(I64 *a) { return U8_new((U8)*a); }
+I16 *I16_from_i64_ext(I64 *a) { return I16_new((I16)*a); }
+I32 *I32_from_i64_ext(I64 *a) { return I32_new((I32)*a); }
+F32 *F32_from_i64_ext(I64 *a) { return F32_new((F32)*a); }
+U32 *U32_from_i64_ext(I64 *a) { return U32_new((U32)*a); }
+U64 *U64_from_i64_ext(I64 *a) { return U64_new((U64)*a); }
+
+Str *U64_to_str(U64 v) {
+    char buf[32];
+    snprintf(buf, 32, "%llu", v);
+    return Str_new(buf);
+}
+Str *U64_to_str_ext(U64 *v) { return U64_to_str(*v); }
+
+U64 *U64_new(U64 val) {
+    U64 *p = malloc(sizeof(U64));
+    *p = val;
+    return p;
+}
+
+U64 *U64_clone(U64 *v) { return U64_new(*v); }
+void U64_delete(U64 *v, Bool *call_free) { if (*call_free) free(v); }
+
 // --- Bool ---
 
 Bool Bool_eq(Bool a, Bool b) { return a == b; }

@@ -5,18 +5,18 @@
 #include <string.h>
 
 Str Str_val(const char *data) {
-    I64 len = (I64)strlen(data);
+    U64 len = (U64)strlen(data);
     char *copy = malloc(len + 1);
     memcpy(copy, data, len + 1);
     return (Str){.c_str = copy, .count = len, .cap = len};
 }
 
 Str *Str_new(const char *data) {
-    I64 len = (I64)strlen(data);
+    U64 len = (U64)strlen(data);
     return Str_new_len(data, len);
 }
 
-Str *Str_new_len(const char *data, I64 len) {
+Str *Str_new_len(const char *data, U64 len) {
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(len + 1);
     memcpy(s->c_str, data, len);
@@ -31,7 +31,7 @@ Str *Str_clone(Str *s) {
 }
 
 void Str_delete(Str *s) {
-    if (s->cap >= 0) free(s->c_str);
+    if (s->cap < CAP_VIEW) free(s->c_str);
     free(s);
 }
 
@@ -41,20 +41,20 @@ Bool Str_eq(Str *a, Str *b) {
 }
 
 I64 Str_cmp(Str *a, Str *b) {
-    I64 min = a->count < b->count ? a->count : b->count;
+    U64 min = a->count < b->count ? a->count : b->count;
     I64 c = memcmp(a->c_str, b->c_str, min);
     if (c != 0) return c;
     return (a->count > b->count) - (a->count < b->count);
 }
 
 Bool Str_eq_c(Str *a, const char *b) {
-    I64 blen = (I64)strlen(b);
+    U64 blen = (U64)strlen(b);
     if (a->count != blen) return 0;
     return memcmp(a->c_str, b, blen) == 0;
 }
 
 Str *Str_concat(Str *a, Str *b) {
-    I64 len = a->count + b->count;
+    U64 len = a->count + b->count;
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(len + 1);
     memcpy(s->c_str, a->c_str, a->count);
@@ -69,14 +69,12 @@ Str *Str_to_str(Str *s) {
     return Str_clone(s);
 }
 
-I64 Str_len(Str *s) {
+U64 Str_len(Str *s) {
     return s->count;
 }
 
-Str *Str_substr(Str *s, I64 start, I64 len) {
-    if (start < 0) start = 0;
+Str *Str_substr(Str *s, U64 start, U64 len) {
     if (start > s->count) start = s->count;
-    if (len < 0) len = 0;
     if (start + len > s->count) len = s->count - start;
     Str *v = malloc(sizeof(Str));
     v->c_str = s->c_str + start;
@@ -121,9 +119,9 @@ I64 Str_rfind(Str *s, Str *needle) {
     if (needle->count == 0) return -1;
     if (needle->count > s->count) return -1;
     I64 last = -1;
-    for (I64 i = 0; i <= s->count - needle->count; i++) {
+    for (U64 i = 0; i <= s->count - needle->count; i++) {
         if (memcmp(s->c_str + i, needle->c_str, needle->count) == 0) {
-            last = i;
+            last = (I64)i;
         }
     }
     return last;
@@ -131,8 +129,8 @@ I64 Str_rfind(Str *s, Str *needle) {
 
 Str *Str_replace(Str *s, Str *from, Str *to) {
     if (from->count == 0) return Str_clone(s);
-    I64 n = 0;
-    for (I64 i = 0; i <= s->count - from->count; ) {
+    U64 n = 0;
+    for (U64 i = 0; i <= s->count - from->count; ) {
         if (memcmp(s->c_str + i, from->c_str, from->count) == 0) {
             n++;
             i += from->count;
@@ -141,13 +139,13 @@ Str *Str_replace(Str *s, Str *from, Str *to) {
         }
     }
     if (n == 0) return Str_clone(s);
-    I64 new_len = s->count - n * from->count + n * to->count;
+    U64 new_len = s->count - n * from->count + n * to->count;
     Str *r = malloc(sizeof(Str));
     r->c_str = malloc(new_len + 1);
     r->count = new_len;
     r->cap = new_len;
-    I64 di = 0;
-    for (I64 si = 0; si < s->count; ) {
+    U64 di = 0;
+    for (U64 si = 0; si < s->count; ) {
         if (si <= s->count - from->count && memcmp(s->c_str + si, from->c_str, from->count) == 0) {
             memcpy(r->c_str + di, to->c_str, to->count);
             di += to->count;
@@ -160,7 +158,7 @@ Str *Str_replace(Str *s, Str *from, Str *to) {
     return r;
 }
 
-Str *Str_get_char(Str *s, I64 i) {
+Str *Str_get_char(Str *s, U64 i) {
     return Str_substr(s, i, 1);
 }
 
@@ -194,7 +192,7 @@ I64 Str_to_i64(Str *s) {
         exit(1);
     }
     char buf[32];
-    I64 n = s->count < 31 ? s->count : 31;
+    U64 n = s->count < 31 ? s->count : 31;
     memcpy(buf, s->c_str, n);
     buf[n] = '\0';
     char *end;
@@ -206,7 +204,7 @@ I64 Str_to_i64(Str *s) {
     return v;
 }
 
-Str *Str_with_capacity(I64 n) {
+Str *Str_with_capacity(U64 n) {
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(n + 1);
     s->c_str[0] = '\0';
@@ -216,11 +214,11 @@ Str *Str_with_capacity(I64 n) {
 }
 
 void Str_push_str(Str *s, Str *other) {
-    if (s->cap < 0) {
+    if (s->cap >= CAP_VIEW) {
         fprintf(stderr, "Str.push_str: cannot mutate a string view or literal\n");
         exit(1);
     }
-    I64 new_len = s->count + other->count;
+    U64 new_len = s->count + other->count;
     if (new_len > s->cap) {
         fprintf(stderr, "Str.push_str: capacity exceeded\n");
         exit(1);

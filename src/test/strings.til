@@ -27,10 +27,10 @@ test_to_str := test() {
 }
 
 test_len := test() {
-    assert_eq(__LOC__, "hello".len(), 5)
-    assert_eq(__LOC__, "".len(), 0)
-    assert_eq(__LOC__, "a".len(), 1)
-    assert_eq(__LOC__, "hello world".len(), 11)
+    assert_eq(__LOC__, "hello".len().to_i64(), 5)
+    assert_eq(__LOC__, "".len().to_i64(), 0)
+    assert_eq(__LOC__, "a".len().to_i64(), 1)
+    assert_eq(__LOC__, "hello world".len().to_i64(), 11)
 }
 
 test_substr := test() {
@@ -146,7 +146,7 @@ test_to_i64 := test() {
 
 test_split := test() {
     parts := split("a,b,c", ",")
-    assert_eq(__LOC__, parts.len(), 3)
+    assert_eq(__LOC__, parts.len().to_i64(), 3)
     ref p0 : Str = parts.get(0)
     ref p1 : Str = parts.get(1)
     ref p2 : Str = parts.get(2)
@@ -155,19 +155,19 @@ test_split := test() {
     assert_eq_str(__LOC__, p2, "c")
 
     parts2 := split("hello", ",")
-    assert_eq(__LOC__, parts2.len(), 1)
+    assert_eq(__LOC__, parts2.len().to_i64(), 1)
     ref q0 : Str = parts2.get(0)
     assert_eq_str(__LOC__, q0, "hello")
 
     parts3 := split("a::b", "::")
-    assert_eq(__LOC__, parts3.len(), 2)
+    assert_eq(__LOC__, parts3.len().to_i64(), 2)
     ref r0 : Str = parts3.get(0)
     ref r1 : Str = parts3.get(1)
     assert_eq_str(__LOC__, r0, "a")
     assert_eq_str(__LOC__, r1, "b")
 
     parts4 := split(",a,", ",")
-    assert_eq(__LOC__, parts4.len(), 3)
+    assert_eq(__LOC__, parts4.len().to_i64(), 3)
     ref s0 : Str = parts4.get(0)
     ref s1 : Str = parts4.get(1)
     ref s2 : Str = parts4.get(2)

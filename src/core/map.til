@@ -3,15 +3,15 @@ mode lib
 Map := struct {
     own mut key_data : U8 = 0
     own mut val_data : U8 = 0
-    mut count := 0
-    mut cap := 0
-    key_size := 0
+    mut count : U64 = 0
+    mut cap : U64 = 0
+    key_size : U64 = 0
     key_type := ""
-    val_size := 0
+    val_size : U64 = 0
     val_type := ""
 
 namespace:
-    new := func(key_type: Str, key_size: I64, val_type: Str, val_size: I64) returns Map {
+    new := func(key_type: Str, key_size: U64, val_type: Str, val_size: U64) returns Map {
         if dyn_has_method(key_type, "cmp").not() {
             panic("Map.new", "type ", key_type, " must implement cmp")
         }
@@ -20,10 +20,10 @@ namespace:
                    val_size = val_size, val_type = val_type)
     }
 
-    len := func(self: Map) returns I64 { return self.count }
+    len := func(self: Map) returns U64 { return self.count }
 
     has := func(self: Map, key: Dynamic) returns Bool {
-        mut lo := 0
+        mut lo : U64 = 0
         mut hi := self.count
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
@@ -39,7 +39,7 @@ namespace:
     }
 
     get := func(self: Map, key: Dynamic) returns ref Dynamic {
-        mut lo := 0
+        mut lo : U64 = 0
         mut hi := self.count
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
@@ -56,7 +56,7 @@ namespace:
     }
 
     set := proc(mut self: Map, own key: Dynamic, own val: Dynamic) {
-        mut lo := 0
+        mut lo : U64 = 0
         mut hi := self.count
         mut found := false
         while lo.lt(hi) {

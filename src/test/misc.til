@@ -134,7 +134,7 @@ test_i16 := test() {
     assert_eq_str(__LOC__, I16.from_i64(100.neg()).to_str(), "-100")
 
     // size
-    assert_eq(__LOC__, I16.size(), 2)
+    assert_eq(__LOC__, I16.size().to_i64(), 2)
 }
 
 test_i32 := test() {
@@ -163,7 +163,7 @@ test_i32 := test() {
     assert_eq_str(__LOC__, I32.from_i64(100.neg()).to_str(), "-100")
 
     // size
-    assert_eq(__LOC__, I32.size(), 4)
+    assert_eq(__LOC__, I32.size().to_i64(), 4)
 }
 
 test_u32 := test() {
@@ -195,7 +195,7 @@ test_u32 := test() {
     assert_eq_str(__LOC__, U32.from_i64(12345).to_str(), "12345")
 
     // size
-    assert_eq(__LOC__, U32.size(), 4)
+    assert_eq(__LOC__, U32.size().to_i64(), 4)
 }
 
 test_char_literals := test() {
@@ -313,7 +313,7 @@ test_switch_in_loop := test() {
     mut total := 0
     for i in 0..10 {
         switch i.mod(3) {
-        case 0: total = total.add(i)
+        case 0: total = total.add(i.to_i64())
         case 1: total = total.add(1)
         case: total = total.add(0)
         }

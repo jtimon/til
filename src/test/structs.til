@@ -262,7 +262,7 @@ test_vec_in_struct := test() {
     c.items.push(own 10)
     c.items.push(own 20)
     c.items.push(own 30)
-    assert_eq(__LOC__, c.items.len(), 3)
+    assert_eq(__LOC__, c.items.len().to_i64(), 3)
     assert_eq(__LOC__, c.items.get(0), 10)
     assert_eq(__LOC__, c.items.get(1), 20)
     assert_eq(__LOC__, c.items.get(2), 30)
@@ -284,8 +284,8 @@ test_field_access_copy := test() {
     c.items.push(own 2)
     copy := c.items
     c.items.push(own 3)
-    assert_eq(__LOC__, c.items.len(), 3)
-    assert_eq(__LOC__, copy.len(), 2)
+    assert_eq(__LOC__, c.items.len().to_i64(), 3)
+    assert_eq(__LOC__, copy.len().to_i64(), 2)
 }
 
 test_field_reassign := test() {
