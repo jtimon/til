@@ -1,0 +1,103 @@
+* 50x Performance Regression: Generated core.c vs Hand-written C
+
+** Summary
+
+Commit a9fb721 ("Link ctil against core.c from core.til, delete vec.c/map.c/str.c")
+replaced hand-written vec.c, str.c, map.c with generated core.c from core.til.
+This caused a 50x regression in interpreted mode (2s → 144s) and 8x in compiled
+mode (7s → 53s).
+
+** Root Cause: codegen treats all values as heap-allocated pointers
+
+The builder emits heap-allocated temporaries for every scalar operation, even
+though scalar parameters are marked ~shallow~ (which should mean pass-by-value
+in C). The generated code wraps every trivial operation in malloc/free pairs.
+
+*** Vec_push: 0 mallocs → 8 mallocs per call
+
+Old (hand-written):
+#+begin_src c
+void Vec_push(Vec *v, const void *elem) {
+    if (v->count >= v->cap) {
+        v->cap = v->cap ? v->cap * 2 : 64;
+        v->data = realloc(v->data, v->cap * v->elem_size);
+    }
+    memcpy((char *)v->data + v->count * v->elem_size, elem, v->elem_size);
+    v->count++;
+}
+#+end_src
+
+New (generated from til): 8 mallocs + 8 frees per push. Every integer literal
+(1, 2), every intermediate result (count * elem_size, count + 1), every
+comparison result (count == cap) — all heap-allocated.
+
+*** Str_eq: memcmp → byte-by-byte with heap allocation per byte
+
+Old: ~memcmp(a->c_str, b->c_str, a->count)~ — one call, zero allocations.
+
+New: calls Str_cmp which loops byte-by-byte via Str_get(i) (bounds check
+with heap-allocated Bool per byte) then U8_cmp (heap-allocated I64 result
+per byte). A 10-byte string comparison does ~40 mallocs.
+
+*** Str_clone: 2 mallocs → ~14 mallocs
+
+Old: malloc(sizeof(Str)) + malloc(len+1) + memcpy.
+
+New: ~12 extra mallocs for temporaries (integer literals, intermediate
+results, clone of count for field assignment).
+
+*** Return values are heap-allocated
+
+Old Str_eq returned Bool (stack value). New returns Bool* (heap). Every
+comparison, every len(), every size() call mallocs+frees the result.
+
+*** Vec_push takes ownership and frees val
+
+Old push: memcpy from pointer, caller keeps its value.
+New push: memcpy then free(val) — caller must malloc a copy first. Every
+push site does an extra malloc.
+
+*** Recursive delete via dynamic dispatch
+
+Old Vec_delete: just free(v->data). Done.
+
+New Vec_delete: iterates every element, calls dyn_call2(self.elem_type,
+"delete", elem, false) for each. dyn_call2 does string comparison to find
+the delete function in a dispatch table, then calls it. For a Vec of I64,
+this means dynamically dispatching I64_delete (which is just free) per
+element — thousands of string lookups for what used to be a single free.
+
+*** Map comparison via dynamic dispatch
+
+Old Map_set: C function pointer cmp(a, b) — one indirect call.
+New Map_set: dyn_call1_ret(self.key_type, "cmp", key) per comparison —
+string lookup in dispatch table, then the actual cmp function (which
+itself does byte-by-byte with mallocs).
+
+** Scale of impact
+
+The compiler's hot path (typer) processes ~1000+ AST nodes. Each node
+touches Vec (push children), Map (scope lookups), Str (name comparisons).
+With old code: ~0 allocations per operation. With new code: ~8-40
+allocations per operation. That's millions of unnecessary malloc/free calls.
+
+** Fix: shallow argument hoisting in builder.c (#48)
+
+The ~shallow~ keyword already exists in til and marks parameters as
+pass-by-value. All scalar types (I64, U64, Bool, U8, I16, I32, U32, F32)
+use shallow for their arithmetic/comparison methods. The builder should
+recognize shallow parameters and emit stack values + direct C arithmetic
+instead of heap-allocating every temporary.
+
+Example — ~U64_add(shallow a: U64, shallow b: U64) returns shallow U64~
+should generate:
+#+begin_src c
+// Current (broken):
+U64 *_t = malloc(sizeof(U64)); *_t = U64_add(self->count, DEREF(_t2));
+
+// Fixed:
+U64 _t = U64_add(self->count, _t2);
+#+end_src
+
+This eliminates the malloc/free pairs for scalar operations and should
+recover most of the 50x regression.

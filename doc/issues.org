@@ -1,10 +1,47 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 47
+# NEXT_ISSUE: 49
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #48 Builder: hoist shallow args to stack values (50x regression fix)
+  The builder heap-allocates every scalar temporary, even for operations on
+  shallow parameters. Vec_push does 8 mallocs per call, Str_eq does ~40
+  mallocs for a 10-byte comparison, every integer literal is heap-allocated.
+  This caused the 50x regression when switching from hand-written C to
+  generated core.c (a9fb721).
+
+  The ~shallow~ keyword already marks pass-by-value parameters. The builder
+  should emit stack values and direct C arithmetic for shallow types instead
+  of malloc/free pairs. See doc/regression.org for full analysis.
+
+  Example — ~U64_add(shallow a: U64, shallow b: U64) returns shallow U64~:
+  #+begin_src c
+  // Current: heap-allocates every temporary
+  U64 *_t = malloc(sizeof(U64)); *_t = U64_add(self->count, DEREF(_t2));
+  U64_delete(_t, &(Bool){1});
+
+  // Fixed: stack values, no allocation
+  U64 _t = U64_add(self->count, _t2);
+  #+end_src
+
+** OPEN #47 Cross-namespace method calls fail inside ext_struct
+  Calling a namespace method of one struct from inside another struct's
+  ext_struct namespace fails type resolution. Example:
+  #+begin_src til
+  I64 := ext_struct {
+  namespace:
+      to_str := func(val: I64) returns Str {
+          mut result := Str.with_capacity(10)  // ERROR: result gets unknown type
+          // ...
+      }
+  }
+  #+end_src
+  The same call works from top-level code, from regular struct namespaces,
+  and from Str's own namespace. Only ext_struct namespaces have this issue.
+  Workaround: use raw malloc + Str constructor instead of Str.with_capacity.
 
 ** OPEN #46 Optimize Str with with_capacity in concat, join, etc.
   str.til methods like concat, join, and others build strings by repeated
