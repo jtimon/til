@@ -1,5 +1,50 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #48 Builder: hoist shallow args to stack values (50x regression fix)
+  The builder heap-allocates every scalar temporary, even for operations on
+  shallow parameters. Vec_push does 8 mallocs per call, Str_eq does ~40
+  mallocs for a 10-byte comparison, every integer literal is heap-allocated.
+  This caused the 50x regression when switching from hand-written C to
+  generated core.c (a9fb721).
+
+  The ~shallow~ keyword already marks pass-by-value parameters. The builder
+  should emit stack values and direct C arithmetic for shallow types instead
+  of malloc/free pairs. See doc/regression.org for full analysis.
+
+  *** Done
+  - 35df6c6: Fixed builder to handle ~returns shallow~ correctly:
+    - Forward declarations (ext_func, namespace methods, top-level functions)
+      use value return types when ~return_is_shallow~ is set.
+    - ~emit_func_def~ checks flag for return type.
+    - ~NODE_RETURN~ handles shallow-returning functions correctly.
+    - Nested ext_funcs (e.g. ~U8_from_i64_ext~) registered in ~func_defs~ map.
+    - Fixed C signature mismatches: ~U8_from_i64_ext~ return, ~U64_to_str_ext~ param.
+  - 2578a19: Fixed remaining hardcoded return types in builder:
+    - ~_size()~ functions respect ~return_is_shallow~.
+    - Enum ~eq~ and ~is_Variant~ forward declarations respect flag.
+    - ~dyn_has_method~ body emission respects flag.
+  - 70d3a30: Added ~returns shallow~ to scalar ext_funcs in core.til:
+    - 8 clone functions (U8, I16, I32, F32, U32, U64, I64, Bool).
+    - 5 from_i64_ext functions (I16, I32, F32, U32, U64).
+    - 5 system functions (dyn_has_method, check_cmd_status, file_mtime,
+      clock_ms, get_thread_count).
+    - Updated C implementations in ccore.c, ext.c, compat.c to return by value.
+    - Fixed builder clone codegen in vec/array variadic helpers and struct
+      field-assignment patterns.
+  - 0f4e958: Hoisted scalar locals to stack values (the actual 50x fix):
+    - Added ~is_scalar_type()~ helper and ~shallow_locals~ / ~unsafe_to_hoist~ Sets.
+    - Pre-scan function bodies with ~collect_unsafe_to_hoist()~ to prevent hoisting
+      variables passed to ~mut~ params or aliased by ~ref~ declarations.
+    - ~emit_deref~ / ~emit_as_ptr~ check ~is_shallow_local()~ alongside ~is_shallow_param()~.
+    - NODE_DECL emits ~Type x = value~ for hoisted scalars; unbox-and-free for non-shallow fcalls.
+    - NODE_ASSIGN handles hoisted locals (direct assign vs pointer deref).
+    - Delete calls for hoisted locals are suppressed (no heap allocation to free).
+    - NODE_RETURN boxes hoisted locals when returning from non-shallow functions.
+    - ~own~ args from hoisted locals malloc a copy (callee will ~free()~).
+    - Hardcoded U64 temps in CLI variadic and vec_of_/array_of_ helpers converted to stack values.
+    - Added ~-Wno-unused-but-set-variable~ to generated code compilation.
+    - Result: compiled test time 52.76s → 22.41s (2.4x faster).
+
 * FIXED #37 Improved mode lib: library compilation and FFI bindings
   Mode lib/liba/pure/pura for writing til libraries that produce C-compatible
   artifacts. Companion .c auto-detection replaced with explicit ~link_c()~

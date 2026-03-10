@@ -21,12 +21,15 @@ Complete mapping of til qualifiers to generated C, by context.
 
 ** Locals
 
-| til                       | C                | semantics                            |
-|---------------------------+------------------+--------------------------------------|
-| ~x := expr~               | ~Type *x = ...~  | immutable, heap-allocated pointer    |
-| ~mut x := expr~           | ~Type *x = ...~  | mutable, heap-allocated pointer      |
-| ~own x := expr~           | ~Type *x = ...~  | owns the allocation (explicit free)  |
-| ~ref x : Type = expr~     | ~Type *x = ...~  | borrows pointer from container       |
+| til                       | C (scalar)       | C (compound)     | semantics                            |
+|---------------------------+------------------+------------------+--------------------------------------|
+| ~x := expr~               | ~Type x = ...~   | ~Type *x = ...~  | immutable local                      |
+| ~mut x := expr~           | ~Type x = ...~   | ~Type *x = ...~  | mutable local                        |
+| ~own x := expr~           | ~Type *x = ...~  | ~Type *x = ...~  | owns the allocation (explicit free)  |
+| ~ref x : Type = expr~     | ~Type *x = ...~  | ~Type *x = ...~  | borrows pointer from container       |
+
+Scalar types: I64, U8, I16, I32, U32, U64, F32, Bool.
+Compound types: Str, user-defined structs, enums.
 
 ** Struct fields
 
@@ -44,3 +47,7 @@ Complete mapping of til qualifiers to generated C, by context.
 - In generated C, ~DEREF(x)~ dereferences a pointer: ~(*(x))~
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
+- Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~
+- Scalar locals use ~&(Type){x}~ when passed to pointer-expecting functions
+- Delete calls for scalar locals are suppressed (no heap allocation to free)
+- Scalar locals are NOT hoisted if: ~own~, ~ref~, global, passed to ~mut~ param, or address escapes via ~ref~ alias

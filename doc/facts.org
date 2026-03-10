@@ -3,17 +3,15 @@
 # Update or remove facts when the implementation changes.
 #+TODO: NOT_YET NOT_ANYMORE | TRUE
 
-* TRUE All arguments are passed by reference, both semantically and in both backends
-  builder: all params are C pointers, call sites use emit_as_ptr().
+* NOT_ANYMORE All arguments are passed by reference, both semantically and in both backends
+  builder: shallow params are passed by value; non-shallow params are C pointers.
   interpreter: identifier args use scope_set_borrowed (shared Cell).
   No value_deep_copy — removed via move semantics.
 
-* TRUE All values are heap-allocated in both backends
-  builder: all types map to C pointers (til_I64 *, til_U8 *, til_Point *, etc.).
-  Declarations malloc+copy, function returns malloc, builtins malloc results.
-  interpreter: val_i64(), val_u8(), val_bool(), val_str() all malloc into
-  their own union fields (.i64, .u8, .boolean, .str). Struct instances
-  and their fields are malloc'd. Cells containing values are malloc'd.
+* NOT_ANYMORE All values are heap-allocated in both backends
+  builder: scalar locals (I64, U8, I16, I32, U32, U64, F32, Bool) are stack-allocated.
+  Compound types (Str, structs, enums) and own/ref/global/mut-param-target locals remain heap-allocated.
+  interpreter: all values still heap-allocated (internal Cell/Value representation).
 
 * TRUE ext.h defines type aliases shared by both backends
   typedef I64 til_I64; typedef U8 til_U8; typedef Bool til_Bool.
@@ -71,10 +69,10 @@
   for these. Everything else (I64, U8, Bool, Str, user-defined structs
   and enums) gets auto-generated clone and delete.
 
-* TRUE Primitive clone is defined in pure til in core.til
-  I64.clone via val.add(0), U8.clone via U8.from_i64(val.to_i64()),
-  Bool.clone via val.and(true), Str.clone via format(val).
-  The initer skips auto-generation when a clone already exists.
+* NOT_ANYMORE Primitive clone is defined in pure til in core.til
+  Scalar clones (I64, U8, I16, I32, U32, U64, F32, Bool) are now ext_func
+  returns shallow — identity functions in ccore.c. Str.clone still uses
+  format(val). The initer skips auto-generation when a clone already exists.
 
 * TRUE The initer auto-generates clone and delete for structs
   clone: returns a new instance with each field cloned via FieldType.clone().
