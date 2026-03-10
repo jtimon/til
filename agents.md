@@ -41,3 +41,4 @@ Always run `make test` and verify all tests pass before committing.
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
 - NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" — just do it. Stop wasting tokens on justifying why something doesn't need changing.
 - WHEN TOLD "IN THE WHOLE CODEBASE" THAT MEANS THE WHOLE CODEBASE. IT DOES NOT MEAN "THE WHOLE CODEBASE EXCEPT FOR THE PARTS YOU DON'T FEEL ARE RELEVANT." EVERY FILE, EVERY PATH, EVERY OCCURRENCE. NO EXCEPTIONS. NO FILTERING BY "RELEVANCE." NO SKIPPING THINGS BECAUSE THEY'RE "NOT HIT CURRENTLY."
+- When the user gives you an order, you obey, or you get punished with reading this file many times in a row, end of story.
