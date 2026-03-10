@@ -1,0 +1,46 @@
+* Qualifier-to-C Reference
+
+Complete mapping of til qualifiers to generated C, by context.
+
+** Arguments (function/proc parameters)
+
+| til                       | C                | semantics                            |
+|---------------------------+------------------+--------------------------------------|
+| ~arg: Type~               | ~Type *arg~      | borrowed ref (read-only)             |
+| ~mut arg: Type~           | ~Type *arg~      | mutable ref (callee can modify)      |
+| ~own arg: Type~           | ~Type *arg~      | ownership transfer (callee frees)    |
+| ~shallow arg: Type~       | ~Type arg~       | pass by value (copy on stack)        |
+
+** Return types
+
+| til                       | C return type    | semantics                            |
+|---------------------------+------------------+--------------------------------------|
+| ~returns Type~            | ~Type *~         | heap-allocated, caller owns          |
+| ~returns shallow Type~    | ~Type~           | value return (on stack)              |
+| ~returns ref Type~        | ~Type *~         | borrowed pointer, caller must NOT free |
+
+** Locals
+
+| til                       | C                | semantics                            |
+|---------------------------+------------------+--------------------------------------|
+| ~x := expr~               | ~Type *x = ...~  | immutable, heap-allocated pointer    |
+| ~mut x := expr~           | ~Type *x = ...~  | mutable, heap-allocated pointer      |
+| ~own x := expr~           | ~Type *x = ...~  | owns the allocation (explicit free)  |
+| ~ref x : Type = expr~     | ~Type *x = ...~  | borrows pointer from container       |
+
+** Struct fields
+
+| til                       | C struct member  | semantics                            |
+|---------------------------+------------------+--------------------------------------|
+| ~field := default~        | ~Type field~     | inline value                         |
+| ~mut field := default~    | ~Type field~     | mutable inline value                 |
+| ~own field := default~    | ~Type *field~    | owned heap pointer                   |
+| ~own mut field := default~ | ~Type *field~   | mutable owned heap pointer           |
+
+** Key rules
+
+- ~type_name_to_c("I64")~ = ~I64 *~ (pointer form, for normal args/returns/locals)
+- ~type_name_to_c_value("I64")~ = ~I64~ (value form, for ~shallow~ args/returns)
+- In generated C, ~DEREF(x)~ dereferences a pointer: ~(*(x))~
+- ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
+- ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result

@@ -582,3 +582,4 @@ because the inner body's ASAP pass doesn't track outer-scope locals.
 
 Parameters are ref by default. Use ~own~ for ownership transfer (callee frees),
 ~shallow~ for primitives passed by value, ~mut~ for mutable references.
+See ~doc/qualifiers.org~ for the complete qualifier-to-C mapping.
