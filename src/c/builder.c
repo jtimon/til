@@ -28,7 +28,7 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
                 if (*Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
             }
             CollectionInfo info = {type_name, is_vec};
-            cvec_push(infos, &info);
+            { CollectionInfo *_p = malloc(sizeof(CollectionInfo)); *_p = info; Vec_push(infos, _p); }
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
@@ -59,7 +59,7 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
                 if (*Str_eq(existing->method, method)) return;
             }
             DynCallInfo info = {method, nargs, returns};
-            cvec_push(methods, &info);
+            { DynCallInfo *_p = malloc(sizeof(DynCallInfo)); *_p = info; Vec_push(methods, _p); }
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
@@ -78,7 +78,7 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
             Str **existing = Vec_get(methods, &(U64){(U64)(i)});
             if (*Str_eq(*existing, method)) return;
         }
-        cvec_push(methods, &method);
+        { Str **_p = malloc(sizeof(Str *)); *_p = method; Vec_push(methods, _p); }
     }
     for (U32 i = 0; i < e->children.count; i++) {
         collect_dyn_has_methods(expr_child(e, i), methods);
@@ -978,11 +978,12 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // === SIMPLE ENUM ===
 
         // Collect variant names from non-namespace entries
-        Vec vnames = cvec_new(sizeof(Str *));
+        Vec vnames;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = expr_child(body, i);
             if (v->type.decl.is_namespace) continue;
-            cvec_push(&vnames, &v->type.decl.name);
+            { Str **_p = malloc(sizeof(Str *)); *_p = v->type.decl.name; Vec_push(&vnames, _p); }
         }
 
         // Zero-arg constructors
@@ -1010,13 +1011,15 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // === PAYLOAD ENUM ===
 
         // Collect variant info from non-namespace entries
-        Vec vnames = cvec_new(sizeof(Str *));
-        Vec vtypes = cvec_new(sizeof(Str *));
+        Vec vnames;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
+        Vec vtypes;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); vtypes = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = expr_child(body, i);
             if (v->type.decl.is_namespace) continue;
-            cvec_push(&vnames, &v->type.decl.name);
-            cvec_push(&vtypes, &v->type.decl.explicit_type);
+            { Str **_p = malloc(sizeof(Str *)); *_p = v->type.decl.name; Vec_push(&vnames, _p); }
+            { Str **_p = malloc(sizeof(Str *)); *_p = v->type.decl.explicit_type; Vec_push(&vtypes, _p); }
         }
 
         // Constructor functions for all variants
@@ -1117,15 +1120,15 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                            strcmp(mode->name, "pure") == 0 || strcmp(mode->name, "pura") == 0);
 
     // Build struct body lookup map
-    struct_bodies = cmap_new(sizeof(Str), sizeof(Expr *));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
     // Build func_def lookup map (for shallow param lookup at call sites)
-    func_defs = cmap_new(sizeof(Str), sizeof(Expr *));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
             Str *sname = stmt->type.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
-            cmap_set(&struct_bodies, sname, &body);
+            { Str *_k = malloc(sizeof(Str)); *_k = (Str){sname->c_str, sname->count, CAP_VIEW}; void *_v = malloc(sizeof(body)); memcpy(_v, &body, sizeof(body)); Map_set(&struct_bodies, _k, _v); }
             // Register namespace methods
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
@@ -1135,13 +1138,13 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 char flat[256];
                 snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->type.decl.name->c_str);
                 Str *key = Str_new(flat);
-                cmap_set(&func_defs, key, &fdef);
+                { Str *_k = malloc(sizeof(Str)); *_k = (Str){key->c_str, key->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
             }
         }
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             Str *fname = stmt->type.decl.name;
             Expr *fdef = expr_child(stmt, 0);
-            cmap_set(&func_defs, fname, &fdef);
+            { Str *_k = malloc(sizeof(Str)); *_k = (Str){fname->c_str, fname->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
         }
     }
     FILE *f = fopen((const char *)c_output_path->c_str, "w");
@@ -1284,7 +1287,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Forward declarations for dyn_call dispatch functions
     {
-        Vec dyn_methods = cvec_new(sizeof(DynCallInfo));
+        Vec dyn_methods;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
@@ -1306,7 +1310,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Forward declarations for dyn_has_method dispatch functions
     {
-        Vec has_methods = cvec_new(sizeof(Str *));
+        Vec has_methods;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method = Vec_get(&has_methods, &(U64){(U64)(m)});
@@ -1318,7 +1323,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Forward declarations for array/vec builtin helpers
     {
-        Vec coll_infos = cvec_new(sizeof(CollectionInfo));
+        Vec coll_infos;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
@@ -1386,7 +1392,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     // Emit top-level variable declarations as file-scope globals
     // so they're accessible from functions/procs defined at the same level
     {
-        script_globals = cset_new(sizeof(Str));
+        { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); script_globals = *_sp; free(_sp); }
         has_script_globals = 1;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);
@@ -1397,7 +1403,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             if (stmt->type.decl.is_ref) continue;
             const char *ctype = c_type_name(stmt->til_type, rhs->struct_name);
             fprintf(f, "static %s *%s;\n", ctype, stmt->type.decl.name->c_str);
-            cset_add(&script_globals, stmt->type.decl.name);
+            { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->type.decl.name->c_str, stmt->type.decl.name->count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         fprintf(f, "\n");
     }
@@ -1420,7 +1426,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Emit dyn_call dispatch function bodies
     {
-        Vec dyn_methods = cvec_new(sizeof(DynCallInfo));
+        Vec dyn_methods;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
@@ -1498,7 +1505,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Emit dyn_has_method dispatch function bodies
     {
-        Vec has_methods = cvec_new(sizeof(Str *));
+        Vec has_methods;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method_ptr = Vec_get(&has_methods, &(U64){(U64)(m)});
@@ -1532,7 +1540,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Emit array/vec builtin helper function bodies
     {
-        Vec coll_infos = cvec_new(sizeof(CollectionInfo));
+        Vec coll_infos;
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});

@@ -182,7 +182,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
 static void track_literal(Scope *scope, Str *name, Expr *rhs) {
     Value v;
     if (is_known(rhs, &v)) {
-        cmap_set(&known, name, &v);
+        { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(v)); memcpy(_v, &v, sizeof(v)); Map_set(&known, _k, _v); }
         scope_set_owned(scope, name, v);
     }
 }
@@ -267,16 +267,16 @@ static void process_body(Scope *scope, Expr *body) {
 
 void precomp(Expr *program) {
     // 1. Collect macro and pure func names
-    macros = cset_new(sizeof(Str));
-    funcs = cset_new(sizeof(Str));
+    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); macros = *_sp; free(_sp); }
+    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); funcs = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && stmt->children.count > 0 && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
             if (ft == FUNC_MACRO)
-                cset_add(&macros, stmt->type.decl.name);
+                { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->type.decl.name->c_str, stmt->type.decl.name->count, CAP_VIEW}; Set_add(&macros, _p); }
             else if (ft == FUNC_FUNC)
-                cset_add(&funcs, stmt->type.decl.name);
+                { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->type.decl.name->c_str, stmt->type.decl.name->count, CAP_VIEW}; Set_add(&funcs, _p); }
         }
     }
 
@@ -305,7 +305,7 @@ void precomp(Expr *program) {
     ffi_init(program, NULL, NULL, NULL);
 
     // 3. Process the program body
-    known = cmap_new(sizeof(Str), sizeof(Value));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Value)}); known = *_mp; free(_mp); }
     process_body(global, program);
 
     // Cleanup

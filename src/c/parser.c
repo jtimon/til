@@ -78,12 +78,12 @@ static Expr *parse_func_def(Parser *p) {
     expect(p, TOK_LPAREN);
 
     // Parse parameters: name: Type, name: Type, ...
-    Vec pnames = cvec_new(sizeof(Str *));
-    Vec ptypes = cvec_new(sizeof(Str *));
-    Vec pmuts = cvec_new(sizeof(bool));
-    Vec powns = cvec_new(sizeof(bool));
-    Vec pdefs = cvec_new(sizeof(Expr *));
-    Vec pshallows = cvec_new(sizeof(bool));
+    Vec pnames; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); pnames = *_vp; free(_vp); }
+    Vec ptypes; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); ptypes = *_vp; free(_vp); }
+    Vec pmuts; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(bool)}); pmuts = *_vp; free(_vp); }
+    Vec powns; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(bool)}); powns = *_vp; free(_vp); }
+    Vec pdefs; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); pdefs = *_vp; free(_vp); }
+    Vec pshallows; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(bool)}); pshallows = *_vp; free(_vp); }
     I32 variadic_index = -1;
     while (!check(p, TOK_RPAREN) && !check(p, TOK_EOF)) {
         bool is_shallow = false;
@@ -132,11 +132,11 @@ static Expr *parse_func_def(Parser *p) {
         Token *ptype = expect(p, TOK_IDENT);
         Str *nm = tok_str(pname);
         Str *tp = tok_str(ptype);
-        cvec_push(&pnames, &nm);
-        cvec_push(&ptypes, &tp);
-        cvec_push(&pmuts, &is_mut);
-        cvec_push(&powns, &is_own);
-        cvec_push(&pshallows, &is_shallow);
+        { Str **_p = malloc(sizeof(Str *)); *_p = nm; Vec_push(&pnames, _p); }
+        { Str **_p = malloc(sizeof(Str *)); *_p = tp; Vec_push(&ptypes, _p); }
+        { bool *_p = malloc(sizeof(bool)); *_p = is_mut; Vec_push(&pmuts, _p); }
+        { bool *_p = malloc(sizeof(bool)); *_p = is_own; Vec_push(&powns, _p); }
+        { bool *_p = malloc(sizeof(bool)); *_p = is_shallow; Vec_push(&pshallows, _p); }
         // Optional default value: name: Type = expr
         Expr *def_val = NULL;
         if (check(p, TOK_EQ)) {
@@ -148,7 +148,7 @@ static Expr *parse_func_def(Parser *p) {
                     p->path->c_str, pname->line, pname->col, pname->len, pname->start);
             exit(1);
         }
-        cvec_push(&pdefs, &def_val);
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = def_val; Vec_push(&pdefs, _p); }
         if (check(p, TOK_COMMA)) advance(p);
     }
     expect(p, TOK_RPAREN);

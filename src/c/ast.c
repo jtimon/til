@@ -27,7 +27,7 @@ const char *til_type_name_c(TilType t) {
 Expr *expr_new(NodeTypeTag tag, U32 line, U32 col, Str *path) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type.tag = tag;
-    e->children = cvec_new(sizeof(Expr *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); e->children = *_vp; free(_vp); }
     e->line = line;
     e->col = col;
     e->path = path;
@@ -50,17 +50,19 @@ void expr_lang_error(Expr *e, const char *msg) {
 }
 
 void expr_add_child(Expr *parent, Expr *child) {
-    cvec_push(&parent->children, &child);
+    Expr **_p = malloc(sizeof(Expr *)); *_p = child;
+    Vec_push(&parent->children, _p);
 }
 
 Expr *expr_clone(Expr *e) {
     if (!e) return NULL;
     Expr *c = calloc(1, sizeof(Expr));
     *c = *e;
-    c->children = cvec_new(sizeof(Expr *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); c->children = *_vp; free(_vp); }
     for (U32 i = 0; i < e->children.count; i++) {
         Expr *cloned = expr_clone(expr_child(e, i));
-        cvec_push(&c->children, &cloned);
+        Expr **_p = malloc(sizeof(Expr *)); *_p = cloned;
+        Vec_push(&c->children, _p);
     }
     return c;
 }

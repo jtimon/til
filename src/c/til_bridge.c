@@ -55,13 +55,13 @@ void expr_swap_children(Expr *e, Vec *new_children) {
 // Create new Vec for collecting Expr* (elem_size = sizeof(Expr*))
 Vec *expr_vec_new(void) {
     Vec *v = malloc(sizeof(Vec));
-    *v = cvec_new(sizeof(Expr *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); *v = *_vp; free(_vp); }
     return v;
 }
 
 // Push an Expr* into a Vec
 void expr_vec_push(Vec *v, Expr *e) {
-    cvec_push(v, &e);
+    { Expr **_p = malloc(sizeof(Expr *)); *_p = e; Vec_push(v, _p); }
 }
 
 // Get Expr* from Vec at index i
@@ -193,7 +193,7 @@ I32 til_system(Str *cmd) {
 
 Set *til_set_new(void) {
     Set *s = malloc(sizeof(Set));
-    *s = cset_new(sizeof(Str));
+    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); *s = *_sp; free(_sp); }
     return s;
 }
 
@@ -202,7 +202,7 @@ Bool til_set_has(Set *s, Str *str) {
 }
 
 void til_set_add(Set *s, Str *str) {
-    cset_add(s, str);
+    { Str *_p = malloc(sizeof(Str)); *_p = (Str){str->c_str, str->count, CAP_VIEW}; Set_add(s, _p); }
 }
 
 void til_set_free(Set *s) {

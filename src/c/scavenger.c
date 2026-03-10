@@ -13,7 +13,7 @@ static Expr *map_get_expr(Map *m, Str *key) {
 static Vec gc_strs;
 
 static Str *gc_str(Str *s) {
-    cvec_push(&gc_strs, &s);
+    { Str **_p = malloc(sizeof(Str *)); *_p = s; Vec_push(&gc_strs, _p); }
     return s;
 }
 
@@ -35,7 +35,7 @@ static Str *qualified_name(Str *type_name, Str *method_name) {
 
 // Collect all name references from an AST subtree into refs
 static void vec_push_str(Vec *v, Str *s) {
-    cvec_push(v, &s);
+    { Str **_p = malloc(sizeof(Str *)); *_p = s; Vec_push(v, _p); }
 }
 
 static void collect_refs(Expr *e, Vec *refs) {
@@ -134,20 +134,20 @@ static void collect_refs(Expr *e, Vec *refs) {
 void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     Bool is_cli = mode && mode->needs_main && !run_tests;
 
-    gc_strs = cvec_new(sizeof(Str *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
 
     // 1. Build top-level declaration map
-    Map top = cmap_new(sizeof(Str), sizeof(Expr *));
+    Map top; { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); top = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL) {
             Str *name = stmt->type.decl.name;
-            cmap_set(&top, name, &stmt);
+            { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(stmt)); memcpy(_v, &stmt, sizeof(stmt)); Map_set(&top, _k, _v); }
         }
     }
 
     // 2. Build namespace method map: "Type.method" → method decl node
-    Map methods = cmap_new(sizeof(Str), sizeof(Expr *));
+    Map methods; { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); methods = *_mp; free(_mp); }
     for (U32 i = 0; i < top.count; i++) {
         Expr *decl = *(Expr **)(top.val_data + i * top.val_size);
         if (expr_child(decl, 0)->type.tag != NODE_STRUCT_DEF &&
@@ -158,12 +158,12 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
             Expr *field = expr_child(body, j);
             if (!field->type.decl.is_namespace) continue;
             Str *qn = qualified_name(sname, field->type.decl.name);
-            cmap_set(&methods, qn, &field);
+            { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(field)); memcpy(_v, &field, sizeof(field)); Map_set(&methods, _k, _v); }
         }
     }
 
     // 3. Seed worklist
-    Vec worklist = cvec_new(sizeof(Str *));
+    Vec worklist; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); worklist = *_vp; free(_vp); }
     if (is_cli) {
         vec_push_str(&worklist, gc_str(Str_new("main")));
         // Also seed from top-level variable declarations (e.g. mode auto-imports)
@@ -199,12 +199,12 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     }
 
     // 4. BFS
-    Set visited = cset_new(sizeof(Str));
+    Set visited; { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); visited = *_sp; free(_sp); }
     U32 cursor = 0;
     while (cursor < worklist.count) {
         Str *name = *(Str **)Vec_get(&worklist, &(U64){(U64)(cursor++)});
         if (*Set_has(&visited, name)) continue;
-        cset_add(&visited, name);
+        { Str *_p = malloc(sizeof(Str)); *_p = (Str){name->c_str, name->count, CAP_VIEW}; Set_add(&visited, _p); }
 
         // Top-level declaration?
         Expr *decl = map_get_expr(&top, name);

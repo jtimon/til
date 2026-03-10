@@ -51,59 +51,6 @@ void *Vec_take(Vec *v) {
     return ptr;
 }
 
-// --- Compat wrappers ---
-
-Vec cvec_new(U64 elem_size) {
-    Str empty = {.c_str = (U8 *)"", .count = 0, .cap = CAP_LIT};
-    Vec *vp = Vec_new(&empty, &elem_size);
-    Vec v = *vp;
-    free(vp);
-    return v;
-}
-
-void cvec_push(Vec *v, const void *elem) {
-    void *copy = malloc(v->elem_size);
-    memcpy(copy, elem, v->elem_size);
-    Vec_push(v, copy);
-}
-
-Map cmap_new(U64 key_size, U64 val_size) {
-    Str str_type = {.c_str = (U8 *)"Str", .count = 3, .cap = CAP_LIT};
-    Str empty = {.c_str = (U8 *)"", .count = 0, .cap = CAP_LIT};
-    Map *mp = Map_new(&str_type, &key_size, &empty, &val_size);
-    Map m = *mp;
-    free(mp);
-    return m;
-}
-
-void cmap_set(Map *m, Str *key, const void *val) {
-    // Store key as a CAP_VIEW Str (borrowed, won't free c_str on delete)
-    Str *kcopy = malloc(sizeof(Str));
-    kcopy->c_str = key->c_str;
-    kcopy->count = key->count;
-    kcopy->cap = CAP_VIEW;
-    void *vcopy = malloc(m->val_size);
-    memcpy(vcopy, val, m->val_size);
-    Map_set(m, kcopy, vcopy);
-}
-
-Set cset_new(U64 elem_size) {
-    Str str_type = {.c_str = (U8 *)"Str", .count = 3, .cap = CAP_LIT};
-    Set *sp = Set_new(&str_type, &elem_size);
-    Set s = *sp;
-    free(sp);
-    return s;
-}
-
-void cset_add(Set *s, Str *elem) {
-    // Store elem as a CAP_VIEW Str (borrowed)
-    Str *copy = malloc(sizeof(Str));
-    copy->c_str = elem->c_str;
-    copy->count = elem->count;
-    copy->cap = CAP_VIEW;
-    Set_add(s, copy);
-}
-
 // --- Externs needed by core.c ---
 
 void *ptr_add(void *buf, U64 offset) {

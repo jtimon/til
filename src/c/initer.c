@@ -7,7 +7,7 @@
 
 TypeScope *tscope_new(TypeScope *parent) {
     TypeScope *s = malloc(sizeof(TypeScope));
-    s->bindings = cmap_new(sizeof(Str), sizeof(TypeBinding));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(TypeBinding)}); s->bindings = *_mp; free(_mp); }
     s->parent = parent;
     return s;
 }
@@ -30,7 +30,7 @@ void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut,
         return;
     }
     TypeBinding nb = {name, type, is_proc, is_mut, line, col, is_param, is_own, 0, NULL, NULL, 0, 0, NULL};
-    cmap_set(&s->bindings, name, &nb);
+    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
 }
 
 TypeBinding *tscope_find(TypeScope *s, Str *name) {
@@ -265,14 +265,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_clone) continue;
 
         // Collect instance field names and ref flags
-        Vec field_names = cvec_new(sizeof(Str *));
-        Vec field_refs = cvec_new(sizeof(I32));
+        Vec field_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
+        Vec field_refs; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(I32)}); field_refs = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace) {
-                cvec_push(&field_names, &field->type.decl.name);
+                { Str **_p = malloc(sizeof(Str *)); *_p = field->type.decl.name; Vec_push(&field_names, _p); }
                 I32 ref_flag = field->type.decl.is_ref ? 1 : 0;
-                cvec_push(&field_refs, &ref_flag);
+                { I32 *_p = malloc(sizeof(I32)); *_p = ref_flag; Vec_push(&field_refs, _p); }
             }
         }
 
@@ -394,14 +394,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_delete) continue;
 
         // Collect instance field names and own flags
-        Vec field_names = cvec_new(sizeof(Str *));
-        Vec field_owns = cvec_new(sizeof(I32));
+        Vec field_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
+        Vec field_owns; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(I32)}); field_owns = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace &&
                 !field->type.decl.is_ref) {
-                cvec_push(&field_names, &field->type.decl.name);
-                cvec_push(&field_owns, &field->type.decl.is_own);
+                { Str **_p = malloc(sizeof(Str *)); *_p = field->type.decl.name; Vec_push(&field_names, _p); }
+                { I32 *_p = malloc(sizeof(I32)); *_p = field->type.decl.is_own; Vec_push(&field_owns, _p); }
             }
         }
 
@@ -508,13 +508,13 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *body = expr_child(expr_child(stmt, 0), 0); // NODE_BODY
 
         // Collect variant info (names + optional payload types)
-        Vec variant_names = cvec_new(sizeof(Str *));
-        Vec variant_types = cvec_new(sizeof(Str *)); // NULL entries for no-payload
+        Vec variant_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); variant_names = *_vp; free(_vp); }
+        Vec variant_types; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); variant_types = *_vp; free(_vp); } // NULL entries for no-payload
         Bool has_payloads = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             if (expr_child(body, j)->type.decl.is_namespace) continue;
-            cvec_push(&variant_names, &expr_child(body, j)->type.decl.name);
-            cvec_push(&variant_types, &expr_child(body, j)->type.decl.explicit_type);
+            { Str **_p = malloc(sizeof(Str *)); *_p = expr_child(body, j)->type.decl.name; Vec_push(&variant_names, _p); }
+            { Str **_p = malloc(sizeof(Str *)); *_p = expr_child(body, j)->type.decl.explicit_type; Vec_push(&variant_types, _p); }
             if (expr_child(body, j)->type.decl.explicit_type) has_payloads = 1;
         }
 

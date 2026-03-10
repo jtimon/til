@@ -44,8 +44,8 @@ static char *read_file(Str *path) {
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // Matching nodes are removed from the body.
 static Vec extract_imports(Expr *body) {
-    Vec paths = cvec_new(sizeof(Str *));
-    Vec kept = cvec_new(sizeof(Expr *));
+    Vec paths; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); paths = *_vp; free(_vp); }
+    Vec kept; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); kept = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
@@ -53,9 +53,9 @@ static Vec extract_imports(Expr *body) {
             Str_eq_c(expr_child(stmt, 0)->type.str_val, "import") &&
             expr_child(stmt, 1)->type.tag == NODE_LITERAL_STR) {
             Str *path = expr_child(stmt, 1)->type.str_val;
-            cvec_push(&paths, &path);
+            { Str **_p = malloc(sizeof(Str *)); *_p = path; Vec_push(&paths, _p); }
         } else {
-            cvec_push(&kept, &stmt);
+            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&kept, _p); }
         }
     }
     Vec_delete(&body->children, &(Bool){0});
@@ -100,8 +100,8 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
             free(abs);
             continue;
         }
-        cset_add(resolved, abs_str);
-        cvec_push(stack, &abs_str);
+        { Str *_p = malloc(sizeof(Str)); *_p = (Str){abs_str->c_str, abs_str->count, CAP_VIEW}; Set_add(resolved, _p); }
+        { Str **_p = malloc(sizeof(Str *)); *_p = abs_str; Vec_push(stack, _p); }
 
         // Load, lex, parse the imported file
         char *source = read_file(abs_str);
@@ -148,7 +148,7 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
         // Append imported file's declarations
         for (U32 j = 0; j < sub_ast->children.count; j++) {
             Expr *ch = expr_child(sub_ast, j);
-            cvec_push(merged, &ch);
+            { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(merged, _p); }
         }
 
         // Pop from stack
@@ -181,14 +181,14 @@ static void mark_core(Expr *e) {
 // Returns merged AST ready for type checking, or NULL on error.
 Expr *til_prepare(Str *path, Str *bin_dir) {
     // Single resolved set for all imports
-    Set resolved = cset_new(sizeof(Str));
-    Vec resolve_stack = cvec_new(sizeof(Str *));
+    Set resolved; { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); resolved = *_sp; free(_sp); }
+    Vec resolve_stack; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); resolve_stack = *_vp; free(_vp); }
 
     // Add user file to resolved set early
     char *user_abs = realpath((const char *)path->c_str, NULL);
     if (user_abs) {
         Str *user_abs_str = Str_new(user_abs);
-        cset_add(&resolved, user_abs_str);
+        { Str *_p = malloc(sizeof(Str)); *_p = (Str){user_abs_str->c_str, user_abs_str->count, CAP_VIEW}; Set_add(&resolved, _p); }
         free(user_abs);
     }
 
@@ -205,12 +205,12 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     char *core_abs = realpath((const char *)core_path->c_str, NULL);
     if (core_abs) {
         Str *core_abs_str = Str_new(core_abs);
-        cset_add(&resolved, core_abs_str);
+        { Str *_p = malloc(sizeof(Str)); *_p = (Str){core_abs_str->c_str, core_abs_str->count, CAP_VIEW}; Set_add(&resolved, _p); }
         free(core_abs);
     }
 
     // Resolve core imports
-    Vec core_import_decls = cvec_new(sizeof(Expr *));
+    Vec core_import_decls; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); core_import_decls = *_vp; free(_vp); }
     Vec core_imports = extract_imports(core_ast);
     if (core_imports.count > 0) {
         Str *core_dir = Str_concat(bin_dir, Str_new("/src/core"));
@@ -231,26 +231,26 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     Expr *ast = parse(tokens, count, path, NULL);
 
     // Merge: core + core imports + user
-    Vec merged = cvec_new(sizeof(Expr *));
+    Vec merged; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); merged = *_vp; free(_vp); }
     for (U32 i = 0; i < core_ast->children.count; i++) {
         Expr *ch = expr_child(core_ast, i);
         mark_core(ch);
-        cvec_push(&merged, &ch);
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
     }
     for (U32 i = 0; i < core_import_decls.count; i++) {
         Expr *ch = *(Expr **)Vec_get(&core_import_decls, &(U64){(U64)(i)});
         mark_core(ch);
-        cvec_push(&merged, &ch);
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
     }
     for (U32 i = 0; i < ast->children.count; i++) {
         Expr *ch = expr_child(ast, i);
-        cvec_push(&merged, &ch);
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
     }
     Vec_delete(&ast->children, &(Bool){0});
     ast->children = merged;
 
     // Strip link() and link_c() directives
-    Vec kept = cvec_new(sizeof(Expr *));
+    Vec kept; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); kept = *_vp; free(_vp); }
     for (U32 i = 0; i < ast->children.count; i++) {
         Expr *stmt = expr_child(ast, i);
         if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
@@ -259,7 +259,7 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
             Str *fn = expr_child(stmt, 0)->type.str_val;
             if (Str_eq_c(fn, "link") || Str_eq_c(fn, "link_c")) continue;
         }
-        cvec_push(&kept, &stmt);
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&kept, _p); }
     }
     Vec_delete(&ast->children, &(Bool){0});
     ast->children = kept;
@@ -308,8 +308,8 @@ int main(int argc, char **argv) {
     Str *core_path = Str_concat(bin_dir, Str_new("/src/core/core.til"));
     Str *ext_c_path = Str_concat(bin_dir, Str_new("/src/c/ext.c"));
     // Single resolved set for all imports (core + user), so no file is loaded twice
-    Set resolved = cset_new(sizeof(Str));
-    Vec resolve_stack = cvec_new(sizeof(Str *));
+    Set resolved; { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); resolved = *_sp; free(_sp); }
+    Vec resolve_stack; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); resolve_stack = *_vp; free(_vp); }
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     Str *user_dir;
@@ -322,7 +322,7 @@ int main(int argc, char **argv) {
             else
                 user_dir = Str_new(".");
             Str *user_abs_str = Str_new(user_abs_path);
-            cset_add(&resolved, user_abs_str);
+            { Str *_p = malloc(sizeof(Str)); *_p = (Str){user_abs_str->c_str, user_abs_str->count, CAP_VIEW}; Set_add(&resolved, _p); }
             free(user_abs_path);
         } else {
             user_dir = Str_new(".");
@@ -344,13 +344,13 @@ int main(int argc, char **argv) {
                 // User file is core.til itself — don't prepend core to itself
                 core_ast = NULL;
             }
-            cset_add(&resolved, core_abs_str);
+            { Str *_p = malloc(sizeof(Str)); *_p = (Str){core_abs_str->c_str, core_abs_str->count, CAP_VIEW}; Set_add(&resolved, _p); }
             free(core_abs);
         }
     }
 
     // Resolve imports from core.til (relative to src/core/)
-    Vec core_import_decls = cvec_new(sizeof(Expr *));
+    Vec core_import_decls; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); core_import_decls = *_vp; free(_vp); }
     if (core_ast) {
         Vec core_imports = extract_imports(core_ast);
         if (core_imports.count > 0) {
@@ -399,7 +399,7 @@ int main(int argc, char **argv) {
     }
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)
-    Vec import_decls = cvec_new(sizeof(Expr *));
+    Vec import_decls; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); import_decls = *_vp; free(_vp); }
     if (imports.count > 0) {
         Str *lib_dir = Str_concat(bin_dir, Str_new("/src/lib"));
 
@@ -417,32 +417,32 @@ int main(int argc, char **argv) {
         Bool need_merge = (core_ast && core_ast->children.count > 0) ||
                           import_decls.count > 0 || mode_ast;
         if (need_merge) {
-            Vec merged = cvec_new(sizeof(Expr *));
+            Vec merged; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); merged = *_vp; free(_vp); }
             if (core_ast) {
                 for (U32 i = 0; i < core_ast->children.count; i++) {
                     Expr *ch = expr_child(core_ast, i);
                     mark_core(ch);
-                    cvec_push(&merged, &ch);
+                    { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
                 }
             }
             for (U32 i = 0; i < core_import_decls.count; i++) {
                 Expr *ch = *(Expr **)Vec_get(&core_import_decls, &(U64){(U64)(i)});
                 mark_core(ch);
-                cvec_push(&merged, &ch);
+                { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
             }
             if (mode_ast) {
                 for (U32 i = 0; i < mode_ast->children.count; i++) {
                     Expr *ch = expr_child(mode_ast, i);
-                    cvec_push(&merged, &ch);
+                    { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
                 }
             }
             for (U32 i = 0; i < import_decls.count; i++) {
                 Expr *ch = *(Expr **)Vec_get(&import_decls, &(U64){(U64)(i)});
-                cvec_push(&merged, &ch);
+                { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
             }
             for (U32 i = 0; i < ast->children.count; i++) {
                 Expr *ch = expr_child(ast, i);
-                cvec_push(&merged, &ch);
+                { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&merged, _p); }
             }
             Vec_delete(&ast->children, &(Bool){0});
             ast->children = merged;
@@ -453,7 +453,7 @@ int main(int argc, char **argv) {
     Str *link_flags = Str_new("");
     Str *link_c_paths = Str_new("");
     {
-        Vec kept = cvec_new(sizeof(Expr *));
+        Vec kept; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); kept = *_vp; free(_vp); }
         for (U32 i = 0; i < ast->children.count; i++) {
             Expr *stmt = expr_child(ast, i);
             if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
@@ -468,10 +468,10 @@ int main(int argc, char **argv) {
                         link_c_paths = Str_concat(link_c_paths, Str_new(" "));
                     link_c_paths = Str_concat(link_c_paths, arg);
                 } else {
-                    cvec_push(&kept, &stmt);
+                    { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&kept, _p); }
                 }
             } else {
-                cvec_push(&kept, &stmt);
+                { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&kept, _p); }
             }
         }
         Vec_delete(&ast->children, &(Bool){0});

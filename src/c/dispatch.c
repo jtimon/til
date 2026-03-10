@@ -84,7 +84,7 @@ static ffi_type *field_ffi_type(Expr *field) {
 // Build an ffi_type descriptor for a struct (heap-allocated, cached)
 static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     if (!ffi_type_cache_inited) {
-        ffi_type_cache = cvec_new(sizeof(ffi_type *));
+        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
         ffi_type_cache_inited = 1;
     }
     // Count instance fields
@@ -110,7 +110,7 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     st->type = FFI_TYPE_STRUCT;
     st->elements = elements;
     // Cache for cleanup
-    cvec_push(&ffi_type_cache, &st);
+    { ffi_type **_p = malloc(sizeof(ffi_type *)); *_p = st; Vec_push(&ffi_type_cache, _p); }
     return st;
 }
 
@@ -276,20 +276,20 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
-    field_access.children = cvec_new(sizeof(Expr *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
     Expr *ti_ptr = &type_ident;
-    cvec_push(&field_access.children, &ti_ptr);
+    { Expr **_p = malloc(sizeof(Expr *)); *_p = ti_ptr; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.type.tag = NODE_FCALL;
     fake_call.line = e->line;
     fake_call.col = e->col;
-    fake_call.children = cvec_new(sizeof(Expr *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
     Expr *fa_ptr = &field_access;
-    cvec_push(&fake_call.children, &fa_ptr);
+    { Expr **_p = malloc(sizeof(Expr *)); *_p = fa_ptr; Vec_push(&fake_call.children, _p); }
     for (U32 i = 3; i < e->children.count; i++) {
         Expr *arg = expr_child(e, i);
-        cvec_push(&fake_call.children, &arg);
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&fake_call.children, _p); }
     }
 
     Value fn_val = eval_expr(s, &field_access);
@@ -301,7 +301,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
             if (fdef->type.func_def.param_defaults &&
                 fdef->type.func_def.param_defaults[i]) {
                 Expr *def_arg = fdef->type.func_def.param_defaults[i];
-                cvec_push(&fake_call.children, &def_arg);
+                { Expr **_p = malloc(sizeof(Expr *)); *_p = def_arg; Vec_push(&fake_call.children, _p); }
             }
         }
     }
@@ -369,17 +369,17 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
-    field_access.children = cvec_new(sizeof(Expr *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
     Expr *ti = &type_ident;
-    cvec_push(&field_access.children, &ti);
+    { Expr **_p = malloc(sizeof(Expr *)); *_p = ti; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.type.tag = NODE_FCALL;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
-    fake_call.children = cvec_new(sizeof(Expr *));
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
     Expr *fa = &field_access;
-    cvec_push(&fake_call.children, &fa);
+    { Expr **_p = malloc(sizeof(Expr *)); *_p = fa; Vec_push(&fake_call.children, _p); }
 
     Value result = eval_call(s, &fake_call);
     Vec_delete(&fake_call.children, &(Bool){0});
@@ -621,9 +621,12 @@ static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
 // === Dispatch init ===
 
 static void dispatch_init(void) {
-    dispatch_map = cmap_new(sizeof(Str), sizeof(DispatchFn));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
 
-    #define REG(n, fn) do { Str *k = Str_new(n); DispatchFn f = fn; cmap_set(&dispatch_map, k, &f); } while(0)
+    #define REG(n, fn) do { Str *k = Str_new(n); DispatchFn f = fn; \
+        Str *_k = malloc(sizeof(Str)); *_k = (Str){k->c_str, k->count, CAP_VIEW}; \
+        DispatchFn *_v = malloc(sizeof(DispatchFn)); *_v = f; \
+        Map_set(&dispatch_map, _k, _v); } while(0)
 
     // Print
     REG("print_single", h_print_single);
@@ -949,7 +952,9 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
         rtype = ret_shallow ? shallow_ffi_type(entry.return_type) : &ffi_type_pointer;
     }
     ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
-    cmap_set(&ffi_map, name, &entry);
+    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW};
+      FFIEntry *_v = malloc(sizeof(FFIEntry)); *_v = entry;
+      Map_set(&ffi_map, _k, _v); }
 }
 
 I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
@@ -1003,17 +1008,19 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     }
 
     // Build struct def map for return type lookup
-    ffi_struct_defs = cmap_new(sizeof(Str), sizeof(Expr *));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;
         if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
         Expr *sdef = expr_child(stmt, 0);
-        cmap_set(&ffi_struct_defs, stmt->type.decl.name, &sdef);
+        { Str *_k = malloc(sizeof(Str)); *_k = (Str){stmt->type.decl.name->c_str, stmt->type.decl.name->count, CAP_VIEW};
+          Expr **_v = malloc(sizeof(Expr *)); *_v = sdef;
+          Map_set(&ffi_struct_defs, _k, _v); }
     }
 
     // Scan program for ext_func/ext_proc, dlsym each
-    ffi_map = cmap_new(sizeof(Str), sizeof(FFIEntry));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;

@@ -26,7 +26,7 @@ static Str *ns_qname(Str *sname, Str *fname) {
     buf[len] = '\0';
     Str *s = Str_new(buf);
     free(buf);
-    cvec_push(&ns_keys, &s);
+    { Str **_p = malloc(sizeof(Str *)); *_p = s; Vec_push(&ns_keys, _p); }
     return s;
 }
 
@@ -38,14 +38,14 @@ Value *ns_get(Str *sname, Str *fname) {
 
 static void ns_set(Str *sname, Str *fname, Value val) {
     Str *qn = ns_qname(sname, fname);
-    cmap_set(&ns_fields, qn, &val);
+    { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(val)); memcpy(_v, &val, sizeof(val)); Map_set(&ns_fields, _k, _v); }
 }
 
 // --- Scope / environment ---
 
 Scope *scope_new(Scope *parent) {
     Scope *s = malloc(sizeof(Scope));
-    s->bindings = cmap_new(sizeof(Str), sizeof(Binding));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Binding)}); s->bindings = *_mp; free(_mp); }
     s->parent = parent;
     return s;
 }
@@ -69,12 +69,12 @@ void scope_set_owned(Scope *s, Str *name, Value val) {
     Cell *cell = malloc(sizeof(Cell));
     cell->val = val;
     Binding nb = {name, cell, 1};
-    cmap_set(&s->bindings, name, &nb);
+    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
 }
 
 static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
     Binding b = {name, cell, 0};
-    cmap_set(&s->bindings, name, &b);
+    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(b)); memcpy(_v, &b, sizeof(b)); Map_set(&s->bindings, _k, _v); }
 }
 
 Cell *scope_get(Scope *s, Str *name) {
@@ -1026,8 +1026,8 @@ static void eval_body(Scope *scope, Expr *body) {
 }
 
 void interpreter_init_ns(Scope *global, Expr *program) {
-    ns_fields = cmap_new(sizeof(Str), sizeof(Value));
-    ns_keys = cvec_new(sizeof(Str *));
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Value)}); ns_fields = *_mp; free(_mp); }
+    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); ns_keys = *_vp; free(_vp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||

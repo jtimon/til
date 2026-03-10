@@ -36,6 +36,18 @@
   (FFI into C libs, replace with native til), this works bottom-up
   (replace C modules in ctil one at a time).
 
+*** DONE Step 2: Eliminate compat wrappers, call core.h directly
+   Removed cvec_new/cvec_push/cmap_new/cmap_set/cset_new/cset_add compat
+   wrappers. All 14 C files now call Vec_new/Vec_push/Map_new/Map_set/
+   Set_new/Set_add directly with proper malloc'd pointer arguments —
+   same calling convention as til-generated code. Wrapper definitions
+   removed from compat.c/h. C and til code now use the same functions
+   the same way, which is critical for self-hosting unification.
+
+   Performance regression from step 1 (~50x) is still present — the
+   wrappers were not the bottleneck. See #46 for the likely cause
+   (Str operations not using with_capacity).
+
 *** DONE Step 1: Link ctil against core.c, delete vec.c/map.c/str.c
    Replaced ctil's handwritten vec.c, map.c, str.c with generated
    core.c/core.h from core.til. ONE Vec, ONE Map, ONE Set, ONE Str —
