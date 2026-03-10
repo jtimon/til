@@ -1,10 +1,14 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 49
+# NEXT_ISSUE: 50
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #49 Audit panic() call sites for correct __LOC__ usage
+  Some call sites pass the location string as a single argument instead of
+  using __LOC__ as the first parameter. Every panic call should be checked.
 
 ** OPEN #48 Builder: hoist shallow args to stack values (50x regression fix)
   The builder heap-allocates every scalar temporary, even for operations on
