@@ -55,7 +55,7 @@ I64 U8_cmp(U8 a, U8 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // U8 conversions
 I64 U8_to_i64(U8 a) { return (I64)a; }
-U8 *U8_from_i64_ext(I64 *a) { return new_u8((U8)*a); }
+U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 
 // U8 clone/delete
 U8 *U8_clone(U8 *v) { return new_u8(*v); }
@@ -221,7 +221,7 @@ Str *U64_to_str(U64 v) {
     return s;
 }
 
-Str *U64_to_str_ext(U64 *v) { return U64_to_str(*v); }
+Str *U64_to_str_ext(U64 v) { return U64_to_str(v); }
 
 // U64 clone/delete
 U64 *U64_clone(U64 *v) { return new_u64(*v); }

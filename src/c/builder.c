@@ -650,6 +650,17 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
                 fprintf(f, "; return _r; }\n");
+            } else if (current_fdef && current_fdef->type.func_def.return_is_shallow) {
+                // Shallow-return function — return value directly
+                if (rv->type.tag == NODE_FCALL && fcall_is_shallow_return(rv)) {
+                    fprintf(f, "return ");
+                    emit_expr(f, rv, depth);
+                    fprintf(f, ";\n");
+                } else {
+                    fprintf(f, "return ");
+                    emit_deref(f, rv, depth);
+                    fprintf(f, ";\n");
+                }
             } else if (rv->type.tag == NODE_FCALL && fcall_is_shallow_return(rv)) {
                 // returns shallow: box value return into heap pointer
                 const char *ctype = c_type_name(rv->til_type, rv->struct_name);
@@ -847,7 +858,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
         // Return type
         const char *ret = "void";
         if (func_def->type.func_def.return_type) {
-            ret = type_name_to_c(func_def->type.func_def.return_type);
+            ret = func_def->type.func_def.return_is_shallow
+                ? type_name_to_c_value(func_def->type.func_def.return_type)
+                : type_name_to_c(func_def->type.func_def.return_type);
         }
         // Signature
         fprintf(f, "%s%s %s(", is_static ? "static __attribute__((unused)) " : "", ret, func_to_c(name));
@@ -1139,6 +1152,19 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->type.decl.name->c_str);
                 Str *key = Str_new(flat);
                 { Str *_k = malloc(sizeof(Str)); *_k = (Str){key->c_str, key->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
+                // Also register nested ext_funcs inside this namespace method
+                // (names are already flattened by precomp, e.g. "U8_from_i64_ext")
+                if (fdef->children.count > 0) {
+                    Expr *fbody = expr_child(fdef, 0);
+                    for (U32 k = 0; k < fbody->children.count; k++) {
+                        Expr *nested = expr_child(fbody, k);
+                        if (nested->type.tag != NODE_DECL) continue;
+                        if (nested->children.count == 0 || expr_child(nested, 0)->type.tag != NODE_FUNC_DEF) continue;
+                        Expr *nfdef = expr_child(nested, 0);
+                        Str *nkey = Str_new((const char *)nested->type.decl.name->c_str);
+                        { Str *_k2 = malloc(sizeof(Str)); *_k2 = (Str){nkey->c_str, nkey->count, CAP_VIEW}; void *_v2 = malloc(sizeof(nfdef)); memcpy(_v2, &nfdef, sizeof(nfdef)); Map_set(&func_defs, _k2, _v2); }
+                    }
+                }
             }
         }
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
@@ -1246,7 +1272,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             if (is_main) continue;
             const char *ret = "void";
             if (func_def->type.func_def.return_type)
-                ret = type_name_to_c(func_def->type.func_def.return_type);
+                ret = func_def->type.func_def.return_is_shallow
+                    ? type_name_to_c_value(func_def->type.func_def.return_type)
+                    : type_name_to_c(func_def->type.func_def.return_type);
             fprintf(f, "%s %s(", ret, func_to_c(name));
             emit_param_list(f, func_def, 1);
             fprintf(f, ");\n");

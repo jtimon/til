@@ -214,7 +214,7 @@ I64 U64_to_i64(U64 v) { return (I64)v; }
 U64 U64_from_i64(I64 v) { return (U64)v; }
 
 // Pointer-adapter versions for interpreter FFI (nested ext_func in core.til)
-U8 *U8_from_i64_ext(I64 *a) { return U8_new((U8)*a); }
+U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 I16 *I16_from_i64_ext(I64 *a) { return I16_new((I16)*a); }
 I32 *I32_from_i64_ext(I64 *a) { return I32_new((I32)*a); }
 F32 *F32_from_i64_ext(I64 *a) { return F32_new((F32)*a); }
@@ -226,7 +226,7 @@ Str *U64_to_str(U64 v) {
     snprintf(buf, 32, "%llu", v);
     return Str_new(buf);
 }
-Str *U64_to_str_ext(U64 *v) { return U64_to_str(*v); }
+Str *U64_to_str_ext(U64 v) { return U64_to_str(v); }
 
 U64 *U64_new(U64 val) {
     U64 *p = malloc(sizeof(U64));

@@ -107,6 +107,13 @@
   old value: typer inserts delete before compound-type reassignment,
   interpreter calls free_value for scalars.
 
+* TRUE Every ext_func and ext_proc declaration exactly corresponds to its C header by qualifiers.org rules
+  Verified 2026-03-10. Every parameter qualifier (shallow vs owned) matches the C
+  signature (value vs pointer), every return qualifier matches (shallow → value type,
+  non-shallow → pointer type), and every name matches after func_to_c renaming
+  (sleep→sleep_ms, and→Bool_and, or→Bool_or, not→Bool_not, double→double_) and
+  namespace flattening (Struct.method → Struct_method).
+
 * TRUE The hoisting pass lifts fcall args into temporaries
   Prevents memory leaks from intermediate results and simplifies evaluation
   order. Runs inside the typer pass (in infer_body), before ASAP insertion.

@@ -549,7 +549,7 @@ static __attribute__((unused)) U8 * U8_from_i64(I64 * val) {
     }
     Bool_delete(_t14, &(Bool){1});
     /* TODO: nested func U8_from_i64_ext */
-    U8 *_t15 = U8_from_i64_ext(val);
+    U8 *_t15 = malloc(sizeof(U8)); *_t15 = U8_from_i64_ext(val);
     return _t15;
 }
 
@@ -1029,7 +1029,7 @@ static __attribute__((unused)) Bool * U32_gte(U32 * a, U32 * b) {
 
 Str * U64_to_str(U64 val) {
     /* TODO: nested func U64_to_str_ext */
-    Str *_t160 = U64_to_str_ext(&(U64){val});
+    Str *_t160 = U64_to_str_ext(val);
     return _t160;
 }
 
