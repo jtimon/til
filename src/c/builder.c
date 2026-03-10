@@ -850,9 +850,12 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
             ret = type_name_to_c(func_def->type.func_def.return_type);
         }
         // Signature
-        fprintf(f, "%s%s %s(", is_static ? "static " : "", ret, func_to_c(name));
+        fprintf(f, "%s%s %s(", is_static ? "static __attribute__((unused)) " : "", ret, func_to_c(name));
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
+        if (func_def->type.func_def.nparam > 0 &&
+            Str_eq_c(func_def->type.func_def.param_names[0], "self"))
+            fprintf(f, "    (void)self;\n");
         in_func_def = 1;
         current_fdef = func_def;
         emit_body(f, body, 1);
@@ -1227,7 +1230,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 }
                 Bool is_ext = (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC);
                 Bool fwd_static = is_lib && is_scalar_method_type(sname) && !is_ext && !func_has_shallow_params(fdef);
-                fprintf(f, "%s%s %s_%s(", fwd_static ? "static " : "", ret, sname->c_str, field->type.decl.name->c_str);
+                fprintf(f, "%s%s %s_%s(", fwd_static ? "static __attribute__((unused)) " : "", ret, sname->c_str, field->type.decl.name->c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }

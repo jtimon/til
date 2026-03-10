@@ -415,7 +415,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) continue;
                 if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_U64 || ptype == TIL_TYPE_F32))
-                    continue;
+                    { arg->til_type = ptype; continue; }
                 if (arg->til_type != ptype) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
@@ -702,7 +702,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) { ci++; continue; }
                 if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_U64 || ptype == TIL_TYPE_F32))
-                    { ci++; continue; }
+                    { arg->til_type = ptype; ci++; continue; }
                 if (arg->til_type != ptype) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
