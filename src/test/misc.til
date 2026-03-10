@@ -45,9 +45,9 @@ test_cmp := test() {
     assert_eq(__LOC__, I64.cmp(1, 2), 0.sub(1))
     assert_eq(__LOC__, I64.cmp(5, 5), 0)
     assert_eq(__LOC__, I64.cmp(3, 1), 1)
-    assert_eq(__LOC__, U8.cmp(U8.from_i64(1), U8.from_i64(2)), 0.sub(1))
-    assert_eq(__LOC__, U8.cmp(U8.from_i64(5), U8.from_i64(5)), 0)
-    assert_eq(__LOC__, U8.cmp(U8.from_i64(3), U8.from_i64(1)), 1)
+    assert_eq(__LOC__, U8.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, U8.cmp(5, 5), 0)
+    assert_eq(__LOC__, U8.cmp(3, 1), 1)
     assert_eq(__LOC__, Bool.cmp(false, false), 0)
     assert_eq(__LOC__, Bool.cmp(true, true), 0)
     assert_eq(__LOC__, Bool.cmp(false, true), 0.sub(1))
@@ -106,8 +106,8 @@ test_dynamic_narrowing := test() {
 
 test_i16 := test() {
     // Arithmetic
-    a : I16 = I16.from_i64(100)
-    b : I16 = I16.from_i64(42)
+    a : I16 = 100
+    b : I16 = 42
     assert_eq(__LOC__, a.add(b).to_i64(), 142)
     assert_eq(__LOC__, a.sub(b).to_i64(), 58)
     assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
@@ -138,8 +138,8 @@ test_i16 := test() {
 }
 
 test_i32 := test() {
-    a : I32 = I32.from_i64(100)
-    b : I32 = I32.from_i64(42)
+    a : I32 = 100
+    b : I32 = 42
     assert_eq(__LOC__, a.add(b).to_i64(), 142)
     assert_eq(__LOC__, a.sub(b).to_i64(), 58)
     assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
@@ -168,8 +168,8 @@ test_i32 := test() {
 
 test_u32 := test() {
     // Arithmetic
-    a : U32 = U32.from_i64(100)
-    b : U32 = U32.from_i64(42)
+    a : U32 = 100
+    b : U32 = 42
     assert_eq(__LOC__, a.add(b).to_i64(), 142)
     assert_eq(__LOC__, a.sub(b).to_i64(), 58)
     assert_eq(__LOC__, a.mul(b).to_i64(), 4200)
@@ -185,8 +185,8 @@ test_u32 := test() {
     assert(__LOC__, a.eq(a))
 
     // Bitwise (0xFF00=65280, 0x0FF0=4080, AND=3840, OR=65520, XOR=61680)
-    x : U32 = U32.from_i64(65280)
-    y : U32 = U32.from_i64(4080)
+    x : U32 = 65280
+    y : U32 = 4080
     assert_eq(__LOC__, x.and(y).to_i64(), 3840)
     assert_eq(__LOC__, x.or(y).to_i64(), 65520)
     assert_eq(__LOC__, x.xor(y).to_i64(), 61680)

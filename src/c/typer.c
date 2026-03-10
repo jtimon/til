@@ -56,6 +56,26 @@ static void narrow_dynamic(Expr *expr, TilType target, Str *target_struct_name) 
         expr->struct_name = target_struct_name;
 }
 
+static Bool is_numeric_type(TilType t) {
+    return t == TIL_TYPE_I64 || t == TIL_TYPE_U8 || t == TIL_TYPE_I16 ||
+           t == TIL_TYPE_I32 || t == TIL_TYPE_U32 || t == TIL_TYPE_U64 ||
+           t == TIL_TYPE_F32;
+}
+
+static Bool literal_in_range(const char *val_str, TilType target) {
+    long long val = strtoll(val_str, NULL, 10);
+    switch (target) {
+        case TIL_TYPE_U8:  return val >= 0 && val <= 255;
+        case TIL_TYPE_I16: return val >= -32768 && val <= 32767;
+        case TIL_TYPE_I32: return val >= -2147483648LL && val <= 2147483647LL;
+        case TIL_TYPE_U32: return val >= 0 && val <= 4294967295LL;
+        case TIL_TYPE_U64: return val >= 0;
+        case TIL_TYPE_I64: return 1;
+        case TIL_TYPE_F32: return 1;
+        default: return 1;
+    }
+}
+
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     switch (e->type.tag) {
     case NODE_LITERAL_STR:
@@ -415,8 +435,15 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type == TIL_TYPE_DYNAMIC) continue;
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) continue;
-                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_U64 || ptype == TIL_TYPE_F32))
-                    { arg->til_type = ptype; continue; }
+                if (arg->type.tag == NODE_LITERAL_NUM && is_numeric_type(ptype)) {
+                    if (!literal_in_range((const char *)arg->type.str_val->c_str, ptype)) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                                 arg->type.str_val->c_str, til_type_name_c(ptype));
+                        type_error(arg, buf);
+                    }
+                    arg->til_type = ptype; continue;
+                }
                 if (arg->til_type != ptype) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
@@ -703,8 +730,15 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type == TIL_TYPE_DYNAMIC) { ci++; continue; }
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype == TIL_TYPE_DYNAMIC) { ci++; continue; }
-                if (arg->type.tag == NODE_LITERAL_NUM && (ptype == TIL_TYPE_I64 || ptype == TIL_TYPE_U8 || ptype == TIL_TYPE_I16 || ptype == TIL_TYPE_I32 || ptype == TIL_TYPE_U32 || ptype == TIL_TYPE_U64 || ptype == TIL_TYPE_F32))
-                    { arg->til_type = ptype; ci++; continue; }
+                if (arg->type.tag == NODE_LITERAL_NUM && is_numeric_type(ptype)) {
+                    if (!literal_in_range((const char *)arg->type.str_val->c_str, ptype)) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                                 arg->type.str_val->c_str, til_type_name_c(ptype));
+                        type_error(arg, buf);
+                    }
+                    arg->til_type = ptype; ci++; continue;
+                }
                 if (arg->til_type != ptype) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
@@ -2265,8 +2299,14 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                              stmt->type.decl.name->c_str);
                     type_error(stmt, buf);
                 } else if (expr_child(stmt, 0)->type.tag == NODE_LITERAL_NUM &&
-                           (declared == TIL_TYPE_I64 || declared == TIL_TYPE_U8 || declared == TIL_TYPE_I16 || declared == TIL_TYPE_I32 || declared == TIL_TYPE_U32 || declared == TIL_TYPE_U64 || declared == TIL_TYPE_F32 || declared == TIL_TYPE_DYNAMIC)) {
+                           (is_numeric_type(declared) || declared == TIL_TYPE_DYNAMIC)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
+                    if (is_numeric_type(declared) && !literal_in_range((const char *)expr_child(stmt, 0)->type.str_val->c_str, declared)) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                                 expr_child(stmt, 0)->type.str_val->c_str, til_type_name_c(declared));
+                        type_error(expr_child(stmt, 0), buf);
+                    }
                     expr_child(stmt, 0)->til_type = declared;
                 } else if (expr_child(stmt, 0)->type.tag == NODE_LITERAL_NULL && !stmt->type.decl.is_ref) {
                     type_error(stmt, "null can only be assigned to 'ref' declarations");
@@ -2370,6 +2410,15 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     fprintf(stderr, "%s:%u:%u: note: '%s' declared here, consider adding 'mut'\n",
                             stmt->path->c_str, b->line, b->col, aname->c_str);
                 }
+            } else if (expr_child(stmt, 0)->type.tag == NODE_LITERAL_NUM && is_numeric_type(existing)) {
+                if (!literal_in_range((const char *)expr_child(stmt, 0)->type.str_val->c_str, existing)) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                             expr_child(stmt, 0)->type.str_val->c_str, til_type_name_c(existing));
+                    type_error(stmt, buf);
+                }
+                expr_child(stmt, 0)->til_type = existing;
+                stmt->til_type = existing;
             } else if (expr_child(stmt, 0)->til_type != existing &&
                        expr_child(stmt, 0)->til_type != TIL_TYPE_UNKNOWN) {
                 char buf[128];
@@ -2414,7 +2463,15 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                                 snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
                                 type_error(stmt, buf);
                             }
-                            if (expr_child(stmt, 1)->til_type != field->til_type &&
+                            if (expr_child(stmt, 1)->type.tag == NODE_LITERAL_NUM && is_numeric_type(field->til_type)) {
+                                if (!literal_in_range((const char *)expr_child(stmt, 1)->type.str_val->c_str, field->til_type)) {
+                                    char buf[128];
+                                    snprintf(buf, sizeof(buf), "integer literal %s out of range for field '%s' (%s)",
+                                             expr_child(stmt, 1)->type.str_val->c_str, fname->c_str, til_type_name_c(field->til_type));
+                                    type_error(expr_child(stmt, 1), buf);
+                                }
+                                expr_child(stmt, 1)->til_type = field->til_type;
+                            } else if (expr_child(stmt, 1)->til_type != field->til_type &&
                                 expr_child(stmt, 1)->til_type != TIL_TYPE_UNKNOWN &&
                                 expr_child(stmt, 1)->til_type != TIL_TYPE_DYNAMIC) {
                                 char buf[128];
