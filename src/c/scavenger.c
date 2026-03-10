@@ -2,27 +2,25 @@
 #include <string.h>
 #include <stdio.h>
 #include "scavenger.h"
-#include "map.h"
-#include "vec.h"
 
 // Name-to-Expr map (for top-level decls and namespace methods)
 static Expr *map_get_expr(Map *m, Str *key) {
-    Expr **p = Map_get(m, &key);
-    return p ? *p : NULL;
+    if (!*Map_has(m, key)) return NULL;
+    return *(Expr **)Map_get(m, key);
 }
 
 // Garbage collector for Str* allocated during scavenging
 static Vec gc_strs;
 
 static Str *gc_str(Str *s) {
-    Vec_push(&gc_strs, &s);
+    cvec_push(&gc_strs, &s);
     return s;
 }
 
 static void gc_free_all(void) {
     for (U32 i = 0; i < gc_strs.count; i++)
-        Str_delete(*(Str **)Vec_get(&gc_strs, i));
-    Vec_delete(&gc_strs);
+        Str_delete(*(Str **)Vec_get(&gc_strs, &(U64){(U64)(i)}), &(Bool){1});
+    Vec_delete(&gc_strs, &(Bool){0});
 }
 
 // Build a qualified name "Type.method"
@@ -37,7 +35,7 @@ static Str *qualified_name(Str *type_name, Str *method_name) {
 
 // Collect all name references from an AST subtree into refs
 static void vec_push_str(Vec *v, Str *s) {
-    Vec_push(v, &s);
+    cvec_push(v, &s);
 }
 
 static void collect_refs(Expr *e, Vec *refs) {
@@ -136,36 +134,36 @@ static void collect_refs(Expr *e, Vec *refs) {
 void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     Bool is_cli = mode && mode->needs_main && !run_tests;
 
-    gc_strs = Vec_new(sizeof(Str *));
+    gc_strs = cvec_new(sizeof(Str *));
 
     // 1. Build top-level declaration map
-    Map top = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    Map top = cmap_new(sizeof(Str), sizeof(Expr *));
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL) {
             Str *name = stmt->type.decl.name;
-            Map_set(&top, &name, &stmt);
+            cmap_set(&top, name, &stmt);
         }
     }
 
     // 2. Build namespace method map: "Type.method" → method decl node
-    Map methods = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
-    for (U32 i = 0; i < Map_len(&top); i++) {
-        Expr *decl = *(Expr **)Vec_get(&top.vals, i);
+    Map methods = cmap_new(sizeof(Str), sizeof(Expr *));
+    for (U32 i = 0; i < top.count; i++) {
+        Expr *decl = *(Expr **)(top.val_data + i * top.val_size);
         if (expr_child(decl, 0)->type.tag != NODE_STRUCT_DEF &&
             expr_child(decl, 0)->type.tag != NODE_ENUM_DEF) continue;
-        Str *sname = *(Str **)Vec_get(&top.keys, i);
+        Str *sname = (Str *)(top.key_data + i * top.key_size);
         Expr *body = expr_child(expr_child(decl, 0), 0);
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (!field->type.decl.is_namespace) continue;
             Str *qn = qualified_name(sname, field->type.decl.name);
-            Map_set(&methods, &qn, &field);
+            cmap_set(&methods, qn, &field);
         }
     }
 
     // 3. Seed worklist
-    Vec worklist = Vec_new(sizeof(Str *));
+    Vec worklist = cvec_new(sizeof(Str *));
     if (is_cli) {
         vec_push_str(&worklist, gc_str(Str_new("main")));
         // Also seed from top-level variable declarations (e.g. mode auto-imports)
@@ -201,12 +199,12 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     }
 
     // 4. BFS
-    Set visited = Set_new(sizeof(Str *), str_ptr_cmp);
+    Set visited = cset_new(sizeof(Str));
     U32 cursor = 0;
     while (cursor < worklist.count) {
-        Str *name = *(Str **)Vec_get(&worklist, cursor++);
-        if (Set_has(&visited, &name)) continue;
-        Set_add(&visited, &name);
+        Str *name = *(Str **)Vec_get(&worklist, &(U64){(U64)(cursor++)});
+        if (*Set_has(&visited, name)) continue;
+        cset_add(&visited, name);
 
         // Top-level declaration?
         Expr *decl = map_get_expr(&top, name);
@@ -247,7 +245,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
              expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
              expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
             Str *dname = stmt->type.decl.name;
-            if (!Set_has(&visited, &dname)) continue;
+            if (!*Set_has(&visited, dname)) continue;
         }
         expr_child(program, w++) = stmt;
     }
@@ -266,7 +264,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
             Expr *field = expr_child(body, j);
             if (field->type.decl.is_namespace) {
                 Str *qn = qualified_name(sname, field->type.decl.name);
-                if (!Set_has(&visited, &qn)) continue;
+                if (!*Set_has(&visited, qn)) continue;
             }
             expr_child(body, bw++) = field;
         }
@@ -274,9 +272,9 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     }
 
     // Cleanup
-    Vec_delete(&worklist);
-    Set_delete(&visited);
-    Map_delete(&top);
-    Map_delete(&methods);
+    Vec_delete(&worklist, &(Bool){0});
+    Set_delete(&visited, &(Bool){0});
+    Map_delete(&top, &(Bool){0});
+    Map_delete(&methods, &(Bool){0});
     gc_free_all();
 }

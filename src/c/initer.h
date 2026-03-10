@@ -2,7 +2,6 @@
 #define TIL_INITER_H
 
 #include "ast.h"
-#include "map.h"
 
 // --- Type scope (tracks variable types across phases) ---
 

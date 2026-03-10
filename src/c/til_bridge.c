@@ -45,7 +45,7 @@ void expr_push_child(Expr *e, Expr *child) { expr_add_child(e, child); }
 
 // Replace children: old children are freed, new_children is moved in
 void expr_swap_children(Expr *e, Vec *new_children) {
-    Vec_delete(&e->children);
+    Vec_delete(&e->children, &(Bool){0});
     e->children = *new_children;
     new_children->data = NULL;
     new_children->count = 0;
@@ -55,18 +55,18 @@ void expr_swap_children(Expr *e, Vec *new_children) {
 // Create new Vec for collecting Expr* (elem_size = sizeof(Expr*))
 Vec *expr_vec_new(void) {
     Vec *v = malloc(sizeof(Vec));
-    *v = Vec_new(sizeof(Expr *));
+    *v = cvec_new(sizeof(Expr *));
     return v;
 }
 
 // Push an Expr* into a Vec
 void expr_vec_push(Vec *v, Expr *e) {
-    Vec_push(v, &e);
+    cvec_push(v, &e);
 }
 
 // Get Expr* from Vec at index i
 Expr *expr_vec_get(Vec *v, U32 i) {
-    return *(Expr **)Vec_get(v, i);
+    return *(Expr **)Vec_get(v, &(U64){(U64)(i)});
 }
 
 U32 expr_vec_count(Vec *v) { return v->count; }
@@ -74,7 +74,7 @@ U32 expr_vec_count(Vec *v) { return v->count; }
 void expr_vec_pop(Vec *v) { v->count--; }
 
 void expr_vec_free(Vec *v) {
-    Vec_delete(v);
+    Vec_delete(v, &(Bool){0});
     free(v);
 }
 
@@ -189,25 +189,24 @@ I32 til_system(Str *cmd) {
     return system(cmd->c_str);
 }
 
-// Set operations (bridge for Str* set, using str_ptr_cmp from ccore)
-extern I32 str_ptr_cmp(const void *a, const void *b);
+// Set operations (bridge for Str set)
 
 Set *til_set_new(void) {
     Set *s = malloc(sizeof(Set));
-    *s = Set_new(sizeof(Str *), str_ptr_cmp);
+    *s = cset_new(sizeof(Str));
     return s;
 }
 
 Bool til_set_has(Set *s, Str *str) {
-    return Set_has(s, &str);
+    return *Set_has(s, str);
 }
 
 void til_set_add(Set *s, Str *str) {
-    Set_add(s, &str);
+    cset_add(s, str);
 }
 
 void til_set_free(Set *s) {
-    Set_delete(s);
+    Set_delete(s, &(Bool){0});
     free(s);
 }
 

@@ -12,7 +12,6 @@
 #include "c/precomp.h"
 #include "c/scavenger.h"
 #include "c/modes.h"
-#include "c/map.h"
 
 static const Mode *mode_resolve(const char *name) {
     if (strcmp(name, "script") == 0) return &MODE_SCRIPT;
@@ -45,8 +44,8 @@ static char *read_file(Str *path) {
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // Matching nodes are removed from the body.
 static Vec extract_imports(Expr *body) {
-    Vec paths = Vec_new(sizeof(Str *));
-    Vec kept = Vec_new(sizeof(Expr *));
+    Vec paths = cvec_new(sizeof(Str *));
+    Vec kept = cvec_new(sizeof(Expr *));
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = expr_child(body, i);
         if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
@@ -54,12 +53,12 @@ static Vec extract_imports(Expr *body) {
             Str_eq_c(expr_child(stmt, 0)->type.str_val, "import") &&
             expr_child(stmt, 1)->type.tag == NODE_LITERAL_STR) {
             Str *path = expr_child(stmt, 1)->type.str_val;
-            Vec_push(&paths, &path);
+            cvec_push(&paths, &path);
         } else {
-            Vec_push(&kept, &stmt);
+            cvec_push(&kept, &stmt);
         }
     }
-    Vec_delete(&body->children);
+    Vec_delete(&body->children, &(Bool){0});
     body->children = kept;
     return paths;
 }
@@ -77,7 +76,7 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
                            Str *lib_dir) {
     Str *slash = Str_new("/");
     for (U32 i = 0; i < import_paths->count; i++) {
-        Str *import_path = *(Str **)Vec_get(import_paths, i);
+        Str *import_path = *(Str **)Vec_get(import_paths, &(U64){(U64)(i)});
 
         // Try relative to importing file's directory, then lib_dir
         Str *try_path = Str_concat(Str_concat(base_dir, slash), import_path);
@@ -97,12 +96,12 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
         // Dedup: skip if already resolved (also handles circular imports —
         // files are added to resolved when they start processing, so a
         // circular import is silently skipped here)
-        if (Set_has(resolved, &abs_str)) {
+        if (*Set_has(resolved, abs_str)) {
             free(abs);
             continue;
         }
-        Set_add(resolved, &abs_str);
-        Vec_push(stack, &abs_str);
+        cset_add(resolved, abs_str);
+        cvec_push(stack, &abs_str);
 
         // Load, lex, parse the imported file
         char *source = read_file(abs_str);
@@ -144,12 +143,12 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
                                       merged, lib_dir);
             if (err) { free(abs); return err; }
         }
-        Vec_delete(&sub_imports);
+        Vec_delete(&sub_imports, &(Bool){0});
 
         // Append imported file's declarations
         for (U32 j = 0; j < sub_ast->children.count; j++) {
             Expr *ch = expr_child(sub_ast, j);
-            Vec_push(merged, &ch);
+            cvec_push(merged, &ch);
         }
 
         // Pop from stack
@@ -182,14 +181,14 @@ static void mark_core(Expr *e) {
 // Returns merged AST ready for type checking, or NULL on error.
 Expr *til_prepare(Str *path, Str *bin_dir) {
     // Single resolved set for all imports
-    Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
-    Vec resolve_stack = Vec_new(sizeof(Str *));
+    Set resolved = cset_new(sizeof(Str));
+    Vec resolve_stack = cvec_new(sizeof(Str *));
 
     // Add user file to resolved set early
     char *user_abs = realpath(path->c_str, NULL);
     if (user_abs) {
         Str *user_abs_str = Str_new(user_abs);
-        Set_add(&resolved, &user_abs_str);
+        cset_add(&resolved, user_abs_str);
         free(user_abs);
     }
 
@@ -206,12 +205,12 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     char *core_abs = realpath(core_path->c_str, NULL);
     if (core_abs) {
         Str *core_abs_str = Str_new(core_abs);
-        Set_add(&resolved, &core_abs_str);
+        cset_add(&resolved, core_abs_str);
         free(core_abs);
     }
 
     // Resolve core imports
-    Vec core_import_decls = Vec_new(sizeof(Expr *));
+    Vec core_import_decls = cvec_new(sizeof(Expr *));
     Vec core_imports = extract_imports(core_ast);
     if (core_imports.count > 0) {
         Str *core_dir = Str_concat(bin_dir, Str_new("/src/core"));
@@ -219,10 +218,10 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
                                   &core_import_decls, NULL);
         if (err) return NULL;
     }
-    Vec_delete(&core_imports);
+    Vec_delete(&core_imports, &(Bool){0});
 
-    Set_delete(&resolved);
-    Vec_delete(&resolve_stack);
+    Set_delete(&resolved, &(Bool){0});
+    Vec_delete(&resolve_stack, &(Bool){0});
 
     // Load user file
     char *source = read_file(path);
@@ -232,26 +231,26 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     Expr *ast = parse(tokens, count, path, NULL);
 
     // Merge: core + core imports + user
-    Vec merged = Vec_new(sizeof(Expr *));
+    Vec merged = cvec_new(sizeof(Expr *));
     for (U32 i = 0; i < core_ast->children.count; i++) {
         Expr *ch = expr_child(core_ast, i);
         mark_core(ch);
-        Vec_push(&merged, &ch);
+        cvec_push(&merged, &ch);
     }
     for (U32 i = 0; i < core_import_decls.count; i++) {
-        Expr *ch = *(Expr **)Vec_get(&core_import_decls, i);
+        Expr *ch = *(Expr **)Vec_get(&core_import_decls, &(U64){(U64)(i)});
         mark_core(ch);
-        Vec_push(&merged, &ch);
+        cvec_push(&merged, &ch);
     }
     for (U32 i = 0; i < ast->children.count; i++) {
         Expr *ch = expr_child(ast, i);
-        Vec_push(&merged, &ch);
+        cvec_push(&merged, &ch);
     }
-    Vec_delete(&ast->children);
+    Vec_delete(&ast->children, &(Bool){0});
     ast->children = merged;
 
     // Strip link() and link_c() directives
-    Vec kept = Vec_new(sizeof(Expr *));
+    Vec kept = cvec_new(sizeof(Expr *));
     for (U32 i = 0; i < ast->children.count; i++) {
         Expr *stmt = expr_child(ast, i);
         if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
@@ -260,9 +259,9 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
             Str *fn = expr_child(stmt, 0)->type.str_val;
             if (Str_eq_c(fn, "link") || Str_eq_c(fn, "link_c")) continue;
         }
-        Vec_push(&kept, &stmt);
+        cvec_push(&kept, &stmt);
     }
-    Vec_delete(&ast->children);
+    Vec_delete(&ast->children, &(Bool){0});
     ast->children = kept;
 
     return ast;
@@ -309,8 +308,8 @@ int main(int argc, char **argv) {
     Str *core_path = Str_concat(bin_dir, Str_new("/src/core/core.til"));
     Str *ext_c_path = Str_concat(bin_dir, Str_new("/src/c/ext.c"));
     // Single resolved set for all imports (core + user), so no file is loaded twice
-    Set resolved = Set_new(sizeof(Str *), str_ptr_cmp);
-    Vec resolve_stack = Vec_new(sizeof(Str *));
+    Set resolved = cset_new(sizeof(Str));
+    Vec resolve_stack = cvec_new(sizeof(Str *));
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     Str *user_dir;
@@ -323,7 +322,7 @@ int main(int argc, char **argv) {
             else
                 user_dir = Str_new(".");
             Str *user_abs_str = Str_new(user_abs_path);
-            Set_add(&resolved, &user_abs_str);
+            cset_add(&resolved, user_abs_str);
             free(user_abs_path);
         } else {
             user_dir = Str_new(".");
@@ -341,17 +340,17 @@ int main(int argc, char **argv) {
         char *core_abs = realpath(core_path->c_str, NULL);
         if (core_abs) {
             Str *core_abs_str = Str_new(core_abs);
-            if (Set_has(&resolved, &core_abs_str)) {
+            if (*Set_has(&resolved, core_abs_str)) {
                 // User file is core.til itself — don't prepend core to itself
                 core_ast = NULL;
             }
-            Set_add(&resolved, &core_abs_str);
+            cset_add(&resolved, core_abs_str);
             free(core_abs);
         }
     }
 
     // Resolve imports from core.til (relative to src/core/)
-    Vec core_import_decls = Vec_new(sizeof(Expr *));
+    Vec core_import_decls = cvec_new(sizeof(Expr *));
     if (core_ast) {
         Vec core_imports = extract_imports(core_ast);
         if (core_imports.count > 0) {
@@ -360,7 +359,7 @@ int main(int argc, char **argv) {
                                       &core_import_decls, NULL);
             if (err) return 1;
         }
-        Vec_delete(&core_imports);
+        Vec_delete(&core_imports, &(Bool){0});
     }
 
     char *source = read_file(path);
@@ -400,52 +399,52 @@ int main(int argc, char **argv) {
     }
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)
-    Vec import_decls = Vec_new(sizeof(Expr *));
+    Vec import_decls = cvec_new(sizeof(Expr *));
     if (imports.count > 0) {
         Str *lib_dir = Str_concat(bin_dir, Str_new("/src/lib"));
 
         int err = resolve_imports(&imports, user_dir, &resolved, &resolve_stack,
                                   &import_decls, lib_dir);
-        Vec_delete(&imports);
+        Vec_delete(&imports, &(Bool){0});
         if (err) return 1;
     }
 
-    Set_delete(&resolved);
-    Vec_delete(&resolve_stack);
+    Set_delete(&resolved, &(Bool){0});
+    Vec_delete(&resolve_stack, &(Bool){0});
 
     // Prepend core declarations (and mode .til + imports) to program AST
     {
         Bool need_merge = (core_ast && core_ast->children.count > 0) ||
                           import_decls.count > 0 || mode_ast;
         if (need_merge) {
-            Vec merged = Vec_new(sizeof(Expr *));
+            Vec merged = cvec_new(sizeof(Expr *));
             if (core_ast) {
                 for (U32 i = 0; i < core_ast->children.count; i++) {
                     Expr *ch = expr_child(core_ast, i);
                     mark_core(ch);
-                    Vec_push(&merged, &ch);
+                    cvec_push(&merged, &ch);
                 }
             }
             for (U32 i = 0; i < core_import_decls.count; i++) {
-                Expr *ch = *(Expr **)Vec_get(&core_import_decls, i);
+                Expr *ch = *(Expr **)Vec_get(&core_import_decls, &(U64){(U64)(i)});
                 mark_core(ch);
-                Vec_push(&merged, &ch);
+                cvec_push(&merged, &ch);
             }
             if (mode_ast) {
                 for (U32 i = 0; i < mode_ast->children.count; i++) {
                     Expr *ch = expr_child(mode_ast, i);
-                    Vec_push(&merged, &ch);
+                    cvec_push(&merged, &ch);
                 }
             }
             for (U32 i = 0; i < import_decls.count; i++) {
-                Expr *ch = *(Expr **)Vec_get(&import_decls, i);
-                Vec_push(&merged, &ch);
+                Expr *ch = *(Expr **)Vec_get(&import_decls, &(U64){(U64)(i)});
+                cvec_push(&merged, &ch);
             }
             for (U32 i = 0; i < ast->children.count; i++) {
                 Expr *ch = expr_child(ast, i);
-                Vec_push(&merged, &ch);
+                cvec_push(&merged, &ch);
             }
-            Vec_delete(&ast->children);
+            Vec_delete(&ast->children, &(Bool){0});
             ast->children = merged;
         }
     }
@@ -454,7 +453,7 @@ int main(int argc, char **argv) {
     Str *link_flags = Str_new("");
     Str *link_c_paths = Str_new("");
     {
-        Vec kept = Vec_new(sizeof(Expr *));
+        Vec kept = cvec_new(sizeof(Expr *));
         for (U32 i = 0; i < ast->children.count; i++) {
             Expr *stmt = expr_child(ast, i);
             if (stmt->type.tag == NODE_FCALL && stmt->children.count == 2 &&
@@ -469,13 +468,13 @@ int main(int argc, char **argv) {
                         link_c_paths = Str_concat(link_c_paths, Str_new(" "));
                     link_c_paths = Str_concat(link_c_paths, arg);
                 } else {
-                    Vec_push(&kept, &stmt);
+                    cvec_push(&kept, &stmt);
                 }
             } else {
-                Vec_push(&kept, &stmt);
+                cvec_push(&kept, &stmt);
             }
         }
-        Vec_delete(&ast->children);
+        Vec_delete(&ast->children, &(Bool){0});
         ast->children = kept;
     }
 
@@ -541,11 +540,11 @@ int main(int argc, char **argv) {
             return 1;
         }
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
-        I64 last_slash = Str_rfind(path, Str_new("/"));
-        Str *basename = last_slash >= 0 ? Str_substr(path, last_slash + 1, path->count - last_slash - 1) : path;
+        I64 last_slash = *Str_rfind(path, Str_new("/"));
+        Str *basename = last_slash >= 0 ? Str_substr(path, &(U64){(U64)(last_slash + 1)}, &(U64){(U64)(path->count - last_slash - 1)}) : path;
         // Strip .til extension
-        Str *name = Str_ends_with(basename, Str_new(".til"))
-            ? Str_substr(basename, 0, basename->count - 4) : basename;
+        Str *name = *Str_ends_with(basename, Str_new(".til"))
+            ? Str_substr(basename, &(U64){(U64)(0)}, &(U64){(U64)(basename->count - 4)}) : basename;
 
         Str *c_path = Str_concat(Str_concat(Str_new("gen/c/"), name), Str_new(".c"));
         Str *bin_path = Str_concat(Str_new("bin/c/"), name);

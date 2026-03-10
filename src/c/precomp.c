@@ -4,7 +4,6 @@
 #include "precomp.h"
 #include "interpreter.h"
 #include "dispatch.h"
-#include "map.h"
 
 static Set macros, funcs;
 static Map known;
@@ -79,8 +78,7 @@ static Bool is_known(Expr *e, Value *out) {
         return 1;
     }
     if (e->type.tag == NODE_IDENT) {
-        Value *v = Map_get(&known, &e->type.str_val);
-        if (v) { *out = *v; return 1; }
+        if (*Map_has(&known, e->type.str_val)) { *out = *(Value *)Map_get(&known, e->type.str_val); return 1; }
     }
     return 0;
 }
@@ -90,7 +88,7 @@ static Bool is_macro_call(Expr *e) {
     return e->type.tag == NODE_FCALL &&
            e->children.count > 0 &&
            expr_child(e, 0)->type.tag == NODE_IDENT &&
-           Set_has(&macros, &expr_child(e, 0)->type.str_val);
+           *Set_has(&macros, expr_child(e, 0)->type.str_val);
 }
 
 // Check if a NODE_FCALL is a pure func call
@@ -98,7 +96,7 @@ static Bool is_func_call(Expr *e) {
     return e->type.tag == NODE_FCALL &&
            e->children.count > 0 &&
            expr_child(e, 0)->type.tag == NODE_IDENT &&
-           Set_has(&funcs, &expr_child(e, 0)->type.str_val);
+           *Set_has(&funcs, expr_child(e, 0)->type.str_val);
 }
 
 // Check if a func body references identifiers not available at precomp time.
@@ -109,9 +107,9 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
     if (e->type.tag == NODE_IDENT) {
         Str *name = e->type.str_val;
         for (U32 i = 0; i < func_def->type.func_def.nparam; i++) {
-            if (Str_eq(func_def->type.func_def.param_names[i], name)) return 0;
+            if (*Str_eq(func_def->type.func_def.param_names[i], name)) return 0;
         }
-        if (Map_get(&known, &name)) return 0;
+        if (*Map_has(&known, name)) return 0;
         if (scope_get(precomp_scope, name)) return 0;
         return 1;
     }
@@ -166,7 +164,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     expr_child(eval_call, 0) = NULL;
     for (U32 i = 1; i < eval_call->children.count; i++)
         expr_free(expr_child(eval_call, i));
-    Vec_delete(&eval_call->children);
+    Vec_delete(&eval_call->children, &(Bool){0});
     free(eval_call);
 
     // Convert result to AST
@@ -184,7 +182,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
 static void track_literal(Scope *scope, Str *name, Expr *rhs) {
     Value v;
     if (is_known(rhs, &v)) {
-        Map_set(&known, &name, &v);
+        cmap_set(&known, name, &v);
         scope_set_owned(scope, name, v);
     }
 }
@@ -269,23 +267,23 @@ static void process_body(Scope *scope, Expr *body) {
 
 void precomp(Expr *program) {
     // 1. Collect macro and pure func names
-    macros = Set_new(sizeof(Str *), str_ptr_cmp);
-    funcs = Set_new(sizeof(Str *), str_ptr_cmp);
+    macros = cset_new(sizeof(Str));
+    funcs = cset_new(sizeof(Str));
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && stmt->children.count > 0 && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
             if (ft == FUNC_MACRO)
-                Set_add(&macros, &stmt->type.decl.name);
+                cset_add(&macros, stmt->type.decl.name);
             else if (ft == FUNC_FUNC)
-                Set_add(&funcs, &stmt->type.decl.name);
+                cset_add(&funcs, stmt->type.decl.name);
         }
     }
 
     // Nothing to fold?
-    if (Set_len(&macros) == 0 && Set_len(&funcs) == 0) {
-        Set_delete(&macros);
-        Set_delete(&funcs);
+    if (macros.count == 0 && funcs.count == 0) {
+        Set_delete(&macros, &(Bool){0});
+        Set_delete(&funcs, &(Bool){0});
         return;
     }
 
@@ -307,12 +305,12 @@ void precomp(Expr *program) {
     ffi_init(program, NULL, NULL, NULL);
 
     // 3. Process the program body
-    known = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
+    known = cmap_new(sizeof(Str), sizeof(Value));
     process_body(global, program);
 
     // Cleanup
-    Map_delete(&known);
+    Map_delete(&known, &(Bool){0});
     scope_free(global);
-    Set_delete(&macros);
-    Set_delete(&funcs);
+    Set_delete(&macros, &(Bool){0});
+    Set_delete(&funcs, &(Bool){0});
 }

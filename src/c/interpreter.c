@@ -1,6 +1,5 @@
 #include "interpreter.h"
 #include "dispatch.h"
-#include "map.h"
 #include "ccore.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,60 +26,63 @@ static Str *ns_qname(Str *sname, Str *fname) {
     buf[len] = '\0';
     Str *s = Str_new(buf);
     free(buf);
-    Vec_push(&ns_keys, &s);
+    cvec_push(&ns_keys, &s);
     return s;
 }
 
 Value *ns_get(Str *sname, Str *fname) {
     Str *qn = ns_qname(sname, fname);
-    return Map_get(&ns_fields, &qn);
+    if (!*Map_has(&ns_fields, qn)) return NULL;
+    return Map_get(&ns_fields, qn);
 }
 
 static void ns_set(Str *sname, Str *fname, Value val) {
     Str *qn = ns_qname(sname, fname);
-    Map_set(&ns_fields, &qn, &val);
+    cmap_set(&ns_fields, qn, &val);
 }
 
 // --- Scope / environment ---
 
 Scope *scope_new(Scope *parent) {
     Scope *s = malloc(sizeof(Scope));
-    s->bindings = Map_new(sizeof(Str *), sizeof(Binding), str_ptr_cmp);
+    s->bindings = cmap_new(sizeof(Str), sizeof(Binding));
     s->parent = parent;
     return s;
 }
 
 void scope_free(Scope *s) {
-    for (U32 i = 0; i < Map_len(&s->bindings); i++) {
-        Binding *b = (Binding *)Vec_get(&s->bindings.vals, i);
+    for (U32 i = 0; i < s->bindings.count; i++) {
+        Binding *b = (Binding *)(s->bindings.val_data + i * s->bindings.val_size);
         if (b->cell_is_local)
             free(b->cell);
     }
-    Map_delete(&s->bindings);
+    Map_delete(&s->bindings, &(Bool){0});
     free(s);
 }
 
 void scope_set_owned(Scope *s, Str *name, Value val) {
-    Binding *b = Map_get(&s->bindings, &name);
-    if (b) {
+    if (*Map_has(&s->bindings, name)) {
+        Binding *b = Map_get(&s->bindings, name);
         b->cell->val = val;
         return;
     }
     Cell *cell = malloc(sizeof(Cell));
     cell->val = val;
     Binding nb = {name, cell, 1};
-    Map_set(&s->bindings, &name, &nb);
+    cmap_set(&s->bindings, name, &nb);
 }
 
 static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
     Binding b = {name, cell, 0};
-    Map_set(&s->bindings, &name, &b);
+    cmap_set(&s->bindings, name, &b);
 }
 
 Cell *scope_get(Scope *s, Str *name) {
     for (Scope *cur = s; cur; cur = cur->parent) {
-        Binding *b = Map_get(&cur->bindings, &name);
-        if (b) return b->cell;
+        if (*Map_has(&cur->bindings, name)) {
+            Binding *b = Map_get(&cur->bindings, name);
+            return b->cell;
+        }
     }
     return NULL;
 }
@@ -101,7 +103,7 @@ Expr *find_field_decl(Expr *struct_def, Str *fname) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace &&
-            Str_eq(f->type.decl.name, fname))
+            *Str_eq(f->type.decl.name, fname))
             return f;
     }
     return NULL;
@@ -1024,8 +1026,8 @@ static void eval_body(Scope *scope, Expr *body) {
 }
 
 void interpreter_init_ns(Scope *global, Expr *program) {
-    ns_fields = Map_new(sizeof(Str *), sizeof(Value), str_ptr_cmp);
-    ns_keys = Vec_new(sizeof(Str *));
+    ns_fields = cmap_new(sizeof(Str), sizeof(Value));
+    ns_keys = cvec_new(sizeof(Str *));
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||

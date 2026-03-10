@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include "ccore.h"
-#include "vec.h"
+#include "compat.h"
 
 typedef enum {
     NODE_BODY,          // list of statements (children = statements)
@@ -141,7 +141,7 @@ void expr_free(Expr *e);
 void ast_print(Expr *e, U32 indent);
 
 // Access child i of expr e (works as lvalue and rvalue)
-#define expr_child(e, i) (*(Expr **)Vec_get(&(e)->children, (i)))
+#define expr_child(e, i) (*(Expr **)Vec_get(&(e)->children, &(U64){(U64)(i)}))
 
 // --- Enum helpers (shared by interpreter, builder, precomp) ---
 
@@ -163,7 +163,7 @@ static inline I32 enum_variant_tag(Expr *enum_def, Str *variant_name) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = expr_child(body, i);
         if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace) {
-            if (Str_eq(f->type.decl.name, variant_name)) return tag;
+            if (*Str_eq(f->type.decl.name, variant_name)) return tag;
             tag++;
         }
     }

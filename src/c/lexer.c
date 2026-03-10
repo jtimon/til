@@ -1,5 +1,4 @@
 #include "lexer.h"
-#include "vec.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -134,7 +133,7 @@ static TokenType lookup_keyword(const char *start, I32 len) {
 // --- Tokenizer ---
 
 Token *tokenize(const char *source, Str *path, U32 *count_out) {
-    Vec tokens = Vec_new(sizeof(Token));
+    Vec tokens = cvec_new(sizeof(Token));
     const char *pos = source;
     U32 line = 1;
     const char *line_start = source;
@@ -183,7 +182,7 @@ Token *tokenize(const char *source, Str *path, U32 *count_out) {
                 pos++;
                 while (isdigit(*pos)) pos++;
             }
-            Vec_push(&tokens, &(Token){TOK_NUMBER, start, (I32)(pos - start), line, col});
+            cvec_push(&tokens, &(Token){TOK_NUMBER, start, (I32)(pos - start), line, col});
             continue;
         }
 
@@ -192,7 +191,7 @@ Token *tokenize(const char *source, Str *path, U32 *count_out) {
             while (isalpha(*pos) || isdigit(*pos) || *pos == '_') pos++;
             I32 len = (I32)(pos - start);
             TokenType type = lookup_keyword(start, len);
-            Vec_push(&tokens, &(Token){type, start, len, line, col});
+            cvec_push(&tokens, &(Token){type, start, len, line, col});
             continue;
         }
 
@@ -207,10 +206,10 @@ Token *tokenize(const char *source, Str *path, U32 *count_out) {
             if (*pos == '"') {
                 pos++; // skip closing quote
                 // start+1 to skip opening quote, len excludes both quotes
-                Vec_push(&tokens, &(Token){TOK_STRING, start + 1, (I32)(pos - start - 2), line, col});
+                cvec_push(&tokens, &(Token){TOK_STRING, start + 1, (I32)(pos - start - 2), line, col});
             } else {
                 fprintf(stderr, "%s:%u:%u: error: unterminated string\n", path->c_str, line, col);
-                Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
+                cvec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
             }
             continue;
         }
@@ -224,10 +223,10 @@ Token *tokenize(const char *source, Str *path, U32 *count_out) {
             if (*pos == '\'') {
                 I32 ch_len = (I32)(pos - ch_start);
                 pos++; // skip closing quote
-                Vec_push(&tokens, &(Token){TOK_CHAR, ch_start, ch_len, line, col});
+                cvec_push(&tokens, &(Token){TOK_CHAR, ch_start, ch_len, line, col});
             } else {
                 fprintf(stderr, "%s:%u:%u: error: unterminated character literal\n", path->c_str, line, col);
-                Vec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
+                cvec_push(&tokens, &(Token){TOK_ERROR, start, (I32)(pos - start), line, col});
             }
             continue;
         }
@@ -242,7 +241,7 @@ Token *tokenize(const char *source, Str *path, U32 *count_out) {
             else if (pos[0] == '>' && pos[1] == '=') two = TOK_GTEQ;
             else if (pos[0] == '.' && pos[1] == '.') two = TOK_DOTDOT;
             if (two != TOK_EOF) {
-                Vec_push(&tokens, &(Token){two, start, 2, line, col});
+                cvec_push(&tokens, &(Token){two, start, 2, line, col});
                 pos += 2;
                 continue;
             }
@@ -273,7 +272,7 @@ Token *tokenize(const char *source, Str *path, U32 *count_out) {
             default: break;
             }
             if (single != TOK_EOF) {
-                Vec_push(&tokens, &(Token){single, start, 1, line, col});
+                cvec_push(&tokens, &(Token){single, start, 1, line, col});
                 pos++;
                 continue;
             }
@@ -281,13 +280,13 @@ Token *tokenize(const char *source, Str *path, U32 *count_out) {
 
         // Unknown character
         fprintf(stderr, "%s:%u:%u: error: unexpected character '%c'\n", path->c_str, line, col, *pos);
-        Vec_push(&tokens, &(Token){TOK_ERROR, start, 1, line, col});
+        cvec_push(&tokens, &(Token){TOK_ERROR, start, 1, line, col});
         pos++;
     }
 
     // EOF
     U32 col = (U32)(pos - line_start) + 1;
-    Vec_push(&tokens, &(Token){TOK_EOF, pos, 0, line, col});
+    cvec_push(&tokens, &(Token){TOK_EOF, pos, 0, line, col});
 
     if (count_out) *count_out = tokens.count;
     return Vec_take(&tokens);

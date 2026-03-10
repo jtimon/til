@@ -54,8 +54,10 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
     if (Str_eq_c(type_name, "F32"))  return &ffi_type_float;
     if (Str_eq_c(type_name, "Bool")) return &ffi_type_uint8;
     // Struct type: look up def and build ffi_type
-    Expr **sdef = Map_get(&ffi_struct_defs, &type_name);
-    if (sdef) return build_struct_ffi_type(*sdef);
+    if (*Map_has(&ffi_struct_defs, type_name)) {
+        Expr **sdef = Map_get(&ffi_struct_defs, type_name);
+        return build_struct_ffi_type(*sdef);
+    }
     return &ffi_type_pointer; // fallback
 }
 
@@ -82,7 +84,7 @@ static ffi_type *field_ffi_type(Expr *field) {
 // Build an ffi_type descriptor for a struct (heap-allocated, cached)
 static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     if (!ffi_type_cache_inited) {
-        ffi_type_cache = Vec_new(sizeof(ffi_type *));
+        ffi_type_cache = cvec_new(sizeof(ffi_type *));
         ffi_type_cache_inited = 1;
     }
     // Count instance fields
@@ -108,7 +110,7 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     st->type = FFI_TYPE_STRUCT;
     st->elements = elements;
     // Cache for cleanup
-    Vec_push(&ffi_type_cache, &st);
+    cvec_push(&ffi_type_cache, &st);
     return st;
 }
 
@@ -274,20 +276,20 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
-    field_access.children = Vec_new(sizeof(Expr *));
+    field_access.children = cvec_new(sizeof(Expr *));
     Expr *ti_ptr = &type_ident;
-    Vec_push(&field_access.children, &ti_ptr);
+    cvec_push(&field_access.children, &ti_ptr);
 
     Expr fake_call = {0};
     fake_call.type.tag = NODE_FCALL;
     fake_call.line = e->line;
     fake_call.col = e->col;
-    fake_call.children = Vec_new(sizeof(Expr *));
+    fake_call.children = cvec_new(sizeof(Expr *));
     Expr *fa_ptr = &field_access;
-    Vec_push(&fake_call.children, &fa_ptr);
+    cvec_push(&fake_call.children, &fa_ptr);
     for (U32 i = 3; i < e->children.count; i++) {
         Expr *arg = expr_child(e, i);
-        Vec_push(&fake_call.children, &arg);
+        cvec_push(&fake_call.children, &arg);
     }
 
     Value fn_val = eval_expr(s, &field_access);
@@ -299,15 +301,15 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
             if (fdef->type.func_def.param_defaults &&
                 fdef->type.func_def.param_defaults[i]) {
                 Expr *def_arg = fdef->type.func_def.param_defaults[i];
-                Vec_push(&fake_call.children, &def_arg);
+                cvec_push(&fake_call.children, &def_arg);
             }
         }
     }
 
     *r = eval_call(s, &fake_call);
 
-    Vec_delete(&fake_call.children);
-    Vec_delete(&field_access.children);
+    Vec_delete(&fake_call.children, &(Bool){0});
+    Vec_delete(&field_access.children, &(Bool){0});
     return 1;
 }
 
@@ -367,21 +369,21 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
-    field_access.children = Vec_new(sizeof(Expr *));
+    field_access.children = cvec_new(sizeof(Expr *));
     Expr *ti = &type_ident;
-    Vec_push(&field_access.children, &ti);
+    cvec_push(&field_access.children, &ti);
 
     Expr fake_call = {0};
     fake_call.type.tag = NODE_FCALL;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
-    fake_call.children = Vec_new(sizeof(Expr *));
+    fake_call.children = cvec_new(sizeof(Expr *));
     Expr *fa = &field_access;
-    Vec_push(&fake_call.children, &fa);
+    cvec_push(&fake_call.children, &fa);
 
     Value result = eval_call(s, &fake_call);
-    Vec_delete(&fake_call.children);
-    Vec_delete(&field_access.children);
+    Vec_delete(&fake_call.children, &(Bool){0});
+    Vec_delete(&field_access.children, &(Bool){0});
     return (I32)*result.u64;
 }
 
@@ -619,9 +621,9 @@ static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
 // === Dispatch init ===
 
 static void dispatch_init(void) {
-    dispatch_map = Map_new(sizeof(Str *), sizeof(DispatchFn), str_ptr_cmp);
+    dispatch_map = cmap_new(sizeof(Str), sizeof(DispatchFn));
 
-    #define REG(n, fn) do { Str *k = Str_new(n); DispatchFn f = fn; Map_set(&dispatch_map, &k, &f); } while(0)
+    #define REG(n, fn) do { Str *k = Str_new(n); DispatchFn f = fn; cmap_set(&dispatch_map, k, &f); } while(0)
 
     // Print
     REG("print_single", h_print_single);
@@ -680,13 +682,15 @@ static void dispatch_init(void) {
 Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     if (!dispatch_inited) dispatch_init();
 
-    DispatchFn *fn = Map_get(&dispatch_map, &name);
-    if (fn) return (*fn)(scope, e, result);
+    if (*Map_has(&dispatch_map, name)) {
+        DispatchFn *fn = Map_get(&dispatch_map, name);
+        return (*fn)(scope, e, result);
+    }
 
     // FFI dispatch via libffi
     if (ffi_loaded) {
-        FFIEntry *fe = Map_get(&ffi_map, &name);
-        if (fe) {
+        if (*Map_has(&ffi_map, name)) {
+            FFIEntry *fe = Map_get(&ffi_map, name);
             U32 nargs = e->children.count - 1;
             void *args[nargs > 0 ? nargs : 1];
             void *arg_ptrs[nargs > 0 ? nargs : 1];
@@ -770,8 +774,9 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             // scalar types like Bool are ext_structs in til but scalars in FFI.
             Expr **ret_sdef = NULL;
             if (fe->return_is_shallow && fe->return_type &&
-                fe->cif.rtype->type == FFI_TYPE_STRUCT)
-                ret_sdef = Map_get(&ffi_struct_defs, &fe->return_type);
+                fe->cif.rtype->type == FFI_TYPE_STRUCT &&
+                *Map_has(&ffi_struct_defs, fe->return_type))
+                ret_sdef = Map_get(&ffi_struct_defs, fe->return_type);
             void *raw = NULL;
             void *ret_buf = NULL;
             if (ret_sdef) {
@@ -843,8 +848,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = (Value){.type = VAL_PTR, .ptr = raw};
             } else {
                 // Struct return — look up struct def by return type name
-                Expr **sdef = Map_get(&ffi_struct_defs, &fe->return_type);
-                if (sdef) {
+                if (*Map_has(&ffi_struct_defs, fe->return_type)) {
+                    Expr **sdef = Map_get(&ffi_struct_defs, fe->return_type);
                     StructInstance *inst = malloc(sizeof(StructInstance));
                     inst->struct_name = fe->return_type;
                     inst->struct_def = *sdef;
@@ -944,7 +949,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
         rtype = ret_shallow ? shallow_ffi_type(entry.return_type) : &ffi_type_pointer;
     }
     ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
-    Map_set(&ffi_map, &name, &entry);
+    cmap_set(&ffi_map, name, &entry);
 }
 
 I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
@@ -955,8 +960,8 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     if (user_c_path) {
         Str *ext_dir;
         {
-            I64 slash = Str_rfind(ext_c_path, Str_new("/"));
-            ext_dir = slash >= 0 ? Str_substr(ext_c_path, 0, slash) : Str_new(".");
+            I64 slash = *Str_rfind(ext_c_path, Str_new("/"));
+            ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
         }
         char pid_buf[32];
         snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
@@ -998,17 +1003,17 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     }
 
     // Build struct def map for return type lookup
-    ffi_struct_defs = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    ffi_struct_defs = cmap_new(sizeof(Str), sizeof(Expr *));
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;
         if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
         Expr *sdef = expr_child(stmt, 0);
-        Map_set(&ffi_struct_defs, &stmt->type.decl.name, &sdef);
+        cmap_set(&ffi_struct_defs, stmt->type.decl.name, &sdef);
     }
 
     // Scan program for ext_func/ext_proc, dlsym each
-    ffi_map = Map_new(sizeof(Str *), sizeof(FFIEntry), str_ptr_cmp);
+    ffi_map = cmap_new(sizeof(Str), sizeof(FFIEntry));
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;
@@ -1072,17 +1077,17 @@ void ffi_cleanup(void) {
         ffi_handle = NULL;
     }
     if (ffi_loaded) {
-        Map_delete(&ffi_map);
-        Map_delete(&ffi_struct_defs);
+        Map_delete(&ffi_map, &(Bool){0});
+        Map_delete(&ffi_struct_defs, &(Bool){0});
         ffi_loaded = 0;
     }
     if (ffi_type_cache_inited) {
         for (U32 i = 0; i < ffi_type_cache.count; i++) {
-            ffi_type *t = *(ffi_type **)Vec_get(&ffi_type_cache, i);
+            ffi_type *t = *(ffi_type **)Vec_get(&ffi_type_cache, &(U64){(U64)(i)});
             free(t->elements);
             free(t);
         }
-        Vec_delete(&ffi_type_cache);
+        Vec_delete(&ffi_type_cache, &(Bool){0});
         ffi_type_cache_inited = 0;
     }
 }

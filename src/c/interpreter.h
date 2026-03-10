@@ -2,7 +2,6 @@
 #define TIL_INTERPRETER_H
 
 #include "ast.h"
-#include "map.h"
 #include "modes.h"
 #include <stdlib.h>
 

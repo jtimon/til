@@ -27,7 +27,7 @@ const char *til_type_name_c(TilType t) {
 Expr *expr_new(NodeTypeTag tag, U32 line, U32 col, Str *path) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type.tag = tag;
-    e->children = Vec_new(sizeof(Expr *));
+    e->children = cvec_new(sizeof(Expr *));
     e->line = line;
     e->col = col;
     e->path = path;
@@ -50,17 +50,17 @@ void expr_lang_error(Expr *e, const char *msg) {
 }
 
 void expr_add_child(Expr *parent, Expr *child) {
-    Vec_push(&parent->children, &child);
+    cvec_push(&parent->children, &child);
 }
 
 Expr *expr_clone(Expr *e) {
     if (!e) return NULL;
     Expr *c = calloc(1, sizeof(Expr));
     *c = *e;
-    c->children = Vec_new(sizeof(Expr *));
+    c->children = cvec_new(sizeof(Expr *));
     for (U32 i = 0; i < e->children.count; i++) {
         Expr *cloned = expr_clone(expr_child(e, i));
-        Vec_push(&c->children, &cloned);
+        cvec_push(&c->children, &cloned);
     }
     return c;
 }
@@ -70,7 +70,7 @@ void expr_free(Expr *e) {
     for (U32 i = 0; i < e->children.count; i++) {
         expr_free(expr_child(e, i));
     }
-    Vec_delete(&e->children);
+    Vec_delete(&e->children, &(Bool){0});
     free(e);
 }
 

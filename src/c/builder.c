@@ -1,6 +1,4 @@
 #include "builder.h"
-#include "map.h"
-#include "vec.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,11 +24,11 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
         if (is_vec >= 0) {
             Str *type_name = expr_child(e, 1)->type.str_val;
             for (U32 i = 0; i < infos->count; i++) {
-                CollectionInfo *existing = Vec_get(infos, i);
-                if (Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
+                CollectionInfo *existing = Vec_get(infos, &(U64){(U64)(i)});
+                if (*Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
             }
             CollectionInfo info = {type_name, is_vec};
-            Vec_push(infos, &info);
+            cvec_push(infos, &info);
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
@@ -57,11 +55,11 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
         if (is_dyn_call_name(expr_child(e, 0)->type.str_val, &nargs, &returns)) {
             Str *method = expr_child(e, 2)->type.str_val;
             for (U32 i = 0; i < methods->count; i++) {
-                DynCallInfo *existing = Vec_get(methods, i);
-                if (Str_eq(existing->method, method)) return;
+                DynCallInfo *existing = Vec_get(methods, &(U64){(U64)(i)});
+                if (*Str_eq(existing->method, method)) return;
             }
             DynCallInfo info = {method, nargs, returns};
-            Vec_push(methods, &info);
+            cvec_push(methods, &info);
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
@@ -77,10 +75,10 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
         e->children.count >= 3 && expr_child(e, 2)->type.tag == NODE_LITERAL_STR) {
         Str *method = expr_child(e, 2)->type.str_val;
         for (U32 i = 0; i < methods->count; i++) {
-            Str **existing = Vec_get(methods, i);
-            if (Str_eq(*existing, method)) return;
+            Str **existing = Vec_get(methods, &(U64){(U64)(i)});
+            if (*Str_eq(*existing, method)) return;
         }
-        Vec_push(methods, &method);
+        cvec_push(methods, &method);
     }
     for (U32 i = 0; i < e->children.count; i++) {
         collect_dyn_has_methods(expr_child(e, i), methods);
@@ -88,8 +86,9 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
 }
 
 static Expr *find_struct_body(Str *name) {
-    Expr **p = Map_get(&struct_bodies, &name);
-    return p ? *p : NULL;
+    if (!*Map_has(&struct_bodies, name)) return NULL;
+    Expr **p = Map_get(&struct_bodies, name);
+    return *p;
 }
 
 // --- Emitter helpers ---
@@ -125,8 +124,9 @@ static Bool is_shallow_param(const char *name) {
 
 // Check if callee's i-th parameter is shallow (for call site emission)
 static Expr *find_callee_fdef(Str *name) {
-    Expr **p = Map_get(&func_defs, &name);
-    return p ? *p : NULL;
+    if (!*Map_has(&func_defs, name)) return NULL;
+    Expr **p = Map_get(&func_defs, name);
+    return *p;
 }
 
 static Bool callee_returns_shallow(Str *callee_name) {
@@ -149,7 +149,7 @@ static Bool fcall_is_shallow_return(Expr *fcall) {
         snprintf(buf, sizeof(buf), "%s_%s", sname->c_str, mname->c_str);
         Str *flat = Str_new(buf);
         Bool r = callee_returns_shallow(flat);
-        Str_delete(flat);
+        Str_delete(flat, &(Bool){1});
         return r;
     }
     return 0;
@@ -244,7 +244,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "dyn_has_%s(", method->c_str);
             emit_as_ptr(f, expr_child(e, 1), depth);
             fprintf(f, ")");
-        } else if (e->struct_name && Str_eq(name, e->struct_name)) {
+        } else if (e->struct_name && *Str_eq(name, e->struct_name)) {
             // Struct constructor — compound literal (handled in emit_stmt)
             fprintf(f, "/* BUG: struct constructor in expr context */");
         } else {
@@ -456,7 +456,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
         } else if (is_own && arg->type.tag == NODE_FCALL && arg->struct_name &&
-            Str_eq(expr_child(arg, 0)->type.str_val, arg->struct_name)) {
+            *Str_eq(expr_child(arg, 0)->type.str_val, arg->struct_name)) {
             // Nested struct constructor for own field: emit as temp, assign pointer
             const char *ct = c_type_name(arg->til_type, arg->struct_name);
             I32 id = _ctor_seq++;
@@ -471,7 +471,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
         } else if (arg->type.tag == NODE_FCALL && arg->struct_name &&
-                   Str_eq(expr_child(arg, 0)->type.str_val, arg->struct_name)) {
+                   *Str_eq(expr_child(arg, 0)->type.str_val, arg->struct_name)) {
             // Inline struct field: nested constructor — build in-place
             const char *ct = c_type_name(arg->til_type, arg->struct_name);
             I32 id = _ctor_seq++;
@@ -523,9 +523,9 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         } else {
             const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
             Expr *rhs = expr_child(e, 0);
-            Bool is_global = has_script_globals && !in_func_def && Set_has(&script_globals, &e->type.decl.name);
+            Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, e->type.decl.name);
             if (rhs->type.tag == NODE_FCALL && rhs->struct_name &&
-                Str_eq(expr_child(rhs, 0)->type.str_val, rhs->struct_name)) {
+                *Str_eq(expr_child(rhs, 0)->type.str_val, rhs->struct_name)) {
                 // Struct constructor — malloc + field-by-field assignment
                 const char *var = e->type.decl.name->c_str;
                 if (is_global)
@@ -622,7 +622,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         break;
     }
     case NODE_FCALL:
-        if (e->struct_name && Str_eq(expr_child(e, 0)->type.str_val, e->struct_name)) {
+        if (e->struct_name && *Str_eq(expr_child(e, 0)->type.str_val, e->struct_name)) {
             // Bare struct constructor statement — discard result
             fprintf(f, "/* discarded struct constructor */;\n");
         } else {
@@ -636,7 +636,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         } else {
             Expr *rv = expr_child(e, 0);
             if (rv->type.tag == NODE_FCALL && rv->struct_name &&
-                Str_eq(expr_child(rv, 0)->type.str_val, rv->struct_name)) {
+                *Str_eq(expr_child(rv, 0)->type.str_val, rv->struct_name)) {
                 // Struct constructor return — malloc + field-by-field
                 const char *ctype = c_type_name(rv->til_type, rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s));\n", ctype, ctype);
@@ -734,7 +734,7 @@ static void emit_ns_inits(FILE *f, I32 depth) {
     }
 }
 
-static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) {
+static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, Bool is_static) {
     (void)func_def->type.func_def.func_type;
     Expr *body = expr_child(func_def, 0);
 
@@ -850,7 +850,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode) 
             ret = type_name_to_c(func_def->type.func_def.return_type);
         }
         // Signature
-        fprintf(f, "%s %s(", ret, func_to_c(name));
+        fprintf(f, "%s%s %s(", is_static ? "static " : "", ret, func_to_c(name));
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
         in_func_def = 1;
@@ -875,6 +875,14 @@ static Bool is_skip_ext_decl(Str *name) {
     return Str_eq_c(name, "exit") || Str_eq_c(name, "free") || Str_eq_c(name, "malloc") ||
            Str_eq_c(name, "calloc") || Str_eq_c(name, "realloc") || Str_eq_c(name, "memcpy") ||
            Str_eq_c(name, "memmove") || Str_eq_c(name, "print_single") || Str_eq_c(name, "print_flush");
+}
+
+// Scalar types whose methods should be emitted as static in core.c
+// (avoids duplicate symbol conflicts with ccore.c)
+static Bool is_scalar_method_type(Str *name) {
+    return Str_eq_c(name, "U8") || Str_eq_c(name, "I16") || Str_eq_c(name, "I32") ||
+           Str_eq_c(name, "F32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") ||
+           Str_eq_c(name, "I64") || Str_eq_c(name, "Bool");
 }
 
 static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
@@ -914,7 +922,18 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
     }
 }
 
-static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def) {
+// Check if a func_def has any shallow parameters (which means its C signature
+// matches ext.h declarations — can't use 'static' or it conflicts)
+static Bool func_has_shallow_params(Expr *fdef) {
+    for (U32 i = 0; i < fdef->type.func_def.nparam; i++) {
+        if (fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[i])
+            return 1;
+    }
+    return 0;
+}
+
+static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib) {
+    Bool is_scalar = is_lib && is_scalar_method_type(name);
     Expr *body = expr_child(struct_def, 0);
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = expr_child(body, i);
@@ -929,18 +948,21 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def) {
             fdef->type.func_def.nparam == 0 &&
             fdef->type.func_def.return_type &&
             Str_eq_c(fdef->type.func_def.return_type, "U64")) {
-            fprintf(f, "U64 *%s_size(void) {\n", name->c_str);
+            fprintf(f, "%sU64 *%s_size(void) {\n", is_scalar ? "static " : "", name->c_str);
             fprintf(f, "    U64 *r = malloc(sizeof(U64));\n");
             fprintf(f, "    *r = (U64)sizeof(%s);\n", name->c_str);
             fprintf(f, "    return r;\n");
             fprintf(f, "}\n\n");
             continue;
         }
+        // For scalar types in lib mode: static for pointer-param funcs (no ext.h conflict),
+        // non-static for shallow-param funcs (match ext.h, linker deduplicates)
+        Bool make_static = is_scalar && !func_has_shallow_params(fdef);
         char full_name_buf[256];
         snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->type.decl.name->c_str);
         Str *full_name = Str_new(full_name_buf);
-        emit_func_def(f, full_name, fdef, NULL);
-        Str_delete(full_name);
+        emit_func_def(f, full_name, fdef, NULL, make_static);
+        Str_delete(full_name, &(Bool){1});
         fprintf(f, "\n");
     }
 }
@@ -953,16 +975,16 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         // === SIMPLE ENUM ===
 
         // Collect variant names from non-namespace entries
-        Vec vnames = Vec_new(sizeof(Str *));
+        Vec vnames = cvec_new(sizeof(Str *));
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = expr_child(body, i);
             if (v->type.decl.is_namespace) continue;
-            Vec_push(&vnames, &v->type.decl.name);
+            cvec_push(&vnames, &v->type.decl.name);
         }
 
         // Zero-arg constructors
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, i);
+            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
             fprintf(f, "%s *%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    %s *r = malloc(sizeof(%s));\n", name->c_str, name->c_str);
             fprintf(f, "    *r = (%s){ .tag = %s_TAG_%s };\n", name->c_str, name->c_str, vn->c_str);
@@ -972,7 +994,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // is_Variant functions
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, i);
+            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
             fprintf(f, "Bool *%s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
             fprintf(f, "    Bool *r = malloc(sizeof(Bool));\n");
             fprintf(f, "    *r = (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
@@ -980,24 +1002,24 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             fprintf(f, "}\n");
         }
 
-        Vec_delete(&vnames);
+        Vec_delete(&vnames, &(Bool){0});
     } else {
         // === PAYLOAD ENUM ===
 
         // Collect variant info from non-namespace entries
-        Vec vnames = Vec_new(sizeof(Str *));
-        Vec vtypes = Vec_new(sizeof(Str *));
+        Vec vnames = cvec_new(sizeof(Str *));
+        Vec vtypes = cvec_new(sizeof(Str *));
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = expr_child(body, i);
             if (v->type.decl.is_namespace) continue;
-            Vec_push(&vnames, &v->type.decl.name);
-            Vec_push(&vtypes, &v->type.decl.explicit_type);
+            cvec_push(&vnames, &v->type.decl.name);
+            cvec_push(&vtypes, &v->type.decl.explicit_type);
         }
 
         // Constructor functions for all variants
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, i);
-            Str *vt = *(Str **)Vec_get(&vtypes, i);
+            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
+            Str *vt = *(Str **)Vec_get(&vtypes, &(U64){(U64)(i)});
             if (!vt) {
                 // Zero-arg constructor for no-payload variant
                 fprintf(f, "%s *%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
@@ -1025,7 +1047,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // is_Variant functions
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, i);
+            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
             fprintf(f, "Bool *%s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
             fprintf(f, "    Bool *r = malloc(sizeof(Bool));\n");
             fprintf(f, "    *r = (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
@@ -1035,8 +1057,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // get_Variant functions (payload variants only)
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, i);
-            Str *vt = *(Str **)Vec_get(&vtypes, i);
+            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
+            Str *vt = *(Str **)Vec_get(&vtypes, &(U64){(U64)(i)});
             if (!vt) continue;
             const char *ptype = type_name_to_c(vt);
             fprintf(f, "%s %s_get_%s(%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
@@ -1051,8 +1073,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             fprintf(f, "}\n");
         }
 
-        Vec_delete(&vnames);
-        Vec_delete(&vtypes);
+        Vec_delete(&vnames, &(Bool){0});
+        Vec_delete(&vtypes, &(Bool){0});
     }
 
     // Emit namespace func/proc methods (to_str, user methods)
@@ -1078,8 +1100,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         char full_name_buf[256];
         snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->type.decl.name->c_str);
         Str *full_name = Str_new(full_name_buf);
-        emit_func_def(f, full_name, fdef, NULL);
-        Str_delete(full_name);
+        emit_func_def(f, full_name, fdef, NULL, 0);
+        Str_delete(full_name, &(Bool){1});
         fprintf(f, "\n");
     }
 }
@@ -1088,17 +1110,19 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     (void)path;
 
     codegen_program = program;
+    Bool is_lib = mode && (strcmp(mode->name, "lib") == 0 || strcmp(mode->name, "liba") == 0 ||
+                           strcmp(mode->name, "pure") == 0 || strcmp(mode->name, "pura") == 0);
 
     // Build struct body lookup map
-    struct_bodies = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    struct_bodies = cmap_new(sizeof(Str), sizeof(Expr *));
     // Build func_def lookup map (for shallow param lookup at call sites)
-    func_defs = Map_new(sizeof(Str *), sizeof(Expr *), str_ptr_cmp);
+    func_defs = cmap_new(sizeof(Str), sizeof(Expr *));
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
             Str *sname = stmt->type.decl.name;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
-            Map_set(&struct_bodies, &sname, &body);
+            cmap_set(&struct_bodies, sname, &body);
             // Register namespace methods
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
@@ -1108,13 +1132,13 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 char flat[256];
                 snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->type.decl.name->c_str);
                 Str *key = Str_new(flat);
-                Map_set(&func_defs, &key, &fdef);
+                cmap_set(&func_defs, key, &fdef);
             }
         }
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             Str *fname = stmt->type.decl.name;
             Expr *fdef = expr_child(stmt, 0);
-            Map_set(&func_defs, &fname, &fdef);
+            cmap_set(&func_defs, fname, &fdef);
         }
     }
     FILE *f = fopen(c_output_path->c_str, "w");
@@ -1201,7 +1225,8 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                         ? type_name_to_c_value(fdef->type.func_def.return_type)
                         : type_name_to_c(fdef->type.func_def.return_type);
                 }
-                fprintf(f, "%s %s_%s(", ret, sname->c_str, field->type.decl.name->c_str);
+                Bool fwd_static = is_lib && is_scalar_method_type(sname) && !func_has_shallow_params(fdef);
+                fprintf(f, "%s%s %s_%s(", fwd_static ? "static " : "", ret, sname->c_str, field->type.decl.name->c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
@@ -1255,10 +1280,10 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Forward declarations for dyn_call dispatch functions
     {
-        Vec dyn_methods = Vec_new(sizeof(DynCallInfo));
+        Vec dyn_methods = cvec_new(sizeof(DynCallInfo));
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
-            DynCallInfo *info = Vec_get(&dyn_methods, m);
+            DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
             if (info->returns) {
                 if (info->nargs == 1)
                     fprintf(f, "void *dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
@@ -1272,34 +1297,34 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             }
         }
         fprintf(f, "\n");
-        Vec_delete(&dyn_methods);
+        Vec_delete(&dyn_methods, &(Bool){0});
     }
 
     // Forward declarations for dyn_has_method dispatch functions
     {
-        Vec has_methods = Vec_new(sizeof(Str *));
+        Vec has_methods = cvec_new(sizeof(Str *));
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
-            Str **method = Vec_get(&has_methods, m);
+            Str **method = Vec_get(&has_methods, &(U64){(U64)(m)});
             fprintf(f, "Bool *dyn_has_%s(Str *type_name);\n", (*method)->c_str);
         }
         if (has_methods.count) fprintf(f, "\n");
-        Vec_delete(&has_methods);
+        Vec_delete(&has_methods, &(Bool){0});
     }
 
     // Forward declarations for array/vec builtin helpers
     {
-        Vec coll_infos = Vec_new(sizeof(CollectionInfo));
+        Vec coll_infos = cvec_new(sizeof(CollectionInfo));
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
-            CollectionInfo *ci = Vec_get(&coll_infos, i);
+            CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
             const char *prefix = ci->is_vec ? "vec" : "array";
             const char *ret = ci->is_vec ? "Vec" : "Array";
             fprintf(f, "%s *%s_of_%s(int count, ...);\n",
                     ret, prefix, ci->type_name->c_str);
         }
         if (coll_infos.count) fprintf(f, "\n");
-        Vec_delete(&coll_infos);
+        Vec_delete(&coll_infos, &(Bool){0});
     }
 
     // Emit struct + enum struct typedefs in source order (so payload types are defined first)
@@ -1357,7 +1382,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     // Emit top-level variable declarations as file-scope globals
     // so they're accessible from functions/procs defined at the same level
     {
-        script_globals = Set_new(sizeof(Str *), str_ptr_cmp);
+        script_globals = cset_new(sizeof(Str));
         has_script_globals = 1;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = expr_child(program, i);
@@ -1368,7 +1393,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             if (stmt->type.decl.is_ref) continue;
             const char *ctype = c_type_name(stmt->til_type, rhs->struct_name);
             fprintf(f, "static %s *%s;\n", ctype, stmt->type.decl.name->c_str);
-            Set_add(&script_globals, &stmt->type.decl.name);
+            cset_add(&script_globals, stmt->type.decl.name);
         }
         fprintf(f, "\n");
     }
@@ -1377,24 +1402,24 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            emit_struct_funcs(f, stmt->type.decl.name, expr_child(stmt, 0));
+            emit_struct_funcs(f, stmt->type.decl.name, expr_child(stmt, 0), is_lib);
         } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
             emit_enum_def(f, stmt->type.decl.name, expr_child(stmt, 0));
             fprintf(f, "\n");
         } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             FuncType fft2 = expr_child(stmt, 0)->type.func_def.func_type;
             if (fft2 == FUNC_EXT_FUNC || fft2 == FUNC_EXT_PROC) continue;
-            emit_func_def(f, stmt->type.decl.name, expr_child(stmt, 0), mode);
+            emit_func_def(f, stmt->type.decl.name, expr_child(stmt, 0), mode, 0);
             fprintf(f, "\n");
         }
     }
 
     // Emit dyn_call dispatch function bodies
     {
-        Vec dyn_methods = Vec_new(sizeof(DynCallInfo));
+        Vec dyn_methods = cvec_new(sizeof(DynCallInfo));
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
-            DynCallInfo *info = Vec_get(&dyn_methods, m);
+            DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
             Str *method = info->method;
             const char *ret_type = info->returns ? "void *" : "void ";
             if (info->nargs == 1)
@@ -1414,7 +1439,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *field = expr_child(body, j);
                     if (field->type.decl.is_namespace &&
-                        Str_eq(field->type.decl.name, method) &&
+                        *Str_eq(field->type.decl.name, method) &&
                         field->children.count > 0 &&
                         expr_child(field, 0)->type.tag == NODE_FUNC_DEF) {
                         method_fdef = expr_child(field, 0);
@@ -1464,15 +1489,15 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             fprintf(f, "    exit(1);\n");
             fprintf(f, "}\n\n");
         }
-        Vec_delete(&dyn_methods);
+        Vec_delete(&dyn_methods, &(Bool){0});
     }
 
     // Emit dyn_has_method dispatch function bodies
     {
-        Vec has_methods = Vec_new(sizeof(Str *));
+        Vec has_methods = cvec_new(sizeof(Str *));
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
-            Str **method_ptr = Vec_get(&has_methods, m);
+            Str **method_ptr = Vec_get(&has_methods, &(U64){(U64)(m)});
             Str *method = *method_ptr;
             fprintf(f, "Bool *dyn_has_%s(Str *type_name) {\n    (void)type_name;\n", method->c_str);
             for (U32 i = 0; i < program->children.count; i++) {
@@ -1486,7 +1511,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *field = expr_child(body, j);
                     if (field->type.decl.is_namespace &&
-                        Str_eq(field->type.decl.name, method)) {
+                        *Str_eq(field->type.decl.name, method)) {
                         found = 1;
                         break;
                     }
@@ -1498,15 +1523,15 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             fprintf(f, "    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n");
             fprintf(f, "}\n\n");
         }
-        Vec_delete(&has_methods);
+        Vec_delete(&has_methods, &(Bool){0});
     }
 
     // Emit array/vec builtin helper function bodies
     {
-        Vec coll_infos = Vec_new(sizeof(CollectionInfo));
+        Vec coll_infos = cvec_new(sizeof(CollectionInfo));
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
-            CollectionInfo *ci = Vec_get(&coll_infos, i);
+            CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
             const char *et = ci->type_name->c_str;
             U64 et_len = ci->type_name->count;
             if (ci->is_vec) {
@@ -1545,7 +1570,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 fprintf(f, "}\n\n");
             }
         }
-        Vec_delete(&coll_infos);
+        Vec_delete(&coll_infos, &(Bool){0});
     }
 
     // Test runner: emit main() that calls all test functions
@@ -1601,13 +1626,13 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         }
         fprintf(f, "    return 0;\n");
         fprintf(f, "}\n");
-        Set_delete(&script_globals);
+        Set_delete(&script_globals, &(Bool){0});
         has_script_globals = 0;
     }
 
     fclose(f);
-    Map_delete(&struct_bodies);
-    Map_delete(&func_defs);
+    Map_delete(&struct_bodies, &(Bool){0});
+    Map_delete(&func_defs, &(Bool){0});
     return 0;
 }
 
@@ -1681,6 +1706,7 @@ I32 build_header(Expr *program, Str *h_path) {
         if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
                                          expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
             Str *sname = stmt->type.decl.name;
+            if (is_scalar_method_type(sname)) continue;
             Expr *body = expr_child(expr_child(stmt, 0), 0);
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = expr_child(body, j);
@@ -1906,8 +1932,8 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
     {
-        I64 slash = Str_rfind(ext_c_path, Str_new("/"));
-        ext_dir = slash >= 0 ? Str_substr(ext_c_path, 0, slash) : Str_new(".");
+        I64 slash = *Str_rfind(ext_c_path, Str_new("/"));
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
     }
 
     Str *lf = link_flags ? link_flags : Str_new("");
@@ -1979,8 +2005,8 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
     {
-        I64 slash = Str_rfind(ext_c_path, Str_new("/"));
-        ext_dir = slash >= 0 ? Str_substr(ext_c_path, 0, slash) : Str_new(".");
+        I64 slash = *Str_rfind(ext_c_path, Str_new("/"));
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
     }
 
     Str *user_part = user_c_path ? Str_concat(Str_new(" "), user_c_path) : Str_new("");

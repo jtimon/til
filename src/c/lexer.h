@@ -1,8 +1,7 @@
 #ifndef TIL_LEXER_H
 #define TIL_LEXER_H
 
-#include "aliases.h"
-#include "str.h"
+#include "compat.h"
 
 typedef enum {
     TOK_EOF,

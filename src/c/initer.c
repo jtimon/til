@@ -1,5 +1,4 @@
 #include "initer.h"
-#include "vec.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,19 +7,19 @@
 
 TypeScope *tscope_new(TypeScope *parent) {
     TypeScope *s = malloc(sizeof(TypeScope));
-    s->bindings = Map_new(sizeof(Str *), sizeof(TypeBinding), str_ptr_cmp);
+    s->bindings = cmap_new(sizeof(Str), sizeof(TypeBinding));
     s->parent = parent;
     return s;
 }
 
 void tscope_free(TypeScope *s) {
-    Map_delete(&s->bindings);
+    Map_delete(&s->bindings, &(Bool){0});
     free(s);
 }
 
 void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own) {
-    TypeBinding *b = Map_get(&s->bindings, &name);
-    if (b) {
+    if (*Map_has(&s->bindings, name)) {
+        TypeBinding *b = Map_get(&s->bindings, name);
         b->type = type;
         b->is_proc = is_proc;
         b->is_mut = is_mut;
@@ -31,13 +30,12 @@ void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut,
         return;
     }
     TypeBinding nb = {name, type, is_proc, is_mut, line, col, is_param, is_own, 0, NULL, NULL, 0, 0, NULL};
-    Map_set(&s->bindings, &name, &nb);
+    cmap_set(&s->bindings, name, &nb);
 }
 
 TypeBinding *tscope_find(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
-        TypeBinding *b = Map_get(&cur->bindings, &name);
-        if (b) return b;
+        if (*Map_has(&cur->bindings, name)) return Map_get(&cur->bindings, name);
     }
     return NULL;
 }
@@ -267,14 +265,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_clone) continue;
 
         // Collect instance field names and ref flags
-        Vec field_names = Vec_new(sizeof(Str *));
-        Vec field_refs = Vec_new(sizeof(I32));
+        Vec field_names = cvec_new(sizeof(Str *));
+        Vec field_refs = cvec_new(sizeof(I32));
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace) {
-                Vec_push(&field_names, &field->type.decl.name);
+                cvec_push(&field_names, &field->type.decl.name);
                 I32 ref_flag = field->type.decl.is_ref ? 1 : 0;
-                Vec_push(&field_refs, &ref_flag);
+                cvec_push(&field_refs, &ref_flag);
             }
         }
 
@@ -301,8 +299,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             expr_add_child(ctor, ctor_name);
 
             for (U32 j = 0; j < field_names.count; j++) {
-                Str *fname = *(Str **)Vec_get(&field_names, j);
-                I32 fref = *(I32 *)Vec_get(&field_refs, j);
+                Str *fname = *(Str **)Vec_get(&field_names, &(U64){(U64)(j)});
+                I32 fref = *(I32 *)Vec_get(&field_refs, &(U64){(U64)(j)});
                 // self.field_name
                 Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                 self_id->type.str_val = Str_new("self");
@@ -361,8 +359,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Add to struct body
         expr_add_child(body, decl);
-        Vec_delete(&field_names);
-        Vec_delete(&field_refs);
+        Vec_delete(&field_names, &(Bool){0});
+        Vec_delete(&field_refs, &(Bool){0});
     }
 
     // Pass 1.7: auto-generate delete methods for all structs
@@ -396,14 +394,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_delete) continue;
 
         // Collect instance field names and own flags
-        Vec field_names = Vec_new(sizeof(Str *));
-        Vec field_owns = Vec_new(sizeof(I32));
+        Vec field_names = cvec_new(sizeof(Str *));
+        Vec field_owns = cvec_new(sizeof(I32));
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace &&
                 !field->type.decl.is_ref) {
-                Vec_push(&field_names, &field->type.decl.name);
-                Vec_push(&field_owns, &field->type.decl.is_own);
+                cvec_push(&field_names, &field->type.decl.name);
+                cvec_push(&field_owns, &field->type.decl.is_own);
             }
         }
 
@@ -414,8 +412,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // For each field: self.field.delete(call_free=<true for own, false for inline>)
         for (U32 j = 0; j < field_names.count; j++) {
-            Str *fname = *(Str **)Vec_get(&field_names, j);
-            I32 fown = *(I32 *)Vec_get(&field_owns, j);
+            Str *fname = *(Str **)Vec_get(&field_names, &(U64){(U64)(j)});
+            I32 fown = *(I32 *)Vec_get(&field_owns, &(U64){(U64)(j)});
             Expr *self_id = expr_new(NODE_IDENT, line, col, path);
             self_id->type.str_val = Str_new("self");
             Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
@@ -488,8 +486,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Add to struct body
         expr_add_child(body, decl);
-        Vec_delete(&field_names);
-        Vec_delete(&field_owns);
+        Vec_delete(&field_names, &(Bool){0});
+        Vec_delete(&field_owns, &(Bool){0});
     }
 
     // Pass 1.8: register enum definitions, generate variants + methods
@@ -510,13 +508,13 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *body = expr_child(expr_child(stmt, 0), 0); // NODE_BODY
 
         // Collect variant info (names + optional payload types)
-        Vec variant_names = Vec_new(sizeof(Str *));
-        Vec variant_types = Vec_new(sizeof(Str *)); // NULL entries for no-payload
+        Vec variant_names = cvec_new(sizeof(Str *));
+        Vec variant_types = cvec_new(sizeof(Str *)); // NULL entries for no-payload
         Bool has_payloads = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             if (expr_child(body, j)->type.decl.is_namespace) continue;
-            Vec_push(&variant_names, &expr_child(body, j)->type.decl.name);
-            Vec_push(&variant_types, &expr_child(body, j)->type.decl.explicit_type);
+            cvec_push(&variant_names, &expr_child(body, j)->type.decl.name);
+            cvec_push(&variant_types, &expr_child(body, j)->type.decl.explicit_type);
             if (expr_child(body, j)->type.decl.explicit_type) has_payloads = 1;
         }
 
@@ -531,7 +529,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 snprintf(buf, sizeof(buf), "%d", j);
                 lit->type.str_val = Str_new(buf);
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
-                decl->type.decl.name = *(Str **)Vec_get(&variant_names, j);
+                decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                 decl->type.decl.is_namespace = true;
                 expr_add_child(decl, lit);
                 expr_add_child(body, decl);
@@ -541,7 +539,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             // Keep original variant markers as registry (don't compact)
 
             for (U32 j = 0; j < variant_names.count; j++) {
-                if (*(Str **)Vec_get(&variant_types, j)) {
+                if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
                     // Payload variant: ext_func constructor
                     // e.g. Num := ext_func(val: I64) returns Token {}
                     Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
@@ -550,7 +548,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->type.func_def.param_names = malloc(sizeof(Str *));
                     fdef->type.func_def.param_names[0] = Str_new("val");
                     fdef->type.func_def.param_types = malloc(sizeof(Str *));
-                    fdef->type.func_def.param_types[0] = *(Str **)Vec_get(&variant_types, j);
+                    fdef->type.func_def.param_types[0] = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
                     fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
                     fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
                     fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
@@ -558,7 +556,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->type.func_def.variadic_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
-                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, j);
+                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                     decl->type.decl.is_namespace = true;
                     expr_add_child(decl, fdef);
                     expr_add_child(body, decl);
@@ -577,7 +575,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->type.func_def.variadic_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
-                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, j);
+                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                     decl->type.decl.is_namespace = true;
                     expr_add_child(decl, fdef);
                     expr_add_child(body, decl);
@@ -586,9 +584,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
             // Generate get_Variant ext_func for payload variants
             for (U32 j = 0; j < variant_names.count; j++) {
-                if (!*(Str **)Vec_get(&variant_types, j)) continue;
+                if (!*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) continue;
                 char name_buf[256];
-                snprintf(name_buf, sizeof(name_buf), "get_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
+                snprintf(name_buf, sizeof(name_buf), "get_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                 Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
                 fdef->type.func_def.func_type = FUNC_EXT_FUNC;
                 fdef->type.func_def.nparam = 1;
@@ -599,7 +597,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
                 fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
                 fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
-                fdef->type.func_def.return_type = *(Str **)Vec_get(&variant_types, j);
+                fdef->type.func_def.return_type = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
                 fdef->type.func_def.variadic_index = -1;
                 expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
@@ -613,7 +611,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Generate is_Variant ext_func for every variant (all enums)
         for (U32 j = 0; j < variant_names.count; j++) {
             char name_buf[256];
-            snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
+            snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
             Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
             fdef->type.func_def.func_type = FUNC_EXT_FUNC;
             fdef->type.func_def.nparam = 1;
@@ -656,7 +654,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 self_id->type.str_val = Str_new("self");
                 char is_buf[256];
                 snprintf(is_buf, sizeof(is_buf), "is_%s",
-                         (*(Str **)Vec_get(&variant_names, j))->c_str);
+                         (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                 Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                 is_acc->type.str_val = Str_new(is_buf);
                 expr_add_child(is_acc, self_id);
@@ -665,7 +663,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
                 Expr *then_body = expr_new(NODE_BODY, line, col, path);
 
-                if (*(Str **)Vec_get(&variant_types, j)) {
+                if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
                     // Payload variant:
                     //   if other.is_Vj().not() { return false }
                     //   return self.get_Vj().eq(other.get_Vj())
@@ -696,7 +694,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     // return self.get_Vj().eq(other.get_Vj())
                     char get_buf[256];
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
-                             (*(Str **)Vec_get(&variant_names, j))->c_str);
+                             (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                     Expr *self2 = expr_new(NODE_IDENT, line, col, path);
                     self2->type.str_val = Str_new("self");
                     Expr *get_acc1 = expr_new(NODE_FIELD_ACCESS, line, col, path);
@@ -783,11 +781,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
                 ename_id->type.str_val = ename;
                 Expr *ctor_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                ctor_acc->type.str_val = *(Str **)Vec_get(&variant_names, j);
+                ctor_acc->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                 expr_add_child(ctor_acc, ename_id);
 
                 Expr *ctor_expr;
-                if (*(Str **)Vec_get(&variant_types, j)) {
+                if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
                     // Payload variant: E.V(self.get_V())
                     Expr *ctor_call = expr_new(NODE_FCALL, line, col, path);
                     expr_add_child(ctor_call, ctor_acc);
@@ -795,7 +793,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     self_g->type.str_val = Str_new("self");
                     char get_buf[256];
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
-                             (*(Str **)Vec_get(&variant_names, j))->c_str);
+                             (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                     Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     get_acc->type.str_val = Str_new(get_buf);
                     expr_add_child(get_acc, self_g);
@@ -819,7 +817,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         self_id->type.str_val = Str_new("self");
                         char is_buf[256];
                         snprintf(is_buf, sizeof(is_buf), "is_%s",
-                                 (*(Str **)Vec_get(&variant_names, j))->c_str);
+                                 (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                         is_acc->type.str_val = Str_new(is_buf);
                         expr_add_child(is_acc, self_id);
@@ -836,7 +834,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr *en2 = expr_new(NODE_IDENT, line, col, path);
                         en2->type.str_val = ename;
                         Expr *va2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        va2->type.str_val = *(Str **)Vec_get(&variant_names, j);
+                        va2->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                         expr_add_child(va2, en2);
 
                         cond = expr_new(NODE_FCALL, line, col, path);
@@ -939,7 +937,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *self_id = expr_new(NODE_IDENT, line, col, path);
                     self_id->type.str_val = Str_new("self");
                     char is_buf[256];
-                    snprintf(is_buf, sizeof(is_buf), "is_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
+                    snprintf(is_buf, sizeof(is_buf), "is_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                     Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                     is_acc->type.str_val = Str_new(is_buf);
                     expr_add_child(is_acc, self_id);
@@ -947,7 +945,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     expr_add_child(is_call, is_acc);
 
                     Expr *then_body = expr_new(NODE_BODY, line, col, path);
-                    if (*(Str **)Vec_get(&variant_types, j)) {
+                    if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
                         // return format("Variant(", self.get_Variant().to_str(), ")")
                         Expr *fmt_call = expr_new(NODE_FCALL, line, col, path);
                         Expr *fmt_id = expr_new(NODE_IDENT, line, col, path);
@@ -955,7 +953,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         expr_add_child(fmt_call, fmt_id);
 
                         char prefix_buf[256];
-                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", (*(Str **)Vec_get(&variant_names, j))->c_str);
+                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *prefix = expr_new(NODE_LITERAL_STR, line, col, path);
                         prefix->type.str_val = Str_new(prefix_buf);
                         expr_add_child(fmt_call, prefix);
@@ -964,7 +962,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr *self2 = expr_new(NODE_IDENT, line, col, path);
                         self2->type.str_val = Str_new("self");
                         char get_buf[256];
-                        snprintf(get_buf, sizeof(get_buf), "get_%s", (*(Str **)Vec_get(&variant_names, j))->c_str);
+                        snprintf(get_buf, sizeof(get_buf), "get_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
                         get_acc->type.str_val = Str_new(get_buf);
                         expr_add_child(get_acc, self2);
@@ -987,7 +985,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     } else {
                         // return "VariantName"
                         Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
-                        ret_str->type.str_val = *(Str **)Vec_get(&variant_names, j);
+                        ret_str->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                         Expr *ret = expr_new(NODE_RETURN, line, col, path);
                         expr_add_child(ret, ret_str);
                         expr_add_child(then_body, ret);
@@ -1009,7 +1007,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
                     ename_id->type.str_val = ename;
                     Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    var_acc->type.str_val = *(Str **)Vec_get(&variant_names, j);
+                    var_acc->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                     expr_add_child(var_acc, ename_id);
 
                     Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
@@ -1017,7 +1015,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     expr_add_child(eq_call, var_acc);
 
                     Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
-                    ret_str->type.str_val = *(Str **)Vec_get(&variant_names, j);
+                    ret_str->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
                     Expr *ret = expr_new(NODE_RETURN, line, col, path);
                     expr_add_child(ret, ret_str);
                     Expr *then_body = expr_new(NODE_BODY, line, col, path);
@@ -1057,8 +1055,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             expr_add_child(body, decl);
         }
 
-        Vec_delete(&variant_names);
-        Vec_delete(&variant_types);
+        Vec_delete(&variant_names, &(Bool){0});
+        Vec_delete(&variant_types, &(Bool){0});
     }
 
     // Pass 1.9: compute flat struct layout (field offsets and sizes)

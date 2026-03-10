@@ -1,10 +1,24 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 45
+# NEXT_ISSUE: 47
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #46 Optimize Str with with_capacity in concat, join, etc.
+  str.til methods like concat, join, and others build strings by repeated
+  push_byte or append without pre-allocating. This causes excessive
+  reallocations. Use Str.with_capacity to pre-compute the final size and
+  allocate once upfront. Should measurably improve performance since Str
+  operations are on the hot path for the compiler.
+
+** OPEN #45 Zero compiler warnings everywhere
+  After the core.c integration (#39 step 1), there are likely many new
+  compiler warnings (unused variables, sign comparison mismatches,
+  pointer type mismatches, etc.). Goal: compile with -Wall -Wextra and
+  get zero warnings. This improves code quality and catches real bugs
+  that warnings can mask.
 
 ** OPEN #44 Integer literal coercion to non-I64 types
   Integer literals (0, 1, 42, etc.) always default to I64. When assigning
@@ -15,12 +29,40 @@
   error for unsigned types, and out-of-range values should error for
   smaller types (e.g. 256 for U8).
 
-** OPEN #39 Replace ctil with til (bottom-up C elimination)
+** WIP #39 Replace ctil with til (bottom-up C elimination)
   :DEPENDENCIES: #12
   Replace C modules in ctil with their til-compiled equivalents,
   bottom-up. The inverse of #12: where #12 builds til.til top-down
   (FFI into C libs, replace with native til), this works bottom-up
   (replace C modules in ctil one at a time).
+
+*** DONE Step 1: Link ctil against core.c, delete vec.c/map.c/str.c
+   Replaced ctil's handwritten vec.c, map.c, str.c with generated
+   core.c/core.h from core.til. ONE Vec, ONE Map, ONE Set, ONE Str —
+   from core.til.
+
+   What was done:
+   - Deleted src/c/vec.c, vec.h, map.c, map.h, str.c, str.h
+   - Added src/lib/core.c and src/lib/core.h (generated from core.til,
+     with manual edits for scalar method conflicts)
+   - Created src/c/compat.c/h — bridge layer adapting old APIs to new
+     core.c APIs (cvec_new/push, cmap_new/set, cset_new/add, Str helpers)
+   - Updated builder.c: scalar methods emitted as static for pointer-param
+     variants, non-static for shallow-param variants (avoids ext.h conflicts)
+   - Updated all call sites (~10 files, ~200+ changes):
+     Vec_new→cvec_new, Vec_push→cvec_push, Vec_get with U64* wrapper,
+     Vec_delete/Map_delete/Set_delete with Bool* call_free param,
+     Map_get NULL checks→Map_has+Map_get (Map_get now panics on missing),
+     Str_eq/Str_ends_with dereferences (return Bool* now),
+     Str_rfind dereference, Str_substr with U64* params,
+     Map_len/Set_len→.count field access
+   - core.c: 67 non-ext scalar functions made static, CAP_LIT/CAP_VIEW
+     initialized at compile time, U64_to_str body removed (ccore.c provides)
+   - core.h: scalar type function declarations removed
+
+   Performance impact: noticeable regression from deep copies/deletes
+   in compat wrappers (Vec_push/Map_set/Set_add free val after memcpy)
+   and Str not using with_capacity. See #46 for Str optimization.
 
 *** Architecture: core.til as ctil's runtime library
 

@@ -1,8 +1,7 @@
 #ifndef CCORE_H
 #define CCORE_H
 
-#include "aliases.h"
-#include "str.h"
+#include "ext.h"
 
 // --- I64 ---
 
