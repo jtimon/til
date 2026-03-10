@@ -123,7 +123,7 @@ max_val := func(a: I64, b: I64) returns I64 {
     return b
 }
 
-generate_svg := proc(rows: Vec) returns Str {
+generate_svg := proc(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool = true) returns Str {
     mut y_max := 0
     mut i : U64 = 0
     while i.lt(rows.len()) {
@@ -152,20 +152,22 @@ generate_svg := proc(rows: Vec) returns Str {
     svg = svg.concat(svg_line(MARGIN_LEFT, MARGIN_TOP.add(CHART_H), MARGIN_LEFT.add(CHART_W), MARGIN_TOP.add(CHART_H), "#333"))
 
     // Y-axis tick labels
-    mid_val := y_max.div(2)
-    lx := MARGIN_LEFT.sub(5)
-    svg = svg.concat(svg_text(lx, MARGIN_TOP.add(CHART_H).add(4), "end", 11, "#333", "0"))
-    svg = svg.concat(svg_text(lx, y_px(mid_val, y_max).add(4), "end", 11, "#333", mid_val.to_str()))
-    svg = svg.concat(svg_text(lx, MARGIN_TOP.add(4), "end", 11, "#333", y_max.to_str()))
+    if show_y_labels {
+        mid_val := y_max.div(2)
+        lx := MARGIN_LEFT.sub(5)
+        svg = svg.concat(svg_text(lx, MARGIN_TOP.add(CHART_H).add(4), "end", 11, "#333", "0"))
+        svg = svg.concat(svg_text(lx, y_px(mid_val, y_max).add(4), "end", 11, "#333", mid_val.to_str()))
+        svg = svg.concat(svg_text(lx, MARGIN_TOP.add(4), "end", 11, "#333", y_max.to_str()))
 
-    // Y-axis label (rotated)
-    ym := MARGIN_TOP.add(CHART_H.div(2))
-    rot := format("rotate(-90 15 ", ym.to_str(), ")")
-    svg = svg.concat(format("<text x=", qa("15"), " y=", qa(ym.to_str()),
-                            " text-anchor=", qa("middle"), " font-size=", qa("12"),
-                            " fill=", qa("#333"),
-                            " transform=", qa(rot),
-                            ">ms</text>", NL))
+        // Y-axis label (rotated)
+        ym := MARGIN_TOP.add(CHART_H.div(2))
+        rot := format("rotate(-90 15 ", ym.to_str(), ")")
+        svg = svg.concat(format("<text x=", qa("15"), " y=", qa(ym.to_str()),
+                                " text-anchor=", qa("middle"), " font-size=", qa("12"),
+                                " fill=", qa("#333"),
+                                " transform=", qa(rot),
+                                ">ms</text>", NL))
+    }
 
     // Data polylines
     if rows.len().gt(U64.from_i64(0)) {
@@ -185,14 +187,16 @@ generate_svg := proc(rows: Vec) returns Str {
         }
 
         // X-axis commit labels
-        i = U64.from_i64(0)
-        while i.lt(rows.len()) {
-            ref row : Row = rows.get(i)
-            x := x_px(i.to_i64(), rows.len().to_i64())
-            mut label := row.commit
-            if label.len().gt(U64.from_i64(7)) { label = label.substr(U64.from_i64(0), U64.from_i64(7)) }
-            svg = svg.concat(svg_text(x, MARGIN_TOP.add(CHART_H).add(15), "middle", 10, "#666", label))
-            i = i.add(U64.from_i64(1))
+        if show_x_labels {
+            i = U64.from_i64(0)
+            while i.lt(rows.len()) {
+                ref row : Row = rows.get(i)
+                x := x_px(i.to_i64(), rows.len().to_i64())
+                mut label := row.commit
+                if label.len().gt(U64.from_i64(7)) { label = label.substr(U64.from_i64(0), U64.from_i64(7)) }
+                svg = svg.concat(svg_text(x, MARGIN_TOP.add(CHART_H).add(15), "middle", 10, "#666", label))
+                i = i.add(U64.from_i64(1))
+            }
         }
     }
 
@@ -211,7 +215,7 @@ generate_svg := proc(rows: Vec) returns Str {
 }
 
 // Generate SVG chart from CSV file. last_n = 0 means all points.
-plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64) {
+plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: Bool = true, show_y_labels: Bool = true) {
     content := readfile(csv_path)
     all_rows := parse_csv(content)
 
@@ -227,7 +231,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64) {
         rows = all_rows
     }
 
-    svg := generate_svg(rows)
+    svg := generate_svg(rows, show_x_labels, show_y_labels)
     writefile(svg_path, svg)
 }
 

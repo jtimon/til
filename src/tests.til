@@ -554,7 +554,7 @@ main := proc(args: ..Str) {
     writefile(totals_path, totals_content)
 
     // Generate chart
-    plot_csv("doc/totals.csv", "img/totals.svg", 20)
+    plot_csv("doc/totals.csv", "img/totals.svg", last_n=20, show_x_labels=false)
     println("Updated doc/totals.csv and img/totals.svg")
 
     exit(fail)
