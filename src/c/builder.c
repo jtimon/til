@@ -483,16 +483,33 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             fprintf(f, "%s->%s = *%s; free(%s);\n", var, fname, tmp, tmp);
         } else if (arg->type.tag == NODE_FCALL) {
             // Unhoisted fcall for inline compound field: deref + free wrapper
-            const char *ftype = c_type_name(arg->til_type, arg->struct_name);
-            fprintf(f, "{ %s *_ca = ", ftype);
-            emit_expr(f, arg, depth);
-            fprintf(f, "; %s->%s = *_ca; free(_ca); }\n", var, fname);
+            if (fcall_is_shallow_return(arg)) {
+                fprintf(f, "%s->%s = ", var, fname);
+                emit_expr(f, arg, depth);
+                fprintf(f, ";\n");
+            } else {
+                const char *ftype = c_type_name(arg->til_type, arg->struct_name);
+                fprintf(f, "{ %s *_ca = ", ftype);
+                emit_expr(f, arg, depth);
+                fprintf(f, "; %s->%s = *_ca; free(_ca); }\n", var, fname);
+            }
         } else if (arg->til_type == TIL_TYPE_STRUCT || arg->til_type == TIL_TYPE_ENUM) {
             // Inline compound field: clone to avoid shallow copy
             const char *ftype = c_type_name(arg->til_type, arg->struct_name);
-            fprintf(f, "{ %s *_ca = %s_clone(", ftype, arg->struct_name->c_str);
-            emit_as_ptr(f, arg, depth);
-            fprintf(f, "); %s->%s = *_ca; free(_ca); }\n", var, fname);
+            char clone_name[256];
+            snprintf(clone_name, sizeof(clone_name), "%s_clone", arg->struct_name->c_str);
+            Str *cn = Str_new(clone_name);
+            Bool shallow_clone = callee_returns_shallow(cn);
+            Str_delete(cn, &(Bool){1});
+            if (shallow_clone) {
+                fprintf(f, "%s->%s = %s_clone(", var, fname, arg->struct_name->c_str);
+                emit_as_ptr(f, arg, depth);
+                fprintf(f, ");\n");
+            } else {
+                fprintf(f, "{ %s *_ca = %s_clone(", ftype, arg->struct_name->c_str);
+                emit_as_ptr(f, arg, depth);
+                fprintf(f, "); %s->%s = *_ca; free(_ca); }\n", var, fname);
+            }
         } else {
             fprintf(f, "%s->%s = ", var, fname);
             emit_deref(f, arg, depth);
@@ -1382,12 +1399,23 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Forward declarations for dyn_has_method dispatch functions
     {
+        // Find dyn_has_method to check return_is_shallow
+        Bool dyn_has_shallow = 0;
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
+                Str_eq_c(stmt->type.decl.name, "dyn_has_method")) {
+                dyn_has_shallow = expr_child(stmt, 0)->type.func_def.return_is_shallow;
+                break;
+            }
+        }
+        const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
         { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method = Vec_get(&has_methods, &(U64){(U64)(m)});
-            fprintf(f, "Bool *dyn_has_%s(Str *type_name);\n", (*method)->c_str);
+            fprintf(f, "%s dyn_has_%s(Str *type_name);\n", dyn_has_ret, (*method)->c_str);
         }
         if (has_methods.count) fprintf(f, "\n");
         Vec_delete(&has_methods, &(Bool){0});
@@ -1577,13 +1605,24 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Emit dyn_has_method dispatch function bodies
     {
+        // Find dyn_has_method to check return_is_shallow
+        Bool dyn_has_shallow = 0;
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
+                Str_eq_c(stmt->type.decl.name, "dyn_has_method")) {
+                dyn_has_shallow = expr_child(stmt, 0)->type.func_def.return_is_shallow;
+                break;
+            }
+        }
+        const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
         { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method_ptr = Vec_get(&has_methods, &(U64){(U64)(m)});
             Str *method = *method_ptr;
-            fprintf(f, "Bool *dyn_has_%s(Str *type_name) {\n    (void)type_name;\n", method->c_str);
+            fprintf(f, "%s dyn_has_%s(Str *type_name) {\n    (void)type_name;\n", dyn_has_ret, method->c_str);
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = expr_child(program, i);
                 if (stmt->type.tag != NODE_DECL) continue;
@@ -1601,10 +1640,17 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                     }
                 }
                 if (!found) continue;
-                fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n",
-                        (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count);
+                if (dyn_has_shallow)
+                    fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return 1;\n",
+                            (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count);
+                else
+                    fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n",
+                            (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count);
             }
-            fprintf(f, "    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n");
+            if (dyn_has_shallow)
+                fprintf(f, "    return 0;\n");
+            else
+                fprintf(f, "    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n");
             fprintf(f, "}\n\n");
         }
         Vec_delete(&has_methods, &(Bool){0});
@@ -1628,7 +1674,18 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 fprintf(f, "    U64_delete(_esz, &(Bool){1});\n");
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
-                fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
+                {
+                    char clone_name[256];
+                    snprintf(clone_name, sizeof(clone_name), "%s_clone", et);
+                    Str *cn = Str_new(clone_name);
+                    Bool shallow = callee_returns_shallow(cn);
+                    Str_delete(cn, &(Bool){1});
+                    if (shallow) {
+                        fprintf(f, "        %s *_val = malloc(sizeof(%s)); *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et, et);
+                    } else {
+                        fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
+                    }
+                }
                 fprintf(f, "        Vec_push(_v, _val);\n");
                 fprintf(f, "    }\n");
                 fprintf(f, "    va_end(ap);\n");
@@ -1646,7 +1703,18 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
                 fprintf(f, "        U64 *_idx = malloc(sizeof(U64)); *_idx = _i;\n");
-                fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
+                {
+                    char clone_name[256];
+                    snprintf(clone_name, sizeof(clone_name), "%s_clone", et);
+                    Str *cn = Str_new(clone_name);
+                    Bool shallow = callee_returns_shallow(cn);
+                    Str_delete(cn, &(Bool){1});
+                    if (shallow) {
+                        fprintf(f, "        %s *_val = malloc(sizeof(%s)); *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et, et);
+                    } else {
+                        fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
+                    }
+                }
                 fprintf(f, "        Array_set(_a, _idx, _val);\n");
                 fprintf(f, "        U64_delete(_idx, &(Bool){1});\n");
                 fprintf(f, "    }\n");

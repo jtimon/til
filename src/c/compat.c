@@ -111,34 +111,34 @@ I64 *spawn_cmd(Str *cmd) {
     return new_i64((I64)pid);
 }
 
-I64 *check_cmd_status(I64 pid) {
+I64 check_cmd_status(I64 pid) {
     I32 status;
     pid_t result = waitpid((pid_t)pid, &status, WNOHANG);
-    if (result == 0) return new_i64(-1);
-    if (WIFEXITED(status)) return new_i64(WEXITSTATUS(status));
-    return new_i64(-1);
+    if (result == 0) return -1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    return -1;
 }
 
 void sleep_ms(I64 ms) {
     usleep((useconds_t)(ms * 1000));
 }
 
-I64 *file_mtime(Str *path) {
+I64 file_mtime(Str *path) {
     char *p = strndup((char *)path->c_str, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
-    if (rc != 0) return new_i64(-1);
-    return new_i64((I64)st.st_mtime);
+    if (rc != 0) return -1;
+    return (I64)st.st_mtime;
 }
 
-I64 *clock_ms(void) {
+I64 clock_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return new_i64((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
+    return (I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000;
 }
 
-I64 *get_thread_count(void) {
+I64 get_thread_count(void) {
     long count = sysconf(_SC_NPROCESSORS_ONLN);
-    return new_i64(count > 0 ? (I64)count : 1);
+    return count > 0 ? (I64)count : 1;
 }

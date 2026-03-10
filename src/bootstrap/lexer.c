@@ -382,7 +382,7 @@ void dyn_call_delete(Str *type_name, void *val, void *arg2);
 void *dyn_call_clone(Str *type_name, void *val);
 void *dyn_call_cmp(Str *type_name, void *val, void *arg2);
 
-Bool *dyn_has_cmp(Str *type_name);
+Bool dyn_has_cmp(Str *type_name);
 
 typedef struct StructDef {
     char _;
@@ -647,7 +647,7 @@ static __attribute__((unused)) I16 * I16_from_i64(I64 * val) {
     }
     Bool_delete(_t44, &(Bool){1});
     /* TODO: nested func I16_from_i64_ext */
-    I16 *_t45 = I16_from_i64_ext(val);
+    I16 *_t45 = malloc(sizeof(I16)); *_t45 = I16_from_i64_ext(val);
     return _t45;
 }
 
@@ -683,7 +683,7 @@ static __attribute__((unused)) I16 * I16_abs(I16 * a) {
         return _t53;
     }
     Bool_delete(_t56, &(Bool){1});
-    I16 *_t57 = I16_clone(a);
+    I16 *_t57 = malloc(sizeof(I16)); *_t57 = I16_clone(a);
     return _t57;
 }
 
@@ -781,7 +781,7 @@ static __attribute__((unused)) I32 * I32_from_i64(I64 * val) {
     }
     Bool_delete(_t86, &(Bool){1});
     /* TODO: nested func I32_from_i64_ext */
-    I32 *_t87 = I32_from_i64_ext(val);
+    I32 *_t87 = malloc(sizeof(I32)); *_t87 = I32_from_i64_ext(val);
     return _t87;
 }
 
@@ -817,7 +817,7 @@ static __attribute__((unused)) I32 * I32_abs(I32 * a) {
         return _t95;
     }
     Bool_delete(_t98, &(Bool){1});
-    I32 *_t99 = I32_clone(a);
+    I32 *_t99 = malloc(sizeof(I32)); *_t99 = I32_clone(a);
     return _t99;
 }
 
@@ -875,7 +875,7 @@ static __attribute__((unused)) Bool * I32_gte(I32 * a, I32 * b) {
 
 static __attribute__((unused)) F32 * F32_from_i64(I64 * val) {
     /* TODO: nested func F32_from_i64_ext */
-    F32 *_t115 = F32_from_i64_ext(val);
+    F32 *_t115 = malloc(sizeof(F32)); *_t115 = F32_from_i64_ext(val);
     return _t115;
 }
 
@@ -971,7 +971,7 @@ static __attribute__((unused)) U32 * U32_from_i64(I64 * val) {
     }
     Bool_delete(_t143, &(Bool){1});
     /* TODO: nested func U32_from_i64_ext */
-    U32 *_t144 = U32_from_i64_ext(val);
+    U32 *_t144 = malloc(sizeof(U32)); *_t144 = U32_from_i64_ext(val);
     return _t144;
 }
 
@@ -1035,7 +1035,7 @@ Str * U64_to_str(U64 val) {
 
 static __attribute__((unused)) U64 * U64_from_i64(I64 * val) {
     /* TODO: nested func U64_from_i64_ext */
-    U64 *_t161 = U64_from_i64_ext(val);
+    U64 *_t161 = malloc(sizeof(U64)); *_t161 = U64_from_i64_ext(val);
     return _t161;
 }
 
@@ -1139,7 +1139,7 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
     Bool_delete(_t217, &(Bool){1});
     Bool *is_neg = malloc(sizeof(Bool));
     *is_neg = 0;
-    I64 *v = I64_clone(val);
+    I64 *v = malloc(sizeof(I64)); *v = I64_clone(val);
     I64 *_t218 = malloc(sizeof(I64));
     *_t218 = 0;
     Bool *_t219 = I64_lt(val, _t218);
@@ -1159,7 +1159,7 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
     Bool_delete(_t219, &(Bool){1});
     U64 *ndigits = malloc(sizeof(U64));
     *ndigits = 0;
-    I64 *tmp = I64_clone(v);
+    I64 *tmp = malloc(sizeof(I64)); *tmp = I64_clone(v);
     while (1) {
         I64 *_t193 = malloc(sizeof(I64));
         *_t193 = 0;
@@ -1185,7 +1185,7 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
         I64_delete(_t197, &(Bool){1});
     }
     I64_delete(tmp, &(Bool){1});
-    U64 *total = U64_clone(ndigits);
+    U64 *total = malloc(sizeof(U64)); *total = U64_clone(ndigits);
     U64_delete(ndigits, &(Bool){1});
     if (DEREF(is_neg)) {
         U64 *_t198 = malloc(sizeof(U64));
@@ -1270,8 +1270,8 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
     memcpy(_t224, _t225, DEREF(_t226));
     U8_delete(_t225, &(Bool){1});
     U64_delete(_t226, &(Bool){1});
-    U64 *_t227 = U64_clone(total);
-    U64 *_t228 = U64_clone(total);
+    U64 *_t227 = malloc(sizeof(U64)); *_t227 = U64_clone(total);
+    U64 *_t228 = malloc(sizeof(U64)); *_t228 = U64_clone(total);
     U64_delete(total, &(Bool){1});
     Str *_t229 = malloc(sizeof(Str));
     _t229->c_str = buf;
@@ -1304,7 +1304,7 @@ static __attribute__((unused)) I64 * I64_abs(I64 * a) {
         return _t233;
     }
     Bool_delete(_t235, &(Bool){1});
-    I64 *_t236 = I64_clone(a);
+    I64 *_t236 = malloc(sizeof(I64)); *_t236 = I64_clone(a);
     return _t236;
 }
 
@@ -1361,8 +1361,8 @@ static __attribute__((unused)) Bool * I64_gte(I64 * a, I64 * b) {
 }
 
 Range * Range_new(U64 start, U64 end) {
-    U64 *_t252 = U64_clone(&(U64){start});
-    U64 *_t253 = U64_clone(&(U64){end});
+    U64 *_t252 = malloc(sizeof(U64)); *_t252 = U64_clone(&(U64){start});
+    U64 *_t253 = malloc(sizeof(U64)); *_t253 = U64_clone(&(U64){end});
     Range *_t254 = malloc(sizeof(Range));
     _t254->start = DEREF(_t252);
     _t254->end = DEREF(_t253);
@@ -1628,8 +1628,8 @@ Str * format(Array * parts) {
     }
     U64_delete(offset, &(Bool){1});
     Array_delete(parts, &(Bool){1});
-    U64 *_t312 = U64_clone(total);
-    U64 *_t313 = U64_clone(total);
+    U64 *_t312 = malloc(sizeof(U64)); *_t312 = U64_clone(total);
+    U64 *_t313 = malloc(sizeof(U64)); *_t313 = U64_clone(total);
     U64_delete(total, &(Bool){1});
     Str *_t314 = malloc(sizeof(Str));
     _t314->c_str = buf;
@@ -1642,7 +1642,7 @@ Str * format(Array * parts) {
 
 I64 * wait_cmd(I64 * pid) {
     while (1) {
-        I64 *status = check_cmd_status(DEREF(pid));
+        I64 *status = malloc(sizeof(I64)); *status = check_cmd_status(DEREF(pid));
         I64 *_t315 = malloc(sizeof(I64));
         *_t315 = 0;
         I64 *_t316 = malloc(sizeof(I64));
@@ -1936,8 +1936,8 @@ void assert_eq_str(Str * loc_str, Str * a, Str * b) {
 
 Array * Array_new(Str * elem_type, U64 * elem_size, U64 * cap) {
     void *_t402 = calloc(DEREF(cap), DEREF(elem_size));
-    U64 *_t403 = U64_clone(cap);
-    U64 *_t404 = U64_clone(elem_size);
+    U64 *_t403 = malloc(sizeof(U64)); *_t403 = U64_clone(cap);
+    U64 *_t404 = malloc(sizeof(U64)); *_t404 = U64_clone(elem_size);
     Array *_t405 = malloc(sizeof(Array));
     _t405->data = _t402;
     _t405->cap = DEREF(_t403);
@@ -2177,7 +2177,7 @@ Map * Map_new(Str * key_type, U64 * key_size, Str * val_type, U64 * val_size) {
     Bool *_t485 = malloc(sizeof(Bool)); *_t485 = Bool_not(DEREF(_t484));
     Bool_delete(_t484, &(Bool){1});
     if (DEREF(_t485)) {
-        Bool *_t482 = dyn_has_cmp(key_type);
+        Bool *_t482 = malloc(sizeof(Bool)); *_t482 = dyn_has_cmp(key_type);
         Bool *_t483 = malloc(sizeof(Bool)); *_t483 = Bool_not(DEREF(_t482));
         Bool_delete(_t482, &(Bool){1});
         if (DEREF(_t483)) {
@@ -2217,8 +2217,8 @@ Map * Map_new(Str * key_type, U64 * key_size, Str * val_type, U64 * val_size) {
     *_t488 = 0;
     I64 *_t489 = malloc(sizeof(I64));
     *_t489 = 1;
-    U64 *_t490 = U64_clone(key_size);
-    U64 *_t491 = U64_clone(val_size);
+    U64 *_t490 = malloc(sizeof(U64)); *_t490 = U64_clone(key_size);
+    U64 *_t491 = malloc(sizeof(U64)); *_t491 = U64_clone(val_size);
     Map *_t492 = malloc(sizeof(Map));
     _t492->key_data = _t486;
     _t492->val_data = _t487;
@@ -2283,7 +2283,7 @@ Bool * Map_has(Map * self, void * key) {
             Bool *_t499 = I64_gt(c, _t498);
             I64_delete(_t498, &(Bool){1});
             if (DEREF(_t499)) {
-                U64 *_t496 = U64_clone(mid);
+                U64 *_t496 = malloc(sizeof(U64)); *_t496 = U64_clone(mid);
                 *hi = DEREF(_t496);
                 U64_delete(_t496, &(Bool){1});
             } else {
@@ -2353,7 +2353,7 @@ void * Map_get(Map * self, void * key) {
             Bool *_t515 = I64_gt(c, _t514);
             I64_delete(_t514, &(Bool){1});
             if (DEREF(_t515)) {
-                U64 *_t511 = U64_clone(mid);
+                U64 *_t511 = malloc(sizeof(U64)); *_t511 = U64_clone(mid);
                 *hi = DEREF(_t511);
                 U64_delete(_t511, &(Bool){1});
             } else {
@@ -2444,7 +2444,7 @@ void Map_set(Map * self, void * key, void * val) {
             Bool *_t539 = I64_gt(c, _t538);
             I64_delete(_t538, &(Bool){1});
             if (DEREF(_t539)) {
-                U64 *_t534 = U64_clone(mid);
+                U64 *_t534 = malloc(sizeof(U64)); *_t534 = U64_clone(mid);
                 *hi = DEREF(_t534);
                 U64_delete(_t534, &(Bool){1});
             } else {
@@ -2452,10 +2452,10 @@ void Map_set(Map * self, void * key, void * val) {
                 *_t535 = 1;
                 *found = DEREF(_t535);
                 Bool_delete(_t535, &(Bool){1});
-                U64 *_t536 = U64_clone(mid);
+                U64 *_t536 = malloc(sizeof(U64)); *_t536 = U64_clone(mid);
                 *lo = DEREF(_t536);
                 U64_delete(_t536, &(Bool){1});
-                U64 *_t537 = U64_clone(mid);
+                U64 *_t537 = malloc(sizeof(U64)); *_t537 = U64_clone(mid);
                 *hi = DEREF(_t537);
                 U64_delete(_t537, &(Bool){1});
             }
@@ -2511,7 +2511,7 @@ void Map_set(Map * self, void * key, void * val) {
             void *_t561 = realloc(self->val_data, DEREF(_t560));
             U64_delete(_t560, &(Bool){1});
             self->val_data = _t561;
-            U64 *_t562 = U64_clone(new_cap);
+            U64 *_t562 = malloc(sizeof(U64)); *_t562 = U64_clone(new_cap);
             U64_delete(new_cap, &(Bool){1});
             self->cap = DEREF(_t562);
             U64_delete(_t562, &(Bool){1});
@@ -2776,7 +2776,7 @@ Set * Set_new(Str * elem_type, U64 * elem_size) {
     Bool *_t654 = malloc(sizeof(Bool)); *_t654 = Bool_not(DEREF(_t653));
     Bool_delete(_t653, &(Bool){1});
     if (DEREF(_t654)) {
-        Bool *_t651 = dyn_has_cmp(elem_type);
+        Bool *_t651 = malloc(sizeof(Bool)); *_t651 = dyn_has_cmp(elem_type);
         Bool *_t652 = malloc(sizeof(Bool)); *_t652 = Bool_not(DEREF(_t651));
         Bool_delete(_t651, &(Bool){1});
         if (DEREF(_t652)) {
@@ -2815,7 +2815,7 @@ Set * Set_new(Str * elem_type, U64 * elem_size) {
     *_t656 = 0;
     I64 *_t657 = malloc(sizeof(I64));
     *_t657 = 1;
-    U64 *_t658 = U64_clone(elem_size);
+    U64 *_t658 = malloc(sizeof(U64)); *_t658 = U64_clone(elem_size);
     Set *_t659 = malloc(sizeof(Set));
     _t659->data = _t655;
     _t659->count = DEREF(_t656);
@@ -2876,7 +2876,7 @@ Bool * Set_has(Set * self, void * val) {
             Bool *_t666 = I64_gt(c, _t665);
             I64_delete(_t665, &(Bool){1});
             if (DEREF(_t666)) {
-                U64 *_t663 = U64_clone(mid);
+                U64 *_t663 = malloc(sizeof(U64)); *_t663 = U64_clone(mid);
                 *hi = DEREF(_t663);
                 U64_delete(_t663, &(Bool){1});
             } else {
@@ -2948,7 +2948,7 @@ void Set_add(Set * self, void * val) {
             Bool *_t683 = I64_gt(c, _t682);
             I64_delete(_t682, &(Bool){1});
             if (DEREF(_t683)) {
-                U64 *_t678 = U64_clone(mid);
+                U64 *_t678 = malloc(sizeof(U64)); *_t678 = U64_clone(mid);
                 *hi = DEREF(_t678);
                 U64_delete(_t678, &(Bool){1});
             } else {
@@ -2956,10 +2956,10 @@ void Set_add(Set * self, void * val) {
                 *_t679 = 1;
                 *found = DEREF(_t679);
                 Bool_delete(_t679, &(Bool){1});
-                U64 *_t680 = U64_clone(mid);
+                U64 *_t680 = malloc(sizeof(U64)); *_t680 = U64_clone(mid);
                 *lo = DEREF(_t680);
                 U64_delete(_t680, &(Bool){1});
-                U64 *_t681 = U64_clone(mid);
+                U64 *_t681 = malloc(sizeof(U64)); *_t681 = U64_clone(mid);
                 *hi = DEREF(_t681);
                 U64_delete(_t681, &(Bool){1});
             }
@@ -2993,7 +2993,7 @@ void Set_add(Set * self, void * val) {
             void *_t696 = realloc(self->data, DEREF(_t695));
             U64_delete(_t695, &(Bool){1});
             self->data = _t696;
-            U64 *_t697 = U64_clone(new_cap);
+            U64 *_t697 = malloc(sizeof(U64)); *_t697 = U64_clone(new_cap);
             U64_delete(new_cap, &(Bool){1});
             self->cap = DEREF(_t697);
             U64_delete(_t697, &(Bool){1});
@@ -3257,8 +3257,8 @@ Str * Str_concat(Str * a, Str * b) {
     memcpy(_t763, _t764, DEREF(_t765));
     U8_delete(_t764, &(Bool){1});
     U64_delete(_t765, &(Bool){1});
-    U64 *_t766 = U64_clone(new_len);
-    U64 *_t767 = U64_clone(new_len);
+    U64 *_t766 = malloc(sizeof(U64)); *_t766 = U64_clone(new_len);
+    U64 *_t767 = malloc(sizeof(U64)); *_t767 = U64_clone(new_len);
     U64_delete(new_len, &(Bool){1});
     Str *_t768 = malloc(sizeof(Str));
     _t768->c_str = new_data;
@@ -3287,7 +3287,7 @@ Str * Str_with_capacity(U64 * n) {
     U64_delete(_t773, &(Bool){1});
     I64 *_t774 = malloc(sizeof(I64));
     *_t774 = 0;
-    U64 *_t775 = U64_clone(n);
+    U64 *_t775 = malloc(sizeof(U64)); *_t775 = U64_clone(n);
     Str *_t776 = malloc(sizeof(Str));
     _t776->c_str = buf;
     _t776->count = DEREF(_t774);
@@ -3342,7 +3342,7 @@ void Str_push_str(Str * self, Str * s) {
     Bool_delete(_t790, &(Bool){1});
     void *_t791 = ptr_add(self->c_str, self->count);
     memcpy(_t791, s->c_str, s->count);
-    U64 *_t792 = U64_clone(new_len);
+    U64 *_t792 = malloc(sizeof(U64)); *_t792 = U64_clone(new_len);
     self->count = DEREF(_t792);
     U64_delete(_t792, &(Bool){1});
     I64 *_t793 = malloc(sizeof(I64));
@@ -3401,8 +3401,8 @@ Str * Str_to_str(Str * val) {
 }
 
 Str * Str_substr(Str * s, U64 * start, U64 * n) {
-    U64 *st = U64_clone(start);
-    U64 *ln = U64_clone(n);
+    U64 *st = malloc(sizeof(U64)); *st = U64_clone(start);
+    U64 *ln = malloc(sizeof(U64)); *ln = U64_clone(n);
     Bool *_t807 = U64_gt(st, &s->count);
     if (DEREF(_t807)) {
         *st = s->count;
@@ -3418,9 +3418,9 @@ Str * Str_substr(Str * s, U64 * start, U64 * n) {
     }
     Bool_delete(_t809, &(Bool){1});
     void *_t810 = ptr_add(s->c_str, DEREF(st));
-    U64 *_t811 = U64_clone(ln);
+    U64 *_t811 = malloc(sizeof(U64)); *_t811 = U64_clone(ln);
     U64_delete(ln, &(Bool){1});
-    U64 *_t812 = U64_clone(CAP_VIEW);
+    U64 *_t812 = malloc(sizeof(U64)); *_t812 = U64_clone(CAP_VIEW);
     Str *_t813 = malloc(sizeof(Str));
     _t813->c_str = _t810;
     _t813->count = DEREF(_t811);
@@ -4195,7 +4195,7 @@ Vec * Vec_new(Str * elem_type, U64 * elem_size) {
     *_t1000 = 0;
     I64 *_t1001 = malloc(sizeof(I64));
     *_t1001 = 1;
-    U64 *_t1002 = U64_clone(elem_size);
+    U64 *_t1002 = malloc(sizeof(U64)); *_t1002 = U64_clone(elem_size);
     Vec *_t1003 = malloc(sizeof(Vec));
     _t1003->data = _t999;
     _t1003->count = DEREF(_t1000);
@@ -4225,7 +4225,7 @@ void Vec_push(Vec * self, void * val) {
         void *_t1006 = realloc(self->data, DEREF(_t1005));
         U64_delete(_t1005, &(Bool){1});
         self->data = _t1006;
-        U64 *_t1007 = U64_clone(new_cap);
+        U64 *_t1007 = malloc(sizeof(U64)); *_t1007 = U64_clone(new_cap);
         U64_delete(new_cap, &(Bool){1});
         self->cap = DEREF(_t1007);
         U64_delete(_t1007, &(Bool){1});
@@ -4474,7 +4474,7 @@ Vec * split(Str * s, Str * delim) {
             U64_delete(_t1068, &(Bool){1});
             *start = DEREF(_t1069);
             U64_delete(_t1069, &(Bool){1});
-            U64 *_t1070 = U64_clone(start);
+            U64 *_t1070 = malloc(sizeof(U64)); *_t1070 = U64_clone(start);
             *pos = DEREF(_t1070);
             U64_delete(_t1070, &(Bool){1});
         } else {
@@ -6465,8 +6465,8 @@ U64 *TokenType_size(void) {
 
 Token * Token_clone(Token * self) {
     (void)self;
-    I64 *_t1415 = I64_clone(&self->line);
-    I64 *_t1416 = I64_clone(&self->col);
+    I64 *_t1415 = malloc(sizeof(I64)); *_t1415 = I64_clone(&self->line);
+    I64 *_t1416 = malloc(sizeof(I64)); *_t1416 = I64_clone(&self->col);
     Token *_t1417 = malloc(sizeof(Token));
     { TokenType *_ca = TokenType_clone(&self->type); _t1417->type = *_ca; free(_ca); }
     { Str *_ca = Str_clone(&self->text); _t1417->text = *_ca; free(_ca); }
@@ -10134,7 +10134,7 @@ Vec * tokenize(Str * source, Str * path) {
             I64_delete(_t1645, &(Bool){1});
             *line = DEREF(_t1646);
             I64_delete(_t1646, &(Bool){1});
-            U64 *_t1647 = U64_clone(pos);
+            U64 *_t1647 = malloc(sizeof(U64)); *_t1647 = U64_clone(pos);
             *line_start = DEREF(_t1647);
             U64_delete(_t1647, &(Bool){1});
             Bool_delete(_t1952, &(Bool){1});
@@ -10149,7 +10149,7 @@ Vec * tokenize(Str * source, Str * path) {
         U64_delete(_t1954, &(Bool){1});
         I64 *col = malloc(sizeof(I64)); *col = U64_to_i64(DEREF(_t1955));
         U64_delete(_t1955, &(Bool){1});
-        U64 *start = U64_clone(pos);
+        U64 *start = malloc(sizeof(U64)); *start = U64_clone(pos);
         U8 *_t1956 = malloc(sizeof(U8));
         *_t1956 = 35;
         Bool *_t1957 = malloc(sizeof(Bool)); *_t1957 = U8_eq(DEREF(c), DEREF(_t1956));
@@ -10516,11 +10516,11 @@ Vec * tokenize(Str * source, Str * path) {
             }
             Bool_delete(_t1744, &(Bool){1});
             U64 *_t1745 = malloc(sizeof(U64)); *_t1745 = U64_sub(DEREF(pos), DEREF(start));
-            I64 *_t1746 = I64_clone(col);
+            I64 *_t1746 = malloc(sizeof(I64)); *_t1746 = I64_clone(col);
             Token *_t1747 = malloc(sizeof(Token));
             { TokenType *_ca = TokenType_clone(TokenType_Number()); _t1747->type = *_ca; free(_ca); }
             { Str *_ca = Str_substr(source, start, _t1745); _t1747->text = *_ca; free(_ca); }
-            { I64 *_ca = I64_clone(line); _t1747->line = *_ca; free(_ca); }
+            _t1747->line = I64_clone(line);
             _t1747->col = DEREF(_t1746);
             U64_delete(_t1745, &(Bool){1});
             I64_delete(_t1746, &(Bool){1});
@@ -10561,8 +10561,8 @@ Vec * tokenize(Str * source, Str * path) {
             Str *word = Str_substr(source, start, _t1754);
             U64_delete(_t1754, &(Bool){1});
             TokenType *type = lookup_keyword(word);
-            I64 *_t1755 = I64_clone(line);
-            I64 *_t1756 = I64_clone(col);
+            I64 *_t1755 = malloc(sizeof(I64)); *_t1755 = I64_clone(line);
+            I64 *_t1756 = malloc(sizeof(I64)); *_t1756 = I64_clone(col);
             Token *_t1757 = malloc(sizeof(Token));
             { TokenType *_ca = TokenType_clone(type); _t1757->type = *_ca; free(_ca); }
             { Str *_ca = Str_clone(word); _t1757->text = *_ca; free(_ca); }
@@ -10684,11 +10684,11 @@ Vec * tokenize(Str * source, Str * path) {
                 U64 *_t1786 = malloc(sizeof(U64)); *_t1786 = U64_sub(DEREF(_t1783), DEREF(_t1784));
                 U64_delete(_t1783, &(Bool){1});
                 U64_delete(_t1784, &(Bool){1});
-                I64 *_t1787 = I64_clone(col);
+                I64 *_t1787 = malloc(sizeof(I64)); *_t1787 = I64_clone(col);
                 Token *_t1788 = malloc(sizeof(Token));
                 { TokenType *_ca = TokenType_clone(TokenType_StringTok()); _t1788->type = *_ca; free(_ca); }
                 { Str *_ca = Str_substr(source, _t1785, _t1786); _t1788->text = *_ca; free(_ca); }
-                { I64 *_ca = I64_clone(line); _t1788->line = *_ca; free(_ca); }
+                _t1788->line = I64_clone(line);
                 _t1788->col = DEREF(_t1787);
                 U64_delete(_t1785, &(Bool){1});
                 U64_delete(_t1786, &(Bool){1});
@@ -10735,11 +10735,11 @@ Vec * tokenize(Str * source, Str * path) {
                 U64_delete(_t1802, &(Bool){1});
                 println(_va24);
                 U64 *_t1804 = malloc(sizeof(U64)); *_t1804 = U64_sub(DEREF(pos), DEREF(start));
-                I64 *_t1805 = I64_clone(col);
+                I64 *_t1805 = malloc(sizeof(I64)); *_t1805 = I64_clone(col);
                 Token *_t1806 = malloc(sizeof(Token));
                 { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1806->type = *_ca; free(_ca); }
                 { Str *_ca = Str_substr(source, start, _t1804); _t1806->text = *_ca; free(_ca); }
-                { I64 *_ca = I64_clone(line); _t1806->line = *_ca; free(_ca); }
+                _t1806->line = I64_clone(line);
                 _t1806->col = DEREF(_t1805);
                 U64_delete(_t1804, &(Bool){1});
                 I64_delete(_t1805, &(Bool){1});
@@ -10763,7 +10763,7 @@ Vec * tokenize(Str * source, Str * path) {
             U64_delete(_t1839, &(Bool){1});
             *pos = DEREF(_t1840);
             U64_delete(_t1840, &(Bool){1});
-            U64 *ch_start = U64_clone(pos);
+            U64 *ch_start = malloc(sizeof(U64)); *ch_start = U64_clone(pos);
             U8 *_t1841 = Str_get(source, pos);
             U8 *_t1842 = malloc(sizeof(U8));
             *_t1842 = 92;
@@ -10808,11 +10808,11 @@ Vec * tokenize(Str * source, Str * path) {
             Bool_delete(_t1855, &(Bool){1});
             if (DEREF(_t1856)) {
                 U64 *_t1816 = malloc(sizeof(U64)); *_t1816 = U64_sub(DEREF(pos), DEREF(ch_start));
-                I64 *_t1817 = I64_clone(col);
+                I64 *_t1817 = malloc(sizeof(I64)); *_t1817 = I64_clone(col);
                 Token *_t1818 = malloc(sizeof(Token));
                 { TokenType *_ca = TokenType_clone(TokenType_Char()); _t1818->type = *_ca; free(_ca); }
                 { Str *_ca = Str_substr(source, ch_start, _t1816); _t1818->text = *_ca; free(_ca); }
-                { I64 *_ca = I64_clone(line); _t1818->line = *_ca; free(_ca); }
+                _t1818->line = I64_clone(line);
                 _t1818->col = DEREF(_t1817);
                 U64_delete(_t1816, &(Bool){1});
                 I64_delete(_t1817, &(Bool){1});
@@ -10864,11 +10864,11 @@ Vec * tokenize(Str * source, Str * path) {
                 U64_delete(_t1834, &(Bool){1});
                 println(_va25);
                 U64 *_t1836 = malloc(sizeof(U64)); *_t1836 = U64_sub(DEREF(pos), DEREF(start));
-                I64 *_t1837 = I64_clone(col);
+                I64 *_t1837 = malloc(sizeof(I64)); *_t1837 = I64_clone(col);
                 Token *_t1838 = malloc(sizeof(Token));
                 { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1838->type = *_ca; free(_ca); }
                 { Str *_ca = Str_substr(source, start, _t1836); _t1838->text = *_ca; free(_ca); }
-                { I64 *_ca = I64_clone(line); _t1838->line = *_ca; free(_ca); }
+                _t1838->line = I64_clone(line);
                 _t1838->col = DEREF(_t1837);
                 U64_delete(_t1836, &(Bool){1});
                 I64_delete(_t1837, &(Bool){1});
@@ -10992,8 +10992,8 @@ Vec * tokenize(Str * source, Str * path) {
             if (DEREF(_t1896)) {
                 U64 *_t1857 = malloc(sizeof(U64));
                 *_t1857 = 2;
-                I64 *_t1858 = I64_clone(line);
-                I64 *_t1859 = I64_clone(col);
+                I64 *_t1858 = malloc(sizeof(I64)); *_t1858 = I64_clone(line);
+                I64 *_t1859 = malloc(sizeof(I64)); *_t1859 = I64_clone(col);
                 Token *_t1860 = malloc(sizeof(Token));
                 { TokenType *_ca = TokenType_clone(two); _t1860->type = *_ca; free(_ca); }
                 { Str *_ca = Str_substr(source, start, _t1857); _t1860->text = *_ca; free(_ca); }
@@ -11022,7 +11022,7 @@ Vec * tokenize(Str * source, Str * path) {
         Bool_delete(_t1972, &(Bool){1});
         TokenType *single = TokenType_clone(TokenType_Eof());
         {
-            U8 *_sw1897 = U8_clone(c);
+            U8 *_sw1897 = malloc(sizeof(U8)); *_sw1897 = U8_clone(c);
             U8 *_t1932 = malloc(sizeof(U8));
             *_t1932 = 40;
             Bool *_t1933 = malloc(sizeof(Bool)); *_t1933 = U8_eq(DEREF(_sw1897), DEREF(_t1932));
@@ -11192,8 +11192,8 @@ Vec * tokenize(Str * source, Str * path) {
         if (DEREF(_t1974)) {
             U64 *_t1934 = malloc(sizeof(U64));
             *_t1934 = 1;
-            I64 *_t1935 = I64_clone(line);
-            I64 *_t1936 = I64_clone(col);
+            I64 *_t1935 = malloc(sizeof(I64)); *_t1935 = I64_clone(line);
+            I64 *_t1936 = malloc(sizeof(I64)); *_t1936 = I64_clone(col);
             Token *_t1937 = malloc(sizeof(Token));
             { TokenType *_ca = TokenType_clone(single); _t1937->type = *_ca; free(_ca); }
             { Str *_ca = Str_substr(source, start, _t1934); _t1937->text = *_ca; free(_ca); }
@@ -11258,12 +11258,12 @@ Vec * tokenize(Str * source, Str * path) {
         println(_va26);
         U64 *_t1990 = malloc(sizeof(U64));
         *_t1990 = 1;
-        I64 *_t1991 = I64_clone(col);
+        I64 *_t1991 = malloc(sizeof(I64)); *_t1991 = I64_clone(col);
         I64_delete(col, &(Bool){1});
         Token *_t1992 = malloc(sizeof(Token));
         { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1992->type = *_ca; free(_ca); }
         { Str *_ca = Str_substr(source, start, _t1990); _t1992->text = *_ca; free(_ca); }
-        { I64 *_ca = I64_clone(line); _t1992->line = *_ca; free(_ca); }
+        _t1992->line = I64_clone(line);
         _t1992->col = DEREF(_t1991);
         U64_delete(_t1990, &(Bool){1});
         I64_delete(_t1991, &(Bool){1});
@@ -11287,12 +11287,12 @@ Vec * tokenize(Str * source, Str * path) {
     U64_delete(_t1998, &(Bool){1});
     I64 *col = malloc(sizeof(I64)); *col = U64_to_i64(DEREF(_t1999));
     U64_delete(_t1999, &(Bool){1});
-    I64 *_t2000 = I64_clone(col);
+    I64 *_t2000 = malloc(sizeof(I64)); *_t2000 = I64_clone(col);
     I64_delete(col, &(Bool){1});
     Token *_t2001 = malloc(sizeof(Token));
     { TokenType *_ca = TokenType_clone(TokenType_Eof()); _t2001->type = *_ca; free(_ca); }
     { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t2001->text = *_ca; free(_ca); }
-    { I64 *_ca = I64_clone(line); _t2001->line = *_ca; free(_ca); }
+    _t2001->line = I64_clone(line);
     _t2001->col = DEREF(_t2000);
     I64_delete(_t2000, &(Bool){1});
     I64_delete(line, &(Bool){1});
@@ -11324,15 +11324,15 @@ void dyn_call_delete(Str *type_name, void *val, void *arg2) {
 
 void *dyn_call_clone(Str *type_name, void *val) {
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) return (void *)EnumDef_clone(val);
-    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) return (void *)U8_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return (void *)I16_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) return (void *)I32_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) return (void *)F32_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) return (void *)U32_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) return (void *)U64_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return (void *)I64_clone(val);
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) { U8 *_r = malloc(sizeof(U8)); *_r = U8_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) { I16 *_r = malloc(sizeof(I16)); *_r = I16_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) { I32 *_r = malloc(sizeof(I32)); *_r = I32_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) { F32 *_r = malloc(sizeof(F32)); *_r = F32_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) { U32 *_r = malloc(sizeof(U32)); *_r = U32_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) { U64 *_r = malloc(sizeof(U64)); *_r = U64_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) { I64 *_r = malloc(sizeof(I64)); *_r = I64_clone(val); return _r; }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) return (void *)Range_clone(val);
-    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return (void *)Bool_clone(val);
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) { Bool *_r = malloc(sizeof(Bool)); *_r = Bool_clone(val); return _r; }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) return (void *)Array_clone(val);
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0) return (void *)Map_clone(val);
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0) return (void *)Set_clone(val);
@@ -11358,18 +11358,18 @@ void *dyn_call_cmp(Str *type_name, void *val, void *arg2) {
     exit(1);
 }
 
-Bool *dyn_has_cmp(Str *type_name) {
+Bool dyn_has_cmp(Str *type_name) {
     (void)type_name;
-    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return 1;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return 1;
+    return 0;
 }
 
 __attribute__((constructor))

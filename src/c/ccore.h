@@ -19,7 +19,7 @@ Bool I64_eq(I64 a, I64 b);
 I64 I64_cmp(I64 a, I64 b);
 Str *I64_to_str(I64 v);
 I64 *I64_new(I64 val);
-I64 *I64_clone(I64 *v);
+I64 I64_clone(I64 *v);
 void I64_delete(I64 *v, Bool *call_free);
 
 // --- U8 ---
@@ -40,7 +40,7 @@ Str *U8_to_str(U8 v);
 I64 U8_to_i64(U8 v);
 U8 U8_from_i64(I64 v);
 U8 *U8_new(U8 val);
-U8 *U8_clone(U8 *v);
+U8 U8_clone(U8 *v);
 void U8_delete(U8 *v, Bool *call_free);
 
 // --- I16 ---
@@ -60,7 +60,7 @@ I64 I16_cmp(I16 a, I16 b);
 I64 I16_to_i64(I16 v);
 I16 I16_from_i64(I64 v);
 I16 *I16_new(I16 val);
-I16 *I16_clone(I16 *v);
+I16 I16_clone(I16 *v);
 void I16_delete(I16 *v, Bool *call_free);
 
 // --- I32 ---
@@ -80,7 +80,7 @@ I64 I32_cmp(I32 a, I32 b);
 I64 I32_to_i64(I32 v);
 I32 I32_from_i64(I64 v);
 I32 *I32_new(I32 val);
-I32 *I32_clone(I32 *v);
+I32 I32_clone(I32 *v);
 void I32_delete(I32 *v, Bool *call_free);
 
 // --- F32 ---
@@ -95,7 +95,7 @@ I64 F32_to_i64(F32 v);
 F32 F32_from_i64(I64 v);
 Str *F32_to_str(F32 v);
 F32 *F32_new(F32 val);
-F32 *F32_clone(F32 *v);
+F32 F32_clone(F32 *v);
 void F32_delete(F32 *v, Bool *call_free);
 
 // --- U32 ---
@@ -115,7 +115,7 @@ I64 U32_cmp(U32 a, U32 b);
 I64 U32_to_i64(U32 v);
 U32 U32_from_i64(I64 v);
 U32 *U32_new(U32 val);
-U32 *U32_clone(U32 *v);
+U32 U32_clone(U32 *v);
 void U32_delete(U32 *v, Bool *call_free);
 
 // --- U64 ---
@@ -135,15 +135,15 @@ I64 U64_cmp(U64 a, U64 b);
 I64 U64_to_i64(U64 v);
 U64 U64_from_i64(I64 v);
 U8 U8_from_i64_ext(I64 *a);
-I16 *I16_from_i64_ext(I64 *a);
-I32 *I32_from_i64_ext(I64 *a);
-F32 *F32_from_i64_ext(I64 *a);
-U32 *U32_from_i64_ext(I64 *a);
-U64 *U64_from_i64_ext(I64 *a);
+I16 I16_from_i64_ext(I64 *a);
+I32 I32_from_i64_ext(I64 *a);
+F32 F32_from_i64_ext(I64 *a);
+U32 U32_from_i64_ext(I64 *a);
+U64 U64_from_i64_ext(I64 *a);
 Str *U64_to_str(U64 v);
 Str *U64_to_str_ext(U64 v);
 U64 *U64_new(U64 val);
-U64 *U64_clone(U64 *v);
+U64 U64_clone(U64 *v);
 void U64_delete(U64 *v, Bool *call_free);
 
 // --- Bool ---
@@ -153,7 +153,7 @@ Bool Bool_and(Bool a, Bool b);
 Bool Bool_or(Bool a, Bool b);
 Bool Bool_not(Bool a);
 Bool *Bool_new(Bool val);
-Bool *Bool_clone(Bool *v);
+Bool Bool_clone(Bool *v);
 void Bool_delete(Bool *v, Bool *call_free);
 
 #endif

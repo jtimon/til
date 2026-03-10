@@ -13,12 +13,13 @@ static U8 *new_u8(U8 v) { U8 *r = malloc(sizeof(U8)); *r = v; return r; }
 static I16 *new_i16(I16 v) { I16 *r = malloc(sizeof(I16)); *r = v; return r; }
 static I32 *new_i32(I32 v) { I32 *r = malloc(sizeof(I32)); *r = v; return r; }
 static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
-static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
+
+__attribute__((unused)) static F32 *new_f32(F32 v) { F32 *r = malloc(sizeof(F32)); *r = v; return r; }
 static U64 *new_u64(U64 v) { U64 *r = malloc(sizeof(U64)); *r = v; return r; }
 static Bool *new_bool(Bool v) { Bool *r = malloc(sizeof(Bool)); *r = v; return r; }
 
 // I64 clone/delete
-I64 *I64_clone(I64 *v) { return new_i64(*v); }
+I64 I64_clone(I64 *v) { return *v; }
 void I64_delete(I64 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I64 arithmetic (shallow params, shallow return)
@@ -58,7 +59,7 @@ I64 U8_to_i64(U8 a) { return (I64)a; }
 U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 
 // U8 clone/delete
-U8 *U8_clone(U8 *v) { return new_u8(*v); }
+U8 U8_clone(U8 *v) { return *v; }
 void U8_delete(U8 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I16 arithmetic
@@ -79,10 +80,10 @@ I64 I16_cmp(I16 a, I16 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // I16 conversions
 I64 I16_to_i64(I16 a) { return (I64)a; }
-I16 *I16_from_i64_ext(I64 *a) { return new_i16((I16)*a); }
+I16 I16_from_i64_ext(I64 *a) { return (I16)*a; }
 
 // I16 clone/delete
-I16 *I16_clone(I16 *v) { return new_i16(*v); }
+I16 I16_clone(I16 *v) { return *v; }
 void I16_delete(I16 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I16 CLI
@@ -114,10 +115,10 @@ I64 I32_cmp(I32 a, I32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // I32 conversions
 I64 I32_to_i64(I32 a) { return (I64)a; }
-I32 *I32_from_i64_ext(I64 *a) { return new_i32((I32)*a); }
+I32 I32_from_i64_ext(I64 *a) { return (I32)*a; }
 
 // I32 clone/delete
-I32 *I32_clone(I32 *v) { return new_i32(*v); }
+I32 I32_clone(I32 *v) { return *v; }
 void I32_delete(I32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // I32 CLI
@@ -143,7 +144,7 @@ I64 F32_cmp(F32 a, F32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // F32 conversions
 I64 F32_to_i64(F32 a) { return (I64)a; }
-F32 *F32_from_i64_ext(I64 *a) { return new_f32((F32)*a); }
+F32 F32_from_i64_ext(I64 *a) { return (F32)*a; }
 
 // F32 to_str
 Str *F32_to_str(F32 v) {
@@ -160,7 +161,7 @@ Str *F32_to_str(F32 v) {
 }
 
 // F32 clone/delete
-F32 *F32_clone(F32 *v) { return new_f32(*v); }
+F32 F32_clone(F32 *v) { return *v; }
 void F32_delete(F32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // U32 arithmetic
@@ -181,10 +182,10 @@ I64 U32_cmp(U32 a, U32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // U32 conversions
 I64 U32_to_i64(U32 a) { return (I64)a; }
-U32 *U32_from_i64_ext(I64 *a) { return new_u32((U32)*a); }
+U32 U32_from_i64_ext(I64 *a) { return (U32)*a; }
 
 // U32 clone/delete
-U32 *U32_clone(U32 *v) { return new_u32(*v); }
+U32 U32_clone(U32 *v) { return *v; }
 void U32_delete(U32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // U64 arithmetic
@@ -205,7 +206,7 @@ I64 U64_cmp(U64 a, U64 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // U64 conversions
 I64 U64_to_i64(U64 a) { return (I64)a; }
-U64 *U64_from_i64_ext(I64 *a) { return new_u64((U64)*a); }
+U64 U64_from_i64_ext(I64 *a) { return (U64)*a; }
 
 // U64 to_str
 Str *U64_to_str(U64 v) {
@@ -224,7 +225,7 @@ Str *U64_to_str(U64 v) {
 Str *U64_to_str_ext(U64 v) { return U64_to_str(v); }
 
 // U64 clone/delete
-U64 *U64_clone(U64 *v) { return new_u64(*v); }
+U64 U64_clone(U64 *v) { return *v; }
 void U64_delete(U64 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // Bool ops (shallow params, shallow return)
@@ -234,7 +235,7 @@ Bool Bool_or(Bool a, Bool b) { return a || b; }
 Bool Bool_not(Bool a) { return !a; }
 
 // Bool clone/delete
-Bool *Bool_clone(Bool *v) { return new_bool(*v); }
+Bool Bool_clone(Bool *v) { return *v; }
 void Bool_delete(Bool *v, Bool *call_free) { if (*call_free) free(v); }
 
 // Pointer primitives (custom, not in libc)
@@ -341,34 +342,34 @@ I64 *spawn_cmd(Str *cmd) {
     return new_i64((I64)pid);
 }
 
-I64 *check_cmd_status(I64 pid) {
+I64 check_cmd_status(I64 pid) {
     I32 status;
     pid_t result = waitpid((pid_t)pid, &status, WNOHANG);
-    if (result == 0) return new_i64(-1);
-    if (WIFEXITED(status)) return new_i64(WEXITSTATUS(status));
-    return new_i64(-1);
+    if (result == 0) return -1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    return -1;
 }
 
 void sleep_ms(I64 ms) {
     usleep((useconds_t)(ms * 1000));
 }
 
-I64 *file_mtime(Str *path) {
+I64 file_mtime(Str *path) {
     char *p = strndup((char *)path->c_str, path->count);
     struct stat st;
     int rc = stat(p, &st);
     free(p);
-    if (rc != 0) return new_i64(-1);
-    return new_i64((I64)st.st_mtime);
+    if (rc != 0) return -1;
+    return (I64)st.st_mtime;
 }
 
-I64 *clock_ms(void) {
+I64 clock_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return new_i64((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
+    return (I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000;
 }
 
-I64 *get_thread_count(void) {
+I64 get_thread_count(void) {
     long count = sysconf(_SC_NPROCESSORS_ONLN);
-    return new_i64(count > 0 ? (I64)count : 1);
+    return count > 0 ? (I64)count : 1;
 }

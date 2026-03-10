@@ -23,17 +23,17 @@ void dyn_call1(Str *, Str *, void *);
 void dyn_call2(Str *, Str *, void *, void *);
 void * dyn_call1_ret(Str *, Str *, void *);
 void * dyn_call2_ret(Str *, Str *, void *, void *);
-Bool * dyn_has_method(Str *, Str *);
+Bool dyn_has_method(Str *, Str *);
 Array * array(Str *, Array *);
 Vec * vec(Str *, Array *);
 I64 * spawn_cmd(Str *);
-I64 * check_cmd_status(I64);
+I64 check_cmd_status(I64);
 void sleep_ms(I64);
 Str * readfile(Str *);
 void writefile(Str *, Str *);
-I64 * file_mtime(Str *);
-I64 * clock_ms(void);
-I64 * get_thread_count(void);
+I64 file_mtime(Str *);
+I64 clock_ms(void);
+I64 get_thread_count(void);
 
 static Str *Str_lit(const char *s, unsigned long long len);
 static void print_single(Str *s);
@@ -117,7 +117,7 @@ I64 U8_cmp(U8 a, U8 b);
 U8 U8_and(U8 a, U8 b);
 U8 U8_or(U8 a, U8 b);
 U8 U8_xor(U8 a, U8 b);
-U8 * U8_clone(U8 * val);
+U8 U8_clone(U8 * val);
 void U8_delete(U8 * self, Bool * call_free);
 static __attribute__((unused)) U64 * U8_size(void);
 static __attribute__((unused)) Bool * U8_lt(U8 * a, U8 * b);
@@ -142,7 +142,7 @@ static __attribute__((unused)) I16 * I16_abs(I16 * a);
 I16 I16_and(I16 a, I16 b);
 I16 I16_or(I16 a, I16 b);
 I16 I16_xor(I16 a, I16 b);
-I16 * I16_clone(I16 * val);
+I16 I16_clone(I16 * val);
 void I16_delete(I16 * self, Bool * call_free);
 static __attribute__((unused)) U64 * I16_size(void);
 static __attribute__((unused)) Bool * I16_lt(I16 * a, I16 * b);
@@ -167,7 +167,7 @@ static __attribute__((unused)) I32 * I32_abs(I32 * a);
 I32 I32_and(I32 a, I32 b);
 I32 I32_or(I32 a, I32 b);
 I32 I32_xor(I32 a, I32 b);
-I32 * I32_clone(I32 * val);
+I32 I32_clone(I32 * val);
 void I32_delete(I32 * self, Bool * call_free);
 static __attribute__((unused)) U64 * I32_size(void);
 static __attribute__((unused)) Bool * I32_lt(I32 * a, I32 * b);
@@ -184,7 +184,7 @@ F32 F32_mul(F32 a, F32 b);
 F32 F32_div(F32 a, F32 b);
 Bool F32_eq(F32 a, F32 b);
 I64 F32_cmp(F32 a, F32 b);
-F32 * F32_clone(F32 * val);
+F32 F32_clone(F32 * val);
 void F32_delete(F32 * self, Bool * call_free);
 static __attribute__((unused)) U64 * F32_size(void);
 static __attribute__((unused)) Bool * F32_lt(F32 * a, F32 * b);
@@ -207,7 +207,7 @@ I64 U32_cmp(U32 a, U32 b);
 U32 U32_and(U32 a, U32 b);
 U32 U32_or(U32 a, U32 b);
 U32 U32_xor(U32 a, U32 b);
-U32 * U32_clone(U32 * val);
+U32 U32_clone(U32 * val);
 void U32_delete(U32 * self, Bool * call_free);
 static __attribute__((unused)) U64 * U32_size(void);
 static __attribute__((unused)) Bool * U32_lt(U32 * a, U32 * b);
@@ -230,7 +230,7 @@ I64 U64_cmp(U64 a, U64 b);
 U64 U64_and(U64 a, U64 b);
 U64 U64_or(U64 a, U64 b);
 U64 U64_xor(U64 a, U64 b);
-U64 * U64_clone(U64 * val);
+U64 U64_clone(U64 * val);
 void U64_delete(U64 * self, Bool * call_free);
 static __attribute__((unused)) U64 * U64_size(void);
 static __attribute__((unused)) Bool * U64_lt(U64 * a, U64 * b);
@@ -253,7 +253,7 @@ static __attribute__((unused)) I64 * I64_abs(I64 * a);
 I64 I64_and(I64 a, I64 b);
 I64 I64_or(I64 a, I64 b);
 I64 I64_xor(I64 a, I64 b);
-I64 * I64_clone(I64 * val);
+I64 I64_clone(I64 * val);
 void I64_delete(I64 * self, Bool * call_free);
 static __attribute__((unused)) U64 * I64_size(void);
 static __attribute__((unused)) Bool * I64_lt(I64 * a, I64 * b);
@@ -270,7 +270,7 @@ U64 * Range_size(void);
 static __attribute__((unused)) Str * Bool_to_str(Bool * b);
 Bool Bool_eq(Bool a, Bool b);
 static __attribute__((unused)) I64 * Bool_cmp(Bool * a, Bool * b);
-Bool * Bool_clone(Bool * val);
+Bool Bool_clone(Bool * val);
 void Bool_delete(Bool * self, Bool * call_free);
 static __attribute__((unused)) U64 * Bool_size(void);
 static __attribute__((unused)) Bool * Bool_lt(Bool * a, Bool * b);
@@ -296,7 +296,7 @@ void dyn_call_delete(Str *type_name, void *val, void *arg2);
 void *dyn_call_clone(Str *type_name, void *val);
 void *dyn_call_cmp(Str *type_name, void *val, void *arg2);
 
-Bool *dyn_has_cmp(Str *type_name);
+Bool dyn_has_cmp(Str *type_name);
 
 
 typedef struct Map {
@@ -394,8 +394,8 @@ static U64 *CAP_VIEW;
 
 Array * Array_new(Str * elem_type, U64 * elem_size, U64 * cap) {
     void *_t0 = calloc(DEREF(cap), DEREF(elem_size));
-    U64 *_t1 = U64_clone(cap);
-    U64 *_t2 = U64_clone(elem_size);
+    U64 *_t1 = malloc(sizeof(U64)); *_t1 = U64_clone(cap);
+    U64 *_t2 = malloc(sizeof(U64)); *_t2 = U64_clone(elem_size);
     Array *_t3 = malloc(sizeof(Array));
     _t3->data = _t0;
     _t3->cap = DEREF(_t1);
@@ -637,7 +637,7 @@ Map * Map_new(Str * key_type, U64 * key_size, Str * val_type, U64 * val_size) {
     Bool *_t83 = malloc(sizeof(Bool)); *_t83 = Bool_not(DEREF(_t82));
     Bool_delete(_t82, &(Bool){1});
     if (DEREF(_t83)) {
-        Bool *_t80 = dyn_has_cmp(key_type);
+        Bool *_t80 = malloc(sizeof(Bool)); *_t80 = dyn_has_cmp(key_type);
         Bool *_t81 = malloc(sizeof(Bool)); *_t81 = Bool_not(DEREF(_t80));
         Bool_delete(_t80, &(Bool){1});
         if (DEREF(_t81)) {
@@ -678,8 +678,8 @@ Map * Map_new(Str * key_type, U64 * key_size, Str * val_type, U64 * val_size) {
     *_t86 = 0;
     I64 *_t87 = malloc(sizeof(I64));
     *_t87 = 1;
-    U64 *_t88 = U64_clone(key_size);
-    U64 *_t89 = U64_clone(val_size);
+    U64 *_t88 = malloc(sizeof(U64)); *_t88 = U64_clone(key_size);
+    U64 *_t89 = malloc(sizeof(U64)); *_t89 = U64_clone(val_size);
     Map *_t90 = malloc(sizeof(Map));
     _t90->key_data = _t84;
     _t90->val_data = _t85;
@@ -744,7 +744,7 @@ Bool * Map_has(Map * self, void * key) {
             Bool *_t97 = I64_gt(c, _t96);
             I64_delete(_t96, &(Bool){1});
             if (DEREF(_t97)) {
-                U64 *_t94 = U64_clone(mid);
+                U64 *_t94 = malloc(sizeof(U64)); *_t94 = U64_clone(mid);
                 *hi = DEREF(_t94);
                 U64_delete(_t94, &(Bool){1});
             } else {
@@ -814,7 +814,7 @@ void * Map_get(Map * self, void * key) {
             Bool *_t113 = I64_gt(c, _t112);
             I64_delete(_t112, &(Bool){1});
             if (DEREF(_t113)) {
-                U64 *_t109 = U64_clone(mid);
+                U64 *_t109 = malloc(sizeof(U64)); *_t109 = U64_clone(mid);
                 *hi = DEREF(_t109);
                 U64_delete(_t109, &(Bool){1});
             } else {
@@ -906,7 +906,7 @@ void Map_set(Map * self, void * key, void * val) {
             Bool *_t137 = I64_gt(c, _t136);
             I64_delete(_t136, &(Bool){1});
             if (DEREF(_t137)) {
-                U64 *_t132 = U64_clone(mid);
+                U64 *_t132 = malloc(sizeof(U64)); *_t132 = U64_clone(mid);
                 *hi = DEREF(_t132);
                 U64_delete(_t132, &(Bool){1});
             } else {
@@ -914,10 +914,10 @@ void Map_set(Map * self, void * key, void * val) {
                 *_t133 = 1;
                 *found = DEREF(_t133);
                 Bool_delete(_t133, &(Bool){1});
-                U64 *_t134 = U64_clone(mid);
+                U64 *_t134 = malloc(sizeof(U64)); *_t134 = U64_clone(mid);
                 *lo = DEREF(_t134);
                 U64_delete(_t134, &(Bool){1});
-                U64 *_t135 = U64_clone(mid);
+                U64 *_t135 = malloc(sizeof(U64)); *_t135 = U64_clone(mid);
                 *hi = DEREF(_t135);
                 U64_delete(_t135, &(Bool){1});
             }
@@ -973,7 +973,7 @@ void Map_set(Map * self, void * key, void * val) {
             void *_t159 = realloc(self->val_data, DEREF(_t158));
             U64_delete(_t158, &(Bool){1});
             self->val_data = _t159;
-            U64 *_t160 = U64_clone(new_cap);
+            U64 *_t160 = malloc(sizeof(U64)); *_t160 = U64_clone(new_cap);
             U64_delete(new_cap, &(Bool){1});
             self->cap = DEREF(_t160);
             U64_delete(_t160, &(Bool){1});
@@ -1238,7 +1238,7 @@ Set * Set_new(Str * elem_type, U64 * elem_size) {
     Bool *_t252 = malloc(sizeof(Bool)); *_t252 = Bool_not(DEREF(_t251));
     Bool_delete(_t251, &(Bool){1});
     if (DEREF(_t252)) {
-        Bool *_t249 = dyn_has_cmp(elem_type);
+        Bool *_t249 = malloc(sizeof(Bool)); *_t249 = dyn_has_cmp(elem_type);
         Bool *_t250 = malloc(sizeof(Bool)); *_t250 = Bool_not(DEREF(_t249));
         Bool_delete(_t249, &(Bool){1});
         if (DEREF(_t250)) {
@@ -1278,7 +1278,7 @@ Set * Set_new(Str * elem_type, U64 * elem_size) {
     *_t254 = 0;
     I64 *_t255 = malloc(sizeof(I64));
     *_t255 = 1;
-    U64 *_t256 = U64_clone(elem_size);
+    U64 *_t256 = malloc(sizeof(U64)); *_t256 = U64_clone(elem_size);
     Set *_t257 = malloc(sizeof(Set));
     _t257->data = _t253;
     _t257->count = DEREF(_t254);
@@ -1339,7 +1339,7 @@ Bool * Set_has(Set * self, void * val) {
             Bool *_t264 = I64_gt(c, _t263);
             I64_delete(_t263, &(Bool){1});
             if (DEREF(_t264)) {
-                U64 *_t261 = U64_clone(mid);
+                U64 *_t261 = malloc(sizeof(U64)); *_t261 = U64_clone(mid);
                 *hi = DEREF(_t261);
                 U64_delete(_t261, &(Bool){1});
             } else {
@@ -1411,7 +1411,7 @@ void Set_add(Set * self, void * val) {
             Bool *_t281 = I64_gt(c, _t280);
             I64_delete(_t280, &(Bool){1});
             if (DEREF(_t281)) {
-                U64 *_t276 = U64_clone(mid);
+                U64 *_t276 = malloc(sizeof(U64)); *_t276 = U64_clone(mid);
                 *hi = DEREF(_t276);
                 U64_delete(_t276, &(Bool){1});
             } else {
@@ -1419,10 +1419,10 @@ void Set_add(Set * self, void * val) {
                 *_t277 = 1;
                 *found = DEREF(_t277);
                 Bool_delete(_t277, &(Bool){1});
-                U64 *_t278 = U64_clone(mid);
+                U64 *_t278 = malloc(sizeof(U64)); *_t278 = U64_clone(mid);
                 *lo = DEREF(_t278);
                 U64_delete(_t278, &(Bool){1});
-                U64 *_t279 = U64_clone(mid);
+                U64 *_t279 = malloc(sizeof(U64)); *_t279 = U64_clone(mid);
                 *hi = DEREF(_t279);
                 U64_delete(_t279, &(Bool){1});
             }
@@ -1456,7 +1456,7 @@ void Set_add(Set * self, void * val) {
             void *_t294 = realloc(self->data, DEREF(_t293));
             U64_delete(_t293, &(Bool){1});
             self->data = _t294;
-            U64 *_t295 = U64_clone(new_cap);
+            U64 *_t295 = malloc(sizeof(U64)); *_t295 = U64_clone(new_cap);
             U64_delete(new_cap, &(Bool){1});
             self->cap = DEREF(_t295);
             U64_delete(_t295, &(Bool){1});
@@ -1721,8 +1721,8 @@ Str * Str_concat(Str * a, Str * b) {
     memcpy(_t361, _t362, DEREF(_t363));
     U8_delete(_t362, &(Bool){1});
     U64_delete(_t363, &(Bool){1});
-    U64 *_t364 = U64_clone(new_len);
-    U64 *_t365 = U64_clone(new_len);
+    U64 *_t364 = malloc(sizeof(U64)); *_t364 = U64_clone(new_len);
+    U64 *_t365 = malloc(sizeof(U64)); *_t365 = U64_clone(new_len);
     U64_delete(new_len, &(Bool){1});
     Str *_t366 = malloc(sizeof(Str));
     _t366->c_str = new_data;
@@ -1751,7 +1751,7 @@ Str * Str_with_capacity(U64 * n) {
     U64_delete(_t371, &(Bool){1});
     I64 *_t372 = malloc(sizeof(I64));
     *_t372 = 0;
-    U64 *_t373 = U64_clone(n);
+    U64 *_t373 = malloc(sizeof(U64)); *_t373 = U64_clone(n);
     Str *_t374 = malloc(sizeof(Str));
     _t374->c_str = buf;
     _t374->count = DEREF(_t372);
@@ -1808,7 +1808,7 @@ void Str_push_str(Str * self, Str * s) {
     Bool_delete(_t388, &(Bool){1});
     void *_t389 = ptr_add(self->c_str, self->count);
     memcpy(_t389, s->c_str, s->count);
-    U64 *_t390 = U64_clone(new_len);
+    U64 *_t390 = malloc(sizeof(U64)); *_t390 = U64_clone(new_len);
     self->count = DEREF(_t390);
     U64_delete(_t390, &(Bool){1});
     I64 *_t391 = malloc(sizeof(I64));
@@ -1867,8 +1867,8 @@ Str * Str_to_str(Str * val) {
 }
 
 Str * Str_substr(Str * s, U64 * start, U64 * n) {
-    U64 *st = U64_clone(start);
-    U64 *ln = U64_clone(n);
+    U64 *st = malloc(sizeof(U64)); *st = U64_clone(start);
+    U64 *ln = malloc(sizeof(U64)); *ln = U64_clone(n);
     Bool *_t405 = U64_gt(st, &s->count);
     if (DEREF(_t405)) {
         *st = s->count;
@@ -1884,9 +1884,9 @@ Str * Str_substr(Str * s, U64 * start, U64 * n) {
     }
     Bool_delete(_t407, &(Bool){1});
     void *_t408 = ptr_add(s->c_str, DEREF(st));
-    U64 *_t409 = U64_clone(ln);
+    U64 *_t409 = malloc(sizeof(U64)); *_t409 = U64_clone(ln);
     U64_delete(ln, &(Bool){1});
-    U64 *_t410 = U64_clone(CAP_VIEW);
+    U64 *_t410 = malloc(sizeof(U64)); *_t410 = U64_clone(CAP_VIEW);
     Str *_t411 = malloc(sizeof(Str));
     _t411->c_str = _t408;
     _t411->count = DEREF(_t409);
@@ -2664,7 +2664,7 @@ Vec * Vec_new(Str * elem_type, U64 * elem_size) {
     *_t598 = 0;
     I64 *_t599 = malloc(sizeof(I64));
     *_t599 = 1;
-    U64 *_t600 = U64_clone(elem_size);
+    U64 *_t600 = malloc(sizeof(U64)); *_t600 = U64_clone(elem_size);
     Vec *_t601 = malloc(sizeof(Vec));
     _t601->data = _t597;
     _t601->count = DEREF(_t598);
@@ -2694,7 +2694,7 @@ void Vec_push(Vec * self, void * val) {
         void *_t604 = realloc(self->data, DEREF(_t603));
         U64_delete(_t603, &(Bool){1});
         self->data = _t604;
-        U64 *_t605 = U64_clone(new_cap);
+        U64 *_t605 = malloc(sizeof(U64)); *_t605 = U64_clone(new_cap);
         U64_delete(new_cap, &(Bool){1});
         self->cap = DEREF(_t605);
         U64_delete(_t605, &(Bool){1});
@@ -2944,7 +2944,7 @@ Vec * split(Str * s, Str * delim) {
             U64_delete(_t666, &(Bool){1});
             *start = DEREF(_t667);
             U64_delete(_t667, &(Bool){1});
-            U64 *_t668 = U64_clone(start);
+            U64 *_t668 = malloc(sizeof(U64)); *_t668 = U64_clone(start);
             *pos = DEREF(_t668);
             U64_delete(_t668, &(Bool){1});
         } else {
@@ -3174,7 +3174,7 @@ static __attribute__((unused)) I16 * I16_from_i64(I64 * val) {
     }
     Bool_delete(_t740, &(Bool){1});
     /* TODO: nested func I16_from_i64_ext */
-    I16 *_t741 = I16_from_i64_ext(val);
+    I16 *_t741 = malloc(sizeof(I16)); *_t741 = I16_from_i64_ext(val);
     return _t741;
 }
 
@@ -3210,7 +3210,7 @@ static __attribute__((unused)) I16 * I16_abs(I16 * a) {
         return _t749;
     }
     Bool_delete(_t752, &(Bool){1});
-    I16 *_t753 = I16_clone(a);
+    I16 *_t753 = malloc(sizeof(I16)); *_t753 = I16_clone(a);
     return _t753;
 }
 
@@ -3308,7 +3308,7 @@ static __attribute__((unused)) I32 * I32_from_i64(I64 * val) {
     }
     Bool_delete(_t782, &(Bool){1});
     /* TODO: nested func I32_from_i64_ext */
-    I32 *_t783 = I32_from_i64_ext(val);
+    I32 *_t783 = malloc(sizeof(I32)); *_t783 = I32_from_i64_ext(val);
     return _t783;
 }
 
@@ -3344,7 +3344,7 @@ static __attribute__((unused)) I32 * I32_abs(I32 * a) {
         return _t791;
     }
     Bool_delete(_t794, &(Bool){1});
-    I32 *_t795 = I32_clone(a);
+    I32 *_t795 = malloc(sizeof(I32)); *_t795 = I32_clone(a);
     return _t795;
 }
 
@@ -3402,7 +3402,7 @@ static __attribute__((unused)) Bool * I32_gte(I32 * a, I32 * b) {
 
 static __attribute__((unused)) F32 * F32_from_i64(I64 * val) {
     /* TODO: nested func F32_from_i64_ext */
-    F32 *_t811 = F32_from_i64_ext(val);
+    F32 *_t811 = malloc(sizeof(F32)); *_t811 = F32_from_i64_ext(val);
     return _t811;
 }
 
@@ -3498,7 +3498,7 @@ static __attribute__((unused)) U32 * U32_from_i64(I64 * val) {
     }
     Bool_delete(_t839, &(Bool){1});
     /* TODO: nested func U32_from_i64_ext */
-    U32 *_t840 = U32_from_i64_ext(val);
+    U32 *_t840 = malloc(sizeof(U32)); *_t840 = U32_from_i64_ext(val);
     return _t840;
 }
 
@@ -3562,7 +3562,7 @@ Str * U64_to_str(U64 val) {
 
 static __attribute__((unused)) U64 * U64_from_i64(I64 * val) {
     /* TODO: nested func U64_from_i64_ext */
-    U64 *_t857 = U64_from_i64_ext(val);
+    U64 *_t857 = malloc(sizeof(U64)); *_t857 = U64_from_i64_ext(val);
     return _t857;
 }
 
@@ -3666,7 +3666,7 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
     Bool_delete(_t913, &(Bool){1});
     Bool *is_neg = malloc(sizeof(Bool));
     *is_neg = 0;
-    I64 *v = I64_clone(val);
+    I64 *v = malloc(sizeof(I64)); *v = I64_clone(val);
     I64 *_t914 = malloc(sizeof(I64));
     *_t914 = 0;
     Bool *_t915 = I64_lt(val, _t914);
@@ -3686,7 +3686,7 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
     Bool_delete(_t915, &(Bool){1});
     U64 *ndigits = malloc(sizeof(U64));
     *ndigits = 0;
-    I64 *tmp = I64_clone(v);
+    I64 *tmp = malloc(sizeof(I64)); *tmp = I64_clone(v);
     while (1) {
         I64 *_t889 = malloc(sizeof(I64));
         *_t889 = 0;
@@ -3712,7 +3712,7 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
         I64_delete(_t893, &(Bool){1});
     }
     I64_delete(tmp, &(Bool){1});
-    U64 *total = U64_clone(ndigits);
+    U64 *total = malloc(sizeof(U64)); *total = U64_clone(ndigits);
     U64_delete(ndigits, &(Bool){1});
     if (DEREF(is_neg)) {
         U64 *_t894 = malloc(sizeof(U64));
@@ -3797,8 +3797,8 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val) {
     memcpy(_t920, _t921, DEREF(_t922));
     U8_delete(_t921, &(Bool){1});
     U64_delete(_t922, &(Bool){1});
-    U64 *_t923 = U64_clone(total);
-    U64 *_t924 = U64_clone(total);
+    U64 *_t923 = malloc(sizeof(U64)); *_t923 = U64_clone(total);
+    U64 *_t924 = malloc(sizeof(U64)); *_t924 = U64_clone(total);
     U64_delete(total, &(Bool){1});
     Str *_t925 = malloc(sizeof(Str));
     _t925->c_str = buf;
@@ -3831,7 +3831,7 @@ static __attribute__((unused)) I64 * I64_abs(I64 * a) {
         return _t929;
     }
     Bool_delete(_t931, &(Bool){1});
-    I64 *_t932 = I64_clone(a);
+    I64 *_t932 = malloc(sizeof(I64)); *_t932 = I64_clone(a);
     return _t932;
 }
 
@@ -3888,8 +3888,8 @@ static __attribute__((unused)) Bool * I64_gte(I64 * a, I64 * b) {
 }
 
 Range * Range_new(U64 start, U64 end) {
-    U64 *_t948 = U64_clone(&(U64){start});
-    U64 *_t949 = U64_clone(&(U64){end});
+    U64 *_t948 = malloc(sizeof(U64)); *_t948 = U64_clone(&(U64){start});
+    U64 *_t949 = malloc(sizeof(U64)); *_t949 = U64_clone(&(U64){end});
     Range *_t950 = malloc(sizeof(Range));
     _t950->start = DEREF(_t948);
     _t950->end = DEREF(_t949);
@@ -4155,8 +4155,8 @@ Str * format(Array * parts) {
     }
     U64_delete(offset, &(Bool){1});
     Array_delete(parts, &(Bool){1});
-    U64 *_t1008 = U64_clone(total);
-    U64 *_t1009 = U64_clone(total);
+    U64 *_t1008 = malloc(sizeof(U64)); *_t1008 = U64_clone(total);
+    U64 *_t1009 = malloc(sizeof(U64)); *_t1009 = U64_clone(total);
     U64_delete(total, &(Bool){1});
     Str *_t1010 = malloc(sizeof(Str));
     _t1010->c_str = buf;
@@ -4169,7 +4169,7 @@ Str * format(Array * parts) {
 
 I64 * wait_cmd(I64 * pid) {
     while (1) {
-        I64 *status = check_cmd_status(DEREF(pid));
+        I64 *status = malloc(sizeof(I64)); *status = check_cmd_status(DEREF(pid));
         I64 *_t1011 = malloc(sizeof(I64));
         *_t1011 = 0;
         I64 *_t1012 = malloc(sizeof(I64));
@@ -4488,15 +4488,15 @@ void *dyn_call_clone(Str *type_name, void *val) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return (void *)Str_clone(val);
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0) return (void *)Vec_clone(val);
     if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) return (void *)EnumDef_clone(val);
-    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) return (void *)U8_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return (void *)I16_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) return (void *)I32_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) return (void *)F32_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) return (void *)U32_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) return (void *)U64_clone(val);
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return (void *)I64_clone(val);
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) { U8 *_r = malloc(sizeof(U8)); *_r = U8_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) { I16 *_r = malloc(sizeof(I16)); *_r = I16_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) { I32 *_r = malloc(sizeof(I32)); *_r = I32_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) { F32 *_r = malloc(sizeof(F32)); *_r = F32_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) { U32 *_r = malloc(sizeof(U32)); *_r = U32_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) { U64 *_r = malloc(sizeof(U64)); *_r = U64_clone(val); return _r; }
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) { I64 *_r = malloc(sizeof(I64)); *_r = I64_clone(val); return _r; }
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) return (void *)Range_clone(val);
-    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return (void *)Bool_clone(val);
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) { Bool *_r = malloc(sizeof(Bool)); *_r = Bool_clone(val); return _r; }
     fprintf(stderr, "dyn_call: unknown type for clone\n");
     exit(1);
 }
@@ -4515,18 +4515,18 @@ void *dyn_call_cmp(Str *type_name, void *val, void *arg2) {
     exit(1);
 }
 
-Bool *dyn_has_cmp(Str *type_name) {
+Bool dyn_has_cmp(Str *type_name) {
     (void)type_name;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }
-    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return 1;
+    if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) return 1;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return 1;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return 1;
+    return 0;
 }
 
 __attribute__((constructor))

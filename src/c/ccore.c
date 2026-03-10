@@ -45,7 +45,7 @@ I64 *I64_new(I64 val) {
     return p;
 }
 
-I64 *I64_clone(I64 *v) { return I64_new(*v); }
+I64 I64_clone(I64 *v) { return *v; }
 void I64_delete(I64 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // --- U8 ---
@@ -79,7 +79,7 @@ U8 *U8_new(U8 val) {
     return p;
 }
 
-U8 *U8_clone(U8 *v) { return U8_new(*v); }
+U8 U8_clone(U8 *v) { return *v; }
 void U8_delete(U8 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // --- I16 ---
@@ -107,7 +107,7 @@ I16 *I16_new(I16 val) {
     return p;
 }
 
-I16 *I16_clone(I16 *v) { return I16_new(*v); }
+I16 I16_clone(I16 *v) { return *v; }
 void I16_delete(I16 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // --- I32 ---
@@ -135,7 +135,7 @@ I32 *I32_new(I32 val) {
     return p;
 }
 
-I32 *I32_clone(I32 *v) { return I32_new(*v); }
+I32 I32_clone(I32 *v) { return *v; }
 void I32_delete(I32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // --- F32 ---
@@ -163,7 +163,7 @@ F32 *F32_new(F32 val) {
     return p;
 }
 
-F32 *F32_clone(F32 *v) { return F32_new(*v); }
+F32 F32_clone(F32 *v) { return *v; }
 void F32_delete(F32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // --- U32 ---
@@ -191,7 +191,7 @@ U32 *U32_new(U32 val) {
     return p;
 }
 
-U32 *U32_clone(U32 *v) { return U32_new(*v); }
+U32 U32_clone(U32 *v) { return *v; }
 void U32_delete(U32 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // --- U64 ---
@@ -215,11 +215,11 @@ U64 U64_from_i64(I64 v) { return (U64)v; }
 
 // Pointer-adapter versions for interpreter FFI (nested ext_func in core.til)
 U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
-I16 *I16_from_i64_ext(I64 *a) { return I16_new((I16)*a); }
-I32 *I32_from_i64_ext(I64 *a) { return I32_new((I32)*a); }
-F32 *F32_from_i64_ext(I64 *a) { return F32_new((F32)*a); }
-U32 *U32_from_i64_ext(I64 *a) { return U32_new((U32)*a); }
-U64 *U64_from_i64_ext(I64 *a) { return U64_new((U64)*a); }
+I16 I16_from_i64_ext(I64 *a) { return (I16)*a; }
+I32 I32_from_i64_ext(I64 *a) { return (I32)*a; }
+F32 F32_from_i64_ext(I64 *a) { return (F32)*a; }
+U32 U32_from_i64_ext(I64 *a) { return (U32)*a; }
+U64 U64_from_i64_ext(I64 *a) { return (U64)*a; }
 
 Str *U64_to_str(U64 v) {
     char buf[32];
@@ -234,7 +234,7 @@ U64 *U64_new(U64 val) {
     return p;
 }
 
-U64 *U64_clone(U64 *v) { return U64_new(*v); }
+U64 U64_clone(U64 *v) { return *v; }
 void U64_delete(U64 *v, Bool *call_free) { if (*call_free) free(v); }
 
 // --- Bool ---
@@ -250,7 +250,7 @@ Bool *Bool_new(Bool val) {
     return p;
 }
 
-Bool *Bool_clone(Bool *v) { return Bool_new(*v); }
+Bool Bool_clone(Bool *v) { return *v; }
 void Bool_delete(Bool *v, Bool *call_free) { if (*call_free) free(v); }
 
 // Pointer primitives

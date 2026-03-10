@@ -1,6 +1,6 @@
 .PHONY: all clean test ctil_core
 
-all: bin/ctil src/bootstrap/til.c
+all: bin/ctil
 
 SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c, $(wildcard src/c/*.c)) src/bootstrap/core.c
 HDRS := $(wildcard src/c/*.h) src/bootstrap/core.h

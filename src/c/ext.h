@@ -22,7 +22,7 @@ static inline void *Array_elem(Array *a, U64 i) {
 }
 
 // I64 clone/delete
-I64 *I64_clone(I64 *v);
+I64 I64_clone(I64 *v);
 void I64_delete(I64 *v, Bool *call_free);
 
 // I64 arithmetic (shallow params)
@@ -62,7 +62,7 @@ I64 U8_to_i64(U8 a);
 U8 U8_from_i64_ext(I64 *a);
 
 // U8 clone/delete
-U8 *U8_clone(U8 *v);
+U8 U8_clone(U8 *v);
 void U8_delete(U8 *v, Bool *call_free);
 
 // I16 arithmetic
@@ -83,10 +83,10 @@ I64 I16_cmp(I16 a, I16 b);
 
 // I16 conversions
 I64 I16_to_i64(I16 a);
-I16 *I16_from_i64_ext(I64 *a);
+I16 I16_from_i64_ext(I64 *a);
 
 // I16 clone/delete
-I16 *I16_clone(I16 *v);
+I16 I16_clone(I16 *v);
 void I16_delete(I16 *v, Bool *call_free);
 
 // I16 CLI
@@ -110,10 +110,10 @@ I64 I32_cmp(I32 a, I32 b);
 
 // I32 conversions
 I64 I32_to_i64(I32 a);
-I32 *I32_from_i64_ext(I64 *a);
+I32 I32_from_i64_ext(I64 *a);
 
 // I32 clone/delete
-I32 *I32_clone(I32 *v);
+I32 I32_clone(I32 *v);
 void I32_delete(I32 *v, Bool *call_free);
 
 // I32 CLI
@@ -131,11 +131,11 @@ I64 F32_cmp(F32 a, F32 b);
 
 // F32 conversions
 I64 F32_to_i64(F32 a);
-F32 *F32_from_i64_ext(I64 *a);
+F32 F32_from_i64_ext(I64 *a);
 Str *F32_to_str(F32 v);
 
 // F32 clone/delete
-F32 *F32_clone(F32 *v);
+F32 F32_clone(F32 *v);
 void F32_delete(F32 *v, Bool *call_free);
 
 // U32 arithmetic
@@ -156,10 +156,10 @@ I64 U32_cmp(U32 a, U32 b);
 
 // U32 conversions
 I64 U32_to_i64(U32 a);
-U32 *U32_from_i64_ext(I64 *a);
+U32 U32_from_i64_ext(I64 *a);
 
 // U32 clone/delete
-U32 *U32_clone(U32 *v);
+U32 U32_clone(U32 *v);
 void U32_delete(U32 *v, Bool *call_free);
 
 // U64 arithmetic
@@ -180,12 +180,12 @@ I64 U64_cmp(U64 a, U64 b);
 
 // U64 conversions
 I64 U64_to_i64(U64 a);
-U64 *U64_from_i64_ext(I64 *a);
+U64 U64_from_i64_ext(I64 *a);
 Str *U64_to_str(U64 v);
 Str *U64_to_str_ext(U64 v);
 
 // U64 clone/delete
-U64 *U64_clone(U64 *v);
+U64 U64_clone(U64 *v);
 void U64_delete(U64 *v, Bool *call_free);
 
 // Bool ops (shallow params)
@@ -195,7 +195,7 @@ Bool Bool_or(Bool a, Bool b);
 Bool Bool_not(Bool a);
 
 // Bool clone/delete
-Bool *Bool_clone(Bool *v);
+Bool Bool_clone(Bool *v);
 void Bool_delete(Bool *v, Bool *call_free);
 
 // Pointer primitives (custom, not in libc)
@@ -213,10 +213,10 @@ Bool *cli_parse_bool(const char *s);
 Str *readfile(Str *path);
 void writefile(Str *path, Str *content);
 I64 *spawn_cmd(Str *cmd);
-I64 *check_cmd_status(I64 pid);
+I64 check_cmd_status(I64 pid);
 void sleep_ms(I64 ms);
-I64 *file_mtime(Str *path);
-I64 *clock_ms(void);
-I64 *get_thread_count(void);
+I64 file_mtime(Str *path);
+I64 clock_ms(void);
+I64 get_thread_count(void);
 
 #endif
