@@ -251,7 +251,7 @@ Bool * is_alnum(U8 * c);
 Str * tok_name(TokenType * type);
 TokenType * lookup_keyword(Str * word);
 Vec * tokenize(Str * source, Str * path);
-Bool *TokenType_eq(TokenType *, TokenType *);
+Bool * TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();
 TokenType *TokenType_LParen();
 TokenType *TokenType_RParen();

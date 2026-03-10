@@ -37,8 +37,11 @@ Always run `make test` and verify all tests pass before committing.
 
 ## Commits
 
+- Always include ALL modified files in commits, including generated files (src/bootstrap/, doc/totals.csv, img/totals.svg, etc.)
 - Use `make test` before every commit
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
 - NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" — just do it. Stop wasting tokens on justifying why something doesn't need changing.
 - WHEN TOLD "IN THE WHOLE CODEBASE" THAT MEANS THE WHOLE CODEBASE. IT DOES NOT MEAN "THE WHOLE CODEBASE EXCEPT FOR THE PARTS YOU DON'T FEEL ARE RELEVANT." EVERY FILE, EVERY PATH, EVERY OCCURRENCE. NO EXCEPTIONS. NO FILTERING BY "RELEVANCE." NO SKIPPING THINGS BECAUSE THEY'RE "NOT HIT CURRENTLY."
 - When the user gives you an order, you obey, or you get punished with reading this file many times in a row, end of story.
+- When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.
+- If you lie to the user, hide something from him or try to cheat to avoid obeying an order, you will read this document many more times, don't do it.
