@@ -1,4 +1,5 @@
 mode cli
+import("examples/plot.til")
 
 NL := Str.from_byte(U8.from_i64(10))
 CTIL := "bin/ctil"
@@ -419,30 +420,23 @@ main := proc(args: ..Str) {
                        "abc1234,1940,5520,200,1710,1970,4640,32,32", NL,
                        "def5678,1880,5400,190,1680,1950,4500,32,32", NL)
     writefile("tmp/_test_plot.csv", test_csv)
-    // Run plot via codegen
-    plot_rc := run("bin/ctil run src/examples/plot.til tmp/_test_plot.csv tmp/_test_plot.svg")
-    if plot_rc.neq(0) {
-        println("FAIL: plot.til exited with ", plot_rc.to_str())
+    plot_csv("tmp/_test_plot.csv", "tmp/_test_plot.svg", 0)
+    plot_svg := readfile("tmp/_test_plot.svg")
+    if count_matches(plot_svg, "<svg").eq(0) {
+        println("FAIL: plot.til missing <svg tag")
         fail = 1
-    } else {
-        plot_svg := readfile("tmp/_test_plot.svg")
-        // Check SVG has expected elements
-        if count_matches(plot_svg, "<svg").eq(0) {
-            println("FAIL: plot.til missing <svg tag")
-            fail = 1
-        }
-        if count_matches(plot_svg, "<polyline").lt(3) {
-            println("FAIL: plot.til expected 3 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
-            fail = 1
-        }
-        if count_matches(plot_svg, "abc1234").eq(0) {
-            println("FAIL: plot.til missing commit label abc1234")
-            fail = 1
-        }
-        if count_matches(plot_svg, "Interpreted").eq(0) {
-            println("FAIL: plot.til missing legend label Interpreted")
-            fail = 1
-        }
+    }
+    if count_matches(plot_svg, "<polyline").lt(3) {
+        println("FAIL: plot.til expected 3 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+        fail = 1
+    }
+    if count_matches(plot_svg, "abc1234").eq(0) {
+        println("FAIL: plot.til missing commit label abc1234")
+        fail = 1
+    }
+    if count_matches(plot_svg, "Interpreted").eq(0) {
+        println("FAIL: plot.til missing legend label Interpreted")
+        fail = 1
     }
     plot_ms := clock_ms().sub(plot_start)
 
@@ -560,7 +554,7 @@ main := proc(args: ..Str) {
     writefile(totals_path, totals_content)
 
     // Generate chart
-    run("bin/ctil run src/examples/plot.til doc/totals.csv img/totals.svg")
+    plot_csv("doc/totals.csv", "img/totals.svg", 20)
     println("Updated doc/totals.csv and img/totals.svg")
 
     exit(fail)

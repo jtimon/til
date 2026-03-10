@@ -1,7 +1,7 @@
 mode cli
 
 // SVG line chart generator for benchmark CSV data.
-// Usage: plot <csv_path> <svg_output_path>
+// Usage: plot <csv_path> <svg_output_path> [last_n]
 //
 // CSV format (header + data rows):
 //   commit,interp_ms,compiled_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total
@@ -210,16 +210,38 @@ generate_svg := proc(rows: Vec) returns Str {
     return svg
 }
 
+// Generate SVG chart from CSV file. last_n = 0 means all points.
+plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64) {
+    content := readfile(csv_path)
+    all_rows := parse_csv(content)
+
+    mut rows := Vec.new("Row", Row.size())
+    if last_n.gt(0).and(all_rows.len().gt(U64.from_i64(last_n))) {
+        mut i := all_rows.len().sub(U64.from_i64(last_n))
+        while i.lt(all_rows.len()) {
+            ref r : Row = all_rows.get(i)
+            rows.push(own Row(commit = r.commit.clone(), interp_ms = r.interp_ms, compiled_ms = r.compiled_ms, wall_ms = r.wall_ms))
+            i = i.add(U64.from_i64(1))
+        }
+    } else {
+        rows = all_rows
+    }
+
+    svg := generate_svg(rows)
+    writefile(svg_path, svg)
+}
+
 main := proc(args: ..Str) {
     if args.len().lt(U64.from_i64(2)) {
-        println("usage: plot <csv_path> <svg_output_path>")
+        println("usage: plot <csv_path> <svg_output_path> [last_n]")
         exit(1)
     }
     ref csv_path : Str = args.get(U64.from_i64(0))
     ref svg_path : Str = args.get(U64.from_i64(1))
-
-    content := readfile(csv_path)
-    rows := parse_csv(content)
-    svg := generate_svg(rows)
-    writefile(svg_path, svg)
+    mut last_n := 0
+    if args.len().gte(U64.from_i64(3)) {
+        ref n_str : Str = args.get(U64.from_i64(2))
+        last_n = n_str.to_i64()
+    }
+    plot_csv(csv_path, svg_path, last_n)
 }

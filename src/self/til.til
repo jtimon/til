@@ -182,21 +182,10 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         tokens := til_tokenize(source, abs)
         count := til_tok_count()
         sub_ast := til_parse(tokens, count, abs)
-        sub_mode_str := til_parse_mode()
+        sub_mode := til_parse_mode()
         sub_imports := extract_imports(sub_ast)
 
-        // Validate imported file cur_mode
-        if sub_mode_str.len().gt(0) {
-            sm := til_mode_resolve(sub_mode_str)
-            if til_mode_eq(sm, til_mode_none()).or(
-                til_mode_eq(sm, til_mode_lib()).not()
-                .and(til_mode_eq(sm, til_mode_liba()).not())
-                .and(til_mode_eq(sm, til_mode_pure()).not())
-                .and(til_mode_eq(sm, til_mode_pura()).not())) {
-                println("error: imported file '".concat(abs).concat("' cannot use mode '").concat(sub_mode_str).concat("'"))
-                return I32.from_i64(1)
-            }
-        }
+        // No mode = script (default), any mode is fine for imports
 
         // Get imported file's directory for recursive resolution
         mut last_slash := abs.len().sub(1)

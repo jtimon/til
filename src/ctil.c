@@ -114,18 +114,6 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
         Expr *sub_ast = parse(toks, tok_count, abs_str, &sub_mode);
         Vec sub_imports = extract_imports(sub_ast);
 
-        if (!sub_mode) {
-            fprintf(stderr, "error: imported file '%s' has no mode declaration (must be lib/liba/pure/pura)\n", abs);
-            free(abs);
-            return 1;
-        } else {
-            const Mode *sm = mode_resolve((const char *)sub_mode->c_str);
-            if (!sm || !(sm == &MODE_LIB || sm == &MODE_LIBA || sm == &MODE_PURE || sm == &MODE_PURA)) {
-                fprintf(stderr, "error: imported file '%s' cannot use mode '%s'\n", abs, sub_mode->c_str);
-                free(abs);
-                return 1;
-            }
-        }
 
         // Get imported file's directory for recursive resolution
         Str *sub_dir;
