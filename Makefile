@@ -19,6 +19,9 @@ ctil_core: bin/ctil
 	@bin/ctil translate src/self/lexer.til
 	@cp gen/c/lexer.c src/bootstrap/lexer.c
 	@cp gen/c/lexer.h src/bootstrap/lexer.h
+	@bin/ctil translate src/self/parser.til
+	@cp gen/c/parser.c src/bootstrap/parser.c
+	@cp gen/c/parser.h src/bootstrap/parser.h
 
 src/bootstrap/til.c: bin/ctil $(SRC) src/self/til.til
 	@bin/ctil translate src/self/til.til
