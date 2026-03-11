@@ -141,7 +141,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.KwDefer: return "defer"
     case TokenType.KwTrue: return "true"
     case TokenType.KwFalse: return "false"
-    case TokenType.KwNull: return "null"
+    case TokenType.KwNull: return "NULL"
     case TokenType.Error: return "error"
     case: return "?"
     }
@@ -187,7 +187,7 @@ lookup_keyword := func(word: Str) returns TokenType {
     case "defer": return TokenType.KwDefer
     case "true": return TokenType.KwTrue
     case "false": return TokenType.KwFalse
-    case "null": return TokenType.KwNull
+    case "NULL": return TokenType.KwNull
     case: return TokenType.Ident
     }
 }
@@ -360,11 +360,11 @@ tokenize := proc(source: Str, path: Str) returns Vec {
             ref c2 : U8 = source.get(pos.add(1))
             mut two := TokenType.Eof
             if c.eq(':').and(c2.eq('=')) { two = TokenType.ColonEq }
-            if c.eq('=').and(c2.eq('=')) { two = TokenType.EqEq }
-            if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
-            if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
-            if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
-            if c.eq('.').and(c2.eq('.')) { two = TokenType.DotDot }
+            else if c.eq('=').and(c2.eq('=')) { two = TokenType.EqEq }
+            else if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
+            else if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
+            else if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
+            else if c.eq('.').and(c2.eq('.')) { two = TokenType.DotDot }
             if two.eq(TokenType.Eof).not() {
                 tokens.push(own Token(type = two,
                     text = source.substr(start, 2),

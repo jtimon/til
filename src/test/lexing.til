@@ -62,7 +62,7 @@ test_keywords := proc() {
 }
 
 test_more_keywords := proc() {
-    tokens := tokenize("mode mut own ref shallow returns throws for in break continue defer null", "test")
+    tokens := tokenize("mode mut own ref shallow returns throws for in break continue defer NULL", "test")
     check_tok(tokens, 0, TokenType.KwMode, "mode")
     check_tok(tokens, 1, TokenType.KwMut, "mut")
     check_tok(tokens, 2, TokenType.KwOwn, "own")
@@ -75,7 +75,7 @@ test_more_keywords := proc() {
     check_tok(tokens, 9, TokenType.KwBreak, "break")
     check_tok(tokens, 10, TokenType.KwContinue, "continue")
     check_tok(tokens, 11, TokenType.KwDefer, "defer")
-    check_tok(tokens, 12, TokenType.KwNull, "null")
+    check_tok(tokens, 12, TokenType.KwNull, "NULL")
 }
 
 test_statement := proc() {
@@ -113,7 +113,7 @@ test_tok_name := proc() {
     assert_eq_str(__LOC__, tok_name(TokenType.KwIf), "if")
     assert_eq_str(__LOC__, tok_name(TokenType.KwTest), "test")
     assert_eq_str(__LOC__, tok_name(TokenType.KwShallow), "shallow")
-    assert_eq_str(__LOC__, tok_name(TokenType.KwNull), "null")
+    assert_eq_str(__LOC__, tok_name(TokenType.KwNull), "NULL")
     assert_eq_str(__LOC__, tok_name(TokenType.Eof), "eof")
 }
 
