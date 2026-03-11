@@ -1,25 +1,35 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 53
+# NEXT_ISSUE: 54
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
 
-** OPEN #52 Flaky parallel test failures
-  Some tests (notably strings.til) randomly fail when run in parallel
-  under high contention (4 modes × 32 files). They always pass when
-  run standalone. Likely a resource contention issue — too many
-  concurrent compiler processes fighting for CPU/memory/disk I/O.
+** OPEN #53 Payload enum in struct field: codegen bug
+  Compiled mode produces wrong values when a payload enum is stored as a
+  struct field. Interpreter works correctly.
 
-  Observed: ~FAIL (cr): src/test/strings.til~ appearing sporadically.
-  Never reproduces in isolation (~bin/ctil run src/test/strings.til~
-  and ~bin/ctil interpret src/test/strings.til~ both pass).
+  Repro (tmp/test_payload_enum.til):
+  #+begin_src til
+  Data := struct { mut x := 0; mut y := 0
+      namespace:
+      eq := func(a: Data, b: Data) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
+      to_str := func(self: Data) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
+  }
+  Kind := enum { A: Data, B: I64, C }
+  Container := struct { mut name := ""; mut kind := Kind.C }
+  c := Container(name = "test", kind = Kind.A(Data(x = 3, y = 4)))
+  #+end_src
 
-  Possible fixes:
-  - Lower default parallelism (currently ~get_thread_count()~)
-  - Add retry logic for failed tests
-  - Investigate if specific tests are more sensitive to contention
+  - ~bin/ctil interpret~: correct — ~A(3,4)~, ~is_A()~ returns true, ~get_A()~ returns {3,4}
+  - ~bin/ctil run~: wrong — ~A(3,3)~, ~is_A()~ returns false
+
+  Note: src/test/enums.til:162 had an old comment saying "segfaults in
+  interpreter" — that was wrong. The interpreter is fine; codegen is broken.
+
+  Blocks: compiling tests.til (currently interpreted so payload enums work).
+
 
 ** OPEN #51 Add ~til test~ command
   Add a ~til test myfile.til~ command that finds all test() functions in

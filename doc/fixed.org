@@ -1,5 +1,13 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #52 Flaky parallel test failures
+  Fixed by generalizing the test infrastructure: all tests (mode, FFI,
+  typer, CLI, build) now go through a single blind parallel runner via
+  test_runner.til subcommands (mode, single, count). Each test runs as
+  an isolated subprocess with its own output file. The previous approach
+  of running 4 modes × 32 files caused resource contention; the new
+  runner handles scheduling with a slot-based pool (default j = thread count).
+
 * FIXED #49 Audit panic() call sites for correct __LOC__ usage
   All panic() calls now use __LOC__ as the first argument. Previously,
   core library files (str.til, vec.til, map.til, set.til, array.til) and

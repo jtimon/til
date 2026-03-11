@@ -293,15 +293,22 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
 
 main := proc(args: ..Str) {
     if args.len().lt(2) {
-        println("usage: plot <csv_path> <svg_output_path> [last_n]")
+        println("usage: plot <csv_path> <svg_output_path> [last_n] [--no-x-labels]")
         exit(1)
     }
     ref csv_path : Str = args.get(0)
     ref svg_path : Str = args.get(1)
     mut last_n := 0
-    if args.len().gte(3) {
-        ref n_str : Str = args.get(2)
-        last_n = n_str.to_i64()
+    mut show_x := true
+    mut i : U64 = 2
+    while i.lt(args.len()) {
+        ref a : Str = args.get(i)
+        if a.eq("--no-x-labels") {
+            show_x = false
+        } else {
+            last_n = a.to_i64()
+        }
+        i = i.add(1)
     }
-    plot_csv(csv_path, svg_path, last_n)
+    plot_csv(csv_path, svg_path, last_n, show_x_labels=show_x)
 }

@@ -159,5 +159,5 @@ test_struct_payload_to_str := test() {
     assert_eq_str(__LOC__, Shape.Line("hi").to_str(), "Line(hi)")
 }
 
-// payload enum as struct field: segfaults in interpreter (pre-existing bug)
-// TODO: add test_payload_enum_field once interpreter handles tagged enums in struct fields
+// payload enum as struct field: codegen bug (#53) — interpreter works, compiled produces wrong values
+// TODO: add test_payload_enum_field once #53 is fixed

@@ -1,9 +1,11 @@
 mode cli
 
-// test_runner.til — runs all enabled modes for one test file sequentially,
-// compares outputs, prints structured result line for tests.til to parse.
+// test_runner.til — runs tests and reports structured results for tests.til.
 //
-// Usage: test_runner <file> [-no-ci] [-no-cr] [-no-ti] [-no-tr]
+// Usage:
+//   test_runner mode <file> [-no-ci] [-no-cr] [-no-ti] [-no-tr]
+//   test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>
+//   test_runner count <label> <needle> <expected_count> -- <cmd...>
 
 CTIL := "bin/ctil"
 TIL := "bin/c/til"
@@ -30,157 +32,312 @@ test_basename := func(path: Str) returns Str {
     return name
 }
 
+count_matches := func(haystack: Str, needle: Str) returns I64 {
+    if needle.is_empty() { return 0 }
+    mut count := 0
+    mut start : U64 = 0
+    while start.lte(haystack.len().sub(needle.len())) {
+        pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
+        if pos.eq(0.sub(1)) { return count }
+        count = count.add(1)
+        start = start.add(pos.to_u64()).add(needle.len())
+    }
+    return count
+}
+
 main := proc(args: ..Str) {
     if args.len().lt(1) {
-        println("Usage: test_runner <file> [-no-ci] [-no-cr] [-no-ti] [-no-tr]")
+        println("Usage: test_runner <mode|single|count> ...")
         exit(1)
     }
 
-    ref file : Str = args.get(0)
-    mut en_ci := 1
-    mut en_cr := 1
-    mut en_ti := 1
-    mut en_tr := 1
-    mut i : U64 = 1
-    while i.lt(args.len()) {
-        ref arg : Str = args.get(i)
-        if arg.eq("-no-ci") { en_ci = 0 }
-        if arg.eq("-no-cr") { en_cr = 0 }
-        if arg.eq("-no-ti") { en_ti = 0 }
-        if arg.eq("-no-tr") { en_tr = 0 }
-        i = i.add(1)
-    }
+    ref subcmd : Str = args.get(0)
 
-    basename := test_basename(file)
-
-    // Output file paths
-    ci_outfile := "gen/out/ci/".concat(basename).concat(".out")
-    cr_outfile := "gen/out/cr/".concat(basename).concat(".out")
-    ti_outfile := "gen/out/ti/".concat(basename).concat(".out")
-    tr_outfile := "gen/out/tr/".concat(basename).concat(".out")
-
-    mut ci_ms := 0
-    mut ci_ok := 0
-    mut cr_ms := 0
-    mut cr_ok := 0
-    mut ti_ms := 0
-    mut ti_ok := 0
-    mut tr_ms := 0
-    mut tr_ok := 0
-    mut fail := 0
-
-    // Run each enabled mode sequentially
-    if en_ci.eq(1) {
-        start := clock_ms()
-        cmd := CTIL.concat(" interpret '").concat(file).concat("' > ").concat(ci_outfile).concat(" 2>/dev/null")
-        pid := spawn_cmd(cmd)
-        status := wait_cmd(pid)
-        ci_ms = clock_ms().sub(start)
-        if status.eq(0) {
-            ci_ok = 1
-        } else {
-            println("FAIL (ci): ", file)
-            fail = 1
+    // ========== mode subcommand ==========
+    if subcmd.eq("mode") {
+        if args.len().lt(2) {
+            println("Usage: test_runner mode <file> [-no-ci] [-no-cr] [-no-ti] [-no-tr]")
+            exit(1)
         }
-    }
 
-    if en_cr.eq(1) {
-        start := clock_ms()
-        cmd := CTIL.concat(" run '").concat(file).concat("' > ").concat(cr_outfile).concat(" 2>/dev/null")
-        pid := spawn_cmd(cmd)
-        status := wait_cmd(pid)
-        cr_ms = clock_ms().sub(start)
-        if status.eq(0) {
-            cr_ok = 1
-        } else {
-            println("FAIL (cr): ", file)
-            fail = 1
+        ref file : Str = args.get(1)
+        mut en_ci := 1
+        mut en_cr := 1
+        mut en_ti := 1
+        mut en_tr := 1
+        mut i : U64 = 2
+        while i.lt(args.len()) {
+            ref arg : Str = args.get(i)
+            if arg.eq("-no-ci") { en_ci = 0 }
+            if arg.eq("-no-cr") { en_cr = 0 }
+            if arg.eq("-no-ti") { en_ti = 0 }
+            if arg.eq("-no-tr") { en_tr = 0 }
+            i = i.add(1)
         }
-    }
 
-    if en_ti.eq(1) {
-        start := clock_ms()
-        cmd := TIL.concat(" interpret '").concat(file).concat("' > ").concat(ti_outfile).concat(" 2>/dev/null")
-        pid := spawn_cmd(cmd)
-        status := wait_cmd(pid)
-        ti_ms = clock_ms().sub(start)
-        if status.eq(0) {
-            ti_ok = 1
-        } else {
-            println("FAIL (ti): ", file)
-            fail = 1
-        }
-    }
+        basename := test_basename(file)
 
-    if en_tr.eq(1) {
-        start := clock_ms()
-        cmd := TIL.concat(" run '").concat(file).concat("' > ").concat(tr_outfile).concat(" 2>/dev/null")
-        pid := spawn_cmd(cmd)
-        status := wait_cmd(pid)
-        tr_ms = clock_ms().sub(start)
-        if status.eq(0) {
-            tr_ok = 1
-        } else {
-            println("FAIL (tr): ", file)
-            fail = 1
-        }
-    }
+        ci_outfile := "gen/out/ci/".concat(basename).concat(".out")
+        cr_outfile := "gen/out/cr/".concat(basename).concat(".out")
+        ti_outfile := "gen/out/ti/".concat(basename).concat(".out")
+        tr_outfile := "gen/out/tr/".concat(basename).concat(".out")
 
-    // Compare all passing mode outputs
-    mut out_match := 1
-    mut ref_out := ""
-    mut has_ref := 0
+        mut ci_ms := 0
+        mut ci_ok := 0
+        mut cr_ms := 0
+        mut cr_ok := 0
+        mut ti_ms := 0
+        mut ti_ok := 0
+        mut tr_ms := 0
+        mut tr_ok := 0
+        mut fail := 0
 
-    if en_ci.eq(1).and(ci_ok.eq(1)) {
-        ref_out = readfile(ci_outfile)
-        has_ref = 1
-    }
-    if en_cr.eq(1).and(cr_ok.eq(1)) {
-        cr_out := readfile(cr_outfile)
-        if has_ref.eq(0) {
-            ref_out = cr_out
-            has_ref = 1
-        } else {
-            if cr_out.neq(ref_out) {
-                out_match = 0
-                println("MISMATCH: ", file, " (cr vs ci)")
+        if en_ci.eq(1) {
+            start := clock_ms()
+            cmd := CTIL.concat(" interpret '").concat(file).concat("' > ").concat(ci_outfile).concat(" 2>/dev/null")
+            pid := spawn_cmd(cmd)
+            status := wait_cmd(pid)
+            ci_ms = clock_ms().sub(start)
+            if status.eq(0) {
+                ci_ok = 1
+            } else {
+                println("FAIL (ci): ", file)
                 fail = 1
             }
         }
-    }
-    if en_ti.eq(1).and(ti_ok.eq(1)) {
-        ti_out := readfile(ti_outfile)
-        if has_ref.eq(0) {
-            ref_out = ti_out
-            has_ref = 1
-        } else {
-            if ti_out.neq(ref_out) {
-                out_match = 0
-                println("MISMATCH: ", file, " (ti vs ref)")
+
+        if en_cr.eq(1) {
+            start := clock_ms()
+            cmd := CTIL.concat(" run '").concat(file).concat("' > ").concat(cr_outfile).concat(" 2>/dev/null")
+            pid := spawn_cmd(cmd)
+            status := wait_cmd(pid)
+            cr_ms = clock_ms().sub(start)
+            if status.eq(0) {
+                cr_ok = 1
+            } else {
+                println("FAIL (cr): ", file)
                 fail = 1
             }
         }
-    }
-    if en_tr.eq(1).and(tr_ok.eq(1)) {
-        tr_out := readfile(tr_outfile)
-        if has_ref.eq(0) {
-            ref_out = tr_out
-            has_ref = 1
-        } else {
-            if tr_out.neq(ref_out) {
-                out_match = 0
-                println("MISMATCH: ", file, " (tr vs ref)")
+
+        if en_ti.eq(1) {
+            start := clock_ms()
+            cmd := TIL.concat(" interpret '").concat(file).concat("' > ").concat(ti_outfile).concat(" 2>/dev/null")
+            pid := spawn_cmd(cmd)
+            status := wait_cmd(pid)
+            ti_ms = clock_ms().sub(start)
+            if status.eq(0) {
+                ti_ok = 1
+            } else {
+                println("FAIL (ti): ", file)
                 fail = 1
             }
         }
+
+        if en_tr.eq(1) {
+            start := clock_ms()
+            cmd := TIL.concat(" run '").concat(file).concat("' > ").concat(tr_outfile).concat(" 2>/dev/null")
+            pid := spawn_cmd(cmd)
+            status := wait_cmd(pid)
+            tr_ms = clock_ms().sub(start)
+            if status.eq(0) {
+                tr_ok = 1
+            } else {
+                println("FAIL (tr): ", file)
+                fail = 1
+            }
+        }
+
+        // Compare all passing mode outputs
+        mut out_match := 1
+        mut ref_out := ""
+        mut has_ref := 0
+
+        if en_ci.eq(1).and(ci_ok.eq(1)) {
+            ref_out = readfile(ci_outfile)
+            has_ref = 1
+        }
+        if en_cr.eq(1).and(cr_ok.eq(1)) {
+            cr_out := readfile(cr_outfile)
+            if has_ref.eq(0) {
+                ref_out = cr_out
+                has_ref = 1
+            } else {
+                if cr_out.neq(ref_out) {
+                    out_match = 0
+                    println("MISMATCH: ", file, " (cr vs ci)")
+                    fail = 1
+                }
+            }
+        }
+        if en_ti.eq(1).and(ti_ok.eq(1)) {
+            ti_out := readfile(ti_outfile)
+            if has_ref.eq(0) {
+                ref_out = ti_out
+                has_ref = 1
+            } else {
+                if ti_out.neq(ref_out) {
+                    out_match = 0
+                    println("MISMATCH: ", file, " (ti vs ref)")
+                    fail = 1
+                }
+            }
+        }
+        if en_tr.eq(1).and(tr_ok.eq(1)) {
+            tr_out := readfile(tr_outfile)
+            if has_ref.eq(0) {
+                ref_out = tr_out
+                has_ref = 1
+            } else {
+                if tr_out.neq(ref_out) {
+                    out_match = 0
+                    println("MISMATCH: ", file, " (tr vs ref)")
+                    fail = 1
+                }
+            }
+        }
+
+        mut mode_ok := 1
+        if fail.neq(0) { mode_ok = 0 }
+        if out_match.eq(0) { mode_ok = 0 }
+        total_ms := ci_ms.add(cr_ms).add(ti_ms).add(tr_ms)
+
+        println("RESULT ok=", mode_ok.to_str(), " ms=", total_ms.to_str(),
+                " ci_ms=", ci_ms.to_str(), " ci_ok=", ci_ok.to_str(),
+                " cr_ms=", cr_ms.to_str(), " cr_ok=", cr_ok.to_str(),
+                " ti_ms=", ti_ms.to_str(), " ti_ok=", ti_ok.to_str(),
+                " tr_ms=", tr_ms.to_str(), " tr_ok=", tr_ok.to_str(),
+                " match=", out_match.to_str())
+
+        exit(fail)
     }
 
-    // Print structured result line (parsed by tests.til)
-    println("RESULT ci_ms=", ci_ms.to_str(), " ci_ok=", ci_ok.to_str(),
-            " cr_ms=", cr_ms.to_str(), " cr_ok=", cr_ok.to_str(),
-            " ti_ms=", ti_ms.to_str(), " ti_ok=", ti_ok.to_str(),
-            " tr_ms=", tr_ms.to_str(), " tr_ok=", tr_ok.to_str(),
-            " match=", out_match.to_str())
+    // ========== single subcommand ==========
+    if subcmd.eq("single") {
+        if args.len().lt(4) {
+            println("Usage: test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>")
+            exit(1)
+        }
 
-    exit(fail)
+        ref label : Str = args.get(1)
+        ref exit_str : Str = args.get(2)
+        expected_exit := exit_str.to_i64()
+
+        // Find "--" starting from index 3
+        mut dd : U64 = 3
+        while dd.lt(args.len()) {
+            ref a : Str = args.get(dd)
+            if a.eq("--") { break }
+            dd = dd.add(1)
+        }
+
+        // If there's an arg between expected_exit and "--", it's the expected output file
+        mut expected_out_file := ""
+        mut has_expected := 0
+        if dd.gt(3) {
+            ref eof : Str = args.get(3)
+            expected_out_file = eof.clone()
+            has_expected = 1
+        }
+
+        // Join args after "--" as command
+        mut cmd := ""
+        mut ci : U64 = dd.add(1)
+        while ci.lt(args.len()) {
+            if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
+            ref carg : Str = args.get(ci)
+            cmd = cmd.concat(carg)
+            ci = ci.add(1)
+        }
+
+        if cmd.is_empty() {
+            println("FAIL: ", label, " no command after --")
+            println("RESULT ms=0 ok=0")
+            exit(1)
+        }
+
+        outfile := "gen/out/single/".concat(label).concat(".out")
+
+        start := clock_ms()
+        pid := spawn_cmd(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
+        status := wait_cmd(pid)
+        ms := clock_ms().sub(start)
+
+        mut ok := 1
+        if status.neq(expected_exit) {
+            println("FAIL: ", label, " exit=", status.to_str(), " expected=", expected_exit.to_str())
+            ok = 0
+        }
+
+        if ok.eq(1).and(has_expected.eq(1)) {
+            actual := readfile(outfile)
+            expected := readfile(expected_out_file)
+            if actual.neq(expected) {
+                println("FAIL: ", label, " output mismatch")
+                ok = 0
+            }
+        }
+
+        println("RESULT ms=", ms.to_str(), " ok=", ok.to_str())
+        if ok.eq(1) { exit(0) } else { exit(1) }
+    }
+
+    // ========== count subcommand ==========
+    if subcmd.eq("count") {
+        if args.len().lt(5) {
+            println("Usage: test_runner count <label> <needle> <expected_count> -- <cmd...>")
+            exit(1)
+        }
+
+        ref label : Str = args.get(1)
+        ref needle : Str = args.get(2)
+        ref count_str : Str = args.get(3)
+        expected_count := count_str.to_i64()
+
+        // Find "--" starting from index 4
+        mut dd : U64 = 4
+        while dd.lt(args.len()) {
+            ref a : Str = args.get(dd)
+            if a.eq("--") { break }
+            dd = dd.add(1)
+        }
+
+        // Join args after "--" as command
+        mut cmd := ""
+        mut ci : U64 = dd.add(1)
+        while ci.lt(args.len()) {
+            if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
+            ref carg : Str = args.get(ci)
+            cmd = cmd.concat(carg)
+            ci = ci.add(1)
+        }
+
+        if cmd.is_empty() {
+            println("FAIL: ", label, " no command after --")
+            println("RESULT ms=0 ok=0 count=0")
+            exit(1)
+        }
+
+        outfile := "gen/out/single/".concat(label).concat(".out")
+
+        start := clock_ms()
+        pid := spawn_cmd(cmd.concat(" > ").concat(outfile).concat(" 2>&1"))
+        status := wait_cmd(pid)
+        ms := clock_ms().sub(start)
+
+        actual_out := readfile(outfile)
+        actual_count := count_matches(actual_out, needle)
+
+        mut ok := 1
+        if actual_count.neq(expected_count) {
+            println("FAIL: ", label, " count=", actual_count.to_str(), " expected=", expected_count.to_str())
+            ok = 0
+        }
+
+        println("RESULT ms=", ms.to_str(), " ok=", ok.to_str(), " count=", actual_count.to_str())
+        if ok.eq(1) { exit(0) } else { exit(1) }
+    }
+
+    println("Unknown subcommand: ", subcmd)
+    exit(1)
 }
