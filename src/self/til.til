@@ -1,7 +1,7 @@
 mode cli
 
-// Link C modules (same as ctil.c imports)
-link_c("src/c/lexer.c")
+// Link C modules (same as ctil Makefile SRCS)
+link_c("src/bootstrap/lexer.c")
 link_c("src/c/parser.c")
 link_c("src/c/ast.c")
 link_c("src/c/initer.c")
@@ -12,9 +12,7 @@ link_c("src/c/precomp.c")
 link_c("src/c/scavenger.c")
 link_c("src/c/dispatch.c")
 link_c("src/c/ccore.c")
-link_c("src/c/str.c")
-link_c("src/c/vec.c")
-link_c("src/c/map.c")
+link_c("src/c/compat.c")
 link_c("src/c/til_bridge.c")
 link("dl")
 link("ffi")
@@ -153,7 +151,7 @@ extract_imports := proc(body: Dynamic) returns Vec {
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
                         resolved_set: Dynamic, stack: Dynamic,
                         merged: Dynamic, lib_dir: Str) returns I32 {
-    mut i : U32 = 0
+    mut i : U64 = 0
     while i.lt(import_paths.len()) {
         ref import_path : Str = import_paths.get(i)
 
@@ -273,23 +271,45 @@ main := proc(args: ..Str) {
     core_path := bin_dir.concat("/src/core/core.til")
     ext_c_path := bin_dir.concat("/src/c/ext.c")
 
+    // Single resolved set for all imports (core + user), so no file is loaded twice
+    resolved := til_set_new()
+    resolve_stack := expr_vec_new()
+
+    // Add user file to resolved set early (so core imports skip it if it overlaps)
+    abs_path := til_realpath(path)
+    mut user_dir := "."
+    if abs_path.len().gt(0) {
+        mut last_slash := abs_path.len().sub(1)
+        while last_slash.gt(0).and(abs_path.get(last_slash).neq('/')) {
+            last_slash = last_slash.sub(1)
+        }
+        user_dir = abs_path.substr(0, last_slash)
+        til_set_add(resolved, abs_path)
+    }
+
     // Load core.til
     core_source := readfile(core_path)
     core_tokens := til_tokenize(core_source, core_path)
     core_count := til_tok_count()
     core_ast := til_parse(core_tokens, core_count, core_path)
 
+    // Add core.til to resolved set; skip prepending if user file IS core.til
+    mut skip_core := false
+    core_abs := til_realpath(core_path)
+    if core_abs.len().gt(0) {
+        if til_set_has(resolved, core_abs) {
+            skip_core = true
+        }
+        til_set_add(resolved, core_abs)
+    }
+
     // Resolve core imports
     core_import_decls := expr_vec_new()
     core_imports := extract_imports(core_ast)
-    if core_imports.len().gt(0) {
+    if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
-        resolved := til_set_new()
-        resolve_stack := expr_vec_new()
         err := resolve_imports(core_imports, core_dir, resolved, resolve_stack,
                                core_import_decls, "")
-        til_set_free(resolved)
-        expr_vec_free(resolve_stack)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve core imports")
         }
@@ -323,53 +343,41 @@ main := proc(args: ..Str) {
         mode_ast = til_parse(mode_tokens, mode_count, mode_til_path)
     }
 
-    // Resolve user imports
+    // Resolve user imports (using same resolved set — skips files already loaded by core)
     import_decls := expr_vec_new()
     if imports.len().gt(0) {
-        resolved := til_set_new()
-        resolve_stack := expr_vec_new()
-
-        // Compute base directory of user file
-        abs_path := til_realpath(path)
-        mut user_dir := "."
-        if abs_path.len().gt(0) {
-            mut last_slash := abs_path.len().sub(1)
-            while last_slash.gt(0).and(abs_path.get(last_slash).neq('/')) {
-                last_slash = last_slash.sub(1)
-            }
-            user_dir = abs_path.substr(0, last_slash)
-            til_set_add(resolved, abs_path)
-        }
-
         lib_dir := bin_dir.concat("/src/lib")
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
                                import_decls, lib_dir)
-        til_set_free(resolved)
-        expr_vec_free(resolve_stack)
         if err.gt(0) {
             panic(__LOC__, "failed to resolve imports")
         }
     }
 
+    til_set_free(resolved)
+    expr_vec_free(resolve_stack)
+
     // Merge: core + core_imports + mode + user_imports + user
     merged := expr_vec_new()
 
-    // Core declarations
+    // Core declarations (skip if user file IS core.til)
     mut i : U32 = 0
-    while i.lt(expr_nchildren(core_ast)) {
-        ch := expr_get_child(core_ast, i)
-        mark_core(ch)
-        expr_vec_push(merged, ch)
-        i = i.add(1)
-    }
+    if skip_core.not() {
+        while i.lt(expr_nchildren(core_ast)) {
+            ch := expr_get_child(core_ast, i)
+            mark_core(ch)
+            expr_vec_push(merged, ch)
+            i = i.add(1)
+        }
 
-    // Core import declarations
-    i = 0
-    while i.lt(expr_vec_count(core_import_decls)) {
-        ch := expr_vec_get(core_import_decls, i)
-        mark_core(ch)
-        expr_vec_push(merged, ch)
-        i = i.add(1)
+        // Core import declarations
+        i = 0
+        while i.lt(expr_vec_count(core_import_decls)) {
+            ch := expr_vec_get(core_import_decls, i)
+            mark_core(ch)
+            expr_vec_push(merged, ch)
+            i = i.add(1)
+        }
     }
 
     // Mode auto-import declarations
@@ -456,7 +464,7 @@ main := proc(args: ..Str) {
         til_scavenge(ast, cur_mode, run_tests)
     }
 
-    mut result := 0
+    mut result : I32 = 0
 
     // Use link_c() paths as user .c files
     mut user_c := ""
@@ -466,7 +474,7 @@ main := proc(args: ..Str) {
 
     // Append -l flags from CLI args (args[2..])
     mut user_argv := Vec.new("Str", Str.size())
-    mut ai := 2
+    mut ai : U64 = 2
     while ai.lt(args.len()) {
         ref arg : Str = args.get(ai)
         if arg.starts_with("-l") {
@@ -495,7 +503,7 @@ main := proc(args: ..Str) {
             panic(__LOC__, "cannot interpret a library — use translate or build")
         }
         result = til_interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
-                               user_argv.len().to_u32(), NULL)
+                               user_argv.len().to_i64().to_u32(), NULL)
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
         if is_lib_mode.and(command.eq("run")) {
             panic(__LOC__, "cannot run a library — use translate or build")
@@ -566,7 +574,7 @@ main := proc(args: ..Str) {
         if result.eq(0).and(do_lib.not()).and(command.eq("run")) {
             // Build command with user args
             mut cmd := bin_path
-            mut ui := 0
+            mut ui : U64 = 0
             while ui.lt(user_argv.len()) {
                 ref uarg : Str = user_argv.get(ui)
                 cmd = cmd.concat(" '").concat(uarg).concat("'")

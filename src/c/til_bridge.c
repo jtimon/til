@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <sys/wait.h>
 
 // --- Tokenize/Parse wrappers (avoid output params) ---
 
@@ -29,7 +30,7 @@ Expr *til_parse(Token *tokens, U32 count, Str *path) {
     _parse_mode = NULL;
     return parse(tokens, count, path, &_parse_mode);
 }
-Str *til_parse_mode(void) { return _parse_mode; }
+Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_new(""); }
 
 // --- Expr field accessors ---
 
@@ -106,9 +107,9 @@ const Mode *til_mode_pura(void)   { return &MODE_PURA; }
 const Mode *til_mode_lib(void)    { return &MODE_LIB; }
 const Mode *til_mode_liba(void)   { return &MODE_LIBA; }
 
-Str *til_mode_name(const Mode *m) { return m ? Str_new(m->name) : NULL; }
+Str *til_mode_name(const Mode *m) { return Str_new(m ? m->name : ""); }
 Str *til_mode_auto_import(const Mode *m) {
-    return m && m->auto_import ? Str_new(m->auto_import) : NULL;
+    return Str_new(m && m->auto_import ? m->auto_import : "");
 }
 
 Bool til_mode_is_lib(const Mode *m) {
@@ -179,14 +180,16 @@ void til_expr_free(Expr *ast) { expr_free(ast); }
 
 Str *til_realpath(Str *path) {
     char *abs = realpath((const char *)path->c_str, NULL);
-    if (!abs) return NULL;
+    if (!abs) return Str_new("");
     Str *s = Str_new(abs);
     free(abs);
     return s;
 }
 
 I32 til_system(Str *cmd) {
-    return system((const char *)cmd->c_str);
+    int status = system((const char *)cmd->c_str);
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    return 1;
 }
 
 // Set operations (bridge for Str set)

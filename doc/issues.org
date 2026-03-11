@@ -257,24 +257,35 @@
    ctil's C modules with til-compiled libraries bottom-up, eventually
    eliminating the C codebase entirely.
 
-*** DONE Entry point (src/self/til.til)
+*** WIP Entry point (src/self/til.til)
    Strict translation of ctil.c main + helpers (extract_imports,
    resolve_imports, mark_core, usage). Uses ext_struct/ext_func/ext_proc
-   to FFI into the C modules (lexer, parser, typer, interpreter, builder,
-   etc.) via til_bridge.c.
+   to FFI into the C modules via til_bridge.c.
 
-   Compiles and runs: ~bin/ctil run src/self/til.til help~ works.
-   Remaining: segfaults when processing actual .til files (re-entrant
-   global state in lexer/parser). See #43 for linker workaround.
+   Current state:
+   - ~bin/ctil run src/self/til.til help~ works
+   - ~bin/c/til help~ works (compiled binary)
+   - Segfaults when processing actual .til files — likely symbol
+     collision between link_c() modules and ctil's own linked modules
+     (e.g. tokenize(), parse() defined in both ctil and the compiled til
+     binary's linked .c files)
 
-   Fixes needed to make it compile:
-   - ref/clone pattern for args.get() (returns ref Dynamic)
-   - All format() calls replaced with concat chains (variadic format
-     generates wrong C when compiled with link_c modules)
-   - Mode comparisons via til_mode_eq() instead of .eq()
-   - expr_is_null added to til_bridge.c
-   - Removed ccore.c/str.c/vec.c/map.c conflicts via --allow-multiple-definition
-   - til_prepare weak reference for standalone compilation
+   Recent fixes (2026-03):
+   - Updated link_c() paths: removed deleted str.c/vec.c/map.c/lexer.c,
+     added bootstrap/lexer.c + compat.c
+   - Merged separate resolved sets into one shared set (matching ctil.c)
+   - Added core.til self-compilation guard (skip_core)
+   - Fixed NULL-crash bugs: til_realpath, til_parse_mode,
+     til_mode_auto_import now return empty Str instead of NULL
+   - Fixed til_system to return WEXITSTATUS instead of raw system()
+   - Fixed type mismatches (U32/U64/I64 loop variables, result: I32)
+
+   Remaining:
+   - Investigate symbol collision in compiled binary (link_c modules
+     define same symbols as the compiled til.c code — tokenize, parse,
+     Vec_new, etc.)
+   - user_argv passed as NULL to til_interpret (Vec built but not used)
+   - user_c/lflags pass empty Str instead of NULL (may cause minor diffs)
 
 *** DONE Lexer (src/self/lexer.til)
    Strict translation of src/c/lexer.c following c2til.org rules.
