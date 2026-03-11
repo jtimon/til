@@ -239,6 +239,7 @@ U8 I64_to_u8(I64 val);
 I16 I64_to_i16(I64 val);
 I32 I64_to_i32(I64 val);
 U32 I64_to_u32(I64 val);
+U64 I64_to_u64(I64 val);
 I64 I64_add(I64 a, I64 b);
 I64 I64_sub(I64 a, I64 b);
 I64 I64_mul(I64 a, I64 b);

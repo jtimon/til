@@ -125,7 +125,7 @@ test_range_single := test() {
 test_range_break := test() {
     mut last := 0
     for i in 0..100 {
-        if i.eq(U64.from_i64(5)) { break }
+        if i.eq(5) { break }
         last = i.to_i64()
     }
     assert_eq(__LOC__, last, 4)
@@ -135,7 +135,7 @@ test_range_continue := test() {
     // Sum only even numbers 0..10
     mut sum := 0
     for i in 0..10 {
-        if i.mod(U64.from_i64(2)).neq(U64.from_i64(0)) { continue }
+        if i.mod(2).neq(0) { continue }
         sum = sum.add(i.to_i64())
     }
     assert_eq(__LOC__, sum, 20)

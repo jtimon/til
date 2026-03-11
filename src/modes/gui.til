@@ -100,7 +100,7 @@ play_tone := proc(freq: I64, duration_ms: I64) {
     sr := 44100
     mut n := sr.mul(duration_ms).div(1000)
     if n.lt(1) { n = 1 }
-    own buf : U8 = malloc(U64.from_i64(n.mul(4)))
+    own buf : U8 = malloc(n.mul(4).to_u64())
     attack := sr.div(100)
     release := sr.div(100)
     pi2 := F32.from_i64(6283185).div(F32.from_i64(1000000))
@@ -117,7 +117,7 @@ play_tone := proc(freq: I64, duration_ms: I64) {
             env = F32.from_i64(n.sub(i)).div(F32.from_i64(release))
         }
         sample := sinf(pi2.mul(freq_f).mul(F32.from_i64(i)).div(sr_f)).mul(amp).mul(env)
-        memcpy(ptr_add(buf, U64.from_i64(i.mul(4))), sample, U64.from_i64(4))
+        memcpy(ptr_add(buf, i.mul(4).to_u64()), sample, 4)
         i = i.add(1)
     }
     w := Wave(
@@ -144,7 +144,7 @@ make_tone := func(freq: I64, duration_ms: I64) returns Sound {
     sr := 44100
     mut n := sr.mul(duration_ms).div(1000)
     if n.lt(1) { n = 1 }
-    own buf : U8 = malloc(U64.from_i64(n.mul(4)))
+    own buf : U8 = malloc(n.mul(4).to_u64())
     attack := sr.div(100)
     release := sr.div(100)
     pi2 := F32.from_i64(6283185).div(F32.from_i64(1000000))
@@ -161,7 +161,7 @@ make_tone := func(freq: I64, duration_ms: I64) returns Sound {
             env = F32.from_i64(n.sub(i)).div(F32.from_i64(release))
         }
         sample := sinf(pi2.mul(freq_f).mul(F32.from_i64(i)).div(sr_f)).mul(amp).mul(env)
-        memcpy(ptr_add(buf, U64.from_i64(i.mul(4))), sample, U64.from_i64(4))
+        memcpy(ptr_add(buf, i.mul(4).to_u64()), sample, 4)
         i = i.add(1)
     }
     w := Wave(

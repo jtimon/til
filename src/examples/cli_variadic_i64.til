@@ -13,7 +13,7 @@ main := proc(op: Str, nums: ..I64) {
         while i.lt(nums.len()) {
             ref n: I64 = nums.get(i)
             result = result.add(n)
-            i = i.add(U64.from_i64(1))
+            i = i.add(1)
         }
         println(result.to_str())
     } else if op.eq("mul") {
@@ -22,7 +22,7 @@ main := proc(op: Str, nums: ..I64) {
         while i.lt(nums.len()) {
             ref n: I64 = nums.get(i)
             result = result.mul(n)
-            i = i.add(U64.from_i64(1))
+            i = i.add(1)
         }
         println(result.to_str())
     } else {

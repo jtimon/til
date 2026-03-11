@@ -5,6 +5,6 @@ main := proc(args: ..Str) {
     while i.lt(args.len()) {
         ref a: Str = args.get(i)
         println(a)
-        i = i.add(U64.from_i64(1))
+        i = i.add(1)
     }
 }

@@ -218,6 +218,7 @@ U8 I64_to_u8(I64 a) { return (U8)a; }
 I16 I64_to_i16(I64 a) { return (I16)a; }
 I32 I64_to_i32(I64 a) { return (I32)a; }
 U32 I64_to_u32(I64 a) { return (U32)a; }
+U64 I64_to_u64(I64 a) { return (U64)a; }
 U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 I16 I16_from_i64_ext(I64 *a) { return (I16)*a; }
 I32 I32_from_i64_ext(I64 *a) { return (I32)*a; }

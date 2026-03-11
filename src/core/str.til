@@ -1,7 +1,7 @@
 mode lib
 
-CAP_LIT : U64 = U64.from_i64(0.sub(1))
-CAP_VIEW : U64 = U64.from_i64(0.sub(2))
+CAP_LIT : U64 = 0.sub(1).to_u64()
+CAP_VIEW : U64 = 0.sub(2).to_u64()
 
 Str := struct {
     own mut c_str : U8 = 0
@@ -180,9 +180,9 @@ namespace:
                 result = result.concat(rest)
                 return result
             }
-            result = result.concat(self.substr(start, U64.from_i64(pos)))
+            result = result.concat(self.substr(start, pos.to_u64()))
             result = result.concat(to)
-            start = start.add(U64.from_i64(pos)).add(from.count)
+            start = start.add(pos.to_u64()).add(from.count)
         }
         if start.lt(self.count) {
             result = result.concat(self.substr(start, self.count.sub(start)))
@@ -223,7 +223,7 @@ namespace:
         ref first : U8 = self.get(0)
         if first.eq(45) {
             neg = true
-            i = U64.from_i64(1)
+            i = 1
         }
         if i.eq(self.count) { panic("Str.to_i64", "no digits") }
         while i.lt(self.count) {

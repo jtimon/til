@@ -7,7 +7,8 @@
 * Pre-self-hosting
 
 ** OPEN #49 Audit panic() call sites for correct __LOC__ usage
-  Some call sites pass the location string as a single argument instead of
+  Some call sites pass the location string as another arbitrary string, artificially separating
+  a string in two arguments, to fit the signature instead of
   using __LOC__ as the first parameter. Every panic call should be checked.
 
 
@@ -453,6 +454,10 @@
   GUI music theory learning tool (src/examples/music.til). Uses mode gui
   (raylib). Click note + mode buttons to see/hear scales on pentagram.
   Click individual notes on staff to play them.
+
+  Known bug: mode buttons not rendering after from_i64 cleanup (#44).
+  Pre-existing issue — was crashing before, now runs but mode buttons
+  are missing. Needs investigation.
 
   Features: 7x3 note buttons (with b/#), 7 Greek mode buttons,
   graphical pentagram with notes, inline triad labels (Do-M, Re-m,

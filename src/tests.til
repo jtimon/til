@@ -13,7 +13,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(0.sub(1)) { return count }
         count = count.add(1)
-        start = start.add(U64.from_i64(pos)).add(needle.len())
+        start = start.add(pos.to_u64()).add(needle.len())
     }
     return count
 }
@@ -94,7 +94,7 @@ run_tests_parallel := proc(results: Vec, jobs: Vec, j: U64, mut fail: I64) {
     }
 
     // Spawn initial batch
-    si = U64.from_i64(0)
+    si = 0
     while si.lt(j).and(next.lt(jobs.len())) {
         ref job : Job = jobs.get(next)
         slots.set(si, own spawn_job(job))
@@ -199,13 +199,13 @@ main := proc(args: ..Str) {
     wall_start := clock_ms()
 
     // Parse -jN from args (default: CPU thread count)
-    mut j := U64.from_i64(get_thread_count())
+    mut j := get_thread_count().to_u64()
     mut i : U64 = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
         if arg.starts_with("-j") {
-            j = U64.from_i64(arg.substr(2, arg.len().sub(2)).to_i64())
-            if j.lt(1) { j = U64.from_i64(1) }
+            j = arg.substr(2, arg.len().sub(2)).to_i64().to_u64()
+            if j.lt(1) { j = 1 }
         }
         i = i.add(1)
     }
@@ -260,13 +260,13 @@ main := proc(args: ..Str) {
         results.push(own TestFile(file = f.clone(), has_interp = 1, has_run = 1))
         ri = ri.add(1)
     }
-    ri = U64.from_i64(0)
+    ri = 0
     while ri.lt(c_codegen.len()) {
         ref f : Str = c_codegen.get(ri)
         results.push(own TestFile(file = f.clone(), has_run = 1))
         ri = ri.add(1)
     }
-    ri = U64.from_i64(0)
+    ri = 0
     while ri.lt(c_interpreted.len()) {
         ref f : Str = c_interpreted.get(ri)
         results.push(own TestFile(file = f.clone(), has_interp = 1))
@@ -529,7 +529,7 @@ main := proc(args: ..Str) {
     // Only try replace if we have data rows (not just header)
     if last_data_idx.gt(0) {
         ref last_data : Str = lines.get(last_data_idx)
-        last_commit := last_data.substr(0, U64.from_i64(last_data.find(",")))
+        last_commit := last_data.substr(0, last_data.find(",").to_u64())
         if last_commit.eq(commit) {
             // Replace last line: rebuild without it
             mut li : U64 = 0
