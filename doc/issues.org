@@ -6,11 +6,6 @@
 
 * Pre-self-hosting
 
-** OPEN #49 Audit panic() call sites for correct __LOC__ usage
-  Some call sites pass the location string as another arbitrary string, artificially separating
-  a string in two arguments, to fit the signature instead of
-  using __LOC__ as the first parameter. Every panic call should be checked.
-
 
 ** OPEN #47 Cross-namespace method calls fail inside ext_struct
   Calling a namespace method of one struct from inside another struct's
