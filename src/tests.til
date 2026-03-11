@@ -5,6 +5,7 @@ NL := Str.from_byte(10)
 CTIL := "bin/ctil"
 TIL := "bin/c/til"
 TMPF := "tmp/_test_out"
+RUNNER := "bin/c/test_runner"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -51,7 +52,6 @@ pad_right := func(s: Str, width: U64) returns Str {
 
 // Extract basename from path: "src/test/types.til" → "types"
 test_basename := func(path: Str) returns Str {
-    // Find last slash
     mut last_slash : U64 = 0
     mut has_slash := 0
     mut si : U64 = 0
@@ -66,70 +66,70 @@ test_basename := func(path: Str) returns Str {
     if has_slash.eq(1) {
         name = path.substr(last_slash.add(1), path.len().sub(last_slash).sub(1))
     }
-    // Strip .til extension
     if name.ends_with(".til") {
         name = name.substr(0, name.len().sub(4))
     }
     return name
 }
 
+// Parse key=value from a RESULT line: "RESULT ci_ms=123 ci_ok=1 ..."
+parse_kv := func(line: Str, key: Str) returns I64 {
+    needle := key.concat("=")
+    pos := line.find(needle)
+    if pos.lt(0) { return 0 }
+    start := pos.to_u64().add(needle.len())
+    mut end := start
+    while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) {
+        end = end.add(1)
+    }
+    return line.substr(start, end.sub(start)).to_i64()
+}
+
 // --- Data structures ---
 
-// mode_tag: "ci" = ctil interpret, "cr" = ctil run,
-//           "ti" = til interpret,  "tr" = til run
 Job := struct {
     mut file := ""
-    mut mode_tag := ""
     mut pid := 0
-    mut outfile := ""
+    mut outfile := ""      // captures runner stdout
     mut result_idx : U64 = 0
     mut start_ms := 0
 }
 
 TestFile := struct {
     mut file := ""
-    // ctil interpret
     mut ci_ms := 0
     mut ci_ok := 0
     mut has_ci := 0
-    mut ci_outfile := ""
-    // ctil run
     mut cr_ms := 0
     mut cr_ok := 0
     mut has_cr := 0
-    mut cr_outfile := ""
-    // til interpret
     mut ti_ms := 0
     mut ti_ok := 0
     mut has_ti := 0
-    mut ti_outfile := ""
-    // til run
     mut tr_ms := 0
     mut tr_ok := 0
     mut has_tr := 0
-    mut tr_outfile := ""
     mut output_match := 1
 }
 
-// --- Parallel test runner ---
+// --- Parallel test runner (one test_runner process per file) ---
 
-spawn_job := proc(job: Job) returns Job {
-    mut binary := CTIL
-    if job.mode_tag.eq("ti").or(job.mode_tag.eq("tr")) {
-        binary = TIL
-    }
-    mut tmode := "interpret"
-    if job.mode_tag.eq("cr").or(job.mode_tag.eq("tr")) {
-        tmode = "run"
-    }
-    cmd := binary.concat(" ").concat(tmode).concat(" '").concat(job.file).concat("' > ").concat(job.outfile).concat(" 2>/dev/null")
+spawn_job := proc(job: Job, en_ci: I64, en_cr: I64, en_ti: I64, en_tr: I64) returns Job {
+    mut cmd := RUNNER.concat(" '").concat(job.file).concat("'")
+    if en_ci.eq(0) { cmd = cmd.concat(" -no-ci") }
+    if en_cr.eq(0) { cmd = cmd.concat(" -no-cr") }
+    if en_ti.eq(0) { cmd = cmd.concat(" -no-ti") }
+    if en_tr.eq(0) { cmd = cmd.concat(" -no-tr") }
+    cmd = cmd.concat(" > ").concat(job.outfile).concat(" 2>&1")
     start := clock_ms()
     pid := spawn_cmd(cmd)
-    return Job(file = job.file.clone(), mode_tag = job.mode_tag.clone(), pid = pid,
+    return Job(file = job.file.clone(), pid = pid,
                outfile = job.outfile.clone(), result_idx = job.result_idx, start_ms = start)
 }
 
-run_tests_parallel := proc(results: Vec, jobs: Vec, j: U64, mut fail: I64) {
+run_tests_parallel := proc(results: Vec, jobs: Vec, j: U64,
+                           en_ci: I64, en_cr: I64, en_ti: I64, en_tr: I64,
+                           mut fail: I64) {
     mut next : U64 = 0
     mut active : U64 = 0
 
@@ -144,7 +144,7 @@ run_tests_parallel := proc(results: Vec, jobs: Vec, j: U64, mut fail: I64) {
     si = 0
     while si.lt(j).and(next.lt(jobs.len())) {
         ref job : Job = jobs.get(next)
-        slots.set(si, own spawn_job(job))
+        slots.set(si, own spawn_job(job, en_ci, en_cr, en_ti, en_tr))
         active = active.add(1)
         next = next.add(1)
         si = si.add(1)
@@ -158,40 +158,51 @@ run_tests_parallel := proc(results: Vec, jobs: Vec, j: U64, mut fail: I64) {
             if slot.pid.gt(0) {
                 status := check_cmd_status(slot.pid)
                 if status.neq(0.sub(1)) {
-                    // Record timing
+                    // Job finished — parse result from output file
                     elapsed := clock_ms().sub(slot.start_ms)
+                    runner_out := readfile(slot.outfile)
+
+                    // Find RESULT line (last line starting with "RESULT ")
+                    mut result_line := ""
+                    result_pos := runner_out.rfind("RESULT ")
+                    if result_pos.gte(0) {
+                        result_line = runner_out.substr(result_pos.to_u64(),
+                            runner_out.len().sub(result_pos.to_u64()))
+                    }
+
                     ref result : TestFile = results.get(slot.result_idx)
-                    if slot.mode_tag.eq("ci") {
-                        result.ci_ms = elapsed
-                        if status.eq(0) { result.ci_ok = 1 }
-                        result.ci_outfile = slot.outfile.clone()
-                    }
-                    if slot.mode_tag.eq("cr") {
-                        result.cr_ms = elapsed
-                        if status.eq(0) { result.cr_ok = 1 }
-                        result.cr_outfile = slot.outfile.clone()
-                    }
-                    if slot.mode_tag.eq("ti") {
-                        result.ti_ms = elapsed
-                        if status.eq(0) { result.ti_ok = 1 }
-                        result.ti_outfile = slot.outfile.clone()
-                    }
-                    if slot.mode_tag.eq("tr") {
-                        result.tr_ms = elapsed
-                        if status.eq(0) { result.tr_ok = 1 }
-                        result.tr_outfile = slot.outfile.clone()
+                    if result_line.len().gt(0) {
+                        result.ci_ms = parse_kv(result_line, "ci_ms")
+                        result.ci_ok = parse_kv(result_line, "ci_ok")
+                        result.cr_ms = parse_kv(result_line, "cr_ms")
+                        result.cr_ok = parse_kv(result_line, "cr_ok")
+                        result.ti_ms = parse_kv(result_line, "ti_ms")
+                        result.ti_ok = parse_kv(result_line, "ti_ok")
+                        result.tr_ms = parse_kv(result_line, "tr_ms")
+                        result.tr_ok = parse_kv(result_line, "tr_ok")
+                        result.output_match = parse_kv(result_line, "match")
                     }
 
                     if status.neq(0) {
-                        println("FAIL (", slot.mode_tag, "): ", slot.file)
+                        // Print any FAIL/MISMATCH lines from runner output
+                        runner_lines := split(runner_out, NL)
+                        mut li : U64 = 0
+                        while li.lt(runner_lines.len()) {
+                            ref ln : Str = runner_lines.get(li)
+                            if ln.starts_with("FAIL").or(ln.starts_with("MISMATCH")) {
+                                println(ln)
+                            }
+                            li = li.add(1)
+                        }
                         fail = 1
                     }
+
                     active = active.sub(1)
 
                     // Spawn next job in this slot
                     if next.lt(jobs.len()) {
                         ref nj : Job = jobs.get(next)
-                        slots.set(i, own spawn_job(nj))
+                        slots.set(i, own spawn_job(nj, en_ci, en_cr, en_ti, en_tr))
                         active = active.add(1)
                         next = next.add(1)
                     } else {
@@ -274,6 +285,13 @@ main := proc(args: ..Str) {
         i = i.add(1)
     }
 
+    // Compile test_runner
+    runner_rc := run(CTIL.concat(" build src/test_runner.til"))
+    if runner_rc.neq(0) {
+        println("FATAL: failed to build test_runner")
+        exit(1)
+    }
+
     mut fail := 0
 
     // --- Test categories ---
@@ -337,115 +355,23 @@ main := proc(args: ..Str) {
         ri = ri.add(1)
     }
 
-    // Create output directories for enabled modes
-    run("mkdir -p gen/out")
-    if en_ci.eq(1) { run("mkdir -p gen/out/ci") }
-    if en_cr.eq(1) { run("mkdir -p gen/out/cr") }
-    if en_ti.eq(1) { run("mkdir -p gen/out/ti") }
-    if en_tr.eq(1) { run("mkdir -p gen/out/tr") }
+    // Create output directories
+    run("mkdir -p gen/out/ci gen/out/cr gen/out/ti gen/out/tr gen/out/results")
 
-    // Build jobs Vec
+    // Build jobs Vec — one job per file (runner handles all modes sequentially)
     jobs := Vec.new("Job", Job.size())
     mut fi : U64 = 0
-    while fi.lt(c_common.len()) {
-        ref f : Str = c_common.get(fi)
-        bn := test_basename(f)
-        if en_ci.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "ci", outfile = "gen/out/ci/".concat(bn).concat(".out"), result_idx = fi))
-        }
-        if en_cr.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "cr", outfile = "gen/out/cr/".concat(bn).concat(".out"), result_idx = fi))
-        }
-        if en_ti.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "ti", outfile = "gen/out/ti/".concat(bn).concat(".out"), result_idx = fi))
-        }
-        if en_tr.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "tr", outfile = "gen/out/tr/".concat(bn).concat(".out"), result_idx = fi))
-        }
+    while fi.lt(results.len()) {
+        ref r : TestFile = results.get(fi)
+        bn := test_basename(r.file)
+        jobs.push(own Job(file = r.file.clone(),
+                          outfile = "gen/out/results/".concat(bn).concat(".txt"),
+                          result_idx = fi))
         fi = fi.add(1)
     }
-    mut cgi : U64 = 0
-    while cgi.lt(c_codegen.len()) {
-        ref f : Str = c_codegen.get(cgi)
-        ridx := c_common.len().add(cgi)
-        bn := test_basename(f)
-        if en_cr.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "cr", outfile = "gen/out/cr/".concat(bn).concat(".out"), result_idx = ridx))
-        }
-        if en_tr.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "tr", outfile = "gen/out/tr/".concat(bn).concat(".out"), result_idx = ridx))
-        }
-        cgi = cgi.add(1)
-    }
-    mut ii : U64 = 0
-    while ii.lt(c_interpreted.len()) {
-        ref f : Str = c_interpreted.get(ii)
-        ridx := c_common.len().add(c_codegen.len()).add(ii)
-        bn := test_basename(f)
-        if en_ci.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "ci", outfile = "gen/out/ci/".concat(bn).concat(".out"), result_idx = ridx))
-        }
-        if en_ti.eq(1) {
-            jobs.push(own Job(file = f.clone(), mode_tag = "ti", outfile = "gen/out/ti/".concat(bn).concat(".out"), result_idx = ridx))
-        }
-        ii = ii.add(1)
-    }
 
-    // Run parallel tests
-    run_tests_parallel(results, jobs, j, fail)
-
-    // --- Output comparison (all passing modes must match) ---
-
-    mut oi : U64 = 0
-    while oi.lt(results.len()) {
-        ref r : TestFile = results.get(oi)
-        mut ref_out := ""
-        mut has_ref := 0
-        if r.has_ci.eq(1).and(r.ci_ok.eq(1)) {
-            ref_out = readfile(r.ci_outfile)
-            has_ref = 1
-        }
-        if r.has_cr.eq(1).and(r.cr_ok.eq(1)) {
-            cr_out := readfile(r.cr_outfile)
-            if has_ref.eq(0) {
-                ref_out = cr_out
-                has_ref = 1
-            } else {
-                if cr_out.neq(ref_out) {
-                    r.output_match = 0
-                    println("MISMATCH: ", r.file, " (cr vs ci)")
-                    fail = 1
-                }
-            }
-        }
-        if r.has_ti.eq(1).and(r.ti_ok.eq(1)) {
-            ti_out := readfile(r.ti_outfile)
-            if has_ref.eq(0) {
-                ref_out = ti_out
-                has_ref = 1
-            } else {
-                if ti_out.neq(ref_out) {
-                    r.output_match = 0
-                    println("MISMATCH: ", r.file, " (ti vs ref)")
-                    fail = 1
-                }
-            }
-        }
-        if r.has_tr.eq(1).and(r.tr_ok.eq(1)) {
-            tr_out := readfile(r.tr_outfile)
-            if has_ref.eq(0) {
-                ref_out = tr_out
-                has_ref = 1
-            } else {
-                if tr_out.neq(ref_out) {
-                    r.output_match = 0
-                    println("MISMATCH: ", r.file, " (tr vs ref)")
-                    fail = 1
-                }
-            }
-        }
-        oi = oi.add(1)
-    }
+    // Run parallel tests (one test_runner process per file)
+    run_tests_parallel(results, jobs, j, en_ci, en_cr, en_ti, en_tr, fail)
 
     // --- Print per-file timing ---
 
@@ -665,24 +591,19 @@ main := proc(args: ..Str) {
 
     // Update doc/totals.csv (tracked in git)
     totals_path := "doc/totals.csv"
-    // Read existing totals or start fresh
     existing := readfile(totals_path)
     mut totals_content := ""
-    // Check if last line has the same commit — if so, replace it
     lines := split(existing, NL)
     mut last_data_idx := lines.len().sub(1)
-    // Skip trailing empty lines
     while last_data_idx.gt(0) {
         ref last_line : Str = lines.get(last_data_idx)
         if last_line.len().gt(0) { break }
         last_data_idx = last_data_idx.sub(1)
     }
-    // Only try replace if we have data rows (not just header)
     if last_data_idx.gt(0) {
         ref last_data : Str = lines.get(last_data_idx)
         last_commit := last_data.substr(0, last_data.find(",").to_u64())
         if last_commit.eq(commit) {
-            // Replace last line: rebuild without it
             mut li : U64 = 0
             while li.lt(last_data_idx) {
                 ref ln : Str = lines.get(li)
