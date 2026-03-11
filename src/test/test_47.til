@@ -1,0 +1,24 @@
+mode test
+
+// Reproduction for #47: cross-namespace method calls fail inside ext_struct
+
+Helper := struct {
+    val : I64 = 0
+namespace:
+    make := func(n: I64) returns Helper {
+        return Helper(val = n)
+    }
+}
+
+I64 := ext_struct {
+namespace:
+    test_cross := func(val: I64) returns Helper {
+        return Helper.make(val)
+    }
+}
+
+test_cross_namespace := test() {
+    x : I64 = 42
+    h := x.test_cross()
+    assert_eq(__LOC__, h.val, 42)
+}

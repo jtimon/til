@@ -51,21 +51,64 @@
   issues. In the future, the ~shallow~ keyword could be computed automatically
   from this property plus size considerations.
 
-** OPEN #47 Cross-namespace method calls fail inside ext_struct
+** OPEN #47 ext_struct redeclaration silently overwrites, no "already declared" error
+  *Original description:* Cross-namespace method calls fail inside ext_struct.
   Calling a namespace method of one struct from inside another struct's
-  ext_struct namespace fails type resolution. Example:
-  #+begin_src til
-  I64 := ext_struct {
-  namespace:
-      to_str := func(val: I64) returns Str {
-          mut result := Str.with_capacity(10)  // ERROR: result gets unknown type
-          // ...
-      }
-  }
+  ext_struct namespace fails type resolution.
+
+  *Root cause found:* The real bug is that there is NO "already declared"
+  error for structs anywhere in the typer or initer. When user code
+  redeclares an ext_struct (e.g. ~I64 := ext_struct { ... }~), the
+  ~init_declarations~ Pass 1 in ~initer.c:232~ silently overwrites the
+  existing ~struct_def~ pointer:
+  #+begin_src c
+  b->struct_def = expr_child(stmt, 0);  // overwrites previous definition
   #+end_src
-  The same call works from top-level code, from regular struct namespaces,
-  and from Str's own namespace. Only ext_struct namespaces have this issue.
-  Workaround: use raw malloc + Str constructor instead of Str.with_capacity.
+  This replaces the core I64 definition (with all its methods: eq, add,
+  sub, lt, to_str, etc.) with the user's new ext_struct that only contains
+  the new methods. All core methods are lost.
+
+  *GDB confirmation:* I64 is registered twice in init_declarations:
+  1. Line 158 from core.til — the original with all methods
+  2. Line 13 from test_47.til — the user's ext_struct with only test_cross
+  The second registration overwrites b->struct_def, and then the typer
+  can't find eq/lt/add/etc. on I64 anymore, producing 41+ type errors.
+
+  *Reproduction:* ~src/test/test_47.til~ — defines a Helper struct and
+  redeclares I64 := ext_struct with a test_cross method that calls
+  Helper.make(). Fails with "no method 'eq' for type 'I64'" etc.
+
+  *Note:* The original issue description (Str.with_capacity inside I64's
+  ext_struct in core.til) does NOT reproduce — adding a func with
+  Str.with_capacity to I64's namespace directly in core.til works fine.
+  The bug only manifests when ext_struct is redeclared from user code,
+  which overwrites the entire struct_def.
+
+  *Why it hasn't been hit in practice:* core.til defines all ext_structs
+  in one place, and no user code or test currently redeclares them with
+  ext_struct. The I64.to_str workaround (raw malloc instead of
+  Str.with_capacity) is unrelated — it works even without the workaround
+  when called from within core.til's own I64 definition.
+
+  *Two possible solutions:*
+  1. *Add "already declared" error:* When init_declarations encounters a
+     struct name that already has a struct_def registered, emit a type
+     error. This is the simple/safe fix — it prevents silent overwrites.
+     Needs an exception for Str (redefined in str.til from core.til's
+     initial definition) and possibly other intentional redeclarations.
+  2. *Merge namespace methods:* When a second ext_struct declaration is
+     found for an existing name, append the new namespace methods to the
+     existing struct_def's body instead of replacing it. This would allow
+     user code to extend builtin types with new methods (e.g. adding
+     custom methods to I64). More powerful but more complex — needs to
+     handle name conflicts, ordering, etc.
+
+  *Files involved:*
+  - ~src/c/initer.c:232~ — the overwrite happens here in init_declarations Pass 1
+  - ~src/c/typer.c:2252-2257~ — same pattern in the typer's own struct registration
+  - No "already declared" check exists in either file
+
+  *Test file:* src/test/test_47.til
 
 ** OPEN #46 Optimize Str with with_capacity in concat, join, etc.
   str.til methods like concat, join, and others build strings by repeated
