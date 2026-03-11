@@ -29,7 +29,7 @@ TokenType := enum {
 
     // Keywords
     KwMode,
-    KwMut, KwOwn, KwRef,
+    KwMut, KwOwn, KwRef, KwShallow,
     KwStruct, KwExtStruct, KwEnum, KwNamespace,
     KwFunc, KwProc, KwTest, KwMacro, KwExtFunc, KwExtProc,
     KwReturns, KwThrows,
@@ -38,7 +38,7 @@ TokenType := enum {
     KwSwitch, KwMatch, KwCase, KwDefault,
     KwReturn, KwThrow, KwCatch,
     KwBreak, KwContinue, KwDefer,
-    KwTrue, KwFalse,
+    KwTrue, KwFalse, KwNull,
 
     // Error tokens
     Error,
@@ -111,6 +111,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.KwMut: return "mut"
     case TokenType.KwOwn: return "own"
     case TokenType.KwRef: return "ref"
+    case TokenType.KwShallow: return "shallow"
     case TokenType.KwStruct: return "struct"
     case TokenType.KwExtStruct: return "ext_struct"
     case TokenType.KwEnum: return "enum"
@@ -140,6 +141,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.KwDefer: return "defer"
     case TokenType.KwTrue: return "true"
     case TokenType.KwFalse: return "false"
+    case TokenType.KwNull: return "null"
     case TokenType.Error: return "error"
     case: return "?"
     }
@@ -155,6 +157,7 @@ lookup_keyword := func(word: Str) returns TokenType {
     case "mut": return TokenType.KwMut
     case "own": return TokenType.KwOwn
     case "ref": return TokenType.KwRef
+    case "shallow": return TokenType.KwShallow
     case "struct": return TokenType.KwStruct
     case "ext_struct": return TokenType.KwExtStruct
     case "enum": return TokenType.KwEnum
@@ -184,6 +187,7 @@ lookup_keyword := func(word: Str) returns TokenType {
     case "defer": return TokenType.KwDefer
     case "true": return TokenType.KwTrue
     case "false": return TokenType.KwFalse
+    case "null": return TokenType.KwNull
     case: return TokenType.Ident
     }
 }

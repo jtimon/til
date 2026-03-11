@@ -62,18 +62,20 @@ test_keywords := proc() {
 }
 
 test_more_keywords := proc() {
-    tokens := tokenize("mode mut own ref returns throws for in break continue defer", "test")
+    tokens := tokenize("mode mut own ref shallow returns throws for in break continue defer null", "test")
     check_tok(tokens, 0, TokenType.KwMode, "mode")
     check_tok(tokens, 1, TokenType.KwMut, "mut")
     check_tok(tokens, 2, TokenType.KwOwn, "own")
     check_tok(tokens, 3, TokenType.KwRef, "ref")
-    check_tok(tokens, 4, TokenType.KwReturns, "returns")
-    check_tok(tokens, 5, TokenType.KwThrows, "throws")
-    check_tok(tokens, 6, TokenType.KwFor, "for")
-    check_tok(tokens, 7, TokenType.KwIn, "in")
-    check_tok(tokens, 8, TokenType.KwBreak, "break")
-    check_tok(tokens, 9, TokenType.KwContinue, "continue")
-    check_tok(tokens, 10, TokenType.KwDefer, "defer")
+    check_tok(tokens, 4, TokenType.KwShallow, "shallow")
+    check_tok(tokens, 5, TokenType.KwReturns, "returns")
+    check_tok(tokens, 6, TokenType.KwThrows, "throws")
+    check_tok(tokens, 7, TokenType.KwFor, "for")
+    check_tok(tokens, 8, TokenType.KwIn, "in")
+    check_tok(tokens, 9, TokenType.KwBreak, "break")
+    check_tok(tokens, 10, TokenType.KwContinue, "continue")
+    check_tok(tokens, 11, TokenType.KwDefer, "defer")
+    check_tok(tokens, 12, TokenType.KwNull, "null")
 }
 
 test_statement := proc() {
@@ -110,6 +112,8 @@ test_tok_name := proc() {
     assert_eq_str(__LOC__, tok_name(TokenType.StringTok), "string")
     assert_eq_str(__LOC__, tok_name(TokenType.KwIf), "if")
     assert_eq_str(__LOC__, tok_name(TokenType.KwTest), "test")
+    assert_eq_str(__LOC__, tok_name(TokenType.KwShallow), "shallow")
+    assert_eq_str(__LOC__, tok_name(TokenType.KwNull), "null")
     assert_eq_str(__LOC__, tok_name(TokenType.Eof), "eof")
 }
 
