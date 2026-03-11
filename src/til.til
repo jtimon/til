@@ -28,7 +28,7 @@ read_source := func(path: Str) returns Str {
 
 main := proc(args: ..Str) {
     src := read_source("tmp/test_hello.til")
-    mut c := U32.from_i64(0)
+    mut c : U32 = 0
     tok := tokenize(src.data, "tmp/test_hello.til".data, c)
     ast := parse(tok, c, "tmp/test_hello.til".data, 0)
     ast_print(ast, 0)

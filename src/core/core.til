@@ -110,13 +110,6 @@ namespace:
     to_str := func(val: U32) returns Str {
         return val.to_i64().to_str()
     }
-    from_i64 := func(val: I64) returns U32 {
-        if val.lt(0).or(val.gt(4294967295)) {
-            panic("U32.from_i64", "value out of range (0-4294967295)")
-        }
-        U32_from_i64_ext := ext_func(val: I64) returns shallow U32 {}
-        return U32_from_i64_ext(val)
-    }
     add := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     sub := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     mul := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
@@ -201,6 +194,7 @@ namespace:
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}
     to_i16 := ext_func(shallow val: I64) returns shallow I16 {}
     to_i32 := ext_func(shallow val: I64) returns shallow I32 {}
+    to_u32 := ext_func(shallow val: I64) returns shallow U32 {}
     add := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     sub := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     mul := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}

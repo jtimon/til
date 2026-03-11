@@ -20,7 +20,7 @@ DrawRectangle := ext_proc(shallow x: I32, shallow y: I32, shallow w: I32, shallo
 
 // Color: pack r,g,b,a bytes into U32 matching raylib's Color struct layout
 color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
-    return U32.from_i64(r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)))
+    return r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)).to_u32()
 }
 
 InitWindow(800, 450, "hello from til!".c_str)

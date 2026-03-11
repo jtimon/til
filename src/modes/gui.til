@@ -9,10 +9,10 @@ link("X11")
 // Raylib struct declarations for audio
 // Wave: { U32 frameCount, U32 sampleRate, U32 sampleSize, U32 channels, void *data }
 Wave := ext_struct {
-    mut frameCount := U32.from_i64(0)
-    mut sampleRate := U32.from_i64(0)
-    mut sampleSize := U32.from_i64(0)
-    mut channels := U32.from_i64(0)
+    mut frameCount : U32 = 0
+    mut sampleRate : U32 = 0
+    mut sampleSize : U32 = 0
+    mut channels : U32 = 0
     ref data : U8 = NULL
 }
 
@@ -21,10 +21,10 @@ Wave := ext_struct {
 Sound := ext_struct {
     mut stream_buffer := 0
     mut stream_processor := 0
-    mut stream_sampleRate := U32.from_i64(0)
-    mut stream_sampleSize := U32.from_i64(0)
-    mut stream_channels := U32.from_i64(0)
-    mut frameCount := U32.from_i64(0)
+    mut stream_sampleRate : U32 = 0
+    mut stream_sampleSize : U32 = 0
+    mut stream_channels : U32 = 0
+    mut frameCount : U32 = 0
 }
 
 // Vector2: { float x, float y }
@@ -121,10 +121,10 @@ play_tone := proc(freq: I64, duration_ms: I64) {
         i = i.add(1)
     }
     w := Wave(
-        frameCount=U32.from_i64(n),
-        sampleRate=U32.from_i64(sr),
-        sampleSize=U32.from_i64(32),
-        channels=U32.from_i64(1),
+        frameCount=n.to_u32(),
+        sampleRate=sr.to_u32(),
+        sampleSize=32,
+        channels=1,
         data=buf
     )
     prev_tone = LoadSoundFromWave(w)
@@ -165,10 +165,10 @@ make_tone := func(freq: I64, duration_ms: I64) returns Sound {
         i = i.add(1)
     }
     w := Wave(
-        frameCount=U32.from_i64(n),
-        sampleRate=U32.from_i64(sr),
-        sampleSize=U32.from_i64(32),
-        channels=U32.from_i64(1),
+        frameCount=n.to_u32(),
+        sampleRate=sr.to_u32(),
+        sampleSize=32,
+        channels=1,
         data=buf
     )
     result := LoadSoundFromWave(w)
@@ -182,7 +182,7 @@ unload_sound := proc(sound: Sound) { UnloadSound(sound) }
 
 // Color helper: pack r,g,b,a into a U32
 color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) returns U32 {
-    return U32.from_i64(r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)))
+    return r.add(g.mul(256)).add(b.mul(65536)).add(a.mul(16777216)).to_u32()
 }
 
 // Backward-compatible snake_case API

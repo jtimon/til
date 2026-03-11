@@ -130,19 +130,19 @@ til_set_free := ext_proc(s: Set) {}
 extract_imports := proc(body: Dynamic) returns Vec {
     mut paths := Vec.new("Str", Str.size())
     kept := expr_vec_new()
-    mut i := U32.from_i64(0)
+    mut i : U32 = 0
     while i.lt(expr_nchildren(body)) {
         stmt := expr_get_child(body, i)
-        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(U32.from_i64(2)))
-            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(0))).eq(NODE_IDENT))
-            .and(expr_get_str_val(expr_get_child(stmt, U32.from_i64(0))).eq("import"))
-            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(1))).eq(NODE_LITERAL_STR)) {
-            path := expr_get_str_val(expr_get_child(stmt, U32.from_i64(1)))
+        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(2))
+            .and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_IDENT))
+            .and(expr_get_str_val(expr_get_child(stmt, 0)).eq("import"))
+            .and(expr_get_tag(expr_get_child(stmt, 1)).eq(NODE_LITERAL_STR)) {
+            path := expr_get_str_val(expr_get_child(stmt, 1))
             paths.push(own path)
         } else {
             expr_vec_push(kept, stmt)
         }
-        i = i.add(U32.from_i64(1))
+        i = i.add(1)
     }
     expr_swap_children(body, kept)
     expr_vec_free(kept)
@@ -153,7 +153,7 @@ extract_imports := proc(body: Dynamic) returns Vec {
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
                         resolved_set: Dynamic, stack: Dynamic,
                         merged: Dynamic, lib_dir: Str) returns I32 {
-    mut i := 0
+    mut i : U32 = 0
     while i.lt(import_paths.len()) {
         ref import_path : Str = import_paths.get(i)
 
@@ -203,11 +203,11 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         }
 
         // Append imported file's declarations
-        mut k := U32.from_i64(0)
+        mut k : U32 = 0
         while k.lt(expr_nchildren(sub_ast)) {
             ch := expr_get_child(sub_ast, k)
             expr_vec_push(merged, ch)
-            k = k.add(U32.from_i64(1))
+            k = k.add(1)
         }
 
         i = i.add(1)
@@ -229,10 +229,10 @@ usage := proc() {
 
 mark_core := proc(e: Dynamic) {
     expr_set_core(e)
-    mut i := U32.from_i64(0)
+    mut i : U32 = 0
     while i.lt(expr_nchildren(e)) {
         mark_core(expr_get_child(e, i))
-        i = i.add(U32.from_i64(1))
+        i = i.add(1)
     }
 }
 
@@ -355,47 +355,47 @@ main := proc(args: ..Str) {
     merged := expr_vec_new()
 
     // Core declarations
-    mut i := U32.from_i64(0)
+    mut i : U32 = 0
     while i.lt(expr_nchildren(core_ast)) {
         ch := expr_get_child(core_ast, i)
         mark_core(ch)
         expr_vec_push(merged, ch)
-        i = i.add(U32.from_i64(1))
+        i = i.add(1)
     }
 
     // Core import declarations
-    i = U32.from_i64(0)
+    i = 0
     while i.lt(expr_vec_count(core_import_decls)) {
         ch := expr_vec_get(core_import_decls, i)
         mark_core(ch)
         expr_vec_push(merged, ch)
-        i = i.add(U32.from_i64(1))
+        i = i.add(1)
     }
 
     // Mode auto-import declarations
     if expr_is_null(mode_ast).not() {
-        i = U32.from_i64(0)
+        i = 0
         while i.lt(expr_nchildren(mode_ast)) {
             ch := expr_get_child(mode_ast, i)
             expr_vec_push(merged, ch)
-            i = i.add(U32.from_i64(1))
+            i = i.add(1)
         }
     }
 
     // User import declarations
-    i = U32.from_i64(0)
+    i = 0
     while i.lt(expr_vec_count(import_decls)) {
         ch := expr_vec_get(import_decls, i)
         expr_vec_push(merged, ch)
-        i = i.add(U32.from_i64(1))
+        i = i.add(1)
     }
 
     // User declarations
-    i = U32.from_i64(0)
+    i = 0
     while i.lt(expr_nchildren(ast)) {
         ch := expr_get_child(ast, i)
         expr_vec_push(merged, ch)
-        i = i.add(U32.from_i64(1))
+        i = i.add(1)
     }
 
     expr_swap_children(ast, merged)
@@ -405,14 +405,14 @@ main := proc(args: ..Str) {
     mut link_flags := ""
     mut link_c_paths := ""
     kept := expr_vec_new()
-    i = U32.from_i64(0)
+    i = 0
     while i.lt(expr_nchildren(ast)) {
         stmt := expr_get_child(ast, i)
-        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(U32.from_i64(2)))
-            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(0))).eq(NODE_IDENT))
-            .and(expr_get_tag(expr_get_child(stmt, U32.from_i64(1))).eq(NODE_LITERAL_STR)) {
-            fname := expr_get_str_val(expr_get_child(stmt, U32.from_i64(0)))
-            arg := expr_get_str_val(expr_get_child(stmt, U32.from_i64(1)))
+        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(2))
+            .and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_IDENT))
+            .and(expr_get_tag(expr_get_child(stmt, 1)).eq(NODE_LITERAL_STR)) {
+            fname := expr_get_str_val(expr_get_child(stmt, 0))
+            arg := expr_get_str_val(expr_get_child(stmt, 1))
             if fname.eq("link") {
                 link_flags = link_flags.concat(" -l").concat(arg)
             } else if fname.eq("link_c") {
@@ -426,7 +426,7 @@ main := proc(args: ..Str) {
         } else {
             expr_vec_push(kept, stmt)
         }
-        i = i.add(U32.from_i64(1))
+        i = i.add(1)
     }
     expr_swap_children(ast, kept)
     expr_vec_free(kept)
@@ -495,7 +495,7 @@ main := proc(args: ..Str) {
             panic("cannot interpret a library — use translate or build")
         }
         result = til_interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
-                               U32.from_i64(user_argv.len()), NULL)
+                               user_argv.len().to_u32(), NULL)
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
         if is_lib_mode.and(command.eq("run")) {
             panic("cannot run a library — use translate or build")
@@ -580,7 +580,7 @@ main := proc(args: ..Str) {
         } else {
             println("mode: (none)")
         }
-        til_ast_print(ast, U32.from_i64(0))
+        til_ast_print(ast, 0)
     } else {
         println("error: unknown command '".concat(command).concat("'"))
         usage()

@@ -191,7 +191,6 @@ static __attribute__((unused)) Bool * F32_lte(F32 * a, F32 * b);
 static __attribute__((unused)) Bool * F32_gte(F32 * a, F32 * b);
 I64 U32_to_i64(U32 val);
 static __attribute__((unused)) Str * U32_to_str(U32 * val);
-static __attribute__((unused)) U32 * U32_from_i64(I64 * val);
 U32 U32_add(U32 a, U32 b);
 U32 U32_sub(U32 a, U32 b);
 U32 U32_mul(U32 a, U32 b);
@@ -239,6 +238,7 @@ static __attribute__((unused)) Str * I64_to_str(I64 * val);
 U8 I64_to_u8(I64 val);
 I16 I64_to_i16(I64 val);
 I32 I64_to_i32(I64 val);
+U32 I64_to_u32(I64 val);
 I64 I64_add(I64 a, I64 b);
 I64 I64_sub(I64 a, I64 b);
 I64 I64_mul(I64 a, I64 b);
@@ -383,13 +383,13 @@ static void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t1050;
-static I64 *_t1051;
-static I64 *_t1052;
+static I64 *_t1038;
+static I64 *_t1039;
+static I64 *_t1040;
 static U64 *CAP_LIT;
-static I64 *_t1053;
-static I64 *_t1054;
-static I64 *_t1055;
+static I64 *_t1041;
+static I64 *_t1042;
+static I64 *_t1043;
 static U64 *CAP_VIEW;
 
 Array * Array_new(Str * elem_type, U64 * elem_size, U64 * cap) {
@@ -3082,39 +3082,6 @@ static __attribute__((unused)) Str * U32_to_str(U32 * val) {
     return _t784;
 }
 
-static __attribute__((unused)) U32 * U32_from_i64(I64 * val) {
-    I64 _t791 = 0;
-    I64 _t792 = 4294967295;
-    Bool _t793; { Bool *_hp = I64_lt(val, &(I64){_t791}); _t793 = *_hp; free(_hp); }
-    ;
-    Bool _t794; { Bool *_hp = I64_gt(val, &(I64){_t792}); _t794 = *_hp; free(_hp); }
-    ;
-    Bool _t795 = Bool_or(_t793, _t794);
-    ;
-    ;
-    if (_t795) {
-        Str *_t785 = Str_lit("Str", 3ULL);
-        U64 _t786; { U64 *_hp = Str_size(); _t786 = *_hp; free(_hp); }
-        U64 _t787 = 1;
-        Array *_va12 = Array_new(_t785, &(U64){_t786}, &(U64){_t787});
-        Str_delete(_t785, &(Bool){1});
-        ;
-        ;
-        U64 _t788 = 0;
-        Str *_t789 = Str_lit("value out of range (0-4294967295)", 33ULL);
-        Array_set(_va12, &(U64){_t788}, _t789);
-        ;
-        Str *_t790 = Str_lit("U32.from_i64", 12ULL);
-        panic(_t790, _va12);
-        Str_delete(_t790, &(Bool){1});
-        Array_delete(_va12, &(Bool){1});
-    }
-    ;
-    /* TODO: nested func U32_from_i64_ext */
-    U32 _t796 = U32_from_i64_ext(val);
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t796; return _r; }
-}
-
 static U64 *U32_size(void) {
     U64 *r = malloc(sizeof(U64));
     *r = (U64)sizeof(U32);
@@ -3122,58 +3089,58 @@ static U64 *U32_size(void) {
 }
 
 static __attribute__((unused)) Bool * U32_lt(U32 * a, U32 * b) {
-    I64 _t798 = 0;
-    I64 _t799 = 1;
-    I64 _t800 = U32_cmp(DEREF(a), DEREF(b));
-    I64 _t801 = I64_sub(_t798, _t799);
+    I64 _t786 = 0;
+    I64 _t787 = 1;
+    I64 _t788 = U32_cmp(DEREF(a), DEREF(b));
+    I64 _t789 = I64_sub(_t786, _t787);
     ;
     ;
-    Bool _t802 = I64_eq(_t800, _t801);
+    Bool _t790 = I64_eq(_t788, _t789);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t802; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t790; return _r; }
 }
 
 static __attribute__((unused)) Bool * U32_gt(U32 * a, U32 * b) {
-    I64 _t803 = U32_cmp(DEREF(a), DEREF(b));
-    I64 _t804 = 1;
-    Bool _t805 = I64_eq(_t803, _t804);
+    I64 _t791 = U32_cmp(DEREF(a), DEREF(b));
+    I64 _t792 = 1;
+    Bool _t793 = I64_eq(_t791, _t792);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t805; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t793; return _r; }
 }
 
 static __attribute__((unused)) Bool * U32_neq(U32 * a, U32 * b) {
-    Bool _t806 = U32_eq(DEREF(a), DEREF(b));
-    Bool _t807 = Bool_not(_t806);
+    Bool _t794 = U32_eq(DEREF(a), DEREF(b));
+    Bool _t795 = Bool_not(_t794);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t807; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t795; return _r; }
 }
 
 static __attribute__((unused)) Bool * U32_lte(U32 * a, U32 * b) {
-    Bool _t808; { Bool *_hp = U32_gt(a, b); _t808 = *_hp; free(_hp); }
-    Bool _t809 = Bool_not(_t808);
+    Bool _t796; { Bool *_hp = U32_gt(a, b); _t796 = *_hp; free(_hp); }
+    Bool _t797 = Bool_not(_t796);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t809; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t797; return _r; }
 }
 
 static __attribute__((unused)) Bool * U32_gte(U32 * a, U32 * b) {
-    Bool _t810; { Bool *_hp = U32_lt(a, b); _t810 = *_hp; free(_hp); }
-    Bool _t811 = Bool_not(_t810);
+    Bool _t798; { Bool *_hp = U32_lt(a, b); _t798 = *_hp; free(_hp); }
+    Bool _t799 = Bool_not(_t798);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t811; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t799; return _r; }
 }
 
 Str * U64_to_str(U64 val) {
     /* TODO: nested func U64_to_str_ext */
-    Str *_t812 = U64_to_str_ext(val);
-    return _t812;
+    Str *_t800 = U64_to_str_ext(val);
+    return _t800;
 }
 
 static __attribute__((unused)) U64 * U64_from_i64(I64 * val) {
     /* TODO: nested func U64_from_i64_ext */
-    U64 _t813 = U64_from_i64_ext(val);
-    { U64 *_r = malloc(sizeof(U64)); *_r = _t813; return _r; }
+    U64 _t801 = U64_from_i64_ext(val);
+    { U64 *_r = malloc(sizeof(U64)); *_r = _t801; return _r; }
 }
 
 static U64 *U64_size(void) {
@@ -3183,223 +3150,223 @@ static U64 *U64_size(void) {
 }
 
 static __attribute__((unused)) Bool * U64_lt(U64 * a, U64 * b) {
-    I64 _t815 = 0;
-    I64 _t816 = 1;
-    I64 _t817 = U64_cmp(DEREF(a), DEREF(b));
-    I64 _t818 = I64_sub(_t815, _t816);
+    I64 _t803 = 0;
+    I64 _t804 = 1;
+    I64 _t805 = U64_cmp(DEREF(a), DEREF(b));
+    I64 _t806 = I64_sub(_t803, _t804);
     ;
     ;
-    Bool _t819 = I64_eq(_t817, _t818);
+    Bool _t807 = I64_eq(_t805, _t806);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t819; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t807; return _r; }
 }
 
 static __attribute__((unused)) Bool * U64_gt(U64 * a, U64 * b) {
-    I64 _t820 = U64_cmp(DEREF(a), DEREF(b));
-    I64 _t821 = 1;
-    Bool _t822 = I64_eq(_t820, _t821);
+    I64 _t808 = U64_cmp(DEREF(a), DEREF(b));
+    I64 _t809 = 1;
+    Bool _t810 = I64_eq(_t808, _t809);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t822; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t810; return _r; }
 }
 
 static __attribute__((unused)) Bool * U64_neq(U64 * a, U64 * b) {
-    Bool _t823 = U64_eq(DEREF(a), DEREF(b));
-    Bool _t824 = Bool_not(_t823);
+    Bool _t811 = U64_eq(DEREF(a), DEREF(b));
+    Bool _t812 = Bool_not(_t811);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t824; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t812; return _r; }
 }
 
 static __attribute__((unused)) Bool * U64_lte(U64 * a, U64 * b) {
-    Bool _t825; { Bool *_hp = U64_gt(a, b); _t825 = *_hp; free(_hp); }
-    Bool _t826 = Bool_not(_t825);
+    Bool _t813; { Bool *_hp = U64_gt(a, b); _t813 = *_hp; free(_hp); }
+    Bool _t814 = Bool_not(_t813);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t826; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t814; return _r; }
 }
 
 static __attribute__((unused)) Bool * U64_gte(U64 * a, U64 * b) {
-    Bool _t827; { Bool *_hp = U64_lt(a, b); _t827 = *_hp; free(_hp); }
-    Bool _t828 = Bool_not(_t827);
+    Bool _t815; { Bool *_hp = U64_lt(a, b); _t815 = *_hp; free(_hp); }
+    Bool _t816 = Bool_not(_t815);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t828; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t816; return _r; }
 }
 
 static __attribute__((unused)) Str * I64_to_str(I64 * val) {
-    I64 _t865 = 0;
-    Bool _t866 = I64_eq(DEREF(val), _t865);
+    I64 _t853 = 0;
+    Bool _t854 = I64_eq(DEREF(val), _t853);
     ;
-    if (_t866) {
-        U64 _t829 = 2;
-        U8 *buf = malloc(_t829);
+    if (_t854) {
+        U64 _t817 = 2;
+        U8 *buf = malloc(_t817);
         ;
-        I64 _t830 = 48;
-        U64 _t831 = 1;
-        memcpy(buf, &(I64){_t830}, _t831);
-        ;
-        ;
-        U64 *_t832 = malloc(sizeof(U64));
-        *_t832 = 1;
-        void *_t833 = ptr_add(buf, DEREF(_t832));
-        I64 _t834 = 0;
-        U64 _t835 = 1;
-        memcpy(_t833, &(I64){_t834}, _t835);
-        U64_delete(_t832, &(Bool){1});
+        I64 _t818 = 48;
+        U64 _t819 = 1;
+        memcpy(buf, &(I64){_t818}, _t819);
         ;
         ;
-        I64 _t836 = 1;
-        I64 _t837 = 1;
-        Str *_t838 = malloc(sizeof(Str));
-        _t838->c_str = buf;
-        _t838->count = _t836;
-        _t838->cap = _t837;
+        U64 *_t820 = malloc(sizeof(U64));
+        *_t820 = 1;
+        void *_t821 = ptr_add(buf, DEREF(_t820));
+        I64 _t822 = 0;
+        U64 _t823 = 1;
+        memcpy(_t821, &(I64){_t822}, _t823);
+        U64_delete(_t820, &(Bool){1});
+        ;
+        ;
+        I64 _t824 = 1;
+        I64 _t825 = 1;
+        Str *_t826 = malloc(sizeof(Str));
+        _t826->c_str = buf;
+        _t826->count = _t824;
+        _t826->cap = _t825;
         ;
         ;
         ;
-        return _t838;
+        return _t826;
     }
     ;
     Bool is_neg = 0;
     I64 v = I64_clone(val);
-    I64 _t867 = 0;
-    Bool _t868; { Bool *_hp = I64_lt(val, &(I64){_t867}); _t868 = *_hp; free(_hp); }
+    I64 _t855 = 0;
+    Bool _t856; { Bool *_hp = I64_lt(val, &(I64){_t855}); _t856 = *_hp; free(_hp); }
     ;
-    if (_t868) {
-        Bool _t839 = 1;
-        is_neg = _t839;
+    if (_t856) {
+        Bool _t827 = 1;
+        is_neg = _t827;
         ;
-        I64 _t840 = 0;
-        I64 _t841 = I64_sub(_t840, DEREF(val));
+        I64 _t828 = 0;
+        I64 _t829 = I64_sub(_t828, DEREF(val));
         ;
-        v = _t841;
+        v = _t829;
         ;
     }
     ;
     U64 ndigits = 0;
     I64 tmp = I64_clone(&(I64){v});
     while (1) {
-        I64 _t843 = 0;
-        Bool _wcond842; { Bool *_hp = I64_gt(&(I64){tmp}, &(I64){_t843}); _wcond842 = *_hp; free(_hp); }
+        I64 _t831 = 0;
+        Bool _wcond830; { Bool *_hp = I64_gt(&(I64){tmp}, &(I64){_t831}); _wcond830 = *_hp; free(_hp); }
         ;
-        if (_wcond842) {
+        if (_wcond830) {
         } else {
             ;
             break;
         }
         ;
-        U64 _t844 = 1;
-        U64 _t845 = U64_add(ndigits, _t844);
+        U64 _t832 = 1;
+        U64 _t833 = U64_add(ndigits, _t832);
         ;
-        ndigits = _t845;
+        ndigits = _t833;
         ;
-        I64 _t846 = 10;
-        I64 _t847 = I64_div(tmp, _t846);
+        I64 _t834 = 10;
+        I64 _t835 = I64_div(tmp, _t834);
         ;
-        tmp = _t847;
+        tmp = _t835;
         ;
     }
     ;
     U64 *total = malloc(sizeof(U64)); *total = U64_clone(&(U64){ndigits});
     ;
     if (is_neg) {
-        U64 _t848 = 1;
-        U64 _t849 = U64_add(DEREF(total), _t848);
+        U64 _t836 = 1;
+        U64 _t837 = U64_add(DEREF(total), _t836);
         ;
-        *total = _t849;
+        *total = _t837;
         ;
     }
-    U64 _t869 = 1;
-    U64 _t870 = U64_add(DEREF(total), _t869);
+    U64 _t857 = 1;
+    U64 _t858 = U64_add(DEREF(total), _t857);
     ;
-    U8 *buf = malloc(_t870);
+    U8 *buf = malloc(_t858);
     ;
     if (is_neg) {
-        I64 _t850 = 45;
-        U64 _t851 = 1;
-        memcpy(buf, &(I64){_t850}, _t851);
+        I64 _t838 = 45;
+        U64 _t839 = 1;
+        memcpy(buf, &(I64){_t838}, _t839);
         ;
         ;
     }
     ;
-    U64 _t871 = 1;
-    U64 *i = malloc(sizeof(U64)); *i = U64_sub(DEREF(total), _t871);
+    U64 _t859 = 1;
+    U64 *i = malloc(sizeof(U64)); *i = U64_sub(DEREF(total), _t859);
     ;
     while (1) {
-        I64 _t853 = 0;
-        Bool _wcond852; { Bool *_hp = I64_gt(&(I64){v}, &(I64){_t853}); _wcond852 = *_hp; free(_hp); }
+        I64 _t841 = 0;
+        Bool _wcond840; { Bool *_hp = I64_gt(&(I64){v}, &(I64){_t841}); _wcond840 = *_hp; free(_hp); }
         ;
-        if (_wcond852) {
+        if (_wcond840) {
         } else {
             ;
             break;
         }
         ;
-        I64 _t854 = 10;
-        I64 _t855 = I64_mod(v, _t854);
+        I64 _t842 = 10;
+        I64 _t843 = I64_mod(v, _t842);
         ;
-        I64 _t856 = 48;
-        I64 _t857 = I64_add(_t855, _t856);
-        ;
-        ;
-        void *_t858 = ptr_add(buf, DEREF(i));
-        U8 _t859 = I64_to_u8(_t857);
-        ;
-        U64 _t860 = 1;
-        memcpy(_t858, &(U8){_t859}, _t860);
+        I64 _t844 = 48;
+        I64 _t845 = I64_add(_t843, _t844);
         ;
         ;
-        I64 _t861 = 10;
-        I64 _t862 = I64_div(v, _t861);
+        void *_t846 = ptr_add(buf, DEREF(i));
+        U8 _t847 = I64_to_u8(_t845);
         ;
-        v = _t862;
+        U64 _t848 = 1;
+        memcpy(_t846, &(U8){_t847}, _t848);
         ;
-        U64 _t863 = 1;
-        U64 _t864 = U64_sub(DEREF(i), _t863);
         ;
-        *i = _t864;
+        I64 _t849 = 10;
+        I64 _t850 = I64_div(v, _t849);
+        ;
+        v = _t850;
+        ;
+        U64 _t851 = 1;
+        U64 _t852 = U64_sub(DEREF(i), _t851);
+        ;
+        *i = _t852;
         ;
     }
     U64_delete(i, &(Bool){1});
     ;
-    void *_t872 = ptr_add(buf, DEREF(total));
-    I64 _t873 = 0;
-    U64 _t874 = 1;
-    memcpy(_t872, &(I64){_t873}, _t874);
+    void *_t860 = ptr_add(buf, DEREF(total));
+    I64 _t861 = 0;
+    U64 _t862 = 1;
+    memcpy(_t860, &(I64){_t861}, _t862);
     ;
     ;
-    U64 _t875 = U64_clone(total);
-    U64 _t876 = U64_clone(total);
+    U64 _t863 = U64_clone(total);
+    U64 _t864 = U64_clone(total);
     U64_delete(total, &(Bool){1});
-    Str *_t877 = malloc(sizeof(Str));
-    _t877->c_str = buf;
-    _t877->count = _t875;
-    _t877->cap = _t876;
+    Str *_t865 = malloc(sizeof(Str));
+    _t865->c_str = buf;
+    _t865->count = _t863;
+    _t865->cap = _t864;
     ;
     ;
-    return _t877;
+    return _t865;
 }
 
 static __attribute__((unused)) I64 * I64_neg(I64 * a) {
-    I64 _t878 = 0;
-    I64 _t879 = I64_sub(_t878, DEREF(a));
+    I64 _t866 = 0;
+    I64 _t867 = I64_sub(_t866, DEREF(a));
     ;
-    { I64 *_r = malloc(sizeof(I64)); *_r = _t879; return _r; }
+    { I64 *_r = malloc(sizeof(I64)); *_r = _t867; return _r; }
 }
 
 static __attribute__((unused)) I64 * I64_abs(I64 * a) {
-    I64 _t882 = 0;
-    Bool _t883; { Bool *_hp = I64_lt(a, &(I64){_t882}); _t883 = *_hp; free(_hp); }
+    I64 _t870 = 0;
+    Bool _t871; { Bool *_hp = I64_lt(a, &(I64){_t870}); _t871 = *_hp; free(_hp); }
     ;
-    if (_t883) {
-        I64 _t880 = 0;
-        I64 _t881 = I64_sub(_t880, DEREF(a));
+    if (_t871) {
+        I64 _t868 = 0;
+        I64 _t869 = I64_sub(_t868, DEREF(a));
         ;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t881; return _r; }
+        { I64 *_r = malloc(sizeof(I64)); *_r = _t869; return _r; }
     }
     ;
-    I64 _t884 = I64_clone(a);
-    { I64 *_r = malloc(sizeof(I64)); *_r = _t884; return _r; }
+    I64 _t872 = I64_clone(a);
+    { I64 *_r = malloc(sizeof(I64)); *_r = _t872; return _r; }
 }
 
 static U64 *I64_size(void) {
@@ -3409,90 +3376,90 @@ static U64 *I64_size(void) {
 }
 
 static __attribute__((unused)) Bool * I64_lt(I64 * a, I64 * b) {
-    I64 _t886 = 0;
-    I64 _t887 = 1;
-    I64 _t888 = I64_cmp(DEREF(a), DEREF(b));
-    I64 _t889 = I64_sub(_t886, _t887);
+    I64 _t874 = 0;
+    I64 _t875 = 1;
+    I64 _t876 = I64_cmp(DEREF(a), DEREF(b));
+    I64 _t877 = I64_sub(_t874, _t875);
     ;
     ;
-    Bool _t890 = I64_eq(_t888, _t889);
+    Bool _t878 = I64_eq(_t876, _t877);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t890; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t878; return _r; }
 }
 
 static __attribute__((unused)) Bool * I64_gt(I64 * a, I64 * b) {
-    I64 _t891 = I64_cmp(DEREF(a), DEREF(b));
-    I64 _t892 = 1;
-    Bool _t893 = I64_eq(_t891, _t892);
+    I64 _t879 = I64_cmp(DEREF(a), DEREF(b));
+    I64 _t880 = 1;
+    Bool _t881 = I64_eq(_t879, _t880);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t893; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t881; return _r; }
 }
 
 static __attribute__((unused)) Bool * I64_neq(I64 * a, I64 * b) {
-    Bool _t894 = I64_eq(DEREF(a), DEREF(b));
-    Bool _t895 = Bool_not(_t894);
+    Bool _t882 = I64_eq(DEREF(a), DEREF(b));
+    Bool _t883 = Bool_not(_t882);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t895; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t883; return _r; }
 }
 
 static __attribute__((unused)) Bool * I64_lte(I64 * a, I64 * b) {
-    Bool _t896; { Bool *_hp = I64_gt(a, b); _t896 = *_hp; free(_hp); }
-    Bool _t897 = Bool_not(_t896);
+    Bool _t884; { Bool *_hp = I64_gt(a, b); _t884 = *_hp; free(_hp); }
+    Bool _t885 = Bool_not(_t884);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t897; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t885; return _r; }
 }
 
 static __attribute__((unused)) Bool * I64_gte(I64 * a, I64 * b) {
-    Bool _t898; { Bool *_hp = I64_lt(a, b); _t898 = *_hp; free(_hp); }
-    Bool _t899 = Bool_not(_t898);
+    Bool _t886; { Bool *_hp = I64_lt(a, b); _t886 = *_hp; free(_hp); }
+    Bool _t887 = Bool_not(_t886);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t899; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t887; return _r; }
 }
 
 Range * Range_new(U64 start, U64 end) {
-    U64 _t900 = U64_clone(&(U64){start});
-    U64 _t901 = U64_clone(&(U64){end});
-    Range *_t902 = malloc(sizeof(Range));
-    _t902->start = _t900;
-    _t902->end = _t901;
+    U64 _t888 = U64_clone(&(U64){start});
+    U64 _t889 = U64_clone(&(U64){end});
+    Range *_t890 = malloc(sizeof(Range));
+    _t890->start = _t888;
+    _t890->end = _t889;
     ;
     ;
-    return _t902;
+    return _t890;
 }
 
 U64 * Range_len(Range * self) {
     (void)self;
-    Bool _t904; { Bool *_hp = U64_lte(&self->start, &self->end); _t904 = *_hp; free(_hp); }
-    if (_t904) {
-        U64 _t903 = U64_sub(self->end, self->start);
+    Bool _t892; { Bool *_hp = U64_lte(&self->start, &self->end); _t892 = *_hp; free(_hp); }
+    if (_t892) {
+        U64 _t891 = U64_sub(self->end, self->start);
         ;
-        { U64 *_r = malloc(sizeof(U64)); *_r = _t903; return _r; }
+        { U64 *_r = malloc(sizeof(U64)); *_r = _t891; return _r; }
     }
     ;
-    U64 _t905 = U64_sub(self->start, self->end);
-    { U64 *_r = malloc(sizeof(U64)); *_r = _t905; return _r; }
+    U64 _t893 = U64_sub(self->start, self->end);
+    { U64 *_r = malloc(sizeof(U64)); *_r = _t893; return _r; }
 }
 
 U64 * Range_get(Range * self, U64 i) {
     (void)self;
-    Bool _t907; { Bool *_hp = U64_lte(&self->start, &self->end); _t907 = *_hp; free(_hp); }
-    if (_t907) {
-        U64 _t906 = U64_add(self->start, i);
+    Bool _t895; { Bool *_hp = U64_lte(&self->start, &self->end); _t895 = *_hp; free(_hp); }
+    if (_t895) {
+        U64 _t894 = U64_add(self->start, i);
         ;
-        { U64 *_r = malloc(sizeof(U64)); *_r = _t906; return _r; }
+        { U64 *_r = malloc(sizeof(U64)); *_r = _t894; return _r; }
     }
     ;
-    U64 _t908 = U64_sub(self->start, i);
-    { U64 *_r = malloc(sizeof(U64)); *_r = _t908; return _r; }
+    U64 _t896 = U64_sub(self->start, i);
+    { U64 *_r = malloc(sizeof(U64)); *_r = _t896; return _r; }
 }
 
 Range * Range_clone(Range * val) {
-    Range *_t909 = malloc(sizeof(Range));
-    _t909->start = val->start;
-    _t909->end = val->end;
-    return _t909;
+    Range *_t897 = malloc(sizeof(Range));
+    _t897->start = val->start;
+    _t897->end = val->end;
+    return _t897;
 }
 
 void Range_delete(Range * self, Bool * call_free) {
@@ -3510,32 +3477,32 @@ U64 *Range_size(void) {
 
 static __attribute__((unused)) Str * Bool_to_str(Bool * b) {
     if (DEREF(b)) {
-        Str *_t911 = Str_lit("true", 4ULL);
-        return _t911;
+        Str *_t899 = Str_lit("true", 4ULL);
+        return _t899;
     } else {
-        Str *_t912 = Str_lit("false", 5ULL);
-        return _t912;
+        Str *_t900 = Str_lit("false", 5ULL);
+        return _t900;
     }
 }
 
 static __attribute__((unused)) I64 * Bool_cmp(Bool * a, Bool * b) {
-    Bool _t917 = Bool_eq(DEREF(a), DEREF(b));
-    if (_t917) {
-        I64 _t913 = 0;
+    Bool _t905 = Bool_eq(DEREF(a), DEREF(b));
+    if (_t905) {
+        I64 _t901 = 0;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t913; return _r; }
+        { I64 *_r = malloc(sizeof(I64)); *_r = _t901; return _r; }
     }
     ;
     if (DEREF(b)) {
-        I64 _t914 = 0;
-        I64 _t915 = 1;
-        I64 _t916 = I64_sub(_t914, _t915);
+        I64 _t902 = 0;
+        I64 _t903 = 1;
+        I64 _t904 = I64_sub(_t902, _t903);
         ;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t916; return _r; }
+        { I64 *_r = malloc(sizeof(I64)); *_r = _t904; return _r; }
     }
-    I64 _t918 = 1;
-    { I64 *_r = malloc(sizeof(I64)); *_r = _t918; return _r; }
+    I64 _t906 = 1;
+    { I64 *_r = malloc(sizeof(I64)); *_r = _t906; return _r; }
 }
 
 static U64 *Bool_size(void) {
@@ -3545,77 +3512,135 @@ static U64 *Bool_size(void) {
 }
 
 static __attribute__((unused)) Bool * Bool_lt(Bool * a, Bool * b) {
-    I64 _t920 = 0;
-    I64 _t921 = 1;
-    I64 _t922; { I64 *_hp = Bool_cmp(a, b); _t922 = *_hp; free(_hp); }
-    I64 _t923 = I64_sub(_t920, _t921);
+    I64 _t908 = 0;
+    I64 _t909 = 1;
+    I64 _t910; { I64 *_hp = Bool_cmp(a, b); _t910 = *_hp; free(_hp); }
+    I64 _t911 = I64_sub(_t908, _t909);
     ;
     ;
-    Bool _t924 = I64_eq(_t922, _t923);
+    Bool _t912 = I64_eq(_t910, _t911);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t924; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t912; return _r; }
 }
 
 static __attribute__((unused)) Bool * Bool_gt(Bool * a, Bool * b) {
-    I64 _t925; { I64 *_hp = Bool_cmp(a, b); _t925 = *_hp; free(_hp); }
-    I64 _t926 = 1;
-    Bool _t927 = I64_eq(_t925, _t926);
+    I64 _t913; { I64 *_hp = Bool_cmp(a, b); _t913 = *_hp; free(_hp); }
+    I64 _t914 = 1;
+    Bool _t915 = I64_eq(_t913, _t914);
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t927; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t915; return _r; }
 }
 
 static __attribute__((unused)) Bool * Bool_neq(Bool * a, Bool * b) {
-    Bool _t928 = Bool_eq(DEREF(a), DEREF(b));
-    Bool _t929 = Bool_not(_t928);
+    Bool _t916 = Bool_eq(DEREF(a), DEREF(b));
+    Bool _t917 = Bool_not(_t916);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t929; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t917; return _r; }
 }
 
 static __attribute__((unused)) Bool * Bool_lte(Bool * a, Bool * b) {
-    Bool _t930; { Bool *_hp = Bool_gt(a, b); _t930 = *_hp; free(_hp); }
-    Bool _t931 = Bool_not(_t930);
+    Bool _t918; { Bool *_hp = Bool_gt(a, b); _t918 = *_hp; free(_hp); }
+    Bool _t919 = Bool_not(_t918);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t931; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t919; return _r; }
 }
 
 static __attribute__((unused)) Bool * Bool_gte(Bool * a, Bool * b) {
-    Bool _t932; { Bool *_hp = Bool_lt(a, b); _t932 = *_hp; free(_hp); }
-    Bool _t933 = Bool_not(_t932);
+    Bool _t920; { Bool *_hp = Bool_lt(a, b); _t920 = *_hp; free(_hp); }
+    Bool _t921 = Bool_not(_t920);
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t933; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t921; return _r; }
 }
 
 void println(Array * parts) {
     {
-        U64 *_fi934 = malloc(sizeof(U64));
-        *_fi934 = 0;
+        U64 *_fi922 = malloc(sizeof(U64));
+        *_fi922 = 0;
         while (1) {
-            U64 _t936; { U64 *_hp = Array_len(parts); _t936 = *_hp; free(_hp); }
-            Bool _wcond935; { Bool *_hp = U64_lt(_fi934, &(U64){_t936}); _wcond935 = *_hp; free(_hp); }
+            U64 _t924; { U64 *_hp = Array_len(parts); _t924 = *_hp; free(_hp); }
+            Bool _wcond923; { Bool *_hp = U64_lt(_fi922, &(U64){_t924}); _wcond923 = *_hp; free(_hp); }
             ;
-            if (_wcond935) {
+            if (_wcond923) {
             } else {
                 ;
                 break;
             }
             ;
-            Str *s = Array_get(parts, _fi934);
-            U64 _t937 = 1;
-            U64 _t938 = U64_add(DEREF(_fi934), _t937);
+            Str *s = Array_get(parts, _fi922);
+            U64 _t925 = 1;
+            U64 _t926 = U64_add(DEREF(_fi922), _t925);
             ;
-            *_fi934 = _t938;
+            *_fi922 = _t926;
             ;
             print_single(s);
         }
-        U64_delete(_fi934, &(Bool){1});
+        U64_delete(_fi922, &(Bool){1});
     }
     Array_delete(parts, &(Bool){1});
     print_flush();
 }
 
 void print(Array * parts) {
+    {
+        U64 *_fi927 = malloc(sizeof(U64));
+        *_fi927 = 0;
+        while (1) {
+            U64 _t929; { U64 *_hp = Array_len(parts); _t929 = *_hp; free(_hp); }
+            Bool _wcond928; { Bool *_hp = U64_lt(_fi927, &(U64){_t929}); _wcond928 = *_hp; free(_hp); }
+            ;
+            if (_wcond928) {
+            } else {
+                ;
+                break;
+            }
+            ;
+            Str *s = Array_get(parts, _fi927);
+            U64 _t930 = 1;
+            U64 _t931 = U64_add(DEREF(_fi927), _t930);
+            ;
+            *_fi927 = _t931;
+            ;
+            print_single(s);
+        }
+        U64_delete(_fi927, &(Bool){1});
+    }
+    Array_delete(parts, &(Bool){1});
+}
+
+Str * format(Array * parts) {
+    U64 total = 0;
+    {
+        U64 *_fi932 = malloc(sizeof(U64));
+        *_fi932 = 0;
+        while (1) {
+            U64 _t934; { U64 *_hp = Array_len(parts); _t934 = *_hp; free(_hp); }
+            Bool _wcond933; { Bool *_hp = U64_lt(_fi932, &(U64){_t934}); _wcond933 = *_hp; free(_hp); }
+            ;
+            if (_wcond933) {
+            } else {
+                ;
+                break;
+            }
+            ;
+            Str *s = Array_get(parts, _fi932);
+            U64 _t935 = 1;
+            U64 _t936 = U64_add(DEREF(_fi932), _t935);
+            ;
+            *_fi932 = _t936;
+            ;
+            U64 _t937; { U64 *_hp = Str_len(s); _t937 = *_hp; free(_hp); }
+            U64 _t938 = U64_add(total, _t937);
+            ;
+            total = _t938;
+            ;
+        }
+        U64_delete(_fi932, &(Bool){1});
+    }
+    U8 *buf = malloc(total);
+    U64 *offset = malloc(sizeof(U64));
+    *offset = 0;
     {
         U64 *_fi939 = malloc(sizeof(U64));
         *_fi939 = 0;
@@ -3635,108 +3660,50 @@ void print(Array * parts) {
             ;
             *_fi939 = _t943;
             ;
-            print_single(s);
+            void *_t944 = ptr_add(buf, DEREF(offset));
+            U64 _t945; { U64 *_hp = Str_len(s); _t945 = *_hp; free(_hp); }
+            memcpy(_t944, s->c_str, _t945);
+            ;
+            U64 _t946; { U64 *_hp = Str_len(s); _t946 = *_hp; free(_hp); }
+            U64 _t947 = U64_add(DEREF(offset), _t946);
+            ;
+            *offset = _t947;
+            ;
         }
         U64_delete(_fi939, &(Bool){1});
     }
-    Array_delete(parts, &(Bool){1});
-}
-
-Str * format(Array * parts) {
-    U64 total = 0;
-    {
-        U64 *_fi944 = malloc(sizeof(U64));
-        *_fi944 = 0;
-        while (1) {
-            U64 _t946; { U64 *_hp = Array_len(parts); _t946 = *_hp; free(_hp); }
-            Bool _wcond945; { Bool *_hp = U64_lt(_fi944, &(U64){_t946}); _wcond945 = *_hp; free(_hp); }
-            ;
-            if (_wcond945) {
-            } else {
-                ;
-                break;
-            }
-            ;
-            Str *s = Array_get(parts, _fi944);
-            U64 _t947 = 1;
-            U64 _t948 = U64_add(DEREF(_fi944), _t947);
-            ;
-            *_fi944 = _t948;
-            ;
-            U64 _t949; { U64 *_hp = Str_len(s); _t949 = *_hp; free(_hp); }
-            U64 _t950 = U64_add(total, _t949);
-            ;
-            total = _t950;
-            ;
-        }
-        U64_delete(_fi944, &(Bool){1});
-    }
-    U8 *buf = malloc(total);
-    U64 *offset = malloc(sizeof(U64));
-    *offset = 0;
-    {
-        U64 *_fi951 = malloc(sizeof(U64));
-        *_fi951 = 0;
-        while (1) {
-            U64 _t953; { U64 *_hp = Array_len(parts); _t953 = *_hp; free(_hp); }
-            Bool _wcond952; { Bool *_hp = U64_lt(_fi951, &(U64){_t953}); _wcond952 = *_hp; free(_hp); }
-            ;
-            if (_wcond952) {
-            } else {
-                ;
-                break;
-            }
-            ;
-            Str *s = Array_get(parts, _fi951);
-            U64 _t954 = 1;
-            U64 _t955 = U64_add(DEREF(_fi951), _t954);
-            ;
-            *_fi951 = _t955;
-            ;
-            void *_t956 = ptr_add(buf, DEREF(offset));
-            U64 _t957; { U64 *_hp = Str_len(s); _t957 = *_hp; free(_hp); }
-            memcpy(_t956, s->c_str, _t957);
-            ;
-            U64 _t958; { U64 *_hp = Str_len(s); _t958 = *_hp; free(_hp); }
-            U64 _t959 = U64_add(DEREF(offset), _t958);
-            ;
-            *offset = _t959;
-            ;
-        }
-        U64_delete(_fi951, &(Bool){1});
-    }
     U64_delete(offset, &(Bool){1});
     Array_delete(parts, &(Bool){1});
-    U64 _t960 = U64_clone(&(U64){total});
-    U64 _t961 = U64_clone(&(U64){total});
+    U64 _t948 = U64_clone(&(U64){total});
+    U64 _t949 = U64_clone(&(U64){total});
     ;
-    Str *_t962 = malloc(sizeof(Str));
-    _t962->c_str = buf;
-    _t962->count = _t960;
-    _t962->cap = _t961;
+    Str *_t950 = malloc(sizeof(Str));
+    _t950->c_str = buf;
+    _t950->count = _t948;
+    _t950->cap = _t949;
     ;
     ;
-    return _t962;
+    return _t950;
 }
 
 I64 * wait_cmd(I64 * pid) {
     while (1) {
         I64 status = check_cmd_status(DEREF(pid));
-        I64 _t963 = 0;
-        I64 _t964 = 1;
-        I64 _t965 = I64_sub(_t963, _t964);
+        I64 _t951 = 0;
+        I64 _t952 = 1;
+        I64 _t953 = I64_sub(_t951, _t952);
         ;
         ;
-        Bool _t966; { Bool *_hp = I64_neq(&(I64){status}, &(I64){_t965}); _t966 = *_hp; free(_hp); }
+        Bool _t954; { Bool *_hp = I64_neq(&(I64){status}, &(I64){_t953}); _t954 = *_hp; free(_hp); }
         ;
-        if (_t966) {
+        if (_t954) {
             ;
             { I64 *_r = malloc(sizeof(I64)); *_r = status; return _r; }
         }
         ;
         ;
-        I64 _t967 = 50;
-        sleep_ms(_t967);
+        I64 _t955 = 50;
+        sleep_ms(_t955);
         ;
     }
 }
@@ -3746,237 +3713,237 @@ I64 * run_cmd(Str * output, Array * args) {
     U64 *i = malloc(sizeof(U64));
     *i = 0;
     while (1) {
-        U64 _t973; { U64 *_hp = Array_len(args); _t973 = *_hp; free(_hp); }
-        Bool _wcond968; { Bool *_hp = U64_lt(i, &(U64){_t973}); _wcond968 = *_hp; free(_hp); }
+        U64 _t961; { U64 *_hp = Array_len(args); _t961 = *_hp; free(_hp); }
+        Bool _wcond956; { Bool *_hp = U64_lt(i, &(U64){_t961}); _wcond956 = *_hp; free(_hp); }
         ;
-        if (_wcond968) {
+        if (_wcond956) {
         } else {
             ;
             break;
         }
         ;
         Str *arg = Array_get(args, i);
-        U64 _t974 = 0;
-        Bool _t975; { Bool *_hp = U64_gt(i, &(U64){_t974}); _t975 = *_hp; free(_hp); }
+        U64 _t962 = 0;
+        Bool _t963; { Bool *_hp = U64_gt(i, &(U64){_t962}); _t963 = *_hp; free(_hp); }
         ;
-        if (_t975) {
-            Str *_t969 = Str_lit(" '", 2ULL);
-            Str *_t970 = Str_concat(cmd, _t969);
-            Str_delete(_t969, &(Bool){1});
-            Str *_t971 = Str_concat(_t970, arg);
-            Str_delete(_t970, &(Bool){1});
-            Str *_t972 = Str_lit("'", 1ULL);
-            cmd = Str_concat(_t971, _t972);
-            Str_delete(_t971, &(Bool){1});
-            Str_delete(_t972, &(Bool){1});
+        if (_t963) {
+            Str *_t957 = Str_lit(" '", 2ULL);
+            Str *_t958 = Str_concat(cmd, _t957);
+            Str_delete(_t957, &(Bool){1});
+            Str *_t959 = Str_concat(_t958, arg);
+            Str_delete(_t958, &(Bool){1});
+            Str *_t960 = Str_lit("'", 1ULL);
+            cmd = Str_concat(_t959, _t960);
+            Str_delete(_t959, &(Bool){1});
+            Str_delete(_t960, &(Bool){1});
         } else {
             cmd = Str_clone(arg);
         }
         ;
-        U64 _t976 = 1;
-        U64 _t977 = U64_add(DEREF(i), _t976);
+        U64 _t964 = 1;
+        U64 _t965 = U64_add(DEREF(i), _t964);
         ;
-        *i = _t977;
+        *i = _t965;
         ;
     }
     Array_delete(args, &(Bool){1});
     U64_delete(i, &(Bool){1});
     Str *tmpf = Str_lit("tmp/_run_cmd_out", 16ULL);
-    Str *_t978 = Str_lit(" > ", 3ULL);
-    Str *_t979 = Str_concat(cmd, _t978);
-    Str_delete(_t978, &(Bool){1});
+    Str *_t966 = Str_lit(" > ", 3ULL);
+    Str *_t967 = Str_concat(cmd, _t966);
+    Str_delete(_t966, &(Bool){1});
     Str_delete(cmd, &(Bool){1});
-    Str *_t980 = Str_concat(_t979, tmpf);
-    Str_delete(_t979, &(Bool){1});
-    Str *_t981 = Str_lit(" 2>&1", 5ULL);
-    Str *_t982 = Str_concat(_t980, _t981);
-    Str_delete(_t980, &(Bool){1});
-    Str_delete(_t981, &(Bool){1});
-    I64 pid; { I64 *_hp = spawn_cmd(_t982); pid = *_hp; free(_hp); }
-    Str_delete(_t982, &(Bool){1});
+    Str *_t968 = Str_concat(_t967, tmpf);
+    Str_delete(_t967, &(Bool){1});
+    Str *_t969 = Str_lit(" 2>&1", 5ULL);
+    Str *_t970 = Str_concat(_t968, _t969);
+    Str_delete(_t968, &(Bool){1});
+    Str_delete(_t969, &(Bool){1});
+    I64 pid; { I64 *_hp = spawn_cmd(_t970); pid = *_hp; free(_hp); }
+    Str_delete(_t970, &(Bool){1});
     I64 ec; { I64 *_hp = wait_cmd(&(I64){pid}); ec = *_hp; free(_hp); }
     ;
     Str *content = readfile(tmpf);
     Str_delete(tmpf, &(Bool){1});
-    U64 _t983; { U64 *_hp = Str_size(); _t983 = *_hp; free(_hp); }
-    memcpy(output, content, _t983);
+    U64 _t971; { U64 *_hp = Str_size(); _t971 = *_hp; free(_hp); }
+    memcpy(output, content, _t971);
     ;
     free(content);
     { I64 *_r = malloc(sizeof(I64)); *_r = ec; return _r; }
 }
 
 void panic(Str * loc_str, Array * parts) {
-    Str *_t984 = Str_lit("Str", 3ULL);
-    U64 _t985; { U64 *_hp = Str_size(); _t985 = *_hp; free(_hp); }
-    U64 _t986 = 3;
-    Array *_va13 = Array_new(_t984, &(U64){_t985}, &(U64){_t986});
-    Str_delete(_t984, &(Bool){1});
+    Str *_t972 = Str_lit("Str", 3ULL);
+    U64 _t973; { U64 *_hp = Str_size(); _t973 = *_hp; free(_hp); }
+    U64 _t974 = 3;
+    Array *_va12 = Array_new(_t972, &(U64){_t973}, &(U64){_t974});
+    Str_delete(_t972, &(Bool){1});
     ;
     ;
-    U64 _t987 = 0;
-    Str *_t988 = Str_clone(loc_str);
-    Array_set(_va13, &(U64){_t987}, _t988);
+    U64 _t975 = 0;
+    Str *_t976 = Str_clone(loc_str);
+    Array_set(_va12, &(U64){_t975}, _t976);
     ;
-    U64 _t989 = 1;
-    Str *_t990 = Str_lit(": panic: ", 9ULL);
-    Array_set(_va13, &(U64){_t989}, _t990);
+    U64 _t977 = 1;
+    Str *_t978 = Str_lit(": panic: ", 9ULL);
+    Array_set(_va12, &(U64){_t977}, _t978);
     ;
-    U64 _t991 = 2;
-    Str *_t992 = format(parts);
-    Array_set(_va13, &(U64){_t991}, _t992);
+    U64 _t979 = 2;
+    Str *_t980 = format(parts);
+    Array_set(_va12, &(U64){_t979}, _t980);
     ;
-    println(_va13);
-    I64 _t993 = 1;
-    exit(_t993);
+    println(_va12);
+    I64 _t981 = 1;
+    exit(_t981);
     ;
 }
 
 void TODO(Str * loc_str, Array * parts) {
-    Str *_t994 = Str_lit("Str", 3ULL);
-    U64 _t995; { U64 *_hp = Str_size(); _t995 = *_hp; free(_hp); }
-    U64 _t996 = 2;
-    Array *_va14 = Array_new(_t994, &(U64){_t995}, &(U64){_t996});
-    Str_delete(_t994, &(Bool){1});
+    Str *_t982 = Str_lit("Str", 3ULL);
+    U64 _t983; { U64 *_hp = Str_size(); _t983 = *_hp; free(_hp); }
+    U64 _t984 = 2;
+    Array *_va13 = Array_new(_t982, &(U64){_t983}, &(U64){_t984});
+    Str_delete(_t982, &(Bool){1});
     ;
     ;
-    U64 _t997 = 0;
-    Str *_t998 = Str_lit("TODO: ", 6ULL);
-    Array_set(_va14, &(U64){_t997}, _t998);
+    U64 _t985 = 0;
+    Str *_t986 = Str_lit("TODO: ", 6ULL);
+    Array_set(_va13, &(U64){_t985}, _t986);
     ;
-    U64 _t999 = 1;
-    Str *_t1000 = format(parts);
-    Array_set(_va14, &(U64){_t999}, _t1000);
+    U64 _t987 = 1;
+    Str *_t988 = format(parts);
+    Array_set(_va13, &(U64){_t987}, _t988);
+    ;
+    panic(loc_str, _va13);
+}
+
+void UNREACHABLE(Str * loc_str) {
+    Str *_t989 = Str_lit("Str", 3ULL);
+    U64 _t990; { U64 *_hp = Str_size(); _t990 = *_hp; free(_hp); }
+    U64 _t991 = 1;
+    Array *_va14 = Array_new(_t989, &(U64){_t990}, &(U64){_t991});
+    Str_delete(_t989, &(Bool){1});
+    ;
+    ;
+    U64 _t992 = 0;
+    Str *_t993 = Str_lit("unreachable", 11ULL);
+    Array_set(_va14, &(U64){_t992}, _t993);
     ;
     panic(loc_str, _va14);
 }
 
-void UNREACHABLE(Str * loc_str) {
-    Str *_t1001 = Str_lit("Str", 3ULL);
-    U64 _t1002; { U64 *_hp = Str_size(); _t1002 = *_hp; free(_hp); }
-    U64 _t1003 = 1;
-    Array *_va15 = Array_new(_t1001, &(U64){_t1002}, &(U64){_t1003});
-    Str_delete(_t1001, &(Bool){1});
-    ;
-    ;
-    U64 _t1004 = 0;
-    Str *_t1005 = Str_lit("unreachable", 11ULL);
-    Array_set(_va15, &(U64){_t1004}, _t1005);
-    ;
-    panic(loc_str, _va15);
-}
-
 Bool * assertm(Str * loc_str, Bool * cond, Array * parts) {
-    Bool _t1013 = Bool_not(DEREF(cond));
-    if (_t1013) {
-        Str *_t1006 = Str_lit("Str", 3ULL);
-        U64 _t1007; { U64 *_hp = Str_size(); _t1007 = *_hp; free(_hp); }
-        U64 _t1008 = 2;
-        Array *_va16 = Array_new(_t1006, &(U64){_t1007}, &(U64){_t1008});
-        Str_delete(_t1006, &(Bool){1});
+    Bool _t1001 = Bool_not(DEREF(cond));
+    if (_t1001) {
+        Str *_t994 = Str_lit("Str", 3ULL);
+        U64 _t995; { U64 *_hp = Str_size(); _t995 = *_hp; free(_hp); }
+        U64 _t996 = 2;
+        Array *_va15 = Array_new(_t994, &(U64){_t995}, &(U64){_t996});
+        Str_delete(_t994, &(Bool){1});
         ;
         ;
-        U64 _t1009 = 0;
-        Str *_t1010 = Str_lit("assert failed: ", 15ULL);
-        Array_set(_va16, &(U64){_t1009}, _t1010);
+        U64 _t997 = 0;
+        Str *_t998 = Str_lit("assert failed: ", 15ULL);
+        Array_set(_va15, &(U64){_t997}, _t998);
         ;
-        U64 _t1011 = 1;
-        Str *_t1012 = format(parts);
-        Array_set(_va16, &(U64){_t1011}, _t1012);
+        U64 _t999 = 1;
+        Str *_t1000 = format(parts);
+        Array_set(_va15, &(U64){_t999}, _t1000);
         ;
-        panic(loc_str, _va16);
+        panic(loc_str, _va15);
     }
     ;
-    Bool _t1014 = 1;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1014; return _r; }
+    Bool _t1002 = 1;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1002; return _r; }
 }
 
 Bool * assert(Str * loc_str, Bool * cond) {
-    Str *_t1015 = Str_lit("Str", 3ULL);
-    U64 _t1016; { U64 *_hp = Str_size(); _t1016 = *_hp; free(_hp); }
-    U64 _t1017 = 0;
-    Array *_va17 = Array_new(_t1015, &(U64){_t1016}, &(U64){_t1017});
-    Str_delete(_t1015, &(Bool){1});
+    Str *_t1003 = Str_lit("Str", 3ULL);
+    U64 _t1004; { U64 *_hp = Str_size(); _t1004 = *_hp; free(_hp); }
+    U64 _t1005 = 0;
+    Array *_va16 = Array_new(_t1003, &(U64){_t1004}, &(U64){_t1005});
+    Str_delete(_t1003, &(Bool){1});
     ;
     ;
-    Bool _t1018; { Bool *_hp = assertm(loc_str, cond, _va17); _t1018 = *_hp; free(_hp); }
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1018; return _r; }
+    Bool _t1006; { Bool *_hp = assertm(loc_str, cond, _va16); _t1006 = *_hp; free(_hp); }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1006; return _r; }
 }
 
 void test_expect(Str * loc_str, Bool * cond, Array * parts) {
-    Array *_t1019 = Array_clone(parts);
+    Array *_t1007 = Array_clone(parts);
     Array_delete(parts, &(Bool){1});
-    Bool _t1020; { Bool *_hp = assertm(loc_str, cond, _t1019); _t1020 = *_hp; free(_hp); }
+    Bool _t1008; { Bool *_hp = assertm(loc_str, cond, _t1007); _t1008 = *_hp; free(_hp); }
     ;
 }
 
 void assert_eq(Str * loc_str, I64 * a, I64 * b) {
-    Bool _t1034; { Bool *_hp = I64_neq(a, b); _t1034 = *_hp; free(_hp); }
-    if (_t1034) {
-        Str *_t1021 = Str_lit("Str", 3ULL);
-        U64 _t1022; { U64 *_hp = Str_size(); _t1022 = *_hp; free(_hp); }
-        U64 _t1023 = 5;
-        Array *_va18 = Array_new(_t1021, &(U64){_t1022}, &(U64){_t1023});
-        Str_delete(_t1021, &(Bool){1});
+    Bool _t1022; { Bool *_hp = I64_neq(a, b); _t1022 = *_hp; free(_hp); }
+    if (_t1022) {
+        Str *_t1009 = Str_lit("Str", 3ULL);
+        U64 _t1010; { U64 *_hp = Str_size(); _t1010 = *_hp; free(_hp); }
+        U64 _t1011 = 5;
+        Array *_va17 = Array_new(_t1009, &(U64){_t1010}, &(U64){_t1011});
+        Str_delete(_t1009, &(Bool){1});
         ;
         ;
-        U64 _t1024 = 0;
-        Str *_t1025 = Str_lit("assert_eq failed: expected '", 28ULL);
-        Array_set(_va18, &(U64){_t1024}, _t1025);
+        U64 _t1012 = 0;
+        Str *_t1013 = Str_lit("assert_eq failed: expected '", 28ULL);
+        Array_set(_va17, &(U64){_t1012}, _t1013);
         ;
-        U64 _t1026 = 1;
-        Str *_t1027 = I64_to_str(a);
-        Array_set(_va18, &(U64){_t1026}, _t1027);
+        U64 _t1014 = 1;
+        Str *_t1015 = I64_to_str(a);
+        Array_set(_va17, &(U64){_t1014}, _t1015);
         ;
-        U64 _t1028 = 2;
-        Str *_t1029 = Str_lit("', found '", 10ULL);
-        Array_set(_va18, &(U64){_t1028}, _t1029);
+        U64 _t1016 = 2;
+        Str *_t1017 = Str_lit("', found '", 10ULL);
+        Array_set(_va17, &(U64){_t1016}, _t1017);
         ;
-        U64 _t1030 = 3;
-        Str *_t1031 = I64_to_str(b);
-        Array_set(_va18, &(U64){_t1030}, _t1031);
+        U64 _t1018 = 3;
+        Str *_t1019 = I64_to_str(b);
+        Array_set(_va17, &(U64){_t1018}, _t1019);
         ;
-        U64 _t1032 = 4;
-        Str *_t1033 = Str_lit("'", 1ULL);
-        Array_set(_va18, &(U64){_t1032}, _t1033);
+        U64 _t1020 = 4;
+        Str *_t1021 = Str_lit("'", 1ULL);
+        Array_set(_va17, &(U64){_t1020}, _t1021);
         ;
-        panic(loc_str, _va18);
+        panic(loc_str, _va17);
     }
     ;
 }
 
 void assert_eq_str(Str * loc_str, Str * a, Str * b) {
-    Bool _t1048; { Bool *_hp = Str_eq(a, b); _t1048 = *_hp; free(_hp); }
-    Bool _t1049 = Bool_not(_t1048);
+    Bool _t1036; { Bool *_hp = Str_eq(a, b); _t1036 = *_hp; free(_hp); }
+    Bool _t1037 = Bool_not(_t1036);
     ;
-    if (_t1049) {
-        Str *_t1035 = Str_lit("Str", 3ULL);
-        U64 _t1036; { U64 *_hp = Str_size(); _t1036 = *_hp; free(_hp); }
-        U64 _t1037 = 5;
-        Array *_va19 = Array_new(_t1035, &(U64){_t1036}, &(U64){_t1037});
-        Str_delete(_t1035, &(Bool){1});
+    if (_t1037) {
+        Str *_t1023 = Str_lit("Str", 3ULL);
+        U64 _t1024; { U64 *_hp = Str_size(); _t1024 = *_hp; free(_hp); }
+        U64 _t1025 = 5;
+        Array *_va18 = Array_new(_t1023, &(U64){_t1024}, &(U64){_t1025});
+        Str_delete(_t1023, &(Bool){1});
         ;
         ;
-        U64 _t1038 = 0;
-        Str *_t1039 = Str_lit("assert_eq_str failed: expected '", 32ULL);
-        Array_set(_va19, &(U64){_t1038}, _t1039);
+        U64 _t1026 = 0;
+        Str *_t1027 = Str_lit("assert_eq_str failed: expected '", 32ULL);
+        Array_set(_va18, &(U64){_t1026}, _t1027);
         ;
-        U64 _t1040 = 1;
-        Str *_t1041 = Str_clone(a);
-        Array_set(_va19, &(U64){_t1040}, _t1041);
+        U64 _t1028 = 1;
+        Str *_t1029 = Str_clone(a);
+        Array_set(_va18, &(U64){_t1028}, _t1029);
         ;
-        U64 _t1042 = 2;
-        Str *_t1043 = Str_lit("', found '", 10ULL);
-        Array_set(_va19, &(U64){_t1042}, _t1043);
+        U64 _t1030 = 2;
+        Str *_t1031 = Str_lit("', found '", 10ULL);
+        Array_set(_va18, &(U64){_t1030}, _t1031);
         ;
-        U64 _t1044 = 3;
-        Str *_t1045 = Str_clone(b);
-        Array_set(_va19, &(U64){_t1044}, _t1045);
+        U64 _t1032 = 3;
+        Str *_t1033 = Str_clone(b);
+        Array_set(_va18, &(U64){_t1032}, _t1033);
         ;
-        U64 _t1046 = 4;
-        Str *_t1047 = Str_lit("'", 1ULL);
-        Array_set(_va19, &(U64){_t1046}, _t1047);
+        U64 _t1034 = 4;
+        Str *_t1035 = Str_lit("'", 1ULL);
+        Array_set(_va18, &(U64){_t1034}, _t1035);
         ;
-        panic(loc_str, _va19);
+        panic(loc_str, _va18);
     }
     ;
 }
@@ -4051,17 +4018,17 @@ Bool dyn_has_cmp(Str *type_name) {
 
 __attribute__((constructor))
 static void _til_lib_init(void) {
-    _t1050 = malloc(sizeof(I64));
-    *_t1050 = 0;
-    _t1051 = malloc(sizeof(I64));
-    *_t1051 = 1;
-    _t1052 = malloc(sizeof(I64)); *_t1052 = I64_sub(DEREF(_t1050), DEREF(_t1051));
-    CAP_LIT = U64_from_i64(_t1052);
-    _t1053 = malloc(sizeof(I64));
-    *_t1053 = 0;
-    _t1054 = malloc(sizeof(I64));
-    *_t1054 = 2;
-    _t1055 = malloc(sizeof(I64)); *_t1055 = I64_sub(DEREF(_t1053), DEREF(_t1054));
-    CAP_VIEW = U64_from_i64(_t1055);
+    _t1038 = malloc(sizeof(I64));
+    *_t1038 = 0;
+    _t1039 = malloc(sizeof(I64));
+    *_t1039 = 1;
+    _t1040 = malloc(sizeof(I64)); *_t1040 = I64_sub(DEREF(_t1038), DEREF(_t1039));
+    CAP_LIT = U64_from_i64(_t1040);
+    _t1041 = malloc(sizeof(I64));
+    *_t1041 = 0;
+    _t1042 = malloc(sizeof(I64));
+    *_t1042 = 2;
+    _t1043 = malloc(sizeof(I64)); *_t1043 = I64_sub(DEREF(_t1041), DEREF(_t1042));
+    CAP_VIEW = U64_from_i64(_t1043);
 }
 

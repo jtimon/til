@@ -192,7 +192,7 @@ test_u32 := test() {
     assert_eq(__LOC__, x.xor(y).to_i64(), 61680)
 
     // to_str
-    assert_eq_str(__LOC__, U32.from_i64(12345).to_str(), "12345")
+    assert_eq_str(__LOC__, 12345.to_u32().to_str(), "12345")
 
     // size
     assert_eq(__LOC__, U32.size().to_i64(), 4)
