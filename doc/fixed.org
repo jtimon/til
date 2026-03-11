@@ -1,5 +1,25 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #44 Integer literal coercion to non-I64 types
+  Integer literals (0, 1, 42, etc.) always defaulted to I64, requiring
+  explicit conversions like U64.from_i64(0) everywhere. The typer now
+  coerces integer literals to the target type when unambiguous, with
+  compile-time range validation for out-of-range values.
+
+  *** Done
+  - Typer coercion at 6 sites: typed declarations, namespace method call
+    args, regular fcall args, assignments, field assignments, struct field
+    defaults.
+  - Compile-time range validation via literal_in_range() — rejects e.g.
+    256 for U8, negative values for unsigned types.
+  - Added I64.to_u8, I64.to_i16, I64.to_i32, I64.to_u32, I64.to_u64,
+    I64.to_f32 ext_funcs for variable-to-type conversions (UFCS style).
+  - Removed Type.from_i64() from all 6 type namespaces in core.til
+    (U8, I16, I32, U32, U64, F32).
+  - Cleaned up all call sites across the entire codebase (~200+ replacements):
+    literal args → bare literals, variable args → val.to_TYPE(),
+    inferred declarations → typed declarations.
+
 * FIXED #48 Builder: hoist shallow args to stack values (50x regression fix)
   The builder heap-allocates every scalar temporary, even for operations on
   shallow parameters. Vec_push does 8 mallocs per call, Str_eq does ~40
