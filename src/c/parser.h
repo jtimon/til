@@ -1,7 +1,7 @@
 #ifndef TIL_PARSER_H
 #define TIL_PARSER_H
 
-#include "lexer.h"
+#include "compat.h"
 #include "ast.h"
 
 // Parse a token array into an AST. Returns the root body node.

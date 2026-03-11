@@ -104,6 +104,29 @@
   (FFI into C libs, replace with native til), this works bottom-up
   (replace C modules in ctil one at a time).
 
+*** DONE Step 3: Replace C lexer with til-compiled lexer
+   Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from
+   src/self/lexer.til). Since lexer.til imports core.til, bootstrap/lexer
+   subsumes bootstrap/core — deleted core.c+h too.
+
+   What was done:
+   - Made lexer.til equivalent to lexer.c: added KwShallow/KwNull,
+     fixed NULL casing, changed two-char matching to else-if
+   - Makefile: SRCS/HDRS use bootstrap/lexer.c+h, exclude src/c/lexer.c+h;
+     ctil_core target only translates lexer.til (not core.til separately)
+   - parser.c: full mechanical rewrite — TOK_* → TokenType_TAG_*,
+     t->start/t->len → t->text.c_str/t->text.count, tok_str uses Str_clone,
+     check()/expect() take TokenType_tag, format strings %u → %lld for I64
+   - ctil.c: all 6 tokenize() call sites updated (Vec* return, Str* source)
+   - til_bridge.c: til_tokenize wraps new tokenize(), stores Vec* internally
+   - ccore.c: removed duplicate Token_clone/Token_delete (in bootstrap now)
+   - compat.h: includes bootstrap/lexer.h instead of bootstrap/core.h
+   - parser.h: includes compat.h instead of lexer.h
+   - Deleted: src/c/lexer.c, src/c/lexer.h, src/bootstrap/core.c, src/bootstrap/core.h
+
+   Performance: negligible impact — til lexer uses index-based Str.get()
+   instead of C pointer arithmetic, but tokenization is not the bottleneck.
+
 *** DONE Step 2: Eliminate compat wrappers, call core.h directly
    Removed cvec_new/cvec_push/cmap_new/cmap_set/cset_new/cset_add compat
    wrappers. All 14 C files now call Vec_new/Vec_push/Map_new/Map_set/

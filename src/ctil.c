@@ -3,7 +3,6 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/wait.h>
-#include "c/lexer.h"
 #include "c/parser.h"
 #include "c/initer.h"
 #include "c/typer.h"
@@ -107,8 +106,9 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
         char *source = read_file(abs_str);
         if (!source) { free(abs); return 1; }
 
-        U32 tok_count;
-        Token *toks = tokenize(source, abs_str, &tok_count);
+        Vec *tok_vec = tokenize(Str_new(source), abs_str);
+        Token *toks = (Token *)tok_vec->data;
+        U32 tok_count = tok_vec->count;
 
         Str *sub_mode = NULL;
         Expr *sub_ast = parse(toks, tok_count, abs_str, &sub_mode);
@@ -184,8 +184,9 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     Str *core_path = Str_concat(bin_dir, Str_new("/src/core/core.til"));
     char *core_source = read_file(core_path);
     if (!core_source) return NULL;
-    U32 core_count;
-    Token *core_tokens = tokenize(core_source, core_path, &core_count);
+    Vec *core_tok_vec = tokenize(Str_new(core_source), core_path);
+    Token *core_tokens = (Token *)core_tok_vec->data;
+    U32 core_count = core_tok_vec->count;
     Str *core_mode = NULL;
     Expr *core_ast = parse(core_tokens, core_count, core_path, &core_mode);
 
@@ -214,8 +215,9 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     // Load user file
     char *source = read_file(path);
     if (!source) return NULL;
-    U32 count;
-    Token *tokens = tokenize(source, path, &count);
+    Vec *tok_vec2 = tokenize(Str_new(source), path);
+    Token *tokens = (Token *)tok_vec2->data;
+    U32 count = tok_vec2->count;
     Expr *ast = parse(tokens, count, path, NULL);
 
     // Merge: core + core imports + user
@@ -318,8 +320,9 @@ int main(int argc, char **argv) {
     }
 
     char *core_source = read_file(core_path);
-    U32 core_count;
-    Token *core_tokens = core_source ? tokenize(core_source, core_path, &core_count) : NULL;
+    Vec *core_tok_vec = core_source ? tokenize(Str_new(core_source), core_path) : NULL;
+    Token *core_tokens = core_tok_vec ? (Token *)core_tok_vec->data : NULL;
+    U32 core_count = core_tok_vec ? core_tok_vec->count : 0;
     Str *core_mode = NULL;
     Expr *core_ast = core_tokens ? parse(core_tokens, core_count, core_path, &core_mode) : NULL;
 
@@ -353,8 +356,9 @@ int main(int argc, char **argv) {
     char *source = read_file(path);
     if (!source) return 1;
 
-    U32 count;
-    Token *tokens = tokenize(source, path, &count);
+    Vec *tok_vec = tokenize(Str_new(source), path);
+    Token *tokens = (Token *)tok_vec->data;
+    U32 count = tok_vec->count;
 
     Str *mode_str = NULL;
     Expr *ast = parse(tokens, count, path, &mode_str);
@@ -381,8 +385,9 @@ int main(int argc, char **argv) {
                     mode->name, mode->auto_import, mode_til_path->c_str);
             return 1;
         }
-        U32 mode_count;
-        Token *mode_tokens = tokenize(mode_source, mode_til_path, &mode_count);
+        Vec *mode_tok_vec = tokenize(Str_new(mode_source), mode_til_path);
+        Token *mode_tokens = (Token *)mode_tok_vec->data;
+        U32 mode_count = mode_tok_vec->count;
         mode_ast = parse(mode_tokens, mode_count, mode_til_path, NULL);
     }
 
@@ -517,14 +522,14 @@ int main(int argc, char **argv) {
     if (strcmp(command, "interpret") == 0 || strcmp(command, "test") == 0) {
         if (is_lib_mode && strcmp(command, "interpret") == 0) {
             fprintf(stderr, "error: cannot interpret a library — use translate or build\n");
-            expr_free(ast); free(tokens); free(source);
+            expr_free(ast); free(source);
             return 1;
         }
         result = interpret(ast, mode, run_tests, path, user_c, ext_c_path, lflags, user_argc, user_argv);
     } else if (strcmp(command, "translate") == 0 || strcmp(command, "build") == 0 || strcmp(command, "run") == 0) {
         if (is_lib_mode && strcmp(command, "run") == 0) {
             fprintf(stderr, "error: cannot run a library — use translate or build\n");
-            expr_free(ast); free(tokens); free(source);
+            expr_free(ast); free(source);
             return 1;
         }
         // Derive output paths from input: examples/hello_cli.til -> gen/c/hello_cli.c, bin/c/hello_cli
@@ -599,7 +604,6 @@ int main(int argc, char **argv) {
     }
 
     expr_free(ast);
-    free(tokens);
     free(source);
     return result;
 }

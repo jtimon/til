@@ -43,6 +43,7 @@ typedef enum {
     TokenType_TAG_KwMut,
     TokenType_TAG_KwOwn,
     TokenType_TAG_KwRef,
+    TokenType_TAG_KwShallow,
     TokenType_TAG_KwStruct,
     TokenType_TAG_KwExtStruct,
     TokenType_TAG_KwEnum,
@@ -72,6 +73,7 @@ typedef enum {
     TokenType_TAG_KwDefer,
     TokenType_TAG_KwTrue,
     TokenType_TAG_KwFalse,
+    TokenType_TAG_KwNull,
     TokenType_TAG_Error
 } TokenType_tag;
 typedef struct TokenType TokenType;
@@ -285,6 +287,7 @@ TokenType *TokenType_KwMode();
 TokenType *TokenType_KwMut();
 TokenType *TokenType_KwOwn();
 TokenType *TokenType_KwRef();
+TokenType *TokenType_KwShallow();
 TokenType *TokenType_KwStruct();
 TokenType *TokenType_KwExtStruct();
 TokenType *TokenType_KwEnum();
@@ -314,5 +317,6 @@ TokenType *TokenType_KwContinue();
 TokenType *TokenType_KwDefer();
 TokenType *TokenType_KwTrue();
 TokenType *TokenType_KwFalse();
+TokenType *TokenType_KwNull();
 TokenType *TokenType_Error();
 

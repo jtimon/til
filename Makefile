@@ -2,8 +2,8 @@
 
 all: bin/ctil
 
-SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c, $(wildcard src/c/*.c)) src/bootstrap/core.c
-HDRS := $(wildcard src/c/*.h) src/bootstrap/core.h
+SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c src/c/lexer.c, $(wildcard src/c/*.c)) src/bootstrap/lexer.c
+HDRS := $(filter-out src/c/lexer.h, $(wildcard src/c/*.h)) src/bootstrap/lexer.h
 SRC := $(wildcard src/core/*.til) $(wildcard src/self/*.til)
 
 bin/ctil: $(SRCS) $(HDRS)
@@ -16,9 +16,6 @@ test: bin/ctil
 	@bin/ctil interpret src/tests.til $(if $(J),-j$(J))
 
 ctil_core: bin/ctil
-	@bin/ctil translate src/core/core.til
-	@cp gen/c/core.c src/bootstrap/core.c
-	@cp gen/c/core.h src/bootstrap/core.h
 	@bin/ctil translate src/self/lexer.til
 	@cp gen/c/lexer.c src/bootstrap/lexer.c
 	@cp gen/c/lexer.h src/bootstrap/lexer.h

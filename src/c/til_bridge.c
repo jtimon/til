@@ -2,7 +2,6 @@
 // Converts Str* ↔ const char*, handles output params, provides Expr field accessors.
 
 #include "ast.h"
-#include "lexer.h"
 #include "parser.h"
 #include "initer.h"
 #include "typer.h"
@@ -17,13 +16,14 @@
 
 // --- Tokenize/Parse wrappers (avoid output params) ---
 
-static U32 _tok_count;
+static Vec *_tok_vec;
 static Str *_parse_mode;
 
 Token *til_tokenize(Str *source, Str *path) {
-    return tokenize((const char *)source->c_str, path, &_tok_count);
+    _tok_vec = tokenize(source, path);
+    return (Token *)_tok_vec->data;
 }
-U32 til_tok_count(void) { return _tok_count; }
+U32 til_tok_count(void) { return _tok_vec ? _tok_vec->count : 0; }
 
 Expr *til_parse(Token *tokens, U32 count, Str *path) {
     _parse_mode = NULL;

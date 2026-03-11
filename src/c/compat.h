@@ -2,7 +2,7 @@
 #define COMPAT_H
 
 #include "ext.h"
-#include "../bootstrap/core.h"
+#include "../bootstrap/lexer.h"
 #include <limits.h>
 
 #define CAP_LIT  ULLONG_MAX

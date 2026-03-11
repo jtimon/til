@@ -1,5 +1,4 @@
 #include "ccore.h"
-#include "lexer.h"
 #include "ast.h"
 #include "initer.h"
 #include "modes.h"
@@ -8,8 +7,7 @@
 #include <string.h>
 
 // --- Opaque type no-ops (for ext_struct FFI) ---
-Token *Token_clone(Token *t) { return t; }
-void Token_delete(Token *t, Bool *call_free) { (void)t; (void)call_free; }
+// Token_clone/Token_delete now defined in bootstrap/lexer.c
 Expr *Expr_clone(Expr *e) { return e; }
 void Expr_delete(Expr *e, Bool *call_free) { (void)e; (void)call_free; }
 TypeScope *TypeScope_clone(TypeScope *s) { return s; }
