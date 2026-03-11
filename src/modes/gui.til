@@ -29,8 +29,8 @@ Sound := ext_struct {
 
 // Vector2: { float x, float y }
 Vector2 := ext_struct {
-    mut x := F32.from_i64(0)
-    mut y := F32.from_i64(0)
+    mut x : F32 = 0
+    mut y : F32 = 0
 }
 
 // Font: { int baseSize, int glyphCount, int glyphPadding,
@@ -103,20 +103,20 @@ play_tone := proc(freq: I64, duration_ms: I64) {
     own buf : U8 = malloc(n.mul(4).to_u64())
     attack := sr.div(100)
     release := sr.div(100)
-    pi2 := F32.from_i64(6283185).div(F32.from_i64(1000000))
-    freq_f := F32.from_i64(freq)
-    sr_f := F32.from_i64(sr)
-    amp := F32.from_i64(3).div(F32.from_i64(10))
+    pi2 := 6283185.to_f32().div(1000000.to_f32())
+    freq_f := freq.to_f32()
+    sr_f := sr.to_f32()
+    amp := 3.to_f32().div(10.to_f32())
     mut i := 0
     while i.lt(n) {
-        mut env := F32.from_i64(1)
+        mut env : F32 = 1.to_f32()
         if i.lt(attack) {
-            env = F32.from_i64(i).div(F32.from_i64(attack))
+            env = i.to_f32().div(attack.to_f32())
         }
         if i.gt(n.sub(release)) {
-            env = F32.from_i64(n.sub(i)).div(F32.from_i64(release))
+            env = n.sub(i).to_f32().div(release.to_f32())
         }
-        sample := sinf(pi2.mul(freq_f).mul(F32.from_i64(i)).div(sr_f)).mul(amp).mul(env)
+        sample := sinf(pi2.mul(freq_f).mul(i.to_f32()).div(sr_f)).mul(amp).mul(env)
         memcpy(ptr_add(buf, i.mul(4).to_u64()), sample, 4)
         i = i.add(1)
     }
@@ -147,20 +147,20 @@ make_tone := func(freq: I64, duration_ms: I64) returns Sound {
     own buf : U8 = malloc(n.mul(4).to_u64())
     attack := sr.div(100)
     release := sr.div(100)
-    pi2 := F32.from_i64(6283185).div(F32.from_i64(1000000))
-    freq_f := F32.from_i64(freq)
-    sr_f := F32.from_i64(sr)
-    amp := F32.from_i64(1).div(F32.from_i64(10))
+    pi2 := 6283185.to_f32().div(1000000.to_f32())
+    freq_f := freq.to_f32()
+    sr_f := sr.to_f32()
+    amp := 1.to_f32().div(10.to_f32())
     mut i := 0
     while i.lt(n) {
-        mut env := F32.from_i64(1)
+        mut env : F32 = 1.to_f32()
         if i.lt(attack) {
-            env = F32.from_i64(i).div(F32.from_i64(attack))
+            env = i.to_f32().div(attack.to_f32())
         }
         if i.gt(n.sub(release)) {
-            env = F32.from_i64(n.sub(i)).div(F32.from_i64(release))
+            env = n.sub(i).to_f32().div(release.to_f32())
         }
-        sample := sinf(pi2.mul(freq_f).mul(F32.from_i64(i)).div(sr_f)).mul(amp).mul(env)
+        sample := sinf(pi2.mul(freq_f).mul(i.to_f32()).div(sr_f)).mul(amp).mul(env)
         memcpy(ptr_add(buf, i.mul(4).to_u64()), sample, 4)
         i = i.add(1)
     }
@@ -207,13 +207,13 @@ draw_text := proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: 
     DrawText(text.c_str, x.to_i32(), y.to_i32(), font_size.to_i32(), color(r, g, b, a))
 }
 draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawCircle(cx.to_i32(), cy.to_i32(), F32.from_i64(radius), color(r, g, b, a))
+    DrawCircle(cx.to_i32(), cy.to_i32(), radius.to_f32(), color(r, g, b, a))
 }
 
 get_screen_width := func() returns I64 { return GetScreenWidth().to_i64() }
 get_screen_height := func() returns I64 { return GetScreenHeight().to_i64() }
 get_frame_time := func() returns I64 {
-    return GetFrameTime().mul(F32.from_i64(1000)).to_i64()
+    return GetFrameTime().mul(1000.to_f32()).to_i64()
 }
 is_key_pressed := func(key: I64) returns Bool { return IsKeyPressed(key.to_i32()) }
 is_key_down := func(key: I64) returns Bool { return IsKeyDown(key.to_i32()) }
@@ -233,10 +233,10 @@ load_font := func(path: Str, size: I64) returns Font {
 }
 unload_font := proc(font: Font) { UnloadFont(font) }
 draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, spacing: I64, r: I64, g: I64, b: I64, a: I64) {
-    pos := Vector2(x=F32.from_i64(x), y=F32.from_i64(y))
-    DrawTextEx(font, text.c_str, pos, F32.from_i64(font_size), F32.from_i64(spacing), color(r, g, b, a))
+    pos := Vector2(x=x.to_f32(), y=y.to_f32())
+    DrawTextEx(font, text.c_str, pos, font_size.to_f32(), spacing.to_f32(), color(r, g, b, a))
 }
 measure_text_font := func(font: Font, text: Str, font_size: I64, spacing: I64) returns I64 {
-    v := MeasureTextEx(font, text.c_str, F32.from_i64(font_size), F32.from_i64(spacing))
+    v := MeasureTextEx(font, text.c_str, font_size.to_f32(), spacing.to_f32())
     return v.x.to_i64()
 }
