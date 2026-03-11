@@ -18,6 +18,11 @@ namespace:
         return ptr_add(self.c_str, i)
     }
 
+    // Unchecked byte access — caller must ensure i < self.len()
+    byte_at := func(self: Str, i: U64) returns ref U8 {
+        return ptr_add(self.c_str, i)
+    }
+
     cmp := func(a: Str, b: Str) returns I64 {
         mut i : U64 = 0
         mut min_len := a.count

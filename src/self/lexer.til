@@ -196,23 +196,23 @@ lookup_keyword := func(word: Str) returns TokenType {
 // Strict translation of C tokenize(). Uses integer index instead of
 // char pointer. Token.text is a copied Str instead of pointer+len.
 
-tokenize := proc(source: Str, path: Str) returns Vec {
+tokenize := proc(src: Str, path: Str) returns Vec {
     mut tokens := Vec.new("Token", Token.size())
     mut pos : U64 = 0
     mut line := 1
     mut line_start : U64 = 0
-    src_len := source.len()
+    src_len := src.len()
 
     while pos.lt(src_len) {
-        ref c : U8 = source.get(pos)
+        ref c : U8 = src.byte_at(pos)
 
         // Skip whitespace (spaces, tabs, \r, semicolons)
         if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')).or(c.eq(';')) {
-            pos = pos.add(1)
+            pos = pos.inc()
             continue
         }
         if c.eq('\n') {
-            pos = pos.add(1)
+            pos = pos.inc()
             line = line.add(1)
             line_start = pos
             continue
@@ -224,17 +224,17 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         // Line comments: // or #
         if c.eq('#') {
             while pos.lt(src_len) {
-                if source.get(pos).eq('\n') { break }
-                pos = pos.add(1)
+                if src.byte_at(pos).eq('\n') { break }
+                pos = pos.inc()
             }
             continue
         }
         if c.eq('/').and(pos.add(1).lt(src_len)) {
-            ref c2 : U8 = source.get(pos.add(1))
+            ref c2 : U8 = src.byte_at(pos.add(1))
             if c2.eq('/') {
                 while pos.lt(src_len) {
-                    if source.get(pos).eq('\n') { break }
-                    pos = pos.add(1)
+                    if src.byte_at(pos).eq('\n') { break }
+                    pos = pos.inc()
                 }
                 continue
             }
@@ -245,8 +245,8 @@ tokenize := proc(source: Str, path: Str) returns Vec {
                 while pos.lt(src_len) {
                     if depth.lte(0) { break }
                     if pos.add(1).lt(src_len) {
-                        ref b1 : U8 = source.get(pos)
-                        ref b2 : U8 = source.get(pos.add(1))
+                        ref b1 : U8 = src.byte_at(pos)
+                        ref b2 : U8 = src.byte_at(pos.add(1))
                         if b1.eq('/').and(b2.eq('*')) {
                             depth = depth.add(1)
                             pos = pos.add(2)
@@ -258,11 +258,11 @@ tokenize := proc(source: Str, path: Str) returns Vec {
                             continue
                         }
                     }
-                    if source.get(pos).eq('\n') {
+                    if src.byte_at(pos).eq('\n') {
                         line = line.add(1)
                         line_start = pos.add(1)
                     }
-                    pos = pos.add(1)
+                    pos = pos.inc()
                 }
                 if depth.gt(0) {
                     println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated comment")
@@ -274,21 +274,21 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         // Numbers
         if is_digit(c) {
             while pos.lt(src_len) {
-                if is_digit(source.get(pos)).not() { break }
-                pos = pos.add(1)
+                if is_digit(src.byte_at(pos)).not() { break }
+                pos = pos.inc()
             }
             // Check for decimal point
             if pos.add(1).lt(src_len) {
-                if source.get(pos).eq('.').and(is_digit(source.get(pos.add(1)))) {
-                    pos = pos.add(1)
+                if src.byte_at(pos).eq('.').and(is_digit(src.byte_at(pos.add(1)))) {
+                    pos = pos.inc()
                     while pos.lt(src_len) {
-                        if is_digit(source.get(pos)).not() { break }
-                        pos = pos.add(1)
+                        if is_digit(src.byte_at(pos)).not() { break }
+                        pos = pos.inc()
                     }
                 }
             }
             tokens.push(own Token(type = TokenType.Number,
-                text = source.substr(start, pos.sub(start)),
+                text = src.substr(start, pos.sub(start)),
                 line = line, col = col))
             continue
         }
@@ -296,10 +296,10 @@ tokenize := proc(source: Str, path: Str) returns Vec {
         // Identifiers and keywords
         if is_alpha(c) {
             while pos.lt(src_len) {
-                if is_alnum(source.get(pos)).not() { break }
-                pos = pos.add(1)
+                if is_alnum(src.byte_at(pos)).not() { break }
+                pos = pos.inc()
             }
-            word := source.substr(start, pos.sub(start))
+            word := src.substr(start, pos.sub(start))
             type := lookup_keyword(word)
             tokens.push(own Token(type = type, text = word, line = line, col = col))
             continue
@@ -307,27 +307,27 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 
         // Strings
         if c.eq('"') {
-            pos = pos.add(1)
+            pos = pos.inc()
             while pos.lt(src_len) {
-                if source.get(pos).eq('"') { break }
-                if source.get(pos).eq('\\').and(pos.add(1).lt(src_len)) {
-                    pos = pos.add(1)
+                if src.byte_at(pos).eq('"') { break }
+                if src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len)) {
+                    pos = pos.inc()
                 }
-                if source.get(pos).eq('\n') {
+                if src.byte_at(pos).eq('\n') {
                     line = line.add(1)
                     line_start = pos.add(1)
                 }
-                pos = pos.add(1)
+                pos = pos.inc()
             }
-            if pos.lt(src_len).and(source.get(pos).eq('"')) {
-                pos = pos.add(1)
+            if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
+                pos = pos.inc()
                 tokens.push(own Token(type = TokenType.StringTok,
-                    text = source.substr(start.add(1), pos.sub(start).sub(2)),
+                    text = src.substr(start.add(1), pos.sub(start).sub(2)),
                     line = line, col = col))
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
                 tokens.push(own Token(type = TokenType.Error,
-                    text = source.substr(start, pos.sub(start)),
+                    text = src.substr(start, pos.sub(start)),
                     line = line, col = col))
             }
             continue
@@ -335,21 +335,21 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 
         // Character literals: 'x' or '\x'
         if c.eq('\'') {
-            pos = pos.add(1)
+            pos = pos.inc()
             ch_start := pos
-            if pos.lt(src_len).and(source.get(pos).eq('\\').and(pos.add(1).lt(src_len))) {
-                pos = pos.add(1)
+            if pos.lt(src_len).and(src.byte_at(pos).eq('\\').and(pos.add(1).lt(src_len))) {
+                pos = pos.inc()
             }
-            pos = pos.add(1)
-            if pos.lt(src_len).and(source.get(pos).eq('\'')) {
+            pos = pos.inc()
+            if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
                 tokens.push(own Token(type = TokenType.Char,
-                    text = source.substr(ch_start, pos.sub(ch_start)),
+                    text = src.substr(ch_start, pos.sub(ch_start)),
                     line = line, col = col))
-                pos = pos.add(1)
+                pos = pos.inc()
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
                 tokens.push(own Token(type = TokenType.Error,
-                    text = source.substr(start, pos.sub(start)),
+                    text = src.substr(start, pos.sub(start)),
                     line = line, col = col))
             }
             continue
@@ -357,7 +357,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 
         // Two-character tokens
         if pos.add(1).lt(src_len) {
-            ref c2 : U8 = source.get(pos.add(1))
+            ref c2 : U8 = src.byte_at(pos.add(1))
             mut two := TokenType.Eof
             if c.eq(':').and(c2.eq('=')) { two = TokenType.ColonEq }
             else if c.eq('=').and(c2.eq('=')) { two = TokenType.EqEq }
@@ -367,7 +367,7 @@ tokenize := proc(source: Str, path: Str) returns Vec {
             else if c.eq('.').and(c2.eq('.')) { two = TokenType.DotDot }
             if two.eq(TokenType.Eof).not() {
                 tokens.push(own Token(type = two,
-                    text = source.substr(start, 2),
+                    text = src.substr(start, 2),
                     line = line, col = col))
                 pos = pos.add(2)
                 continue
@@ -399,18 +399,18 @@ tokenize := proc(source: Str, path: Str) returns Vec {
 
         if single.eq(TokenType.Eof).not() {
             tokens.push(own Token(type = single,
-                text = source.substr(start, 1),
+                text = src.substr(start, 1),
                 line = line, col = col))
-            pos = pos.add(1)
+            pos = pos.inc()
             continue
         }
 
         // Unknown character
         println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
         tokens.push(own Token(type = TokenType.Error,
-            text = source.substr(start, 1),
+            text = src.substr(start, 1),
             line = line, col = col))
-        pos = pos.add(1)
+        pos = pos.inc()
     }
 
     // EOF
