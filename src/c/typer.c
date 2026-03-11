@@ -479,7 +479,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         }
                         if (pown && expr_child(e, i)->type.tag == NODE_IDENT) {
                             TypeBinding *ab = tscope_find(scope, expr_child(e, i)->type.str_val);
-                            if (ab && ab->is_ref) type_error(expr_child(e, i), "cannot pass ref variable to 'own' parameter");
+                            if (ab && ab->is_ref) type_error(expr_child(e, i), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
                         }
                         if (pown && expr_child(e, i)->type.tag == NODE_LITERAL_NULL)
                             type_error(expr_child(e, i), "cannot pass null to 'own' parameter");
@@ -800,7 +800,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 if (pown && expr_child(e, ci)->type.tag == NODE_IDENT) {
                     TypeBinding *ab = tscope_find(scope, expr_child(e, ci)->type.str_val);
-                    if (ab && ab->is_ref) type_error(expr_child(e, ci), "cannot pass ref variable to 'own' parameter");
+                    if (ab && ab->is_ref) type_error(expr_child(e, ci), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
                 }
                 if (pown && expr_child(e, ci)->type.tag == NODE_LITERAL_NULL)
                     type_error(expr_child(e, ci), "cannot pass null to 'own' parameter");
@@ -2363,7 +2363,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // Error: owning result of ref-returning function without ref
             if (!stmt->type.decl.is_ref && expr_child(stmt, 0)->type.tag == NODE_FCALL &&
                 fcall_returns_ref(expr_child(stmt, 0), scope)) {
-                type_error(stmt, "cannot own result of ref-returning function; use 'ref' or .clone()");
+                type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()");
             }
             // Auto-alias: immutable ident → immutable dest becomes ref
             if (!stmt->type.decl.is_ref && !stmt->type.decl.is_mut &&

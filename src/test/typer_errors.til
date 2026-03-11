@@ -159,9 +159,13 @@ bad_ret_ref := func(i: I64) returns I64 {
     return v
 }
 
-// cannot own result of ref-returning function; use 'ref' or .clone()
+// cannot own result of ref-returning function; use 'ref' or Type.clone()
 good_ref_fn := func(a: I64) returns ref I64 { return a }
 bad_own := good_ref_fn(42)
+
+// cannot own result of ref-returning function (Vec.get returns ref Dynamic)
+ref_vec := vec("I64", 10, 20)
+bad_vec_own : I64 = ref_vec.get(0)
 
 // cannot store Dynamic without own
 bad_dyn : Dynamic = 0

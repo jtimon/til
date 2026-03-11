@@ -3,7 +3,7 @@ import("examples/plot.til")
 
 NL := Str.from_byte(10)
 CTIL := "bin/ctil"
-TIL := "bin/ctil"  // TODO: switch to "bin/c/til" once #12 is fixed
+TIL := "bin/c/til"
 TMPF := "tmp/_test_out"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
@@ -516,8 +516,8 @@ main := proc(args: ..Str) {
     run_capture(CTIL.concat(" interpret src/test/typer_errors.til"))
     typer_out := readfile(TMPF)
     errors := count_matches(typer_out, "type error:")
-    if errors.neq(51) {
-        println("FAIL: typer_errors expected 51 errors, got ", errors.to_str())
+    if errors.neq(52) {
+        println("FAIL: typer_errors expected 52 errors, got ", errors.to_str())
         fail = 1
     }
     typer_ms := clock_ms().sub(typer_start)

@@ -65,8 +65,8 @@ til_parse_mode := ext_func() returns Str {}
 expr_null := ext_func() returns Expr {}
 expr_is_null := ext_func(e: Expr) returns shallow Bool {}
 expr_get_tag := ext_func(e: Expr) returns shallow I32 {}
-expr_get_str_val := ext_func(e: Expr) returns Str {}
-expr_get_child := ext_func(e: Expr, shallow i: U32) returns Expr {}
+expr_get_str_val := ext_func(e: Expr) returns ref Str {}
+expr_get_child := ext_func(e: Expr, shallow i: U32) returns ref Expr {}
 expr_nchildren := ext_func(e: Expr) returns shallow U32 {}
 expr_set_core := ext_proc(e: Expr) {}
 expr_push_child := ext_proc(e: Expr, child: Expr) {}
@@ -75,7 +75,7 @@ expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
 // Expr Vec helpers
 expr_vec_new := ext_func() returns Vec {}
 expr_vec_push := ext_proc(v: Vec, e: Expr) {}
-expr_vec_get := ext_func(v: Vec, shallow i: U32) returns Expr {}
+expr_vec_get := ext_func(v: Vec, shallow i: U32) returns ref Expr {}
 expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
 expr_vec_pop := ext_proc(v: Vec) {}
 expr_vec_free := ext_proc(v: Vec) {}
@@ -114,7 +114,9 @@ til_ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 til_expr_free := ext_proc(ast: Expr) {}
 
 // Utility
+til_bin_dir := ext_func() returns Str {}
 til_realpath := ext_func(path: Str) returns Str {}
+til_str_left := ext_func(s: Str, shallow n: U64) returns Str {}
 til_system := ext_func(cmd: Str) returns shallow I32 {}
 til_set_new := ext_func() returns Set {}
 til_set_has := ext_func(s: Set, str: Str) returns shallow Bool {}
@@ -130,20 +132,19 @@ extract_imports := proc(body: Dynamic) returns Vec {
     kept := expr_vec_new()
     mut i : U32 = 0
     while i.lt(expr_nchildren(body)) {
-        stmt := expr_get_child(body, i)
+        ref stmt : Expr = expr_get_child(body, i)
         if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(2))
             .and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_IDENT))
             .and(expr_get_str_val(expr_get_child(stmt, 0)).eq("import"))
             .and(expr_get_tag(expr_get_child(stmt, 1)).eq(NODE_LITERAL_STR)) {
-            path := expr_get_str_val(expr_get_child(stmt, 1))
-            paths.push(own path)
+            ref path : Str = expr_get_str_val(expr_get_child(stmt, 1))
+            paths.push(own path.clone())
         } else {
             expr_vec_push(kept, stmt)
         }
         i = i.add(1)
     }
     expr_swap_children(body, kept)
-    expr_vec_free(kept)
     return paths
 }
 
@@ -190,7 +191,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
             last_slash = last_slash.sub(1)
         }
-        sub_dir := abs.substr(0, last_slash)
+        sub_dir := til_str_left(abs, last_slash)
 
         // Recurse for sub-imports
         if sub_imports.len().gt(0) {
@@ -203,7 +204,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Append imported file's declarations
         mut k : U32 = 0
         while k.lt(expr_nchildren(sub_ast)) {
-            ch := expr_get_child(sub_ast, k)
+            ref ch : Expr = expr_get_child(sub_ast, k)
             expr_vec_push(merged, ch)
             k = k.add(1)
         }
@@ -264,10 +265,7 @@ main := proc(args: ..Str) {
     }
 
     // Resolve paths relative to binary location
-    // In til mode cli, we get args starting from argv[1].
-    // We need bin_dir to find core.til and ext.c.
-    // When interpreted, we run from project root, so use "."
-    bin_dir := "."
+    bin_dir := til_bin_dir()
     core_path := bin_dir.concat("/src/core/core.til")
     ext_c_path := bin_dir.concat("/src/c/ext.c")
 
@@ -283,7 +281,7 @@ main := proc(args: ..Str) {
         while last_slash.gt(0).and(abs_path.get(last_slash).neq('/')) {
             last_slash = last_slash.sub(1)
         }
-        user_dir = abs_path.substr(0, last_slash)
+        user_dir = til_str_left(abs_path, last_slash)
         til_set_add(resolved, abs_path)
     }
 
@@ -354,9 +352,6 @@ main := proc(args: ..Str) {
         }
     }
 
-    til_set_free(resolved)
-    expr_vec_free(resolve_stack)
-
     // Merge: core + core_imports + mode + user_imports + user
     merged := expr_vec_new()
 
@@ -364,7 +359,7 @@ main := proc(args: ..Str) {
     mut i : U32 = 0
     if skip_core.not() {
         while i.lt(expr_nchildren(core_ast)) {
-            ch := expr_get_child(core_ast, i)
+            ref ch : Expr = expr_get_child(core_ast, i)
             mark_core(ch)
             expr_vec_push(merged, ch)
             i = i.add(1)
@@ -373,7 +368,7 @@ main := proc(args: ..Str) {
         // Core import declarations
         i = 0
         while i.lt(expr_vec_count(core_import_decls)) {
-            ch := expr_vec_get(core_import_decls, i)
+            ref ch : Expr = expr_vec_get(core_import_decls, i)
             mark_core(ch)
             expr_vec_push(merged, ch)
             i = i.add(1)
@@ -384,7 +379,7 @@ main := proc(args: ..Str) {
     if expr_is_null(mode_ast).not() {
         i = 0
         while i.lt(expr_nchildren(mode_ast)) {
-            ch := expr_get_child(mode_ast, i)
+            ref ch : Expr = expr_get_child(mode_ast, i)
             expr_vec_push(merged, ch)
             i = i.add(1)
         }
@@ -393,7 +388,7 @@ main := proc(args: ..Str) {
     // User import declarations
     i = 0
     while i.lt(expr_vec_count(import_decls)) {
-        ch := expr_vec_get(import_decls, i)
+        ref ch : Expr = expr_vec_get(import_decls, i)
         expr_vec_push(merged, ch)
         i = i.add(1)
     }
@@ -401,13 +396,12 @@ main := proc(args: ..Str) {
     // User declarations
     i = 0
     while i.lt(expr_nchildren(ast)) {
-        ch := expr_get_child(ast, i)
+        ref ch : Expr = expr_get_child(ast, i)
         expr_vec_push(merged, ch)
         i = i.add(1)
     }
 
     expr_swap_children(ast, merged)
-    expr_vec_free(merged)
 
     // Extract link() and link_c() directives
     mut link_flags := ""
@@ -415,12 +409,12 @@ main := proc(args: ..Str) {
     kept := expr_vec_new()
     i = 0
     while i.lt(expr_nchildren(ast)) {
-        stmt := expr_get_child(ast, i)
+        ref stmt : Expr = expr_get_child(ast, i)
         if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(2))
             .and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_IDENT))
             .and(expr_get_tag(expr_get_child(stmt, 1)).eq(NODE_LITERAL_STR)) {
-            fname := expr_get_str_val(expr_get_child(stmt, 0))
-            arg := expr_get_str_val(expr_get_child(stmt, 1))
+            ref fname : Str = expr_get_str_val(expr_get_child(stmt, 0))
+            ref arg : Str = expr_get_str_val(expr_get_child(stmt, 1))
             if fname.eq("link") {
                 link_flags = link_flags.concat(" -l").concat(arg)
             } else if fname.eq("link_c") {
@@ -437,7 +431,6 @@ main := proc(args: ..Str) {
         i = i.add(1)
     }
     expr_swap_children(ast, kept)
-    expr_vec_free(kept)
 
     // Init phase: pre-scan declarations
     scope := tscope_new(NULL)
@@ -445,7 +438,6 @@ main := proc(args: ..Str) {
 
     // Type checking
     type_errors := til_type_check(ast, scope, cur_mode)
-    tscope_free(scope)
     if type_errors.gt(0) {
         panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
     }
@@ -510,14 +502,10 @@ main := proc(args: ..Str) {
         }
 
         // Derive output paths from input
+        last_slash := path.rfind("/")
         mut basename := path
-        mut slash_pos := path.len().sub(1)
-        while slash_pos.gt(0) {
-            if path.get(slash_pos).eq('/') {
-                basename = path.substr(slash_pos.add(1), path.len())
-                slash_pos = 0
-            }
-            slash_pos = slash_pos.sub(1)
+        if last_slash.gte(0) {
+            basename = path.substr(last_slash.add(1).to_u64(), path.len().sub(last_slash.to_u64()).sub(1))
         }
 
         // Strip .til extension
@@ -595,5 +583,4 @@ main := proc(args: ..Str) {
         result = 1
     }
 
-    til_expr_free(ast)
 }

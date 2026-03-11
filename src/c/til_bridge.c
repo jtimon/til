@@ -14,6 +14,8 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/wait.h>
+#include <unistd.h>
+#include <stdio.h>
 
 // --- Tokenize/Parse wrappers (avoid output params) ---
 
@@ -21,14 +23,18 @@ static Vec *_tok_vec;
 static Str *_parse_mode;
 
 Token *til_tokenize(Str *source, Str *path) {
-    _tok_vec = tokenize(source, path);
+    // Clone inputs: tokenizer creates Str views (CAP_VIEW) into source buffer,
+    // and parser stores path in AST nodes. The generated caller may free its
+    // copies (scavenger inserts Str_delete), so the bridge must own persistent copies.
+    _tok_vec = tokenize(Str_clone(source), Str_clone(path));
     return (Token *)_tok_vec->data;
 }
 U32 til_tok_count(void) { return _tok_vec ? _tok_vec->count : 0; }
 
 Expr *til_parse(Token *tokens, U32 count, Str *path) {
     _parse_mode = NULL;
-    return parse(tokens, count, path, &_parse_mode);
+    // Clone path: parser stores Str* in Parser struct and propagates to AST nodes.
+    return parse(tokens, count, Str_clone(path), &_parse_mode);
 }
 Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_new(""); }
 
@@ -37,10 +43,27 @@ Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_new(""); }
 Expr *expr_null(void) { return NULL; }
 Bool expr_is_null(Expr *e) { return e == NULL; }
 Bool Expr_eq(Expr *a, Expr *b) { return a == b; }
-I32 expr_get_tag(Expr *e) { return (I32)e->type.tag; }
-Str *expr_get_str_val(Expr *e) { return e->type.str_val; }
-Expr *expr_get_child(Expr *e, U32 i) { return expr_child(e, i); }
-U32 expr_nchildren(Expr *e) { return e->children.count; }
+// NULL-safe: .and() chains in compiled til evaluate all operands eagerly
+// (unlike C's && which short-circuits), so these may be called on NULL exprs
+// or out-of-bounds indices when a prior condition would have been false.
+I32 expr_get_tag(Expr *e) { return e ? (I32)e->type.tag : (I32)-1; }
+Str *expr_get_str_val(Expr *e) {
+    if (!e) return Str_new("");
+    // str_val shares a union with decl/func_def — only valid for these node types
+    switch (e->type.tag) {
+    case NODE_IDENT: case NODE_LITERAL_STR: case NODE_LITERAL_NUM:
+    case NODE_LITERAL_BOOL: case NODE_ASSIGN: case NODE_FOR_IN:
+    case NODE_FIELD_ACCESS: case NODE_FIELD_ASSIGN: case NODE_NAMED_ARG:
+        return e->type.str_val ? e->type.str_val : Str_new("");
+    default:
+        return Str_new("");
+    }
+}
+Expr *expr_get_child(Expr *e, U32 i) {
+    if (!e || i >= e->children.count) return NULL;
+    return expr_child(e, i);
+}
+U32 expr_nchildren(Expr *e) { return e ? e->children.count : 0; }
 void expr_set_core(Expr *e) { e->is_core = true; }
 void expr_push_child(Expr *e, Expr *child) { expr_add_child(e, child); }
 
@@ -139,6 +162,9 @@ void til_scavenge(Expr *program, const Mode *mode, Bool run_tests) {
 I32 til_interpret(Expr *ast, const Mode *mode, Bool run_tests,
                   Str *path, Str *user_c, Str *ext_c, Str *link_flags,
                   U32 user_argc, Str **user_argv) {
+    // Convert empty strings to NULL (C code uses NULL checks, til passes "")
+    if (user_c && user_c->count == 0) user_c = NULL;
+    if (link_flags && link_flags->count == 0) link_flags = NULL;
     // Convert Str** to char**
     char **argv = NULL;
     if (user_argc > 0 && user_argv) {
@@ -166,10 +192,14 @@ I32 til_build_til_binding(Expr *ast, Str *til_path, Str *lib_name) {
 }
 
 I32 til_compile_c(Str *c_path, Str *bin_path, Str *ext_c, Str *user_c, Str *lflags) {
+    if (user_c && user_c->count == 0) user_c = NULL;
+    if (lflags && lflags->count == 0) lflags = NULL;
     return compile_c(c_path, bin_path, ext_c, user_c, lflags);
 }
 
 I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lflags) {
+    if (user_c && user_c->count == 0) user_c = NULL;
+    if (lflags && lflags->count == 0) lflags = NULL;
     return compile_lib(c_path, lib_name, ext_c, user_c, lflags);
 }
 
@@ -177,6 +207,19 @@ void til_ast_print(Expr *ast, U32 indent) { ast_print(ast, indent); }
 void til_expr_free(Expr *ast) { expr_free(ast); }
 
 // --- Utility wrappers ---
+
+// Return owned copy of first n bytes of s (avoids CAP_VIEW + scavenger ordering issues)
+Str *til_str_left(Str *s, U64 n) {
+    if (!s || n == 0) return Str_new("");
+    U64 len = (U64)s->count;
+    if (n > len) n = len;
+    char *buf = malloc(n + 1);
+    memcpy(buf, s->c_str, n);
+    buf[n] = '\0';
+    Str *result = Str_new(buf);
+    free(buf);
+    return result;
+}
 
 Str *til_realpath(Str *path) {
     char *abs = realpath((const char *)path->c_str, NULL);
@@ -205,12 +248,34 @@ Bool til_set_has(Set *s, Str *str) {
 }
 
 void til_set_add(Set *s, Str *str) {
-    { Str *_p = malloc(sizeof(Str)); *_p = (Str){str->c_str, str->count, CAP_VIEW}; Set_add(s, _p); }
+    // Clone: scavenger may free the original Str while the set still references it
+    { Str *_p = Str_clone(str); Set_add(s, _p); }
 }
 
 void til_set_free(Set *s) {
     Set_delete(s, &(Bool){0});
     free(s);
+}
+
+// Derive project root by searching upward from binary location for src/core/core.til
+Str *til_bin_dir(void) {
+    char buf[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len <= 0) return Str_new(".");
+    buf[len] = '\0';
+    // Strip binary name
+    char *slash = strrchr(buf, '/');
+    if (slash) *slash = '\0';
+    // Search upward for src/core/core.til
+    for (int i = 0; i < 5; i++) {
+        char test[PATH_MAX + 32];
+        snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
+        if (access(test, F_OK) == 0) return Str_new(buf);
+        slash = strrchr(buf, '/');
+        if (!slash) break;
+        *slash = '\0';
+    }
+    return Str_new(".");
 }
 
 // til_prepare: exposed for self-hosting (til.til can call the C version)

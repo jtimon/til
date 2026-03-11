@@ -272,50 +272,33 @@
    ctil's C modules with til-compiled libraries bottom-up, eventually
    eliminating the C codebase entirely.
 
-*** WIP Entry point (src/til.til)
+*** DONE Entry point (src/til.til)
    Strict translation of ctil.c main + helpers (extract_imports,
    resolve_imports, mark_core, usage). Uses ext_struct/ext_func/ext_proc
    to FFI into the C modules via til_bridge.c.
 
    Current state:
-   - ~bin/ctil run src/til.til help~ works
-   - ~bin/c/til help~ works (compiled binary)
-   - Segfaults when processing actual .til files
-   - 4-mode test infrastructure ready (ci, cr, ti, tr) — currently
-     ti/tr use ctil as placeholder until this is fixed
+   - ~bin/c/til~ passes 32/32 tests as the TIL compiler for ti/tr modes
+   - Test suite uses ~bin/c/til~ for til interpret/run, ~bin/ctil~ for C modes
+   - Performance matches ctil (same C pipeline via bridge, thin dispatch only)
    - Moved to src/til.til (parallel to src/ctil.c)
    - Output dirs separated: ctil → gen/c/ + bin/c/, til → gen/til/ + bin/til/
 
-   Recent fixes (2026-03):
-   - Updated link_c() paths: removed deleted str.c/vec.c/map.c/lexer.c,
-     added bootstrap/lexer.c + compat.c
-   - Merged separate resolved sets into one shared set (matching ctil.c)
-   - Added core.til self-compilation guard (skip_core)
-   - Fixed NULL-crash bugs: til_realpath, til_parse_mode,
-     til_mode_auto_import now return empty Str instead of NULL
-   - Fixed til_system to return WEXITSTATUS instead of raw system()
-   - Fixed type mismatches (U32/U64/I64 loop variables, result: I32)
-
-   Segfault analysis:
-   - Traced via gdb: crash in parse_statement (parser.c:751) during
-     fprintf — p->path->c_str is a garbage pointer, SIGSEGV in strnlen
-   - The parse error itself ("expected statement") suggests core.til
-     tokens are not being parsed correctly
-   - Likely cause: symbol collision between link_c modules and the
-     compiled gen/c/til.c code — both define tokenize(), parse(),
-     Vec_new(), etc. With ~--allow-multiple-definition~, the linker
-     picks one arbitrarily, so the wrong version may be called at
-     runtime, corrupting Str pointers passed between C and generated code
-
-   Next steps:
-   - Compare gen/c/til.c calling conventions with ctil.c to find the
-     mismatch (Str vs Str*, pointer ownership, etc.)
-   - Consider renaming bridge functions to avoid symbol collisions
-   - Once fixed: change TIL in tests.til from "bin/ctil" to "bin/c/til"
-
-   Other minor issues:
-   - user_argv passed as NULL to til_interpret (Vec built but not used)
-   - user_c/lflags pass empty Str instead of NULL (may cause minor diffs)
+   Bugs fixed:
+   - ~returns ref~ on ext_func declarations for borrowed pointers
+     (expr_get_child, expr_get_str_val, expr_vec_get) + ~ref~ bindings
+     in til.til — prevented scavenger from freeing borrowed AST nodes
+   - til_bin_dir() bridge using /proc/self/exe to find project root
+     (til.til doesn't receive argv[0] like ctil.c does)
+   - til_str_left() bridge to return owned substring directly — avoids
+     CAP_VIEW dangling pointer when scavenger frees source before clone
+     (scavenger orders ~Str_delete(abs)~ between ~substr~ and ~clone~)
+   - til_set_add() clones strings instead of storing CAP_VIEW refs —
+     prevented dangling pointers in resolved set after scavenger frees
+   - Bridge functions convert empty Str to NULL (til passes ~""~, C
+     checks ~if (ptr)~ which passes for non-NULL empty strings)
+   - Basename extraction rewritten with rfind (was U64 underflow bug)
+   - Removed explicit free/delete calls (ASAP handles destruction)
 
 *** DONE Lexer (src/self/lexer.til)
    Strict translation of src/c/lexer.c following c2til.org rules.

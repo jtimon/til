@@ -484,6 +484,11 @@ v.len()
 
 ~Vec.get~ returns ~ref Dynamic~ — the result must be bound with ~ref~
 and a type annotation so the typer knows the concrete type.
+Without ~ref~, the compiler errors. To get an owned copy instead:
+
+#+begin_src til
+elem := I64.clone(v.get(0))   // owned copy (UFCS doesn't work on Dynamic)
+#+end_src
 
 *** Map (sorted key-value)
 

@@ -1,6 +1,6 @@
 .PHONY: all clean test ctil_core
 
-all: bin/ctil
+all: bin/ctil bin/c/til
 
 SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c src/c/lexer.c, $(wildcard src/c/*.c)) src/bootstrap/lexer.c
 HDRS := $(filter-out src/c/lexer.h, $(wildcard src/c/*.h)) src/bootstrap/lexer.h
@@ -12,9 +12,10 @@ bin/ctil: $(SRCS) $(HDRS)
 	@$(MAKE) ctil_core
 	cc -Wall -Wextra -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
 
+TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
 bin/c/til: bin/ctil $(SRC) src/til.til
 	@bin/ctil translate src/til.til
-	@cc -g -Isrc -Isrc/c gen/c/til.c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/c/til
+	@cc -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/c/til
 
 test: bin/ctil bin/c/til
 	@bin/ctil interpret src/tests.til $(if $(J),-j$(J))
