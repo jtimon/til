@@ -41,13 +41,6 @@ namespace:
     to_str := func(val: I16) returns Str {
         return val.to_i64().to_str()
     }
-    from_i64 := func(val: I64) returns I16 {
-        if val.lt(32768.neg()).or(val.gt(32767)) {
-            panic("I16.from_i64", "value out of range (-32768 to 32767)")
-        }
-        I16_from_i64_ext := ext_func(val: I64) returns shallow I16 {}
-        return I16_from_i64_ext(val)
-    }
     add := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     sub := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     mul := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
@@ -57,8 +50,8 @@ namespace:
     dec := ext_func(shallow a: I16) returns shallow I16 {}
     eq := ext_func(shallow a: I16, shallow b: I16) returns shallow Bool {}
     cmp := ext_func(shallow a: I16, shallow b: I16) returns shallow I64 {}
-    neg := func(a: I16) returns I16 { return I16.from_i64(0.sub(a.to_i64())) }
-    abs := func(a: I16) returns I16 { if a.to_i64().lt(0) { return I16.from_i64(0.sub(a.to_i64())) } return a }
+    neg := func(a: I16) returns I16 { return 0.sub(a.to_i64()).to_i16() }
+    abs := func(a: I16) returns I16 { if a.to_i64().lt(0) { return 0.sub(a.to_i64()).to_i16() } return a }
     and := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     or := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     xor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
@@ -213,6 +206,7 @@ namespace:
         return Str(c_str = buf, count = total, cap = total)
     }
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}
+    to_i16 := ext_func(shallow val: I64) returns shallow I16 {}
     add := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     sub := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     mul := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}

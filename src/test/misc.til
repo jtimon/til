@@ -115,7 +115,7 @@ test_i16 := test() {
     assert_eq(__LOC__, a.mod(b).to_i64(), 16)
 
     // Negative values
-    c : I16 = I16.from_i64(100.neg())
+    c : I16 = 100.neg().to_i16()
     assert_eq(__LOC__, c.to_i64(), 100.neg())
     assert_eq(__LOC__, c.neg().to_i64(), 100)
     assert_eq(__LOC__, c.add(a).to_i64(), 0)
@@ -130,8 +130,8 @@ test_i16 := test() {
     assert(__LOC__, c.lt(a))
 
     // to_str
-    assert_eq_str(__LOC__, I16.from_i64(12345).to_str(), "12345")
-    assert_eq_str(__LOC__, I16.from_i64(100.neg()).to_str(), "-100")
+    assert_eq_str(__LOC__, 12345.to_i16().to_str(), "12345")
+    assert_eq_str(__LOC__, 100.neg().to_i16().to_str(), "-100")
 
     // size
     assert_eq(__LOC__, I16.size().to_i64(), 2)

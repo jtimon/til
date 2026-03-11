@@ -84,6 +84,7 @@ I64 I16_cmp(I16 a, I16 b);
 
 // I16 conversions
 I64 I16_to_i64(I16 a);
+I16 I64_to_i16(I64 a);
 I16 I16_from_i64_ext(I64 *a);
 
 // I16 clone/delete
