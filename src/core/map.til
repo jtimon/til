@@ -14,7 +14,7 @@ namespace:
     new := func(key_type: Str, key_size: U64, val_type: Str, val_size: U64) returns Map {
         if key_type.is_empty().not() {
             if dyn_has_method(key_type, "cmp").not() {
-                panic("Map.new", "type ", key_type, " must implement cmp")
+                panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
             }
         }
         return Map(key_data = malloc(key_size), val_data = malloc(val_size),
@@ -53,7 +53,7 @@ namespace:
                 else { return ptr_add(self.val_data, mid.mul(self.val_size)) }
             }
         }
-        panic("Map.get", "key not found")
+        panic(__LOC__, "Map.get: key not found")
         return ptr_add(self.val_data, 0)
     }
 

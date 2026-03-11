@@ -11,7 +11,7 @@ namespace:
     new := func(elem_type: Str, elem_size: U64) returns Set {
         if elem_type.is_empty().not() {
             if dyn_has_method(elem_type, "cmp").not() {
-                panic("Set.new", "type ", elem_type, " must implement cmp")
+                panic(__LOC__, "Set.new: type ", elem_type, " must implement cmp")
             }
         }
         return Set(data = malloc(elem_size), cap = 1,

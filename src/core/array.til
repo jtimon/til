@@ -16,7 +16,7 @@ namespace:
 
     get := func(self: Array, i: U64) returns ref Dynamic {
         if i.gte(self.cap) {
-            panic("Array.get", "index ", i.to_str(),
+            panic(__LOC__, "Array.get: index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")")
         }
         return ptr_add(self.data, i.mul(self.elem_size))
@@ -24,7 +24,7 @@ namespace:
 
     set := proc(self: Array, i: U64, own val: Dynamic) {
         if i.gte(self.cap) {
-            panic("Array.set", "index ", i.to_str(),
+            panic(__LOC__, "Array.set: index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")")
         }
         dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)

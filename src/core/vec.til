@@ -28,7 +28,7 @@ namespace:
 
     get := func(self: Vec, i: U64) returns ref Dynamic {
         if i.gte(self.count) {
-            panic("Vec.get", "index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+            panic(__LOC__, "Vec.get: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }
         return ptr_add(self.data, i.mul(self.elem_size))
     }

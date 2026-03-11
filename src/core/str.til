@@ -13,7 +13,7 @@ namespace:
 
     get := func(self: Str, i: U64) returns ref U8 {
         if i.gte(self.count) {
-            panic("Str.get", "index out of bounds")
+            panic(__LOC__, "Str.get: index out of bounds")
         }
         return ptr_add(self.c_str, i)
     }
@@ -49,11 +49,11 @@ namespace:
 
     push_str := proc(mut self: Str, s: Str) {
         if self.cap.gte(CAP_VIEW) {
-            panic("Str.push_str", "cannot mutate a string view or literal")
+            panic(__LOC__, "Str.push_str: cannot mutate a string view or literal")
         }
         new_len := self.count.add(s.count)
         if new_len.gt(self.cap) {
-            panic("Str.push_str", "capacity exceeded")
+            panic(__LOC__, "Str.push_str: capacity exceeded")
         }
         memcpy(ptr_add(self.c_str, self.count), s.c_str, s.count)
         self.count = new_len
@@ -216,7 +216,7 @@ namespace:
     }
 
     to_i64 := func(self: Str) returns I64 {
-        if self.count.eq(0) { panic("Str.to_i64", "empty string") }
+        if self.count.eq(0) { panic(__LOC__, "Str.to_i64: empty string") }
         mut result := 0
         mut i : U64 = 0
         mut neg := false
@@ -225,12 +225,12 @@ namespace:
             neg = true
             i = 1
         }
-        if i.eq(self.count) { panic("Str.to_i64", "no digits") }
+        if i.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits") }
         while i.lt(self.count) {
             ref ch : U8 = self.get(i)
             d := ch.to_i64().sub(48)
             if d.lt(0).or(d.gt(9)) {
-                panic("Str.to_i64", "invalid char in '", self, "'")
+                panic(__LOC__, "Str.to_i64: invalid char in '", self, "'")
             }
             result = result.mul(10).add(d)
             i = i.add(1)

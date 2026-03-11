@@ -241,7 +241,7 @@ mark_core := proc(e: Dynamic) {
 main := proc(args: ..Str) {
     if args.len().eq(0) {
         usage()
-        panic("no arguments")
+        panic(__LOC__, "no arguments")
     }
 
     ref cmd_ref : Str = args.get(0)
@@ -291,7 +291,7 @@ main := proc(args: ..Str) {
         til_set_free(resolved)
         expr_vec_free(resolve_stack)
         if err.gt(0) {
-            panic("failed to resolve core imports")
+            panic(__LOC__, "failed to resolve core imports")
         }
     }
 
@@ -308,7 +308,7 @@ main := proc(args: ..Str) {
     if mode_str.len().gt(0) {
         cur_mode = til_mode_resolve(mode_str)
         if til_mode_eq(cur_mode, til_mode_none()) {
-            panic("unknown mode '".concat(mode_str).concat("'"))
+            panic(__LOC__, "unknown mode '".concat(mode_str).concat("'"))
         }
     }
 
@@ -347,7 +347,7 @@ main := proc(args: ..Str) {
         til_set_free(resolved)
         expr_vec_free(resolve_stack)
         if err.gt(0) {
-            panic("failed to resolve imports")
+            panic(__LOC__, "failed to resolve imports")
         }
     }
 
@@ -439,7 +439,7 @@ main := proc(args: ..Str) {
     type_errors := til_type_check(ast, scope, cur_mode)
     tscope_free(scope)
     if type_errors.gt(0) {
-        panic(type_errors.to_str().concat(" type error(s) found"))
+        panic(__LOC__, type_errors.to_str().concat(" type error(s) found"))
     }
 
     run_tests := command.eq("test")
@@ -492,13 +492,13 @@ main := proc(args: ..Str) {
 
     if command.eq("interpret").or(command.eq("test")) {
         if is_lib_mode.and(command.eq("interpret")) {
-            panic("cannot interpret a library — use translate or build")
+            panic(__LOC__, "cannot interpret a library — use translate or build")
         }
         result = til_interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
                                user_argv.len().to_u32(), NULL)
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
         if is_lib_mode.and(command.eq("run")) {
-            panic("cannot run a library — use translate or build")
+            panic(__LOC__, "cannot run a library — use translate or build")
         }
 
         // Derive output paths from input
