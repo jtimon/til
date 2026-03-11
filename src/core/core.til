@@ -66,13 +66,6 @@ namespace:
     to_str := func(val: I32) returns Str {
         return val.to_i64().to_str()
     }
-    from_i64 := func(val: I64) returns I32 {
-        if val.lt(2147483648.neg()).or(val.gt(2147483647)) {
-            panic("I32.from_i64", "value out of range (-2147483648 to 2147483647)")
-        }
-        I32_from_i64_ext := ext_func(val: I64) returns shallow I32 {}
-        return I32_from_i64_ext(val)
-    }
     add := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     sub := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     mul := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
@@ -82,8 +75,8 @@ namespace:
     dec := ext_func(shallow a: I32) returns shallow I32 {}
     eq := ext_func(shallow a: I32, shallow b: I32) returns shallow Bool {}
     cmp := ext_func(shallow a: I32, shallow b: I32) returns shallow I64 {}
-    neg := func(a: I32) returns I32 { return I32.from_i64(0.sub(a.to_i64())) }
-    abs := func(a: I32) returns I32 { if a.to_i64().lt(0) { return I32.from_i64(0.sub(a.to_i64())) } return a }
+    neg := func(a: I32) returns I32 { return 0.sub(a.to_i64()).to_i32() }
+    abs := func(a: I32) returns I32 { if a.to_i64().lt(0) { return 0.sub(a.to_i64()).to_i32() } return a }
     and := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     or := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     xor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
@@ -207,6 +200,7 @@ namespace:
     }
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}
     to_i16 := ext_func(shallow val: I64) returns shallow I16 {}
+    to_i32 := ext_func(shallow val: I64) returns shallow I32 {}
     add := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     sub := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     mul := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}

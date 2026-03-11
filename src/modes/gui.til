@@ -37,14 +37,14 @@ Vector2 := ext_struct {
 //         Texture2D { uint id, int width, height, mipmaps, format },
 //         Rectangle *recs, GlyphInfo *glyphs }
 Font := ext_struct {
-    mut baseSize := I32.from_i64(0)
-    mut glyphCount := I32.from_i64(0)
-    mut glyphPadding := I32.from_i64(0)
-    mut texture_id := U32.from_i64(0)
-    mut texture_width := I32.from_i64(0)
-    mut texture_height := I32.from_i64(0)
-    mut texture_mipmaps := I32.from_i64(0)
-    mut texture_format := I32.from_i64(0)
+    mut baseSize : I32 = 0
+    mut glyphCount : I32 = 0
+    mut glyphPadding : I32 = 0
+    mut texture_id : U32 = 0
+    mut texture_width : I32 = 0
+    mut texture_height : I32 = 0
+    mut texture_mipmaps : I32 = 0
+    mut texture_format : I32 = 0
     ref recs : U8 = NULL
     ref glyphs : U8 = NULL
 }
@@ -187,7 +187,7 @@ color := func(shallow r: I64, shallow g: I64, shallow b: I64, shallow a: I64) re
 
 // Backward-compatible snake_case API
 init_window := proc(w: I64, h: I64, title: Str) {
-    InitWindow(I32.from_i64(w), I32.from_i64(h), title.c_str)
+    InitWindow(w.to_i32(), h.to_i32(), title.c_str)
 }
 window_should_close := func() returns Bool {
     return WindowShouldClose()
@@ -195,19 +195,19 @@ window_should_close := func() returns Bool {
 begin_drawing := proc() { BeginDrawing() }
 end_drawing := proc() { EndDrawing() }
 close_window := proc() { CloseWindow() }
-set_target_fps := proc(fps: I64) { SetTargetFPS(I32.from_i64(fps)) }
+set_target_fps := proc(fps: I64) { SetTargetFPS(fps.to_i32()) }
 
 clear_background := proc(r: I64, g: I64, b: I64, a: I64) {
     ClearBackground(color(r, g, b, a))
 }
 draw_rectangle := proc(x: I64, y: I64, w: I64, h: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawRectangle(I32.from_i64(x), I32.from_i64(y), I32.from_i64(w), I32.from_i64(h), color(r, g, b, a))
+    DrawRectangle(x.to_i32(), y.to_i32(), w.to_i32(), h.to_i32(), color(r, g, b, a))
 }
 draw_text := proc(text: Str, x: I64, y: I64, font_size: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawText(text.c_str, I32.from_i64(x), I32.from_i64(y), I32.from_i64(font_size), color(r, g, b, a))
+    DrawText(text.c_str, x.to_i32(), y.to_i32(), font_size.to_i32(), color(r, g, b, a))
 }
 draw_circle := proc(cx: I64, cy: I64, radius: I64, r: I64, g: I64, b: I64, a: I64) {
-    DrawCircle(I32.from_i64(cx), I32.from_i64(cy), F32.from_i64(radius), color(r, g, b, a))
+    DrawCircle(cx.to_i32(), cy.to_i32(), F32.from_i64(radius), color(r, g, b, a))
 }
 
 get_screen_width := func() returns I64 { return GetScreenWidth().to_i64() }
@@ -215,12 +215,12 @@ get_screen_height := func() returns I64 { return GetScreenHeight().to_i64() }
 get_frame_time := func() returns I64 {
     return GetFrameTime().mul(F32.from_i64(1000)).to_i64()
 }
-is_key_pressed := func(key: I64) returns Bool { return IsKeyPressed(I32.from_i64(key)) }
-is_key_down := func(key: I64) returns Bool { return IsKeyDown(I32.from_i64(key)) }
-is_mouse_button_pressed := func(button: I64) returns Bool { return IsMouseButtonPressed(I32.from_i64(button)) }
-is_mouse_button_down := func(button: I64) returns Bool { return IsMouseButtonDown(I32.from_i64(button)) }
+is_key_pressed := func(key: I64) returns Bool { return IsKeyPressed(key.to_i32()) }
+is_key_down := func(key: I64) returns Bool { return IsKeyDown(key.to_i32()) }
+is_mouse_button_pressed := func(button: I64) returns Bool { return IsMouseButtonPressed(button.to_i32()) }
+is_mouse_button_down := func(button: I64) returns Bool { return IsMouseButtonDown(button.to_i32()) }
 get_random_value := func(min: I64, max: I64) returns I64 {
-    return GetRandomValue(I32.from_i64(min), I32.from_i64(max)).to_i64()
+    return GetRandomValue(min.to_i32(), max.to_i32()).to_i64()
 }
 get_mouse_x := func() returns I64 { return GetMouseX().to_i64() }
 get_mouse_y := func() returns I64 { return GetMouseY().to_i64() }
@@ -229,7 +229,7 @@ close_audio_device := proc() { CloseAudioDevice() }
 
 // Font wrappers
 load_font := func(path: Str, size: I64) returns Font {
-    return LoadFontEx(path.c_str, I32.from_i64(size), 0, I32.from_i64(0))
+    return LoadFontEx(path.c_str, size.to_i32(), 0, 0)
 }
 unload_font := proc(font: Font) { UnloadFont(font) }
 draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, spacing: I64, r: I64, g: I64, b: I64, a: I64) {

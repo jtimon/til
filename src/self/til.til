@@ -166,7 +166,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         }
         if abs.eq("") {
             println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
-            return I32.from_i64(1)
+            return 1
         }
 
         // Dedup (also handles circular imports — files are added to
@@ -197,7 +197,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Recurse for sub-imports
         if sub_imports.len().gt(0) {
             err := resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir)
-            if err.gt(I32.from_i64(0)) {
+            if err.gt(0) {
                 return err
             }
         }
@@ -212,7 +212,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
         i = i.add(1)
     }
-    return I32.from_i64(0)
+    return 0
 }
 
 usage := proc() {
@@ -290,7 +290,7 @@ main := proc(args: ..Str) {
                                core_import_decls, "")
         til_set_free(resolved)
         expr_vec_free(resolve_stack)
-        if err.gt(I32.from_i64(0)) {
+        if err.gt(0) {
             panic("failed to resolve core imports")
         }
     }
@@ -346,7 +346,7 @@ main := proc(args: ..Str) {
                                import_decls, lib_dir)
         til_set_free(resolved)
         expr_vec_free(resolve_stack)
-        if err.gt(I32.from_i64(0)) {
+        if err.gt(0) {
             panic("failed to resolve imports")
         }
     }
@@ -438,7 +438,7 @@ main := proc(args: ..Str) {
     // Type checking
     type_errors := til_type_check(ast, scope, cur_mode)
     tscope_free(scope)
-    if type_errors.gt(I32.from_i64(0)) {
+    if type_errors.gt(0) {
         panic(type_errors.to_str().concat(" type error(s) found"))
     }
 
@@ -456,7 +456,7 @@ main := proc(args: ..Str) {
         til_scavenge(ast, cur_mode, run_tests)
     }
 
-    mut result := I32.from_i64(0)
+    mut result := 0
 
     // Use link_c() paths as user .c files
     mut user_c := ""
@@ -533,21 +533,21 @@ main := proc(args: ..Str) {
         result = til_build(ast, cur_mode, run_tests, path, c_path)
 
         // For lib/pure: generate .h header and .til binding
-        if result.eq(I32.from_i64(0)).and(do_lib) {
+        if result.eq(0).and(do_lib) {
             h_path := "gen/c/".concat(name).concat(".h")
             til_path := "gen/til/".concat(name).concat(".til")
             result = til_build_header(ast, h_path)
-            if result.eq(I32.from_i64(0)) {
+            if result.eq(0) {
                 result = til_build_til_binding(ast, til_path, name)
             }
-            if result.eq(I32.from_i64(0)).and(command.eq("translate")) {
+            if result.eq(0).and(command.eq("translate")) {
                 println("Generated: ".concat(c_path))
                 println("Generated: ".concat(h_path))
                 println("Generated: ".concat(til_path))
             }
-            if result.eq(I32.from_i64(0)).and(command.eq("build")) {
+            if result.eq(0).and(command.eq("build")) {
                 result = til_compile_lib(c_path, name, ext_c_path, user_c, lflags)
-                if result.eq(I32.from_i64(0)) {
+                if result.eq(0) {
                     println("Generated: ".concat(c_path))
                     println("Generated: ".concat(h_path))
                     println("Generated: ".concat(til_path))
@@ -557,13 +557,13 @@ main := proc(args: ..Str) {
             }
         }
 
-        if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("translate")) {
+        if result.eq(0).and(do_lib.not()).and(command.eq("translate")) {
             println("Generated: ".concat(c_path))
         }
-        if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("translate").not()) {
+        if result.eq(0).and(do_lib.not()).and(command.eq("translate").not()) {
             result = til_compile_c(c_path, bin_path, ext_c_path, user_c, lflags)
         }
-        if result.eq(I32.from_i64(0)).and(do_lib.not()).and(command.eq("run")) {
+        if result.eq(0).and(do_lib.not()).and(command.eq("run")) {
             // Build command with user args
             mut cmd := bin_path
             mut ui := 0
@@ -584,7 +584,7 @@ main := proc(args: ..Str) {
     } else {
         println("error: unknown command '".concat(command).concat("'"))
         usage()
-        result = I32.from_i64(1)
+        result = 1
     }
 
     til_expr_free(ast)

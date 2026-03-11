@@ -58,6 +58,7 @@ I64 U8_cmp(U8 a, U8 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 I64 U8_to_i64(U8 a) { return (I64)a; }
 U8 I64_to_u8(I64 a) { return (U8)a; }
 I16 I64_to_i16(I64 a) { return (I16)a; }
+I32 I64_to_i32(I64 a) { return (I32)a; }
 U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 
 // U8 clone/delete

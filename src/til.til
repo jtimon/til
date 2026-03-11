@@ -31,6 +31,6 @@ main := proc(args: ..Str) {
     mut c := U32.from_i64(0)
     tok := tokenize(src.data, "tmp/test_hello.til".data, c)
     ast := parse(tok, c, "tmp/test_hello.til".data, 0)
-    ast_print(ast, I32.from_i64(0))
+    ast_print(ast, 0)
     println(src.len().to_str())
 }
