@@ -1,7 +1,7 @@
 mode cli
 import("examples/plot.til")
 
-NL := Str.from_byte(U8.from_i64(10))
+NL := Str.from_byte(10)
 CTIL := "bin/ctil"
 TMPF := "tmp/_test_out"
 

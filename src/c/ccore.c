@@ -214,6 +214,7 @@ I64 U64_to_i64(U64 v) { return (I64)v; }
 U64 U64_from_i64(I64 v) { return (U64)v; }
 
 // Pointer-adapter versions for interpreter FFI (nested ext_func in core.til)
+U8 I64_to_u8(I64 a) { return (U8)a; }
 U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 I16 I16_from_i64_ext(I64 *a) { return (I16)*a; }
 I32 I32_from_i64_ext(I64 *a) { return (I32)*a; }

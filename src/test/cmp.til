@@ -12,8 +12,8 @@ test_i64 := test() {
 }
 
 test_u8 := test() {
-    u1 : U8 = U8.from_i64(10)
-    u2 : U8 = U8.from_i64(20)
+    u1 : U8 = 10
+    u2 : U8 = 20
     assert(__LOC__, u1.lt(u2))
     assert(__LOC__, u2.gt(u1))
     assert(__LOC__, u1.lte(u1))

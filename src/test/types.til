@@ -33,7 +33,7 @@ test_u8 := test() {
     assert_eq_str(__LOC__, a.to_i64().to_str(), "200")
     assert(__LOC__, a.gt(b))
     assert(__LOC__, a.eq(a))
-    c : U8 = U8.from_i64(42)
+    c : U8 = 42
     assert_eq_str(__LOC__, c.to_str(), "42")
 }
 

@@ -131,9 +131,9 @@ test_strip_suffix := test() {
 }
 
 test_from_byte := test() {
-    assert_eq_str(__LOC__, Str.from_byte(U8.from_i64(65)), "A")
-    assert_eq_str(__LOC__, Str.from_byte(U8.from_i64(48)), "0")
-    assert_eq_str(__LOC__, Str.from_byte(U8.from_i64(97)), "a")
+    assert_eq_str(__LOC__, Str.from_byte(65), "A")
+    assert_eq_str(__LOC__, Str.from_byte(48), "0")
+    assert_eq_str(__LOC__, Str.from_byte(97), "a")
 }
 
 test_to_i64 := test() {

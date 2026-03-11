@@ -59,6 +59,7 @@ I64 U8_cmp(U8 a, U8 b);
 
 // U8 conversions
 I64 U8_to_i64(U8 a);
+U8 I64_to_u8(I64 a);
 U8 U8_from_i64_ext(I64 *a);
 
 // U8 clone/delete

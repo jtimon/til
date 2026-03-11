@@ -19,7 +19,7 @@ ast_print := ext_proc(e: Expr, shallow indent: I32) {}
 
 read_source := func(path: Str) returns Str {
     raw := readfile(path)
-    nul := U8.from_i64(0)
+    nul : U8 = 0
     buf : U8 = malloc(raw.len().add(1))
     memcpy(buf, raw.data, raw.len())
     memcpy(ptr_add(buf, raw.len()), nul, 1)

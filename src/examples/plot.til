@@ -6,8 +6,8 @@ mode cli
 // CSV format (header + data rows):
 //   commit,interp_ms,compiled_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total
 
-NL := Str.from_byte(U8.from_i64(10))
-Q := Str.from_byte(U8.from_i64(34))
+NL := Str.from_byte(10)
+Q := Str.from_byte(34)
 
 // Chart layout constants
 W := 800
