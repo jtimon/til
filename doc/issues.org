@@ -1,11 +1,43 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 50
+# NEXT_ISSUE: 51
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
 
+** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
+  Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
+  allocation optimization — declared as stack variables instead of heap-allocated
+  pointers. This can be extended to any struct or enum that has no ~own~ fields
+  or payloads, recursively.
+
+  A type is "shallow" (in the copy-safety sense) if:
+  - It has no ~own~ fields (structs) or ~own~ payloads (enums)
+  - All its inline (non-ref, non-own) fields/payloads are themselves shallow,
+    recursively
+  - ~ref~ fields are fine — they're borrowed pointers, shallow-copying them
+    is safe since we don't manage their lifetime
+
+  The check is mutually recursive: structs can have enum fields, enums can
+  have struct or enum payloads, so both must be checked together.
+
+  Shallow types can be:
+  - Stack-allocated instead of heap-allocated (the optimization)
+  - Shallow-copied safely (memcpy, no deep copy needed)
+
+  Important: shallow types still need ~delete~ called (unlike primitives whose
+  delete is a no-op). Custom delete methods may do non-memory work (close file
+  descriptors, connections, etc.). The guarantee to the user is that delete is
+  called ASAP after the last use of an instance. What changes is: no ~free~ at
+  the end (since it wasn't malloc'd), and no deep-copy clone (just memcpy).
+
+  This is a different notion from the ~shallow~ keyword on args/returns, which
+  is about passing by value vs pointer based on the size of the type relative
+  to the platform pointer size. The "shallow type" concept here is about copy
+  semantics — whether a type can be safely shallow-copied without ownership
+  issues. In the future, the ~shallow~ keyword could be computed automatically
+  from this property plus size considerations.
 
 ** OPEN #47 Cross-namespace method calls fail inside ext_struct
   Calling a namespace method of one struct from inside another struct's
