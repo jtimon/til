@@ -1,10 +1,22 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 51
+# NEXT_ISSUE: 52
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #51 Add ~til test~ command
+  Add a ~til test myfile.til~ command that finds all test() functions in
+  the file, treats each as an entry point, and runs them all — both
+  interpreted and compiled — reporting results. Works on any file
+  regardless of mode. Currently there is no test command; mode test files
+  are run externally by the Makefile test harness using separate
+  ~ctil interpret~ and ~ctil run~ invocations.
+
+  This also enables keeping test() functions inline next to the code they
+  test (e.g. inside ext_struct namespaces or regular source files) without
+  needing separate mode test files.
 
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
