@@ -3,7 +3,7 @@ import("examples/plot.til")
 
 NL := Str.from_byte(10)
 CTIL := "bin/ctil"
-TIL := "bin/c/til"
+TIL := "bin/ctil"  // TODO: switch to "bin/c/til" once #12 is fixed
 TMPF := "tmp/_test_out"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
@@ -258,8 +258,8 @@ main := proc(args: ..Str) {
     mut j := get_thread_count().to_u64()
     mut en_ci := 1
     mut en_cr := 1
-    mut en_ti := 0
-    mut en_tr := 0
+    mut en_ti := 1
+    mut en_tr := 1
     mut i : U64 = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)

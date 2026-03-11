@@ -1,10 +1,25 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 52
+# NEXT_ISSUE: 53
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #52 Flaky parallel test failures
+  Some tests (notably strings.til) randomly fail when run in parallel
+  under high contention (4 modes × 32 files). They always pass when
+  run standalone. Likely a resource contention issue — too many
+  concurrent compiler processes fighting for CPU/memory/disk I/O.
+
+  Observed: ~FAIL (cr): src/test/strings.til~ appearing sporadically.
+  Never reproduces in isolation (~bin/ctil run src/test/strings.til~
+  and ~bin/ctil interpret src/test/strings.til~ both pass).
+
+  Possible fixes:
+  - Lower default parallelism (currently ~get_thread_count()~)
+  - Add retry logic for failed tests
+  - Investigate if specific tests are more sensitive to contention
 
 ** OPEN #51 Add ~til test~ command
   Add a ~til test myfile.til~ command that finds all test() functions in
@@ -265,10 +280,11 @@
    Current state:
    - ~bin/ctil run src/til.til help~ works
    - ~bin/c/til help~ works (compiled binary)
-   - Segfaults when processing actual .til files — likely symbol
-     collision between link_c() modules and ctil's own linked modules
-     (e.g. tokenize(), parse() defined in both ctil and the compiled til
-     binary's linked .c files)
+   - Segfaults when processing actual .til files
+   - 4-mode test infrastructure ready (ci, cr, ti, tr) — currently
+     ti/tr use ctil as placeholder until this is fixed
+   - Moved to src/til.til (parallel to src/ctil.c)
+   - Output dirs separated: ctil → gen/c/ + bin/c/, til → gen/til/ + bin/til/
 
    Recent fixes (2026-03):
    - Updated link_c() paths: removed deleted str.c/vec.c/map.c/lexer.c,
@@ -280,10 +296,24 @@
    - Fixed til_system to return WEXITSTATUS instead of raw system()
    - Fixed type mismatches (U32/U64/I64 loop variables, result: I32)
 
-   Remaining:
-   - Investigate symbol collision in compiled binary (link_c modules
-     define same symbols as the compiled til.c code — tokenize, parse,
-     Vec_new, etc.)
+   Segfault analysis:
+   - Traced via gdb: crash in parse_statement (parser.c:751) during
+     fprintf — p->path->c_str is a garbage pointer, SIGSEGV in strnlen
+   - The parse error itself ("expected statement") suggests core.til
+     tokens are not being parsed correctly
+   - Likely cause: symbol collision between link_c modules and the
+     compiled gen/c/til.c code — both define tokenize(), parse(),
+     Vec_new(), etc. With ~--allow-multiple-definition~, the linker
+     picks one arbitrarily, so the wrong version may be called at
+     runtime, corrupting Str pointers passed between C and generated code
+
+   Next steps:
+   - Compare gen/c/til.c calling conventions with ctil.c to find the
+     mismatch (Str vs Str*, pointer ownership, etc.)
+   - Consider renaming bridge functions to avoid symbol collisions
+   - Once fixed: change TIL in tests.til from "bin/ctil" to "bin/c/til"
+
+   Other minor issues:
    - user_argv passed as NULL to til_interpret (Vec built but not used)
    - user_c/lflags pass empty Str instead of NULL (may cause minor diffs)
 
