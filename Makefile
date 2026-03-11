@@ -12,7 +12,11 @@ bin/ctil: $(SRCS) $(HDRS)
 	@$(MAKE) ctil_core
 	cc -Wall -Wextra -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
 
-test: bin/ctil
+bin/c/til: bin/ctil $(SRC) src/til.til
+	@bin/ctil translate src/til.til
+	@cc -g -Isrc -Isrc/c gen/c/til.c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/c/til
+
+test: bin/ctil bin/c/til
 	@bin/ctil interpret src/tests.til $(if $(J),-j$(J))
 
 ctil_core: bin/ctil
@@ -23,8 +27,8 @@ ctil_core: bin/ctil
 	@cp gen/c/parser.c src/bootstrap/parser.c
 	@cp gen/c/parser.h src/bootstrap/parser.h
 
-src/bootstrap/til.c: bin/ctil $(SRC) src/self/til.til
-	@bin/ctil translate src/self/til.til
+src/bootstrap/til.c: bin/ctil $(SRC) src/til.til
+	@bin/ctil translate src/til.til
 	@cp gen/c/til.c src/bootstrap/til.c
 
 clean:

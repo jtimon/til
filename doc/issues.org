@@ -257,13 +257,13 @@
    ctil's C modules with til-compiled libraries bottom-up, eventually
    eliminating the C codebase entirely.
 
-*** WIP Entry point (src/self/til.til)
+*** WIP Entry point (src/til.til)
    Strict translation of ctil.c main + helpers (extract_imports,
    resolve_imports, mark_core, usage). Uses ext_struct/ext_func/ext_proc
    to FFI into the C modules via til_bridge.c.
 
    Current state:
-   - ~bin/ctil run src/self/til.til help~ works
+   - ~bin/ctil run src/til.til help~ works
    - ~bin/c/til help~ works (compiled binary)
    - Segfaults when processing actual .til files — likely symbol
      collision between link_c() modules and ctil's own linked modules

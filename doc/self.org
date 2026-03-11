@@ -28,7 +28,7 @@ When asked "top-down, bottom-up, or parallel?" — the answer is "yes."
 
 *** Top-down (#12): til.til compiler
 
-til.til (src/self/til.til) is a complete reimplementation of ctil.c's main()
+til.til (src/til.til) is a complete reimplementation of ctil.c's main()
 in til. It links every C module via link_c() and calls them through FFI bridge
 functions. As #39 replaces C modules, til.til's link_c() list shrinks and
 can switch to importing .til modules directly.
