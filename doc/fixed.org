@@ -1,5 +1,26 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #22 Operator syntax: desugar operators to method calls
+  Implemented operator desugaring as a pure parser transform. Binary
+  operators are rewritten to method call AST nodes before downstream
+  passes see them.
+
+  Operator → method mapping:
+  - Comparison: < → lt, <= → lte, > → gt, >= → gte, == → eq, != → neq
+  - Arithmetic: + → add, - → sub, * → mul, / → div, % → mod
+
+  Precedence (low to high): comparison, additive (+/-), multiplicative (*/%),
+  with grouping parentheses (expr) to override.
+
+  Implementation: recursive descent with one function per precedence level
+  in parser.c (parse_primary → parse_multiplicative → parse_additive →
+  parse_comparison → parse_expression). Added Percent token to lexer for %.
+  Added grouping parentheses support.
+
+  Tests: 5 new test functions in src/test/operators.til covering arithmetic,
+  comparison, precedence, variables, and mixed operator/method usage.
+  All tests pass in both interpret and codegen modes.
+
 * FIXED #17 Global variable access
   :DEPENDENCIES_OF: #12 #13
   Variables declared in script-mode root scope (or any outer scope) were

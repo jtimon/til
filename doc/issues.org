@@ -1367,7 +1367,7 @@
 *** TODO Chord progressions
 *** TODO Key signatures on staff
 
-** OPEN #22 Operator syntax: desugar operators to method calls
+** FIXED #22 Operator syntax: desugar operators to method calls
   :DEPENDENCIES: #12
   Syntactic sugar so a + b desugars to a.add(b), a < b to a.lt(b), etc.
   Purely a parser transform — no changes needed in typer, interpreter, or
@@ -1397,12 +1397,12 @@
   override eq with a faster implementation, neq (and !=) automatically
   benefits since neq is generated as a.eq(b).not().
 
-*** Phase 1: Comparison operators
+*** DONE Phase 1: Comparison operators
    < <= > >= == !=
    All same precedence, binary, no chaining ambiguity.
    Desugars: a < b → a.lt(b), a != b → a.neq(b), etc.
 
-*** Phase 2: Arithmetic operators
+*** DONE Phase 2: Arithmetic operators
    + - * / %
    Introduces real precedence: * / % bind tighter than + -.
    Desugars: a + b * c → a.add(b.mul(c)).
@@ -1411,6 +1411,25 @@
    Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
    ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
    ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
+
+*** Implementation
+   Restructured parser.c with recursive descent precedence climbing:
+   - parse_primary: literals, identifiers, calls, field access, grouping parens
+   - parse_multiplicative: * / % (highest binary precedence)
+   - parse_additive: + - (medium precedence)
+   - parse_comparison: == != < <= > >= (lowest binary precedence)
+   - parse_expression: comparison + range (..) handling
+
+   Added Percent token to lexer for % (modulo) operator.
+   Added grouping parentheses (expr) in expression context.
+   Added LParen as valid statement start for (expr).method() patterns.
+
+   All operators desugar to method calls in the AST (make_binop_call helper).
+   No changes needed downstream — typer, interpreter, builder all work
+   transparently since they only see NODE_FCALL + NODE_FIELD_ACCESS nodes.
+
+   Tests: 5 new test functions in operators.til covering arithmetic,
+   comparison, precedence, variables, and mixed operator/method usage.
 
 ** OPEN #10 REPL: interactive read-eval-print loop
   Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts

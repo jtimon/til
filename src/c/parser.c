@@ -48,6 +48,7 @@ static Str *tok_str(Token *t) {
 
 static Expr *parse_statement(Parser *p);
 static Expr *parse_expression(Parser *p);
+static Expr *parse_primary(Parser *p);
 
 // --- Parsing functions ---
 
@@ -306,8 +307,8 @@ static Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
     return call;
 }
 
-// parse_expression: for now handles literals, identifiers, and calls
-static Expr *parse_expression(Parser *p) {
+// parse_primary: handles literals, identifiers, calls, field access, grouping parens
+static Expr *parse_primary(Parser *p) {
     Token *t = peek(p);
     Expr *e = NULL;
 
@@ -410,6 +411,11 @@ static Expr *parse_expression(Parser *p) {
             }
         }
         expect(p, TokenType_TAG_RBrace);
+    } else if (t->type.tag == TokenType_TAG_LParen) {
+        // Grouping parentheses: (expr)
+        advance(p); // consume '('
+        e = parse_expression(p);
+        expect(p, TokenType_TAG_RParen);
     } else {
         fprintf(stderr, "%s:%lld:%lld: parse error: unexpected token '%.*s'\n",
                 p->path->c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
@@ -458,6 +464,74 @@ static Expr *parse_expression(Parser *p) {
             e = access;
         }
     }
+    return e;
+}
+
+// Helper: create a method call AST node from a binary operator
+// a OP b → a.method(b)
+static Expr *make_binop_call(Expr *lhs, const char *method, Token *op, Str *path, Expr *rhs) {
+    Expr *callee = expr_new(NODE_FIELD_ACCESS, op->line, op->col, path);
+    callee->type.str_val = Str_new(method);
+    expr_add_child(callee, lhs);
+    Expr *call = expr_new(NODE_FCALL, op->line, op->col, path);
+    expr_add_child(call, callee);
+    expr_add_child(call, rhs);
+    return call;
+}
+
+// parse_multiplicative: * / %  (highest precedence binary operators)
+static Expr *parse_multiplicative(Parser *p) {
+    Expr *e = parse_primary(p);
+    while (check(p, TokenType_TAG_Star) || check(p, TokenType_TAG_Slash) || check(p, TokenType_TAG_Percent)) {
+        Token *op = advance(p);
+        const char *method;
+        if (op->type.tag == TokenType_TAG_Star) method = "mul";
+        else if (op->type.tag == TokenType_TAG_Slash) method = "div";
+        else method = "mod";
+        Expr *rhs = parse_primary(p);
+        e = make_binop_call(e, method, op, p->path, rhs);
+    }
+    return e;
+}
+
+// parse_additive: + -  (medium precedence)
+static Expr *parse_additive(Parser *p) {
+    Expr *e = parse_multiplicative(p);
+    while (check(p, TokenType_TAG_Plus) || check(p, TokenType_TAG_Minus)) {
+        Token *op = advance(p);
+        const char *method = (op->type.tag == TokenType_TAG_Plus) ? "add" : "sub";
+        Expr *rhs = parse_multiplicative(p);
+        e = make_binop_call(e, method, op, p->path, rhs);
+    }
+    return e;
+}
+
+// parse_comparison: == != < <= > >=  (lowest precedence binary operators)
+static Expr *parse_comparison(Parser *p) {
+    Expr *e = parse_additive(p);
+    while (check(p, TokenType_TAG_EqEq) || check(p, TokenType_TAG_Neq) ||
+           check(p, TokenType_TAG_Lt) || check(p, TokenType_TAG_LtEq) ||
+           check(p, TokenType_TAG_Gt) || check(p, TokenType_TAG_GtEq)) {
+        Token *op = advance(p);
+        const char *method;
+        switch (op->type.tag) {
+        case TokenType_TAG_EqEq: method = "eq"; break;
+        case TokenType_TAG_Neq:  method = "neq"; break;
+        case TokenType_TAG_Lt:   method = "lt"; break;
+        case TokenType_TAG_LtEq: method = "lte"; break;
+        case TokenType_TAG_Gt:   method = "gt"; break;
+        case TokenType_TAG_GtEq: method = "gte"; break;
+        default: method = "eq"; break; // unreachable
+        }
+        Expr *rhs = parse_additive(p);
+        e = make_binop_call(e, method, op, p->path, rhs);
+    }
+    return e;
+}
+
+// parse_expression: top-level expression parser (comparison + range)
+static Expr *parse_expression(Parser *p) {
+    Expr *e = parse_comparison(p);
     // Range expression: expr..expr → Range.new(expr, expr)
     if (check(p, TokenType_TAG_DotDot)) {
         Token *dt = &p->tokens[p->pos];
@@ -658,6 +732,7 @@ static Expr *parse_statement(Parser *p) {
     case TokenType_TAG_KwTrue:
     case TokenType_TAG_KwFalse:
     case TokenType_TAG_KwNull:
+    case TokenType_TAG_LParen:
         return parse_expression(p);
     case TokenType_TAG_LBrace: {
         advance(p); // consume '{'
