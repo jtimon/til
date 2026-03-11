@@ -2337,7 +2337,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     // Compile library .c to object
     Str *obj_path = Str_concat(Str_concat(Str_new("gen/lib/"), lib_name), Str_new(".o"));
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
+        Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -fPIC -I"), ext_dir),
         Str_new(" -c ")), c_path), Str_new(" -o ")), obj_path);
     int result = system((const char *)cmd->c_str);
     if (result != 0) {
@@ -2348,7 +2348,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     // Compile ext.c to object
     Str *ext_obj = Str_new("gen/lib/ext.o");
     cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
+        Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -fPIC -I"), ext_dir),
         Str_new(" -c ")), ext_c_path), Str_new(" -o ")), ext_obj);
     result = system((const char *)cmd->c_str);
     if (result != 0) {
@@ -2361,7 +2361,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     if (user_c_path) {
         user_obj = Str_new("gen/lib/user.o");
         cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-            Str_new("cc -Wall -Wextra -fPIC -I"), ext_dir),
+            Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -fPIC -I"), ext_dir),
             Str_new(" -c ")), user_c_path), Str_new(" -o ")), user_obj);
         result = system((const char *)cmd->c_str);
         if (result != 0) {
@@ -2409,7 +2409,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     Str *lf = link_flags ? link_flags : Str_new("");
 
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -Wno-unused-but-set-variable -Wl,--allow-multiple-definition -I"), ext_dir),
+        Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -Wl,--allow-multiple-definition -I"), ext_dir),
         Str_new(" -o ")), bin_path),
         Str_new(" ")), c_path),
         Str_new(" ")), Str_concat(Str_concat(ext_c_path, user_part), lf));
