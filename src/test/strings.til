@@ -218,3 +218,14 @@ test_join := test() {
     empty := Vec.new("Str", Str.size())
     assert_eq_str(__LOC__, join(empty, ","), "")
 }
+
+// mut param concat — reproduces use-after-free bug
+greet := proc(mut out: Str) {
+    out = out.concat(" world")
+}
+
+test_mut_param_concat := test() {
+    mut s := "hello"
+    greet(s)
+    assert_eq_str(__LOC__, s, "hello world")
+}

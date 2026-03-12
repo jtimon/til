@@ -162,7 +162,7 @@ namespace:
         if val.eq(0) {
             own buf : U8 = malloc(2)
             memcpy(buf, 48, 1)
-            memcpy(ptr_add(buf, 1), 0, 1)
+            memset(ptr_add(buf, 1), 0, 1)
             return Str(c_str = buf, count = 1, cap = 1)
         }
         mut is_neg := false
@@ -189,7 +189,7 @@ namespace:
             v = v.div(10)
             i = i.sub(1)
         }
-        memcpy(ptr_add(buf, total), 0, 1)
+        memset(ptr_add(buf, total), 0, 1)
         return Str(c_str = buf, count = total, cap = total)
     }
     to_u8 := ext_func(shallow val: I64) returns shallow U8 {}
@@ -305,6 +305,7 @@ realloc := ext_func(own buf: Dynamic, shallow count: U64) returns Dynamic {}
 ptr_add := ext_func(buf: Dynamic, shallow offset: U64) returns ref Dynamic {}
 memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
+memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: U64) {}
 dyn_call1 := ext_func(type_name: Str, method: Str, val: Dynamic) {}
 dyn_call2 := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynamic) {}
 dyn_call1_ret := ext_func(type_name: Str, method: Str, val: Dynamic) returns Dynamic {}
@@ -312,6 +313,19 @@ dyn_call2_ret := ext_func(type_name: Str, method: Str, val: Dynamic, arg2: Dynam
 dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
 array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
+
+swap := proc(a: Dynamic, b: Dynamic, shallow size: U64) {
+    own tmp : U8 = malloc(size)
+    memcpy(tmp, a, size)
+    memcpy(a, b, size)
+    memcpy(b, tmp, size)
+    free(own tmp)
+}
+
+move := proc(dest: Dynamic, src: Dynamic, shallow size: U64) {
+    memcpy(dest, src, size)
+    memset(src, 0, size)
+}
 
 // System primitives
 spawn_cmd := ext_proc(cmd: Str) returns I64 {}

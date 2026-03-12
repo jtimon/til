@@ -42,13 +42,13 @@ namespace:
         own new_data : U8 = malloc(new_len.add(1))
         memcpy(new_data, a.c_str, a.count)
         memcpy(ptr_add(new_data, a.count), b.c_str, b.count)
-        memcpy(ptr_add(new_data, new_len), 0, 1)
+        memset(ptr_add(new_data, new_len), 0, 1)
         return Str(c_str = new_data, count = new_len, cap = new_len)
     }
 
     with_capacity := func(n: U64) returns Str {
         own buf : U8 = malloc(n.add(1))
-        memcpy(buf, 0, 1)
+        memset(buf, 0, 1)
         return Str(c_str = buf, count = 0, cap = n)
     }
 
@@ -62,13 +62,13 @@ namespace:
         }
         memcpy(ptr_add(self.c_str, self.count), s.c_str, s.count)
         self.count = new_len
-        memcpy(ptr_add(self.c_str, new_len), 0, 1)
+        memset(ptr_add(self.c_str, new_len), 0, 1)
     }
 
     clone := func(val: Str) returns Str {
         own new_data : U8 = malloc(val.count.add(1))
         memcpy(new_data, val.c_str, val.count)
-        memcpy(ptr_add(new_data, val.count), 0, 1)
+        memset(ptr_add(new_data, val.count), 0, 1)
         return Str(c_str = new_data, count = val.count, cap = val.count)
     }
 
@@ -216,7 +216,7 @@ namespace:
     from_byte := func(byte: U8) returns Str {
         own buf : U8 = malloc(2)
         memcpy(buf, byte, 1)
-        memcpy(ptr_add(buf, 1), 0, 1)
+        memset(ptr_add(buf, 1), 0, 1)
         return Str(c_str = buf, count = 1, cap = 1)
     }
 

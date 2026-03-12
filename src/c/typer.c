@@ -1602,6 +1602,36 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 expr_child(stmt, 0)->type.tag == NODE_LITERAL_BOOL)) {
                 expr_child(stmt, 0) = hoist_to_temp(expr_child(stmt, 0), &hoisted, &nhoisted, &hcap, scope);
             }
+            // For mut struct/enum params, replace assignment with swap so
+            // ASAP delete of the temp frees the OLD value, not the new one.
+            // Re-query: hoist_to_temp may have realloc'd the Map, invalidating ab.
+            ab = tscope_find(scope, stmt->type.str_val);
+            if (ab && ab->is_param && ab->is_mut &&
+                (ab->type == TIL_TYPE_STRUCT || ab->type == TIL_TYPE_ENUM)) {
+                I32 line = stmt->line, col = stmt->col;
+                Str *path = stmt->path;
+                // Build: swap(param, temp, Type.size())
+                Expr *call = expr_new(NODE_FCALL, line, col, path);
+                call->til_type = TIL_TYPE_NONE;
+                Expr *fn = expr_new(NODE_IDENT, line, col, path);
+                fn->type.str_val = Str_new("swap");
+                expr_add_child(call, fn);
+                // arg0: the param variable
+                Expr *a = expr_new(NODE_IDENT, line, col, path);
+                a->type.str_val = stmt->type.str_val;
+                a->til_type = ab->type;
+                a->struct_name = ab->struct_name;
+                expr_add_child(call, a);
+                // arg1: the RHS (hoisted temp ident)
+                expr_add_child(call, expr_child(stmt, 0));
+                // arg2: Type.size() — hoist to temp so builder emits deref correctly
+                const char *tname = type_to_name(ab->type, ab->struct_name);
+                Expr *sz_call = make_ns_call(tname, "size", TIL_TYPE_U64, NULL, stmt);
+                Expr *sz = hoist_to_temp(sz_call, &hoisted, &nhoisted, &hcap, scope);
+                expr_add_child(call, sz);
+                // Replace stmt in-place
+                *stmt = *call;
+            }
             break;
         }
         case NODE_FIELD_ASSIGN: {

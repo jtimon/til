@@ -179,6 +179,8 @@ U64 * Range_size(void);
 void println(Array * parts);
 void print(Array * parts);
 Str * format(Array * parts);
+void swap(void * a, void * b, U64 size);
+void move(void * dest, void * src, U64 size);
 I64 * wait_cmd(I64 * pid);
 I64 * run_cmd(Str * output, Array * args);
 void panic(Str * loc_str, Array * parts);
