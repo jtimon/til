@@ -1,7 +1,10 @@
 mode test
 
-// Reproduction for #47: cross-namespace method calls fail inside ext_struct
+// Test for #47: cross-namespace method calls work correctly.
+// Original bug: redeclaring I64 as ext_struct silently overwrote core definition.
+// Fix: struct/enum redeclaration now produces an error.
 
+// Cross-namespace calls: calling methods from one type inside another type's namespace
 Helper := struct {
     val : I64 = 0
 namespace:
@@ -10,15 +13,23 @@ namespace:
     }
 }
 
-I64 := ext_struct {
+Wrapper := struct {
+    data : Helper = Helper()
 namespace:
-    test_cross := func(val: I64) returns Helper {
-        return Helper.make(val)
+    from_int := func(n: I64) returns Wrapper {
+        // Cross-namespace call: Helper.make called from Wrapper's namespace
+        h := Helper.make(n)
+        return Wrapper(data = h)
     }
 }
 
 test_cross_namespace := test() {
-    x : I64 = 42
-    h := x.test_cross()
-    assert_eq(__LOC__, h.val, 42)
+    w := Wrapper.from_int(42)
+    assert_eq(__LOC__, w.data.val, 42)
+}
+
+test_cross_namespace_str := test() {
+    // Cross-namespace call involving Str methods
+    s := Str.with_capacity(10)
+    assert_eq(__LOC__, s, "")
 }

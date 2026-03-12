@@ -2234,6 +2234,18 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
                 stmt->til_type = TIL_TYPE_NONE;
                 Str *sname = stmt->type.decl.name;
+
+                // Check for redeclaration: existing binding with a different struct_def
+                TypeBinding *existing = tscope_find(scope, sname);
+                if (existing && existing->struct_def && existing->struct_def != expr_child(stmt, 0)) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf), "%s '%s' already declared at %s:%u:%u",
+                             is_enum ? "enum" : "struct", sname->c_str,
+                             existing->struct_def->path->c_str, existing->line, existing->col);
+                    type_error(stmt, buf);
+                    break;
+                }
+
                 // Check if this is a builtin type
                 TilType builtin_type = is_enum ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
                 Bool is_builtin = 0;

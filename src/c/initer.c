@@ -206,6 +206,8 @@ static void compute_all_struct_layouts(Expr *program, TypeScope *scope) {
 // --- Init phase: pre-scan top-level declarations ---
 
 I32 init_declarations(Expr *program, TypeScope *scope) {
+    I32 errors = 0;
+
     // Pass 1: register all struct definitions
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -213,6 +215,17 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
 
         Str *sname = stmt->type.decl.name;
+
+        // Check for redeclaration: if a struct/ext_struct with this name already exists, error
+        TypeBinding *existing = tscope_find(scope, sname);
+        if (existing && existing->struct_def) {
+            fprintf(stderr, "%s:%u:%u: error: struct '%s' already declared at %s:%u:%u\n",
+                    stmt->path->c_str, stmt->line, stmt->col, sname->c_str,
+                    existing->struct_def->path->c_str, existing->line, existing->col);
+            errors++;
+            continue;
+        }
+
         TilType builtin_type = TIL_TYPE_STRUCT;
         Bool is_builtin = 0;
         if (Str_eq_c(sname, "I64"))             { builtin_type = TIL_TYPE_I64;        is_builtin = 1; }
@@ -499,6 +512,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Str *ename = stmt->type.decl.name;
         I32 line = stmt->line, col = stmt->col;
         Str *path = stmt->path;
+
+        // Check for redeclaration
+        TypeBinding *existing = tscope_find(scope, ename);
+        if (existing && existing->struct_def) {
+            fprintf(stderr, "%s:%u:%u: error: enum '%s' already declared at %s:%u:%u\n",
+                    path->c_str, line, col, ename->c_str,
+                    existing->struct_def->path->c_str, existing->line, existing->col);
+            errors++;
+            continue;
+        }
 
         // Register in type scope
         tscope_set(scope, ename, TIL_TYPE_ENUM, -1, 0, line, col, 0, 0);
@@ -1272,5 +1295,5 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         }
     }
 
-    return 0;
+    return errors;
 }

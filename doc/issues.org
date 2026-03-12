@@ -39,6 +39,7 @@
   issues. In the future, the ~shallow~ keyword could be computed automatically
   from this property plus size considerations.
 
+
 ** OPEN #46 Optimize Str with with_capacity in concat, join, etc.
   str.til methods like concat, join, and others build strings by repeated
   push_byte or append without pre-allocating. This causes excessive

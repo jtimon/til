@@ -493,7 +493,15 @@ int main(int argc, char **argv) {
 
     // Init phase: pre-scan declarations for forward references
     TypeScope *scope = tscope_new(NULL);
-    init_declarations(ast, scope);
+    I32 init_errors = init_declarations(ast, scope);
+    if (init_errors > 0) {
+        fprintf(stderr, "%d declaration error(s) found\n", init_errors);
+        tscope_free(scope);
+        expr_free(ast);
+        free(tokens);
+        free(source);
+        return 1;
+    }
 
     // Type checking and inference
     I32 type_errors = type_check(ast, scope, mode);
