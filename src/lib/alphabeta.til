@@ -41,3 +41,22 @@ go_eval := func(mut board: Array, total: I64, side: I64) returns I64 {
     }
     return score
 }
+
+// Checkers evaluation relative to side (1=red, 2=black)
+// Man=1, King=3
+// Piece encoding: 0=empty, 1=red man, 2=red king, 3=black man, 4=black king
+checkers_eval := func(mut board: Array, side: I64) returns I64 {
+    mut score := 0
+    mut i := 0
+    while i.lt(64) {
+        ref p : I64 = board.get(i.to_u64())
+        if p.eq(1) { score = score.add(1) }
+        if p.eq(2) { score = score.add(3) }
+        if p.eq(3) { score = score.sub(1) }
+        if p.eq(4) { score = score.sub(3) }
+        i = i.add(1)
+    }
+    // score is positive=red advantage; negate for black
+    if side.eq(2) { return 0.sub(score) }
+    return score
+}
