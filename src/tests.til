@@ -413,13 +413,13 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "")
     add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "")
 
-    // === 18 build tests (build + run with timeout) ===
+    // === 20 build tests (build + run with timeout) ===
     gui_files := array("Str",
         "src/examples/gui_hello.til", "src/examples/snake.til",
         "src/examples/piano.til", "src/examples/music.til",
         "src/examples/font_test.til", "src/examples/minesweeper.til",
         "src/examples/popcorn.til", "src/examples/chess.til",
-        "src/examples/go.til")
+        "src/examples/go.til", "src/examples/editor.til")
     for gf : Str in gui_files {
         bn := test_basename(gf)
         mut run_args := ""

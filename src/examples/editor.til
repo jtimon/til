@@ -1,0 +1,358 @@
+mode gui
+
+main := proc(args: ..Str) {
+    w := 800
+    h := 600
+    font_size := 16
+    char_w := 9
+    line_h := 18
+    left_margin := 50
+    top_margin := 4
+    status_h := 24
+    visible_lines := h.sub(status_h).sub(top_margin).div(line_h)
+
+    // Parse filename from args
+    mut filename := ""
+    if args.len().gt(0) {
+        ref a : Str = args.get(0)
+        filename = a.clone()
+    }
+
+    // Lines buffer
+    mut lines := Vec.new("Str", Str.size())
+
+    // Load file or start with one empty line
+    if filename.len().gt(0) {
+        content := readfile(filename)
+        if content.len().gt(0) {
+            parts := split(content, "\n")
+            mut i : U64 = 0
+            while i.lt(parts.len()) {
+                ref p : Str = parts.get(i)
+                lines.push(own p.clone())
+                i = i.add(1)
+            }
+            // If file ended with newline, last split element is empty, keep it
+        } else {
+            lines.push(own "".clone())
+        }
+    } else {
+        lines.push(own "".clone())
+    }
+
+    mut cursor_x := 0
+    mut cursor_y := 0
+    mut scroll_y := 0
+    mut dirty := false
+    mut status_msg := ""
+    mut status_timer := 0
+
+    init_window(w, h, "editor")
+    set_target_fps(60)
+
+    while window_should_close().not() {
+        dt := get_frame_time()
+        if status_timer.gt(0) {
+            status_timer = status_timer.sub(dt)
+            if status_timer.lte(0) {
+                status_msg = ""
+                status_timer = 0
+            }
+        }
+
+        ctrl := is_key_down(341).or(is_key_down(345))
+
+        // Ctrl+S = save
+        if ctrl.and(is_key_pressed(83)) {
+            if filename.len().gt(0) {
+                content := join(lines, "\n")
+                writefile(filename, content)
+                dirty = false
+                status_msg = "Saved!"
+                status_timer = 2000
+            } else {
+                status_msg = "No filename"
+                status_timer = 2000
+            }
+        }
+
+        // Arrow keys
+        if is_key_pressed(265).or(is_key_down(265).and(is_key_down(265))) {
+            // Up
+            if is_key_pressed(265) {
+                if cursor_y.gt(0) {
+                    cursor_y = cursor_y.sub(1)
+                    ref line : Str = lines.get(cursor_y.to_u64())
+                    if cursor_x.gt(line.len().to_i64()) {
+                        cursor_x = line.len().to_i64()
+                    }
+                }
+            }
+        }
+        if is_key_pressed(264) {
+            // Down
+            if cursor_y.lt(lines.len().to_i64().sub(1)) {
+                cursor_y = cursor_y.add(1)
+                ref line : Str = lines.get(cursor_y.to_u64())
+                if cursor_x.gt(line.len().to_i64()) {
+                    cursor_x = line.len().to_i64()
+                }
+            }
+        }
+        if is_key_pressed(263) {
+            // Left
+            if cursor_x.gt(0) {
+                cursor_x = cursor_x.sub(1)
+            } else {
+                if cursor_y.gt(0) {
+                    cursor_y = cursor_y.sub(1)
+                    ref line : Str = lines.get(cursor_y.to_u64())
+                    cursor_x = line.len().to_i64()
+                }
+            }
+        }
+        if is_key_pressed(262) {
+            // Right
+            ref cur_line : Str = lines.get(cursor_y.to_u64())
+            if cursor_x.lt(cur_line.len().to_i64()) {
+                cursor_x = cursor_x.add(1)
+            } else {
+                if cursor_y.lt(lines.len().to_i64().sub(1)) {
+                    cursor_y = cursor_y.add(1)
+                    cursor_x = 0
+                }
+            }
+        }
+
+        // Home
+        if is_key_pressed(268) {
+            cursor_x = 0
+        }
+        // End
+        if is_key_pressed(269) {
+            ref line : Str = lines.get(cursor_y.to_u64())
+            cursor_x = line.len().to_i64()
+        }
+
+        // Enter
+        if is_key_pressed(257) {
+            if ctrl.not() {
+                ref cur_line : Str = lines.get(cursor_y.to_u64())
+                // Split line at cursor
+                before := cur_line.substr(0, cursor_x.to_u64()).clone()
+                after := cur_line.substr(cursor_x.to_u64(), cur_line.len().sub(cursor_x.to_u64())).clone()
+
+                // Replace current line with before
+                // Build new lines vec
+                mut new_lines := Vec.new("Str", Str.size())
+                mut i : U64 = 0
+                while i.lt(lines.len()) {
+                    if i.eq(cursor_y.to_u64()) {
+                        new_lines.push(own before.clone())
+                        new_lines.push(own after.clone())
+                    } else {
+                        ref l : Str = lines.get(i)
+                        new_lines.push(own l.clone())
+                    }
+                    i = i.add(1)
+                }
+                lines = new_lines
+                cursor_y = cursor_y.add(1)
+                cursor_x = 0
+                dirty = true
+            }
+        }
+
+        // Backspace
+        if is_key_pressed(259) {
+            if cursor_x.gt(0) {
+                ref cur_line : Str = lines.get(cursor_y.to_u64())
+                new_line := cur_line.substr(0, cursor_x.to_u64().sub(1)).concat(
+                    cur_line.substr(cursor_x.to_u64(), cur_line.len().sub(cursor_x.to_u64()))
+                )
+                // Rebuild lines
+                mut new_lines := Vec.new("Str", Str.size())
+                mut i : U64 = 0
+                while i.lt(lines.len()) {
+                    if i.eq(cursor_y.to_u64()) {
+                        new_lines.push(own new_line.clone())
+                    } else {
+                        ref l : Str = lines.get(i)
+                        new_lines.push(own l.clone())
+                    }
+                    i = i.add(1)
+                }
+                lines = new_lines
+                cursor_x = cursor_x.sub(1)
+                dirty = true
+            } else {
+                if cursor_y.gt(0) {
+                    // Merge with previous line
+                    ref prev_line : Str = lines.get(cursor_y.sub(1).to_u64())
+                    ref cur_line : Str = lines.get(cursor_y.to_u64())
+                    new_x := prev_line.len().to_i64()
+                    merged := prev_line.concat(cur_line)
+
+                    mut new_lines := Vec.new("Str", Str.size())
+                    mut i : U64 = 0
+                    while i.lt(lines.len()) {
+                        if i.eq(cursor_y.sub(1).to_u64()) {
+                            new_lines.push(own merged.clone())
+                        } else {
+                            if i.neq(cursor_y.to_u64()) {
+                                ref l : Str = lines.get(i)
+                                new_lines.push(own l.clone())
+                            }
+                        }
+                        i = i.add(1)
+                    }
+                    lines = new_lines
+                    cursor_y = cursor_y.sub(1)
+                    cursor_x = new_x
+                    dirty = true
+                }
+            }
+        }
+
+        // Delete key
+        if is_key_pressed(261) {
+            ref cur_line : Str = lines.get(cursor_y.to_u64())
+            if cursor_x.lt(cur_line.len().to_i64()) {
+                new_line := cur_line.substr(0, cursor_x.to_u64()).concat(
+                    cur_line.substr(cursor_x.to_u64().add(1), cur_line.len().sub(cursor_x.to_u64().add(1)))
+                )
+                mut new_lines := Vec.new("Str", Str.size())
+                mut i : U64 = 0
+                while i.lt(lines.len()) {
+                    if i.eq(cursor_y.to_u64()) {
+                        new_lines.push(own new_line.clone())
+                    } else {
+                        ref l : Str = lines.get(i)
+                        new_lines.push(own l.clone())
+                    }
+                    i = i.add(1)
+                }
+                lines = new_lines
+                dirty = true
+            } else {
+                if cursor_y.lt(lines.len().to_i64().sub(1)) {
+                    // Merge with next line
+                    ref next_line : Str = lines.get(cursor_y.add(1).to_u64())
+                    merged := cur_line.concat(next_line)
+
+                    mut new_lines := Vec.new("Str", Str.size())
+                    mut i : U64 = 0
+                    while i.lt(lines.len()) {
+                        if i.eq(cursor_y.to_u64()) {
+                            new_lines.push(own merged.clone())
+                        } else {
+                            if i.neq(cursor_y.add(1).to_u64()) {
+                                ref l : Str = lines.get(i)
+                                new_lines.push(own l.clone())
+                            }
+                        }
+                        i = i.add(1)
+                    }
+                    lines = new_lines
+                    dirty = true
+                }
+            }
+        }
+
+        // Character input (ASCII only, skip if ctrl held)
+        if ctrl.not() {
+            mut ch := get_char_pressed()
+            while ch.gt(0) {
+                if ch.gte(32).and(ch.lt(127)) {
+                    // Insert character at cursor
+                    ch_str := Str.from_byte(ch.to_u8())
+                    ref cur_line : Str = lines.get(cursor_y.to_u64())
+                    new_line := cur_line.substr(0, cursor_x.to_u64()).concat(ch_str).concat(
+                        cur_line.substr(cursor_x.to_u64(), cur_line.len().sub(cursor_x.to_u64()))
+                    )
+                    mut new_lines := Vec.new("Str", Str.size())
+                    mut i : U64 = 0
+                    while i.lt(lines.len()) {
+                        if i.eq(cursor_y.to_u64()) {
+                            new_lines.push(own new_line.clone())
+                        } else {
+                            ref l : Str = lines.get(i)
+                            new_lines.push(own l.clone())
+                        }
+                        i = i.add(1)
+                    }
+                    lines = new_lines
+                    cursor_x = cursor_x.add(1)
+                    dirty = true
+                }
+                ch = get_char_pressed()
+            }
+        }
+
+        // Scroll to keep cursor visible
+        if cursor_y.lt(scroll_y) {
+            scroll_y = cursor_y
+        }
+        if cursor_y.gte(scroll_y.add(visible_lines)) {
+            scroll_y = cursor_y.sub(visible_lines).add(1)
+        }
+
+        // Draw
+        begin_drawing()
+        clear_background(30, 30, 40, 255)
+
+        // Text area
+        mut row := 0
+        while row.lt(visible_lines) {
+            line_idx := scroll_y.add(row)
+            if line_idx.lt(lines.len().to_i64()) {
+                // Line number
+                lnum := line_idx.add(1).to_str()
+                draw_text(lnum, left_margin.sub(lnum.len().to_i64().mul(char_w)).sub(4),
+                         top_margin.add(row.mul(line_h)), font_size, 80, 80, 100, 255)
+
+                // Line text
+                ref line : Str = lines.get(line_idx.to_u64())
+                if line.len().gt(0) {
+                    draw_text(line, left_margin, top_margin.add(row.mul(line_h)),
+                             font_size, 200, 200, 200, 255)
+                }
+
+                // Cursor
+                if line_idx.eq(cursor_y) {
+                    cx := left_margin.add(cursor_x.mul(char_w))
+                    cy := top_margin.add(row.mul(line_h))
+                    draw_rectangle(cx, cy, 2, line_h, 255, 200, 0, 255)
+                }
+            }
+            row = row.add(1)
+        }
+
+        // Status bar
+        sy := h.sub(status_h)
+        draw_rectangle(0, sy, w, status_h, 50, 50, 70, 255)
+
+        // Filename
+        mut disp_name := filename
+        if filename.len().eq(0) { disp_name = "[new file]" }
+        mut title := disp_name
+        if dirty { title = title.concat(" *") }
+        draw_text(title, 8, sy.add(4), font_size, 220, 220, 220, 255)
+
+        // Cursor position
+        pos_str := format("Ln ", cursor_y.add(1).to_str(), " Col ", cursor_x.add(1).to_str())
+        draw_text(pos_str, w.sub(140), sy.add(4), font_size, 180, 180, 180, 255)
+
+        // Status message
+        if status_msg.len().gt(0) {
+            draw_text(status_msg, w.div(2).sub(40), sy.add(4), font_size, 0, 255, 0, 255)
+        }
+
+        // Help
+        draw_text("Ctrl+S=Save  Esc=Quit", w.sub(400), sy.add(4), 14, 120, 120, 140, 255)
+
+        end_drawing()
+    }
+
+    close_window()
+}

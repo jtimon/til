@@ -80,11 +80,13 @@ GetScreenHeight := ext_func() returns shallow I32 {}
 GetFrameTime := ext_func() returns shallow F32 {}
 IsKeyPressed := ext_func(shallow key: I32) returns shallow Bool {}
 IsKeyDown := ext_func(shallow key: I32) returns shallow Bool {}
+IsKeyRepeat := ext_func(shallow key: I32) returns shallow Bool {}
 IsMouseButtonPressed := ext_func(shallow button: I32) returns shallow Bool {}
 IsMouseButtonDown := ext_func(shallow button: I32) returns shallow Bool {}
 GetRandomValue := ext_func(shallow min: I32, shallow max: I32) returns shallow I32 {}
 GetMouseX := ext_func() returns shallow I32 {}
 GetMouseY := ext_func() returns shallow I32 {}
+GetCharPressed := ext_func() returns shallow I32 {}
 InitAudioDevice := ext_proc() {}
 CloseAudioDevice := ext_proc() {}
 
@@ -219,6 +221,8 @@ get_frame_time := func() returns I64 {
 }
 is_key_pressed := func(key: I64) returns Bool { return IsKeyPressed(key.to_i32()) }
 is_key_down := func(key: I64) returns Bool { return IsKeyDown(key.to_i32()) }
+is_key_repeat := func(key: I64) returns Bool { return IsKeyRepeat(key.to_i32()) }
+get_char_pressed := func() returns I64 { return GetCharPressed().to_i64() }
 is_mouse_button_pressed := func(button: I64) returns Bool { return IsMouseButtonPressed(button.to_i32()) }
 is_mouse_button_down := func(button: I64) returns Bool { return IsMouseButtonDown(button.to_i32()) }
 get_random_value := func(min: I64, max: I64) returns I64 {
