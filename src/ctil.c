@@ -265,6 +265,9 @@ int main(int argc, char **argv) {
 
     const char *command = argv[1];
     Str *path = NULL;
+    Str *custom_bin = NULL;
+    Str *custom_c = NULL;
+    int path_idx = 2;
 
     if (argc == 2) {
         // Single arg: if it's a known command without a path, handle it
@@ -275,8 +278,25 @@ int main(int argc, char **argv) {
         // Otherwise treat as a path (like til does)
         path = Str_new(command);
         command = "interpret";
+        path_idx = 1;
     } else {
-        path = Str_new(argv[2]);
+        // Scan for -o/-c flags before source file
+        while (path_idx < argc) {
+            if (strcmp(argv[path_idx], "-o") == 0 && path_idx + 1 < argc) {
+                custom_bin = Str_new(argv[path_idx + 1]);
+                path_idx += 2;
+            } else if (strcmp(argv[path_idx], "-c") == 0 && path_idx + 1 < argc) {
+                custom_c = Str_new(argv[path_idx + 1]);
+                path_idx += 2;
+            } else {
+                break;
+            }
+        }
+        if (path_idx >= argc) {
+            fprintf(stderr, "error: missing source file\n");
+            usage(); return 1;
+        }
+        path = Str_new(argv[path_idx]);
     }
 
     if (strcmp(command, "help") == 0 || strcmp(command, "--help") == 0) {
@@ -501,10 +521,10 @@ int main(int argc, char **argv) {
     // Use link_c() paths as user .c files (replaces companion .c auto-detection)
     Str *user_c = link_c_paths->count > 0 ? link_c_paths : NULL;
 
-    // Append -l flags from CLI args (argv[3..])
+    // Append -l flags from CLI args (after source file)
     char *filtered_argv[argc];
     U32 user_argc = 0;
-    for (I32 i = 3; i < argc; i++) {
+    for (I32 i = path_idx + 1; i < argc; i++) {
         if (strncmp(argv[i], "-l", 2) == 0) {
             const char *lib = argv[i] + 2;
             if (*lib == '\0' && i + 1 < argc) { lib = argv[++i]; }
@@ -539,15 +559,24 @@ int main(int argc, char **argv) {
         Str *name = *Str_ends_with(basename, Str_new(".til"))
             ? Str_substr(basename, &(U64){(U64)(0)}, &(U64){(U64)(basename->count - 4)}) : basename;
 
-        Str *c_path = Str_concat(Str_concat(Str_new("gen/c/"), name), Str_new(".c"));
-        Str *bin_path = Str_concat(Str_new("bin/c/"), name);
+        Str *c_path = custom_c ? custom_c : Str_concat(Str_concat(Str_new("gen/c/"), name), Str_new(".c"));
+        Str *bin_path = custom_bin ? custom_bin : Str_concat(Str_new("bin/c/"), name);
 
         Bool do_lib = is_lib_output && strcmp(command, "run") != 0;
 
-        if (do_lib)
+        if (do_lib) {
             system("mkdir -p gen/c gen/til gen/lib");
-        else
-            system("mkdir -p gen/c bin/c");
+        } else {
+            I64 cp_slash = *Str_rfind(c_path, Str_new("/"));
+            I64 bp_slash = *Str_rfind(bin_path, Str_new("/"));
+            char mkdir_cmd[512];
+            if (cp_slash > 0 && bp_slash > 0)
+                snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p %.*s %.*s",
+                         (int)cp_slash, c_path->c_str, (int)bp_slash, bin_path->c_str);
+            else
+                snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p gen/c bin/c");
+            system(mkdir_cmd);
+        }
 
         result = build(ast, mode, run_tests, path, c_path);
 

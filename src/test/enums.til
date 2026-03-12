@@ -159,22 +159,25 @@ test_struct_payload_to_str := test() {
     assert_eq_str(__LOC__, Shape.Line("hi").to_str(), "Line(hi)")
 }
 
-Pair := struct {
+Coord := struct {
     mut x := 0
     mut y := 0
     namespace:
-    to_str := func(self: Pair) returns Str {
+    eq := func(a: Coord, b: Coord) returns Bool {
+        return a.x.eq(b.x).and(a.y.eq(b.y))
+    }
+    to_str := func(self: Coord) returns Str {
         return format(self.x.to_str(), ",", self.y.to_str())
     }
 }
-PairKind := enum { A: Pair, B: I64, C }
-PairBox := struct {
+CoordKind := enum { A: Coord, B: I64, C }
+CoordBox := struct {
     mut name := ""
-    mut kind := PairKind.C
+    mut kind := CoordKind.C
 }
 
 test_payload_enum_field := test() {
-    c := PairBox(name = "test", kind = PairKind.A(Pair(x = 3, y = 4)))
+    c := CoordBox(name = "test", kind = CoordKind.A(Coord(x = 3, y = 4)))
     assert_eq_str(__LOC__, c.name, "test")
     assert_eq_str(__LOC__, c.kind.to_str(), "A(3,4)")
     assert(__LOC__, c.kind.is_A())

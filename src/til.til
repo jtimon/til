@@ -246,6 +246,9 @@ main := proc(args: ..Str) {
     ref cmd_ref : Str = args.get(0)
     mut command := cmd_ref.clone()
     mut path : Str = ""
+    mut custom_bin : Str = ""
+    mut custom_c : Str = ""
+    mut path_idx : U64 = 1
 
     if args.len().eq(1) {
         if command.eq("help").or(command.eq("--help")) {
@@ -255,7 +258,22 @@ main := proc(args: ..Str) {
         path = command
         command = "interpret"
     } else {
-        ref p : Str = args.get(1)
+        // Scan for -o/-c flags before source file
+        while path_idx.lt(args.len()) {
+            ref flag : Str = args.get(path_idx)
+            if flag.eq("-o").and(path_idx.add(1).lt(args.len())) {
+                ref oval : Str = args.get(path_idx.add(1))
+                custom_bin = oval.clone()
+                path_idx = path_idx.add(2)
+            } else if flag.eq("-c").and(path_idx.add(1).lt(args.len())) {
+                ref cval : Str = args.get(path_idx.add(1))
+                custom_c = cval.clone()
+                path_idx = path_idx.add(2)
+            } else {
+                break
+            }
+        }
+        ref p : Str = args.get(path_idx)
         path = p.clone()
     }
 
@@ -466,7 +484,7 @@ main := proc(args: ..Str) {
 
     // Append -l flags from CLI args (args[2..])
     mut user_argv := Vec.new("Str", Str.size())
-    mut ai : U64 = 2
+    mut ai : U64 = path_idx.add(1)
     while ai.lt(args.len()) {
         ref arg : Str = args.get(ai)
         if arg.starts_with("-l") {
@@ -515,15 +533,23 @@ main := proc(args: ..Str) {
         }
         name := basename.substr(0, name_len)
 
-        c_path := "gen/til/".concat(name).concat(".c")
-        bin_path := "bin/til/".concat(name)
+        mut c_path := "gen/til/".concat(name).concat(".c")
+        if custom_c.len().gt(0) { c_path = custom_c }
+        mut bin_path := "bin/til/".concat(name)
+        if custom_bin.len().gt(0) { bin_path = custom_bin }
 
         do_lib := til_mode_is_lib_output(cur_mode).and(command.eq("run").not())
 
         if do_lib {
             til_system("mkdir -p gen/til gen/lib")
         } else {
-            til_system("mkdir -p gen/til bin/til")
+            cp_slash := c_path.rfind("/")
+            bp_slash := bin_path.rfind("/")
+            mut cp_dir := "gen/til"
+            if cp_slash.gt(0) { cp_dir = c_path.substr(0, cp_slash.to_u64()) }
+            mut bp_dir := "bin/til"
+            if bp_slash.gt(0) { bp_dir = bin_path.substr(0, bp_slash.to_u64()) }
+            til_system("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
         }
 
         result = til_build(ast, cur_mode, run_tests, path, c_path)

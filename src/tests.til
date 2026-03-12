@@ -108,7 +108,6 @@ ModeData := struct {
     to_str := func(self: ModeData) returns Str { return "ModeData" }
 }
 
-// Payload enum — works in interpreter, codegen bug (#53) blocks compiling tests.til
 TestKind := enum { Mode: ModeData, Single, Count }
 
 Test := struct {
@@ -184,7 +183,9 @@ add_cli_pair := proc(tests: Vec, name: Str, file: Str,
     mut cmd_i := CTIL.concat(" interpret ").concat(file)
     if cli_args.len().gt(0) { cmd_i = cmd_i.concat(" ").concat(cli_args) }
     add_single(tests, name.concat("_i"), "cli", expected_exit, expected_out, cmd_i)
-    mut cmd_r := CTIL.concat(" run ").concat(file)
+    mut cmd_r := CTIL.concat(" run -o bin/c/").concat(name)
+        .concat(" -c gen/c/").concat(name).concat(".c ")
+        .concat(file)
     if cli_args.len().gt(0) { cmd_r = cmd_r.concat(" ").concat(cli_args) }
     add_single(tests, name.concat("_r"), "cli", expected_exit, expected_out, cmd_r)
 }

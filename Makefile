@@ -24,8 +24,11 @@ bin/c/test_runner: bin/ctil $(CORE) src/test_runner.til
 bin/c/plot: bin/ctil $(CORE) src/examples/plot.til
 	@bin/ctil build src/examples/plot.til
 
-test: bin/ctil bin/c/til bin/c/test_runner bin/c/plot
-	@bin/ctil interpret src/tests.til $(if $(J),-j$(J))
+bin/c/tests: bin/ctil $(CORE) src/tests.til
+	@bin/ctil build src/tests.til
+
+test: bin/ctil bin/c/til bin/c/test_runner bin/c/plot bin/c/tests
+	@bin/c/tests $(if $(J),-j$(J))
 
 ctil_core: bin/ctil
 	@bin/ctil translate src/self/lexer.til
