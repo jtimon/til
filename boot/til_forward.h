@@ -1122,6 +1122,7 @@ I32 interpret(Expr * ast, Mode * m, Bool run_tests, Str * path, Str * user_c, St
 I32 build(Expr * ast, Mode * m, Bool run_tests, Str * path, Str * c_path);
 I32 build_header(Expr * ast, Str * h_path);
 I32 build_til_binding(Expr * ast, Str * til_path, Str * lib_name);
+I32 build_python_binding(Expr * ast, Str * py_path, Str * lib_name);
 I32 compile_c(Str * c_path, Str * bin_path, Str * ext_c, Str * user_c, Str * lflags);
 I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c, Str * user_c, Str * lflags);
 void ast_print(Expr * ast, U32 indent);

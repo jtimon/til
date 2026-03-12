@@ -3392,6 +3392,314 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
     return 0;
 }
 
+// Map a TIL type name to its Python ctypes equivalent
+static const char *type_name_to_ctypes(Str *name) {
+    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return "ctypes.c_longlong";
+    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return "ctypes.c_ubyte";
+    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return "ctypes.c_short";
+    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return "ctypes.c_int";
+    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return "ctypes.c_uint";
+    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return "ctypes.c_ulonglong";
+    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "ctypes.c_float";
+    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "ctypes.c_bool";
+    if ((name->count == 3 && memcmp(name->c_str, "Str", 3) == 0))  return "Str";
+    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return "ctypes.c_void_p";
+    // User-defined struct/enum type — class name directly
+    static char pybuf[128];
+    snprintf(pybuf, sizeof(pybuf), "%s", name->c_str);
+    return pybuf;
+}
+
+// Map a TIL type name to ctypes for a parameter (pointer or value)
+static const char *type_name_to_ctypes_param(Str *name, Bool is_shallow) {
+    static char ppbuf[256];
+    const char *base = type_name_to_ctypes(name);
+    if (is_shallow) {
+        return base;
+    }
+    snprintf(ppbuf, sizeof(ppbuf), "ctypes.POINTER(%s)", base);
+    return ppbuf;
+}
+
+// Map a TIL type name to ctypes for a return type (pointer or value)
+static const char *type_name_to_ctypes_return(Str *name, Bool is_shallow) {
+    static char prbuf[256];
+    const char *base = type_name_to_ctypes(name);
+    if (is_shallow) {
+        return base;
+    }
+    snprintf(prbuf, sizeof(prbuf), "ctypes.POINTER(%s)", base);
+    return prbuf;
+}
+
+I32 build_python_binding(Expr *program, Str *py_path, Str *lib_name) {
+    FILE *f = fopen((const char *)py_path->c_str, "w");
+    if (!f) {
+        fprintf(stderr, "error: could not open '%s' for writing\n", (const char *)py_path->c_str);
+        return 1;
+    }
+
+    fprintf(f, "# Auto-generated Python binding for %s\n", lib_name->c_str);
+    fprintf(f, "import ctypes\n");
+    fprintf(f, "import os\n\n");
+    fprintf(f, "_dir = os.path.dirname(os.path.abspath(__file__))\n");
+    fprintf(f, "_lib = ctypes.CDLL(os.path.join(_dir, '..', 'lib', 'lib%s.so'))\n\n", lib_name->c_str);
+
+    // --- Emit runtime helper structs ---
+    fprintf(f, "\nclass Str(ctypes.Structure):\n");
+    fprintf(f, "    _fields_ = [\n");
+    fprintf(f, "        ('c_str', ctypes.POINTER(ctypes.c_ubyte)),\n");
+    fprintf(f, "        ('count', ctypes.c_ulonglong),\n");
+    fprintf(f, "        ('cap', ctypes.c_ulonglong),\n");
+    fprintf(f, "    ]\n\n");
+    fprintf(f, "\nclass Array(ctypes.Structure):\n");
+    fprintf(f, "    _fields_ = [\n");
+    fprintf(f, "        ('data', ctypes.POINTER(ctypes.c_ubyte)),\n");
+    fprintf(f, "        ('cap', ctypes.c_ulonglong),\n");
+    fprintf(f, "        ('elem_size', ctypes.c_ulonglong),\n");
+    fprintf(f, "        ('elem_type', Str),\n");
+    fprintf(f, "    ]\n\n");
+
+    // --- Forward-declare all struct/enum classes ---
+    // (needed because structs can reference each other)
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->is_core) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl) continue;
+        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+        Str *name = &stmt->data.data.Decl.name;
+        if (rhs->data.tag == NodeType_TAG_StructDef) {
+            fprintf(f, "\nclass %s(ctypes.Structure):\n", name->c_str);
+            fprintf(f, "    pass\n");
+        } else if (rhs->data.tag == NodeType_TAG_EnumDef) {
+            fprintf(f, "\nclass %s(ctypes.Structure):\n", name->c_str);
+            fprintf(f, "    pass\n");
+        }
+    }
+    fprintf(f, "\n");
+
+    // --- Emit struct field definitions and enum definitions ---
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->is_core) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl) continue;
+        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+        Str *name = &stmt->data.data.Decl.name;
+
+        if (rhs->data.tag == NodeType_TAG_StructDef) {
+            Expr *body = Expr_child(rhs, &(USize){(USize)(0)});
+            fprintf(f, "\n%s._fields_ = [\n", name->c_str);
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = Expr_child(body, &(USize){(USize)(j)});
+                if (field->data.data.Decl.is_namespace) continue;
+                // Determine ctypes type for field
+                Str *ftype = field->data.data.Decl.explicit_type.count > 0
+                    ? &field->data.data.Decl.explicit_type : NULL;
+                const char *ct;
+                if (ftype) {
+                    ct = type_name_to_ctypes_param(ftype, 0);
+                } else {
+                    switch (field->til_type.tag) {
+                    case TilType_TAG_I64: ct = "ctypes.POINTER(ctypes.c_longlong)"; break;
+                    case TilType_TAG_U8:  ct = "ctypes.POINTER(ctypes.c_ubyte)"; break;
+                    case TilType_TAG_I16: ct = "ctypes.POINTER(ctypes.c_short)"; break;
+                    case TilType_TAG_I32: ct = "ctypes.POINTER(ctypes.c_int)"; break;
+                    case TilType_TAG_U32: ct = "ctypes.POINTER(ctypes.c_uint)"; break;
+                    case TilType_TAG_U64: ct = "ctypes.POINTER(ctypes.c_ulonglong)"; break;
+                    case TilType_TAG_F32: ct = "ctypes.POINTER(ctypes.c_float)"; break;
+                    case TilType_TAG_Bool: ct = "ctypes.POINTER(ctypes.c_bool)"; break;
+                    default: ct = "ctypes.c_void_p"; break;
+                    }
+                }
+                fprintf(f, "    ('%s', %s),\n", field->data.data.Decl.name.c_str, ct);
+            }
+            fprintf(f, "]\n");
+
+        } else if (rhs->data.tag == NodeType_TAG_EnumDef) {
+            Expr *body = Expr_child(rhs, &(USize){(USize)(0)});
+            Bool hp = enum_has_payloads(rhs);
+
+            // Emit tag constants
+            I32 tag = 0;
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *v = Expr_child(body, &(USize){(USize)(j)});
+                if (v->data.data.Decl.is_namespace) continue;
+                fprintf(f, "%s_TAG_%s = %d\n", name->c_str, v->data.data.Decl.name.c_str, tag);
+                tag++;
+            }
+
+            // Emit union if has payloads
+            if (hp) {
+                fprintf(f, "\nclass %s_data(ctypes.Union):\n", name->c_str);
+                fprintf(f, "    _fields_ = [\n");
+                for (U32 j = 0; j < body->children.count; j++) {
+                    Expr *v = Expr_child(body, &(USize){(USize)(j)});
+                    if (v->data.data.Decl.is_namespace) continue;
+                    if (v->data.data.Decl.explicit_type.count > 0) {
+                        fprintf(f, "        ('%s', %s),\n",
+                                v->data.data.Decl.name.c_str,
+                                type_name_to_ctypes_param(&v->data.data.Decl.explicit_type, 0));
+                    }
+                }
+                fprintf(f, "    ]\n");
+            }
+
+            // Emit enum struct _fields_
+            fprintf(f, "\n%s._fields_ = [\n", name->c_str);
+            fprintf(f, "    ('tag', ctypes.c_int),\n");
+            if (hp) {
+                fprintf(f, "    ('data', %s_data),\n", name->c_str);
+            }
+            fprintf(f, "]\n");
+        }
+    }
+    fprintf(f, "\n");
+
+    // --- Emit function bindings ---
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->is_core) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl) continue;
+        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+        Str *name = &stmt->data.data.Decl.name;
+
+        if (rhs->data.tag == NodeType_TAG_StructDef || rhs->data.tag == NodeType_TAG_EnumDef) {
+            // Emit namespace method bindings
+            Expr *body = Expr_child(rhs, &(USize){(USize)(0)});
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = Expr_child(body, &(USize){(USize)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != NodeType_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
+                FuncType fft = fdef->data.data.FuncDef.func_type;
+                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
+
+                const char *c_name_prefix = (const char *)name->c_str;
+                const char *method_name = (const char *)field->data.data.Decl.name.c_str;
+
+                // argtypes
+                fprintf(f, "_lib.%s_%s.argtypes = [", c_name_prefix, method_name);
+                for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
+                    if (p > 0) fprintf(f, ", ");
+                    Param *pp = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
+                    fprintf(f, "%s", type_name_to_ctypes_param(&pp->ptype, PARAM_IS_SHALLOW(pp)));
+                }
+                fprintf(f, "]\n");
+
+                // restype
+                if (fdef->data.data.FuncDef.return_type.count > 0) {
+                    Bool ret_shallow = RETURN_IS_SHALLOW(&fdef->data.data.FuncDef);
+                    fprintf(f, "_lib.%s_%s.restype = %s\n",
+                            c_name_prefix, method_name,
+                            type_name_to_ctypes_return(&fdef->data.data.FuncDef.return_type, ret_shallow));
+                } else {
+                    fprintf(f, "_lib.%s_%s.restype = None\n", c_name_prefix, method_name);
+                }
+                fprintf(f, "\n");
+            }
+
+        } else if (rhs->data.tag == NodeType_TAG_FuncDef) {
+            FuncType fft = rhs->data.data.FuncDef.func_type;
+            if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
+            if (fft.tag == FuncType_TAG_Test) continue;
+
+            const char *c_name = func_to_c(name);
+
+            // argtypes
+            fprintf(f, "_lib.%s.argtypes = [", c_name);
+            for (U32 p = 0; p < rhs->data.data.FuncDef.nparam; p++) {
+                if (p > 0) fprintf(f, ", ");
+                Param *pp = (Param*)Vec_get(&rhs->data.data.FuncDef.params, &(USize){(USize)(p)});
+                I32 vi = rhs->data.data.FuncDef.variadic_index;
+                if ((I32)p == vi) {
+                    fprintf(f, "ctypes.POINTER(Array)");
+                } else {
+                    fprintf(f, "%s", type_name_to_ctypes_param(&pp->ptype, PARAM_IS_SHALLOW(pp)));
+                }
+            }
+            fprintf(f, "]\n");
+
+            // restype
+            if (rhs->data.data.FuncDef.return_type.count > 0) {
+                Bool ret_shallow = RETURN_IS_SHALLOW(&rhs->data.data.FuncDef);
+                fprintf(f, "_lib.%s.restype = %s\n", c_name,
+                        type_name_to_ctypes_return(&rhs->data.data.FuncDef.return_type, ret_shallow));
+            } else {
+                fprintf(f, "_lib.%s.restype = None\n", c_name);
+            }
+            fprintf(f, "\n");
+        }
+    }
+
+    // --- Emit enum auto-helper bindings (eq, constructors, is_Variant, get_Variant) ---
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->is_core) continue;
+        if (stmt->data.tag != NodeType_TAG_Decl) continue;
+        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+        if (rhs->data.tag != NodeType_TAG_EnumDef) continue;
+        Str *sname = &stmt->data.data.Decl.name;
+        Bool hp = enum_has_payloads(rhs);
+        Expr *ebody = Expr_child(rhs, &(USize){(USize)(0)});
+
+        // Find eq fdef to check return_is_shallow
+        Expr *eq_fdef = NULL;
+        for (U32 j = 0; j < ebody->children.count; j++) {
+            Expr *field = Expr_child(ebody, &(USize){(USize)(j)});
+            if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
+                Expr_child(field, &(USize){(USize)(0)})->data.tag == NodeType_TAG_FuncDef) {
+                eq_fdef = Expr_child(field, &(USize){(USize)(0)});
+                break;
+            }
+        }
+        Bool eq_shallow = eq_fdef && RETURN_IS_SHALLOW(&eq_fdef->data.data.FuncDef);
+        const char *eq_ret = eq_shallow ? "ctypes.c_bool" : "ctypes.POINTER(ctypes.c_bool)";
+
+        // eq
+        fprintf(f, "_lib.%s_eq.argtypes = [ctypes.POINTER(%s), ctypes.POINTER(%s)]\n",
+                sname->c_str, sname->c_str, sname->c_str);
+        fprintf(f, "_lib.%s_eq.restype = %s\n\n", sname->c_str, eq_ret);
+
+        // Per-variant helpers
+        for (U32 j = 0; j < ebody->children.count; j++) {
+            Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
+            if (v->data.data.Decl.is_namespace) continue;
+
+            if (hp) {
+                // is_Variant
+                fprintf(f, "_lib.%s_is_%s.argtypes = [ctypes.POINTER(%s)]\n",
+                        sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
+                fprintf(f, "_lib.%s_is_%s.restype = %s\n\n",
+                        sname->c_str, v->data.data.Decl.name.c_str, eq_ret);
+            }
+
+            if (v->data.data.Decl.explicit_type.count > 0) {
+                // Constructor: takes payload, returns POINTER(Enum)
+                fprintf(f, "_lib.%s_%s.argtypes = [%s]\n",
+                        sname->c_str, v->data.data.Decl.name.c_str,
+                        type_name_to_ctypes_param(&v->data.data.Decl.explicit_type, 0));
+                fprintf(f, "_lib.%s_%s.restype = ctypes.POINTER(%s)\n\n",
+                        sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
+                // get_Variant
+                fprintf(f, "_lib.%s_get_%s.argtypes = [ctypes.POINTER(%s)]\n",
+                        sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
+                fprintf(f, "_lib.%s_get_%s.restype = %s\n\n",
+                        sname->c_str, v->data.data.Decl.name.c_str,
+                        type_name_to_ctypes_param(&v->data.data.Decl.explicit_type, 0));
+            } else {
+                // Constructor: no args, returns POINTER(Enum)
+                fprintf(f, "_lib.%s_%s.argtypes = []\n",
+                        sname->c_str, v->data.data.Decl.name.c_str);
+                fprintf(f, "_lib.%s_%s.restype = ctypes.POINTER(%s)\n\n",
+                        sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
+            }
+        }
+    }
+
+    fclose(f);
+    return 0;
+}
+
 I32 compile_lib(Str *c_path, Str *lib_name,
                 Str *ext_c_path, Str *user_c_path,
                 Str *link_flags) {
