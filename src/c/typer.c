@@ -28,6 +28,7 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
     if (Str_eq_c(name, "EnumDef"))      return TIL_TYPE_ENUM_DEF;
     if (Str_eq_c(name, "FunctionDef"))  return TIL_TYPE_FUNC_DEF;
+    if (Str_eq_c(name, "Fn"))          return TIL_TYPE_FUNC_PTR;
     if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
     // Check scope for user-defined struct/enum types
     if (scope) {
@@ -104,6 +105,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             TypeBinding *b = tscope_find(scope, e->type.str_val);
             if (b) e->struct_name = b->struct_name;
         }
+        // Function references: identifier refers to a function → Fn type
+        {
+            TypeBinding *fb = tscope_find(scope, e->type.str_val);
+            if (fb && fb->func_def) {
+                e->til_type = TIL_TYPE_FUNC_PTR;
+            }
+        }
         // Struct type names: allow field access for namespace fields
         TypeBinding *ib = tscope_find(scope, e->type.str_val);
         if (ib && ib->struct_def) {
@@ -166,6 +174,12 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     if (pt == TIL_TYPE_STRUCT || pt == TIL_TYPE_ENUM) {
                         TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
                         if (pb) pb->struct_name = ptn;
+                    }
+                    // For Fn-typed params with signature, propagate func_def
+                    if (pt == TIL_TYPE_FUNC_PTR && e->type.func_def.param_fn_sigs &&
+                        e->type.func_def.param_fn_sigs[i]) {
+                        TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
+                        if (pb) pb->func_def = e->type.func_def.param_fn_sigs[i];
                     }
                 }
             }
@@ -817,16 +831,61 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             snprintf(buf, sizeof(buf), "undefined function '%s'", name->c_str);
             type_error(e, buf);
         }
-        e->til_type = fn_type;
-        // Propagate struct_name for struct-returning functions
-        if ((fn_type == TIL_TYPE_STRUCT || fn_type == TIL_TYPE_ENUM) && callee_bind && callee_bind->func_def &&
-            callee_bind->func_def->type.func_def.return_type) {
-            e->struct_name = callee_bind->func_def->type.func_def.return_type;
+        // Function pointer call: resolve return type from func_def if available
+        if (fn_type == TIL_TYPE_FUNC_PTR) {
+            expr_child(e, 0)->til_type = TIL_TYPE_FUNC_PTR; // mark callee for builder
+            // Store signature on FCALL for builder to use
+            if (callee_bind && callee_bind->func_def)
+                e->fn_sig = callee_bind->func_def;
+            if (callee_bind && callee_bind->func_def &&
+                callee_bind->func_def->type.func_def.return_type) {
+                TilType rt = type_from_name(callee_bind->func_def->type.func_def.return_type, scope);
+                e->til_type = rt;
+                if ((rt == TIL_TYPE_STRUCT || rt == TIL_TYPE_ENUM))
+                    e->struct_name = callee_bind->func_def->type.func_def.return_type;
+            } else {
+                e->til_type = TIL_TYPE_DYNAMIC;
+            }
+            // Type check: verify argument count and types against signature
+            if (callee_bind && callee_bind->func_def) {
+                Expr *sig = callee_bind->func_def;
+                U32 nargs = e->children.count - 1;
+                if (nargs != sig->type.func_def.nparam) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "function pointer '%s' expects %u args, got %u",
+                             name->c_str, sig->type.func_def.nparam, nargs);
+                    type_error(e, buf);
+                }
+                for (U32 ai = 0; ai < nargs && ai < sig->type.func_def.nparam; ai++) {
+                    Expr *arg = expr_child(e, ai + 1);
+                    Str *expected_name = sig->type.func_def.param_types[ai];
+                    if (!expected_name) continue;
+                    TilType expected = type_from_name(expected_name, scope);
+                    if (expected == TIL_TYPE_UNKNOWN || expected == TIL_TYPE_DYNAMIC) continue;
+                    if (arg->til_type == TIL_TYPE_DYNAMIC) continue;
+                    if (arg->til_type != expected) {
+                        char buf[256];
+                        snprintf(buf, sizeof(buf), "function pointer '%s' param %u: expected %s, got %s",
+                                 name->c_str, ai + 1, expected_name->c_str,
+                                 til_type_name_c(arg->til_type));
+                        type_error(e, buf);
+                    }
+                }
+            }
+        } else {
+            e->til_type = fn_type;
+            // Propagate struct_name for struct-returning functions
+            if ((fn_type == TIL_TYPE_STRUCT || fn_type == TIL_TYPE_ENUM) && callee_bind && callee_bind->func_def &&
+                callee_bind->func_def->type.func_def.return_type) {
+                e->struct_name = callee_bind->func_def->type.func_def.return_type;
+            }
         }
         // Check: func cannot call proc (panic is exempt; print/println exempt in debug_prints modes)
+        // Skip for function pointer calls (callee proc-ness unknown at compile time)
         Bool debug_exempt = current_mode && current_mode->debug_prints &&
             (Str_eq_c(name, "print") || Str_eq_c(name, "println"));
-        if (in_func && tscope_is_proc(scope, name) == 1 && !Str_eq_c(name, "panic") && !debug_exempt) {
+        if (fn_type != TIL_TYPE_FUNC_PTR &&
+            in_func && tscope_is_proc(scope, name) == 1 && !Str_eq_c(name, "panic") && !debug_exempt) {
             char buf[128];
             snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name->c_str);
             type_error(e, buf);
@@ -2389,6 +2448,17 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 TypeBinding *b = tscope_find(scope, stmt->type.decl.name);
                 if (b) b->struct_name = expr_child(stmt, 0)->struct_name;
             }
+            // For function pointer variables, propagate func_def from source or fn_sig
+            if (stmt->til_type == TIL_TYPE_FUNC_PTR) {
+                TypeBinding *dst = tscope_find(scope, stmt->type.decl.name);
+                // Explicit Fn signature on decl takes priority
+                if (dst && stmt->type.decl.fn_sig) {
+                    dst->func_def = stmt->type.decl.fn_sig;
+                } else if (dst && expr_child(stmt, 0)->type.tag == NODE_IDENT) {
+                    TypeBinding *src = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
+                    if (src && src->func_def) dst->func_def = src->func_def;
+                }
+            }
             if (stmt->type.decl.is_ref) {
                 TypeBinding *b = tscope_find(scope, stmt->type.decl.name);
                 if (b) b->is_ref = 1;
@@ -2408,11 +2478,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 fcall_returns_ref(expr_child(stmt, 0), scope)) {
                 type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()");
             }
-            // Auto-alias: immutable ident → immutable dest becomes ref
+            // Auto-alias: immutable ident → immutable dest becomes ref (skip for Fn)
             // Eligible sources: immutable locals, immutable params, other auto-aliases
             // Excluded: mut (value can change), own (ownership transfer),
             //           explicit ref (user intends to clone from borrowed value)
             if (!stmt->type.decl.is_ref && !stmt->type.decl.is_mut &&
+                stmt->til_type != TIL_TYPE_FUNC_PTR &&
                 expr_child(stmt, 0)->type.tag == NODE_IDENT) {
                 TypeBinding *rb = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
                 if (rb && !rb->is_mut && !rb->is_own &&

@@ -361,6 +361,8 @@ Value clone_value(Value v) {
     }
     case VAL_PTR:
         return (Value){.type = VAL_PTR, .ptr = v.ptr};
+    case VAL_FUNC:
+        return (Value){.type = VAL_FUNC, .func = v.func};
     case VAL_NONE: return val_none();
     default:       return val_none();
     }
@@ -383,6 +385,8 @@ void free_value(Value v) {
         break;
     case VAL_PTR:
         break; // borrowed pointer into buffer, nothing to free
+    case VAL_FUNC:
+        break; // function pointer: borrowed reference to AST, nothing to free
     default: break;
     }
 }
@@ -403,6 +407,7 @@ Bool values_equal(Value a, Value b) {
         if (a.enum_inst->tag != b.enum_inst->tag) return 0;
         return values_equal(a.enum_inst->payload, b.enum_inst->payload);
     case VAL_PTR:  return a.ptr == b.ptr;
+    case VAL_FUNC: return a.func == b.func;
     case VAL_NONE:
         return 1;
     default:       return 0;
@@ -793,7 +798,8 @@ static void eval_body(Scope *scope, Expr *body) {
                         exit(1);
                     }
                     val = src->val;
-                    src->val = val_none();
+                    if (val.type != VAL_FUNC)
+                        src->val = val_none();
                 } else {
                     val = eval_expr(scope,rhs);
                 }

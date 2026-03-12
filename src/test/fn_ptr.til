@@ -1,0 +1,53 @@
+mode test
+
+fn_double := func(n: I64) returns I64 {
+    return n.mul(2)
+}
+
+fn_add := func(a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
+
+fn_negate := func(n: I64) returns I64 {
+    return 0.sub(n)
+}
+
+greet := proc(mut x: I64) {
+    x = x.add(100)
+}
+
+apply := func(f: Fn(I64) returns I64, x: I64) returns I64 {
+    return f(x)
+}
+
+apply2 := func(f: Fn(I64, I64) returns I64, a: I64, b: I64) returns I64 {
+    return f(a, b)
+}
+
+mutate := proc(f: Fn(mut I64), mut x: I64) {
+    f(x)
+}
+
+test_basic_fn_ptr := test() {
+    f := fn_double
+    assert_eq(__LOC__, f(5), 10)
+    assert_eq(__LOC__, f(0), 0)
+    assert_eq(__LOC__, f(3), 6)
+}
+
+test_pass_fn_as_arg := test() {
+    assert_eq(__LOC__, apply(fn_double, 5), 10)
+    assert_eq(__LOC__, apply(fn_double, 3), 6)
+    assert_eq(__LOC__, apply(fn_negate, 7), 0.sub(7))
+}
+
+test_pass_fn_two_args := test() {
+    assert_eq(__LOC__, apply2(fn_add, 3, 4), 7)
+    assert_eq(__LOC__, apply2(fn_add, 10, 20), 30)
+}
+
+test_fn_ptr_mut_param := test() {
+    mut val := 42
+    mutate(greet, val)
+    assert_eq(__LOC__, val, 142)
+}

@@ -59,6 +59,7 @@ typedef enum {
     TIL_TYPE_ENUM,
     TIL_TYPE_ENUM_DEF,
     TIL_TYPE_FUNC_DEF,
+    TIL_TYPE_FUNC_PTR,  // function pointer (first-class function value)
     TIL_TYPE_DYNAMIC,
 } TilType;
 
@@ -81,6 +82,7 @@ typedef struct {
             I32 field_offset;      // byte offset in flat struct layout (set by initer)
             I32 field_size;        // byte size of this field in flat layout
             Expr *field_struct_def; // for inline struct fields: nested struct's NODE_STRUCT_DEF
+            Expr *fn_sig;          // for Fn(T1,T2) returns T: synthetic func_def
         } decl;
         struct {                    // for FUNC_DEF
             FuncType func_type;
@@ -89,6 +91,7 @@ typedef struct {
             bool *param_muts;        // true for mut params
             bool *param_owns;        // true for own params
             bool *param_shallows;    // true for shallow params (pass by value)
+            Expr **param_fn_sigs;    // for Fn-typed params: synthetic func_def, NULL otherwise
             U32 nparam;
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             Str *return_type;      // NULL if none (proc)
@@ -114,6 +117,7 @@ struct Expr {
     I32 total_struct_size;          // NODE_STRUCT_DEF: total byte size of flat buffer
     I32 variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
     U32 variadic_count;             // NODE_FCALL: number of variadic args
+    Expr *fn_sig;                   // NODE_FCALL: function pointer signature (for indirect calls)
     Vec children;                   // Vec of Expr* child pointers
     U32 line;
     U32 col;

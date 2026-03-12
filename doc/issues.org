@@ -254,15 +254,6 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-** OPEN #14 Function pointers: first-class functions as values
-  til currently has no way to pass functions as values. func/proc
-  definitions are bound to names and can only be called directly.
-  Function pointers would allow storing and passing functions as
-  arguments — needed for comparators (Map), callbacks, and generic
-  algorithms.
-
-  Blocks Map (needs comparator), generic sort, event handlers,
-  and many patterns needed for self-hosting (visitor, dispatch tables).
 
 *** Function type syntax (FuncSig)
 

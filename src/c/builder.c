@@ -112,6 +112,7 @@ static const char *c_type_name(TilType t, Str *struct_name);
 static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth);
 static I32 _ctor_seq;
 static const char *type_name_to_c_value(Str *name);
+static const char *til_type_to_c(TilType t);
 
 // Track current function being emitted (for shallow param lookup)
 static Expr *current_fdef = NULL;
@@ -166,22 +167,26 @@ static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
 static void check_fcall_mut_args(Expr *e) {
     if (!e) return;
     if (e->type.tag == NODE_FCALL) {
-        Bool allocated = 0;
-        Str *callee = resolve_callee_name(e, &allocated);
-        if (callee) {
-            Expr *fdef = find_callee_fdef(callee);
-            if (fdef && fdef->type.func_def.param_muts) {
-                for (U32 a = 1; a < e->children.count; a++) {
-                    U32 pi = a - 1;
-                    if (pi < fdef->type.func_def.nparam && fdef->type.func_def.param_muts[pi]) {
-                        Expr *arg = expr_child(e, a);
-                        if (arg->type.tag == NODE_IDENT) {
-                            Set_add(&unsafe_to_hoist, Str_new((const char *)arg->type.str_val->c_str));
-                        }
+        // Check fn_sig for function pointer calls
+        Expr *fdef = e->fn_sig;
+        if (!fdef) {
+            Bool allocated = 0;
+            Str *callee = resolve_callee_name(e, &allocated);
+            if (callee) {
+                fdef = find_callee_fdef(callee);
+                if (allocated) Str_delete(callee, &(Bool){1});
+            }
+        }
+        if (fdef && fdef->type.func_def.param_muts) {
+            for (U32 a = 1; a < e->children.count; a++) {
+                U32 pi = a - 1;
+                if (pi < fdef->type.func_def.nparam && fdef->type.func_def.param_muts[pi]) {
+                    Expr *arg = expr_child(e, a);
+                    if (arg->type.tag == NODE_IDENT) {
+                        Set_add(&unsafe_to_hoist, Str_new((const char *)arg->type.str_val->c_str));
                     }
                 }
             }
-            if (allocated) Str_delete(callee, &(Bool){1});
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
@@ -335,7 +340,12 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         fprintf(f, "NULL");
         break;
     case NODE_IDENT:
-        fprintf(f, "%s", e->type.str_val->c_str);
+        if (e->til_type == TIL_TYPE_FUNC_PTR) {
+            // Function name used as value — cast to void* for function pointer storage
+            fprintf(f, "(void *)%s", func_to_c(e->type.str_val));
+        } else {
+            fprintf(f, "%s", e->type.str_val->c_str);
+        }
         break;
     case NODE_FCALL: {
         // Namespace method call: Struct.method(args)
@@ -397,6 +407,48 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             snprintf(tmp, sizeof(tmp), "_sc%d", id);
             emit_ctor_fields(f, tmp, e, depth);
             fprintf(f, " _sc%d; })", id);
+        } else if (expr_child(e, 0)->til_type == TIL_TYPE_FUNC_PTR) {
+            // Indirect call through function pointer variable
+            // Emit: ((ret_type (*)(param_types))fn_ptr)(args)
+            const char *ret_c = "void *";
+            if (e->til_type != TIL_TYPE_NONE && e->til_type != TIL_TYPE_UNKNOWN &&
+                e->til_type != TIL_TYPE_DYNAMIC) {
+                ret_c = til_type_to_c(e->til_type);
+                if ((e->til_type == TIL_TYPE_STRUCT || e->til_type == TIL_TYPE_ENUM) && e->struct_name) {
+                    static char ret_buf[128];
+                    snprintf(ret_buf, sizeof(ret_buf), "%s", e->struct_name->c_str);
+                    ret_c = ret_buf;
+                }
+                // Return is a pointer (all til functions return pointers)
+                static char ret_ptr_buf[256];
+                snprintf(ret_ptr_buf, sizeof(ret_ptr_buf), "%s *", ret_c);
+                ret_c = ret_ptr_buf;
+            }
+            fprintf(f, "((%s (*)(", ret_c);
+            for (U32 i = 1; i < e->children.count; i++) {
+                if (i > 1) fprintf(f, ", ");
+                Expr *arg = expr_child(e, i);
+                const char *arg_c = "void *";
+                if (arg->til_type != TIL_TYPE_UNKNOWN && arg->til_type != TIL_TYPE_DYNAMIC) {
+                    arg_c = til_type_to_c(arg->til_type);
+                    if ((arg->til_type == TIL_TYPE_STRUCT || arg->til_type == TIL_TYPE_ENUM) && arg->struct_name) {
+                        static char arg_buf[128];
+                        snprintf(arg_buf, sizeof(arg_buf), "%s", arg->struct_name->c_str);
+                        arg_c = arg_buf;
+                    }
+                    static char arg_ptr_buf[256];
+                    snprintf(arg_ptr_buf, sizeof(arg_ptr_buf), "%s *", arg_c);
+                    arg_c = arg_ptr_buf;
+                }
+                fprintf(f, "%s", arg_c);
+            }
+            if (e->children.count == 1) fprintf(f, "void");
+            fprintf(f, "))%s)(", name->c_str);
+            for (U32 i = 1; i < e->children.count; i++) {
+                if (i > 1) fprintf(f, ", ");
+                emit_as_ptr(f, expr_child(e, i), depth);
+            }
+            fprintf(f, ")");
         } else {
             // User-defined function call
             fprintf(f, "%s(", func_to_c(name));
@@ -443,9 +495,10 @@ static const char *til_type_to_c(TilType t) {
     case TIL_TYPE_U64:  return "U64";
     case TIL_TYPE_F32:  return "F32";
     case TIL_TYPE_BOOL: return "Bool";
-    case TIL_TYPE_NONE:    return "void";
-    case TIL_TYPE_DYNAMIC: return "void *";
-    default:               return "I64"; // fallback
+    case TIL_TYPE_NONE:     return "void";
+    case TIL_TYPE_DYNAMIC:  return "void *";
+    case TIL_TYPE_FUNC_PTR: return "void *"; // function pointer (opaque)
+    default:                return "I64"; // fallback
     }
 }
 
@@ -471,6 +524,7 @@ static const char *type_name_to_c(Str *name) {
     if (Str_eq_c(name, "F32"))  return "F32 *";
     if (Str_eq_c(name, "Bool")) return "Bool *";
     if (Str_eq_c(name, "Dynamic")) return "void *";
+    if (Str_eq_c(name, "Fn"))      return "void *"; // function pointer (opaque)
     // User-defined struct type — pointer
     static char buf[128];
     snprintf(buf, sizeof(buf), "%s *", name->c_str);
@@ -487,6 +541,7 @@ static const char *type_name_to_c_value(Str *name) {
     if (Str_eq_c(name, "U64"))  return "U64";
     if (Str_eq_c(name, "F32"))  return "F32";
     if (Str_eq_c(name, "Bool")) return "Bool";
+    if (Str_eq_c(name, "Fn"))   return "void *"; // function pointer (opaque)
     static char buf2[128];
     snprintf(buf2, sizeof(buf2), "%s", name->c_str);
     return buf2;
@@ -699,7 +754,14 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
     emit_indent(f, depth);
     switch (e->type.tag) {
     case NODE_DECL:
-        if (expr_child(e, 0)->type.tag == NODE_FUNC_DEF) {
+        if (e->til_type == TIL_TYPE_FUNC_PTR && expr_child(e, 0)->type.tag != NODE_FUNC_DEF) {
+            // Function pointer variable: void *f = (void *)func_name;
+            fprintf(f, "void *%s = ", e->type.decl.name->c_str);
+            emit_expr(f, expr_child(e, 0), depth);
+            fprintf(f, ";\n");
+            emit_indent(f, depth);
+            fprintf(f, "(void)%s;\n", e->type.decl.name->c_str);
+        } else if (expr_child(e, 0)->type.tag == NODE_FUNC_DEF) {
             fprintf(f, "/* TODO: nested func %s */\n", e->type.decl.name->c_str);
         } else if (expr_child(e, 0)->type.tag == NODE_STRUCT_DEF ||
                    expr_child(e, 0)->type.tag == NODE_ENUM_DEF) {

@@ -101,6 +101,24 @@
   aliases, alias chaining, deep chains, returned aliases, mut exclusion,
   struct field cloning, param cloning).
 
+* FIXED #14 Function pointers: first-class functions as values
+  Implemented function pointer support with parameterized Fn type:
+  - Type syntax: Fn(I64, I64) returns I64, Fn(mut I64), bare Fn
+  - Parser: parse_fn_signature parses Fn(types) returns Type in
+    parameter types and declaration type annotations
+  - AST: fn_sig field on decl and param_fn_sigs on func_def store
+    parsed signatures; fn_sig on Expr for FCALL nodes
+  - Typer: identifier references to func/proc defs resolve to Fn type,
+    func_def propagation from source binding or explicit Fn signature,
+    argument count/type checking at call sites, skip auto-alias
+  - Interpreter: VAL_FUNC clone/free/equal, skip move semantics for
+    VAL_FUNC values (function defs are borrowed, not consumed)
+  - Builder: void* representation for function pointers, cast-based
+    indirect calls with inferred return/parameter types, unsafe-to-hoist
+    check for mut params through function pointers
+  - Tests: src/test/fn_ptr.til (basic fn ptr, pass fn as arg with
+    1 and 2 params, mut param through function pointer)
+
 * FIXED #45 Zero compiler warnings everywhere
   Eliminated all 6 -Wno-* warning suppressions from the Makefile and
   builder.c. All generated C code now compiles clean with -Wall -Wextra

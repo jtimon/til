@@ -61,6 +61,58 @@ static Expr *parse_block(Parser *p) {
     return body;
 }
 
+// parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
+// Returns a synthetic NODE_FUNC_DEF Expr with param_types and return_type,
+// or NULL if not followed by '(' (bare "Fn" type).
+static Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
+    if (!check(p, TokenType_TAG_LParen)) return NULL;
+    advance(p); // consume '('
+
+    // Parse parameter types: [mut] Type, [mut] Type, ...
+    Vec ptypes; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); ptypes = *_vp; free(_vp); }
+    Vec pmuts; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(bool)}); pmuts = *_vp; free(_vp); }
+    while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
+        bool is_mut = false;
+        if (check(p, TokenType_TAG_KwMut)) {
+            advance(p);
+            is_mut = true;
+        }
+        Token *ptype = expect(p, TokenType_TAG_Ident);
+        Str *tp = tok_str(ptype);
+        { Str **_p = malloc(sizeof(Str *)); *_p = tp; Vec_push(&ptypes, _p); }
+        { bool *_p = malloc(sizeof(bool)); *_p = is_mut; Vec_push(&pmuts, _p); }
+        if (check(p, TokenType_TAG_Comma)) advance(p);
+    }
+    expect(p, TokenType_TAG_RParen);
+
+    // Parse optional 'returns Type'
+    Str *return_type = NULL;
+    if (check(p, TokenType_TAG_KwReturns)) {
+        advance(p);
+        Token *rt = expect(p, TokenType_TAG_Ident);
+        return_type = tok_str(rt);
+    }
+
+    // Build synthetic func_def
+    Expr *sig = expr_new(NODE_FUNC_DEF, line, col, p->path);
+    sig->type.func_def.func_type = return_type ? FUNC_FUNC : FUNC_PROC;
+    sig->type.func_def.nparam = ptypes.count;
+    sig->type.func_def.param_types = Vec_take(&ptypes);
+    sig->type.func_def.param_muts = Vec_take(&pmuts);
+    // Allocate empty arrays for required fields
+    sig->type.func_def.param_names = calloc(ptypes.count, sizeof(Str *));
+    sig->type.func_def.param_owns = calloc(ptypes.count, sizeof(bool));
+    sig->type.func_def.param_shallows = calloc(ptypes.count, sizeof(bool));
+    sig->type.func_def.param_defaults = calloc(ptypes.count, sizeof(Expr *));
+    sig->type.func_def.param_fn_sigs = NULL;
+    sig->type.func_def.return_type = return_type;
+    sig->type.func_def.variadic_index = -1;
+    sig->type.func_def.return_is_ref = false;
+    sig->type.func_def.return_is_shallow = false;
+    // No body — this is just a type signature
+    return sig;
+}
+
 // parse_func_def: current token is func/proc/etc
 static Expr *parse_func_def(Parser *p) {
     Token *kw = advance(p); // consume func/proc/etc
@@ -87,6 +139,7 @@ static Expr *parse_func_def(Parser *p) {
     Vec powns; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(bool)}); powns = *_vp; free(_vp); }
     Vec pdefs; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); pdefs = *_vp; free(_vp); }
     Vec pshallows; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(bool)}); pshallows = *_vp; free(_vp); }
+    Vec pfnsigs; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); pfnsigs = *_vp; free(_vp); }
     I32 variadic_index = -1;
     while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
         bool is_shallow = false;
@@ -135,11 +188,17 @@ static Expr *parse_func_def(Parser *p) {
         Token *ptype = expect(p, TokenType_TAG_Ident);
         Str *nm = tok_str(pname);
         Str *tp = tok_str(ptype);
+        // If type is Fn, try to parse Fn(T1, T2) returns T signature
+        Expr *fn_sig = NULL;
+        if (Str_eq_c(tp, "Fn")) {
+            fn_sig = parse_fn_signature(p, ptype->line, ptype->col);
+        }
         { Str **_p = malloc(sizeof(Str *)); *_p = nm; Vec_push(&pnames, _p); }
         { Str **_p = malloc(sizeof(Str *)); *_p = tp; Vec_push(&ptypes, _p); }
         { bool *_p = malloc(sizeof(bool)); *_p = is_mut; Vec_push(&pmuts, _p); }
         { bool *_p = malloc(sizeof(bool)); *_p = is_own; Vec_push(&powns, _p); }
         { bool *_p = malloc(sizeof(bool)); *_p = is_shallow; Vec_push(&pshallows, _p); }
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = fn_sig; Vec_push(&pfnsigs, _p); }
         // Optional default value: name: Type = expr
         Expr *def_val = NULL;
         if (check(p, TokenType_TAG_Eq)) {
@@ -181,6 +240,7 @@ static Expr *parse_func_def(Parser *p) {
     def->type.func_def.param_muts = Vec_take(&pmuts);
     def->type.func_def.param_owns = Vec_take(&powns);
     def->type.func_def.param_shallows = Vec_take(&pshallows);
+    def->type.func_def.param_fn_sigs = Vec_take(&pfnsigs);
     def->type.func_def.param_defaults = Vec_take(&pdefs);
     def->type.func_def.return_type = return_type;
     def->type.func_def.return_is_ref = return_is_ref;
@@ -500,10 +560,16 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         Token *type_tok = peek(p);
         Str *type_name = tok_str(type_tok);
         advance(p); // consume type name
+        // If type is Fn, parse optional Fn(T1, T2) returns T signature
+        Expr *fn_sig = NULL;
+        if (Str_eq_c(type_name, "Fn")) {
+            fn_sig = parse_fn_signature(p, type_tok->line, type_tok->col);
+        }
         expect(p, TokenType_TAG_Eq); // consume =
         Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->path);
         decl->type.decl.name = name;
         decl->type.decl.explicit_type = type_name;
+        decl->type.decl.fn_sig = fn_sig;
         decl->type.decl.is_mut = is_mut;
         decl->type.decl.is_own = is_own;
         expr_add_child(decl, parse_expression(p));

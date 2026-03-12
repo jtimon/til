@@ -19,6 +19,7 @@ const char *til_type_name_c(TilType t) {
     case TIL_TYPE_ENUM:        return "Enum";
     case TIL_TYPE_ENUM_DEF:    return "EnumDef";
     case TIL_TYPE_FUNC_DEF:    return "FunctionDef";
+    case TIL_TYPE_FUNC_PTR:    return "Fn";
     case TIL_TYPE_DYNAMIC:     return "Dynamic";
     }
     return "?";
