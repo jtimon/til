@@ -1,5 +1,74 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #17 Global variable access
+  :DEPENDENCIES_OF: #12 #13
+  Variables declared in script-mode root scope (or any outer scope) were
+  invisible at runtime inside function/proc bodies. The typer passed
+  (TypeScope chains via parent pointers and finds the variable), but the
+  interpreter crashed or errored.
+
+  Reproduction: src/test/globals.til, src/test/globals_cli.til
+
+  func case: "error: undefined variable 'x'" — clean error from NODE_IDENT
+  NULL check. proc case: SEGFAULT — NODE_DECL move-semantics path had no
+  NULL check on scope_get result.
+
+** Root cause
+
+   expr_uses_var() in typer.c returned 0 for NODE_FUNC_DEF, meaning the
+   ASAP pass didn't see variable references inside nested function/proc
+   bodies. When x was declared at top level and referenced only inside a
+   proc body, ASAP thought x was unused and inserted I64.delete(x) right
+   after the declaration. When the proc later ran and tried to access x,
+   the value had already been freed/nulled.
+
+   func case: I64.clone(x) inside the function body tried to clone x
+   whose value was val_none → clean "undefined variable" error (from
+   precomp, which also couldn't find x in its limited scope).
+
+   proc case: I64.clone(x) dereferenced v.i64 which was NULL → SEGFAULT.
+   The NODE_DECL move-semantics path also lacked a NULL check on
+   scope_get result, which was a secondary crash path.
+
+   Secondary issue: precomp created its own interpreter scope with only
+   func/struct/enum defs (no variable decls), then tried to fold pure
+   func calls. If the func accessed a global variable, precomp's
+   eval_expr hit the error path and exit(1)d before the interpreter
+   even ran.
+
+** Fix
+
+   Program-scope globals live for the program's lifetime — they should
+   never be ASAP-deleted. The scavenger handles removing unused globals.
+
+   1. Skip ASAP deletion for program-scope variables: added skip_delete
+      flag to LocalInfo in typer.c. Variables with a declaration at program
+      scope (is_program_scope && decl_idx >= 0) get skip_delete=1. The
+      ownership-transfer check still runs for them (use-after-own errors),
+      but no delete calls are inserted. Variables captured by nested
+      functions also get skip_delete=1 (expr_used_in_nested_func check).
+   2. Added NULL check in interpreter.c NODE_DECL move-semantics path.
+   3. Fixed precomp: added func_uses_unknown_globals() to skip folding
+      func calls whose body references variables not in the precomp scope.
+      Also made track_literal() populate the precomp interpreter scope
+      with known constant values (not just the known map).
+   4. Fixed builder: top-level variable declarations are emitted as
+      file-scope C globals (before function definitions) so they're
+      accessible from emitted til functions/procs. This is necessary
+      because til functions are emitted as separate C functions, and C
+      doesn't support nested functions capturing locals — so top-level
+      vars must be file-scope for functions to reference them. The
+      values are then assigned inside main() where initialization runs.
+      In cli mode, globals are initialized at the start of main()
+      before the user's main body.
+      Note: ref declarations are skipped from file-scope globals since
+      they are pointer aliases (local to main), not owned values that
+      other functions need to access.
+
+   Tests: src/test/globals.til (script mode), src/test/globals_cli.til (cli mode).
+
+   Explicit capture syntax split out as #54.
+
 * FIXED #28 Aliases: implicit ref for comptime-immutable declarations
   When ~a := b~ and b is provably immutable, ~a~ becomes an auto-alias
   (implicit ref — pointer to same storage) instead of a clone. The

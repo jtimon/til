@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 54
+# NEXT_ISSUE: 55
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -39,14 +39,12 @@
   issues. In the future, the ~shallow~ keyword could be computed automatically
   from this property plus size considerations.
 
-
 ** OPEN #46 Optimize Str with with_capacity in concat, join, etc.
   str.til methods like concat, join, and others build strings by repeated
   push_byte or append without pre-allocating. This causes excessive
   reallocations. Use Str.with_capacity to pre-compute the final size and
   allocate once upfront. Should measurably improve performance since Str
   operations are on the hot path for the compiler.
-
 
 ** WIP #39 Replace ctil with til (bottom-up C elimination)
   :DEPENDENCIES: #12
@@ -163,7 +161,6 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-
 ** OPEN #14 Function pointers: first-class functions as values
   til currently has no way to pass functions as values. func/proc
   definitions are bound to names and can only be called directly.
@@ -277,6 +274,36 @@
 
 
 * Post-self-hosting
+
+** OPEN #54 Explicit capture syntax
+  :DEPENDENCIES_OF: #12 #13
+  Add syntax for listing captured variables from outer scopes, both for
+  function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
+  Split from #17 (global variable access, now fixed).
+
+  Function captures (closures):
+    scale := 10
+    f := func(a: I64) captures scale returns I64 { return a.mul(scale) }
+
+  Capture modifiers (same as function arguments):
+    captures x         - const reference (default)
+    captures mut x     - mutable reference
+    captures own x     - ownership transfer
+
+  Block captures (restrict access):
+    captures total, data {
+        // can only see total and data, not other locals
+    }
+
+  This enables Jai-inspired mechanical refactoring:
+  inline code -> block with captures -> lambda -> pure function
+
+  Implementation:
+  - Parser: recognize ~captures~ keyword before { in func defs and bare blocks
+  - AST: store capture list on NODE_FUNC_DEF and NODE_BODY
+  - Typer: validate captures exist in outer scope, enforce modifier rules
+  - Interpreter: bind captured variables in call_scope from definition scope
+  - Codegen: emit closure structs or pass captures as hidden parameters
 
 ** OPEN #51 Add ~til test~ command
   Add a ~til test myfile.til~ command that finds all test() functions in
@@ -561,102 +588,6 @@
    Also: ~++~ / ~--~ as unary sugar for inc/dec (methods added in #34 Phase 2).
    ~i++~ → ~i = i.inc()~, ~i--~ → ~i = i.dec()~.
    ~+=~ / ~-=~ as compound assignment sugar: ~i += 1~ → ~i = i.add(1)~.
-** WIP #17 Global variable access, explicit capture syntax
-  :DEPENDENCIES_OF: #12 #13
-  Variables declared in script-mode root scope (or any outer scope) are
-  invisible at runtime inside function/proc bodies. The typer passes
-  (TypeScope chains via parent pointers and finds the variable), but the
-  interpreter crashes or errors.
-
-  Reproduction: src/test/globals.til, src/test/globals_cli.til
-
-  func case: "error: undefined variable 'x'" — clean error from NODE_IDENT
-  NULL check. proc case: SEGFAULT — NODE_DECL move-semantics path has no
-  NULL check on scope_get result.
-
-*** Root cause
-
-   expr_uses_var() in typer.c (line 1239) returns 0 for NODE_FUNC_DEF,
-   meaning the ASAP pass doesn't see variable references inside nested
-   function/proc bodies. When x is declared at top level and referenced
-   only inside a proc body, ASAP thinks x is unused and inserts
-   I64.delete(x) right after the declaration. When the proc later runs
-   and tries to access x, the value has already been freed/nulled.
-
-   func case: I64.clone(x) inside the function body tries to clone x
-   whose value is val_none → clean "undefined variable" error (from
-   precomp, which also can't find x in its limited scope).
-
-   proc case: I64.clone(x) dereferences v.i64 which is NULL → SEGFAULT.
-   The NODE_DECL move-semantics path also lacks a NULL check on
-   scope_get result, which would be a secondary crash path.
-
-   Secondary issue: precomp creates its own interpreter scope with only
-   func/struct/enum defs (no variable decls), then tries to fold pure
-   func calls. If the func accesses a global variable, precomp's
-   eval_expr hits the error path and exit(1)s before the interpreter
-   even runs.
-
-*** DONE Phase 1: Fix global variable access
-
-   Program-scope globals live for the program's lifetime — they should
-   never be ASAP-deleted. The scavenger handles removing unused globals.
-
-   1. Skip ASAP deletion for program-scope variables: added skip_delete
-      flag to LocalInfo in typer.c. Variables with a declaration at program
-      scope (is_program_scope && decl_idx >= 0) get skip_delete=1. The
-      ownership-transfer check still runs for them (use-after-own errors),
-      but no delete calls are inserted. Variables captured by nested
-      functions also get skip_delete=1 (expr_used_in_nested_func check).
-   2. Added NULL check in interpreter.c NODE_DECL move-semantics path.
-   3. Fixed precomp: added func_uses_unknown_globals() to skip folding
-      func calls whose body references variables not in the precomp scope.
-      Also made track_literal() populate the precomp interpreter scope
-      with known constant values (not just the known map).
-   4. Fixed builder: top-level variable declarations are emitted as
-      file-scope C globals (before function definitions) so they're
-      accessible from emitted til functions/procs. This is necessary
-      because til functions are emitted as separate C functions, and C
-      doesn't support nested functions capturing locals — so top-level
-      vars must be file-scope for functions to reference them. The
-      values are then assigned inside main() where initialization runs.
-      In cli mode, globals are initialized at the start of main()
-      before the user's main body.
-      Note: ref declarations are skipped from file-scope globals since
-      they are pointer aliases (local to main), not owned values that
-      other functions need to access.
-
-   Tests: src/test/globals.til (script mode), src/test/globals_cli.til (cli mode).
-
-*** Phase 2: Explicit capture syntax
-
-   Add syntax for listing captured variables from outer scopes, both for
-   function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
-
-   Function captures (closures):
-     scale := 10
-     f := func(a: I64) returns I64 [scale] { return a.mul(scale) }
-
-   Capture modifiers:
-     [x]      — const reference (default)
-     [mut x]  — mutable reference
-     [copy x] — snapshot (clone at capture time)
-     [own x]  — ownership transfer
-
-   Block captures (restrict access):
-     [total, data] {
-         // can only see total and data, not other locals
-     }
-
-   This enables Jai-inspired mechanical refactoring:
-   inline code -> block with captures -> lambda -> pure function
-
-   Implementation:
-   - Parser: recognize [ident, ...] before { in func defs and bare blocks
-   - AST: store capture list on NODE_FUNC_DEF and NODE_BODY
-   - Typer: validate captures exist in outer scope, enforce modifier rules
-   - Interpreter: bind captured variables in call_scope from definition scope
-   - Codegen: emit closure structs or pass captures as hidden parameters
 
 ** OPEN #10 REPL: interactive read-eval-print loop
   Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts
