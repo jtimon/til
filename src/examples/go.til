@@ -1,7 +1,8 @@
 mode gui
+import("../lib/alphabeta.til")
 
 // Go (Weiqi / Baduk)
-// 2-player or 1-player vs AI (random legal moves)
+// 2-player or 1-player vs AI (alpha-beta search)
 // Click intersection to place stone, P to pass
 // Full rules: captures, ko, suicide prevention
 // Chinese scoring (area) with 6.5 komi
@@ -322,6 +323,52 @@ try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     return captured
 }
 
+// Alpha-beta negamax search for Go
+// Returns score relative to `side` (positive = good for side)
+go_ab := proc(mut board: Array, side: I64, size: I64, depth: I64,
+               alpha: I64, beta: I64, mut ko_board: Array, has_ko: Bool) returns I64 {
+    total := size.mul(size)
+    if depth.eq(0) {
+        return go_eval(board, total, side)
+    }
+
+    mut best := 0.sub(AB_INF)
+    mut a := alpha
+    mut found_move := false
+
+    mut i := 0
+    while i.lt(total) {
+        ref p : I64 = board.get(i.to_u64())
+        if p.eq(0) {
+            mut child := Array.new("I64", 8, MAX_CELLS.to_u64())
+            copy_board(child, board, total)
+            mut child_vis := Array.new("I64", 8, MAX_CELLS.to_u64())
+            mut child_lib := Array.new("I64", 8, MAX_CELLS.to_u64())
+            mut child_stk := Vec.new("I64", 8)
+            cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_board, has_ko)
+            if cap.gte(0) {
+                found_move = true
+                opp := 3.sub(side)
+                score := 0.sub(go_ab(child, opp, size, depth.sub(1),
+                               0.sub(beta), 0.sub(a), board, true))
+                if score.gt(best) { best = score }
+                if score.gt(a) { a = score }
+                if a.gte(beta) { return best }
+            }
+        }
+        i = i.add(1)
+    }
+
+    if found_move.not() {
+        return go_eval(board, total, side)
+    }
+
+    return best
+}
+
+GO_DEPTH_SMALL := 2
+GO_DEPTH_LARGE := 1
+
 // Score the game using Chinese rules (area scoring)
 // Returns black_score * 10000 + white_score
 score_game := proc(mut board: Array, mut visited: Array, mut stk: Vec,
@@ -529,36 +576,54 @@ main := proc() {
                     vs_ai = 0
                 }
 
-                // AI move
+                // AI move (alpha-beta search)
                 if vs_ai.eq(2).and(turn.eq(2)).and(game_over.not()) {
                     ai_timer = ai_timer.add(1)
                     if ai_timer.gt(20) {
                         ai_timer = 0
+
+                        // Pick search depth based on board size
+                        mut go_depth := GO_DEPTH_LARGE
+                        if board_size.lte(9) { go_depth = GO_DEPTH_SMALL }
+
+                        // Try each empty intersection, evaluate with alpha-beta
+                        mut best_move := 0.sub(1)
+                        mut best_score := 0.sub(AB_INF)
                         mut ai_moved := false
-                        mut attempts := 0
-                        while attempts.lt(300).and(ai_moved.not()) {
-                            ri := get_random_value(0, total.sub(1))
-                            ref rp : I64 = board.get(ri.to_u64())
-                            if rp.eq(0) {
+
+                        mut ai := 0
+                        while ai.lt(total) {
+                            ref ap : I64 = board.get(ai.to_u64())
+                            if ap.eq(0) {
                                 copy_board(tmp_board, board, total)
-                                cap := try_place(tmp_board, visited, lib_seen, stk, ri, board_size, 2, ko_board, has_ko)
+                                cap := try_place(tmp_board, visited, lib_seen, stk, ai, board_size, 2, ko_board, has_ko)
                                 if cap.gte(0) {
-                                    // Legal: save ko state and apply
-                                    copy_board(ko_board, board, total)
-                                    copy_board(board, tmp_board, total)
-                                    has_ko = true
-                                    white_caps = white_caps.add(cap)
-                                    last_move = ri
-                                    pass_count = 0
-                                    turn = 1
-                                    move_num = move_num.add(1)
+                                    // Legal move: evaluate with alpha-beta
+                                    score := 0.sub(go_ab(tmp_board, 1, board_size, go_depth,
+                                                   0.sub(AB_INF), AB_INF, board, true))
+                                    if score.gt(best_score).or(best_move.lt(0)) {
+                                        best_score = score
+                                        best_move = ai
+                                    }
                                     ai_moved = true
                                 }
                             }
-                            attempts = attempts.add(1)
+                            ai = ai.add(1)
                         }
 
-                        if ai_moved.not() {
+                        if ai_moved {
+                            // Play the best move
+                            copy_board(tmp_board, board, total)
+                            cap := try_place(tmp_board, visited, lib_seen, stk, best_move, board_size, 2, ko_board, has_ko)
+                            copy_board(ko_board, board, total)
+                            copy_board(board, tmp_board, total)
+                            has_ko = true
+                            white_caps = white_caps.add(cap)
+                            last_move = best_move
+                            pass_count = 0
+                            turn = 1
+                            move_num = move_num.add(1)
+                        } else {
                             // AI passes
                             pass_count = pass_count.add(1)
                             has_ko = false
