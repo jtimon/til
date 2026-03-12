@@ -51,7 +51,9 @@
   desugar_variadic_calls (typer.c:1357). Now field accesses are cloned
   before passing to Array_set, preventing the interior pointer free.
 
-  Test: src/test/enums.til test_payload_enum_field.
+  Tests: src/test/enums.til test_payload_enum_field,
+  test_payload_enum_field_b, test_payload_enum_field_default,
+  test_payload_enum_field_mut.
 
 * FIXED #52 Flaky parallel test failures
   Fixed by generalizing the test infrastructure: all tests (mode, FFI,
