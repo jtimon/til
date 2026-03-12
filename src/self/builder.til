@@ -1,0 +1,2698 @@
+mode lib
+
+// builder.til — self-hosted codegen (translated from src/c/builder.c)
+// Line-by-line translation following doc/c2til.org rules.
+// Uses opaque Expr handles via bridge functions in til_bridge.c.
+
+// --- C types (accessed only through bridge functions) ---
+Expr := ext_struct {}
+Token := ext_struct {}
+Mode := ext_struct {
+    namespace:
+    eq := ext_func(self: Mode, other: Mode) returns Bool {}
+}
+TypeScope := ext_struct {}
+
+// --- NodeTypeTag constants (matching C enum values) ---
+NODE_BODY : I32 = 0
+NODE_LITERAL_STR : I32 = 1
+NODE_LITERAL_NUM : I32 = 2
+NODE_LITERAL_BOOL : I32 = 3
+NODE_LITERAL_NULL : I32 = 4
+NODE_IDENT : I32 = 5
+NODE_DECL : I32 = 6
+NODE_ASSIGN : I32 = 7
+NODE_FCALL : I32 = 8
+NODE_FUNC_DEF : I32 = 9
+NODE_STRUCT_DEF : I32 = 10
+NODE_ENUM_DEF : I32 = 11
+NODE_FIELD_ACCESS : I32 = 12
+NODE_FIELD_ASSIGN : I32 = 13
+NODE_RETURN : I32 = 14
+NODE_IF : I32 = 15
+NODE_WHILE : I32 = 16
+NODE_FOR_IN : I32 = 17
+NODE_NAMED_ARG : I32 = 18
+NODE_BREAK : I32 = 19
+NODE_CONTINUE : I32 = 20
+NODE_MAP_LIT : I32 = 21
+NODE_SET_LIT : I32 = 22
+NODE_SWITCH : I32 = 23
+NODE_CASE : I32 = 24
+
+// --- TilType constants (matching C enum values) ---
+TIL_TYPE_UNKNOWN : I32 = 0
+TIL_TYPE_NONE : I32 = 1
+TIL_TYPE_I64 : I32 = 2
+TIL_TYPE_U8 : I32 = 3
+TIL_TYPE_I16 : I32 = 4
+TIL_TYPE_I32 : I32 = 5
+TIL_TYPE_U32 : I32 = 6
+TIL_TYPE_U64 : I32 = 7
+TIL_TYPE_F32 : I32 = 8
+TIL_TYPE_BOOL : I32 = 9
+TIL_TYPE_STRUCT : I32 = 10
+TIL_TYPE_STRUCT_DEF : I32 = 11
+TIL_TYPE_ENUM : I32 = 12
+TIL_TYPE_ENUM_DEF : I32 = 13
+TIL_TYPE_FUNC_DEF : I32 = 14
+TIL_TYPE_DYNAMIC : I32 = 15
+
+// --- FuncType constants (matching C enum values) ---
+FUNC_FUNC : I32 = 0
+FUNC_PROC : I32 = 1
+FUNC_TEST : I32 = 2
+FUNC_MACRO : I32 = 3
+FUNC_EXT_FUNC : I32 = 4
+FUNC_EXT_PROC : I32 = 5
+
+// --- Bridge ext_func/ext_proc declarations ---
+
+// Tokenize/Parse
+til_tokenize := ext_func(source: Str, path: Str) returns Token {}
+til_tok_count := ext_func() returns shallow U32 {}
+til_parse := ext_func(tokens: Token, shallow count: U32, path: Str) returns Expr {}
+til_parse_mode := ext_func() returns Str {}
+
+// Expr helpers
+expr_null := ext_func() returns Expr {}
+expr_is_null := ext_func(e: Expr) returns shallow Bool {}
+expr_get_tag := ext_func(e: Expr) returns shallow I32 {}
+expr_get_str_val := ext_func(e: Expr) returns Str {}
+expr_get_child := ext_func(e: Expr, shallow i: U32) returns ref Expr {}
+expr_nchildren := ext_func(e: Expr) returns shallow U32 {}
+expr_set_core := ext_proc(e: Expr) {}
+expr_push_child := ext_proc(e: Expr, child: Expr) {}
+expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
+
+// Expr declaration field accessors
+expr_decl_name := ext_func(e: Expr) returns Str {}
+expr_decl_explicit_type := ext_func(e: Expr) returns Str {}
+expr_decl_is_mut := ext_func(e: Expr) returns shallow Bool {}
+expr_decl_is_ref := ext_func(e: Expr) returns shallow Bool {}
+expr_decl_is_own := ext_func(e: Expr) returns shallow Bool {}
+expr_decl_is_namespace := ext_func(e: Expr) returns shallow Bool {}
+
+// Expr func_def field accessors
+expr_fdef_func_type := ext_func(e: Expr) returns shallow I32 {}
+expr_fdef_nparam := ext_func(e: Expr) returns shallow U32 {}
+expr_fdef_variadic_index := ext_func(e: Expr) returns shallow I32 {}
+expr_fdef_return_type := ext_func(e: Expr) returns Str {}
+expr_fdef_return_is_ref := ext_func(e: Expr) returns shallow Bool {}
+expr_fdef_return_is_shallow := ext_func(e: Expr) returns shallow Bool {}
+expr_fdef_param_name := ext_func(e: Expr, shallow i: U32) returns Str {}
+expr_fdef_param_type := ext_func(e: Expr, shallow i: U32) returns Str {}
+expr_fdef_param_is_mut := ext_func(e: Expr, shallow i: U32) returns shallow Bool {}
+expr_fdef_param_is_own := ext_func(e: Expr, shallow i: U32) returns shallow Bool {}
+expr_fdef_param_is_shallow := ext_func(e: Expr, shallow i: U32) returns shallow Bool {}
+
+// Expr misc field accessors
+expr_til_type := ext_func(e: Expr) returns shallow I32 {}
+expr_struct_name := ext_func(e: Expr) returns Str {}
+expr_is_own_arg := ext_func(e: Expr) returns shallow Bool {}
+expr_is_own_field := ext_func(e: Expr) returns shallow Bool {}
+expr_is_ns_field := ext_func(e: Expr) returns shallow Bool {}
+expr_is_core_flag := ext_func(e: Expr) returns shallow Bool {}
+expr_save_old_delete := ext_func(e: Expr) returns shallow Bool {}
+expr_enum_has_payloads := ext_func(e: Expr) returns shallow Bool {}
+
+// Expr Map helpers
+expr_map_new := ext_func() returns Map {}
+expr_map_set := ext_proc(m: Map, key: Str, val: Expr) {}
+expr_map_has := ext_func(m: Map, key: Str) returns shallow Bool {}
+expr_map_get := ext_func(m: Map, key: Str) returns Expr {}
+expr_map_free := ext_proc(m: Map) {}
+
+// Str Map helpers
+str_map_new := ext_func() returns Map {}
+str_map_set := ext_proc(m: Map, key: Str, val: Str) {}
+str_map_get := ext_func(m: Map, key: Str) returns Str {}
+str_map_has := ext_func(m: Map, key: Str) returns shallow Bool {}
+str_map_free := ext_proc(m: Map) {}
+
+// Expr Vec helpers
+expr_vec_new := ext_func() returns Vec {}
+expr_vec_push := ext_proc(v: Vec, e: Expr) {}
+expr_vec_get := ext_func(v: Vec, shallow i: U32) returns ref Expr {}
+expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
+expr_vec_pop := ext_proc(v: Vec) {}
+expr_vec_free := ext_proc(v: Vec) {}
+
+// Mode
+til_mode_none := ext_func() returns Mode {}
+til_mode_resolve := ext_func(name: Str) returns Mode {}
+til_mode_eq := ext_func(a: Mode, b: Mode) returns shallow Bool {}
+til_mode_script := ext_func() returns Mode {}
+til_mode_cli := ext_func() returns Mode {}
+til_mode_gui := ext_func() returns Mode {}
+til_mode_test := ext_func() returns Mode {}
+til_mode_pure := ext_func() returns Mode {}
+til_mode_pura := ext_func() returns Mode {}
+til_mode_lib := ext_func() returns Mode {}
+til_mode_liba := ext_func() returns Mode {}
+til_mode_name := ext_func(m: Mode) returns Str {}
+til_mode_auto_import := ext_func(m: Mode) returns Str {}
+til_mode_is_lib := ext_func(m: Mode) returns shallow Bool {}
+til_mode_is_lib_output := ext_func(m: Mode) returns shallow Bool {}
+til_mode_needs_main := ext_func(m: Mode) returns shallow Bool {}
+til_mode_decls_only := ext_func(m: Mode) returns shallow Bool {}
+
+// Pipeline
+tscope_new := ext_func(parent: TypeScope) returns TypeScope {}
+tscope_free := ext_proc(s: TypeScope) {}
+til_init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
+til_type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
+til_precomp := ext_proc(program: Expr) {}
+til_scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
+til_interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, shallow user_argc: U32, user_argv: Dynamic) returns shallow I32 {}
+til_ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
+til_expr_free := ext_proc(ast: Expr) {}
+
+// Utility
+til_bin_dir := ext_func() returns Str {}
+til_realpath := ext_func(path: Str) returns Str {}
+til_str_left := ext_func(s: Str, shallow n: U64) returns Str {}
+til_system := ext_func(cmd: Str) returns shallow I32 {}
+til_set_new := ext_func() returns Set {}
+til_set_has := ext_func(s: Set, str: Str) returns shallow Bool {}
+til_set_add := ext_proc(s: Set, str: Str) {}
+til_set_free := ext_proc(s: Set) {}
+
+// --- Module-level state (static variables in builder.c) ---
+
+mut codegen_program := expr_null() // set during codegen for ns_init lookups
+mut struct_bodies := expr_map_new() // Str name → Expr* body (NODE_BODY)
+mut func_defs := expr_map_new()     // Str name → Expr* func_def (NODE_FUNC_DEF)
+mut script_globals := til_set_new() // names of top-level vars emitted as file-scope globals
+mut has_script_globals := false // whether script_globals is initialized
+mut in_func_def := false // true while emitting a function/proc body
+mut in_main_func := false // true while emitting main() body (for return 0)
+mut current_fdef := expr_null() // track current function being emitted (for shallow param lookup)
+mut shallow_locals := til_set_new()
+mut shallow_local_types := str_map_new() // name → C type string (for pointer-sign correctness)
+mut unsafe_to_hoist := til_set_new()
+mut _ctor_seq := 0
+
+// Collect unique array/vec builtin type names from AST
+CollectionInfo := struct {
+    mut type_name := ""
+    mut is_vec := 0
+}
+
+// Collect unique dyn_call method literals from AST
+DynCallInfo := struct {
+    mut method := ""
+    mut nargs := 0
+    mut has_return := false
+}
+
+// --- AST collector functions ---
+
+collect_collection_builtins := proc(e: Expr, mut infos: Vec) {
+    if expr_is_null(e) { return }
+    if expr_get_tag(e).eq(NODE_FCALL).and(expr_get_tag(expr_get_child(e, 0)).eq(NODE_IDENT))
+        .and(expr_nchildren(e).gte(2)).and(expr_get_tag(expr_get_child(e, 1)).eq(NODE_LITERAL_STR)) {
+        name := expr_get_str_val(expr_get_child(e, 0))
+        mut is_vec := 0.sub(1)
+        if name.eq("array") { is_vec = 0 }
+        else if name.eq("vec") { is_vec = 1 }
+        if is_vec.gte(0) {
+            type_name := expr_get_str_val(expr_get_child(e, 1))
+            mut j : U64 = 0
+            while j.lt(infos.len()) {
+                ref existing : CollectionInfo = infos.get(j)
+                if existing.type_name.eq(type_name).and(existing.is_vec.eq(is_vec)) { return }
+                j = j.add(1)
+            }
+            infos.push(own CollectionInfo(type_name = type_name.clone(), is_vec = is_vec))
+        }
+    }
+    for i in 0..expr_nchildren(e).to_u64() {
+        collect_collection_builtins(expr_get_child(e, i.to_u32()), infos)
+    }
+}
+
+// Returns nargs (1 or 2), or -1 if not a dyn_call name
+dyn_call_nargs := func(name: Str) returns I64 {
+    if name.eq("dyn_call1") { return 1 }
+    if name.eq("dyn_call2") { return 2 }
+    if name.eq("dyn_call1_ret") { return 1 }
+    if name.eq("dyn_call2_ret") { return 2 }
+    return 0.sub(1)
+}
+
+dyn_call_returns := func(name: Str) returns Bool {
+    return name.eq("dyn_call1_ret").or(name.eq("dyn_call2_ret"))
+}
+
+collect_dyn_methods := proc(e: Expr, mut methods: Vec) {
+    if expr_is_null(e) { return }
+    if expr_get_tag(e).eq(NODE_FCALL).and(expr_get_tag(expr_get_child(e, 0)).eq(NODE_IDENT))
+        .and(expr_nchildren(e).gte(3)).and(expr_get_tag(expr_get_child(e, 2)).eq(NODE_LITERAL_STR)) {
+        callee_name := expr_get_str_val(expr_get_child(e, 0))
+        nargs := dyn_call_nargs(callee_name)
+        if nargs.gte(0) {
+            method := expr_get_str_val(expr_get_child(e, 2))
+            mut j : U64 = 0
+            while j.lt(methods.len()) {
+                ref existing : DynCallInfo = methods.get(j)
+                if existing.method.eq(method) { return }
+                j = j.add(1)
+            }
+            methods.push(own DynCallInfo(method = method.clone(), nargs = nargs, has_return = dyn_call_returns(callee_name)))
+        }
+    }
+    for i in 0..expr_nchildren(e).to_u64() {
+        collect_dyn_methods(expr_get_child(e, i.to_u32()), methods)
+    }
+}
+
+// Collect unique method names from dyn_has_method calls
+collect_dyn_has_methods := proc(e: Expr, mut methods: Vec) {
+    if expr_is_null(e) { return }
+    if expr_get_tag(e).eq(NODE_FCALL).and(expr_get_tag(expr_get_child(e, 0)).eq(NODE_IDENT))
+        .and(expr_get_str_val(expr_get_child(e, 0)).eq("dyn_has_method"))
+        .and(expr_nchildren(e).gte(3)).and(expr_get_tag(expr_get_child(e, 2)).eq(NODE_LITERAL_STR)) {
+        method := expr_get_str_val(expr_get_child(e, 2))
+        mut j : U64 = 0
+        while j.lt(methods.len()) {
+            ref existing : Str = methods.get(j)
+            if existing.eq(method) { return }
+            j = j.add(1)
+        }
+        methods.push(own method.clone())
+    }
+    for i in 0..expr_nchildren(e).to_u64() {
+        collect_dyn_has_methods(expr_get_child(e, i.to_u32()), methods)
+    }
+}
+
+find_struct_body := func(name: Str) returns Expr {
+    if expr_map_has(struct_bodies, name).not() { return expr_null() }
+    return expr_map_get(struct_bodies, name)
+}
+
+// --- Emitter helpers ---
+
+emit_indent := proc(mut out: Str, depth: I64) {
+    for i in 0..depth.to_u64() {
+        out = out.concat("    ")
+    }
+}
+
+// --- Shallow/ref tracking ---
+
+is_shallow_local := func(name: Str) returns Bool {
+    return til_set_has(shallow_locals, name)
+}
+
+get_shallow_ctype := func(name: Str) returns Str {
+    if str_map_has(shallow_local_types, name) {
+        return str_map_get(shallow_local_types, name)
+    }
+    return ""
+}
+
+// Resolve the callee name from an fcall's first child
+// Returns "" if unresolvable
+resolve_callee_name := func(fcall: Expr) returns Str {
+    ref callee_node : Expr = expr_get_child(fcall, 0)
+    if expr_get_tag(callee_node).eq(NODE_FIELD_ACCESS) {
+        sname := expr_struct_name(expr_get_child(callee_node, 0))
+        mname := expr_get_str_val(callee_node)
+        if sname.eq("") { return "" }
+        return format(sname, "_", mname)
+    } else if expr_get_tag(callee_node).eq(NODE_IDENT) {
+        return expr_get_str_val(callee_node)
+    }
+    return ""
+}
+
+// Check all fcalls in an expression tree and mark idents passed to mut params as unsafe
+check_fcall_mut_args := proc(e: Expr) {
+    if expr_is_null(e) { return }
+    if expr_get_tag(e).eq(NODE_FCALL) {
+        callee := resolve_callee_name(e)
+        if callee.neq("") {
+            fdef := find_callee_fdef(callee)
+            if expr_is_null(fdef).not() {
+                mut a : U32 = 1
+                while a.lt(expr_nchildren(e)) {
+                    pi := a.sub(1)
+                    if pi.lt(expr_fdef_nparam(fdef)).and(expr_fdef_param_is_mut(fdef, pi)) {
+                        ref arg : Expr = expr_get_child(e, a)
+                        if expr_get_tag(arg).eq(NODE_IDENT) {
+                            til_set_add(unsafe_to_hoist, expr_get_str_val(arg))
+                        }
+                    }
+                    a = a.add(1)
+                }
+            }
+        }
+    }
+    for i in 0..expr_nchildren(e).to_u64() {
+        check_fcall_mut_args(expr_get_child(e, i.to_u32()))
+    }
+}
+
+// Scan function body to find variables whose address might escape via ref
+collect_unsafe_to_hoist := proc(body: Expr) {
+    for i in 0..expr_nchildren(body).to_u64() {
+        ref stmt : Expr = expr_get_child(body, i.to_u32())
+
+        // Check all fcalls for mut param args
+        check_fcall_mut_args(stmt)
+
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_decl_is_ref(stmt)) {
+            ref rhs : Expr = expr_get_child(stmt, 0)
+            if expr_get_tag(rhs).eq(NODE_IDENT) {
+                til_set_add(unsafe_to_hoist, expr_get_str_val(rhs))
+            }
+            if expr_get_tag(rhs).eq(NODE_FCALL) {
+                callee := resolve_callee_name(rhs)
+                if callee.neq("") {
+                    fdef := find_callee_fdef(callee)
+                    if expr_is_null(fdef).not().and(expr_fdef_return_is_ref(fdef)) {
+                        mut a : U32 = 1
+                        while a.lt(expr_nchildren(rhs)) {
+                            ref arg : Expr = expr_get_child(rhs, a)
+                            if expr_get_tag(arg).eq(NODE_IDENT) {
+                                til_set_add(unsafe_to_hoist, expr_get_str_val(arg))
+                            }
+                            a = a.add(1)
+                        }
+                    }
+                }
+            }
+        }
+        if expr_get_tag(stmt).eq(NODE_IF) {
+            mut c : U32 = 1
+            while c.lt(expr_nchildren(stmt)) {
+                collect_unsafe_to_hoist(expr_get_child(stmt, c))
+                c = c.add(1)
+            }
+        }
+        if expr_get_tag(stmt).eq(NODE_WHILE).and(expr_nchildren(stmt).gt(1)) {
+            collect_unsafe_to_hoist(expr_get_child(stmt, 1))
+        }
+        if expr_get_tag(stmt).eq(NODE_BODY) {
+            collect_unsafe_to_hoist(stmt)
+        }
+    }
+}
+
+is_scalar_type := func(t: I32) returns Bool {
+    return t.eq(TIL_TYPE_I64).or(t.eq(TIL_TYPE_U8)).or(t.eq(TIL_TYPE_I16))
+        .or(t.eq(TIL_TYPE_I32)).or(t.eq(TIL_TYPE_U32)).or(t.eq(TIL_TYPE_U64))
+        .or(t.eq(TIL_TYPE_F32)).or(t.eq(TIL_TYPE_BOOL))
+}
+
+is_shallow_param := func(name: Str) returns Bool {
+    if expr_is_null(current_fdef) { return false }
+    for i in 0..expr_fdef_nparam(current_fdef).to_u64() {
+        if expr_fdef_param_is_shallow(current_fdef, i.to_u32())
+            .and(expr_fdef_param_name(current_fdef, i.to_u32()).eq(name)) {
+            return true
+        }
+    }
+    return false
+}
+
+// --- Callee helpers ---
+
+find_callee_fdef := func(name: Str) returns Expr {
+    if expr_map_has(func_defs, name).not() { return expr_null() }
+    return expr_map_get(func_defs, name)
+}
+
+// Get the C value type name for a callee's return type
+callee_return_ctype := func(callee_name: Str) returns Str {
+    fdef := find_callee_fdef(callee_name)
+    if expr_is_null(fdef).or(expr_fdef_return_type(fdef).eq("")) { return "" }
+    return type_name_to_c_value(expr_fdef_return_type(fdef))
+}
+
+// Get the C value type for an fcall's return value
+fcall_return_ctype := func(fcall: Expr) returns Str {
+    if expr_get_tag(fcall).neq(NODE_FCALL) { return "" }
+    callee := resolve_callee_name(fcall)
+    if callee.eq("") { return "" }
+    return callee_return_ctype(callee)
+}
+
+callee_returns_shallow := func(callee_name: Str) returns Bool {
+    fdef := find_callee_fdef(callee_name)
+    if expr_is_null(fdef) { return false }
+    return expr_fdef_return_is_shallow(fdef)
+}
+
+// Check if an FCALL node's callee returns shallow
+fcall_is_shallow_return := func(fcall: Expr) returns Bool {
+    if expr_get_tag(fcall).neq(NODE_FCALL) { return false }
+    ref callee_node : Expr = expr_get_child(fcall, 0)
+    if expr_get_tag(callee_node).eq(NODE_IDENT) {
+        return callee_returns_shallow(expr_get_str_val(callee_node))
+    } else if expr_get_tag(callee_node).eq(NODE_FIELD_ACCESS) {
+        sname := expr_struct_name(expr_get_child(callee_node, 0))
+        mname := expr_get_str_val(callee_node)
+        if sname.eq("") { return false }
+        return callee_returns_shallow(format(sname, "_", mname))
+    }
+    return false
+}
+
+callee_param_is_shallow := func(callee_name: Str, arg_index: U32) returns Bool {
+    fdef := find_callee_fdef(callee_name)
+    if expr_is_null(fdef) { return false }
+    if arg_index.gte(expr_fdef_nparam(fdef)) { return false }
+    return expr_fdef_param_is_shallow(fdef, arg_index)
+}
+
+// Map til function names to C symbol names (handles stdlib collisions)
+func_to_c := func(name: Str) returns Str {
+    if name.eq("sleep") { return "sleep_ms" }
+    if name.eq("and") { return "Bool_and" }
+    if name.eq("or") { return "Bool_or" }
+    if name.eq("not") { return "Bool_not" }
+    // C keyword collision
+    if name.eq("double") { return "double_" }
+    return name.clone()
+}
+
+// --- Type to C type string ---
+
+til_type_to_c := func(t: I32) returns Str {
+    if t.eq(TIL_TYPE_I64) { return "I64" }
+    if t.eq(TIL_TYPE_U8) { return "U8" }
+    if t.eq(TIL_TYPE_I16) { return "I16" }
+    if t.eq(TIL_TYPE_I32) { return "I32" }
+    if t.eq(TIL_TYPE_U32) { return "U32" }
+    if t.eq(TIL_TYPE_U64) { return "U64" }
+    if t.eq(TIL_TYPE_F32) { return "F32" }
+    if t.eq(TIL_TYPE_BOOL) { return "Bool" }
+    if t.eq(TIL_TYPE_NONE) { return "void" }
+    if t.eq(TIL_TYPE_DYNAMIC) { return "void *" }
+    return "I64" // fallback
+}
+
+// C type name without pointer — "Point" for structs, "I64" for I64, etc.
+c_type_name := func(t: I32, struct_name: Str) returns Str {
+    if t.eq(TIL_TYPE_STRUCT).or(t.eq(TIL_TYPE_ENUM)).and(struct_name.neq("")) {
+        return struct_name.clone()
+    }
+    if t.eq(TIL_TYPE_DYNAMIC) { return "void" }
+    return til_type_to_c(t)
+}
+
+// Convert a type name string to C type string (handles struct types)
+type_name_to_c := func(name: Str) returns Str {
+    if name.eq("I64") { return "I64 *" }
+    if name.eq("U8") { return "U8 *" }
+    if name.eq("I16") { return "I16 *" }
+    if name.eq("I32") { return "I32 *" }
+    if name.eq("U32") { return "U32 *" }
+    if name.eq("U64") { return "U64 *" }
+    if name.eq("F32") { return "F32 *" }
+    if name.eq("Bool") { return "Bool *" }
+    if name.eq("Dynamic") { return "void *" }
+    // User-defined struct type — pointer
+    return format(name, " *")
+}
+
+// Like type_name_to_c but without pointer — for inline union fields
+type_name_to_c_value := func(name: Str) returns Str {
+    if name.eq("I64") { return "I64" }
+    if name.eq("U8") { return "U8" }
+    if name.eq("I16") { return "I16" }
+    if name.eq("I32") { return "I32" }
+    if name.eq("U32") { return "U32" }
+    if name.eq("U64") { return "U64" }
+    if name.eq("F32") { return "F32" }
+    if name.eq("Bool") { return "Bool" }
+    return name.clone()
+}
+
+is_primitive_type := func(name: Str) returns Bool {
+    return name.eq("I64").or(name.eq("U8")).or(name.eq("I16")).or(name.eq("I32"))
+        .or(name.eq("U32")).or(name.eq("U64")).or(name.eq("F32")).or(name.eq("Bool"))
+}
+
+// Compute byte length of a C string literal after escape processing.
+// e.g. "hello\nworld" has source len 13 but runtime len 11.
+c_escaped_len := func(s: Str) returns I64 {
+    mut len : I64 = 0
+    mut i : U64 = 0
+    while i.lt(s.len()) {
+        if s.byte_at(i).eq(92).and(i.add(1).lt(s.len())) {
+            i = i.add(1)
+        }
+        len = len.add(1)
+        i = i.add(1)
+    }
+    return len
+}
+
+// --- Expression emission ---
+
+// Forward-declared via til's forward reference resolution
+// emit_expr, emit_deref, emit_as_ptr, emit_ctor_fields, emit_stmt, emit_body, emit_ns_inits
+
+// Emit a function parameter list (with variadic support)
+emit_param_list := proc(mut out: Str, fdef: Expr, with_names: Bool) {
+    np := expr_fdef_nparam(fdef)
+    fvi := expr_fdef_variadic_index(fdef)
+    if np.eq(0) {
+        out = out.concat("void")
+    } else {
+        mut i : U32 = 0
+        while i.lt(np) {
+            if i.gt(0) { out = out.concat(", ") }
+            mut ptype := ""
+            if i.to_i64().to_i32().eq(fvi) {
+                ptype = "Array *"
+            } else if expr_fdef_param_is_shallow(fdef, i) {
+                ptype = type_name_to_c_value(expr_fdef_param_type(fdef, i))
+            } else {
+                ptype = type_name_to_c(expr_fdef_param_type(fdef, i))
+            }
+            if with_names {
+                out = out.concat(format(ptype, " ", expr_fdef_param_name(fdef, i)))
+            } else {
+                out = out.concat(ptype)
+            }
+            i = i.add(1)
+        }
+    }
+}
+
+emit_expr := proc(mut out: Str, e: Expr, depth: I64) {
+    tag := expr_get_tag(e)
+    if tag.eq(NODE_LITERAL_STR) {
+        sv := expr_get_str_val(e)
+        out = out.concat(format("Str_lit(\"", sv, "\", ", c_escaped_len(sv).to_str(), "ULL)"))
+    } else if tag.eq(NODE_LITERAL_NUM) {
+        out = out.concat(expr_get_str_val(e))
+    } else if tag.eq(NODE_LITERAL_BOOL) {
+        if expr_get_str_val(e).eq("true") { out = out.concat("1") }
+        else { out = out.concat("0") }
+    } else if tag.eq(NODE_LITERAL_NULL) {
+        out = out.concat("NULL")
+    } else if tag.eq(NODE_IDENT) {
+        out = out.concat(expr_get_str_val(e))
+    } else if tag.eq(NODE_FCALL) {
+        // Namespace method call: Struct.method(args)
+        if expr_get_tag(expr_get_child(e, 0)).eq(NODE_FIELD_ACCESS) {
+            sname := expr_struct_name(expr_get_child(expr_get_child(e, 0), 0))
+            mname := expr_get_str_val(expr_get_child(e, 0))
+            flat_str := format(sname, "_", mname)
+            out = out.concat(format(sname, "_", mname, "("))
+            mut i : U32 = 1
+            while i.lt(expr_nchildren(e)) {
+                if i.gt(1) { out = out.concat(", ") }
+                if callee_param_is_shallow(flat_str, i.sub(1)) {
+                    emit_deref(out, expr_get_child(e, i), depth)
+                } else {
+                    emit_as_ptr(out, expr_get_child(e, i), depth)
+                }
+                i = i.add(1)
+            }
+            out = out.concat(")")
+        } else {
+            name := expr_get_str_val(expr_get_child(e, 0))
+            if name.eq("dyn_call1").or(name.eq("dyn_call2"))
+                .or(name.eq("dyn_call1_ret")).or(name.eq("dyn_call2_ret")) {
+                // dyn_call*(type_name, "method", val, ...) → dyn_call_method(type_name, val, ...)
+                method := expr_get_str_val(expr_get_child(e, 2))
+                out = out.concat(format("dyn_call_", method, "("))
+                // Emit type_name as first arg
+                emit_as_ptr(out, expr_get_child(e, 1), depth)
+                // Emit remaining args (val, and any extra args like call_free)
+                mut i : U32 = 3
+                while i.lt(expr_nchildren(e)) {
+                    out = out.concat(", ")
+                    emit_as_ptr(out, expr_get_child(e, i), depth)
+                    i = i.add(1)
+                }
+                out = out.concat(")")
+            } else if name.eq("array").or(name.eq("vec")) {
+                // array("I64", 1, 2, 3) → array_of_I64(3, v1, v2, v3)
+                elem_type := expr_get_str_val(expr_get_child(e, 1))
+                count := expr_nchildren(e).sub(2)
+                mut prefix := "array"
+                if name.eq("vec") { prefix = "vec" }
+                out = out.concat(format(prefix, "_of_", elem_type, "(", count.to_str()))
+                mut i : U32 = 2
+                while i.lt(expr_nchildren(e)) {
+                    out = out.concat(", ")
+                    emit_as_ptr(out, expr_get_child(e, i), depth)
+                    i = i.add(1)
+                }
+                out = out.concat(")")
+            } else if name.eq("dyn_has_method") {
+                // dyn_has_method(type_name, "method") → dyn_has_method(type_name)
+                method := expr_get_str_val(expr_get_child(e, 2))
+                out = out.concat(format("dyn_has_", method, "("))
+                emit_as_ptr(out, expr_get_child(e, 1), depth)
+                out = out.concat(")")
+            } else if expr_struct_name(e).neq("").and(name.eq(expr_struct_name(e))) {
+                // Struct constructor in expression context: hoist to temp via statement-expr
+                ctype := c_type_name(expr_til_type(e), expr_struct_name(e))
+                id := _ctor_seq
+                _ctor_seq = _ctor_seq.add(1)
+                out = out.concat(format("({ ", ctype, " *_sc", id.to_str(), " = malloc(sizeof(", ctype, ")); "))
+                tmp := format("_sc", id.to_str())
+                emit_ctor_fields(out, tmp, e, depth)
+                out = out.concat(format(" _sc", id.to_str(), "; })"))
+            } else {
+                // User-defined function call
+                out = out.concat(format(func_to_c(name), "("))
+                mut i : U32 = 1
+                while i.lt(expr_nchildren(e)) {
+                    if i.gt(1) { out = out.concat(", ") }
+                    if callee_param_is_shallow(name, i.sub(1)) {
+                        emit_deref(out, expr_get_child(e, i), depth)
+                    } else {
+                        emit_as_ptr(out, expr_get_child(e, i), depth)
+                    }
+                    i = i.add(1)
+                }
+                out = out.concat(")")
+            }
+        }
+    } else if tag.eq(NODE_FIELD_ACCESS) {
+        ref obj : Expr = expr_get_child(e, 0)
+        fname := expr_get_str_val(e)
+        if expr_is_ns_field(e) {
+            out = out.concat(format(expr_struct_name(obj), "_", fname))
+            // Auto-call enum variant constructors (Color.Red → Color_Red())
+            if expr_til_type(e).eq(TIL_TYPE_ENUM) { out = out.concat("()") }
+        } else {
+            emit_expr(out, obj, depth)
+            use_dot := expr_get_tag(obj).eq(NODE_FIELD_ACCESS).and(expr_is_own_field(obj).not())
+            if use_dot { out = out.concat(".") }
+            else { out = out.concat("->") }
+            out = out.concat(fname)
+        }
+    } else {
+        out = out.concat(format("/* TODO: expr type ", tag.to_str(), " */"))
+    }
+}
+
+emit_deref := proc(mut out: Str, e: Expr, depth: I64) {
+    if expr_til_type(e).eq(TIL_TYPE_DYNAMIC) {
+        // Dynamic (void *) IS the value — no dereference needed
+        emit_expr(out, e, depth)
+    } else if expr_get_tag(e).eq(NODE_IDENT) {
+        sv := expr_get_str_val(e)
+        if is_shallow_param(sv).or(is_shallow_local(sv)) {
+            emit_expr(out, e, depth) // shallow param/local is already a value
+        } else {
+            out = out.concat("DEREF(")
+            emit_expr(out, e, depth)
+            out = out.concat(")")
+        }
+    } else if expr_get_tag(e).eq(NODE_LITERAL_STR) {
+        sv := expr_get_str_val(e)
+        out = out.concat(format("(Str){.c_str=(U8*)\"", sv, "\", .count=", sv.len().to_str(), "ULL, .cap=TIL_CAP_LIT}"))
+    } else if expr_get_tag(e).eq(NODE_FIELD_ACCESS).and(expr_is_ns_field(e)).and(expr_til_type(e).eq(TIL_TYPE_ENUM)) {
+        // Auto-called constructor returns pointer; dereference it
+        out = out.concat("(*")
+        emit_expr(out, e, depth)
+        out = out.concat(")")
+    } else {
+        emit_expr(out, e, depth)
+    }
+}
+
+// Emit expression as a pointer — after hoisting, args are NODE_IDENT (already pointer)
+// or NODE_FIELD_ACCESS (value needing compound literal wrapping).
+emit_as_ptr := proc(mut out: Str, e: Expr, depth: I64) {
+    if expr_get_tag(e).eq(NODE_IDENT)
+        .and(is_shallow_param(expr_get_str_val(e)).or(is_shallow_local(expr_get_str_val(e)))) {
+        // Shallow param/local is a value — need a pointer
+        if expr_is_own_arg(e) {
+            // Callee will free() this pointer — must malloc a copy
+            mut ctype := get_shallow_ctype(expr_get_str_val(e))
+            if ctype.eq("") { ctype = c_type_name(expr_til_type(e), expr_struct_name(e)) }
+            out = out.concat(format("({ ", ctype, " *_oa = malloc(sizeof(", ctype, ")); *_oa = "))
+            emit_expr(out, e, depth)
+            out = out.concat("; _oa; })")
+        } else {
+            // Read-only use — compound literal is fine
+            mut ctype := get_shallow_ctype(expr_get_str_val(e))
+            if ctype.eq("") { ctype = c_type_name(expr_til_type(e), expr_struct_name(e)) }
+            out = out.concat(format("&(", ctype, "){"))
+            emit_expr(out, e, depth)
+            out = out.concat("}")
+        }
+    } else if expr_get_tag(e).eq(NODE_FCALL).and(expr_struct_name(e).neq("")).and(expr_nchildren(e).gt(0))
+        .and(expr_get_tag(expr_get_child(e, 0)).eq(NODE_IDENT))
+        .and(expr_get_str_val(expr_get_child(e, 0)).eq(expr_struct_name(e))) {
+        // Struct constructor in expression context: hoist to temp via statement-expr
+        ctype := c_type_name(expr_til_type(e), expr_struct_name(e))
+        id := _ctor_seq
+        _ctor_seq = _ctor_seq.add(1)
+        out = out.concat(format("({ ", ctype, " *_sc", id.to_str(), " = malloc(sizeof(", ctype, ")); "))
+        tmp := format("_sc", id.to_str())
+        emit_ctor_fields(out, tmp, e, depth)
+        out = out.concat(format(" _sc", id.to_str(), "; })"))
+    } else if expr_get_tag(e).eq(NODE_IDENT).or(expr_get_tag(e).eq(NODE_FCALL)).or(expr_get_tag(e).eq(NODE_LITERAL_STR)) {
+        emit_expr(out, e, depth)
+    } else if expr_get_tag(e).eq(NODE_FIELD_ACCESS) {
+        // Own field is already a pointer; enum ns_field constructor returns pointer;
+        // Dynamic field is void* (already a pointer); inline field needs address-of
+        if expr_is_own_field(e).or(expr_is_ns_field(e).and(expr_til_type(e).eq(TIL_TYPE_ENUM)))
+            .or(expr_til_type(e).eq(TIL_TYPE_DYNAMIC)) {
+            emit_expr(out, e, depth)
+        } else {
+            out = out.concat("&")
+            emit_expr(out, e, depth)
+        }
+    } else if expr_get_tag(e).eq(NODE_LITERAL_NULL) {
+        out = out.concat("NULL")
+    } else {
+        ctype := c_type_name(expr_til_type(e), expr_struct_name(e))
+        out = out.concat(format("&(", ctype, "){"))
+        emit_expr(out, e, depth)
+        out = out.concat("}")
+    }
+}
+
+// Emit struct constructor field assignments into 'var' (already malloc'd).
+emit_ctor_fields := proc(mut out: Str, var: Str, ctor: Expr, depth: I64) {
+    sbody := find_struct_body(expr_struct_name(ctor))
+    mut fi : U32 = 0
+    mut i : U32 = 1
+    while i.lt(expr_nchildren(ctor)) {
+        mut is_own := false
+        mut is_ref := false
+        mut fname := ""
+        if expr_is_null(sbody).not() {
+            while fi.lt(expr_nchildren(sbody)) {
+                if expr_decl_is_namespace(expr_get_child(sbody, fi)).not() {
+                    is_own = expr_decl_is_own(expr_get_child(sbody, fi))
+                    is_ref = expr_decl_is_ref(expr_get_child(sbody, fi))
+                    fname = expr_decl_name(expr_get_child(sbody, fi))
+                    fi = fi.add(1)
+                    break
+                }
+                fi = fi.add(1)
+            }
+        }
+        ref arg : Expr = expr_get_child(ctor, i)
+        emit_indent(out, depth)
+        if is_ref {
+            // Ref field: store pointer directly (no deref)
+            out = out.concat(format(var, "->", fname, " = "))
+            emit_expr(out, arg, depth)
+            out = out.concat(";\n")
+        } else if is_own.and(expr_get_tag(arg).eq(NODE_FCALL)).and(expr_struct_name(arg).neq(""))
+            .and(expr_get_str_val(expr_get_child(arg, 0)).eq(expr_struct_name(arg))) {
+            // Nested struct constructor for own field: emit as temp, assign pointer
+            ct := c_type_name(expr_til_type(arg), expr_struct_name(arg))
+            id := _ctor_seq
+            _ctor_seq = _ctor_seq.add(1)
+            tmp := format("_cs", id.to_str())
+            out = out.concat(format(ct, " *", tmp, " = malloc(sizeof(", ct, "));\n"))
+            emit_ctor_fields(out, tmp, arg, depth)
+            emit_indent(out, depth)
+            out = out.concat(format(var, "->", fname, " = ", tmp, ";\n"))
+        } else if is_own {
+            out = out.concat(format(var, "->", fname, " = "))
+            emit_expr(out, arg, depth)
+            out = out.concat(";\n")
+        } else if expr_get_tag(arg).eq(NODE_FCALL).and(expr_struct_name(arg).neq(""))
+            .and(expr_get_str_val(expr_get_child(arg, 0)).eq(expr_struct_name(arg))) {
+            // Inline struct field: nested constructor — build in-place
+            ct := c_type_name(expr_til_type(arg), expr_struct_name(arg))
+            id := _ctor_seq
+            _ctor_seq = _ctor_seq.add(1)
+            tmp := format("_cs", id.to_str())
+            out = out.concat(format(ct, " *", tmp, " = malloc(sizeof(", ct, "));\n"))
+            emit_ctor_fields(out, tmp, arg, depth)
+            emit_indent(out, depth)
+            out = out.concat(format(var, "->", fname, " = *", tmp, "; free(", tmp, ");\n"))
+        } else if expr_get_tag(arg).eq(NODE_FCALL) {
+            // Unhoisted fcall for inline compound field: deref + free wrapper
+            if fcall_is_shallow_return(arg) {
+                out = out.concat(format(var, "->", fname, " = "))
+                emit_expr(out, arg, depth)
+                out = out.concat(";\n")
+            } else {
+                ftype := c_type_name(expr_til_type(arg), expr_struct_name(arg))
+                out = out.concat(format("{ ", ftype, " *_ca = "))
+                emit_expr(out, arg, depth)
+                out = out.concat(format("; ", var, "->", fname, " = *_ca; free(_ca); }\n"))
+            }
+        } else if expr_til_type(arg).eq(TIL_TYPE_STRUCT).or(expr_til_type(arg).eq(TIL_TYPE_ENUM)) {
+            // Inline compound field: clone to avoid shallow copy
+            ftype := c_type_name(expr_til_type(arg), expr_struct_name(arg))
+            clone_name := format(expr_struct_name(arg), "_clone")
+            shallow_clone := callee_returns_shallow(clone_name)
+            if shallow_clone {
+                out = out.concat(format(var, "->", fname, " = ", expr_struct_name(arg), "_clone("))
+                emit_as_ptr(out, arg, depth)
+                out = out.concat(");\n")
+            } else {
+                out = out.concat(format("{ ", ftype, " *_ca = ", expr_struct_name(arg), "_clone("))
+                emit_as_ptr(out, arg, depth)
+                out = out.concat(format("); ", var, "->", fname, " = *_ca; free(_ca); }\n"))
+            }
+        } else {
+            out = out.concat(format(var, "->", fname, " = "))
+            emit_deref(out, arg, depth)
+            out = out.concat(";\n")
+        }
+        i = i.add(1)
+    }
+}
+
+// --- Statement emission ---
+
+emit_stmt := proc(mut out: Str, e: Expr, depth: I64) {
+    emit_indent(out, depth)
+    tag := expr_get_tag(e)
+    if tag.eq(NODE_DECL) {
+        if expr_get_tag(expr_get_child(e, 0)).eq(NODE_FUNC_DEF) {
+            out = out.concat(format("/* TODO: nested func ", expr_decl_name(e), " */\n"))
+        } else if expr_get_tag(expr_get_child(e, 0)).eq(NODE_STRUCT_DEF)
+            .or(expr_get_tag(expr_get_child(e, 0)).eq(NODE_ENUM_DEF)) {
+            mut kind := "struct"
+            if expr_get_tag(expr_get_child(e, 0)).eq(NODE_ENUM_DEF) { kind = "enum" }
+            out = out.concat(format("/* ", kind, " ", expr_decl_name(e), " defined above */\n"))
+        } else {
+            if expr_decl_is_ref(e) {
+                ctype := c_type_name(expr_til_type(e), expr_struct_name(expr_get_child(e, 0)))
+                ref rhs : Expr = expr_get_child(e, 0)
+                out = out.concat(format(ctype, " *", expr_decl_name(e), " = "))
+                emit_expr(out, rhs, depth)
+                out = out.concat(";\n")
+            } else {
+                ctype := c_type_name(expr_til_type(e), expr_struct_name(expr_get_child(e, 0)))
+                ref rhs : Expr = expr_get_child(e, 0)
+                is_global := has_script_globals.and(in_func_def.not())
+                    .and(til_set_has(script_globals, expr_decl_name(e)))
+                can_hoist := is_global.not().and(expr_decl_is_own(e).not())
+                    .and(is_scalar_type(expr_til_type(e)))
+                    .and(til_set_has(unsafe_to_hoist, expr_decl_name(e)).not())
+                if expr_get_tag(rhs).eq(NODE_FCALL).and(expr_struct_name(rhs).neq(""))
+                    .and(expr_get_str_val(expr_get_child(rhs, 0)).eq(expr_struct_name(rhs))) {
+                    // Struct constructor — malloc + field-by-field assignment (never scalar)
+                    var := expr_decl_name(e)
+                    if is_global {
+                        out = out.concat(format(var, " = malloc(sizeof(", ctype, "));\n"))
+                    } else {
+                        out = out.concat(format(ctype, " *", var, " = malloc(sizeof(", ctype, "));\n"))
+                    }
+                    emit_ctor_fields(out, var, rhs, depth)
+                } else if expr_get_tag(rhs).eq(NODE_FCALL).or(expr_get_tag(rhs).eq(NODE_LITERAL_STR))
+                    .or(expr_get_tag(rhs).eq(NODE_FIELD_ACCESS).and(expr_is_ns_field(rhs))
+                        .and(expr_til_type(rhs).eq(TIL_TYPE_ENUM))) {
+                    if expr_get_tag(rhs).eq(NODE_FCALL).and(fcall_is_shallow_return(rhs)) {
+                        if can_hoist {
+                            // Shallow-return scalar fcall -> stack value directly
+                            mut htype := fcall_return_ctype(rhs)
+                            if htype.eq("") { htype = ctype }
+                            out = out.concat(format(htype, " ", expr_decl_name(e), " = "))
+                            emit_expr(out, rhs, depth)
+                            out = out.concat(";\n")
+                            til_set_add(shallow_locals, expr_decl_name(e))
+                            str_map_set(shallow_local_types, expr_decl_name(e), htype)
+                        } else {
+                            // returns shallow: box into pointer
+                            var := expr_decl_name(e)
+                            if is_global {
+                                out = out.concat(format(var, " = malloc(sizeof(", ctype, ")); *", var, " = "))
+                            } else {
+                                out = out.concat(format(ctype, " *", var, " = malloc(sizeof(", ctype, ")); *", var, " = "))
+                            }
+                            emit_expr(out, rhs, depth)
+                            out = out.concat(";\n")
+                        }
+                    } else if can_hoist.and(expr_get_tag(rhs).eq(NODE_FCALL)) {
+                        // Non-shallow fcall returning scalar -> unbox heap pointer to stack
+                        mut htype := fcall_return_ctype(rhs)
+                        if htype.eq("") { htype = ctype }
+                        out = out.concat(format(htype, " ", expr_decl_name(e), "; { ", htype, " *_hp = (", htype, " *)"))
+                        emit_expr(out, rhs, depth)
+                        out = out.concat(format("; ", expr_decl_name(e), " = *_hp; free(_hp); }\n"))
+                        til_set_add(shallow_locals, expr_decl_name(e))
+                        str_map_set(shallow_local_types, expr_decl_name(e), htype)
+                    } else {
+                        if is_global {
+                            out = out.concat(format(expr_decl_name(e), " = "))
+                        } else {
+                            out = out.concat(format(ctype, " *", expr_decl_name(e), " = "))
+                        }
+                        emit_expr(out, rhs, depth)
+                        out = out.concat(";\n")
+                    }
+                } else {
+                    if can_hoist {
+                        // Scalar literal/ident -> stack value
+                        out = out.concat(format(ctype, " ", expr_decl_name(e), " = "))
+                        emit_deref(out, rhs, depth)
+                        out = out.concat(";\n")
+                        til_set_add(shallow_locals, expr_decl_name(e))
+                        str_map_set(shallow_local_types, expr_decl_name(e), ctype)
+                    } else {
+                        if is_global {
+                            out = out.concat(format(expr_decl_name(e), " = malloc(sizeof(", ctype, "));\n"))
+                        } else {
+                            out = out.concat(format(ctype, " *", expr_decl_name(e), " = malloc(sizeof(", ctype, "));\n"))
+                        }
+                        emit_indent(out, depth)
+                        out = out.concat(format("*", expr_decl_name(e), " = "))
+                        emit_deref(out, rhs, depth)
+                        out = out.concat(";\n")
+                    }
+                }
+                // Suppress unused-variable warnings for all declarations
+                emit_indent(out, depth)
+                out = out.concat(format("(void)", expr_decl_name(e), ";\n"))
+            }
+        }
+    } else if tag.eq(NODE_ASSIGN) {
+        ref rhs : Expr = expr_get_child(e, 0)
+        if expr_save_old_delete(e) {
+            // RHS references the variable being assigned — save old, assign new, delete old
+            ctype := c_type_name(expr_til_type(e), expr_struct_name(e))
+            out = out.concat(format("{ ", ctype, " *_old = ", expr_get_str_val(e), "; ", expr_get_str_val(e), " = "))
+            emit_expr(out, rhs, depth)
+            out = out.concat(format("; ", ctype, "_delete(_old, &(Bool){1}); }\n"))
+        } else {
+            is_hoisted := is_shallow_local(expr_get_str_val(e))
+            if is_hoisted {
+                if expr_get_tag(rhs).eq(NODE_FCALL).and(fcall_is_shallow_return(rhs)) {
+                    out = out.concat(format(expr_get_str_val(e), " = "))
+                    emit_expr(out, rhs, depth)
+                    out = out.concat(";\n")
+                } else if expr_get_tag(rhs).eq(NODE_FCALL) {
+                    // Non-shallow fcall: unbox heap pointer
+                    ctype := c_type_name(expr_til_type(e), expr_struct_name(e))
+                    out = out.concat(format("{ ", ctype, " *_hp = (", ctype, " *)"))
+                    emit_expr(out, rhs, depth)
+                    out = out.concat(format("; ", expr_get_str_val(e), " = *_hp; free(_hp); }\n"))
+                } else {
+                    out = out.concat(format(expr_get_str_val(e), " = "))
+                    emit_deref(out, rhs, depth)
+                    out = out.concat(";\n")
+                }
+            } else {
+                if expr_get_tag(rhs).eq(NODE_FCALL).or(expr_get_tag(rhs).eq(NODE_LITERAL_STR))
+                    .or(expr_get_tag(rhs).eq(NODE_FIELD_ACCESS).and(expr_is_ns_field(rhs))
+                        .and(expr_til_type(rhs).eq(TIL_TYPE_ENUM))) {
+                    if expr_get_tag(rhs).eq(NODE_FCALL).and(fcall_is_shallow_return(rhs)) {
+                        out = out.concat(format("*", expr_get_str_val(e), " = "))
+                    } else {
+                        out = out.concat(format(expr_get_str_val(e), " = "))
+                    }
+                    emit_expr(out, rhs, depth)
+                } else {
+                    out = out.concat(format("*", expr_get_str_val(e), " = "))
+                    emit_deref(out, rhs, depth)
+                }
+                out = out.concat(";\n")
+            }
+        }
+    } else if tag.eq(NODE_FIELD_ASSIGN) {
+        ref obj : Expr = expr_get_child(e, 0)
+        fname := expr_get_str_val(e)
+        if expr_get_tag(expr_get_child(e, 1)).eq(NODE_FCALL).and(expr_is_own_field(e).not())
+            .and(expr_is_ns_field(e).not()) {
+            if fcall_is_shallow_return(expr_get_child(e, 1)) {
+                // Shallow-return fcall: value directly assigned to inline field
+                emit_expr(out, obj, depth)
+                use_dot := expr_get_tag(obj).eq(NODE_FIELD_ACCESS).and(expr_is_own_field(obj).not())
+                if use_dot { out = out.concat(format(".", fname, " = ")) }
+                else { out = out.concat(format("->", fname, " = ")) }
+                emit_expr(out, expr_get_child(e, 1), depth)
+                out = out.concat(";\n")
+            } else {
+                // Non-shallow fcall for inline compound field: deref + free wrapper
+                ftype := c_type_name(expr_til_type(expr_get_child(e, 1)), expr_struct_name(expr_get_child(e, 1)))
+                out = out.concat(format("{ ", ftype, " *_fa = "))
+                emit_expr(out, expr_get_child(e, 1), depth)
+                out = out.concat("; ")
+                emit_expr(out, obj, depth)
+                use_dot := expr_get_tag(obj).eq(NODE_FIELD_ACCESS).and(expr_is_own_field(obj).not())
+                if use_dot { out = out.concat(format(".", fname, " = *_fa; free(_fa); }\n")) }
+                else { out = out.concat(format("->", fname, " = *_fa; free(_fa); }\n")) }
+            }
+        } else {
+            if expr_is_ns_field(e) {
+                out = out.concat(format(expr_struct_name(obj), "_", fname, " = "))
+            } else {
+                emit_expr(out, obj, depth)
+                use_dot := expr_get_tag(obj).eq(NODE_FIELD_ACCESS).and(expr_is_own_field(obj).not())
+                if use_dot { out = out.concat(format(".", fname, " = ")) }
+                else { out = out.concat(format("->", fname, " = ")) }
+            }
+            if expr_is_own_field(e) {
+                emit_expr(out, expr_get_child(e, 1), depth)
+            } else {
+                emit_deref(out, expr_get_child(e, 1), depth)
+            }
+            out = out.concat(";\n")
+        }
+    } else if tag.eq(NODE_FCALL) {
+        // Suppress delete calls for hoisted scalar locals
+        if expr_get_tag(expr_get_child(e, 0)).eq(NODE_FIELD_ACCESS)
+            .and(expr_get_str_val(expr_get_child(e, 0)).eq("delete"))
+            .and(expr_nchildren(e).gte(2))
+            .and(expr_get_tag(expr_get_child(e, 1)).eq(NODE_IDENT))
+            .and(is_shallow_local(expr_get_str_val(expr_get_child(e, 1)))) {
+            out = out.concat(";\n")
+        } else if expr_struct_name(e).neq("").and(expr_get_str_val(expr_get_child(e, 0)).eq(expr_struct_name(e))) {
+            // Bare struct constructor statement — discard result
+            out = out.concat("/* discarded struct constructor */;\n")
+        } else {
+            emit_expr(out, e, depth)
+            out = out.concat(";\n")
+        }
+    } else if tag.eq(NODE_RETURN) {
+        if expr_nchildren(e).eq(0) {
+            if in_main_func { out = out.concat("return 0;\n") }
+            else { out = out.concat("return;\n") }
+        } else {
+            ref rv : Expr = expr_get_child(e, 0)
+            if expr_get_tag(rv).eq(NODE_FCALL).and(expr_struct_name(rv).neq(""))
+                .and(expr_get_str_val(expr_get_child(rv, 0)).eq(expr_struct_name(rv))) {
+                // Struct constructor return — malloc + field-by-field
+                ctype := c_type_name(expr_til_type(rv), expr_struct_name(rv))
+                out = out.concat(format("{ ", ctype, " *_r = malloc(sizeof(", ctype, "));\n"))
+                emit_ctor_fields(out, "_r", rv, depth)
+                emit_indent(out, depth)
+                out = out.concat("return _r; }\n")
+            } else if expr_get_tag(rv).eq(NODE_FIELD_ACCESS).and(expr_is_own_field(rv).not())
+                .and(expr_is_ns_field(rv).not()).and(expr_til_type(rv).neq(TIL_TYPE_DYNAMIC)) {
+                // Inline field value — must clone to heap pointer for return
+                mut ctype := c_type_name(expr_til_type(rv), expr_struct_name(rv))
+                if expr_is_null(current_fdef).not().and(expr_fdef_return_type(current_fdef).neq("")) {
+                    ctype = type_name_to_c_value(expr_fdef_return_type(current_fdef))
+                }
+                out = out.concat(format("{ ", ctype, " *_r = malloc(sizeof(", ctype, ")); *_r = "))
+                emit_expr(out, rv, depth)
+                out = out.concat("; return _r; }\n")
+            } else if expr_is_null(current_fdef).not().and(expr_fdef_return_is_shallow(current_fdef)) {
+                // Shallow-return function — return value directly
+                if expr_get_tag(rv).eq(NODE_FCALL).and(fcall_is_shallow_return(rv)) {
+                    out = out.concat("return ")
+                    emit_expr(out, rv, depth)
+                    out = out.concat(";\n")
+                } else {
+                    out = out.concat("return ")
+                    emit_deref(out, rv, depth)
+                    out = out.concat(";\n")
+                }
+            } else if expr_get_tag(rv).eq(NODE_FCALL).and(fcall_is_shallow_return(rv)) {
+                // returns shallow: box value return into heap pointer
+                mut ctype := c_type_name(expr_til_type(rv), expr_struct_name(rv))
+                if expr_is_null(current_fdef).not().and(expr_fdef_return_type(current_fdef).neq("")) {
+                    ctype = type_name_to_c_value(expr_fdef_return_type(current_fdef))
+                }
+                out = out.concat(format("{ ", ctype, " *_r = malloc(sizeof(", ctype, ")); *_r = "))
+                emit_expr(out, rv, depth)
+                out = out.concat("; return _r; }\n")
+            } else if expr_get_tag(rv).eq(NODE_IDENT)
+                .and(is_shallow_local(expr_get_str_val(rv)))
+                .and(expr_is_null(current_fdef).or(expr_fdef_return_is_shallow(current_fdef).not())) {
+                // Hoisted local returned from non-shallow function: box to heap
+                mut ctype := c_type_name(expr_til_type(rv), expr_struct_name(rv))
+                if expr_is_null(current_fdef).not().and(expr_fdef_return_type(current_fdef).neq("")) {
+                    ctype = type_name_to_c_value(expr_fdef_return_type(current_fdef))
+                }
+                out = out.concat(format("{ ", ctype, " *_r = malloc(sizeof(", ctype, ")); *_r = ", expr_get_str_val(rv), "; return _r; }\n"))
+            } else {
+                out = out.concat("return ")
+                emit_expr(out, rv, depth)
+                out = out.concat(";\n")
+            }
+        }
+    } else if tag.eq(NODE_BODY) {
+        out = out.concat("{\n")
+        emit_body(out, e, depth.add(1))
+        emit_indent(out, depth)
+        out = out.concat("}\n")
+    } else if tag.eq(NODE_IF) {
+        out = out.concat("if (")
+        emit_deref(out, expr_get_child(e, 0), depth)
+        out = out.concat(") {\n")
+        emit_body(out, expr_get_child(e, 1), depth.add(1))
+        emit_indent(out, depth)
+        if expr_nchildren(e).gt(2) {
+            out = out.concat("} else {\n")
+            emit_body(out, expr_get_child(e, 2), depth.add(1))
+            emit_indent(out, depth)
+        }
+        out = out.concat("}\n")
+    } else if tag.eq(NODE_WHILE) {
+        out = out.concat("while (")
+        emit_deref(out, expr_get_child(e, 0), depth)
+        out = out.concat(") {\n")
+        emit_body(out, expr_get_child(e, 1), depth.add(1))
+        emit_indent(out, depth)
+        out = out.concat("}\n")
+    } else if tag.eq(NODE_BREAK) {
+        out = out.concat("break;\n")
+    } else if tag.eq(NODE_CONTINUE) {
+        out = out.concat("continue;\n")
+    } else {
+        out = out.concat(format("/* TODO: stmt type ", tag.to_str(), " */\n"))
+    }
+}
+
+emit_body := proc(mut out: Str, body: Expr, depth: I64) {
+    for i in 0..expr_nchildren(body).to_u64() {
+        emit_stmt(out, expr_get_child(body, i.to_u32()), depth)
+    }
+}
+
+// --- Top-level emission ---
+
+// Emit namespace field initializations for all structs in the program
+emit_func_def := proc(mut out: Str, name: Str, func_def: Expr, bmode: Mode, is_static: Bool) {
+    ref body : Expr = expr_get_child(func_def, 0)
+
+    // In needs_main mode, main proc becomes C main()
+    is_main := til_mode_needs_main(bmode).and(name.eq("main"))
+
+    if is_main {
+        nparam := expr_fdef_nparam(func_def)
+        vi := expr_fdef_variadic_index(func_def)
+        if nparam.eq(0) {
+            out = out.concat("int main(int argc, char **argv) {\n")
+            out = out.concat("    (void)argv;\n")
+            out = out.concat("    if (argc > 1) { fprintf(stderr, \"error: main expects no arguments, got %d\\n\", argc - 1); return 1; }\n")
+        } else {
+            out = out.concat("int main(int argc, char **argv) {\n")
+            mut fixed := nparam.to_i64()
+            if vi.gte(0) { fixed = fixed.sub(1) }
+            if vi.gte(0) {
+                out = out.concat(format("    if (argc - 1 < ", fixed.to_str(), ") { fprintf(stderr, \"error: main expects at least ", fixed.to_str(), " argument(s), got %d\\n\", argc - 1); return 1; }\n"))
+            } else {
+                out = out.concat(format("    if (argc - 1 != ", nparam.to_str(), ") { fprintf(stderr, \"error: main expects ", nparam.to_str(), " argument(s), got %d\\n\", argc - 1); return 1; }\n"))
+            }
+        }
+        // Initialize namespace fields and root-scope globals BEFORE CLI arg
+        // parsing, because Str_delete (called during variadic arg cleanup) needs
+        // CAP_VIEW to be initialized.
+        emit_ns_inits(out, 1)
+        if has_script_globals {
+            for gi in 0..expr_nchildren(codegen_program).to_u64() {
+                ref gs : Expr = expr_get_child(codegen_program, gi.to_u32())
+                if expr_get_tag(gs).eq(NODE_DECL) {
+                    ref rhs : Expr = expr_get_child(gs, 0)
+                    if expr_get_tag(rhs).neq(NODE_FUNC_DEF).and(expr_get_tag(rhs).neq(NODE_STRUCT_DEF))
+                        .and(expr_get_tag(rhs).neq(NODE_ENUM_DEF)) {
+                        emit_stmt(out, gs, 1)
+                    }
+                }
+            }
+        }
+        if nparam.gt(0) {
+            // Parse and bind each param
+            mut argi := 1
+            mut i : U32 = 0
+            while i.lt(nparam) {
+                pname := expr_fdef_param_name(func_def, i)
+                ptype := expr_fdef_param_type(func_def, i)
+                if i.to_i64().to_i32().eq(vi) {
+                    // Build Array[T] from remaining args
+                    out = out.concat(format("    int _va_argc = argc - ", argi.to_str(), ";\n"))
+                    out = out.concat(format("    Str *_va_et = Str_lit(\"", ptype, "\", ", ptype.len().to_str(), "ULL);\n"))
+                    out = out.concat(format("    U64 _va_esz = sizeof(", ptype, ");\n"))
+                    out = out.concat("    U64 _va_cap = _va_argc;\n")
+                    out = out.concat(format("    Array *", pname, " = Array_new(_va_et, &(U64){_va_esz}, &(U64){_va_cap});\n"))
+                    out = out.concat("    Str_delete(_va_et, &(Bool){1});\n")
+                    out = out.concat("    for (int _i = 0; _i < _va_argc; _i++) {\n")
+                    out = out.concat("        U64 _idx = _i;\n")
+                    if ptype.eq("Str") {
+                        out = out.concat(format("        Str *_val = Str_lit(argv[", argi.to_str(), " + _i], strlen(argv[", argi.to_str(), " + _i]));\n"))
+                    } else if ptype.eq("I64") {
+                        out = out.concat(format("        I64 *_val = cli_parse_i64(argv[", argi.to_str(), " + _i]);\n"))
+                    } else if ptype.eq("U8") {
+                        out = out.concat(format("        U8 *_val = cli_parse_u8(argv[", argi.to_str(), " + _i]);\n"))
+                    } else if ptype.eq("I16") {
+                        out = out.concat(format("        I16 *_val = cli_parse_i16(argv[", argi.to_str(), " + _i]);\n"))
+                    } else if ptype.eq("I32") {
+                        out = out.concat(format("        I32 *_val = cli_parse_i32(argv[", argi.to_str(), " + _i]);\n"))
+                    } else if ptype.eq("U32") {
+                        out = out.concat(format("        U32 *_val = cli_parse_u32(argv[", argi.to_str(), " + _i]);\n"))
+                    } else if ptype.eq("U64") {
+                        out = out.concat(format("        U64 *_val = cli_parse_u64(argv[", argi.to_str(), " + _i]);\n"))
+                    } else if ptype.eq("Bool") {
+                        out = out.concat(format("        Bool *_val = cli_parse_bool(argv[", argi.to_str(), " + _i]);\n"))
+                    }
+                    out = out.concat(format("        Array_set(", pname, ", &(U64){_idx}, _val);\n"))
+                    out = out.concat("    }\n")
+                } else if ptype.eq("Str") {
+                    out = out.concat(format("    Str *", pname, " = Str_lit(argv[", argi.to_str(), "], strlen(argv[", argi.to_str(), "]));\n"))
+                    argi = argi.add(1)
+                } else if ptype.eq("I64") {
+                    out = out.concat(format("    I64 *", pname, " = cli_parse_i64(argv[", argi.to_str(), "]);\n"))
+                    argi = argi.add(1)
+                } else if ptype.eq("U8") {
+                    out = out.concat(format("    U8 *", pname, " = cli_parse_u8(argv[", argi.to_str(), "]);\n"))
+                    argi = argi.add(1)
+                } else if ptype.eq("I16") {
+                    out = out.concat(format("    I16 *", pname, " = cli_parse_i16(argv[", argi.to_str(), "]);\n"))
+                    argi = argi.add(1)
+                } else if ptype.eq("I32") {
+                    out = out.concat(format("    I32 *", pname, " = cli_parse_i32(argv[", argi.to_str(), "]);\n"))
+                    argi = argi.add(1)
+                } else if ptype.eq("U32") {
+                    out = out.concat(format("    U32 *", pname, " = cli_parse_u32(argv[", argi.to_str(), "]);\n"))
+                    argi = argi.add(1)
+                } else if ptype.eq("U64") {
+                    out = out.concat(format("    U64 *", pname, " = cli_parse_u64(argv[", argi.to_str(), "]);\n"))
+                    argi = argi.add(1)
+                } else if ptype.eq("Bool") {
+                    out = out.concat(format("    Bool *", pname, " = cli_parse_bool(argv[", argi.to_str(), "]);\n"))
+                    argi = argi.add(1)
+                } else {
+                    out = out.concat(format("    // unsupported CLI arg type: ", ptype, "\n"))
+                    out = out.concat(format("    fprintf(stderr, \"error: unsupported CLI argument type '", ptype, "'\\n\"); return 1;\n"))
+                    argi = argi.add(1)
+                }
+                i = i.add(1)
+            }
+        }
+        saved_shallow := shallow_locals
+        saved_stypes := shallow_local_types
+        saved_unsafe := unsafe_to_hoist
+        shallow_locals = til_set_new()
+        shallow_local_types = str_map_new()
+        unsafe_to_hoist = til_set_new()
+        collect_unsafe_to_hoist(body)
+        in_main_func = true
+        emit_body(out, body, 1)
+        in_main_func = false
+        til_set_free(shallow_locals)
+        str_map_free(shallow_local_types)
+        til_set_free(unsafe_to_hoist)
+        shallow_locals = saved_shallow
+        shallow_local_types = saved_stypes
+        unsafe_to_hoist = saved_unsafe
+        out = out.concat("    return 0;\n")
+        out = out.concat("}\n")
+    } else {
+        // Return type
+        mut ret := "void"
+        if expr_fdef_return_type(func_def).neq("") {
+            if expr_fdef_return_is_shallow(func_def) {
+                ret = type_name_to_c_value(expr_fdef_return_type(func_def))
+            } else {
+                ret = type_name_to_c(expr_fdef_return_type(func_def))
+            }
+        }
+        // Signature
+        mut prefix := ""
+        if is_static { prefix = "static __attribute__((unused)) " }
+        out = out.concat(format(prefix, ret, " ", func_to_c(name), "("))
+        emit_param_list(out, func_def, true)
+        out = out.concat(") {\n")
+        nparam := expr_fdef_nparam(func_def)
+        for pi in 0..nparam.to_u64() {
+            out = out.concat(format("    (void)", expr_fdef_param_name(func_def, pi.to_u32()), ";\n"))
+        }
+        in_func_def = true
+        current_fdef = func_def
+        // Save/restore shallow_locals and unsafe_to_hoist per function
+        saved_shallow := shallow_locals
+        saved_stypes := shallow_local_types
+        saved_unsafe := unsafe_to_hoist
+        shallow_locals = til_set_new()
+        shallow_local_types = str_map_new()
+        unsafe_to_hoist = til_set_new()
+        collect_unsafe_to_hoist(body)
+        emit_body(out, body, 1)
+        til_set_free(shallow_locals)
+        str_map_free(shallow_local_types)
+        til_set_free(unsafe_to_hoist)
+        shallow_locals = saved_shallow
+        shallow_local_types = saved_stypes
+        unsafe_to_hoist = saved_unsafe
+        current_fdef = expr_null()
+        in_func_def = false
+        out = out.concat("}\n")
+    }
+}
+
+// Emit namespace field initializations for all structs in the program
+emit_ns_inits := proc(mut out: Str, depth: I64) {
+    for i in 0..expr_nchildren(codegen_program).to_u64() {
+        ref stmt : Expr = expr_get_child(codegen_program, i.to_u32())
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)
+            .or(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF))) {
+            sname := expr_decl_name(stmt)
+            ref edef : Expr = expr_get_child(stmt, 0)
+            ref body : Expr = expr_get_child(edef, 0)
+            for j in 0..expr_nchildren(body).to_u64() {
+                ref field : Expr = expr_get_child(body, j.to_u32())
+                if expr_decl_is_namespace(field)
+                    .and(expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF))
+                    .and(expr_get_tag(edef).neq(NODE_ENUM_DEF)) {
+                    emit_indent(out, depth)
+                    out = out.concat(format(sname, "_", expr_decl_name(field), " = "))
+                    emit_deref(out, expr_get_child(field, 0), depth)
+                    out = out.concat(";\n")
+                }
+            }
+        }
+    }
+}
+
+// --- Type/name helpers ---
+
+is_ext_h_type := func(name: Str) returns Bool {
+    return name.eq("U8").or(name.eq("I16")).or(name.eq("I32"))
+        .or(name.eq("F32")).or(name.eq("U32")).or(name.eq("U64"))
+        .or(name.eq("I64")).or(name.eq("Bool")).or(name.eq("Str"))
+        .or(name.eq("Array"))
+}
+
+// ext_func/ext_proc names that conflict with libc or builder-emitted statics
+is_skip_ext_decl := func(name: Str) returns Bool {
+    return name.eq("exit").or(name.eq("free")).or(name.eq("malloc"))
+        .or(name.eq("calloc")).or(name.eq("realloc")).or(name.eq("memcpy"))
+        .or(name.eq("memmove")).or(name.eq("print_single")).or(name.eq("print_flush"))
+}
+
+// Scalar types whose methods should be emitted as static in core.c
+// (avoids duplicate symbol conflicts with ccore.c)
+is_scalar_method_type := func(name: Str) returns Bool {
+    return name.eq("U8").or(name.eq("I16")).or(name.eq("I32"))
+        .or(name.eq("F32")).or(name.eq("U32")).or(name.eq("U64"))
+        .or(name.eq("I64")).or(name.eq("Bool"))
+}
+
+// --- Struct/enum emission ---
+
+emit_struct_typedef := proc(mut out: Str, name: Str, struct_def: Expr) {
+    ref body : Expr = expr_get_child(struct_def, 0)
+    if is_ext_h_type(name) { return } // defined by ext.h/aliases.h
+    mut has_instance_fields := false
+    mut ci : U32 = 0
+    while ci.lt(expr_nchildren(body)) {
+        if expr_decl_is_namespace(expr_get_child(body, ci)).not() {
+            has_instance_fields = true
+            break
+        }
+        ci = ci.add(1)
+    }
+    out = out.concat(format("typedef struct ", name, " {\n"))
+    if has_instance_fields.not() {
+        out = out.concat("    char _;\n") // padding for empty structs
+    }
+    mut fi : U32 = 0
+    while fi.lt(expr_nchildren(body)) {
+        ref field : Expr = expr_get_child(body, fi)
+        fi = fi.add(1)
+        if expr_decl_is_namespace(field) { continue }
+        if expr_decl_is_own(field).or(expr_decl_is_ref(field))
+            .and(expr_til_type(field).eq(TIL_TYPE_STRUCT).or(expr_til_type(field).eq(TIL_TYPE_ENUM)))
+            .and(expr_struct_name(expr_get_child(field, 0)).neq("")) {
+            out = out.concat(format("    ", expr_struct_name(expr_get_child(field, 0)), " *", expr_decl_name(field), ";\n"))
+        } else if expr_decl_is_own(field).or(expr_decl_is_ref(field)) {
+            out = out.concat(format("    ", til_type_to_c(expr_til_type(field)), " *", expr_decl_name(field), ";\n"))
+        } else if expr_til_type(field).eq(TIL_TYPE_STRUCT).or(expr_til_type(field).eq(TIL_TYPE_ENUM))
+            .and(expr_struct_name(expr_get_child(field, 0)).neq("")) {
+            out = out.concat(format("    ", expr_struct_name(expr_get_child(field, 0)), " ", expr_decl_name(field), ";\n"))
+        } else {
+            out = out.concat(format("    ", til_type_to_c(expr_til_type(field)), " ", expr_decl_name(field), ";\n"))
+        }
+    }
+    out = out.concat(format("} ", name, ";\n\n"))
+    // Emit namespace fields as globals (skip func defs — emitted separately)
+    mut ni : U32 = 0
+    while ni.lt(expr_nchildren(body)) {
+        ref field : Expr = expr_get_child(body, ni)
+        ni = ni.add(1)
+        if expr_decl_is_namespace(field).not() { continue }
+        if expr_get_tag(expr_get_child(field, 0)).eq(NODE_FUNC_DEF) { continue }
+        if expr_til_type(field).eq(TIL_TYPE_STRUCT).or(expr_til_type(field).eq(TIL_TYPE_ENUM))
+            .and(expr_struct_name(expr_get_child(field, 0)).neq("")) {
+            out = out.concat(format(expr_struct_name(expr_get_child(field, 0)), " ", name, "_", expr_decl_name(field), ";\n"))
+        } else {
+            out = out.concat(format(til_type_to_c(expr_til_type(field)), " ", name, "_", expr_decl_name(field), ";\n"))
+        }
+    }
+}
+
+func_has_shallow_params := func(fdef: Expr) returns Bool {
+    mut i : U32 = 0
+    while i.lt(expr_fdef_nparam(fdef)) {
+        if expr_fdef_param_is_shallow(fdef, i) { return true }
+        i = i.add(1)
+    }
+    return false
+}
+
+emit_struct_funcs := proc(mut out: Str, name: Str, struct_def: Expr, is_lib: Bool) {
+    is_scalar := is_lib.and(is_scalar_method_type(name))
+    ref body : Expr = expr_get_child(struct_def, 0)
+    mut fi : U32 = 0
+    while fi.lt(expr_nchildren(body)) {
+        ref field : Expr = expr_get_child(body, fi)
+        fi = fi.add(1)
+        if expr_decl_is_namespace(field).not() { continue }
+        if expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF) { continue }
+        ref fdef : Expr = expr_get_child(field, 0)
+        fft := expr_fdef_func_type(fdef)
+        if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+        // Emit size() as sizeof — the initer's computed sum doesn't account for
+        // C alignment padding or union semantics in tagged enums
+        if expr_decl_name(field).eq("size")
+            .and(expr_fdef_nparam(fdef).eq(0))
+            .and(expr_fdef_return_type(fdef).eq("U64")) {
+            mut sp := ""
+            if is_scalar { sp = "static " }
+            if expr_fdef_return_is_shallow(fdef) {
+                out = out.concat(format(sp, "U64 ", name, "_size(void) {\n"))
+                out = out.concat(format("    return (U64)sizeof(", name, ");\n"))
+            } else {
+                out = out.concat(format(sp, "U64 *", name, "_size(void) {\n"))
+                out = out.concat("    U64 *r = malloc(sizeof(U64));\n")
+                out = out.concat(format("    *r = (U64)sizeof(", name, ");\n"))
+                out = out.concat("    return r;\n")
+            }
+            out = out.concat("}\n\n")
+            continue
+        }
+        // For scalar types in lib mode: static for pointer-param funcs (no ext.h conflict),
+        // non-static for shallow-param funcs (match ext.h, linker deduplicates)
+        make_static := is_scalar.and(func_has_shallow_params(fdef).not())
+        full_name := format(name, "_", expr_decl_name(field))
+        emit_func_def(out, full_name, fdef, til_mode_none(), make_static)
+        out = out.concat("\n")
+    }
+}
+
+emit_enum_def := proc(mut out: Str, name: Str, enum_def: Expr) {
+    ref body : Expr = expr_get_child(enum_def, 0)
+    hp := expr_enum_has_payloads(enum_def)
+
+    // Find eq fdef to determine if is_Variant should also return shallow Bool
+    mut is_variant_shallow := false
+    mut ei : U32 = 0
+    while ei.lt(expr_nchildren(body)) {
+        ref field : Expr = expr_get_child(body, ei)
+        if expr_decl_is_namespace(field).and(expr_decl_name(field).eq("eq"))
+            .and(expr_get_tag(expr_get_child(field, 0)).eq(NODE_FUNC_DEF))
+            .and(expr_fdef_return_is_shallow(expr_get_child(field, 0))) {
+            is_variant_shallow = true
+            break
+        }
+        ei = ei.add(1)
+    }
+
+    if hp.not() {
+        // === SIMPLE ENUM ===
+
+        // Zero-arg constructors
+        mut si : U32 = 0
+        while si.lt(expr_nchildren(body)) {
+            ref v : Expr = expr_get_child(body, si)
+            si = si.add(1)
+            if expr_decl_is_namespace(v) { continue }
+            vn := expr_decl_name(v)
+            out = out.concat(format(name, " *", name, "_", vn, "() {\n"))
+            out = out.concat(format("    ", name, " *r = malloc(sizeof(", name, "));\n"))
+            out = out.concat(format("    *r = (", name, "){ .tag = ", name, "_TAG_", vn, " };\n"))
+            out = out.concat("    return r;\n")
+            out = out.concat("}\n")
+        }
+
+        // is_Variant functions
+        mut si2 : U32 = 0
+        while si2.lt(expr_nchildren(body)) {
+            ref v : Expr = expr_get_child(body, si2)
+            si2 = si2.add(1)
+            if expr_decl_is_namespace(v) { continue }
+            vn := expr_decl_name(v)
+            if is_variant_shallow {
+                out = out.concat(format("Bool ", name, "_is_", vn, "(", name, " *self) {\n"))
+                out = out.concat(format("    return (self->tag == ", name, "_TAG_", vn, ");\n"))
+            } else {
+                out = out.concat(format("Bool *", name, "_is_", vn, "(", name, " *self) {\n"))
+                out = out.concat("    Bool *r = malloc(sizeof(Bool));\n")
+                out = out.concat(format("    *r = (self->tag == ", name, "_TAG_", vn, ");\n"))
+                out = out.concat("    return r;\n")
+            }
+            out = out.concat("}\n")
+        }
+    } else {
+        // === PAYLOAD ENUM ===
+
+        // Constructor functions for all variants
+        mut pi : U32 = 0
+        while pi.lt(expr_nchildren(body)) {
+            ref v : Expr = expr_get_child(body, pi)
+            pi = pi.add(1)
+            if expr_decl_is_namespace(v) { continue }
+            vn := expr_decl_name(v)
+            vt := expr_decl_explicit_type(v)
+            if vt.eq("") {
+                // No-payload variant
+                out = out.concat(format(name, " *", name, "_", vn, "() {\n"))
+                out = out.concat(format("    ", name, " *r = malloc(sizeof(", name, "));\n"))
+                out = out.concat(format("    r->tag = ", name, "_TAG_", vn, ";\n"))
+                out = out.concat("    return r;\n")
+                out = out.concat("}\n")
+            } else {
+                ptype := type_name_to_c(vt)
+                out = out.concat(format(name, " *", name, "_", vn, "(", ptype, " val) {\n"))
+                out = out.concat(format("    ", name, " *r = malloc(sizeof(", name, "));\n"))
+                out = out.concat(format("    r->tag = ", name, "_TAG_", vn, ";\n"))
+                // Store payload inline (by value)
+                if is_primitive_type(vt) {
+                    out = out.concat(format("    r->data.", vn, " = *val;\n"))
+                } else {
+                    // Struct/enum: clone into inline storage
+                    out = out.concat(format("    { ", type_name_to_c(vt), " _tmp = ", vt, "_clone(val); r->data.", vn, " = *_tmp; free(_tmp); }\n"))
+                }
+                out = out.concat("    return r;\n")
+                out = out.concat("}\n")
+            }
+        }
+
+        // is_Variant functions
+        mut pi2 : U32 = 0
+        while pi2.lt(expr_nchildren(body)) {
+            ref v : Expr = expr_get_child(body, pi2)
+            pi2 = pi2.add(1)
+            if expr_decl_is_namespace(v) { continue }
+            vn := expr_decl_name(v)
+            if is_variant_shallow {
+                out = out.concat(format("Bool ", name, "_is_", vn, "(", name, " *self) {\n"))
+                out = out.concat(format("    return (self->tag == ", name, "_TAG_", vn, ");\n"))
+            } else {
+                out = out.concat(format("Bool *", name, "_is_", vn, "(", name, " *self) {\n"))
+                out = out.concat("    Bool *r = malloc(sizeof(Bool));\n")
+                out = out.concat(format("    *r = (self->tag == ", name, "_TAG_", vn, ");\n"))
+                out = out.concat("    return r;\n")
+            }
+            out = out.concat("}\n")
+        }
+
+        // get_Variant functions (payload variants only)
+        mut pi3 : U32 = 0
+        while pi3.lt(expr_nchildren(body)) {
+            ref v : Expr = expr_get_child(body, pi3)
+            pi3 = pi3.add(1)
+            if expr_decl_is_namespace(v) { continue }
+            vn := expr_decl_name(v)
+            vt := expr_decl_explicit_type(v)
+            if vt.eq("") { continue }
+            ptype := type_name_to_c(vt)
+            out = out.concat(format(ptype, " ", name, "_get_", vn, "(", name, " *self) {\n"))
+            // Read from inline storage
+            if is_primitive_type(vt) {
+                out = out.concat(format("    ", ptype, " r = malloc(sizeof(", type_name_to_c_value(vt), ")); *r = self->data.", vn, "; return r;\n"))
+            } else {
+                // Struct/enum: clone from inline address
+                out = out.concat(format("    return ", vt, "_clone(&self->data.", vn, ");\n"))
+            }
+            out = out.concat("}\n")
+        }
+    }
+
+    // Emit namespace func/proc methods (to_str, user methods)
+    mut mi : U32 = 0
+    while mi.lt(expr_nchildren(body)) {
+        ref field : Expr = expr_get_child(body, mi)
+        mi = mi.add(1)
+        if expr_decl_is_namespace(field).not() { continue }
+        if expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF) { continue }
+        ref fdef : Expr = expr_get_child(field, 0)
+        fft := expr_fdef_func_type(fdef)
+        if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+        // Emit size() as sizeof (same as struct_funcs)
+        if expr_decl_name(field).eq("size")
+            .and(expr_fdef_nparam(fdef).eq(0))
+            .and(expr_fdef_return_type(fdef).eq("U64")) {
+            if expr_fdef_return_is_shallow(fdef) {
+                out = out.concat(format("U64 ", name, "_size(void) {\n"))
+                out = out.concat(format("    return (U64)sizeof(", name, ");\n"))
+            } else {
+                out = out.concat(format("U64 *", name, "_size(void) {\n"))
+                out = out.concat("    U64 *r = malloc(sizeof(U64));\n")
+                out = out.concat(format("    *r = (U64)sizeof(", name, ");\n"))
+                out = out.concat("    return r;\n")
+            }
+            out = out.concat("}\n\n")
+            continue
+        }
+        full_name := format(name, "_", expr_decl_name(field))
+        emit_func_def(out, full_name, fdef, til_mode_none(), false)
+        out = out.concat("\n")
+    }
+}
+
+// === Main codegen entry point ===
+
+build := proc(program: Expr, bmode: Mode, run_tests: Bool, path: Str, c_output_path: Str) returns I32 {
+    codegen_program = program
+    is_lib := til_mode_is_lib_output(bmode)
+
+    // Initialize lookup maps and sets
+    struct_bodies = expr_map_new()
+    func_defs = expr_map_new()
+    shallow_locals = til_set_new()
+    shallow_local_types = str_map_new()
+    unsafe_to_hoist = til_set_new()
+
+    // Build struct body + func_def lookup maps
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)) {
+            sname := expr_decl_name(stmt)
+            ref body : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            expr_map_set(struct_bodies, sname, body)
+            // Register namespace methods
+            mut j : U32 = 0
+            while j.lt(expr_nchildren(body)) {
+                ref field : Expr = expr_get_child(body, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(field).not() { continue }
+                if expr_nchildren(field).eq(0).or(expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF)) { continue }
+                ref fdef : Expr = expr_get_child(field, 0)
+                flat := format(sname, "_", expr_decl_name(field))
+                expr_map_set(func_defs, flat, fdef)
+                // Also register nested ext_funcs inside this namespace method
+                if expr_nchildren(fdef).gt(0) {
+                    ref fbody : Expr = expr_get_child(fdef, 0)
+                    mut k : U32 = 0
+                    while k.lt(expr_nchildren(fbody)) {
+                        ref nested : Expr = expr_get_child(fbody, k)
+                        k = k.add(1)
+                        if expr_get_tag(nested).neq(NODE_DECL) { continue }
+                        if expr_nchildren(nested).eq(0).or(expr_get_tag(expr_get_child(nested, 0)).neq(NODE_FUNC_DEF)) { continue }
+                        ref nfdef : Expr = expr_get_child(nested, 0)
+                        expr_map_set(func_defs, expr_decl_name(nested), nfdef)
+                    }
+                }
+            }
+        }
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_FUNC_DEF)) {
+            expr_map_set(func_defs, expr_decl_name(stmt), expr_get_child(stmt, 0))
+        }
+    }
+
+    mut out := ""
+
+    out = out.concat("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include \"ext.h\"\n\n")
+
+    is_script := til_mode_decls_only(bmode).not()
+
+    // Forward-declare all structs (skip types defined by ext.h)
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)) {
+            if is_ext_h_type(expr_decl_name(stmt)) { continue }
+            out = out.concat(format("typedef struct ", expr_decl_name(stmt), " ", expr_decl_name(stmt), ";\n"))
+        }
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
+            ename := expr_decl_name(stmt)
+            ref ebody : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            out = out.concat("typedef enum {\n")
+            mut etag := 0
+            mut ej : U32 = 0
+            while ej.lt(expr_nchildren(ebody)) {
+                ref v : Expr = expr_get_child(ebody, ej)
+                ej = ej.add(1)
+                if expr_decl_is_namespace(v) { continue }
+                if etag.gt(0) { out = out.concat(",\n") }
+                out = out.concat(format("    ", ename, "_TAG_", expr_decl_name(v)))
+                etag = etag.add(1)
+            }
+            out = out.concat(format("\n} ", ename, "_tag;\n"))
+            out = out.concat(format("typedef struct ", ename, " ", ename, ";\n"))
+        }
+    }
+    out = out.concat("\n")
+
+    // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins + libc conflicts)
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_is_core_flag(stmt) { continue }
+        if expr_get_tag(stmt).neq(NODE_DECL).or(expr_get_tag(expr_get_child(stmt, 0)).neq(NODE_FUNC_DEF)) { continue }
+        ref fdef : Expr = expr_get_child(stmt, 0)
+        fft := expr_fdef_func_type(fdef)
+        if fft.neq(FUNC_EXT_FUNC).and(fft.neq(FUNC_EXT_PROC)) { continue }
+        if is_skip_ext_decl(expr_decl_name(stmt)) { continue }
+        if expr_fdef_return_type(fdef).neq("") {
+            mut rt := type_name_to_c(expr_fdef_return_type(fdef))
+            if expr_fdef_return_is_shallow(fdef) { rt = type_name_to_c_value(expr_fdef_return_type(fdef)) }
+            out = out.concat(format(rt, " ", func_to_c(expr_decl_name(stmt)), "("))
+        } else {
+            out = out.concat(format("void ", func_to_c(expr_decl_name(stmt)), "("))
+        }
+        emit_param_list(out, fdef, false)
+        out = out.concat(");\n")
+    }
+    out = out.concat("\n")
+
+    // Forward-declare string/print helper functions
+    out = out.concat("static Str *Str_lit(const char *s, unsigned long long len);\n")
+    out = out.concat("static void print_single(Str *s);\n")
+    out = out.concat("static void print_flush();\n\n")
+
+    // Forward-declare all functions (namespace methods + top-level)
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)
+            .or(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF))) {
+            sname := expr_decl_name(stmt)
+            ref body : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            mut fj : U32 = 0
+            while fj.lt(expr_nchildren(body)) {
+                ref field : Expr = expr_get_child(body, fj)
+                fj = fj.add(1)
+                if expr_decl_is_namespace(field).not() { continue }
+                if expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF) { continue }
+                ref fdef : Expr = expr_get_child(field, 0)
+                fft := expr_fdef_func_type(fdef)
+                if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)).and(expr_is_core_flag(stmt)) { continue }
+                mut ret := "void"
+                if expr_fdef_return_type(fdef).neq("") {
+                    if expr_fdef_return_is_shallow(fdef) { ret = type_name_to_c_value(expr_fdef_return_type(fdef)) }
+                    else { ret = type_name_to_c(expr_fdef_return_type(fdef)) }
+                }
+                is_ext := fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC))
+                fwd_static := is_lib.and(is_scalar_method_type(sname)).and(is_ext.not()).and(func_has_shallow_params(fdef).not())
+                mut fprefix := ""
+                if fwd_static { fprefix = "static __attribute__((unused)) " }
+                out = out.concat(format(fprefix, ret, " ", sname, "_", expr_decl_name(field), "("))
+                emit_param_list(out, fdef, true)
+                out = out.concat(");\n")
+            }
+        } else if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_FUNC_DEF)) {
+            ref func_def : Expr = expr_get_child(stmt, 0)
+            fft := expr_fdef_func_type(func_def)
+            if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+            fname := expr_decl_name(stmt)
+            is_main := til_mode_needs_main(bmode).and(fname.eq("main"))
+            if is_main { continue }
+            mut ret := "void"
+            if expr_fdef_return_type(func_def).neq("") {
+                if expr_fdef_return_is_shallow(func_def) { ret = type_name_to_c_value(expr_fdef_return_type(func_def)) }
+                else { ret = type_name_to_c(expr_fdef_return_type(func_def)) }
+            }
+            out = out.concat(format(ret, " ", func_to_c(fname), "("))
+            emit_param_list(out, func_def, true)
+            out = out.concat(");\n")
+        }
+    }
+
+    // Forward-declare enum ext methods (eq, constructors + payload methods)
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
+            sname := expr_decl_name(stmt)
+            ehp := expr_enum_has_payloads(expr_get_child(stmt, 0))
+            ref ebody : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            // Find eq fdef to check return_is_shallow
+            mut eq_fdef := expr_null()
+            mut eqi : U32 = 0
+            while eqi.lt(expr_nchildren(ebody)) {
+                ref efield : Expr = expr_get_child(ebody, eqi)
+                if expr_decl_is_namespace(efield).and(expr_decl_name(efield).eq("eq"))
+                    .and(expr_get_tag(expr_get_child(efield, 0)).eq(NODE_FUNC_DEF)) {
+                    eq_fdef = expr_get_child(efield, 0)
+                    break
+                }
+                eqi = eqi.add(1)
+            }
+            mut eq_ret := "Bool *"
+            if expr_is_null(eq_fdef).not().and(expr_fdef_return_is_shallow(eq_fdef)) { eq_ret = "Bool" }
+            out = out.concat(format(eq_ret, " ", sname, "_eq(", sname, " *, ", sname, " *);\n"))
+            mut evj : U32 = 0
+            while evj.lt(expr_nchildren(ebody)) {
+                ref v : Expr = expr_get_child(ebody, evj)
+                evj = evj.add(1)
+                if expr_decl_is_namespace(v) { continue }
+                is_ret := eq_ret
+                if ehp {
+                    out = out.concat(format(is_ret, " ", sname, "_is_", expr_decl_name(v), "(", sname, " *);\n"))
+                }
+                if expr_decl_explicit_type(v).neq("") {
+                    // Payload constructor
+                    out = out.concat(format(sname, " *", sname, "_", expr_decl_name(v), "(", type_name_to_c(expr_decl_explicit_type(v)), ");\n"))
+                    // get_Variant
+                    out = out.concat(format(type_name_to_c(expr_decl_explicit_type(v)), " ", sname, "_get_", expr_decl_name(v), "(", sname, " *);\n"))
+                } else {
+                    // Zero-arg constructor
+                    out = out.concat(format(sname, " *", sname, "_", expr_decl_name(v), "();\n"))
+                }
+            }
+        }
+    }
+    out = out.concat("\n")
+
+    // Forward declarations for dyn_call dispatch functions
+    mut dyn_methods := vec("DynCallInfo")
+    collect_dyn_methods(program, dyn_methods)
+    mut dm : U64 = 0
+    while dm.lt(dyn_methods.len()) {
+        ref dinfo : DynCallInfo = dyn_methods.get(dm)
+        if dinfo.has_return {
+            if dinfo.nargs.eq(1) {
+                out = out.concat(format("void *dyn_call_", dinfo.method, "(Str *type_name, void *val);\n"))
+            } else {
+                out = out.concat(format("void *dyn_call_", dinfo.method, "(Str *type_name, void *val, void *arg2);\n"))
+            }
+        } else {
+            if dinfo.nargs.eq(1) {
+                out = out.concat(format("void dyn_call_", dinfo.method, "(Str *type_name, void *val);\n"))
+            } else {
+                out = out.concat(format("void dyn_call_", dinfo.method, "(Str *type_name, void *val, void *arg2);\n"))
+            }
+        }
+        dm = dm.add(1)
+    }
+    out = out.concat("\n")
+
+    // Forward declarations for dyn_has_method dispatch functions
+    mut dyn_has_shallow := false
+    for dhi in 0..expr_nchildren(program).to_u64() {
+        ref dhstmt : Expr = expr_get_child(program, dhi.to_u32())
+        if expr_get_tag(dhstmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(dhstmt, 0)).eq(NODE_FUNC_DEF))
+            .and(expr_decl_name(dhstmt).eq("dyn_has_method")) {
+            dyn_has_shallow = expr_fdef_return_is_shallow(expr_get_child(dhstmt, 0))
+            break
+        }
+    }
+    mut dyn_has_ret := "Bool *"
+    if dyn_has_shallow { dyn_has_ret = "Bool" }
+    mut has_methods := vec("Str")
+    collect_dyn_has_methods(program, has_methods)
+    mut hm : U64 = 0
+    while hm.lt(has_methods.len()) {
+        ref hmethod : Str = has_methods.get(hm)
+        out = out.concat(format(dyn_has_ret, " dyn_has_", hmethod, "(Str *type_name);\n"))
+        hm = hm.add(1)
+    }
+    if has_methods.len().gt(0) { out = out.concat("\n") }
+
+    // Forward declarations for array/vec builtin helpers
+    mut coll_infos := vec("CollectionInfo")
+    collect_collection_builtins(program, coll_infos)
+    mut ci : U64 = 0
+    while ci.lt(coll_infos.len()) {
+        ref cinfo : CollectionInfo = coll_infos.get(ci)
+        mut cprefix := "array"
+        mut cret := "Array"
+        if cinfo.is_vec.eq(1) { cprefix = "vec"; cret = "Vec" }
+        out = out.concat(format(cret, " *", cprefix, "_of_", cinfo.type_name, "(int count, ...);\n"))
+        ci = ci.add(1)
+    }
+    if coll_infos.len().gt(0) { out = out.concat("\n") }
+
+    // Emit struct + enum struct typedefs in source order
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)) {
+            emit_struct_typedef(out, expr_decl_name(stmt), expr_get_child(stmt, 0))
+            out = out.concat("\n")
+        }
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
+            ename := expr_decl_name(stmt)
+            ref ebody : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            ehp := expr_enum_has_payloads(expr_get_child(stmt, 0))
+            out = out.concat(format("struct ", ename, " {\n"))
+            out = out.concat(format("    ", ename, "_tag tag;\n"))
+            if ehp {
+                out = out.concat("    union {\n")
+                mut evj : U32 = 0
+                while evj.lt(expr_nchildren(ebody)) {
+                    ref v : Expr = expr_get_child(ebody, evj)
+                    evj = evj.add(1)
+                    if expr_decl_is_namespace(v) { continue }
+                    if expr_decl_explicit_type(v).neq("") {
+                        out = out.concat(format("        ", type_name_to_c_value(expr_decl_explicit_type(v)), " ", expr_decl_name(v), ";\n"))
+                    }
+                }
+                out = out.concat("    } data;\n")
+            }
+            out = out.concat("};\n\n")
+        }
+    }
+
+    // Runtime NULL check for shallow deref
+    out = out.concat("#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n")
+
+    // String helper functions (after all struct typedefs so Str is complete)
+    out = out.concat("__attribute__((unused))\n")
+    out = out.concat("#define TIL_CAP_LIT ULLONG_MAX\n")
+    out = out.concat("static Str *Str_lit(const char *s, unsigned long long len) {\n")
+    out = out.concat("    Str *r = malloc(sizeof(Str));\n")
+    out = out.concat("    r->c_str = (U8 *)s;\n")
+    out = out.concat("    r->count = len;\n")
+    out = out.concat("    r->cap = TIL_CAP_LIT;\n")
+    out = out.concat("    return r;\n")
+    out = out.concat("}\n")
+    out = out.concat("__attribute__((unused))\n")
+    out = out.concat("static void print_single(Str *s) {\n")
+    out = out.concat("    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n")
+    out = out.concat("}\n")
+    out = out.concat("__attribute__((unused))\n")
+    out = out.concat("static void print_flush() {\n")
+    out = out.concat("    putchar('\\n');\n")
+    out = out.concat("}\n\n")
+
+    // Emit top-level variable declarations as file-scope globals
+    script_globals = til_set_new()
+    has_script_globals = true
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_get_tag(stmt).neq(NODE_DECL) { continue }
+        ref rhs : Expr = expr_get_child(stmt, 0)
+        if expr_get_tag(rhs).eq(NODE_FUNC_DEF).or(expr_get_tag(rhs).eq(NODE_STRUCT_DEF))
+            .or(expr_get_tag(rhs).eq(NODE_ENUM_DEF)) { continue }
+        if expr_decl_is_ref(stmt) { continue }
+        ctype := c_type_name(expr_til_type(stmt), expr_struct_name(rhs))
+        out = out.concat(format("static ", ctype, " *", expr_decl_name(stmt), ";\n"))
+        til_set_add(script_globals, expr_decl_name(stmt))
+    }
+    out = out.concat("\n")
+
+    // Emit all function bodies: struct namespace, enum, top-level
+    for si in 0..expr_nchildren(program).to_u64() {
+        ref stmt : Expr = expr_get_child(program, si.to_u32())
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)) {
+            emit_struct_funcs(out, expr_decl_name(stmt), expr_get_child(stmt, 0), is_lib)
+        } else if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
+            emit_enum_def(out, expr_decl_name(stmt), expr_get_child(stmt, 0))
+            out = out.concat("\n")
+        } else if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_FUNC_DEF)) {
+            fft2 := expr_fdef_func_type(expr_get_child(stmt, 0))
+            if fft2.eq(FUNC_EXT_FUNC).or(fft2.eq(FUNC_EXT_PROC)) { continue }
+            emit_func_def(out, expr_decl_name(stmt), expr_get_child(stmt, 0), bmode, false)
+            out = out.concat("\n")
+        }
+    }
+
+    // Emit dyn_call dispatch function bodies
+    mut dyn_methods2 := vec("DynCallInfo")
+    collect_dyn_methods(program, dyn_methods2)
+    mut dm2 : U64 = 0
+    while dm2.lt(dyn_methods2.len()) {
+        ref dinfo2 : DynCallInfo = dyn_methods2.get(dm2)
+        mut dret_type := "void "
+        if dinfo2.has_return { dret_type = "void *" }
+        if dinfo2.nargs.eq(1) {
+            out = out.concat(format(dret_type, "dyn_call_", dinfo2.method, "(Str *type_name, void *val) {\n"))
+        } else {
+            out = out.concat(format(dret_type, "dyn_call_", dinfo2.method, "(Str *type_name, void *val, void *arg2) {\n"))
+        }
+        // Iterate all struct/type defs in AST
+        for di in 0..expr_nchildren(program).to_u64() {
+            ref dstmt : Expr = expr_get_child(program, di.to_u32())
+            if expr_get_tag(dstmt).neq(NODE_DECL) { continue }
+            ref ddef : Expr = expr_get_child(dstmt, 0)
+            if expr_get_tag(ddef).neq(NODE_STRUCT_DEF).and(expr_get_tag(ddef).neq(NODE_ENUM_DEF)) { continue }
+            tname := expr_decl_name(dstmt)
+            // Check if this type has the method in its namespace
+            ref dbody : Expr = expr_get_child(ddef, 0)
+            mut method_fdef := expr_null()
+            mut dj : U32 = 0
+            while dj.lt(expr_nchildren(dbody)) {
+                ref dfield : Expr = expr_get_child(dbody, dj)
+                if expr_decl_is_namespace(dfield).and(expr_decl_name(dfield).eq(dinfo2.method))
+                    .and(expr_nchildren(dfield).gt(0))
+                    .and(expr_get_tag(expr_get_child(dfield, 0)).eq(NODE_FUNC_DEF)) {
+                    method_fdef = expr_get_child(dfield, 0)
+                    break
+                }
+                dj = dj.add(1)
+            }
+            if expr_is_null(method_fdef) { continue }
+            // Build arg expressions with shallow dereference where needed
+            mut arg1 := "val"
+            if expr_fdef_param_is_shallow(method_fdef, 0) {
+                arg1 = format("*(", tname, " *)val")
+            }
+            mut arg2s := "arg2"
+            if dinfo2.nargs.eq(2) {
+                if expr_fdef_nparam(method_fdef).gt(1).and(expr_fdef_param_is_shallow(method_fdef, 1)) {
+                    arg2s = format("*(", tname, " *)arg2")
+                }
+            }
+            ret_shallow := expr_fdef_return_is_shallow(method_fdef)
+            mut ret_ctype := ""
+            if dinfo2.has_return.and(ret_shallow).and(expr_fdef_return_type(method_fdef).neq("")) {
+                ret_ctype = type_name_to_c_value(expr_fdef_return_type(method_fdef))
+            }
+            cond := format("    if (type_name->count == ", tname.len().to_str(), "ULL && memcmp(type_name->c_str, \"", tname, "\", ", tname.len().to_str(), "ULL) == 0) ")
+            if dinfo2.nargs.eq(2) {
+                if dinfo2.has_return.and(ret_shallow) {
+                    out = out.concat(format(cond, "{ ", ret_ctype, " *_r = malloc(sizeof(", ret_ctype, ")); *_r = ", tname, "_", dinfo2.method, "(", arg1, ", ", arg2s, "); return _r; }\n"))
+                } else if dinfo2.has_return {
+                    out = out.concat(format(cond, "return (void *)", tname, "_", dinfo2.method, "(", arg1, ", ", arg2s, ");\n"))
+                } else {
+                    out = out.concat(format(cond, "{ ", tname, "_", dinfo2.method, "(", arg1, ", ", arg2s, "); return; }\n"))
+                }
+            } else {
+                if dinfo2.has_return.and(ret_shallow) {
+                    out = out.concat(format(cond, "{ ", ret_ctype, " *_r = malloc(sizeof(", ret_ctype, ")); *_r = ", tname, "_", dinfo2.method, "(", arg1, "); return _r; }\n"))
+                } else if dinfo2.has_return {
+                    out = out.concat(format(cond, "return (void *)", tname, "_", dinfo2.method, "(", arg1, ");\n"))
+                } else {
+                    out = out.concat(format(cond, "{ ", tname, "_", dinfo2.method, "(", arg1, "); return; }\n"))
+                }
+            }
+        }
+        if dinfo2.has_return.not() {
+            // For void methods (delete), silently skip unknown types to allow
+            // multiple compilation units with --allow-multiple-definition
+            out = out.concat("    (void)type_name; (void)val;\n")
+            out = out.concat("}\n\n")
+        } else {
+            out = out.concat(format("    fprintf(stderr, \"dyn_call: unknown type for ", dinfo2.method, "\\n\");\n"))
+            out = out.concat("    exit(1);\n")
+            out = out.concat("}\n\n")
+        }
+        dm2 = dm2.add(1)
+    }
+
+    // Emit dyn_has_method dispatch function bodies
+    mut dyn_has_shallow2 := false
+    for dhi2 in 0..expr_nchildren(program).to_u64() {
+        ref dhstmt2 : Expr = expr_get_child(program, dhi2.to_u32())
+        if expr_get_tag(dhstmt2).eq(NODE_DECL).and(expr_get_tag(expr_get_child(dhstmt2, 0)).eq(NODE_FUNC_DEF))
+            .and(expr_decl_name(dhstmt2).eq("dyn_has_method")) {
+            dyn_has_shallow2 = expr_fdef_return_is_shallow(expr_get_child(dhstmt2, 0))
+            break
+        }
+    }
+    mut dyn_has_ret2 := "Bool *"
+    if dyn_has_shallow2 { dyn_has_ret2 = "Bool" }
+    mut has_methods2 := vec("Str")
+    collect_dyn_has_methods(program, has_methods2)
+    mut hm2 : U64 = 0
+    while hm2.lt(has_methods2.len()) {
+        ref hmethod2 : Str = has_methods2.get(hm2)
+        out = out.concat(format(dyn_has_ret2, " dyn_has_", hmethod2, "(Str *type_name) {\n    (void)type_name;\n"))
+        for dhi3 in 0..expr_nchildren(program).to_u64() {
+            ref dhstmt3 : Expr = expr_get_child(program, dhi3.to_u32())
+            if expr_get_tag(dhstmt3).neq(NODE_DECL) { continue }
+            ref dhdef : Expr = expr_get_child(dhstmt3, 0)
+            if expr_get_tag(dhdef).neq(NODE_STRUCT_DEF).and(expr_get_tag(dhdef).neq(NODE_ENUM_DEF)) { continue }
+            dtname := expr_decl_name(dhstmt3)
+            ref dhbody : Expr = expr_get_child(dhdef, 0)
+            mut dhfound := false
+            mut dhj : U32 = 0
+            while dhj.lt(expr_nchildren(dhbody)) {
+                ref dhfield : Expr = expr_get_child(dhbody, dhj)
+                if expr_decl_is_namespace(dhfield).and(expr_decl_name(dhfield).eq(hmethod2)) {
+                    dhfound = true
+                    break
+                }
+                dhj = dhj.add(1)
+            }
+            if dhfound.not() { continue }
+            if dyn_has_shallow2 {
+                out = out.concat(format("    if (type_name->count == ", dtname.len().to_str(), "ULL && memcmp(type_name->c_str, \"", dtname, "\", ", dtname.len().to_str(), "ULL) == 0) return 1;\n"))
+            } else {
+                out = out.concat(format("    if (type_name->count == ", dtname.len().to_str(), "ULL && memcmp(type_name->c_str, \"", dtname, "\", ", dtname.len().to_str(), "ULL) == 0) { Bool *r = malloc(sizeof(Bool)); *r = 1; return r; }\n"))
+            }
+        }
+        if dyn_has_shallow2 {
+            out = out.concat("    return 0;\n")
+        } else {
+            out = out.concat("    Bool *r = malloc(sizeof(Bool)); *r = 0; return r;\n")
+        }
+        out = out.concat("}\n\n")
+        hm2 = hm2.add(1)
+    }
+
+    // Emit array/vec builtin helper function bodies
+    mut coll_infos2 := vec("CollectionInfo")
+    collect_collection_builtins(program, coll_infos2)
+    mut ci2 : U64 = 0
+    while ci2.lt(coll_infos2.len()) {
+        ref cinfo2 : CollectionInfo = coll_infos2.get(ci2)
+        et := cinfo2.type_name
+        et_len := et.len().to_str()
+        if cinfo2.is_vec.eq(1) {
+            out = out.concat(format("Vec *vec_of_", et, "(int count, ...) {\n"))
+            out = out.concat(format("    Str *_et = Str_lit(\"", et, "\", ", et_len, "ULL);\n"))
+            out = out.concat(format("    U64 _esz = sizeof(", et, ");\n"))
+            out = out.concat("    Vec *_v = Vec_new(_et, &(U64){_esz});\n")
+            out = out.concat("    Str_delete(_et, &(Bool){1});\n")
+            out = out.concat("    va_list ap; va_start(ap, count);\n")
+            out = out.concat("    for (int _i = 0; _i < count; _i++) {\n")
+            clone_name := format(et, "_clone")
+            if callee_returns_shallow(clone_name) {
+                out = out.concat(format("        ", et, " *_val = malloc(sizeof(", et, ")); *_val = ", et, "_clone(va_arg(ap, ", et, " *));\n"))
+            } else {
+                out = out.concat(format("        ", et, " *_val = ", et, "_clone(va_arg(ap, ", et, " *));\n"))
+            }
+            out = out.concat("        Vec_push(_v, _val);\n")
+            out = out.concat("    }\n")
+            out = out.concat("    va_end(ap);\n")
+            out = out.concat("    return _v;\n")
+            out = out.concat("}\n\n")
+        } else {
+            out = out.concat(format("Array *array_of_", et, "(int count, ...) {\n"))
+            out = out.concat(format("    Str *_et = Str_lit(\"", et, "\", ", et_len, "ULL);\n"))
+            out = out.concat(format("    U64 _esz = sizeof(", et, ");\n"))
+            out = out.concat("    U64 _cap = count;\n")
+            out = out.concat("    Array *_a = Array_new(_et, &(U64){_esz}, &(U64){_cap});\n")
+            out = out.concat("    Str_delete(_et, &(Bool){1});\n")
+            out = out.concat("    va_list ap; va_start(ap, count);\n")
+            out = out.concat("    for (int _i = 0; _i < count; _i++) {\n")
+            out = out.concat("        U64 _idx = _i;\n")
+            clone_name := format(et, "_clone")
+            if callee_returns_shallow(clone_name) {
+                out = out.concat(format("        ", et, " *_val = malloc(sizeof(", et, ")); *_val = ", et, "_clone(va_arg(ap, ", et, " *));\n"))
+            } else {
+                out = out.concat(format("        ", et, " *_val = ", et, "_clone(va_arg(ap, ", et, " *));\n"))
+            }
+            out = out.concat("        Array_set(_a, &(U64){_idx}, _val);\n")
+            out = out.concat("    }\n")
+            out = out.concat("    va_end(ap);\n")
+            out = out.concat("    return _a;\n")
+            out = out.concat("}\n\n")
+        }
+        ci2 = ci2.add(1)
+    }
+
+    // Test runner: emit main() that calls all test functions
+    if run_tests {
+        out = out.concat("int main(void) {\n")
+        emit_ns_inits(out, 1)
+        if has_script_globals {
+            for tgi in 0..expr_nchildren(codegen_program).to_u64() {
+                ref gs : Expr = expr_get_child(codegen_program, tgi.to_u32())
+                if expr_get_tag(gs).neq(NODE_DECL) { continue }
+                ref tgrhs : Expr = expr_get_child(gs, 0)
+                if expr_get_tag(tgrhs).eq(NODE_FUNC_DEF).or(expr_get_tag(tgrhs).eq(NODE_STRUCT_DEF))
+                    .or(expr_get_tag(tgrhs).eq(NODE_ENUM_DEF)) { continue }
+                emit_stmt(out, gs, 1)
+            }
+        }
+        mut test_count := 0
+        for ti in 0..expr_nchildren(program).to_u64() {
+            ref tstmt : Expr = expr_get_child(program, ti.to_u32())
+            if expr_get_tag(tstmt).neq(NODE_DECL) { continue }
+            ref trhs : Expr = expr_get_child(tstmt, 0)
+            if expr_get_tag(trhs).neq(NODE_FUNC_DEF) { continue }
+            if expr_fdef_func_type(trhs).neq(FUNC_TEST) { continue }
+            tname := expr_decl_name(tstmt)
+            out = out.concat(format("    ", tname, "();\n"))
+            out = out.concat(format("    fprintf(stderr, \"  pass: %s\\n\", \"", tname, "\");\n"))
+            test_count = test_count.add(1)
+        }
+        if test_count.eq(0) {
+            out = out.concat("    fprintf(stderr, \"no tests found\\n\");\n")
+        } else {
+            out = out.concat(format("    fprintf(stderr, \"", test_count.to_str(), "/", test_count.to_str(), " tests passed\\n\");\n"))
+        }
+        out = out.concat("    return 0;\n")
+        out = out.concat("}\n")
+    }
+
+    // Lib mode: emit constructor to initialize top-level globals
+    if run_tests.not().and(is_script.not()).and(is_lib).and(has_script_globals) {
+        out = out.concat("__attribute__((constructor))\nstatic void _til_lib_init(void) {\n")
+        emit_ns_inits(out, 1)
+        for lgi in 0..expr_nchildren(codegen_program).to_u64() {
+            ref gs : Expr = expr_get_child(codegen_program, lgi.to_u32())
+            if expr_get_tag(gs).neq(NODE_DECL) { continue }
+            ref lgrhs : Expr = expr_get_child(gs, 0)
+            if expr_get_tag(lgrhs).eq(NODE_FUNC_DEF).or(expr_get_tag(lgrhs).eq(NODE_STRUCT_DEF))
+                .or(expr_get_tag(lgrhs).eq(NODE_ENUM_DEF)) { continue }
+            emit_stmt(out, gs, 1)
+        }
+        out = out.concat("}\n\n")
+    }
+
+    // Script mode: wrap top-level statements in main()
+    if run_tests.not().and(is_script) {
+        out = out.concat("int main(void) {\n")
+        emit_ns_inits(out, 1)
+        // Collect unsafe-to-hoist for script-level statements
+        til_set_free(unsafe_to_hoist)
+        unsafe_to_hoist = til_set_new()
+        collect_unsafe_to_hoist(program)
+        for smi in 0..expr_nchildren(program).to_u64() {
+            ref smstmt : Expr = expr_get_child(program, smi.to_u32())
+            if expr_get_tag(smstmt).eq(NODE_DECL)
+                .and(expr_get_tag(expr_get_child(smstmt, 0)).eq(NODE_FUNC_DEF)
+                    .or(expr_get_tag(expr_get_child(smstmt, 0)).eq(NODE_STRUCT_DEF))
+                    .or(expr_get_tag(expr_get_child(smstmt, 0)).eq(NODE_ENUM_DEF))) {
+                continue
+            }
+            emit_stmt(out, smstmt, 1)
+        }
+        out = out.concat("    return 0;\n")
+        out = out.concat("}\n")
+        til_set_free(script_globals)
+        has_script_globals = false
+    }
+
+    writefile(c_output_path, out)
+    expr_map_free(struct_bodies)
+    expr_map_free(func_defs)
+    til_set_free(shallow_locals)
+    str_map_free(shallow_local_types)
+    til_set_free(unsafe_to_hoist)
+    return 0
+}
+
+// --- Step 25: build_header (builder.c lines 2107-2254) ---
+
+build_header := proc(program: Expr, h_path: Str) returns I32 {
+    mut out := ""
+
+    out = out.concat("#pragma once\n#include \"ext.h\"\n\n")
+
+    // Forward-declare structs (skip types defined by ext.h)
+    mut i : U32 = 0
+    while i.lt(expr_nchildren(program)) {
+        ref stmt : Expr = expr_get_child(program, i)
+        i = i.add(1)
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)) {
+            if is_ext_h_type(expr_decl_name(stmt)) { continue }
+            out = out.concat(format("typedef struct {} {};\n", expr_decl_name(stmt), expr_decl_name(stmt)))
+        }
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
+            ename := expr_decl_name(stmt)
+            ref ebody : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            out = out.concat("typedef enum {\n")
+            mut tag : I32 = 0
+            mut j : U32 = 0
+            while j.lt(expr_nchildren(ebody)) {
+                ref v : Expr = expr_get_child(ebody, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(v) { continue }
+                if tag.gt(0) { out = out.concat(",\n") }
+                out = out.concat(format("    {}_TAG_{}", ename, expr_decl_name(v)))
+                tag = tag.add(1)
+            }
+            out = out.concat(format("\n} {}_tag;\n", ename))
+            out = out.concat(format("typedef struct {} {};\n", ename, ename))
+        }
+    }
+    out = out.concat("\n")
+
+    // Struct definitions with fields (emit_struct_typedef skips ext.h types)
+    i = 0
+    while i.lt(expr_nchildren(program)) {
+        ref stmt : Expr = expr_get_child(program, i)
+        i = i.add(1)
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)) {
+            emit_struct_typedef(out, expr_decl_name(stmt), expr_get_child(stmt, 0))
+            out = out.concat("\n")
+        }
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
+            ename := expr_decl_name(stmt)
+            ref ebody : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            hp := expr_enum_has_payloads(expr_get_child(stmt, 0))
+            out = out.concat(format("struct {} {\n", ename))
+            out = out.concat(format("    {}_tag tag;\n", ename))
+            if hp {
+                out = out.concat("    union {\n")
+                mut j : U32 = 0
+                while j.lt(expr_nchildren(ebody)) {
+                    ref v : Expr = expr_get_child(ebody, j)
+                    j = j.add(1)
+                    if expr_decl_is_namespace(v) { continue }
+                    if expr_decl_explicit_type(v).neq("") {
+                        out = out.concat(format("        {} {};\n",
+                            type_name_to_c_value(expr_decl_explicit_type(v)),
+                            expr_decl_name(v)))
+                    }
+                }
+                out = out.concat("    } data;\n")
+            }
+            out = out.concat("};\n\n")
+        }
+    }
+
+    // Function forward declarations (namespace methods + top-level)
+    i = 0
+    while i.lt(expr_nchildren(program)) {
+        ref stmt : Expr = expr_get_child(program, i)
+        i = i.add(1)
+        if expr_get_tag(stmt).eq(NODE_DECL).and(
+                expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)
+                .or(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF))) {
+            sname := expr_decl_name(stmt)
+            if is_scalar_method_type(sname) { continue }
+            ref body : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            mut j : U32 = 0
+            while j.lt(expr_nchildren(body)) {
+                ref field : Expr = expr_get_child(body, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(field).not() { continue }
+                if expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF) { continue }
+                ref fdef : Expr = expr_get_child(field, 0)
+                fft := expr_fdef_func_type(fdef)
+                if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+                mut ret := "void"
+                if expr_fdef_return_type(fdef).neq("") {
+                    if expr_fdef_return_is_shallow(fdef) {
+                        ret = type_name_to_c_value(expr_fdef_return_type(fdef))
+                    } else {
+                        ret = type_name_to_c(expr_fdef_return_type(fdef))
+                    }
+                }
+                out = out.concat(format("{} {}_{}", ret, sname, expr_decl_name(field)))
+                out = out.concat("(")
+                emit_param_list(out, fdef, true)
+                out = out.concat(");\n")
+            }
+        } else if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_FUNC_DEF)) {
+            ref func_def : Expr = expr_get_child(stmt, 0)
+            fft := expr_fdef_func_type(func_def)
+            if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+            mut ret := "void"
+            if expr_fdef_return_type(func_def).neq("") {
+                if expr_fdef_return_is_shallow(func_def) {
+                    ret = type_name_to_c_value(expr_fdef_return_type(func_def))
+                } else {
+                    ret = type_name_to_c(expr_fdef_return_type(func_def))
+                }
+            }
+            out = out.concat(format("{} {}", ret, func_to_c(expr_decl_name(stmt))))
+            out = out.concat("(")
+            emit_param_list(out, func_def, true)
+            out = out.concat(");\n")
+        }
+    }
+
+    // Enum auto-helper forward declarations (eq, constructors, is_Variant, get_Variant)
+    i = 0
+    while i.lt(expr_nchildren(program)) {
+        ref stmt : Expr = expr_get_child(program, i)
+        i = i.add(1)
+        if expr_is_core_flag(stmt) { continue }
+        if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
+            sname := expr_decl_name(stmt)
+            hp := expr_enum_has_payloads(expr_get_child(stmt, 0))
+            ref ebody : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
+            // Find eq fdef to check return_is_shallow
+            mut eq_fdef := expr_null()
+            mut ej : U32 = 0
+            while ej.lt(expr_nchildren(ebody)) {
+                ref ef : Expr = expr_get_child(ebody, ej)
+                ej = ej.add(1)
+                if expr_decl_is_namespace(ef).and(expr_decl_name(ef).eq("eq"))
+                        .and(expr_get_tag(expr_get_child(ef, 0)).eq(NODE_FUNC_DEF)) {
+                    eq_fdef = expr_get_child(ef, 0)
+                    break
+                }
+            }
+            mut eq_ret := "Bool *"
+            if expr_is_null(eq_fdef).not().and(expr_fdef_return_is_shallow(eq_fdef)) {
+                eq_ret = "Bool"
+            }
+            out = out.concat(format("{} {}_eq({} *, {} *);\n", eq_ret, sname, sname, sname))
+            is_ret := eq_ret
+            mut j : U32 = 0
+            while j.lt(expr_nchildren(ebody)) {
+                ref v : Expr = expr_get_child(ebody, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(v) { continue }
+                if hp {
+                    out = out.concat(format("{} {}_is_{}({} *);\n", is_ret, sname, expr_decl_name(v), sname))
+                }
+                if expr_decl_explicit_type(v).neq("") {
+                    out = out.concat(format("{} *{}_{}({});\n", sname, sname,
+                        expr_decl_name(v), type_name_to_c(expr_decl_explicit_type(v))))
+                    out = out.concat(format("{} {}_get_{}({} *);\n",
+                        type_name_to_c(expr_decl_explicit_type(v)),
+                        sname, expr_decl_name(v), sname))
+                } else {
+                    out = out.concat(format("{} *{}_{}();\n", sname, sname, expr_decl_name(v)))
+                }
+            }
+        }
+    }
+    out = out.concat("\n")
+
+    writefile(h_path, out)
+    return 0
+}
+
+// --- Step 26: emit_til_default + build_til_binding (builder.c lines 2257-2411) ---
+
+// Emit a til type default value for binding generation
+emit_til_default := proc(mut out: Str, t: I32, struct_name: Str) {
+    if t.eq(TIL_TYPE_I64).or(t.eq(TIL_TYPE_I16)).or(t.eq(TIL_TYPE_I32))
+            .or(t.eq(TIL_TYPE_U32)).or(t.eq(TIL_TYPE_U64)).or(t.eq(TIL_TYPE_F32)) {
+        out = out.concat("0")
+    } else if t.eq(TIL_TYPE_U8) {
+        out = out.concat("0")
+    } else if t.eq(TIL_TYPE_BOOL) {
+        out = out.concat("false")
+    } else if t.eq(TIL_TYPE_STRUCT).or(t.eq(TIL_TYPE_ENUM)) {
+        if struct_name.neq("").and(struct_name.eq("Str")) {
+            out = out.concat("\"\"")
+        } else if struct_name.neq("") {
+            out = out.concat(format("{}()", struct_name))
+        } else {
+            out = out.concat("0")
+        }
+    } else {
+        out = out.concat("0")
+    }
+}
+
+build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I32 {
+    mut out := ""
+
+    out = out.concat(format("// Auto-generated FFI binding for {}\n", lib_name))
+    out = out.concat(format("link(\"{}\")\n\n", lib_name))
+
+    mut i : U32 = 0
+    while i.lt(expr_nchildren(program)) {
+        ref stmt : Expr = expr_get_child(program, i)
+        i = i.add(1)
+        if expr_is_core_flag(stmt) { continue }
+        if expr_get_tag(stmt).neq(NODE_DECL) { continue }
+        ref rhs : Expr = expr_get_child(stmt, 0)
+        name := expr_decl_name(stmt)
+
+        if expr_get_tag(rhs).eq(NODE_STRUCT_DEF) {
+            ref body : Expr = expr_get_child(rhs, 0)
+            out = out.concat(format("{} := ext_struct {\n", name))
+            // Instance fields
+            mut j : U32 = 0
+            while j.lt(expr_nchildren(body)) {
+                ref field : Expr = expr_get_child(body, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(field) { continue }
+                out = out.concat("    ")
+                if expr_decl_is_mut(field) { out = out.concat("mut ") }
+                if expr_decl_is_own(field) { out = out.concat("own ") }
+                out = out.concat(expr_decl_name(field))
+                if expr_decl_explicit_type(field).neq("") {
+                    out = out.concat(format(" : {}", expr_decl_explicit_type(field)))
+                }
+                out = out.concat(" := ")
+                emit_til_default(out, expr_til_type(field), expr_struct_name(expr_get_child(field, 0)))
+                out = out.concat("\n")
+            }
+            // Namespace methods
+            mut has_ns := false
+            j = 0
+            while j.lt(expr_nchildren(body)) {
+                ref field : Expr = expr_get_child(body, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(field).not() { continue }
+                if expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF) { continue }
+                ref fdef : Expr = expr_get_child(field, 0)
+                fft := expr_fdef_func_type(fdef)
+                if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+                if has_ns.not() { out = out.concat("    namespace:\n") }
+                has_ns = true
+                mut kw := "ext_func"
+                if fft.eq(FUNC_PROC).or(fft.eq(FUNC_TEST)) { kw = "ext_proc" }
+                out = out.concat(format("    {} := {}(", expr_decl_name(field), kw))
+                mut p : U32 = 0
+                while p.lt(expr_fdef_nparam(fdef)) {
+                    if p.gt(0) { out = out.concat(", ") }
+                    if expr_fdef_param_is_own(fdef, p) { out = out.concat("own ") }
+                    out = out.concat(format("{}: {}", expr_fdef_param_name(fdef, p), expr_fdef_param_type(fdef, p)))
+                    p = p.add(1)
+                }
+                out = out.concat(")")
+                if expr_fdef_return_type(fdef).neq("") {
+                    out = out.concat(" returns ")
+                    if expr_fdef_return_is_ref(fdef) { out = out.concat("ref ") }
+                    if expr_fdef_return_is_shallow(fdef) { out = out.concat("shallow ") }
+                    out = out.concat(expr_fdef_return_type(fdef))
+                }
+                out = out.concat(" {}\n")
+            }
+            out = out.concat("}\n\n")
+
+        } else if expr_get_tag(rhs).eq(NODE_ENUM_DEF) {
+            ref body : Expr = expr_get_child(rhs, 0)
+            out = out.concat(format("{} := enum {\n", name))
+            // Variants
+            mut j : U32 = 0
+            while j.lt(expr_nchildren(body)) {
+                ref v : Expr = expr_get_child(body, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(v) { continue }
+                out = out.concat(format("    {}", expr_decl_name(v)))
+                if expr_decl_explicit_type(v).neq("") {
+                    out = out.concat(format(": {}", expr_decl_explicit_type(v)))
+                }
+                out = out.concat(",\n")
+            }
+            // Namespace methods (user-defined, not auto-generated)
+            mut has_ns := false
+            j = 0
+            while j.lt(expr_nchildren(body)) {
+                ref field : Expr = expr_get_child(body, j)
+                j = j.add(1)
+                if expr_decl_is_namespace(field).not() { continue }
+                if expr_get_tag(expr_get_child(field, 0)).neq(NODE_FUNC_DEF) { continue }
+                ref fdef : Expr = expr_get_child(field, 0)
+                fft := expr_fdef_func_type(fdef)
+                if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+                if has_ns.not() { out = out.concat("    namespace:\n") }
+                has_ns = true
+                mut kw := "ext_func"
+                if fft.eq(FUNC_PROC).or(fft.eq(FUNC_TEST)) { kw = "ext_proc" }
+                out = out.concat(format("    {} := {}(", expr_decl_name(field), kw))
+                mut p : U32 = 0
+                while p.lt(expr_fdef_nparam(fdef)) {
+                    if p.gt(0) { out = out.concat(", ") }
+                    if expr_fdef_param_is_own(fdef, p) { out = out.concat("own ") }
+                    out = out.concat(format("{}: {}", expr_fdef_param_name(fdef, p), expr_fdef_param_type(fdef, p)))
+                    p = p.add(1)
+                }
+                out = out.concat(")")
+                if expr_fdef_return_type(fdef).neq("") {
+                    out = out.concat(" returns ")
+                    if expr_fdef_return_is_ref(fdef) { out = out.concat("ref ") }
+                    if expr_fdef_return_is_shallow(fdef) { out = out.concat("shallow ") }
+                    out = out.concat(expr_fdef_return_type(fdef))
+                }
+                out = out.concat(" {}\n")
+            }
+            out = out.concat("}\n\n")
+
+        } else if expr_get_tag(rhs).eq(NODE_FUNC_DEF) {
+            fft := expr_fdef_func_type(rhs)
+            if fft.eq(FUNC_EXT_FUNC).or(fft.eq(FUNC_EXT_PROC)) { continue }
+            if fft.eq(FUNC_TEST) { continue }
+            mut kw := "ext_func"
+            if fft.eq(FUNC_PROC) { kw = "ext_proc" }
+            out = out.concat(format("{} := {}(", name, kw))
+            mut p : U32 = 0
+            while p.lt(expr_fdef_nparam(rhs)) {
+                if p.gt(0) { out = out.concat(", ") }
+                if expr_fdef_param_is_own(rhs, p) { out = out.concat("own ") }
+                vi := expr_fdef_variadic_index(rhs)
+                if p.to_i64().to_i32().eq(vi) { out = out.concat("..") }
+                out = out.concat(format("{}: {}", expr_fdef_param_name(rhs, p), expr_fdef_param_type(rhs, p)))
+                p = p.add(1)
+            }
+            out = out.concat(")")
+            if expr_fdef_return_type(rhs).neq("") {
+                out = out.concat(" returns ")
+                if expr_fdef_return_is_ref(rhs) { out = out.concat("ref ") }
+                if expr_fdef_return_is_shallow(rhs) { out = out.concat("shallow ") }
+                out = out.concat(expr_fdef_return_type(rhs))
+            }
+            out = out.concat(" {}\n\n")
+        }
+    }
+
+    writefile(til_path, out)
+    return 0
+}
+
+// --- Step 27: compile_lib (builder.c lines 2413-2486) ---
+
+compile_lib := proc(c_path: Str, lib_name: Str,
+                     ext_c_path: Str, user_c_path: Str,
+                     link_flags: Str) returns I32 {
+    // Extract directory from ext_c_path for -I flag
+    slash := ext_c_path.rfind("/")
+    mut ext_dir := "."
+    if slash.gte(0) { ext_dir = ext_c_path.substr(0, slash.to_u64()) }
+
+    mut lf := link_flags
+
+    // Compile library .c to object
+    obj_path := format("gen/lib/{}.o", lib_name)
+    mut cmd := format("cc -Wall -Wextra -Werror -fPIC -I{} -c {} -o {}", ext_dir, c_path, obj_path)
+    mut result := til_system(cmd)
+    if result.neq(0) {
+        println("error: library compilation failed")
+        return 1
+    }
+
+    // Compile ext.c to object
+    ext_obj := "gen/lib/ext.o"
+    cmd = format("cc -Wall -Wextra -Werror -fPIC -I{} -c {} -o {}", ext_dir, ext_c_path, ext_obj)
+    result = til_system(cmd)
+    if result.neq(0) {
+        println("error: ext.c compilation failed")
+        return 1
+    }
+
+    // Compile user .c to object if present
+    mut user_obj := ""
+    if user_c_path.neq("") {
+        user_obj = "gen/lib/user.o"
+        cmd = format("cc -Wall -Wextra -Werror -fPIC -I{} -c {} -o {}", ext_dir, user_c_path, user_obj)
+        result = til_system(cmd)
+        if result.neq(0) {
+            println("error: user .c compilation failed")
+            return 1
+        }
+    }
+
+    // Create shared library
+    so_path := format("gen/lib/lib{}.so", lib_name)
+    cmd = format("cc -shared -o {} {} {} {} {}", so_path, obj_path, ext_obj, user_obj, lf)
+    result = til_system(cmd)
+    if result.neq(0) {
+        println("error: shared library creation failed")
+        return 1
+    }
+
+    // Create static library
+    a_path := format("gen/lib/lib{}.a", lib_name)
+    cmd = format("ar rcs {} {} {} {}", a_path, obj_path, ext_obj, user_obj)
+    result = til_system(cmd)
+    if result.neq(0) {
+        println("error: static library creation failed")
+        return 1
+    }
+
+    return 0
+}
+
+// --- Step 28: compile_c (builder.c lines 2488-2512) ---
+
+compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str) returns I32 {
+    // Extract directory from ext_c_path for -I flag
+    slash := ext_c_path.rfind("/")
+    mut ext_dir := "."
+    if slash.gte(0) { ext_dir = ext_c_path.substr(0, slash.to_u64()) }
+
+    mut user_part := ""
+    if user_c_path.neq("") { user_part = format(" {}", user_c_path) }
+
+    cmd := format("cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I{} -o {} {} {}{}{}", ext_dir, bin_path, c_path, ext_c_path, user_part, link_flags)
+
+    result := til_system(cmd)
+
+    if result.neq(0) {
+        println("error: C compilation failed")
+        return 1
+    }
+    return 0
+}

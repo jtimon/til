@@ -36,7 +36,7 @@ Expr *til_parse(Token *tokens, U32 count, Str *path) {
     // Clone path: parser stores Str* in Parser struct and propagates to AST nodes.
     return parse(tokens, count, Str_clone(path), &_parse_mode);
 }
-Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_new(""); }
+Str *til_parse_mode(void) { return _parse_mode ? Str_clone(_parse_mode) : Str_new(""); }
 
 // --- Expr field accessors ---
 
@@ -54,7 +54,7 @@ Str *expr_get_str_val(Expr *e) {
     case NODE_IDENT: case NODE_LITERAL_STR: case NODE_LITERAL_NUM:
     case NODE_LITERAL_BOOL: case NODE_ASSIGN: case NODE_FOR_IN:
     case NODE_FIELD_ACCESS: case NODE_FIELD_ASSIGN: case NODE_NAMED_ARG:
-        return e->type.str_val ? e->type.str_val : Str_new("");
+        return e->type.str_val ? Str_clone(e->type.str_val) : Str_new("");
     default:
         return Str_new("");
     }
@@ -96,6 +96,44 @@ Expr *expr_vec_get(Vec *v, U32 i) {
 U32 expr_vec_count(Vec *v) { return v->count; }
 
 void expr_vec_pop(Vec *v) { v->count--; }
+
+// --- Builder bridge: Expr field accessors ---
+
+// Decl fields
+Str *expr_decl_name(Expr *e) { return (e && e->type.tag == NODE_DECL) ? (e->type.decl.name ? Str_clone(e->type.decl.name) : Str_new("")) : Str_new(""); }
+Str *expr_decl_explicit_type(Expr *e) { return (e && e->type.tag == NODE_DECL && e->type.decl.explicit_type) ? Str_clone(e->type.decl.explicit_type) : Str_new(""); }
+Bool expr_decl_is_mut(Expr *e) { return e && e->type.tag == NODE_DECL && e->type.decl.is_mut; }
+Bool expr_decl_is_ref(Expr *e) { return e && e->type.tag == NODE_DECL && e->type.decl.is_ref; }
+Bool expr_decl_is_own(Expr *e) { return e && e->type.tag == NODE_DECL && e->type.decl.is_own; }
+Bool expr_decl_is_namespace(Expr *e) { return e && e->type.tag == NODE_DECL && e->type.decl.is_namespace; }
+
+// FuncDef fields
+I32 expr_fdef_func_type(Expr *e) { return (e && e->type.tag == NODE_FUNC_DEF) ? (I32)e->type.func_def.func_type : -1; }
+U32 expr_fdef_nparam(Expr *e) { return (e && e->type.tag == NODE_FUNC_DEF) ? e->type.func_def.nparam : 0; }
+I32 expr_fdef_variadic_index(Expr *e) { return (e && e->type.tag == NODE_FUNC_DEF) ? e->type.func_def.variadic_index : -1; }
+Str *expr_fdef_return_type(Expr *e) { return (e && e->type.tag == NODE_FUNC_DEF && e->type.func_def.return_type) ? Str_clone(e->type.func_def.return_type) : Str_new(""); }
+Bool expr_fdef_return_is_ref(Expr *e) { return e && e->type.tag == NODE_FUNC_DEF && e->type.func_def.return_is_ref; }
+Bool expr_fdef_return_is_shallow(Expr *e) { return e && e->type.tag == NODE_FUNC_DEF && e->type.func_def.return_is_shallow; }
+Str *expr_fdef_param_name(Expr *e, U32 i) { return (e && e->type.tag == NODE_FUNC_DEF && i < e->type.func_def.nparam) ? Str_clone(e->type.func_def.param_names[i]) : Str_new(""); }
+Str *expr_fdef_param_type(Expr *e, U32 i) { return (e && e->type.tag == NODE_FUNC_DEF && i < e->type.func_def.nparam && e->type.func_def.param_types) ? Str_clone(e->type.func_def.param_types[i]) : Str_new(""); }
+Bool expr_fdef_param_is_mut(Expr *e, U32 i) { return e && e->type.tag == NODE_FUNC_DEF && i < e->type.func_def.nparam && e->type.func_def.param_muts && e->type.func_def.param_muts[i]; }
+Bool expr_fdef_param_is_own(Expr *e, U32 i) { return e && e->type.tag == NODE_FUNC_DEF && i < e->type.func_def.nparam && e->type.func_def.param_owns && e->type.func_def.param_owns[i]; }
+Bool expr_fdef_param_is_shallow(Expr *e, U32 i) { return e && e->type.tag == NODE_FUNC_DEF && i < e->type.func_def.nparam && e->type.func_def.param_shallows && e->type.func_def.param_shallows[i]; }
+
+// Expr direct fields
+I32 expr_til_type(Expr *e) { return e ? (I32)e->til_type : 0; }
+Str *expr_struct_name(Expr *e) { return (e && e->struct_name) ? Str_clone(e->struct_name) : Str_new(""); }
+Bool expr_is_own_arg(Expr *e) { return e && e->is_own_arg; }
+Bool expr_is_own_field(Expr *e) { return e && e->is_own_field; }
+Bool expr_is_ns_field(Expr *e) { return e && e->is_ns_field; }
+Bool expr_is_ext_flag(Expr *e) { return e && e->is_ext; }
+Bool expr_is_core_flag(Expr *e) { return e && e->is_core; }
+Bool expr_save_old_delete(Expr *e) { return e && e->save_old_delete; }
+I32 expr_variadic_index(Expr *e) { return e ? e->variadic_index : -1; }
+U32 expr_variadic_count(Expr *e) { return e ? e->variadic_count : 0; }
+
+// enum_has_payloads bridge
+Bool expr_enum_has_payloads(Expr *e) { return enum_has_payloads(e); }
 
 void expr_vec_free(Vec *v) {
     Vec_delete(v, &(Bool){0});
@@ -178,30 +216,9 @@ I32 til_interpret(Expr *ast, const Mode *mode, Bool run_tests,
     return r;
 }
 
-I32 til_build(Expr *ast, const Mode *mode, Bool run_tests,
-              Str *path, Str *c_path) {
-    return build(ast, mode, run_tests, path, c_path);
-}
-
-I32 til_build_header(Expr *ast, Str *h_path) {
-    return build_header(ast, h_path);
-}
-
-I32 til_build_til_binding(Expr *ast, Str *til_path, Str *lib_name) {
-    return build_til_binding(ast, til_path, lib_name);
-}
-
-I32 til_compile_c(Str *c_path, Str *bin_path, Str *ext_c, Str *user_c, Str *lflags) {
-    if (user_c && user_c->count == 0) user_c = NULL;
-    if (lflags && lflags->count == 0) lflags = NULL;
-    return compile_c(c_path, bin_path, ext_c, user_c, lflags);
-}
-
-I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lflags) {
-    if (user_c && user_c->count == 0) user_c = NULL;
-    if (lflags && lflags->count == 0) lflags = NULL;
-    return compile_lib(c_path, lib_name, ext_c, user_c, lflags);
-}
+// build, build_header, build_til_binding, compile_c, compile_lib
+// are now provided by builder.til (imported by til.til) instead of C bridges.
+// ctil still uses builder.c directly (via ctil.c).
 
 void til_ast_print(Expr *ast, U32 indent) { ast_print(ast, indent); }
 void til_expr_free(Expr *ast) { expr_free(ast); }
@@ -256,6 +273,73 @@ void til_set_free(Set *s) {
     Set_delete(s, &(Bool){0});
     free(s);
 }
+
+// --- Builder Map bridges ---
+
+// Expr-valued map (Str key → Expr* value): struct_bodies, func_defs
+Map *expr_map_new(void) {
+    Map *m = malloc(sizeof(Map));
+    Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)});
+    *m = *_mp; free(_mp);
+    return m;
+}
+
+void expr_map_set(Map *m, Str *key, Expr *val) {
+    Str *_k = Str_clone(key);
+    void *_v = malloc(sizeof(Expr *));
+    memcpy(_v, &val, sizeof(Expr *));
+    Map_set(m, _k, _v);
+}
+
+Bool expr_map_has(Map *m, Str *key) {
+    return *Map_has(m, key);
+}
+
+Expr *expr_map_get(Map *m, Str *key) {
+    if (!*Map_has(m, key)) return NULL;
+    Expr **p = Map_get(m, key);
+    return *p;
+}
+
+void expr_map_free(Map *m) {
+    Map_delete(m, &(Bool){0});
+    free(m);
+}
+
+// Str-valued map (Str key → Str* value): shallow_local_types
+Map *str_map_new(void) {
+    Map *m = malloc(sizeof(Map));
+    Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Str *)});
+    *m = *_mp; free(_mp);
+    return m;
+}
+
+void str_map_set(Map *m, Str *key, Str *val) {
+    Str *_k = Str_clone(key);
+    Str *_vc = Str_clone(val);
+    void *_v = malloc(sizeof(Str *));
+    memcpy(_v, &_vc, sizeof(Str *));
+    Map_set(m, _k, _v);
+}
+
+Bool str_map_has(Map *m, Str *key) {
+    return *Map_has(m, key);
+}
+
+Str *str_map_get(Map *m, Str *key) {
+    if (!*Map_has(m, key)) return Str_new("");
+    Str **p = Map_get(m, key);
+    return Str_clone(*p);
+}
+
+void str_map_free(Map *m) {
+    Map_delete(m, &(Bool){0});
+    free(m);
+}
+
+// Mode field accessors
+Bool til_mode_needs_main(const Mode *m) { return m && m->needs_main; }
+Bool til_mode_decls_only(const Mode *m) { return m && m->decls_only; }
 
 // Derive project root by searching upward from binary location for src/core/core.til
 Str *til_bin_dir(void) {

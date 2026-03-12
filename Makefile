@@ -27,7 +27,7 @@ bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@$(MAKE) ctil_core
 	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
 
-TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
+TIL_SRCS := $(filter-out src/ctil.c src/c/builder.c, $(SRCS))
 bin/c/til: bin/ctil $(CORE) $(SELF) src/til.til
 	@bin/ctil translate src/til.til
 	@cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/c/til
