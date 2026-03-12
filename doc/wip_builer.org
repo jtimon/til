@@ -1,0 +1,164 @@
+* Issue #12: builder.til self-hosted codegen — WIP notes
+
+** Goal
+
+Replace ~src/c/builder.c~ (C codegen linked via FFI) with ~src/self/builder.til~
+(line-by-line translation) so the self-hosted compiler (~bin/c/til~) uses pure til
+for code generation. ctil keeps using builder.c directly.
+
+** What's done
+
+- [x] Bridge functions in ~src/c/til_bridge.c~ (~30 Expr field accessors + Map/Set/Mode bridges)
+- [x] builder.til translation — all 28 steps complete (~2698 lines)
+- [x] til.til integration (import, ext_func decls, bridge function decls)
+- [x] Makefile changes (~gen/til/til.c~ target, codegen diff test)
+- [x] tests.til codegen diff check (currently commented out with TODO #12)
+- [x] Bridge Str-returning functions clone to avoid double-free
+- [x] ~c_escaped_len~ fix (Str_lit length for escape sequences) in both builder.c and builder.til
+- [x] ~dyn_call_delete~ void-method fallback (silent skip vs exit(1))
+- [x] ~str_map_get~ returns clone
+- [x] Return-parameter aliasing (.clone() in func_to_c, c_type_name, type_name_to_c_value)
+- [x] Mut param struct reassignment codegen bug fix (swap/move/memset — commit 7a8c240)
+- [x] Removed I64_to_str / U8_to_str from ccore.c/ccore.h (signature mismatch with generated code)
+- [x] Fixed ~(void)~ placement in emit_stmt NODE_DECL (was inside else branch, moved after if/else)
+- [x] Fixed ALL ~format("...{}...")~ calls — format() just concatenates, doesn't do template substitution
+  - compile_c (line ~2684)
+  - compile_lib (lines ~2628-2668)
+  - build_header: typedef, enum tags, struct defs, forward decls, prototypes (lines 2280-2435)
+  - build_til_binding: struct/enum/func emission (lines 2469-2607)
+  - emit_til_default (line ~2457)
+
+** Codegen diff status
+
+~gen/c/til.c~ (from ctil/builder.c) vs ~gen/til/til.c~ (from bin/c/til/builder.til):
+*IDENTICAL* for translate output. The codegen diff test passes.
+
+** What's still failing (72/81 tests, 9 failures)
+
+*** 3 MISMATCH failures (tr vs ref — ~bin/c/til run~ produces different output)
+
+- ~src/test/import_diamond.til~
+- ~src/test/optional_args.til~
+- ~src/test/enums.til~
+
+These fail because ~bin/c/til run~ crashes during the compile step (after
+successful translation). Error example:
+#+begin_example
+/usr/bin/ld: cannot find .../src/c/ext.c<garbage>: No such file or directory
+#+end_example
+
+The garbage bytes after ~ext.c~ vary between runs — classic use-after-free / heap
+corruption. Some simpler tests (booleans, imports) pass fine with ~bin/c/til run~.
+
+*** 6 GUI build_t failures (exit=127 expected=124)
+
+gui_hello, font_test, popcorn, snake, go, chess — same root cause as above.
+~bin/c/til build~ fails, binary doesn't exist, so running it gives exit=127.
+
+** ROOT CAUSE: Makefile doesn't use bootstrap/parser.c
+
+This is the SAME issue that lexer had before it was migrated.
+
+The Makefile (line 5) filters out ~src/c/lexer.c~ and adds ~src/bootstrap/lexer.c~
+(generated from lexer.til). But it does NOT do this for parser:
+
+#+begin_src makefile
+SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c src/c/lexer.c, $(wildcard src/c/*.c)) src/bootstrap/lexer.c
+HDRS := $(filter-out src/c/lexer.h, $(wildcard src/c/*.h)) src/bootstrap/lexer.h
+#+end_src
+
+~src/c/parser.c~ is still linked. ~src/bootstrap/parser.c~ (generated from
+parser.til by ~ctil_core~, lines 40-42) exists but is never used.
+
+This causes a *symbol collision* via ~--allow-multiple-definition~:
+
+- ~src/c/parser.c~ has ~dyn_call_clone~ that knows about: TokenType, Token,
+  NodeType, FuncType, TilType, DeclData, FuncDefData, ExprData, Expr, Parser
+- ~gen/c/til.c~ has ~dyn_call_clone~ that also knows about: Mode, TypeScope,
+  CollectionInfo, DynCallInfo (types from builder.til / typer)
+- The linker picks parser.c's version (linked first), so at runtime ~dyn_call_clone~
+  fails for Mode etc with: ~dyn_call: unknown type for clone~
+
+The same collision applies to ~dyn_call_delete~, ~dyn_call_cmp~, ~dyn_call_eq~,
+~dyn_call_to_str~ — any dispatch function.
+
+This is the SAME bug pattern as the I64_to_str/U8_to_str issue in ccore.c
+(already fixed in this branch).
+
+** Fix needed
+
+Update Makefile to use ~src/bootstrap/parser.c~ instead of ~src/c/parser.c~:
+
+#+begin_src makefile
+SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c src/c/lexer.c src/c/parser.c, $(wildcard src/c/*.c)) src/bootstrap/lexer.c src/bootstrap/parser.c
+HDRS := $(filter-out src/c/lexer.h src/c/parser.h, $(wildcard src/c/*.h)) src/bootstrap/lexer.h src/bootstrap/parser.h
+#+end_src
+
+This should resolve the dyn_call collision because ~src/bootstrap/parser.c~
+(generated from parser.til) won't have conflicting dyn_call definitions — those
+will only exist in gen/c/til.c which is linked for bin/c/til.
+
+Actually, BOTH parser.c files have dyn_call_clone (generated code always includes it).
+The real fix may require either:
+1. Linking gen/c/til.c BEFORE bootstrap files so its dyn_call wins
+2. Or renaming/namespacing the dyn_call functions per translation unit
+3. Or ensuring the bootstrap parser.c's dyn_call includes all necessary types
+
+This needs investigation when resuming.
+
+** Other remaining work
+
+- [ ] ~mode~ → ~til_mode~ rename in builder.c/builder.h (~mode~ is a til keyword)
+- [ ] Re-enable codegen diff test in tests.til (currently commented out with TODO #12)
+- [ ] Get all 82/82 tests passing (currently 72/81)
+- [ ] doc/c2til.org lessons learned update
+- [ ] Add feature request to doc/issues.org: better ref/own compiler diagnostics for ext_func
+- [ ] Clean up debug artifacts (tmp/test_cel.til, bin/c/til_debug, etc.)
+
+** Architecture decisions
+
+*** fprintf → concat
+Every ~FILE *f~ parameter becomes ~mut out: Str~.
+Each ~fprintf(f, ...)~ becomes ~out = out.concat(...)~.
+At the end, ~writefile(path, out)~.
+The swap/move codegen fix (commit 7a8c240) makes this pattern safe for mut params.
+
+*** Static variables → module-level mut vars
+The 12 file-scope statics in builder.c become module-level ~mut~ variables in builder.til.
+
+*** AST access via bridge functions
+Opaque Expr handles through ~30 bridge functions in ~src/c/til_bridge.c~.
+
+*** Name conflict
+~mode~ is a til keyword → ~til_mode~ in both builder.c and builder.til.
+
+** Key lessons learned
+
+*** format() does NOT do template substitution
+~format("hello {} world", name)~ produces ~"hello {} world" + name~, NOT ~"hello name world"~.
+format() just concatenates all its arguments. Every ~format("...{}...", arg)~ must become
+~format("...", arg, "...")~ or ~"...".concat(arg).concat("...")~.
+
+*** --allow-multiple-definition is dangerous
+When two .c files define the same function with different signatures or different bodies,
+the linker silently picks the first one. This caused:
+- I64_to_str: ccore.c had ~I64_to_str(I64 v)~ (value), generated code had
+  ~I64_to_str(I64 *val)~ (pointer) → pointer address interpreted as integer
+- dyn_call_clone: parser.c version doesn't know Mode → runtime crash
+
+*** Str corruption from ext_c_path
+The garbage-after-ext.c error is NOT a format() bug (those were fixed). It's the
+dyn_call collision causing memory corruption during translation, which corrupts
+heap-allocated Str objects used later in compile_c.
+
+** Files modified on this branch
+
+- ~src/self/builder.til~ — the main translation (2698 lines)
+- ~src/c/til_bridge.c~ — bridge functions for AST access
+- ~src/c/ccore.c~ — removed I64_to_str, U8_to_str
+- ~src/c/ccore.h~ — removed corresponding declarations
+- ~src/til.til~ — imports builder.til, ext_func decls
+- ~src/tests.til~ — codegen diff check (commented out with TODO #12)
+- ~Makefile~ — gen/til/til.c target, bin/c/til build
+- ~src/bootstrap/lexer.c~ — regenerated
+- ~src/bootstrap/parser.c~ — regenerated (but not yet used by Makefile!)
