@@ -91,9 +91,11 @@ CloseAudioDevice := ext_proc() {}
 // Audio state
 mut prev_tone := Sound()
 mut tone_loaded := false
+mut sound_enabled := true
 
 // Generate and play a sine wave tone
 play_tone := proc(freq: I64, duration_ms: I64) {
+    if sound_enabled.not() { return }
     if tone_loaded {
         UnloadSound(prev_tone)
     }

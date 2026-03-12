@@ -453,8 +453,8 @@ main := proc() {
 
         // -- Mode buttons --
         for mi in 0..7 {
-            bx := MARGIN.add(mi.to_i64().mul(BTN_W))
-            by := MODE_ROW_Y
+            mbx := MARGIN.add(mi.to_i64().mul(BTN_W))
+            mby := MODE_ROW_Y
 
             mut mr := 50
             mut mg := 50
@@ -464,10 +464,10 @@ main := proc() {
                 mg = 150
                 mb = 155
             }
-            draw_rectangle(bx, by, BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
+            draw_rectangle(mbx, mby, BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
 
             ref mlabel : Str = lang_str(sel_lang, mi.to_i64().add(1))
-            draw_text_font(fnt, mlabel, bx.add(PAD_X), by.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
+            draw_text_font(fnt, mlabel, mbx.add(PAD_X), mby.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
         }
 
         // -- Radio buttons: lang + notation --

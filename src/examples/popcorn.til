@@ -1,6 +1,15 @@
 mode gui
 
-main := proc() {
+main := proc(args: ..Str) {
+    mut ai : U64 = 0
+    while ai.lt(args.len()) {
+        ref a : Str = args.get(ai)
+        if a.eq("--mute") {
+            sound_enabled = false
+        }
+        ai = ai.add(1)
+    }
+
     init_window(480, 320, "popcorn")
     set_target_fps(60)
     init_audio_device()

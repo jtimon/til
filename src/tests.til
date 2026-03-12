@@ -5,6 +5,7 @@ CTIL := "bin/ctil"
 TIL := "bin/c/til"
 RUNNER := "bin/c/test_runner"
 PLOT := "bin/c/plot"
+GUI_TIMEOUT := "1"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -412,7 +413,7 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "")
     add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "")
 
-    // === 20 build tests (translate-only, NOT in benchmarks) ===
+    // === 20 build tests (build + run with timeout) ===
     gui_files := array("Str",
         "src/examples/gui_hello.til", "src/examples/snake.til",
         "src/examples/piano.til", "src/examples/music.til",
@@ -421,11 +422,17 @@ main := proc(args: ..Str) {
         "src/examples/go.til", "src/examples/raylib.til")
     for gf : Str in gui_files {
         bn := test_basename(gf)
-        add_single(tests, "build_c_".concat(bn), "build", 0, "",
-                   CTIL.concat(" translate ").concat(gf))
+        mut run_args := ""
+        if bn.eq("popcorn") { run_args = " --mute" }
+        add_single(tests, "build_c_".concat(bn), "build", 124, "",
+                   CTIL.concat(" build ").concat(gf)
+                       .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                       .concat(" bin/c/").concat(bn).concat(run_args))
         if en_tr.eq(1) {
-            add_single(tests, "build_t_".concat(bn), "build", 0, "",
-                       TIL.concat(" translate ").concat(gf))
+            add_single(tests, "build_t_".concat(bn), "build", 124, "",
+                       TIL.concat(" build ").concat(gf)
+                           .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                           .concat(" bin/til/").concat(bn).concat(run_args))
         }
     }
 
@@ -577,51 +584,53 @@ main := proc(args: ..Str) {
     }
     writefile("gen/benchmark.csv", bench)
 
-    // doc/totals.csv — all test totals
-    totals_line := format(commit, ",",
-                          total_ci_ms.to_str(), ",", total_cr_ms.to_str(), ",",
-                          total_ti_ms.to_str(), ",", total_tr_ms.to_str(), ",",
-                          ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
-                          cli_ms.to_str(), ",", wall_ms.to_str(), ",",
-                          total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str())
+    // doc/totals.csv — all test totals (skip on failure)
+    if fail.eq(0) {
+        totals_line := format(commit, ",",
+                              total_ci_ms.to_str(), ",", total_cr_ms.to_str(), ",",
+                              total_ti_ms.to_str(), ",", total_tr_ms.to_str(), ",",
+                              ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
+                              cli_ms.to_str(), ",", wall_ms.to_str(), ",",
+                              total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str())
 
-    totals_path := "doc/totals.csv"
-    existing := readfile(totals_path)
-    mut totals_content := ""
-    lines := split(existing, NL)
-    mut last_data_idx := lines.len().sub(1)
-    while last_data_idx.gt(0) {
-        ref last_line : Str = lines.get(last_data_idx)
-        if last_line.len().gt(0) { break }
-        last_data_idx = last_data_idx.sub(1)
-    }
-    if last_data_idx.gt(0) {
-        ref last_data : Str = lines.get(last_data_idx)
-        last_commit := last_data.substr(0, last_data.find(",").to_u64())
-        if last_commit.eq(commit) {
-            mut li : U64 = 0
-            while li.lt(last_data_idx) {
-                ref ln : Str = lines.get(li)
-                totals_content = totals_content.concat(ln).concat(NL)
-                li = li.add(1)
+        totals_path := "doc/totals.csv"
+        existing := readfile(totals_path)
+        mut totals_content := ""
+        lines := split(existing, NL)
+        mut last_data_idx := lines.len().sub(1)
+        while last_data_idx.gt(0) {
+            ref last_line : Str = lines.get(last_data_idx)
+            if last_line.len().gt(0) { break }
+            last_data_idx = last_data_idx.sub(1)
+        }
+        if last_data_idx.gt(0) {
+            ref last_data : Str = lines.get(last_data_idx)
+            last_commit := last_data.substr(0, last_data.find(",").to_u64())
+            if last_commit.eq(commit) {
+                mut li : U64 = 0
+                while li.lt(last_data_idx) {
+                    ref ln : Str = lines.get(li)
+                    totals_content = totals_content.concat(ln).concat(NL)
+                    li = li.add(1)
+                }
+            } else {
+                totals_content = existing
+                if existing.substr(existing.len().sub(1), 1).neq(NL) {
+                    totals_content = totals_content.concat(NL)
+                }
             }
         } else {
             totals_content = existing
-            if existing.substr(existing.len().sub(1), 1).neq(NL) {
+            if existing.len().gt(0).and(existing.substr(existing.len().sub(1), 1).neq(NL)) {
                 totals_content = totals_content.concat(NL)
             }
         }
-    } else {
-        totals_content = existing
-        if existing.len().gt(0).and(existing.substr(existing.len().sub(1), 1).neq(NL)) {
-            totals_content = totals_content.concat(NL)
-        }
-    }
-    totals_content = totals_content.concat(totals_line).concat(NL)
-    writefile(totals_path, totals_content)
+        totals_content = totals_content.concat(totals_line).concat(NL)
+        writefile(totals_path, totals_content)
 
-    run(PLOT.concat(" doc/totals.csv img/totals.svg 20 --no-x-labels"))
-    println("Updated doc/totals.csv and img/totals.svg")
+        run(PLOT.concat(" doc/totals.csv img/totals.svg 10 --no-x-labels"))
+        println("Updated doc/totals.csv and img/totals.svg")
+    }
 
     exit(fail)
 }

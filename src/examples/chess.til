@@ -275,10 +275,10 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 
         // Captures (diagonal)
         if nr.gte(0).and(nr.lt(8)) {
-            mut dc := 0.sub(1)
-            while dc.lte(1) {
-                nc := c.add(dc)
-                if nc.gte(0).and(nc.lt(8)).and(dc.neq(0)) {
+            mut cap_dc := 0.sub(1)
+            while cap_dc.lte(1) {
+                nc := c.add(cap_dc)
+                if nc.gte(0).and(nc.lt(8)).and(cap_dc.neq(0)) {
                     ref cp : I64 = board.get(nr.mul(8).add(nc).to_u64())
                     opp := 1.sub(side)
                     can_capture := is_side(cp, opp)
@@ -313,7 +313,7 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
                         }
                     }
                 }
-                dc = dc.add(2)
+                cap_dc = cap_dc.add(2)
             }
         }
     }
@@ -628,28 +628,28 @@ main := proc() {
                         ref mp : I64 = board.get(from_val.to_u64())
                         mpv := mp.clone()
                         mpt := piece_type(mpv)
-                        from_r := from_val.div(8)
-                        from_c := from_val.mod(8)
-                        to_r := to_val.div(8)
-                        to_c := to_val.mod(8)
+                        ai_from_r := from_val.div(8)
+                        ai_from_c := from_val.mod(8)
+                        ai_to_r := to_val.div(8)
+                        ai_to_c := to_val.mod(8)
 
                         // Update castle flags
                         if mpt.eq(6) {
                             castle_flags.set(3, own 1)
                             // Check castling move
-                            if from_c.eq(4).and(to_c.eq(6)) {
+                            if ai_from_c.eq(4).and(ai_to_c.eq(6)) {
                                 // Kingside
-                                ref rp : I64 = board.get(from_r.mul(8).add(7).to_u64())
+                                ref rp : I64 = board.get(ai_from_r.mul(8).add(7).to_u64())
                                 rpv := rp.clone()
-                                board.set(from_r.mul(8).add(5).to_u64(), own rpv)
-                                board.set(from_r.mul(8).add(7).to_u64(), own 0)
+                                board.set(ai_from_r.mul(8).add(5).to_u64(), own rpv)
+                                board.set(ai_from_r.mul(8).add(7).to_u64(), own 0)
                             }
-                            if from_c.eq(4).and(to_c.eq(2)) {
+                            if ai_from_c.eq(4).and(ai_to_c.eq(2)) {
                                 // Queenside
-                                ref rp : I64 = board.get(from_r.mul(8).to_u64())
+                                ref rp : I64 = board.get(ai_from_r.mul(8).to_u64())
                                 rpv := rp.clone()
-                                board.set(from_r.mul(8).add(3).to_u64(), own rpv)
-                                board.set(from_r.mul(8).to_u64(), own 0)
+                                board.set(ai_from_r.mul(8).add(3).to_u64(), own rpv)
+                                board.set(ai_from_r.mul(8).to_u64(), own 0)
                             }
                         }
                         if mpt.eq(4) {
@@ -658,10 +658,10 @@ main := proc() {
                         }
 
                         // En passant capture
-                        if mpt.eq(1).and(from_c.neq(to_c)) {
+                        if mpt.eq(1).and(ai_from_c.neq(ai_to_c)) {
                             ref dest_p : I64 = board.get(to_val.to_u64())
                             if dest_p.eq(0) {
-                                board.set(from_r.mul(8).add(to_c).to_u64(), own 0)
+                                board.set(ai_from_r.mul(8).add(ai_to_c).to_u64(), own 0)
                             }
                         }
 
@@ -670,13 +670,13 @@ main := proc() {
                         board.set(from_val.to_u64(), own 0)
 
                         // Pawn promotion (auto-queen)
-                        if mpt.eq(1).and(to_r.eq(7)) {
+                        if mpt.eq(1).and(ai_to_r.eq(7)) {
                             board.set(to_val.to_u64(), own 11)
                         }
 
                         // Update en passant column
-                        if mpt.eq(1).and(to_r.sub(from_r).abs().eq(2)) {
-                            ep_col = from_c
+                        if mpt.eq(1).and(ai_to_r.sub(ai_from_r).abs().eq(2)) {
+                            ep_col = ai_from_c
                         } else {
                             ep_col = 0.sub(1)
                         }
