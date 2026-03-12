@@ -38,13 +38,13 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
 }
 
 // Collect unique dyn_call method literals from AST
-typedef struct { Str *method; I32 nargs; Bool returns; } DynCallInfo;
+typedef struct { Str *method; I32 nargs; Bool has_return; } DynCallInfo;
 
-static Bool is_dyn_call_name(Str *name, I32 *nargs, Bool *returns) {
-    if (Str_eq_c(name, "dyn_call1"))     { *nargs = 1; *returns = 0; return 1; }
-    if (Str_eq_c(name, "dyn_call2"))     { *nargs = 2; *returns = 0; return 1; }
-    if (Str_eq_c(name, "dyn_call1_ret")) { *nargs = 1; *returns = 1; return 1; }
-    if (Str_eq_c(name, "dyn_call2_ret")) { *nargs = 2; *returns = 1; return 1; }
+static Bool is_dyn_call_name(Str *name, I32 *nargs, Bool *has_return) {
+    if (Str_eq_c(name, "dyn_call1"))     { *nargs = 1; *has_return = 0; return 1; }
+    if (Str_eq_c(name, "dyn_call2"))     { *nargs = 2; *has_return = 0; return 1; }
+    if (Str_eq_c(name, "dyn_call1_ret")) { *nargs = 1; *has_return = 1; return 1; }
+    if (Str_eq_c(name, "dyn_call2_ret")) { *nargs = 2; *has_return = 1; return 1; }
     return 0;
 }
 
@@ -52,14 +52,14 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
     if (!e) return;
     if (e->type.tag == NODE_FCALL && expr_child(e, 0)->type.tag == NODE_IDENT &&
         e->children.count >= 3 && expr_child(e, 2)->type.tag == NODE_LITERAL_STR) {
-        I32 nargs; Bool returns;
-        if (is_dyn_call_name(expr_child(e, 0)->type.str_val, &nargs, &returns)) {
+        I32 nargs; Bool has_return;
+        if (is_dyn_call_name(expr_child(e, 0)->type.str_val, &nargs, &has_return)) {
             Str *method = expr_child(e, 2)->type.str_val;
             for (U32 i = 0; i < methods->count; i++) {
                 DynCallInfo *existing = Vec_get(methods, &(U64){(U64)(i)});
                 if (*Str_eq(existing->method, method)) return;
             }
-            DynCallInfo info = {method, nargs, returns};
+            DynCallInfo info = {method, nargs, has_return};
             { DynCallInfo *_p = malloc(sizeof(DynCallInfo)); *_p = info; Vec_push(methods, _p); }
         }
     }
@@ -319,11 +319,22 @@ static const char *func_to_c(Str *name) {
 
 // --- Expression emission ---
 
+// Compute the byte length of a C string literal after escape processing.
+// e.g. "hello\nworld" has 13 source chars but 11 bytes at runtime.
+static U64 c_escaped_len(Str *s) {
+    U64 len = 0;
+    for (U64 i = 0; i < s->count; i++) {
+        if (s->c_str[i] == '\\' && i + 1 < s->count) i++;
+        len++;
+    }
+    return len;
+}
+
 static void emit_expr(FILE *f, Expr *e, I32 depth) {
     (void)depth;
     switch (e->type.tag) {
     case NODE_LITERAL_STR:
-        fprintf(f, "Str_lit(\"%s\", %lluULL)", e->type.str_val->c_str, (unsigned long long)e->type.str_val->count);
+        fprintf(f, "Str_lit(\"%s\", %lluULL)", e->type.str_val->c_str, (unsigned long long)c_escaped_len(e->type.str_val));
         break;
     case NODE_LITERAL_NUM:
         fprintf(f, "%s", e->type.str_val->c_str);
@@ -1678,7 +1689,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
-            if (info->returns) {
+            if (info->has_return) {
                 if (info->nargs == 1)
                     fprintf(f, "void *dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
                 else
@@ -1829,7 +1840,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
             Str *method = info->method;
-            const char *ret_type = info->returns ? "void *" : "void ";
+            const char *ret_type = info->has_return ? "void *" : "void ";
             if (info->nargs == 1)
                 fprintf(f, "%sdyn_call_%s(Str *type_name, void *val) {\n", ret_type, method->c_str);
             else
@@ -1869,23 +1880,23 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
                 }
                 bool ret_shallow = method_fdef->type.func_def.return_is_shallow;
-                const char *ret_ctype = (info->returns && ret_shallow && method_fdef->type.func_def.return_type)
+                const char *ret_ctype = (info->has_return && ret_shallow && method_fdef->type.func_def.return_type)
                     ? type_name_to_c_value(method_fdef->type.func_def.return_type) : NULL;
                 if (info->nargs == 2) {
-                    if (info->returns && ret_shallow)
+                    if (info->has_return && ret_shallow)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s, %s); return _r; }\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1, arg2_str);
-                    else if (info->returns)
+                    else if (info->has_return)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return (void *)%s_%s(%s, %s);\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                     else
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s_%s(%s, %s); return; }\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                 } else {
-                    if (info->returns && ret_shallow)
+                    if (info->has_return && ret_shallow)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s); return _r; }\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1);
-                    else if (info->returns)
+                    else if (info->has_return)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return (void *)%s_%s(%s);\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1);
                     else
@@ -1893,9 +1904,16 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1);
                 }
             }
-            fprintf(f, "    fprintf(stderr, \"dyn_call: unknown type for %s\\n\");\n", method->c_str);
-            fprintf(f, "    exit(1);\n");
-            fprintf(f, "}\n\n");
+            if (!info->has_return) {
+                // For void methods (delete), silently skip unknown types to allow
+                // multiple compilation units with --allow-multiple-definition
+                fprintf(f, "    (void)type_name; (void)val;\n");
+                fprintf(f, "}\n\n");
+            } else {
+                fprintf(f, "    fprintf(stderr, \"dyn_call: unknown type for %s\\n\");\n", method->c_str);
+                fprintf(f, "    exit(1);\n");
+                fprintf(f, "}\n\n");
+            }
         }
         Vec_delete(&dyn_methods, &(Bool){0});
     }

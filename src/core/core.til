@@ -108,6 +108,7 @@ namespace:
 U32 := ext_struct {
 namespace:
     to_i64 := ext_func(shallow val: U32) returns shallow I64 {}
+    to_u64 := func(shallow val: U32) returns shallow U64 { return val.to_i64().to_u64() }
     to_str := func(val: U32) returns Str {
         return val.to_i64().to_str()
     }
@@ -131,6 +132,7 @@ namespace:
 U64 := ext_struct {
 namespace:
     to_i64 := ext_func(shallow val: U64) returns shallow I64 {}
+    to_u32 := func(shallow val: U64) returns shallow U32 { return val.to_i64().to_u32() }
     to_str := func(shallow val: U64) returns Str {
         U64_to_str_ext := ext_func(shallow val: U64) returns Str {}
         return U64_to_str_ext(val)
