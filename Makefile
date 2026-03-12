@@ -27,7 +27,10 @@ bin/c/plot: bin/ctil $(CORE) src/examples/plot.til
 bin/c/tests: bin/ctil $(CORE) src/tests.til
 	@bin/ctil build src/tests.til
 
-test: bin/ctil bin/c/til bin/c/test_runner bin/c/plot bin/c/tests
+gen/til/til.c: bin/c/til $(CORE) $(SELF) src/til.til
+	@bin/c/til translate src/til.til
+
+test: bin/ctil bin/c/til bin/c/test_runner bin/c/plot bin/c/tests gen/til/til.c
 	@bin/c/tests $(if $(J),-j$(J))
 
 ctil_core: bin/ctil
