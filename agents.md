@@ -37,7 +37,9 @@ Always run `make test` and verify all tests pass before committing.
 
 ## Commits
 
-- Always include ALL modified files in commits, including generated files (src/bootstrap/, doc/totals.csv, img/totals.svg, etc.)
+- Always include ALL modified files in commits, including generated files (src/bootstrap/)
+- Local agents: include doc/totals.csv and img/totals.svg in commits
+- Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv or img/totals.svg
 - Use `make test` before every commit
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
 - NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" — just do it. Stop wasting tokens on justifying why something doesn't need changing.
