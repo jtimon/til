@@ -967,10 +967,10 @@ emit_stmt := proc(mut out: Str, e: Expr, depth: I64) {
                         out = out.concat(";\n")
                     }
                 }
-                // Suppress unused-variable warnings for all declarations
-                emit_indent(out, depth)
-                out = out.concat(format("(void)", expr_decl_name(e), ";\n"))
             }
+            // Suppress unused-variable warnings for all declarations
+            emit_indent(out, depth)
+            out = out.concat(format("(void)", expr_decl_name(e), ";\n"))
         }
     } else if tag.eq(NODE_ASSIGN) {
         ref rhs : Expr = expr_get_child(e, 0)
@@ -2277,7 +2277,7 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
         i = i.add(1)
         if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_STRUCT_DEF)) {
             if is_ext_h_type(expr_decl_name(stmt)) { continue }
-            out = out.concat(format("typedef struct {} {};\n", expr_decl_name(stmt), expr_decl_name(stmt)))
+            out = out.concat("typedef struct ").concat(expr_decl_name(stmt)).concat(" ").concat(expr_decl_name(stmt)).concat(";\n")
         }
         if expr_get_tag(stmt).eq(NODE_DECL).and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_ENUM_DEF)) {
             ename := expr_decl_name(stmt)
@@ -2290,11 +2290,11 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
                 j = j.add(1)
                 if expr_decl_is_namespace(v) { continue }
                 if tag.gt(0) { out = out.concat(",\n") }
-                out = out.concat(format("    {}_TAG_{}", ename, expr_decl_name(v)))
+                out = out.concat("    ").concat(ename).concat("_TAG_").concat(expr_decl_name(v))
                 tag = tag.add(1)
             }
-            out = out.concat(format("\n} {}_tag;\n", ename))
-            out = out.concat(format("typedef struct {} {};\n", ename, ename))
+            out = out.concat("\n} ").concat(ename).concat("_tag;\n")
+            out = out.concat("typedef struct ").concat(ename).concat(" ").concat(ename).concat(";\n")
         }
     }
     out = out.concat("\n")
@@ -2312,8 +2312,8 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
             ename := expr_decl_name(stmt)
             ref ebody : Expr = expr_get_child(expr_get_child(stmt, 0), 0)
             hp := expr_enum_has_payloads(expr_get_child(stmt, 0))
-            out = out.concat(format("struct {} {\n", ename))
-            out = out.concat(format("    {}_tag tag;\n", ename))
+            out = out.concat("struct ").concat(ename).concat(" {\n")
+            out = out.concat("    ").concat(ename).concat("_tag tag;\n")
             if hp {
                 out = out.concat("    union {\n")
                 mut j : U32 = 0
@@ -2322,9 +2322,7 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
                     j = j.add(1)
                     if expr_decl_is_namespace(v) { continue }
                     if expr_decl_explicit_type(v).neq("") {
-                        out = out.concat(format("        {} {};\n",
-                            type_name_to_c_value(expr_decl_explicit_type(v)),
-                            expr_decl_name(v)))
+                        out = out.concat("        ").concat(type_name_to_c_value(expr_decl_explicit_type(v))).concat(" ").concat(expr_decl_name(v)).concat(";\n")
                     }
                 }
                 out = out.concat("    } data;\n")
@@ -2361,7 +2359,7 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
                         ret = type_name_to_c(expr_fdef_return_type(fdef))
                     }
                 }
-                out = out.concat(format("{} {}_{}", ret, sname, expr_decl_name(field)))
+                out = out.concat(ret).concat(" ").concat(sname).concat("_").concat(expr_decl_name(field))
                 out = out.concat("(")
                 emit_param_list(out, fdef, true)
                 out = out.concat(");\n")
@@ -2378,7 +2376,7 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
                     ret = type_name_to_c(expr_fdef_return_type(func_def))
                 }
             }
-            out = out.concat(format("{} {}", ret, func_to_c(expr_decl_name(stmt))))
+            out = out.concat(ret).concat(" ").concat(func_to_c(expr_decl_name(stmt)))
             out = out.concat("(")
             emit_param_list(out, func_def, true)
             out = out.concat(");\n")
@@ -2411,7 +2409,7 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
             if expr_is_null(eq_fdef).not().and(expr_fdef_return_is_shallow(eq_fdef)) {
                 eq_ret = "Bool"
             }
-            out = out.concat(format("{} {}_eq({} *, {} *);\n", eq_ret, sname, sname, sname))
+            out = out.concat(eq_ret).concat(" ").concat(sname).concat("_eq(").concat(sname).concat(" *, ").concat(sname).concat(" *);\n")
             is_ret := eq_ret
             mut j : U32 = 0
             while j.lt(expr_nchildren(ebody)) {
@@ -2419,16 +2417,13 @@ build_header := proc(program: Expr, h_path: Str) returns I32 {
                 j = j.add(1)
                 if expr_decl_is_namespace(v) { continue }
                 if hp {
-                    out = out.concat(format("{} {}_is_{}({} *);\n", is_ret, sname, expr_decl_name(v), sname))
+                    out = out.concat(is_ret).concat(" ").concat(sname).concat("_is_").concat(expr_decl_name(v)).concat("(").concat(sname).concat(" *);\n")
                 }
                 if expr_decl_explicit_type(v).neq("") {
-                    out = out.concat(format("{} *{}_{}({});\n", sname, sname,
-                        expr_decl_name(v), type_name_to_c(expr_decl_explicit_type(v))))
-                    out = out.concat(format("{} {}_get_{}({} *);\n",
-                        type_name_to_c(expr_decl_explicit_type(v)),
-                        sname, expr_decl_name(v), sname))
+                    out = out.concat(sname).concat(" *").concat(sname).concat("_").concat(expr_decl_name(v)).concat("(").concat(type_name_to_c(expr_decl_explicit_type(v))).concat(");\n")
+                    out = out.concat(type_name_to_c(expr_decl_explicit_type(v))).concat(" ").concat(sname).concat("_get_").concat(expr_decl_name(v)).concat("(").concat(sname).concat(" *);\n")
                 } else {
-                    out = out.concat(format("{} *{}_{}();\n", sname, sname, expr_decl_name(v)))
+                    out = out.concat(sname).concat(" *").concat(sname).concat("_").concat(expr_decl_name(v)).concat("();\n")
                 }
             }
         }
@@ -2454,7 +2449,7 @@ emit_til_default := proc(mut out: Str, t: I32, struct_name: Str) {
         if struct_name.neq("").and(struct_name.eq("Str")) {
             out = out.concat("\"\"")
         } else if struct_name.neq("") {
-            out = out.concat(format("{}()", struct_name))
+            out = out.concat(struct_name).concat("()")
         } else {
             out = out.concat("0")
         }
@@ -2466,8 +2461,8 @@ emit_til_default := proc(mut out: Str, t: I32, struct_name: Str) {
 build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I32 {
     mut out := ""
 
-    out = out.concat(format("// Auto-generated FFI binding for {}\n", lib_name))
-    out = out.concat(format("link(\"{}\")\n\n", lib_name))
+    out = out.concat("// Auto-generated FFI binding for ").concat(lib_name).concat("\n")
+    out = out.concat("link(\"").concat(lib_name).concat("\")\n\n")
 
     mut i : U32 = 0
     while i.lt(expr_nchildren(program)) {
@@ -2480,7 +2475,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I
 
         if expr_get_tag(rhs).eq(NODE_STRUCT_DEF) {
             ref body : Expr = expr_get_child(rhs, 0)
-            out = out.concat(format("{} := ext_struct {\n", name))
+            out = out.concat(name).concat(" := ext_struct {\n")
             // Instance fields
             mut j : U32 = 0
             while j.lt(expr_nchildren(body)) {
@@ -2492,7 +2487,7 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I
                 if expr_decl_is_own(field) { out = out.concat("own ") }
                 out = out.concat(expr_decl_name(field))
                 if expr_decl_explicit_type(field).neq("") {
-                    out = out.concat(format(" : {}", expr_decl_explicit_type(field)))
+                    out = out.concat(" : ").concat(expr_decl_explicit_type(field))
                 }
                 out = out.concat(" := ")
                 emit_til_default(out, expr_til_type(field), expr_struct_name(expr_get_child(field, 0)))
@@ -2513,12 +2508,12 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I
                 has_ns = true
                 mut kw := "ext_func"
                 if fft.eq(FUNC_PROC).or(fft.eq(FUNC_TEST)) { kw = "ext_proc" }
-                out = out.concat(format("    {} := {}(", expr_decl_name(field), kw))
+                out = out.concat("    ").concat(expr_decl_name(field)).concat(" := ").concat(kw).concat("(")
                 mut p : U32 = 0
                 while p.lt(expr_fdef_nparam(fdef)) {
                     if p.gt(0) { out = out.concat(", ") }
                     if expr_fdef_param_is_own(fdef, p) { out = out.concat("own ") }
-                    out = out.concat(format("{}: {}", expr_fdef_param_name(fdef, p), expr_fdef_param_type(fdef, p)))
+                    out = out.concat(expr_fdef_param_name(fdef, p)).concat(": ").concat(expr_fdef_param_type(fdef, p))
                     p = p.add(1)
                 }
                 out = out.concat(")")
@@ -2534,16 +2529,16 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I
 
         } else if expr_get_tag(rhs).eq(NODE_ENUM_DEF) {
             ref body : Expr = expr_get_child(rhs, 0)
-            out = out.concat(format("{} := enum {\n", name))
+            out = out.concat(name).concat(" := enum {\n")
             // Variants
             mut j : U32 = 0
             while j.lt(expr_nchildren(body)) {
                 ref v : Expr = expr_get_child(body, j)
                 j = j.add(1)
                 if expr_decl_is_namespace(v) { continue }
-                out = out.concat(format("    {}", expr_decl_name(v)))
+                out = out.concat("    ").concat(expr_decl_name(v))
                 if expr_decl_explicit_type(v).neq("") {
-                    out = out.concat(format(": {}", expr_decl_explicit_type(v)))
+                    out = out.concat(": ").concat(expr_decl_explicit_type(v))
                 }
                 out = out.concat(",\n")
             }
@@ -2562,12 +2557,12 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I
                 has_ns = true
                 mut kw := "ext_func"
                 if fft.eq(FUNC_PROC).or(fft.eq(FUNC_TEST)) { kw = "ext_proc" }
-                out = out.concat(format("    {} := {}(", expr_decl_name(field), kw))
+                out = out.concat("    ").concat(expr_decl_name(field)).concat(" := ").concat(kw).concat("(")
                 mut p : U32 = 0
                 while p.lt(expr_fdef_nparam(fdef)) {
                     if p.gt(0) { out = out.concat(", ") }
                     if expr_fdef_param_is_own(fdef, p) { out = out.concat("own ") }
-                    out = out.concat(format("{}: {}", expr_fdef_param_name(fdef, p), expr_fdef_param_type(fdef, p)))
+                    out = out.concat(expr_fdef_param_name(fdef, p)).concat(": ").concat(expr_fdef_param_type(fdef, p))
                     p = p.add(1)
                 }
                 out = out.concat(")")
@@ -2587,14 +2582,14 @@ build_til_binding := proc(program: Expr, til_path: Str, lib_name: Str) returns I
             if fft.eq(FUNC_TEST) { continue }
             mut kw := "ext_func"
             if fft.eq(FUNC_PROC) { kw = "ext_proc" }
-            out = out.concat(format("{} := {}(", name, kw))
+            out = out.concat(name).concat(" := ").concat(kw).concat("(")
             mut p : U32 = 0
             while p.lt(expr_fdef_nparam(rhs)) {
                 if p.gt(0) { out = out.concat(", ") }
                 if expr_fdef_param_is_own(rhs, p) { out = out.concat("own ") }
                 vi := expr_fdef_variadic_index(rhs)
                 if p.to_i64().to_i32().eq(vi) { out = out.concat("..") }
-                out = out.concat(format("{}: {}", expr_fdef_param_name(rhs, p), expr_fdef_param_type(rhs, p)))
+                out = out.concat(expr_fdef_param_name(rhs, p)).concat(": ").concat(expr_fdef_param_type(rhs, p))
                 p = p.add(1)
             }
             out = out.concat(")")
@@ -2625,8 +2620,8 @@ compile_lib := proc(c_path: Str, lib_name: Str,
     mut lf := link_flags
 
     // Compile library .c to object
-    obj_path := format("gen/lib/{}.o", lib_name)
-    mut cmd := format("cc -Wall -Wextra -Werror -fPIC -I{} -c {} -o {}", ext_dir, c_path, obj_path)
+    obj_path := format("gen/lib/", lib_name, ".o")
+    mut cmd := format("cc -Wall -Wextra -Werror -fPIC -I", ext_dir, " -c ", c_path, " -o ", obj_path)
     mut result := til_system(cmd)
     if result.neq(0) {
         println("error: library compilation failed")
@@ -2635,7 +2630,7 @@ compile_lib := proc(c_path: Str, lib_name: Str,
 
     // Compile ext.c to object
     ext_obj := "gen/lib/ext.o"
-    cmd = format("cc -Wall -Wextra -Werror -fPIC -I{} -c {} -o {}", ext_dir, ext_c_path, ext_obj)
+    cmd = format("cc -Wall -Wextra -Werror -fPIC -I", ext_dir, " -c ", ext_c_path, " -o ", ext_obj)
     result = til_system(cmd)
     if result.neq(0) {
         println("error: ext.c compilation failed")
@@ -2646,7 +2641,7 @@ compile_lib := proc(c_path: Str, lib_name: Str,
     mut user_obj := ""
     if user_c_path.neq("") {
         user_obj = "gen/lib/user.o"
-        cmd = format("cc -Wall -Wextra -Werror -fPIC -I{} -c {} -o {}", ext_dir, user_c_path, user_obj)
+        cmd = format("cc -Wall -Wextra -Werror -fPIC -I", ext_dir, " -c ", user_c_path, " -o ", user_obj)
         result = til_system(cmd)
         if result.neq(0) {
             println("error: user .c compilation failed")
@@ -2655,8 +2650,8 @@ compile_lib := proc(c_path: Str, lib_name: Str,
     }
 
     // Create shared library
-    so_path := format("gen/lib/lib{}.so", lib_name)
-    cmd = format("cc -shared -o {} {} {} {} {}", so_path, obj_path, ext_obj, user_obj, lf)
+    so_path := format("gen/lib/lib", lib_name, ".so")
+    cmd = format("cc -shared -o ", so_path, " ", obj_path, " ", ext_obj, " ", user_obj, " ", lf)
     result = til_system(cmd)
     if result.neq(0) {
         println("error: shared library creation failed")
@@ -2664,8 +2659,8 @@ compile_lib := proc(c_path: Str, lib_name: Str,
     }
 
     // Create static library
-    a_path := format("gen/lib/lib{}.a", lib_name)
-    cmd = format("ar rcs {} {} {} {}", a_path, obj_path, ext_obj, user_obj)
+    a_path := format("gen/lib/lib", lib_name, ".a")
+    cmd = format("ar rcs ", a_path, " ", obj_path, " ", ext_obj, " ", user_obj)
     result = til_system(cmd)
     if result.neq(0) {
         println("error: static library creation failed")
@@ -2684,9 +2679,9 @@ compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str,
     if slash.gte(0) { ext_dir = ext_c_path.substr(0, slash.to_u64()) }
 
     mut user_part := ""
-    if user_c_path.neq("") { user_part = format(" {}", user_c_path) }
+    if user_c_path.neq("") { user_part = format(" ", user_c_path) }
 
-    cmd := format("cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I{} -o {} {} {}{}{}", ext_dir, bin_path, c_path, ext_c_path, user_part, link_flags)
+    cmd := format("cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I", ext_dir, " -o ", bin_path, " ", c_path, " ", ext_c_path, user_part, link_flags)
 
     result := til_system(cmd)
 

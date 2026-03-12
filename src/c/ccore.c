@@ -31,12 +31,6 @@ I64 I64_dec(I64 a) { return a - 1; }
 Bool I64_eq(I64 a, I64 b) { return a == b; }
 I64 I64_cmp(I64 a, I64 b) { return a < b ? -1 : (a > b ? 1 : 0); }
 
-Str *I64_to_str(I64 v) {
-    char buf[32];
-    snprintf(buf, 32, "%lld", v);
-    return Str_new(buf);
-}
-
 I64 *I64_new(I64 val) {
     I64 *p = malloc(sizeof(I64));
     *p = val;
@@ -61,12 +55,6 @@ U8 U8_dec(U8 a) { return a - 1; }
 
 Bool U8_eq(U8 a, U8 b) { return a == b; }
 I64 U8_cmp(U8 a, U8 b) { return a < b ? -1 : (a > b ? 1 : 0); }
-
-Str *U8_to_str(U8 v) {
-    char buf[4];
-    snprintf(buf, 4, "%u", (unsigned)v);
-    return Str_new(buf);
-}
 
 I64 U8_to_i64(U8 v) { return (I64)v; }
 U8 U8_from_i64(I64 v) { return (U8)v; }
