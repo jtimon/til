@@ -163,31 +163,6 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-** OPEN #28 Aliases: implicit ref for comptime-immutable declarations
-  When `a := b` and b is provably immutable and comptime, `a` should be
-  an alias (implicit ref — pointer to same storage) instead of a clone.
-  No new syntax needed: the compiler detects when aliasing is safe.
-
-  A value is alias-eligible when it is:
-  - A literal (42, "hello", true)
-  - Another alias or constant
-  - The result of a pure func or macro call where all args are comptime
-  - NOT a proc call result
-  - NOT a mut variable
-  - NOT a ref to a mutable binding
-
-  The existing is_comptime helper from precomp.c can help identify
-  compile-time-evaluable expressions. The key insight: if the value
-  can never change, there's no reason to copy it — just point to it.
-
-  Benefits:
-  - Zero-cost naming (naming a constant doesn't allocate)
-  - Enables the compiler to share storage for repeated constants
-  - No user-visible behavior change (immutable either way)
-
-  Ownership: only the original value is deleted, aliases are skipped
-  by ASAP (same as ref declarations today). The typer/ASAP already
-  handles ref lifetime correctly — this extends it to auto-detected cases.
 
 ** OPEN #14 Function pointers: first-class functions as values
   til currently has no way to pass functions as values. func/proc

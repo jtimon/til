@@ -86,12 +86,65 @@ test_alias_lifetime := test() {
     assert_eq_str(__LOC__, y, "first")
 }
 
-# Alias from function parameter (borrowed, immutable)
-check := func(val: I64) returns I64 {
+# Alias chaining: y aliases x, z aliases y
+test_alias_chain := test() {
+    x := 100
+    y := x
+    z := y
+    assert_eq(__LOC__, z, 100)
+}
+
+test_alias_chain_str := test() {
+    a := "chain"
+    b := a
+    c := b
+    assert_eq_str(__LOC__, c, "chain")
+}
+
+# Deep alias chain: x → y (alias) → z (alias) → w (alias)
+test_deep_chain := test() {
+    x := "deep"
+    y := x
+    z := y
+    w := z
+    assert_eq_str(__LOC__, w, "deep")
+}
+
+# Returning an alias auto-clones (safe — alias doesn't outlive source)
+get_val := func() returns I64 {
+    x := 42
+    y := x
+    return y
+}
+
+test_alias_return_clones := test() {
+    assert_eq(__LOC__, get_val(), 42)
+}
+
+get_str := func() returns Str {
+    s := "returned"
+    t := s
+    return t
+}
+
+test_alias_return_str := test() {
+    assert_eq_str(__LOC__, get_str(), "returned")
+}
+
+# Copying from param produces a clone (not an alias — params excluded)
+check_param_clones := func(val: I64) returns I64 {
     copy := val
     return copy
 }
 
-test_alias_from_param := test() {
-    assert_eq(__LOC__, check(77), 77)
+test_param_clones := test() {
+    assert_eq(__LOC__, check_param_clones(77), 77)
+}
+
+# Alias from struct field access still clones (not alias — field access is not NODE_IDENT)
+test_struct_field_clones := test() {
+    p := Point(x = 5, y = 10)
+    mut v := p.x
+    v = 99
+    assert_eq(__LOC__, p.x, 5)
 }

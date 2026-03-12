@@ -15,6 +15,7 @@ typedef struct {
     Bool is_param; // 1 if this is a function parameter
     Bool is_own;   // 1 if this is an 'own' parameter
     Bool is_ref;   // 1 if this is a 'ref' declaration (borrowed, no delete)
+    Bool is_alias; // 1 if this is an auto-alias (implicit ref, not explicit)
     Expr *struct_def; // non-NULL if this is a struct type definition
     Expr *func_def;   // non-NULL if this is a func/proc definition
     Bool is_builtin;   // 1 if this is a builtin type (I64, Str, Bool, etc.)

@@ -1,5 +1,37 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #28 Aliases: implicit ref for comptime-immutable declarations
+  When ~a := b~ and b is provably immutable, ~a~ becomes an auto-alias
+  (implicit ref — pointer to same storage) instead of a clone. The
+  compiler detects when aliasing is safe with no new syntax needed.
+
+  Auto-alias conditions (all must hold):
+  - Destination is not ~mut~ (immutable target)
+  - RHS is a ~NODE_IDENT~ (variable reference)
+  - Source is not ~mut~ (immutable source)
+  - Source is not ~own~ (not an ownership transfer)
+  - Source is not an explicit ~ref~ (unless it's itself an auto-alias)
+  - Source is not a parameter (params are borrowed, aliasing them
+    and returning would create dangling refs)
+
+  Implementation:
+  - typer.c: auto-alias detection sets ~is_ref=true~ and new ~is_alias=true~
+    flag on both NODE_DECL and TypeBinding. Alias chaining supported:
+    ~x := 42; y := x; z := y~ — all three share the same storage.
+  - typer.c: returning an auto-alias auto-inserts clone (prevents
+    use-after-free since alias shares storage with a local).
+  - initer.h: added ~is_alias~ field to TypeBinding to distinguish
+    auto-aliases from explicit ~ref~ declarations.
+  - Interpreter and builder already handle ~is_ref~ correctly — no
+    changes needed. Aliases use ~scope_set_borrowed~ (interpreter)
+    and pointer assignment (builder), same as explicit refs.
+  - ASAP lifetime extension already handles refs transitively via
+    fixed-point propagation — works for alias chains too.
+
+  Tests: src/test/aliases.til (17 tests covering I64/Str/Bool/struct
+  aliases, alias chaining, deep chains, returned aliases, mut exclusion,
+  struct field cloning, param cloning).
+
 * FIXED #45 Zero compiler warnings everywhere
   Eliminated all 6 -Wno-* warning suppressions from the Makefile and
   builder.c. All generated C code now compiles clean with -Wall -Wextra

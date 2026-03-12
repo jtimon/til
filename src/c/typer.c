@@ -2379,13 +2379,17 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()");
             }
             // Auto-alias: immutable ident → immutable dest becomes ref
+            // Eligible sources: immutable locals, immutable params, other auto-aliases
+            // Excluded: mut (value can change), own (ownership transfer),
+            //           explicit ref (user intends to clone from borrowed value)
             if (!stmt->type.decl.is_ref && !stmt->type.decl.is_mut &&
                 expr_child(stmt, 0)->type.tag == NODE_IDENT) {
                 TypeBinding *rb = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
-                if (rb && !rb->is_mut && !rb->is_own && !rb->is_ref && !rb->is_param) {
+                if (rb && !rb->is_mut && !rb->is_own &&
+                    (!rb->is_ref || rb->is_alias) && !rb->is_param) {
                     stmt->type.decl.is_ref = true;
                     TypeBinding *b = tscope_find(scope, stmt->type.decl.name);
-                    if (b) b->is_ref = 1;
+                    if (b) { b->is_ref = 1; b->is_alias = 1; }
                 }
             }
             // Auto-insert clone for declarations from identifiers (skip ref decls)
@@ -2531,19 +2535,19 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (stmt->children.count > 0) {
                 infer_expr(scope, expr_child(stmt, 0), in_func);
                 stmt->til_type = expr_child(stmt, 0)->til_type;
-                // Error: returning a ref variable from a non-ref function
+                // Error: returning an explicit ref variable from a non-ref function
                 if (!returns_ref && expr_child(stmt, 0)->type.tag == NODE_IDENT) {
                     TypeBinding *b = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
-                    if (b && b->is_ref && !b->is_param) {
+                    if (b && b->is_ref && !b->is_alias && !b->is_param) {
                         type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'");
                     }
                 }
-                // Auto-insert clone when returning a borrowed parameter
-                // (prevents use-after-free: caller ASAP-deletes arg temps,
-                //  but the return value IS the same pointer as the arg)
+                // Auto-insert clone when returning a borrowed param or auto-alias
+                // (prevents use-after-free: aliases share storage with locals,
+                //  params are borrowed — both need cloning to return safely)
                 if (!returns_ref && expr_child(stmt, 0)->type.tag == NODE_IDENT) {
                     TypeBinding *b = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
-                    if (b && b->is_param && !b->is_own) {
+                    if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
                         const char *tname = type_to_name(stmt->til_type, expr_child(stmt, 0)->struct_name);
                         if (tname) {
                             expr_child(stmt, 0) = make_clone_call(
