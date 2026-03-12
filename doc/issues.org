@@ -30,19 +30,6 @@
 
   Blocks: compiling tests.til (currently interpreted so payload enums work).
 
-
-** OPEN #51 Add ~til test~ command
-  Add a ~til test myfile.til~ command that finds all test() functions in
-  the file, treats each as an entry point, and runs them all — both
-  interpreted and compiled — reporting results. Works on any file
-  regardless of mode. Currently there is no test command; mode test files
-  are run externally by the Makefile test harness using separate
-  ~ctil interpret~ and ~ctil run~ invocations.
-
-  This also enables keeping test() functions inline next to the code they
-  test (e.g. inside ext_struct namespaces or regular source files) without
-  needing separate mode test files.
-
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
   allocation optimization — declared as stack variables instead of heap-allocated
@@ -283,6 +270,24 @@
   by ASAP (same as ref declarations today). The typer/ASAP already
   handles ref lifetime correctly — this extends it to auto-detected cases.
 
+** OPEN #14 Function pointers: first-class functions as values
+  til currently has no way to pass functions as values. func/proc
+  definitions are bound to names and can only be called directly.
+  Function pointers would allow storing and passing functions as
+  arguments — needed for comparators (Map), callbacks, and generic
+  algorithms.
+
+  What's needed:
+  - A function pointer type syntax (e.g. Fn(I64, I64) returns I64)
+  - Storing func/proc references as values
+  - Calling through function pointer variables
+  - Type checking: parameter/return types must match at call sites
+  - Interpreter: Value variant for function pointers
+  - builder: emit C function pointer types and indirect calls
+
+  Blocks Map (needs comparator), generic sort, event handlers,
+  and many patterns needed for self-hosting (visitor, dispatch tables).
+
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #2
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
@@ -378,6 +383,18 @@
 
 
 * Post-self-hosting
+
+** OPEN #51 Add ~til test~ command
+  Add a ~til test myfile.til~ command that finds all test() functions in
+  the file, treats each as an entry point, and runs them all — both
+  interpreted and compiled — reporting results. Works on any file
+  regardless of mode. Currently there is no test command; mode test files
+  are run externally by the Makefile test harness using separate
+  ~ctil interpret~ and ~ctil run~ invocations.
+
+  This also enables keeping test() functions inline next to the code they
+  test (e.g. inside ext_struct namespaces or regular source files) without
+  needing separate mode test files.
 
 ** OPEN #43 Remove --allow-multiple-definition linker workaround
   compile_c in builder.c passes -Wl,--allow-multiple-definition to the
@@ -746,24 +763,6 @@
    - Typer: validate captures exist in outer scope, enforce modifier rules
    - Interpreter: bind captured variables in call_scope from definition scope
    - Codegen: emit closure structs or pass captures as hidden parameters
-
-** OPEN #14 Function pointers: first-class functions as values
-  til currently has no way to pass functions as values. func/proc
-  definitions are bound to names and can only be called directly.
-  Function pointers would allow storing and passing functions as
-  arguments — needed for comparators (Map), callbacks, and generic
-  algorithms.
-
-  What's needed:
-  - A function pointer type syntax (e.g. Fn(I64, I64) returns I64)
-  - Storing func/proc references as values
-  - Calling through function pointer variables
-  - Type checking: parameter/return types must match at call sites
-  - Interpreter: Value variant for function pointers
-  - builder: emit C function pointer types and indirect calls
-
-  Blocks Map (needs comparator), generic sort, event handlers,
-  and many patterns needed for self-hosting (visitor, dispatch tables).
 
 ** OPEN #10 REPL: interactive read-eval-print loop
   Add a `bin/ctil repl` command (or just `bin/ctil` with no args) that starts
