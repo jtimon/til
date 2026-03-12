@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 59
+# NEXT_ISSUE: 60
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -550,6 +550,71 @@
 
 
 * Post-self-hosting
+
+** OPEN #59 Bundle raylib: fix CI GUI tests, enable static linking
+  GUI tests are broken in CI (GitHub Actions) because raylib is not
+  installed in the runner environment. Currently mode gui files link
+  raylib dynamically (~-lraylib~), which requires raylib to be installed
+  system-wide.
+
+*** Option A: Install raylib in CI script
+
+   The quick fix — ~git clone raylib~ + ~cmake~ + ~make install~ in the
+   GitHub Actions workflow. Gets CI green but doesn't solve the deeper
+   problem: anyone who clones til still needs raylib installed to build
+   mode gui programs.
+
+*** Option B: Bundle raylib as a git subrepo (preferred)
+
+   Bundle raylib source into the til repo so it's always available.
+   Two git mechanisms for this:
+
+   - *git submodule*: stores a pointer to a specific raylib commit.
+     Repo stays small, but users need ~git clone --recursive~ or
+     ~git submodule update --init~. CI needs the same. Updating
+     raylib = updating the submodule pointer.
+
+   - *git subtree*: copies raylib source directly into the repo
+     (e.g. ~lib/raylib/~). No special clone flags needed — it's just
+     files. Repo is larger but self-contained. Updating raylib =
+     ~git subtree pull~.
+
+   For til, git subtree is probably better: no ~--recursive~ footgun,
+   the repo is self-contained, and raylib's source is not that large.
+   The trade-off (larger repo) is acceptable since raylib is a stable
+   dependency that updates infrequently.
+
+*** Benefits of bundling
+
+   With raylib source available, the build can link statically:
+
+   - *mode gui programs*: ~ctil run music.til~ links ~libraylib.a~
+     instead of ~-lraylib~. No system install needed. Binaries are
+     self-contained.
+   - *ctil and til.til*: link raylib statically for the interpreter's
+     FFI path. Currently ~dlopen("libraylib.so")~ requires the .so
+     at runtime. With static linking, raylib symbols are in the binary.
+   - *Interpreted mode gui performance*: static linking means raylib
+     calls go through direct function pointers (via ~dlsym(RTLD_DEFAULT)~
+     on the binary itself) instead of ~dlopen~ on an external .so.
+     This could measurably improve interpreted mode gui performance
+     since every raylib call (drawing, input, audio) goes through FFI
+     dispatch.
+
+*** Implementation
+
+   1. Add raylib source to ~lib/raylib/~ (via git subtree or submodule)
+   2. Makefile: build ~lib/raylib/build/libraylib.a~ from source if not
+      present (cmake + make, cached after first build)
+   3. Update builder.c ~compile_c~: link ~-Llib/raylib/build -lraylib~
+      and ~-Ilib/raylib/src~ for mode gui programs instead of relying
+      on system-wide install
+   4. Update ctil/til.til linking: add ~libraylib.a~ to the link step
+      so interpreter FFI can find raylib symbols via ~RTLD_DEFAULT~
+   5. CI workflow: no special raylib install step needed (source is in
+      the repo, built by make)
+   6. GUI tests: change from build-only to full run in CI (raylib is
+      now available)
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
   :DEPENDENCIES: #14
