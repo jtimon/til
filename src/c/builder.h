@@ -15,6 +15,9 @@ I32 build_header(Expr *program, Str *h_path);
 // Generate a .til FFI binding file for the library.
 I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name);
 
+// Generate a Python ctypes binding file for the library.
+I32 build_python_binding(Expr *program, Str *py_path, Str *lib_name);
+
 // Compile a generated C file to a binary using cc.
 I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str *link_flags);
 

@@ -588,17 +588,21 @@ int main(int argc, char **argv) {
 
         result = build(ast, mode, run_tests, path, c_path);
 
-        // For lib/pure translate/build: generate .h header and .til binding
+        // For lib/pure translate/build: generate .h header, .til binding, and .py binding
         if (result == 0 && do_lib) {
             Str *h_path = Str_concat(Str_concat(Str_new("gen/c/"), name), Str_new(".h"));
             Str *til_path = Str_concat(Str_concat(Str_new("gen/til/"), name), Str_new(".til"));
+            Str *py_path = Str_concat(Str_concat(Str_new("gen/til/"), name), Str_new(".py"));
             result = build_header(ast, h_path);
             if (result == 0)
                 result = build_til_binding(ast, til_path, name);
+            if (result == 0)
+                result = build_python_binding(ast, py_path, name);
             if (result == 0 && strcmp(command, "translate") == 0) {
                 printf("Generated: %s\n", c_path->c_str);
                 printf("Generated: %s\n", h_path->c_str);
                 printf("Generated: %s\n", til_path->c_str);
+                printf("Generated: %s\n", py_path->c_str);
             }
             if (result == 0 && strcmp(command, "build") == 0) {
                 result = compile_lib(c_path, name, ext_c_path, user_c, lflags);
@@ -606,6 +610,7 @@ int main(int argc, char **argv) {
                     printf("Generated: %s\n", c_path->c_str);
                     printf("Generated: %s\n", h_path->c_str);
                     printf("Generated: %s\n", til_path->c_str);
+                    printf("Generated: %s\n", py_path->c_str);
                     printf("Generated: gen/lib/lib%s.so\n", name->c_str);
                     printf("Generated: gen/lib/lib%s.a\n", name->c_str);
                 }

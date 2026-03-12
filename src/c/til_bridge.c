@@ -191,6 +191,10 @@ I32 til_build_til_binding(Expr *ast, Str *til_path, Str *lib_name) {
     return build_til_binding(ast, til_path, lib_name);
 }
 
+I32 til_build_python_binding(Expr *ast, Str *py_path, Str *lib_name) {
+    return build_python_binding(ast, py_path, lib_name);
+}
+
 I32 til_compile_c(Str *c_path, Str *bin_path, Str *ext_c, Str *user_c, Str *lflags) {
     if (user_c && user_c->count == 0) user_c = NULL;
     if (lflags && lflags->count == 0) lflags = NULL;
