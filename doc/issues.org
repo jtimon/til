@@ -6,7 +6,6 @@
 
 * Pre-self-hosting
 
-
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
   allocation optimization — declared as stack variables instead of heap-allocated
@@ -39,38 +38,6 @@
   semantics — whether a type can be safely shallow-copied without ownership
   issues. In the future, the ~shallow~ keyword could be computed automatically
   from this property plus size considerations.
-
-** OPEN #47 Cross-namespace method calls inside ext_struct / struct redeclaration
-  *Original description:* Cross-namespace method calls fail inside
-  ext_struct. Calling ~Str.with_capacity~ from inside I64's ext_struct
-  namespace in core.til was reported to give unknown type.
-
-  *Investigation result:* The original scenario does NOT reproduce.
-  Adding a func with ~Str.with_capacity(10)~ to I64's namespace directly
-  in core.til works fine. Cross-namespace calls inside ext_struct work.
-
-  *Separate issue found during investigation:* Struct redeclaration
-  silently overwrites. There is NO "already declared" error for structs
-  anywhere in the typer or initer. ~init_declarations~ Pass 1 in
-  ~initer.c:232~ unconditionally sets ~b->struct_def = expr_child(stmt, 0)~,
-  so a second struct/ext_struct with the same name replaces the first.
-  GDB confirmed: when user code writes ~I64 := ext_struct { ... }~, it
-  overwrites the core I64 definition (losing eq, add, sub, etc.).
-
-  *Status:* The original cross-namespace bug may have been fixed by a
-  prior change or was misdiagnosed. The redeclaration overwrite is real
-  but is a separate design question — shadowing policy is deferred until
-  after full self-hosting (#12, #39). No rush to decide.
-
-  *Possible solutions for redeclaration (deferred):*
-  1. Add "already declared" error (needs exceptions for Str etc.)
-  2. Merge namespace methods into existing definition (open classes)
-
-  *Files involved:*
-  - ~src/c/initer.c:232~ — overwrite happens here
-  - ~src/c/typer.c:2252-2257~ — same pattern
-
-  *Test file:* src/test/test_47.til (demonstrates the overwrite)
 
 ** OPEN #46 Optimize Str with with_capacity in concat, join, etc.
   str.til methods like concat, join, and others build strings by repeated

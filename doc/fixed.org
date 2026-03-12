@@ -1,5 +1,18 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #47 Cross-namespace method calls inside ext_struct
+  Original report: calling Str.with_capacity from inside I64's ext_struct
+  namespace in core.til gave unknown type.
+
+  Investigation showed the original scenario does not reproduce — cross-
+  namespace calls inside ext_struct work fine. The bug was either fixed
+  by a prior compiler change or was misdiagnosed.
+
+  A separate issue was found during investigation: struct redeclaration
+  silently overwrites (initer.c:232 unconditionally sets struct_def).
+  This is a design question (shadowing policy) deferred until after
+  self-hosting, not a bug per se.
+
 * FIXED #53 Payload enum in struct field: codegen bug
   Compiled mode produced wrong values when a payload enum was stored as
   an inline struct field. Interpreter worked correctly.
