@@ -46,32 +46,6 @@
   allocate once upfront. Should measurably improve performance since Str
   operations are on the hot path for the compiler.
 
-** WIP #45 Zero compiler warnings everywhere
-  -Werror is now enabled in both the Makefile (ctil + bin/c/til) and
-  builder.c (all compiled til programs). The following -Wno-* suppressions
-  are in place and need to be eliminated for full fix:
-
-  Makefile (ctil — hand-written + generated bootstrap):
-  - -Wno-unused-but-set-variable (generated bootstrap code)
-
-  Makefile (bin/c/til — hand-written + generated gen/c/til.c):
-  - -Wno-unused-but-set-variable (generated code)
-  - -Wno-unused-variable (generated code)
-  - -Wno-unused-parameter (generated code)
-  - -Wno-incompatible-pointer-types (generated code: I64*/I32* return mismatch)
-  - -Wno-pointer-sign (generated code: I64*/U64* signedness mismatch)
-  - -Wno-return-type (generated code: bare return in non-void main)
-
-  builder.c (compiled til programs — binary + library modes):
-  - -Wno-unused-but-set-variable (generated code)
-  - -Wno-unused-variable (generated code)
-  - -Wno-unused-parameter (generated code)
-  - -Wno-incompatible-pointer-types (generated code)
-  - -Wno-pointer-sign (generated code)
-  - -Wno-return-type (generated code)
-
-  All suppressions are for codegen issues in builder.c. Fixing the codegen
-  to emit cleaner C will allow removing these one by one.
 
 ** WIP #39 Replace ctil with til (bottom-up C elimination)
   :DEPENDENCIES: #12

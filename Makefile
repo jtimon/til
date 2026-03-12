@@ -9,14 +9,14 @@ SELF := $(wildcard src/self/*.til)
 
 bin/ctil: $(SRCS) $(HDRS)
 	@mkdir -p bin
-	cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
 	@$(MAKE) ctil_core
-	cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
 
 TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
 bin/c/til: bin/ctil $(CORE) $(SELF) src/til.til
 	@bin/ctil translate src/til.til
-	@cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/c/til
+	@cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/c/til
 
 bin/c/test_runner: bin/ctil $(CORE) src/test_runner.til
 	@bin/ctil build src/test_runner.til

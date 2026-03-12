@@ -9,6 +9,7 @@ static Map func_defs;     // Str* name → Expr* func_def (NODE_FUNC_DEF)
 static Set script_globals; // names of top-level vars emitted as file-scope globals
 static Bool has_script_globals; // whether script_globals is initialized
 static Bool in_func_def; // true while emitting a function/proc body
+static Bool in_main_func; // true while emitting main() body (for return 0)
 
 // Collect unique array/vec builtin type names from AST
 typedef struct { Str *type_name; I32 is_vec; } CollectionInfo;
@@ -110,6 +111,7 @@ static void emit_body(FILE *f, Expr *body, I32 depth);
 static const char *c_type_name(TilType t, Str *struct_name);
 static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth);
 static I32 _ctor_seq;
+static const char *type_name_to_c_value(Str *name);
 
 // Track current function being emitted (for shallow param lookup)
 static Expr *current_fdef = NULL;
@@ -117,6 +119,7 @@ static Expr *find_callee_fdef(Str *name);
 
 // Track hoisted scalar locals (stack values instead of heap pointers)
 static Set shallow_locals;
+static Map shallow_local_types; // name → C type string (for pointer-sign correctness)
 static Set unsafe_to_hoist;
 
 static Bool is_shallow_local(const char *name) {
@@ -124,6 +127,17 @@ static Bool is_shallow_local(const char *name) {
     Bool r = *Set_has(&shallow_locals, s);
     Str_delete(s, &(Bool){1});
     return r;
+}
+
+static const char *get_shallow_ctype(const char *name) {
+    Str *s = Str_new(name);
+    if (*Map_has(&shallow_local_types, s)) {
+        Str **p = Map_get(&shallow_local_types, s);
+        Str_delete(s, &(Bool){1});
+        return (const char *)(*p)->c_str;
+    }
+    Str_delete(s, &(Bool){1});
+    return NULL;
 }
 
 // Scan function body to find variables whose address might escape via ref.
@@ -239,6 +253,24 @@ static Expr *find_callee_fdef(Str *name) {
     if (!*Map_has(&func_defs, name)) return NULL;
     Expr **p = Map_get(&func_defs, name);
     return *p;
+}
+
+// Get the C value type name for a callee's return type (e.g. "U64" for I64_size)
+static const char *callee_return_ctype(Str *callee_name) {
+    Expr *fdef = find_callee_fdef(callee_name);
+    if (!fdef || !fdef->type.func_def.return_type) return NULL;
+    return type_name_to_c_value(fdef->type.func_def.return_type);
+}
+
+// Get the C value type for an fcall's return value
+static const char *fcall_return_ctype(Expr *fcall) {
+    if (fcall->type.tag != NODE_FCALL) return NULL;
+    Bool allocated = 0;
+    Str *callee = resolve_callee_name(fcall, &allocated);
+    if (!callee) return NULL;
+    const char *r = callee_return_ctype(callee);
+    if (allocated) Str_delete(callee, &(Bool){1});
+    return r;
 }
 
 static Bool callee_returns_shallow(Str *callee_name) {
@@ -525,13 +557,15 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
         // Shallow param/local is a value — need a pointer
         if (e->is_own_arg) {
             // Callee will free() this pointer — must malloc a copy
-            const char *ctype = c_type_name(e->til_type, e->struct_name);
+            const char *ctype = get_shallow_ctype((const char *)e->type.str_val->c_str);
+            if (!ctype) ctype = c_type_name(e->til_type, e->struct_name);
             fprintf(f, "({ %s *_oa = malloc(sizeof(%s)); *_oa = ", ctype, ctype);
             emit_expr(f, e, depth);
             fprintf(f, "; _oa; })");
         } else {
             // Read-only use — compound literal is fine
-            const char *ctype = c_type_name(e->til_type, e->struct_name);
+            const char *ctype = get_shallow_ctype((const char *)e->type.str_val->c_str);
+            if (!ctype) ctype = c_type_name(e->til_type, e->struct_name);
             fprintf(f, "&(%s){", ctype);
             emit_expr(f, e, depth);
             fprintf(f, "}");
@@ -672,80 +706,94 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "/* %s %s defined above */\n",
                     expr_child(e, 0)->type.tag == NODE_ENUM_DEF ? "enum" : "struct",
                     e->type.decl.name->c_str);
-        } else if (e->type.decl.is_ref) {
-            const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
-            Expr *rhs = expr_child(e, 0);
-            fprintf(f, "%s *%s = ", ctype, e->type.decl.name->c_str);
-            emit_expr(f, rhs, depth);
-            fprintf(f, ";\n");
         } else {
-            const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
-            Expr *rhs = expr_child(e, 0);
-            Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, e->type.decl.name);
-            Str *_uth_key = Str_new((const char *)e->type.decl.name->c_str);
-            Bool can_hoist = !is_global && !e->type.decl.is_own && is_scalar_type(e->til_type) &&
-                             !*Set_has(&unsafe_to_hoist, _uth_key);
-            Str_delete(_uth_key, &(Bool){1});
-            if (rhs->type.tag == NODE_FCALL && rhs->struct_name &&
-                *Str_eq(expr_child(rhs, 0)->type.str_val, rhs->struct_name)) {
-                // Struct constructor — malloc + field-by-field assignment (never scalar)
-                const char *var = (const char *)e->type.decl.name->c_str;
-                if (is_global)
-                    fprintf(f, "%s = malloc(sizeof(%s));\n", var, ctype);
-                else
-                    fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
-                emit_ctor_fields(f, var, rhs, depth);
-            } else if (rhs->type.tag == NODE_FCALL || rhs->type.tag == NODE_LITERAL_STR ||
-                       (rhs->type.tag == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
-                if (rhs->type.tag == NODE_FCALL && fcall_is_shallow_return(rhs)) {
-                    if (can_hoist) {
-                        // Shallow-return scalar fcall → stack value directly
-                        fprintf(f, "%s %s = ", ctype, e->type.decl.name->c_str);
+            if (e->type.decl.is_ref) {
+                const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
+                Expr *rhs = expr_child(e, 0);
+                fprintf(f, "%s *%s = ", ctype, e->type.decl.name->c_str);
+                emit_expr(f, rhs, depth);
+                fprintf(f, ";\n");
+            } else {
+                const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
+                Expr *rhs = expr_child(e, 0);
+                Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, e->type.decl.name);
+                Str *_uth_key = Str_new((const char *)e->type.decl.name->c_str);
+                Bool can_hoist = !is_global && !e->type.decl.is_own && is_scalar_type(e->til_type) &&
+                                 !*Set_has(&unsafe_to_hoist, _uth_key);
+                Str_delete(_uth_key, &(Bool){1});
+                if (rhs->type.tag == NODE_FCALL && rhs->struct_name &&
+                    *Str_eq(expr_child(rhs, 0)->type.str_val, rhs->struct_name)) {
+                    // Struct constructor — malloc + field-by-field assignment (never scalar)
+                    const char *var = (const char *)e->type.decl.name->c_str;
+                    if (is_global)
+                        fprintf(f, "%s = malloc(sizeof(%s));\n", var, ctype);
+                    else
+                        fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
+                    emit_ctor_fields(f, var, rhs, depth);
+                } else if (rhs->type.tag == NODE_FCALL || rhs->type.tag == NODE_LITERAL_STR ||
+                           (rhs->type.tag == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
+                    if (rhs->type.tag == NODE_FCALL && fcall_is_shallow_return(rhs)) {
+                        if (can_hoist) {
+                            // Shallow-return scalar fcall → stack value directly
+                            // Use callee's return type to avoid signedness mismatches
+                            const char *htype = fcall_return_ctype(rhs);
+                            if (!htype) htype = ctype;
+                            fprintf(f, "%s %s = ", htype, e->type.decl.name->c_str);
+                            emit_expr(f, rhs, depth);
+                            fprintf(f, ";\n");
+                            Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
+                            { Str *_k = Str_new((const char *)e->type.decl.name->c_str); Str *_v = Str_new(htype); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
+                        } else {
+                            // returns shallow: C function returns value, box into pointer
+                            const char *var = (const char *)e->type.decl.name->c_str;
+                            if (is_global)
+                                fprintf(f, "%s = malloc(sizeof(%s)); *%s = ", var, ctype, var);
+                            else
+                                fprintf(f, "%s *%s = malloc(sizeof(%s)); *%s = ", ctype, var, ctype, var);
+                            emit_expr(f, rhs, depth);
+                            fprintf(f, ";\n");
+                        }
+                    } else if (can_hoist && rhs->type.tag == NODE_FCALL) {
+                        // Non-shallow fcall returning scalar → unbox heap pointer to stack
+                        // Use callee's return type to avoid signedness mismatches
+                        const char *htype = fcall_return_ctype(rhs);
+                        if (!htype) htype = ctype;
+                        fprintf(f, "%s %s; { %s *_hp = (%s *)", htype, e->type.decl.name->c_str, htype, htype);
                         emit_expr(f, rhs, depth);
-                        fprintf(f, ";\n");
+                        fprintf(f, "; %s = *_hp; free(_hp); }\n", e->type.decl.name->c_str);
                         Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
+                        { Str *_k = Str_new((const char *)e->type.decl.name->c_str); Str *_v = Str_new(htype); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
                     } else {
-                        // returns shallow: C function returns value, box into pointer
-                        const char *var = (const char *)e->type.decl.name->c_str;
                         if (is_global)
-                            fprintf(f, "%s = malloc(sizeof(%s)); *%s = ", var, ctype, var);
+                            fprintf(f, "%s = ", e->type.decl.name->c_str);
                         else
-                            fprintf(f, "%s *%s = malloc(sizeof(%s)); *%s = ", ctype, var, ctype, var);
+                            fprintf(f, "%s *%s = ", ctype, e->type.decl.name->c_str);
                         emit_expr(f, rhs, depth);
                         fprintf(f, ";\n");
                     }
-                } else if (can_hoist && rhs->type.tag == NODE_FCALL) {
-                    // Non-shallow fcall returning scalar → unbox heap pointer to stack
-                    fprintf(f, "%s %s; { %s *_hp = ", ctype, e->type.decl.name->c_str, ctype);
-                    emit_expr(f, rhs, depth);
-                    fprintf(f, "; %s = *_hp; free(_hp); }\n", e->type.decl.name->c_str);
-                    Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
                 } else {
-                    if (is_global)
-                        fprintf(f, "%s = ", e->type.decl.name->c_str);
-                    else
-                        fprintf(f, "%s *%s = ", ctype, e->type.decl.name->c_str);
-                    emit_expr(f, rhs, depth);
-                    fprintf(f, ";\n");
-                }
-            } else {
-                if (can_hoist) {
-                    // Scalar literal/ident → stack value
-                    fprintf(f, "%s %s = ", ctype, e->type.decl.name->c_str);
-                    emit_deref(f, rhs, depth);
-                    fprintf(f, ";\n");
-                    Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
-                } else {
-                    if (is_global)
-                        fprintf(f, "%s = malloc(sizeof(%s));\n", e->type.decl.name->c_str, ctype);
-                    else
-                        fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->type.decl.name->c_str, ctype);
-                    emit_indent(f, depth);
-                    fprintf(f, "*%s = ", e->type.decl.name->c_str);
-                    emit_deref(f, rhs, depth);
-                    fprintf(f, ";\n");
+                    if (can_hoist) {
+                        // Scalar literal/ident → stack value
+                        fprintf(f, "%s %s = ", ctype, e->type.decl.name->c_str);
+                        emit_deref(f, rhs, depth);
+                        fprintf(f, ";\n");
+                        Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
+                        { Str *_k = Str_new((const char *)e->type.decl.name->c_str); Str *_v = Str_new(ctype); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
+                    } else {
+                        if (is_global)
+                            fprintf(f, "%s = malloc(sizeof(%s));\n", e->type.decl.name->c_str, ctype);
+                        else
+                            fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->type.decl.name->c_str, ctype);
+                        emit_indent(f, depth);
+                        fprintf(f, "*%s = ", e->type.decl.name->c_str);
+                        emit_deref(f, rhs, depth);
+                        fprintf(f, ";\n");
+                    }
                 }
             }
+            // Suppress unused-variable warnings for all declarations
+            emit_indent(f, depth);
+            fprintf(f, "(void)%s;\n", e->type.decl.name->c_str);
         }
         break;
     case NODE_ASSIGN: {
@@ -768,7 +816,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             } else if (rhs->type.tag == NODE_FCALL) {
                 // Non-shallow fcall: unbox heap pointer
                 const char *ctype = c_type_name(e->til_type, e->struct_name);
-                fprintf(f, "{ %s *_hp = ", ctype);
+                fprintf(f, "{ %s *_hp = (%s *)", ctype, ctype);
                 emit_expr(f, rhs, depth);
                 fprintf(f, "; %s = *_hp; free(_hp); }\n", e->type.str_val->c_str);
             } else {
@@ -851,7 +899,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         break;
     case NODE_RETURN:
         if (e->children.count == 0) {
-            fprintf(f, "return;\n");
+            if (in_main_func)
+                fprintf(f, "return 0;\n");
+            else
+                fprintf(f, "return;\n");
         } else {
             Expr *rv = expr_child(e, 0);
             if (rv->type.tag == NODE_FCALL && rv->struct_name &&
@@ -865,7 +916,9 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             } else if (rv->type.tag == NODE_FIELD_ACCESS && !rv->is_own_field &&
                        !rv->is_ns_field && rv->til_type != TIL_TYPE_DYNAMIC) {
                 // Inline field value — must clone to heap pointer for return
-                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                const char *ctype = (current_fdef && current_fdef->type.func_def.return_type)
+                    ? type_name_to_c_value(current_fdef->type.func_def.return_type)
+                    : c_type_name(rv->til_type, rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
                 fprintf(f, "; return _r; }\n");
@@ -882,7 +935,9 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 }
             } else if (rv->type.tag == NODE_FCALL && fcall_is_shallow_return(rv)) {
                 // returns shallow: box value return into heap pointer
-                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                const char *ctype = (current_fdef && current_fdef->type.func_def.return_type)
+                    ? type_name_to_c_value(current_fdef->type.func_def.return_type)
+                    : c_type_name(rv->til_type, rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
                 fprintf(f, "; return _r; }\n");
@@ -890,7 +945,9 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                        is_shallow_local((const char *)rv->type.str_val->c_str) &&
                        !(current_fdef && current_fdef->type.func_def.return_is_shallow)) {
                 // Hoisted local returned from non-shallow function: box to heap
-                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                const char *ctype = (current_fdef && current_fdef->type.func_def.return_type)
+                    ? type_name_to_c_value(current_fdef->type.func_def.return_type)
+                    : c_type_name(rv->til_type, rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = %s; return _r; }\n",
                         ctype, ctype, rv->type.str_val->c_str);
             } else {
@@ -1076,14 +1133,20 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
         }
         {
             Set saved_shallow = shallow_locals;
+            Map saved_stypes = shallow_local_types;
             Set saved_unsafe = unsafe_to_hoist;
             { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+            { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
             { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
             collect_unsafe_to_hoist(body);
+            in_main_func = 1;
             emit_body(f, body, 1);
+            in_main_func = 0;
             Set_delete(&shallow_locals, &(Bool){0});
+            Map_delete(&shallow_local_types, &(Bool){0});
             Set_delete(&unsafe_to_hoist, &(Bool){0});
             shallow_locals = saved_shallow;
+            shallow_local_types = saved_stypes;
             unsafe_to_hoist = saved_unsafe;
         }
         fprintf(f, "    return 0;\n");
@@ -1100,21 +1163,24 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
         fprintf(f, "%s%s %s(", is_static ? "static __attribute__((unused)) " : "", ret, func_to_c(name));
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
-        if (func_def->type.func_def.nparam > 0 &&
-            Str_eq_c(func_def->type.func_def.param_names[0], "self"))
-            fprintf(f, "    (void)self;\n");
+        for (U32 i = 0; i < func_def->type.func_def.nparam; i++)
+            fprintf(f, "    (void)%s;\n", func_def->type.func_def.param_names[i]->c_str);
         in_func_def = 1;
         current_fdef = func_def;
         // Save/restore shallow_locals and unsafe_to_hoist per function
         Set saved_shallow = shallow_locals;
+        Map saved_stypes = shallow_local_types;
         Set saved_unsafe = unsafe_to_hoist;
         { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+        { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
         { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
         collect_unsafe_to_hoist(body);
         emit_body(f, body, 1);
         Set_delete(&shallow_locals, &(Bool){0});
+        Map_delete(&shallow_local_types, &(Bool){0});
         Set_delete(&unsafe_to_hoist, &(Bool){0});
         shallow_locals = saved_shallow;
+        shallow_local_types = saved_stypes;
         unsafe_to_hoist = saved_unsafe;
         current_fdef = NULL;
         in_func_def = 0;
@@ -1414,6 +1480,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
     // Initialize shallow_locals and unsafe_to_hoist sets for scalar local hoisting
     { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
     { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -2032,6 +2099,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     Map_delete(&struct_bodies, &(Bool){0});
     Map_delete(&func_defs, &(Bool){0});
     Set_delete(&shallow_locals, &(Bool){0});
+    Map_delete(&shallow_local_types, &(Bool){0});
     Set_delete(&unsafe_to_hoist, &(Bool){0});
     return 0;
 }
@@ -2357,7 +2425,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     // Compile library .c to object
     Str *obj_path = Str_concat(Str_concat(Str_new("gen/lib/"), lib_name), Str_new(".o"));
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -fPIC -I"), ext_dir),
+        Str_new("cc -Wall -Wextra -Werror -fPIC -I"), ext_dir),
         Str_new(" -c ")), c_path), Str_new(" -o ")), obj_path);
     int result = system((const char *)cmd->c_str);
     if (result != 0) {
@@ -2368,7 +2436,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     // Compile ext.c to object
     Str *ext_obj = Str_new("gen/lib/ext.o");
     cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -fPIC -I"), ext_dir),
+        Str_new("cc -Wall -Wextra -Werror -fPIC -I"), ext_dir),
         Str_new(" -c ")), ext_c_path), Str_new(" -o ")), ext_obj);
     result = system((const char *)cmd->c_str);
     if (result != 0) {
@@ -2381,7 +2449,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     if (user_c_path) {
         user_obj = Str_new("gen/lib/user.o");
         cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-            Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -fPIC -I"), ext_dir),
+            Str_new("cc -Wall -Wextra -Werror -fPIC -I"), ext_dir),
             Str_new(" -c ")), user_c_path), Str_new(" -o ")), user_obj);
         result = system((const char *)cmd->c_str);
         if (result != 0) {
@@ -2429,7 +2497,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     Str *lf = link_flags ? link_flags : Str_new("");
 
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -Werror -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-parameter -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-return-type -Wl,--allow-multiple-definition -I"), ext_dir),
+        Str_new("cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I"), ext_dir),
         Str_new(" -o ")), bin_path),
         Str_new(" ")), c_path),
         Str_new(" ")), Str_concat(Str_concat(ext_c_path, user_part), lf));

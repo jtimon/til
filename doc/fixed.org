@@ -1,5 +1,27 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #45 Zero compiler warnings everywhere
+  Eliminated all 6 -Wno-* warning suppressions from the Makefile and
+  builder.c. All generated C code now compiles clean with -Wall -Wextra
+  -Werror and no suppressions.
+
+  Codegen fixes in builder.c:
+  - unused-but-set-variable / unused-variable: emit (void)varname; after
+    every NODE_DECL that declares a variable (covers hoisted scalars,
+    non-hoisted pointers, for-in loop variables, etc.)
+  - incompatible-pointer-types: return boxing paths now use the function's
+    declared return type (from current_fdef) instead of the expression's
+    til_type, fixing I64*/I32* mismatches
+  - return-type: bare return; in main() now emits return 0; (tracked via
+    in_main_func flag set during main body emission)
+  - unused-parameter: emit (void)paramname; for all function parameters
+    (was previously only done for self)
+  - pointer-sign: hoisted scalar variables from fcalls now use the callee's
+    actual return type instead of the expression's til_type, fixing I64/U64
+    signedness mismatches. Added shallow_local_types Map to track the actual
+    C type of each hoisted local, used by emit_as_ptr for compound literals.
+    Non-shallow fcall hoisted pattern uses explicit cast on _hp pointer.
+
 * FIXED #47 Cross-namespace method calls inside ext_struct
   Original report: calling Str.with_capacity from inside I64's ext_struct
   namespace in core.til gave unknown type.
