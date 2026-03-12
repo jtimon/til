@@ -1352,9 +1352,10 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             idx->type.str_val = Str_new(idx_buf);
             idx->til_type = TIL_TYPE_U64;
             expr_add_child(set_call, idx);
-            // Arg: val — clone if NODE_IDENT to preserve caller's variable
+            // Arg: val — clone idents and field accesses so Array_set
+            // doesn't free the caller's variable or an interior pointer
             Expr *val = expr_child(fcall, vi + j);
-            if (val->type.tag == NODE_IDENT) {
+            if (val->type.tag == NODE_IDENT || val->type.tag == NODE_FIELD_ACCESS) {
                 const char *tname = type_to_name(val->til_type, val->struct_name);
                 if (tname)
                     val = make_clone_call(tname, val->til_type, val, val);

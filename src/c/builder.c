@@ -107,6 +107,9 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth);
 static void emit_expr(FILE *f, Expr *e, I32 depth);
 static void emit_stmt(FILE *f, Expr *e, I32 depth);
 static void emit_body(FILE *f, Expr *body, I32 depth);
+static const char *c_type_name(TilType t, Str *struct_name);
+static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth);
+static I32 _ctor_seq;
 
 // Track current function being emitted (for shallow param lookup)
 static Expr *current_fdef = NULL;
@@ -354,8 +357,14 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             emit_as_ptr(f, expr_child(e, 1), depth);
             fprintf(f, ")");
         } else if (e->struct_name && *Str_eq(name, e->struct_name)) {
-            // Struct constructor — compound literal (handled in emit_stmt)
-            fprintf(f, "/* BUG: struct constructor in expr context */");
+            // Struct constructor in expression context: hoist to temp via statement-expr
+            const char *ctype = c_type_name(e->til_type, e->struct_name);
+            I32 id = _ctor_seq++;
+            fprintf(f, "({ %s *_sc%d = malloc(sizeof(%s)); ", ctype, id, ctype);
+            char tmp[32];
+            snprintf(tmp, sizeof(tmp), "_sc%d", id);
+            emit_ctor_fields(f, tmp, e, depth);
+            fprintf(f, " _sc%d; })", id);
         } else {
             // User-defined function call
             fprintf(f, "%s(", func_to_c(name));
@@ -527,6 +536,17 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
             emit_expr(f, e, depth);
             fprintf(f, "}");
         }
+    } else if (e->type.tag == NODE_FCALL && e->struct_name && e->children.count > 0 &&
+               expr_child(e, 0)->type.tag == NODE_IDENT &&
+               *Str_eq(expr_child(e, 0)->type.str_val, e->struct_name)) {
+        // Struct constructor in expression context: hoist to temp via statement-expr
+        const char *ctype = c_type_name(e->til_type, e->struct_name);
+        I32 id = _ctor_seq++;
+        fprintf(f, "({ %s *_sc%d = malloc(sizeof(%s)); ", ctype, id, ctype);
+        char tmp[32];
+        snprintf(tmp, sizeof(tmp), "_sc%d", id);
+        emit_ctor_fields(f, tmp, e, depth);
+        fprintf(f, " _sc%d; })", id);
     } else if (e->type.tag == NODE_IDENT || e->type.tag == NODE_FCALL || e->type.tag == NODE_LITERAL_STR) {
         emit_expr(f, e, depth);
     } else if (e->type.tag == NODE_FIELD_ACCESS) {

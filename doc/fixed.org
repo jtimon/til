@@ -1,5 +1,23 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #53 Payload enum in struct field: codegen bug
+  Compiled mode produced wrong values when a payload enum was stored as
+  an inline struct field. Interpreter worked correctly.
+
+  Root cause: varargs desugaring in typer.c (desugar_variadic_calls)
+  only cloned NODE_IDENT arguments before passing to Array_set, not
+  NODE_FIELD_ACCESS. When println(c.name) was desugared to
+  Array_set(_va, 0, c.name), the builder emitted &c->name as the val
+  argument. Array_set does free(val) after memcpy — since c.name is at
+  offset 0, free(&c->name) freed the entire Container. Subsequent
+  mallocs reused that memory, corrupting c.kind.
+
+  Fix: added NODE_FIELD_ACCESS to the clone check in
+  desugar_variadic_calls (typer.c:1357). Now field accesses are cloned
+  before passing to Array_set, preventing the interior pointer free.
+
+  Test: src/test/enums.til test_payload_enum_field.
+
 * FIXED #52 Flaky parallel test failures
   Fixed by generalizing the test infrastructure: all tests (mode, FFI,
   typer, CLI, build) now go through a single blind parallel runner via

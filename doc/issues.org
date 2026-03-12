@@ -6,29 +6,6 @@
 
 * Pre-self-hosting
 
-** OPEN #53 Payload enum in struct field: codegen bug
-  Compiled mode produces wrong values when a payload enum is stored as a
-  struct field. Interpreter works correctly.
-
-  Repro (tmp/test_payload_enum.til):
-  #+begin_src til
-  Data := struct { mut x := 0; mut y := 0
-      namespace:
-      eq := func(a: Data, b: Data) returns Bool { return a.x.eq(b.x).and(a.y.eq(b.y)) }
-      to_str := func(self: Data) returns Str { return format(self.x.to_str(), ",", self.y.to_str()) }
-  }
-  Kind := enum { A: Data, B: I64, C }
-  Container := struct { mut name := ""; mut kind := Kind.C }
-  c := Container(name = "test", kind = Kind.A(Data(x = 3, y = 4)))
-  #+end_src
-
-  - ~bin/ctil interpret~: correct — ~A(3,4)~, ~is_A()~ returns true, ~get_A()~ returns {3,4}
-  - ~bin/ctil run~: wrong — ~A(3,3)~, ~is_A()~ returns false
-
-  Note: src/test/enums.til:162 had an old comment saying "segfaults in
-  interpreter" — that was wrong. The interpreter is fine; codegen is broken.
-
-  Blocks: compiling tests.til (currently interpreted so payload enums work).
 
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack

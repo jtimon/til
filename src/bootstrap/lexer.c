@@ -4148,7 +4148,7 @@ void * Tuple_get(Tuple * self, U64 * i) {
         ;
         ;
         U64 _t1062 = 0;
-        Str *_t1063 = Str_lit("index ", 6ULL);
+        Str *_t1063 = Str_lit("Tuple.get: index ", 17ULL);
         Array_set(_va19, &(U64){_t1062}, _t1063);
         ;
         U64 _t1064 = 1;
@@ -4169,7 +4169,7 @@ void * Tuple_get(Tuple * self, U64 * i) {
         Str *_t1072 = Str_lit(")", 1ULL);
         Array_set(_va19, &(U64){_t1071}, _t1072);
         ;
-        Str *_t1073 = Str_lit("Tuple.get", 9ULL);
+        Str *_t1073 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/tuple.til:36:19", 62ULL);
         panic(_t1073, _va19);
         Str_delete(_t1073, &(Bool){1});
     }
