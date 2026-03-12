@@ -7,16 +7,22 @@ HDRS := $(filter-out src/c/lexer.h, $(wildcard src/c/*.h)) src/bootstrap/lexer.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 
-bin/ctil: $(SRCS) $(HDRS)
+RAYLIB_LIB := lib/raylib/src/libraylib.a
+RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lGL -lm -lpthread -lrt -lX11
+
+$(RAYLIB_LIB):
+	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP
+
+bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB)
 	@mkdir -p bin
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi $(RAYLIB_FLAGS) -o bin/ctil
 	@$(MAKE) ctil_core
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/ctil
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi $(RAYLIB_FLAGS) -o bin/ctil
 
 TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
 bin/c/til: bin/ctil $(CORE) $(SELF) src/til.til
 	@bin/ctil translate src/til.til
-	@cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl -lffi -o bin/c/til
+	@cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl -lffi $(RAYLIB_FLAGS) -o bin/c/til
 
 bin/c/test_runner: bin/ctil $(CORE) src/test_runner.til
 	@bin/ctil build src/test_runner.til

@@ -2420,7 +2420,9 @@ I32 compile_lib(Str *c_path, Str *lib_name,
         ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
     }
 
-    Str *lf = link_flags ? link_flags : Str_new("");
+    // Raylib library path (ext_dir is <root>/src/c)
+    Str *raylib_flags = Str_concat(Str_concat(Str_new(" -L"), ext_dir), Str_new("/../../lib/raylib/src"));
+    Str *lf = Str_concat(raylib_flags, link_flags ? link_flags : Str_new(""));
 
     // Compile library .c to object
     Str *obj_path = Str_concat(Str_concat(Str_new("gen/lib/"), lib_name), Str_new(".o"));
@@ -2493,8 +2495,11 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
         ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
     }
 
+    // Raylib library path (ext_dir is <root>/src/c)
+    Str *raylib_flags = Str_concat(Str_concat(Str_new(" -L"), ext_dir), Str_new("/../../lib/raylib/src"));
+
     Str *user_part = user_c_path ? Str_concat(Str_new(" "), user_c_path) : Str_new("");
-    Str *lf = link_flags ? link_flags : Str_new("");
+    Str *lf = Str_concat(raylib_flags, link_flags ? link_flags : Str_new(""));
 
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
         Str_new("cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I"), ext_dir),

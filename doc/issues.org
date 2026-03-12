@@ -552,46 +552,48 @@
 * Post-self-hosting
 
 ** WIP #59 Bundle raylib: fix CI GUI tests, enable static linking
-  GUI tests are broken in CI (GitHub Actions) because raylib is not
-  installed in the runner environment. Currently mode gui files link
-  raylib dynamically (~-lraylib~), which requires raylib to be installed
-  system-wide. Friends who clone the repo can't run GUI demos either.
+  GUI tests were broken in CI (GitHub Actions) because raylib was not
+  installed. Friends who cloned the repo couldn't run GUI demos either.
 
-*** Decision: git subtree
+*** Done
 
-   Bundle raylib source into ~lib/raylib/~ via git subtree. Chosen over
-   submodule because the goal is zero friction: ~git clone~ + ~make test~
-   must work with nothing but gcc installed. Submodule requires
-   ~--recursive~ which people forget, CI needs extra config, remote
-   agents need extra steps. Subtree is just files — clone works normally.
+   Raylib bundled via git subtree into ~lib/raylib/~. Chosen over
+   submodule for zero friction: ~git clone~ + ~make test~ just works.
+   Trade-off: repo is ~30MB larger (acceptable, raylib is stable).
 
-   Trade-off: repo is ~30MB larger. Acceptable since raylib is stable
-   and updates infrequently. To update: ~git subtree pull --prefix=lib/raylib
-   <raylib-repo> <branch> --squash~.
+   What was implemented:
+   - [x] ~lib/raylib/~ added via ~git subtree add --squash~
+   - [x] Makefile builds ~lib/raylib/src/libraylib.a~ from source
+         (plain ~make~ in raylib's ~src/~, no cmake)
+   - [x] ~bin/ctil~ and ~bin/c/til~ link raylib statically (~-Llib/raylib/src
+         -lraylib -lGL -lm -lpthread -lrt -lX11~) so interpreter FFI finds
+         raylib symbols via ~RTLD_DEFAULT~ (no ~dlopen("libraylib.so")~ needed)
+   - [x] builder.c ~compile_c~ and ~compile_lib~: add ~-Llib/raylib/src~ so
+         generated gui binaries find bundled ~libraylib.a~
+   - [x] Non-gui programs unaffected (~-L~ path is harmless, linker only
+         pulls in referenced symbols — hello_cli is 52KB, gui_hello is 1.1MB)
+   - [x] ~src/examples/raylib.til~ removed from test suite (stays as
+         standalone FFI example, not a mode gui program)
+   - [x] CI: added X11/GL dev packages for building raylib from source
+   - [x] 80/80 tests pass, gui binaries self-contained (~ldd~ shows no libraylib.so)
 
-*** Benefits
+*** Remaining: other system dependencies
 
-   - *mode gui programs*: ~ctil run music.til~ links ~libraylib.a~
-     instead of ~-lraylib~. No system install needed. Binaries are
-     self-contained.
-   - *ctil and til.til*: link raylib statically for the interpreter's
-     FFI path. Currently ~dlopen("libraylib.so")~ requires the .so
-     at runtime. With static linking, raylib symbols are in the binary.
-   - *CI*: no special raylib install step needed.
-   - *GUI tests*: change from build-only to full run+interpret in CI.
+   Users still need these installed to build til:
+   - ~libffi-dev~ — for FFI dispatch (interpreter calls ext_funcs via libffi)
+   - ~libx11-dev~, ~libgl-dev~, ~libxrandr-dev~, ~libxinerama-dev~,
+     ~libxcursor-dev~, ~libxi-dev~ — for building raylib from source
 
-*** Implementation
+   These are standard dev packages on Linux, but they're still external
+   dependencies. The raylib bundling sets a precedent — could we bundle
+   or eliminate more? libffi is the most painful one (not always pre-installed).
+   X11/GL headers are arguably reasonable assumptions for a desktop GUI toolkit.
 
-   1. Add raylib source to ~lib/raylib/~ via ~git subtree add~
-   2. Makefile: build ~lib/raylib/src/libraylib.a~ from source
-      (raylib builds with just ~make~ in ~src/~, no cmake needed)
-   3. Update builder.c ~compile_c~: link ~-Llib/raylib/src -lraylib~
-      and ~-Ilib/raylib/src~ for mode gui programs instead of relying
-      on system-wide install
-   4. Update ctil/til.til linking: add ~libraylib.a~ to the link step
-      so interpreter FFI can find raylib symbols via ~RTLD_DEFAULT~
-   5. CI workflow: remove any raylib install steps
-   6. GUI tests: change from build-only to full run in CI
+*** To update raylib
+
+   #+begin_example
+   git subtree pull --prefix=lib/raylib https://github.com/raysan5/raylib.git master --squash
+   #+end_example
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
   :DEPENDENCIES: #14

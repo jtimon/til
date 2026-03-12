@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install libffi
-        run: sudo apt-get update && sudo apt-get install -y libffi-dev
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libffi-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build
