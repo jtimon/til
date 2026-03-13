@@ -1,4 +1,8 @@
 mode gui
+import("../lib/cell.til")
+
+// Conway's Game of Life — B3/S23
+// Born with exactly 3 neighbors, survive with 2 or 3
 
 main := proc() {
     cols := 40
@@ -12,9 +16,12 @@ main := proc() {
     init_window(grid_w, grid_h.add(bar_h), "game of life")
     set_target_fps(60)
 
-    // Two grids for double buffering
-    mut grid := Array.new("I64", 8, total.to_u64())
-    mut next := Array.new("I64", 8, total.to_u64())
+    mut grid := ca_new_grid(cols, rows)
+    mut next := ca_new_grid(cols, rows)
+
+    // Conway rules: B3/S23
+    born := array("I64", 3)
+    survive := array("I64", 2, 3)
 
     mut running := false
     mut frame := 0
@@ -31,11 +38,7 @@ main := proc() {
         if is_key_pressed(67) {
             running = false
             generation = 0
-            mut ci := 0
-            while ci.lt(total) {
-                grid.set(ci.to_u64(), own 0)
-                ci = ci.add(1)
-            }
+            ca_clear_grid(grid, total)
         }
 
         // Input: mouse click to toggle cells
@@ -59,62 +62,8 @@ main := proc() {
             if frame.gte(speed) {
                 frame = 0
                 generation = generation.add(1)
-
-                // Compute next generation
-                mut i := 0
-                while i.lt(total) {
-                    cx := i.mod(cols)
-                    cy := i.div(cols)
-
-                    // Count neighbors
-                    mut neighbors := 0
-                    mut ny := cy.sub(1)
-                    while ny.lte(cy.add(1)) {
-                        mut nx := cx.sub(1)
-                        while nx.lte(cx.add(1)) {
-                            if nx.eq(cx).and(ny.eq(cy)).not() {
-                                wx := nx.add(cols).mod(cols)
-                                wy := ny.add(rows).mod(rows)
-                                ni := wy.mul(cols).add(wx)
-                                ref nv : I64 = grid.get(ni.to_u64())
-                                if nv.eq(1) {
-                                    neighbors = neighbors.add(1)
-                                }
-                            }
-                            nx = nx.add(1)
-                        }
-                        ny = ny.add(1)
-                    }
-
-                    // Conway rules
-                    ref cur : I64 = grid.get(i.to_u64())
-                    if cur.eq(1) {
-                        // Live cell: survives with 2 or 3 neighbors
-                        if neighbors.eq(2).or(neighbors.eq(3)) {
-                            next.set(i.to_u64(), own 1)
-                        } else {
-                            next.set(i.to_u64(), own 0)
-                        }
-                    } else {
-                        // Dead cell: born with exactly 3 neighbors
-                        if neighbors.eq(3) {
-                            next.set(i.to_u64(), own 1)
-                        } else {
-                            next.set(i.to_u64(), own 0)
-                        }
-                    }
-
-                    i = i.add(1)
-                }
-
-                // Copy next to grid
-                mut j := 0
-                while j.lt(total) {
-                    ref nval : I64 = next.get(j.to_u64())
-                    nv := nval
-                    grid.set(j.to_u64(), own nv)
-                    j = j.add(1)
-                }
+                ca_step(grid, next, cols, rows, born, 1, survive, 2)
+                ca_swap(grid, next, total)
             }
         }
 
@@ -142,10 +91,8 @@ main := proc() {
 
             ref dv : I64 = grid.get(di.to_u64())
             if dv.eq(1) {
-                // Alive: green
                 draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 0, 200, 0, 255)
             } else {
-                // Dead: dark gray
                 draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 30, 30, 30, 255)
             }
 

@@ -1,0 +1,91 @@
+mode lib
+
+// 2D cellular automata library (toroidal grid)
+// Supports life-like rules via born/survive neighbor count arrays
+
+// Create a new grid of cols*rows cells (all dead/0)
+ca_new_grid := proc(cols: I64, rows: I64) returns Array {
+    return Array.new("I64", 8, cols.mul(rows).to_u64())
+}
+
+// Clear all cells to 0
+ca_clear_grid := proc(mut grid: Array, total: I64) {
+    mut i := 0
+    while i.lt(total) {
+        grid.set(i.to_u64(), own 0)
+        i = i.add(1)
+    }
+}
+
+// Count live neighbors for cell at index (toroidal wrapping)
+ca_count_neighbors := func(mut grid: Array, idx: I64, cols: I64, rows: I64) returns I64 {
+    cx := idx.mod(cols)
+    cy := idx.div(cols)
+    mut count := 0
+    mut ny := cy.sub(1)
+    while ny.lte(cy.add(1)) {
+        mut nx := cx.sub(1)
+        while nx.lte(cx.add(1)) {
+            if nx.eq(cx).and(ny.eq(cy)).not() {
+                wx := nx.add(cols).mod(cols)
+                wy := ny.add(rows).mod(rows)
+                ni := wy.mul(cols).add(wx)
+                ref nv : I64 = grid.get(ni.to_u64())
+                if nv.eq(1) {
+                    count = count.add(1)
+                }
+            }
+            nx = nx.add(1)
+        }
+        ny = ny.add(1)
+    }
+    return count
+}
+
+// Check if a value is in an array of counts
+ca_in_set := func(mut arr: Array, len: I64, val: I64) returns Bool {
+    mut i := 0
+    while i.lt(len) {
+        ref v : I64 = arr.get(i.to_u64())
+        if v.eq(val) { return true }
+        i = i.add(1)
+    }
+    return false
+}
+
+// Step: compute next generation using life-like born/survive rules
+// born = array of neighbor counts where dead cell becomes alive
+// survive = array of neighbor counts where live cell stays alive
+ca_step := proc(mut grid: Array, mut next: Array, cols: I64, rows: I64,
+                mut born: Array, born_len: I64, mut survive: Array, survive_len: I64) {
+    total := cols.mul(rows)
+    mut i := 0
+    while i.lt(total) {
+        neighbors := ca_count_neighbors(grid, i, cols, rows)
+        ref cur : I64 = grid.get(i.to_u64())
+        if cur.eq(1) {
+            if ca_in_set(survive, survive_len, neighbors) {
+                next.set(i.to_u64(), own 1)
+            } else {
+                next.set(i.to_u64(), own 0)
+            }
+        } else {
+            if ca_in_set(born, born_len, neighbors) {
+                next.set(i.to_u64(), own 1)
+            } else {
+                next.set(i.to_u64(), own 0)
+            }
+        }
+        i = i.add(1)
+    }
+}
+
+// Copy next grid into grid (swap buffers)
+ca_swap := proc(mut grid: Array, mut next: Array, total: I64) {
+    mut i := 0
+    while i.lt(total) {
+        ref nval : I64 = next.get(i.to_u64())
+        grid.set(i.to_u64(), own nval.clone())
+        i = i.add(1)
+    }
+}
