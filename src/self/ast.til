@@ -5,7 +5,7 @@ mode lib
 
 NodeType := enum {
     Body,
-    LiteralStr, LiteralNum, LiteralBool,
+    LiteralStr, LiteralNum, LiteralBool, LiteralNull,
     Ident,
     Decl, Assign,
     FCall, FuncDef,
@@ -24,6 +24,7 @@ node_type_name := func(t: NodeType) returns Str {
     case NodeType.LiteralStr: return "str"
     case NodeType.LiteralNum: return "num"
     case NodeType.LiteralBool: return "bool"
+    case NodeType.LiteralNull: return "null"
     case NodeType.Ident: return "ident"
     case NodeType.Decl: return "decl"
     case NodeType.Assign: return "assign"
@@ -71,10 +72,33 @@ func_type_name := func(ft: FuncType) returns Str {
 
 TilType := enum {
     Unknown, None,
-    TypeI64, TypeU8, TypeI16, TypeI32, TypeU32, TypeBool,
+    TypeI64, TypeU8, TypeI16, TypeI32, TypeU32, TypeU64, TypeF32, TypeBool,
     TypeStruct, TypeStructDef,
     TypeEnum, TypeEnumDef,
-    TypeFuncDef, TypeDynamic,
+    TypeFuncDef, TypeFuncPtr, TypeDynamic,
+}
+
+til_type_name := func(t: TilType) returns Str {
+    switch t {
+    case TilType.Unknown:      return "unknown"
+    case TilType.None:         return "None"
+    case TilType.TypeI64:      return "I64"
+    case TilType.TypeU8:       return "U8"
+    case TilType.TypeI16:      return "I16"
+    case TilType.TypeI32:      return "I32"
+    case TilType.TypeU32:      return "U32"
+    case TilType.TypeU64:      return "U64"
+    case TilType.TypeF32:      return "F32"
+    case TilType.TypeBool:     return "Bool"
+    case TilType.TypeStruct:   return "Struct"
+    case TilType.TypeStructDef: return "StructDef"
+    case TilType.TypeEnum:     return "Enum"
+    case TilType.TypeEnumDef:  return "EnumDef"
+    case TilType.TypeFuncDef:  return "FunctionDef"
+    case TilType.TypeFuncPtr:  return "Fn"
+    case TilType.TypeDynamic:  return "Dynamic"
+    case: return "?"
+    }
 }
 
 // --- DeclData struct ---
@@ -101,11 +125,13 @@ FuncDefData := struct {
     mut func_type := FuncType.Func
     mut return_type := ""
     mut return_is_ref := false
+    mut return_is_shallow := false
     mut variadic_index := 0.sub(1)
     mut param_names := Vec.new("Str", Str.size())
     mut param_types := Vec.new("Str", Str.size())
     mut param_muts := Vec.new("Bool", Bool.size())
     mut param_owns := Vec.new("Bool", Bool.size())
+    mut param_shallows := Vec.new("Bool", Bool.size())
     // param_defaults: Vec of I64, each entry is index into Expr children
     // or -1 if no default. Actual default Expr nodes stored as children
     // of the FuncDef node after the body child.
@@ -138,13 +164,17 @@ Expr := struct {
     mut is_own_arg := false
     mut is_splat := false
     mut is_own_field := false
+    mut is_ref_field := false
     mut is_ns_field := false
     mut is_ext := false
     mut is_core := false
+    mut save_old_delete := false
 
     mut total_struct_size := 0
     mut variadic_index := 0.sub(1)
     mut variadic_count := 0
+    // fn_sig: index into children for function pointer signature, or -1
+    mut fn_sig_index := 0.sub(1)
 
     mut children := Vec.new("Expr", Expr.size())
     mut line := 0
@@ -165,4 +195,81 @@ expr_add_child := proc(mut parent: Expr, own child: Expr) {
 expr_child := func(parent: Expr, i: I64) returns ref Expr {
     ref c : Expr = parent.children.get(i.to_u64())
     return c
+}
+
+expr_child_count := func(parent: Expr) returns I64 {
+    return parent.children.len()
+}
+
+// --- Error reporting ---
+
+expr_error := proc(e: Expr, msg: Str) {
+    // TODO: eprint to stderr when available
+    println(format(e.path, ":", e.line.to_str(), ":", e.col.to_str(), ": error: ", msg))
+}
+
+expr_todo_error := proc(e: Expr, msg: Str) {
+    expr_error(e, msg)
+    // TODO: eprint to stderr when available
+    println("  note: this language feature is not implemented yet")
+}
+
+expr_lang_error := proc(e: Expr, msg: Str) {
+    expr_error(e, msg)
+    // TODO: eprint to stderr when available
+    println("  note: this is a bug in the language, please report it")
+}
+
+// --- Enum helpers ---
+
+enum_has_payloads := func(enum_def: Expr) returns Bool {
+    ref body := expr_child(enum_def, 0)
+    mut i := 0
+    while i.lt(expr_child_count(body)) {
+        ref f := expr_child(body, i)
+        if f.data.is_Decl() {
+            decl := f.data.get_Decl()
+            if decl.is_namespace.not().and(decl.explicit_type.len().gt(0)) {
+                return true
+            }
+        }
+        i = i.add(1)
+    }
+    return false
+}
+
+enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
+    ref body := expr_child(enum_def, 0)
+    mut tag := 0
+    mut i := 0
+    while i.lt(expr_child_count(body)) {
+        ref f := expr_child(body, i)
+        if f.data.is_Decl() {
+            decl := f.data.get_Decl()
+            if decl.is_namespace.not() {
+                if decl.name.eq(variant_name) { return tag }
+                tag = tag.add(1)
+            }
+        }
+        i = i.add(1)
+    }
+    return 0.sub(1)
+}
+
+enum_variant_type := func(enum_def: Expr, tag: I64) returns Str {
+    ref body := expr_child(enum_def, 0)
+    mut idx := 0
+    mut i := 0
+    while i.lt(expr_child_count(body)) {
+        ref f := expr_child(body, i)
+        if f.data.is_Decl() {
+            decl := f.data.get_Decl()
+            if decl.is_namespace.not() {
+                if idx.eq(tag) { return decl.explicit_type }
+                idx = idx.add(1)
+            }
+        }
+        i = i.add(1)
+    }
+    return ""
 }

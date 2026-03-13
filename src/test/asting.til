@@ -1,0 +1,40 @@
+mode test
+import("../self/ast.til")
+
+test_node_type := test() {
+    assert_eq_str(__LOC__, node_type_name(NodeType.Body), "body")
+    assert_eq_str(__LOC__, node_type_name(NodeType.Ident), "ident")
+    assert_eq_str(__LOC__, node_type_name(NodeType.LiteralNull), "null")
+    assert_eq_str(__LOC__, node_type_name(NodeType.FCall), "fcall")
+}
+
+test_func_type := test() {
+    assert_eq_str(__LOC__, func_type_name(FuncType.Func), "func")
+    assert_eq_str(__LOC__, func_type_name(FuncType.Proc), "proc")
+    assert_eq_str(__LOC__, func_type_name(FuncType.ExtProc), "ext_proc")
+}
+
+test_til_type := test() {
+    assert_eq_str(__LOC__, til_type_name(TilType.Unknown), "unknown")
+    assert_eq_str(__LOC__, til_type_name(TilType.TypeI64), "I64")
+    assert_eq_str(__LOC__, til_type_name(TilType.TypeFuncPtr), "Fn")
+    assert_eq_str(__LOC__, til_type_name(TilType.TypeU64), "U64")
+    assert_eq_str(__LOC__, til_type_name(TilType.TypeF32), "F32")
+}
+
+test_expr_new := test() {
+    mut e := expr_new(NodeType.Ident, 1, 5, "test.til")
+    test_expect(__LOC__, e.type.eq(NodeType.Ident), "type is Ident")
+    assert_eq(__LOC__, e.line, 1)
+    assert_eq(__LOC__, e.col, 5)
+    assert_eq_str(__LOC__, e.path, "test.til")
+}
+
+test_expr_children := test() {
+    mut parent := expr_new(NodeType.Body, 1, 1, "test.til")
+    child1 := expr_new(NodeType.Ident, 2, 1, "test.til")
+    child2 := expr_new(NodeType.LiteralNum, 3, 1, "test.til")
+    expr_add_child(parent, own child1)
+    expr_add_child(parent, own child2)
+    assert_eq(__LOC__, expr_child_count(parent), 2)
+}
