@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 65
+# NEXT_ISSUE: 66
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -1276,3 +1276,54 @@
   - Incremental parsing: parse one statement at a time
   - Persistent scope: declarations accumulate across inputs
   - Result display: print expression values (needs to_str for all types)
+
+* Undecided
+
+** OPEN #65 Standalone namespaces
+  Allow declaring namespaces independently of structs. Currently namespaces
+  only exist as ~namespace:~ sections inside struct definitions. Standalone
+  namespaces would group related functions and mutable state under a name
+  without needing a struct.
+
+  #+begin_src til
+  MyNamespace := namespace {
+      mut urmom := 69
+
+      get := func() returns I64 {
+          return urmom
+      }
+
+      set := proc(val: I64) {
+          urmom = val
+      }
+  }
+
+  println(MyNamespace.get().to_str())   // 69
+  MyNamespace.set(420)
+  println(MyNamespace.get().to_str())   // 420
+  #+end_src
+
+  Implementation: pure sugar. The typer desugars ~namespace { ... }~ into
+  ~struct { namespace: ... }~ — a struct with no fields and a namespace
+  section containing all the declarations. No new AST nodes, no new codegen,
+  no new runtime support. The parser recognizes ~namespace { ... }~ as a new
+  expression form and the typer rewrites it before type checking proceeds.
+
+  #+begin_src til
+  // What you write:
+  MyNamespace := namespace {
+      mut urmom := 69
+      get := func() returns I64 { return urmom }
+  }
+
+  // What the typer sees after desugaring:
+  MyNamespace := struct {
+      namespace:
+      mut urmom := 69
+      get := func() returns I64 { return urmom }
+  }
+  #+end_src
+
+  Open questions:
+  - Can namespaces have mutable state (globals scoped to the namespace)?
+  - Can namespaces be nested?
