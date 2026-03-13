@@ -56,6 +56,63 @@ peek_col := func(p: Parser) returns I64 { return peek(p).col }
 
 // --- Parsing functions ---
 
+// parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
+// Returns a synthetic FuncDef Expr with param_types and return_type,
+// or null Expr if not followed by '(' (bare "Fn" type).
+parse_fn_signature := proc(mut p: Parser, line: I64, col: I64) returns Expr {
+    if check(p, TokenType.LParen).not() {
+        return expr_new(NodeType.Body, 0, 0, "") // null sentinel
+    }
+    advance(p) // consume '('
+
+    // Parse parameter types: [mut] Type, [mut] Type, ...
+    mut ptypes := Vec.new("Str", Str.size())
+    mut pmuts := Vec.new("Bool", Bool.size())
+    while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+        mut is_mut := false
+        if check(p, TokenType.KwMut) { advance(p); is_mut = true }
+        ptype := expect_text(p, TokenType.Ident)
+        ptypes.push(own ptype)
+        pmuts.push(own is_mut)
+        if check(p, TokenType.Comma) { advance(p) }
+    }
+    expect(p, TokenType.RParen)
+
+    // Parse optional 'returns Type'
+    mut return_type := ""
+    if check(p, TokenType.KwReturns) {
+        advance(p)
+        return_type = expect_text(p, TokenType.Ident)
+    }
+
+    // Build synthetic func_def
+    mut fd := FuncDefData()
+    if return_type.len().gt(0) { fd.func_type = FuncType.Func }
+    else { fd.func_type = FuncType.Proc }
+    fd.return_type = return_type
+    fd.return_is_ref = false
+    fd.return_is_shallow = false
+    fd.variadic_index = 0.sub(1)
+    fd.kwargs_index = 0.sub(1)
+    // Fill param_names with empty strings (no names in signatures)
+    mut i : U64 = 0
+    while i.lt(ptypes.len()) {
+        fd.param_names.push(own "")
+        fd.param_owns.push(own false)
+        fd.param_shallows.push(own false)
+        fd.param_defaults.push(own 0.sub(1))
+        fd.param_fn_sigs.push(own 0.sub(1))
+        i = i.add(1)
+    }
+    fd.param_types = ptypes
+    fd.param_muts = pmuts
+
+    mut sig := expr_new(NodeType.FuncDef, line, col, p.path)
+    sig.data = ExprData.FuncDef(fd)
+    // No body — this is just a type signature
+    return sig
+}
+
 // parse_block: expects '{' already consumed, reads statements until '}'
 parse_block := proc(mut p: Parser) returns Expr {
     mut body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
@@ -89,29 +146,76 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     mut def_exprs := Vec.new("Expr", Expr.size())
 
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+        mut is_shallow := false
+        if check(p, TokenType.KwShallow) { advance(p); is_shallow = true }
         mut is_own := false
         if check(p, TokenType.KwOwn) { advance(p); is_own = true }
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
 
         pname := expect_text(p, TokenType.Ident)
-        expect(p, TokenType.Colon)
 
+        // Bare type (FuncSig style): no colon after identifier
+        mut nm := ""
+        mut tp := ""
         mut is_variadic := false
-        if check(p, TokenType.DotDot) {
-            advance(p)
-            if is_own { panic(__LOC__, "variadic param cannot be 'own'") }
-            if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
-            if fd.variadic_index.neq(0.sub(1)) { panic(__LOC__, "only one variadic param allowed") }
-            fd.variadic_index = fd.param_names.len().to_i64()
-            is_variadic = true
+        if check(p, TokenType.Colon).not() {
+            tp = pname.clone()
+            nm = ""
+        } else {
+            expect(p, TokenType.Colon)
+            if check(p, TokenType.DotDotDot) {
+                advance(p) // consume '...'
+                if is_own.or(is_mut).or(is_shallow) {
+                    panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                        ": kwargs parameter cannot be own/mut/shallow")
+                }
+                if fd.kwargs_index.neq(0.sub(1)) {
+                    panic(__LOC__, "only one kwargs parameter is allowed")
+                }
+                if fd.variadic_index.neq(0.sub(1)) {
+                    panic(__LOC__, "cannot combine variadic and kwargs in the same function")
+                }
+                fd.kwargs_index = fd.param_names.len().to_i64()
+                is_own = true // kwargs Map is owned by callee
+                nm = pname.clone()
+                tp = "Map"
+            } else if check(p, TokenType.DotDot) {
+                advance(p)
+                if is_own { panic(__LOC__, "variadic param cannot be 'own'") }
+                if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
+                if is_shallow { panic(__LOC__, "variadic param cannot be 'shallow'") }
+                if fd.variadic_index.neq(0.sub(1)) { panic(__LOC__, "only one variadic param allowed") }
+                if fd.kwargs_index.neq(0.sub(1)) {
+                    panic(__LOC__, "cannot combine variadic and kwargs in the same function")
+                }
+                fd.variadic_index = fd.param_names.len().to_i64()
+                is_variadic = true
+                tp = expect_text(p, TokenType.Ident)
+                nm = pname.clone()
+            } else {
+                tp = expect_text(p, TokenType.Ident)
+                nm = pname.clone()
+            }
         }
 
-        ptype := expect_text(p, TokenType.Ident)
-        fd.param_names.push(own pname)
-        fd.param_types.push(own ptype)
+        // If type is Fn, try to parse Fn(T1, T2) returns T signature
+        mut fn_sig_idx := 0.sub(1)
+        if tp.eq("Fn") {
+            mut sig := parse_fn_signature(p, peek_line(p), peek_col(p))
+            // Check if we got a real signature (not the null sentinel)
+            if sig.line.neq(0) {
+                fn_sig_idx = def_exprs.len().to_i64()
+                def_exprs.push(own sig)
+            }
+        }
+
+        fd.param_names.push(own nm)
+        fd.param_types.push(own tp)
         fd.param_muts.push(own is_mut)
         fd.param_owns.push(own is_own)
+        fd.param_shallows.push(own is_shallow)
+        fd.param_fn_sigs.push(own fn_sig_idx)
 
         // Optional default value
         mut has_default := 0.sub(1)
@@ -129,12 +233,15 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     }
     expect(p, TokenType.RParen)
 
-    // Parse optional 'returns [ref] Type'
+    // Parse optional 'returns [ref|shallow] Type'
     if check(p, TokenType.KwReturns) {
         advance(p)
         if check(p, TokenType.KwRef) {
             advance(p)
             fd.return_is_ref = true
+        } else if check(p, TokenType.KwShallow) {
+            advance(p)
+            fd.return_is_shallow = true
         }
         fd.return_type = expect_text(p, TokenType.Ident)
     }
@@ -142,8 +249,16 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     mut def := expr_new(NodeType.FuncDef, kw_line, kw_col, p.path)
     def.data = ExprData.FuncDef(fd)
 
-    expect(p, TokenType.LBrace)
-    expr_add_child(def, own parse_block(p))
+    if check(p, TokenType.LBrace) {
+        expect(p, TokenType.LBrace)
+        expr_add_child(def, own parse_block(p))
+    } else {
+        // Bodyless = FuncSig type definition (only for func/proc)
+        if ft.eq(FuncType.Func).not().and(ft.eq(FuncType.Proc).not()) {
+            panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
+                ": ", func_type_name(ft), " requires a body")
+        }
+    }
 
     // Append default value expressions as additional children
     for i in 0..def_exprs.len() {
@@ -506,8 +621,113 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
     // Declaration with explicit type: name : Type = value
     if check(p, TokenType.Colon) {
         advance(p)
+
+        // FuncSig form: name : func(Types) returns T = (names) { body }
+        if check(p, TokenType.KwFunc).or(check(p, TokenType.KwProc)) {
+            mut sig := parse_func_def(p) // parses bodyless func(...) returns T
+            expect(p, TokenType.Eq)
+            // Parse (name1, name2, ...) — just identifiers
+            expect(p, TokenType.LParen)
+            if sig.data.is_FuncDef() {
+                mut sfd := sig.data.get_FuncDef()
+                mut new_names := Vec.new("Str", Str.size())
+                mut pi : U64 = 0
+                while pi.lt(sfd.param_names.len()) {
+                    if pi.gt(0) { expect(p, TokenType.Comma) }
+                    pn := expect_text(p, TokenType.Ident)
+                    new_names.push(own pn)
+                    pi = pi.add(1)
+                }
+                sfd.param_names = new_names
+                sig.data = ExprData.FuncDef(sfd)
+            }
+            if check(p, TokenType.Comma) { advance(p) } // trailing comma
+            expect(p, TokenType.RParen)
+            // Parse { body }
+            expect(p, TokenType.LBrace)
+            expr_add_child(sig, own parse_block(p))
+            // Wrap in NODE_DECL
+            mut dd := DeclData(name = name, is_mut = is_mut, is_own = is_own)
+            mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
+            decl.data = ExprData.Decl(dd)
+            expr_add_child(decl, own sig)
+            return decl
+        }
+
         type_name := expect_text(p, TokenType.Ident)
+
+        // If type is Fn, parse optional Fn(T1, T2) returns T signature
+        mut fn_sig_idx := 0.sub(1)
+        if type_name.eq("Fn") {
+            mut sig := parse_fn_signature(p, t_line, t_col)
+            if sig.line.neq(0) {
+                fn_sig_idx = 0 // placeholder — will be stored as child
+            }
+        }
+
         expect(p, TokenType.Eq)
+
+        // Named FuncSig form: name : Type = (names) { body }
+        // Lookahead: check if pattern is (ident [, ident]* [,]) {
+        if check(p, TokenType.LParen) {
+            saved := p.pos
+            advance(p) // skip (
+            mut is_fsf := true
+            while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
+                if check(p, TokenType.Ident).not() { is_fsf = false; break }
+                advance(p)
+                if check(p, TokenType.Comma) { advance(p) }
+            }
+            if is_fsf.and(check(p, TokenType.RParen)) {
+                advance(p) // skip )
+                if check(p, TokenType.LBrace).not() { is_fsf = false }
+            } else {
+                is_fsf = false
+            }
+            p.pos = saved // restore
+
+            if is_fsf {
+                // Parse (name1, name2, ...) as param names
+                expect(p, TokenType.LParen)
+                mut pnames := Vec.new("Str", Str.size())
+                while check(p, TokenType.RParen).not() {
+                    pn := expect_text(p, TokenType.Ident)
+                    pnames.push(own pn)
+                    if check(p, TokenType.Comma) { advance(p) }
+                }
+                expect(p, TokenType.RParen)
+                // Parse { body }
+                expect(p, TokenType.LBrace)
+                mut body := parse_block(p)
+                // Build incomplete FuncDef (types filled by initer)
+                mut ffd := FuncDefData()
+                ffd.func_type = FuncType.Func // placeholder
+                ffd.variadic_index = 0.sub(1)
+                ffd.kwargs_index = 0.sub(1)
+                np := pnames.len()
+                mut fi : U64 = 0
+                while fi.lt(np) {
+                    ffd.param_types.push(own "")
+                    ffd.param_muts.push(own false)
+                    ffd.param_owns.push(own false)
+                    ffd.param_shallows.push(own false)
+                    ffd.param_defaults.push(own 0.sub(1))
+                    ffd.param_fn_sigs.push(own 0.sub(1))
+                    fi = fi.add(1)
+                }
+                ffd.param_names = pnames
+                mut fdef := expr_new(NodeType.FuncDef, t_line, t_col, p.path)
+                fdef.data = ExprData.FuncDef(ffd)
+                expr_add_child(fdef, own body)
+                // Wrap in NODE_DECL with explicit_type
+                mut dd := DeclData(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
+                mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
+                decl.data = ExprData.Decl(dd)
+                expr_add_child(decl, own fdef)
+                return decl
+            }
+        }
+
         mut dd := DeclData(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
         mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
         decl.data = ExprData.Decl(dd)

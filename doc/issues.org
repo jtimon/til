@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 66
+# NEXT_ISSUE: 67
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -1327,3 +1327,27 @@
   Open questions:
   - Can namespaces have mutable state (globals scoped to the namespace)?
   - Can namespaces be nested?
+
+** OPEN #66 Better imports: qualified namespaces
+  :RELATED: #65
+  Currently ~import("file.til")~ dumps all symbols into the current scope.
+  Qualified imports would let you namespace them, returning a module object:
+
+  #+begin_src til
+  MyMap := import("map.til")
+  MyMap.new("Str", Str.size(), "I64", I64.size())
+
+  // vs current behavior:
+  import("map.til")   // all symbols dumped into scope
+  Map.new(...)        // works but pollutes namespace
+  #+end_src
+
+  This connects to #65 (standalone namespaces) — ~import()~ would return
+  a namespace, and qualified access (~MyMap.new~) uses the same dot-access
+  mechanism as namespace members.
+
+  Design questions:
+  - Does ~import()~ return a namespace or a module (new concept)?
+  - Can you selectively import? ~from "map.til" import Map, Set~
+  - Can you re-export? ~export MyMap~
+  - How does this interact with the current import deduplication?

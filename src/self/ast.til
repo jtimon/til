@@ -127,11 +127,13 @@ FuncDefData := struct {
     mut return_is_ref := false
     mut return_is_shallow := false
     mut variadic_index := 0.sub(1)
+    mut kwargs_index := 0.sub(1)
     mut param_names := Vec.new("Str", Str.size())
     mut param_types := Vec.new("Str", Str.size())
     mut param_muts := Vec.new("Bool", Bool.size())
     mut param_owns := Vec.new("Bool", Bool.size())
     mut param_shallows := Vec.new("Bool", Bool.size())
+    mut param_fn_sigs := Vec.new("I64", I64.size())
     // param_defaults: Vec of I64, each entry is index into Expr children
     // or -1 if no default. Actual default Expr nodes stored as children
     // of the FuncDef node after the body child.
@@ -173,6 +175,8 @@ Expr := struct {
     mut total_struct_size := 0
     mut variadic_index := 0.sub(1)
     mut variadic_count := 0
+    mut kwargs_index := 0.sub(1)
+    mut kwargs_count := 0
     // fn_sig: index into children for function pointer signature, or -1
     mut fn_sig_index := 0.sub(1)
 
