@@ -24,15 +24,13 @@ namespace:
     }
 
     cmp := func(a: Str, b: Str) returns I64 {
-        mut i : U64 = 0
         mut min_len := a.count
         if b.count.lt(a.count) { min_len = b.count }
-        while i.lt(min_len) {
+        for i in 0..min_len {
             ref ab : U8 = a.get(i)
             ref bb : U8 = b.get(i)
             own c := ab.cmp(bb)
             if c.neq(0) { return c }
-            i = i.add(1)
         }
         return a.count.cmp(b.count)
     }
@@ -90,30 +88,24 @@ namespace:
     contains := func(a: Str, b: Str) returns Bool {
         if b.count.eq(0) { return true }
         if b.count.gt(a.count) { return false }
-        mut i : U64 = 0
-        while i.lte(a.count.sub(b.count)) {
-            mut j : U64 = 0
+        for i in 0..a.count.sub(b.count).add(1) {
             mut found := true
-            while j.lt(b.count) {
+            for j in 0..b.count {
                 ref ac : U8 = a.get(i.add(j))
                 ref bc : U8 = b.get(j)
                 if ac.neq(bc) { found = false }
-                j = j.add(1)
             }
             if found { return true }
-            i = i.add(1)
         }
         return false
     }
 
     starts_with := func(a: Str, b: Str) returns Bool {
         if b.count.gt(a.count) { return false }
-        mut i : U64 = 0
-        while i.lt(b.count) {
+        for i in 0..b.count {
             ref ac : U8 = a.get(i)
             ref bc : U8 = b.get(i)
             if ac.neq(bc) { return false }
-            i = i.add(1)
         }
         return true
     }
@@ -121,12 +113,10 @@ namespace:
     ends_with := func(a: Str, b: Str) returns Bool {
         if b.count.gt(a.count) { return false }
         offset := a.count.sub(b.count)
-        mut i : U64 = 0
-        while i.lt(b.count) {
+        for i in 0..b.count {
             ref ac : U8 = a.get(offset.add(i))
             ref bc : U8 = b.get(i)
             if ac.neq(bc) { return false }
-            i = i.add(1)
         }
         return true
     }
@@ -138,18 +128,14 @@ namespace:
     find := func(self: Str, needle: Str) returns I64 {
         if needle.count.eq(0) { return 0.sub(1) }
         if needle.count.gt(self.count) { return 0.sub(1) }
-        mut i : U64 = 0
-        while i.lte(self.count.sub(needle.count)) {
-            mut j : U64 = 0
+        for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
-            while j.lt(needle.count) {
+            for j in 0..needle.count {
                 ref ac : U8 = self.get(i.add(j))
                 ref bc : U8 = needle.get(j)
                 if ac.neq(bc) { found = false }
-                j = j.add(1)
             }
             if found { return i.to_i64() }
-            i = i.add(1)
         }
         return 0.sub(1)
     }
@@ -158,18 +144,14 @@ namespace:
         if needle.count.eq(0) { return 0.sub(1) }
         if needle.count.gt(self.count) { return 0.sub(1) }
         mut last := 0.sub(1)
-        mut i : U64 = 0
-        while i.lte(self.count.sub(needle.count)) {
-            mut j : U64 = 0
+        for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
-            while j.lt(needle.count) {
+            for j in 0..needle.count {
                 ref ac : U8 = self.get(i.add(j))
                 ref bc : U8 = needle.get(j)
                 if ac.neq(bc) { found = false }
-                j = j.add(1)
             }
             if found { last = i.to_i64() }
-            i = i.add(1)
         }
         return last
     }
@@ -223,22 +205,21 @@ namespace:
     to_i64 := func(self: Str) returns I64 {
         if self.count.eq(0) { panic(__LOC__, "Str.to_i64: empty string") }
         mut result := 0
-        mut i : U64 = 0
+        mut start : U64 = 0
         mut neg := false
         ref first : U8 = self.get(0)
         if first.eq(45) {
             neg = true
-            i = 1
+            start = 1
         }
-        if i.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits") }
-        while i.lt(self.count) {
+        if start.eq(self.count) { panic(__LOC__, "Str.to_i64: no digits") }
+        for i in start..self.count {
             ref ch : U8 = self.get(i)
             d := ch.to_i64().sub(48)
             if d.lt(0).or(d.gt(9)) {
                 panic(__LOC__, "Str.to_i64: invalid char in '", self, "'")
             }
             result = result.mul(10).add(d)
-            i = i.add(1)
         }
         if neg { return 0.sub(result) }
         return result

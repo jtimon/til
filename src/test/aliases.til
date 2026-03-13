@@ -68,13 +68,11 @@ test_alias_in_if := test() {
 }
 
 # Alias inside while body
-test_alias_in_while := test() {
+test_alias_in_loop := test() {
     x := "loop"
-    mut i := 0
-    while i.lt(3) {
+    for i in 0..3 {
         y := x
         assert_eq_str(__LOC__, y, "loop")
-        i = i.add(1)
     }
 }
 

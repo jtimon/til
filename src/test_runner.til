@@ -14,13 +14,11 @@ TIL := "bin/c/til"
 test_basename := func(path: Str) returns Str {
     mut last_slash : U64 = 0
     mut has_slash := 0
-    mut si : U64 = 0
-    while si.lt(path.len()) {
+    for si in 0..path.len() {
         if path.get(si).eq('/') {
             last_slash = si
             has_slash = 1
         }
-        si = si.add(1)
     }
     mut name := path
     if has_slash.eq(1) {
@@ -65,14 +63,12 @@ main := proc(args: ..Str) {
         mut en_cr := 1
         mut en_ti := 1
         mut en_tr := 1
-        mut i : U64 = 2
-        while i.lt(args.len()) {
+        for i in 2..args.len() {
             ref arg : Str = args.get(i)
             if arg.eq("-no-ci") { en_ci = 0 }
             if arg.eq("-no-cr") { en_cr = 0 }
             if arg.eq("-no-ti") { en_ti = 0 }
             if arg.eq("-no-tr") { en_tr = 0 }
-            i = i.add(1)
         }
 
         basename := test_basename(file)
@@ -242,12 +238,10 @@ main := proc(args: ..Str) {
 
         // Join args after "--" as command
         mut cmd := ""
-        mut ci : U64 = dd.add(1)
-        while ci.lt(args.len()) {
+        for ci in dd.add(1)..args.len() {
             if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
             ref carg : Str = args.get(ci)
             cmd = cmd.concat(carg)
-            ci = ci.add(1)
         }
 
         if cmd.is_empty() {
@@ -304,12 +298,10 @@ main := proc(args: ..Str) {
 
         // Join args after "--" as command
         mut cmd := ""
-        mut ci : U64 = dd.add(1)
-        while ci.lt(args.len()) {
+        for ci in dd.add(1)..args.len() {
             if ci.gt(dd.add(1)) { cmd = cmd.concat(" ") }
             ref carg : Str = args.get(ci)
             cmd = cmd.concat(carg)
-            ci = ci.add(1)
         }
 
         if cmd.is_empty() {

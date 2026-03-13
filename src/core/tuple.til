@@ -36,11 +36,9 @@ namespace:
             panic(__LOC__, "Tuple.get: index ", i.to_str(), " out of bounds (len ", self.type_names.len().to_str(), ")")
         }
         mut offset : U64 = 0
-        mut j : U64 = 0
-        while j.lt(i) {
+        for j in 0..i {
             ref sz : U64 = self.type_sizes.get(j)
             offset = offset.add(sz)
-            j = j.add(1)
         }
         return ptr_add(self.data, offset)
     }
@@ -55,13 +53,11 @@ namespace:
 
     delete := proc(own self: Tuple, call_free: Bool = true) {
         mut offset : U64 = 0
-        mut i : U64 = 0
-        while i.lt(self.type_names.len()) {
+        for i in 0..self.type_names.len() {
             ref tn : Str = self.type_names.get(i)
             ref ts : U64 = self.type_sizes.get(i)
             dyn_call(tn, "delete", 2, ptr_add(self.data, offset), false)
             offset = offset.add(ts)
-            i = i.add(1)
         }
         free(own self.data)
         Vec.delete(own self.type_names, false)
@@ -74,15 +70,13 @@ namespace:
         if new_cap.eq(0) { new_cap = U64.from_i64(8) }
         own new_data : U8 = malloc(new_cap)
         mut offset : U64 = 0
-        mut i : U64 = 0
-        while i.lt(self.type_names.len()) {
+        for i in 0..self.type_names.len() {
             ref tn : Str = self.type_names.get(i)
             ref ts : U64 = self.type_sizes.get(i)
             own cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
             memcpy(ptr_add(new_data, offset), cloned, ts)
             free(own cloned)
             offset = offset.add(ts)
-            i = i.add(1)
         }
         return Tuple(data = new_data, total_size = self.total_size, cap = new_cap,
                      type_names = self.type_names.clone(),

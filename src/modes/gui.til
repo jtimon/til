@@ -111,18 +111,16 @@ play_tone := proc(freq: I64, duration_ms: I64) {
     freq_f := freq.to_f32()
     sr_f := sr.to_f32()
     amp := 3.to_f32().div(10.to_f32())
-    mut i := 0
-    while i.lt(n) {
+    for i in 0..n.to_u64() {
         mut env : F32 = 1.to_f32()
-        if i.lt(attack) {
-            env = i.to_f32().div(attack.to_f32())
+        if i.to_i64().lt(attack) {
+            env = i.to_i64().to_f32().div(attack.to_f32())
         }
-        if i.gt(n.sub(release)) {
-            env = n.sub(i).to_f32().div(release.to_f32())
+        if i.to_i64().gt(n.sub(release)) {
+            env = n.sub(i.to_i64()).to_f32().div(release.to_f32())
         }
-        sample := sinf(pi2.mul(freq_f).mul(i.to_f32()).div(sr_f)).mul(amp).mul(env)
-        memcpy(ptr_add(buf, i.mul(4).to_u64()), sample, 4)
-        i = i.add(1)
+        sample := sinf(pi2.mul(freq_f).mul(i.to_i64().to_f32()).div(sr_f)).mul(amp).mul(env)
+        memcpy(ptr_add(buf, i.mul(4)), sample, 4)
     }
     w := Wave(
         frameCount=n.to_u32(),
@@ -155,18 +153,16 @@ make_tone := func(freq: I64, duration_ms: I64) returns Sound {
     freq_f := freq.to_f32()
     sr_f := sr.to_f32()
     amp := 1.to_f32().div(10.to_f32())
-    mut i := 0
-    while i.lt(n) {
+    for i in 0..n.to_u64() {
         mut env : F32 = 1.to_f32()
-        if i.lt(attack) {
-            env = i.to_f32().div(attack.to_f32())
+        if i.to_i64().lt(attack) {
+            env = i.to_i64().to_f32().div(attack.to_f32())
         }
-        if i.gt(n.sub(release)) {
-            env = n.sub(i).to_f32().div(release.to_f32())
+        if i.to_i64().gt(n.sub(release)) {
+            env = n.sub(i.to_i64()).to_f32().div(release.to_f32())
         }
-        sample := sinf(pi2.mul(freq_f).mul(i.to_f32()).div(sr_f)).mul(amp).mul(env)
-        memcpy(ptr_add(buf, i.mul(4).to_u64()), sample, 4)
-        i = i.add(1)
+        sample := sinf(pi2.mul(freq_f).mul(i.to_i64().to_f32()).div(sr_f)).mul(amp).mul(env)
+        memcpy(ptr_add(buf, i.mul(4)), sample, 4)
     }
     w := Wave(
         frameCount=n.to_u32(),

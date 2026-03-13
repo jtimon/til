@@ -47,13 +47,11 @@ pad_right := func(s: Str, width: U64) returns Str {
 test_basename := func(path: Str) returns Str {
     mut last_slash : U64 = 0
     mut has_slash := 0
-    mut si : U64 = 0
-    while si.lt(path.len()) {
+    for si in 0..path.len() {
         if path.get(si).eq('/') {
             last_slash = si
             has_slash = 1
         }
-        si = si.add(1)
     }
     mut name := path
     if has_slash.eq(1) {

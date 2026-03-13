@@ -82,12 +82,10 @@ split := func(s: Str, delim: Str) returns Vec {
 join := func(parts: Vec, sep: Str) returns Str {
     if parts.len().eq(0) { return "" }
     mut result := ""
-    mut i : U64 = 0
-    while i.lt(parts.len()) {
+    for i in 0..parts.len() {
         if i.gt(0) { result = result.concat(sep) }
         ref p : Str = parts.get(i)
         result = result.concat(p)
-        i = i.add(1)
     }
     return result
 }

@@ -95,14 +95,12 @@ parse_fn_signature := proc(mut p: Parser, line: I64, col: I64) returns Expr {
     fd.variadic_index = 0.sub(1)
     fd.kwargs_index = 0.sub(1)
     // Fill param_names with empty strings (no names in signatures)
-    mut i : U64 = 0
-    while i.lt(ptypes.len()) {
+    for _ in 0..ptypes.len() {
         fd.param_names.push(own "")
         fd.param_owns.push(own false)
         fd.param_shallows.push(own false)
         fd.param_defaults.push(own 0.sub(1))
         fd.param_fn_sigs.push(own 0.sub(1))
-        i = i.add(1)
     }
     fd.param_types = ptypes
     fd.param_muts = pmuts
@@ -631,12 +629,10 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
             if sig.data.is_FuncDef() {
                 mut sfd := sig.data.get_FuncDef()
                 mut new_names := Vec.new("Str", Str.size())
-                mut pi : U64 = 0
-                while pi.lt(sfd.param_names.len()) {
+                for pi in 0..sfd.param_names.len() {
                     if pi.gt(0) { expect(p, TokenType.Comma) }
                     pn := expect_text(p, TokenType.Ident)
                     new_names.push(own pn)
-                    pi = pi.add(1)
                 }
                 sfd.param_names = new_names
                 sig.data = ExprData.FuncDef(sfd)
@@ -705,15 +701,13 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                 ffd.variadic_index = 0.sub(1)
                 ffd.kwargs_index = 0.sub(1)
                 np := pnames.len()
-                mut fi : U64 = 0
-                while fi.lt(np) {
+                for _ in 0..np {
                     ffd.param_types.push(own "")
                     ffd.param_muts.push(own false)
                     ffd.param_owns.push(own false)
                     ffd.param_shallows.push(own false)
                     ffd.param_defaults.push(own 0.sub(1))
                     ffd.param_fn_sigs.push(own 0.sub(1))
-                    fi = fi.add(1)
                 }
                 ffd.param_names = pnames
                 mut fdef := expr_new(NodeType.FuncDef, t_line, t_col, p.path)

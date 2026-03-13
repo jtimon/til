@@ -152,8 +152,7 @@ extract_imports := proc(body: Dynamic) returns Vec {
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
                         resolved_set: Dynamic, stack: Dynamic,
                         merged: Dynamic, lib_dir: Str) returns I32 {
-    mut i : U64 = 0
-    while i.lt(import_paths.len()) {
+    for i in 0..import_paths.len() {
         ref import_path : Str = import_paths.get(i)
 
         // Try relative to importing file's directory, then lib_dir
@@ -171,7 +170,6 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Dedup (also handles circular imports — files are added to
         // resolved_set when they start processing)
         if til_set_has(resolved_set, abs) {
-            i = i.add(1)
             continue
         }
         til_set_add(resolved_set, abs)
@@ -208,8 +206,6 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
             expr_vec_push(merged, ch)
             k = k.add(1)
         }
-
-        i = i.add(1)
     }
     return 0
 }

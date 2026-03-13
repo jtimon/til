@@ -58,11 +58,9 @@ is_opp := func(piece: I64, side: I64) returns Bool {
 
 // Copy board
 copy_board := proc(mut dst: Array, mut src: Array) {
-    mut i := 0
-    while i.lt(64) {
-        ref v : I64 = src.get(i.to_u64())
-        dst.set(i.to_u64(), own v.clone())
-        i = i.add(1)
+    for i in 0..64 {
+        ref v : I64 = src.get(i)
+        dst.set(i, own v.clone())
     }
 }
 
@@ -82,15 +80,14 @@ gen_captures := proc(mut board: Array, idx: I64, side: I64,
     DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
     DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
 
-    mut di := 0
-    while di.lt(4) {
+    for di in 0..4 {
         // Men can only capture forward... actually in standard checkers
         // men CAN capture backwards. Let's implement standard rules.
         // (In international draughts men capture in all directions)
         // For American/British checkers: men capture forward only in some variants
         // We'll use the rule: men can capture in all 4 diagonal directions
-        ref dr : I64 = DIAG_R.get(di.to_u64())
-        ref dc : I64 = DIAG_C.get(di.to_u64())
+        ref dr : I64 = DIAG_R.get(di)
+        ref dc : I64 = DIAG_C.get(di)
         mid_r := r.add(dr)
         mid_c := c.add(dc)
         land_r := r.add(dr.mul(2))
@@ -107,7 +104,6 @@ gen_captures := proc(mut board: Array, idx: I64, side: I64,
                 count = count.add(1)
             }
         }
-        di = di.add(1)
     }
 
     return count
@@ -124,10 +120,9 @@ gen_simple_moves := proc(mut board: Array, idx: I64, side: I64,
     DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
     DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
 
-    mut di := 0
-    while di.lt(4) {
-        ref dr : I64 = DIAG_R.get(di.to_u64())
-        ref dc : I64 = DIAG_C.get(di.to_u64())
+    for di in 0..4 {
+        ref dr : I64 = DIAG_R.get(di)
+        ref dc : I64 = DIAG_C.get(di)
 
         // Men can only move forward (not backward)
         mut allowed := false
@@ -150,7 +145,6 @@ gen_simple_moves := proc(mut board: Array, idx: I64, side: I64,
                 }
             }
         }
-        di = di.add(1)
     }
 
     return count
@@ -159,14 +153,12 @@ gen_simple_moves := proc(mut board: Array, idx: I64, side: I64,
 // Check if side has any capture moves available anywhere
 has_any_captures := proc(mut board: Array, side: I64,
                           mut moves: Array, mut jumped: Array) returns Bool {
-    mut i := 0
-    while i.lt(64) {
-        ref p : I64 = board.get(i.to_u64())
+    for i in 0..64 {
+        ref p : I64 = board.get(i)
         if is_side(p, side) {
-            cc := gen_captures(board, i, side, moves, jumped)
+            cc := gen_captures(board, i.to_i64(), side, moves, jumped)
             if cc.gt(0) { return true }
         }
-        i = i.add(1)
     }
     return false
 }
@@ -177,14 +169,12 @@ has_legal_moves := proc(mut board: Array, side: I64,
     // Check captures first
     if has_any_captures(board, side, moves, jumped) { return true }
     // Check simple moves
-    mut i := 0
-    while i.lt(64) {
-        ref p : I64 = board.get(i.to_u64())
+    for i in 0..64 {
+        ref p : I64 = board.get(i)
         if is_side(p, side) {
-            mc := gen_simple_moves(board, i, side, moves)
+            mc := gen_simple_moves(board, i.to_i64(), side, moves)
             if mc.gt(0) { return true }
         }
-        i = i.add(1)
     }
     return false
 }
@@ -218,11 +208,9 @@ execute_move := proc(mut board: Array, from: I64, to: I64, jumped_idx: I64) retu
 // Count pieces for a side
 count_pieces := func(mut board: Array, side: I64) returns I64 {
     mut count := 0
-    mut i := 0
-    while i.lt(64) {
-        ref p : I64 = board.get(i.to_u64())
+    for i in 0..64 {
+        ref p : I64 = board.get(i)
         if is_side(p, side) { count = count.add(1) }
-        i = i.add(1)
     }
     return count
 }
@@ -232,14 +220,12 @@ count_pieces := func(mut board: Array, side: I64) returns I64 {
 // Piece encoding: 0=empty, 1=red man, 2=red king, 3=black man, 4=black king
 checkers_eval := func(mut board: Array, side: I64) returns I64 {
     mut score := 0
-    mut i := 0
-    while i.lt(64) {
-        ref p : I64 = board.get(i.to_u64())
+    for i in 0..64 {
+        ref p : I64 = board.get(i)
         if p.eq(1) { score = score.add(1) }
         if p.eq(2) { score = score.add(3) }
         if p.eq(3) { score = score.sub(1) }
         if p.eq(4) { score = score.sub(3) }
-        i = i.add(1)
     }
     if side.eq(2) { return 0.sub(score) }
     return score
@@ -261,23 +247,21 @@ checkers_ab := proc(mut board: Array, side: I64, depth: I64,
     // Check if captures are mandatory
     must_capture := has_any_captures(board, side, tmp_moves, tmp_jumped)
 
-    mut i := 0
-    while i.lt(64) {
-        ref p : I64 = board.get(i.to_u64())
+    for i in 0..64 {
+        ref p : I64 = board.get(i)
         if is_side(p, side) {
             if must_capture {
-                mc := gen_captures(board, i, side, tmp_moves, tmp_jumped)
-                mut j := 0
-                while j.lt(mc) {
-                    ref dest : I64 = tmp_moves.get(j.to_u64())
-                    ref jmp : I64 = tmp_jumped.get(j.to_u64())
+                mc := gen_captures(board, i.to_i64(), side, tmp_moves, tmp_jumped)
+                for j in 0..mc.to_u64() {
+                    ref dest : I64 = tmp_moves.get(j)
+                    ref jmp : I64 = tmp_jumped.get(j)
                     dest_val := dest.clone()
                     jmp_val := jmp.clone()
                     has_moves = true
 
                     mut child := Array.new("I64", 8, 64)
                     copy_board(child, board)
-                    new_piece := execute_move(child, i, dest_val, jmp_val)
+                    new_piece := execute_move(child, i.to_i64(), dest_val, jmp_val)
 
                     // Check for multi-jump (same piece, must continue capturing)
                     mut child_moves := Array.new("I64", 8, 64)
@@ -285,7 +269,7 @@ checkers_ab := proc(mut board: Array, side: I64, depth: I64,
                     more_caps := gen_captures(child, dest_val, side, child_moves, child_jumped)
 
                     // If the piece was just promoted to king, no more jumps
-                    ref orig : I64 = board.get(i.to_u64())
+                    ref orig : I64 = board.get(i)
                     mut was_promoted := false
                     if orig.eq(1).and(new_piece.eq(2)) { was_promoted = true }
                     if orig.eq(3).and(new_piece.eq(4)) { was_promoted = true }
@@ -303,20 +287,17 @@ checkers_ab := proc(mut board: Array, side: I64, depth: I64,
                     if score.gt(best) { best = score }
                     if score.gt(a) { a = score }
                     if a.gte(beta) { return best }
-
-                    j = j.add(1)
                 }
             } else {
-                mc := gen_simple_moves(board, i, side, tmp_moves)
-                mut j := 0
-                while j.lt(mc) {
-                    ref dest : I64 = tmp_moves.get(j.to_u64())
+                mc := gen_simple_moves(board, i.to_i64(), side, tmp_moves)
+                for j in 0..mc.to_u64() {
+                    ref dest : I64 = tmp_moves.get(j)
                     dest_val := dest.clone()
                     has_moves = true
 
                     mut child := Array.new("I64", 8, 64)
                     copy_board(child, board)
-                    execute_move(child, i, dest_val, 0.sub(1))
+                    execute_move(child, i.to_i64(), dest_val, 0.sub(1))
 
                     opp := 3.sub(side)
                     score := 0.sub(checkers_ab(child, opp, depth.sub(1),
@@ -325,12 +306,9 @@ checkers_ab := proc(mut board: Array, side: I64, depth: I64,
                     if score.gt(best) { best = score }
                     if score.gt(a) { a = score }
                     if a.gte(beta) { return best }
-
-                    j = j.add(1)
                 }
             }
         }
-        i = i.add(1)
     }
 
     if has_moves.not() {
@@ -366,11 +344,9 @@ main := proc() {
     mut black_caps := 0
 
     // Initialize board
-    mut i := 0
-    while i.lt(64) {
-        ref init_p : I64 = INIT_BOARD.get(i.to_u64())
-        board.set(i.to_u64(), own init_p.clone())
-        i = i.add(1)
+    for i in 0..64 {
+        ref init_p : I64 = INIT_BOARD.get(i)
+        board.set(i, own init_p.clone())
     }
 
     while window_should_close().not() {
@@ -390,11 +366,9 @@ main := proc() {
 
             // Restart
             if is_key_pressed(82) {
-                i = 0
-                while i.lt(64) {
-                    ref init_p : I64 = INIT_BOARD.get(i.to_u64())
-                    board.set(i.to_u64(), own init_p.clone())
-                    i = i.add(1)
+                for i in 0..64 {
+                    ref init_p : I64 = INIT_BOARD.get(i)
+                    board.set(i, own init_p.clone())
                 }
                 turn = 1
                 selected = 0.sub(1)
@@ -425,19 +399,17 @@ main := proc() {
                         if mc.gt(0) {
                             mut best_j := 0
                             mut best_score := 0.sub(AB_INF)
-                            mut mj := 0
-                            while mj.lt(mc) {
-                                ref dest : I64 = tmp_moves.get(mj.to_u64())
-                                ref jmp : I64 = tmp_jumped.get(mj.to_u64())
+                            for mj in 0..mc.to_u64() {
+                                ref dest : I64 = tmp_moves.get(mj)
+                                ref jmp : I64 = tmp_jumped.get(mj)
                                 mut child := Array.new("I64", 8, 64)
                                 copy_board(child, board)
                                 execute_move(child, multi_jump_idx, dest.clone(), jmp.clone())
                                 score := 0.sub(checkers_ab(child, 1, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
                                 if score.gt(best_score) {
                                     best_score = score
-                                    best_j = mj
+                                    best_j = mj.to_i64()
                                 }
-                                mj = mj.add(1)
                             }
                             ref bd : I64 = tmp_moves.get(best_j.to_u64())
                             ref bj : I64 = tmp_jumped.get(best_j.to_u64())
@@ -482,47 +454,40 @@ main := proc() {
 
                         ai_must_cap := has_any_captures(board, 2, tmp_moves, tmp_jumped)
 
-                        mut ai := 0
-                        while ai.lt(64) {
-                            ref ap : I64 = board.get(ai.to_u64())
+                        for ai in 0..64 {
+                            ref ap : I64 = board.get(ai)
                             if is_black(ap) {
                                 if ai_must_cap {
-                                    mc := gen_captures(board, ai, 2, tmp_moves, tmp_jumped)
-                                    mut mj := 0
-                                    while mj.lt(mc) {
-                                        ref md : I64 = tmp_moves.get(mj.to_u64())
-                                        ref jd : I64 = tmp_jumped.get(mj.to_u64())
-                                        ai_pieces.set(ai_total.to_u64(), own ai.clone())
+                                    mc := gen_captures(board, ai.to_i64(), 2, tmp_moves, tmp_jumped)
+                                    for mj in 0..mc.to_u64() {
+                                        ref md : I64 = tmp_moves.get(mj)
+                                        ref jd : I64 = tmp_jumped.get(mj)
+                                        ai_pieces.set(ai_total.to_u64(), own ai.to_i64().clone())
                                         ai_dests.set(ai_total.to_u64(), own md.clone())
                                         ai_jumps.set(ai_total.to_u64(), own jd.clone())
                                         ai_total = ai_total.add(1)
-                                        mj = mj.add(1)
                                     }
                                 } else {
-                                    mc := gen_simple_moves(board, ai, 2, tmp_moves)
-                                    mut mj := 0
-                                    while mj.lt(mc) {
-                                        ref md : I64 = tmp_moves.get(mj.to_u64())
-                                        ai_pieces.set(ai_total.to_u64(), own ai.clone())
+                                    mc := gen_simple_moves(board, ai.to_i64(), 2, tmp_moves)
+                                    for mj in 0..mc.to_u64() {
+                                        ref md : I64 = tmp_moves.get(mj)
+                                        ai_pieces.set(ai_total.to_u64(), own ai.to_i64().clone())
                                         ai_dests.set(ai_total.to_u64(), own md.clone())
                                         ai_jumps.set(ai_total.to_u64(), own 0.sub(1))
                                         ai_total = ai_total.add(1)
-                                        mj = mj.add(1)
                                     }
                                 }
                             }
-                            ai = ai.add(1)
                         }
 
                         if ai_total.gt(0) {
                             mut best_idx := 0
                             mut best_score := 0.sub(AB_INF)
 
-                            mut mi := 0
-                            while mi.lt(ai_total) {
-                                ref from_sq : I64 = ai_pieces.get(mi.to_u64())
-                                ref to_sq : I64 = ai_dests.get(mi.to_u64())
-                                ref jmp_sq : I64 = ai_jumps.get(mi.to_u64())
+                            for mi in 0..ai_total.to_u64() {
+                                ref from_sq : I64 = ai_pieces.get(mi)
+                                ref to_sq : I64 = ai_dests.get(mi)
+                                ref jmp_sq : I64 = ai_jumps.get(mi)
                                 from_val := from_sq.clone()
                                 to_val := to_sq.clone()
                                 jmp_val := jmp_sq.clone()
@@ -535,9 +500,8 @@ main := proc() {
 
                                 if score.gt(best_score) {
                                     best_score = score
-                                    best_idx = mi
+                                    best_idx = mi.to_i64()
                                 }
-                                mi = mi.add(1)
                             }
 
                             ref best_from : I64 = ai_pieces.get(best_idx.to_u64())
@@ -608,19 +572,16 @@ main := proc() {
                             // In a multi-jump chain: only the jumping piece can move
                             // Check if click is a valid jump destination
                             mut is_valid := false
-                            mut vi := 0
-                            while vi.lt(valid_count) {
-                                ref vm : I64 = valid_moves.get(vi.to_u64())
+                            for vi in 0..valid_count.to_u64() {
+                                ref vm : I64 = valid_moves.get(vi)
                                 if vm.eq(click_idx) { is_valid = true }
-                                vi = vi.add(1)
                             }
                             if is_valid {
                                 // Find which jump this corresponds to
-                                mut ji := 0
-                                while ji.lt(valid_count) {
-                                    ref vm : I64 = valid_moves.get(ji.to_u64())
+                                for ji in 0..valid_count.to_u64() {
+                                    ref vm : I64 = valid_moves.get(ji)
                                     if vm.eq(click_idx) {
-                                        ref jm : I64 = valid_jumped.get(ji.to_u64())
+                                        ref jm : I64 = valid_jumped.get(ji)
                                         jmp_val := jm.clone()
 
                                         ref orig : I64 = board.get(multi_jump_idx.to_u64())
@@ -654,9 +615,8 @@ main := proc() {
                                                 else { game_over = 1 }
                                             }
                                         }
-                                        ji = valid_count  // break
+                                        break
                                     }
-                                    ji = ji.add(1)
                                 }
                             }
                         } else {
@@ -664,14 +624,12 @@ main := proc() {
                                 // Check if click is a valid move destination
                                 mut is_valid := false
                                 mut found_ji := 0.sub(1)
-                                mut vi := 0
-                                while vi.lt(valid_count) {
-                                    ref vm : I64 = valid_moves.get(vi.to_u64())
+                                for vi in 0..valid_count.to_u64() {
+                                    ref vm : I64 = valid_moves.get(vi)
                                     if vm.eq(click_idx) {
                                         is_valid = true
-                                        found_ji = vi
+                                        found_ji = vi.to_i64()
                                     }
-                                    vi = vi.add(1)
                                 }
 
                                 if is_valid {
@@ -796,13 +754,11 @@ main := proc() {
             draw_text("R=menu", WINDOW_WIDTH.sub(130), 40, 16, 100, 100, 100, 255)
 
             // Draw board
-            mut dr := 0
-            while dr.lt(8) {
-                mut dc := 0
-                while dc.lt(8) {
-                    px := dc.mul(CELL)
-                    py := dr.mul(CELL).add(BOARD_Y)
-                    idx := dr.mul(8).add(dc)
+            for dr in 0..8 {
+                for dc in 0..8 {
+                    px := dc.to_i64().mul(CELL)
+                    py := dr.to_i64().mul(CELL).add(BOARD_Y)
+                    idx := dr.to_i64().mul(8).add(dc.to_i64())
 
                     // Square color
                     mut sq_r := 238
@@ -824,9 +780,8 @@ main := proc() {
                     draw_rectangle(px, py, CELL, CELL, sq_r, sq_g, sq_b, 255)
 
                     // Draw valid move indicators
-                    mut vi := 0
-                    while vi.lt(valid_count) {
-                        ref vm : I64 = valid_moves.get(vi.to_u64())
+                    for vi in 0..valid_count.to_u64() {
+                        ref vm : I64 = valid_moves.get(vi)
                         if vm.eq(idx) {
                             ref dp : I64 = board.get(idx.to_u64())
                             if dp.eq(0) {
@@ -838,7 +793,6 @@ main := proc() {
                                 draw_rectangle(px.add(CELL).sub(12), py.add(CELL).sub(12), 12, 12, 200, 50, 50, 180)
                             }
                         }
-                        vi = vi.add(1)
                     }
 
                     // Draw piece
@@ -864,10 +818,7 @@ main := proc() {
                             }
                         }
                     }
-
-                    dc = dc.add(1)
                 }
-                dr = dr.add(1)
             }
 
             // Capture counts
