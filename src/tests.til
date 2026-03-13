@@ -420,7 +420,8 @@ main := proc(args: ..Str) {
         "src/examples/piano.til", "src/examples/music.til",
         "src/examples/font_test.til", "src/examples/minesweeper.til",
         "src/examples/popcorn.til", "src/examples/chess.til",
-        "src/examples/go.til", "src/examples/editor.til")
+        "src/examples/go.til", "src/examples/editor.til",
+        "src/examples/game_of_life.til")
     for gf : Str in gui_files {
         bn := test_basename(gf)
         mut run_args := ""
