@@ -397,11 +397,20 @@
 
   The built-in modes would eventually be redefined using the same system:
   #+begin_src til
-  cli := mode { ... }
-  test := mode { ... }
-  gui := mode { ... }
-  // etc.
+  // These would ship as stdlib modes, linked by default
+  cli := mode { ... }    // main(args: ..Str)
+  test := mode { ... }   // test() blocks, assert helpers
+  gui := mode { ... }    // links raylib, provides window/draw
+  script := mode { ... } // top-level statements
+  lib := mode { ... }    // library, no entry point, exports funcs/types
+  liba := mode { ... }   // lib + allows print/println inside funcs
+  pure := mode { ... }   // pure only, no procs at all
+  pura := mode { ... }   // pure + allows print/println inside funcs
   #+end_src
+
+  The ~a~ suffix ("annotated"/"audible") relaxes the func-cannot-call-proc
+  rule specifically for print/println, letting you debug/log from funcs
+  without switching to procs.
 
   Needs a linking mechanism so modes can compose or depend on each other
   (e.g. a ~game~ mode might link ~gui~ and add game-loop scaffolding).
