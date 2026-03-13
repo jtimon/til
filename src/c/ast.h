@@ -96,6 +96,7 @@ typedef struct {
             Expr **param_defaults;    // array[nparam], NULL entries for required params
             Str *return_type;      // NULL if none (proc)
             I32 variadic_index;       // index of variadic param, or -1 if none
+            I32 kwargs_index;         // index of kwargs param, or -1 if none
             bool return_is_ref;       // true for `returns ref Type`
             bool return_is_shallow;   // true for `returns shallow Type`
         } func_def;
@@ -117,6 +118,8 @@ struct Expr {
     I32 total_struct_size;          // NODE_STRUCT_DEF: total byte size of flat buffer
     I32 variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
     U32 variadic_count;             // NODE_FCALL: number of variadic args
+    I32 kwargs_index;               // NODE_FCALL: index of first kwargs named arg in children (-1 if none)
+    U32 kwargs_count;               // NODE_FCALL: number of kwargs named args
     Expr *fn_sig;                   // NODE_FCALL: function pointer signature (for indirect calls)
     Vec children;                   // Vec of Expr* child pointers
     U32 line;

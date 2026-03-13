@@ -322,7 +322,7 @@ main := proc(args: ..Str) {
     tests := Vec.new("Test", Test.size())
     flags := mode_flags(en_ci, en_cr, en_ti, en_tr)
 
-    // === 34 mode tests ===
+    // === 35 mode tests ===
     add_mode(tests, "src/test/types.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/operators.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/functions.til", flags, en_ci, en_cr, en_ti, en_tr)
@@ -359,6 +359,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/fn_ptr.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/asting.til", flags, en_ci, en_cr, en_ti, en_tr)
     add_mode(tests, "src/test/trailing.til", flags, en_ci, en_cr, en_ti, en_tr)
+    add_mode(tests, "src/test/kwargs.til", flags, en_ci, en_cr, en_ti, en_tr)
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"

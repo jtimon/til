@@ -33,6 +33,7 @@ Expr *expr_new(NodeTypeTag tag, U32 line, U32 col, Str *path) {
     e->col = col;
     e->path = path;
     e->variadic_index = -1;
+    e->kwargs_index = -1;
     return e;
 }
 

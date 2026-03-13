@@ -634,8 +634,11 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
         for (U32 i = 0; i < np; i++) {
             if (i > 0) fprintf(f, ", ");
             const char *ptype;
+            I32 fkwi = fdef->type.func_def.kwargs_index;
             if ((I32)i == fvi) {
                 ptype = "Array *";
+            } else if ((I32)i == fkwi) {
+                ptype = "Map *";
             } else if (fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[i]) {
                 ptype = type_name_to_c_value(fdef->type.func_def.param_types[i]);
             } else {
@@ -2565,9 +2568,14 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 if (rhs->type.func_def.param_owns && rhs->type.func_def.param_owns[p])
                     fprintf(f, "own ");
                 I32 vi = rhs->type.func_def.variadic_index;
+                I32 kwi = rhs->type.func_def.kwargs_index;
                 if ((I32)p == vi) fprintf(f, "..");
-                fprintf(f, "%s: %s", rhs->type.func_def.param_names[p]->c_str,
-                        rhs->type.func_def.param_types[p]->c_str);
+                if ((I32)p == kwi) {
+                    fprintf(f, "%s: ...", rhs->type.func_def.param_names[p]->c_str);
+                } else {
+                    fprintf(f, "%s: %s", rhs->type.func_def.param_names[p]->c_str,
+                            rhs->type.func_def.param_types[p]->c_str);
+                }
             }
             fprintf(f, ")");
             if (rhs->type.func_def.return_type) {

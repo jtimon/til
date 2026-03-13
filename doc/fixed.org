@@ -1,5 +1,18 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #32 Keyword arguments (kwargs) capture
+  Functions can capture unmatched named arguments as an implicit ~Map<Str, Dynamic>~
+  using the ~opts: ...~ syntax (three bare dots, no type). Follows the variadic
+  pattern: ~..Type~ for variadic (implicit Array), ~...~ for kwargs (implicit Map).
+
+  Desugaring creates ~Map.new~ + ~Map.set~ calls before the function call, then
+  passes the Map as a single argument. Values accessed via ~opts.has(key)~ and
+  ~ref val : Type = opts.get(key)~.
+
+  Changes: lexer.til (DotDotDot token), parser.c, ast.h, ast.c, typer.c
+  (desugar_kwargs_calls), builder.c, initer.c.
+  Test: src/test/kwargs.til
+
 * FIXED #60 Trailing commas anywhere they make sense
   The parser already supported trailing commas in all comma-separated contexts
   due to the ~if (check(Comma)) advance(p)~ pattern inside

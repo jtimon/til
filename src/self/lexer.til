@@ -15,7 +15,7 @@ TokenType := enum {
     Minus, Plus, Star, Slash,
 
     // One or two character
-    Dot, DotDot,
+    Dot, DotDot, DotDotDot,
     Eq, EqEq,
     Neq,
     Lt, LtEq,
@@ -95,6 +95,7 @@ tok_name := func(type: TokenType) returns Str {
     case TokenType.Slash: return "/"
     case TokenType.Dot: return "."
     case TokenType.DotDot: return ".."
+    case TokenType.DotDotDot: return "..."
     case TokenType.Eq: return "="
     case TokenType.EqEq: return "=="
     case TokenType.Neq: return "!="
@@ -364,7 +365,20 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             else if c.eq('!').and(c2.eq('=')) { two = TokenType.Neq }
             else if c.eq('<').and(c2.eq('=')) { two = TokenType.LtEq }
             else if c.eq('>').and(c2.eq('=')) { two = TokenType.GtEq }
-            else if c.eq('.').and(c2.eq('.')) { two = TokenType.DotDot }
+            else if c.eq('.').and(c2.eq('.')) {
+                // Check for ... (three dots) vs .. (two dots)
+                if pos.add(2).lt(src_len) {
+                    ref c3 : U8 = src.byte_at(pos.add(2))
+                    if c3.eq('.') {
+                        tokens.push(own Token(type = TokenType.DotDotDot,
+                            text = src.substr(start, 3),
+                            line = line, col = col))
+                        pos = pos.add(3)
+                        continue
+                    }
+                }
+                two = TokenType.DotDot
+            }
             if two.eq(TokenType.Eof).not() {
                 tokens.push(own Token(type = two,
                     text = src.substr(start, 2),

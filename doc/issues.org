@@ -1017,25 +1017,6 @@
   - Struct field matching
   - Guard clauses (~case X if cond:~)
 
-** OPEN #32 Keyword arguments (kwargs) capture and forwarding
-  Allow functions to capture named arguments as a map and forward them to
-  other functions. Similar to Python's ~**kwargs~.
-
-  til already has named args at call sites (~Point(x = 5, y = 10)~), but
-  there's no way to capture arbitrary named args or forward them.
-
-  Syntax: ~...Map~ in declaration (three dots, mirrors ~..Type~ for variadics),
-  ~...expr~ at call site for forwarding.
-
-  #+begin_src til
-  // Capture: ...Map param collects unmatched named args
-  wrapper := proc(prefix: Str, opts: ...Map) {
-      create(prefix, ...opts)  // forward as named args
-  }
-  #+end_src
-
-  Low priority — named args already cover most use cases. Kwargs would mainly
-  help with generic wrappers and delegation patterns.
 
 ** OPEN #25 Support for the 4 main operative systems
   :DEPENDENCIES: #12

@@ -28,6 +28,7 @@ typedef enum {
     TokenType_TAG_Slash,
     TokenType_TAG_Dot,
     TokenType_TAG_DotDot,
+    TokenType_TAG_DotDotDot,
     TokenType_TAG_Eq,
     TokenType_TAG_EqEq,
     TokenType_TAG_Neq,
@@ -506,6 +507,7 @@ TokenType *TokenType_Star();
 TokenType *TokenType_Slash();
 TokenType *TokenType_Dot();
 TokenType *TokenType_DotDot();
+TokenType *TokenType_DotDotDot();
 TokenType *TokenType_Eq();
 TokenType *TokenType_EqEq();
 TokenType *TokenType_Neq();

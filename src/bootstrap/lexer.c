@@ -32,6 +32,7 @@ typedef enum {
     TokenType_TAG_Slash,
     TokenType_TAG_Dot,
     TokenType_TAG_DotDot,
+    TokenType_TAG_DotDotDot,
     TokenType_TAG_Eq,
     TokenType_TAG_EqEq,
     TokenType_TAG_Neq,
@@ -264,6 +265,7 @@ Bool * TokenType_is_Star(TokenType * self);
 Bool * TokenType_is_Slash(TokenType * self);
 Bool * TokenType_is_Dot(TokenType * self);
 Bool * TokenType_is_DotDot(TokenType * self);
+Bool * TokenType_is_DotDotDot(TokenType * self);
 Bool * TokenType_is_Eq(TokenType * self);
 Bool * TokenType_is_EqEq(TokenType * self);
 Bool * TokenType_is_Neq(TokenType * self);
@@ -344,6 +346,7 @@ TokenType *TokenType_Star();
 TokenType *TokenType_Slash();
 TokenType *TokenType_Dot();
 TokenType *TokenType_DotDot();
+TokenType *TokenType_DotDotDot();
 TokenType *TokenType_Eq();
 TokenType *TokenType_EqEq();
 TokenType *TokenType_Neq();
@@ -505,13 +508,13 @@ static void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t2012;
-static I64 *_t2013;
-static I64 *_t2014;
+static I64 *_t2031;
+static I64 *_t2032;
+static I64 *_t2033;
 static U64 *CAP_LIT;
-static I64 *_t2015;
-static I64 *_t2016;
-static I64 *_t2017;
+static I64 *_t2034;
+static I64 *_t2035;
+static I64 *_t2036;
 static U64 *CAP_VIEW;
 
 EnumDef * EnumDef_clone(EnumDef * self) {
@@ -5890,6 +5893,11 @@ TokenType *TokenType_DotDot() {
     *r = (TokenType){ .tag = TokenType_TAG_DotDot };
     return r;
 }
+TokenType *TokenType_DotDotDot() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_DotDotDot };
+    return r;
+}
 TokenType *TokenType_Eq() {
     TokenType *r = malloc(sizeof(TokenType));
     *r = (TokenType){ .tag = TokenType_TAG_Eq };
@@ -6215,6 +6223,11 @@ Bool *TokenType_is_DotDot(TokenType *self) {
     *r = (self->tag == TokenType_TAG_DotDot);
     return r;
 }
+Bool *TokenType_is_DotDotDot(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_DotDotDot);
+    return r;
+}
 Bool *TokenType_is_Eq(TokenType *self) {
     Bool *r = malloc(sizeof(Bool));
     *r = (self->tag == TokenType_TAG_Eq);
@@ -6458,1042 +6471,1058 @@ Bool *TokenType_is_Error(TokenType *self) {
 Bool * TokenType_eq(TokenType * self, TokenType * other) {
     (void)self;
     (void)other;
-    Bool _t1174; { Bool *_hp = (Bool *)TokenType_is_Eof(self); _t1174 = *_hp; free(_hp); }
-    (void)_t1174;
-    if (_t1174) {
+    Bool _t1175; { Bool *_hp = (Bool *)TokenType_is_Eof(self); _t1175 = *_hp; free(_hp); }
+    (void)_t1175;
+    if (_t1175) {
         Bool _t1109; { Bool *_hp = (Bool *)TokenType_is_Eof(other); _t1109 = *_hp; free(_hp); }
         (void)_t1109;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1109; return _r; }
     }
     ;
-    Bool _t1175; { Bool *_hp = (Bool *)TokenType_is_LParen(self); _t1175 = *_hp; free(_hp); }
-    (void)_t1175;
-    if (_t1175) {
+    Bool _t1176; { Bool *_hp = (Bool *)TokenType_is_LParen(self); _t1176 = *_hp; free(_hp); }
+    (void)_t1176;
+    if (_t1176) {
         Bool _t1110; { Bool *_hp = (Bool *)TokenType_is_LParen(other); _t1110 = *_hp; free(_hp); }
         (void)_t1110;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1110; return _r; }
     }
     ;
-    Bool _t1176; { Bool *_hp = (Bool *)TokenType_is_RParen(self); _t1176 = *_hp; free(_hp); }
-    (void)_t1176;
-    if (_t1176) {
+    Bool _t1177; { Bool *_hp = (Bool *)TokenType_is_RParen(self); _t1177 = *_hp; free(_hp); }
+    (void)_t1177;
+    if (_t1177) {
         Bool _t1111; { Bool *_hp = (Bool *)TokenType_is_RParen(other); _t1111 = *_hp; free(_hp); }
         (void)_t1111;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1111; return _r; }
     }
     ;
-    Bool _t1177; { Bool *_hp = (Bool *)TokenType_is_LBrace(self); _t1177 = *_hp; free(_hp); }
-    (void)_t1177;
-    if (_t1177) {
+    Bool _t1178; { Bool *_hp = (Bool *)TokenType_is_LBrace(self); _t1178 = *_hp; free(_hp); }
+    (void)_t1178;
+    if (_t1178) {
         Bool _t1112; { Bool *_hp = (Bool *)TokenType_is_LBrace(other); _t1112 = *_hp; free(_hp); }
         (void)_t1112;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1112; return _r; }
     }
     ;
-    Bool _t1178; { Bool *_hp = (Bool *)TokenType_is_RBrace(self); _t1178 = *_hp; free(_hp); }
-    (void)_t1178;
-    if (_t1178) {
+    Bool _t1179; { Bool *_hp = (Bool *)TokenType_is_RBrace(self); _t1179 = *_hp; free(_hp); }
+    (void)_t1179;
+    if (_t1179) {
         Bool _t1113; { Bool *_hp = (Bool *)TokenType_is_RBrace(other); _t1113 = *_hp; free(_hp); }
         (void)_t1113;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1113; return _r; }
     }
     ;
-    Bool _t1179; { Bool *_hp = (Bool *)TokenType_is_LBracket(self); _t1179 = *_hp; free(_hp); }
-    (void)_t1179;
-    if (_t1179) {
+    Bool _t1180; { Bool *_hp = (Bool *)TokenType_is_LBracket(self); _t1180 = *_hp; free(_hp); }
+    (void)_t1180;
+    if (_t1180) {
         Bool _t1114; { Bool *_hp = (Bool *)TokenType_is_LBracket(other); _t1114 = *_hp; free(_hp); }
         (void)_t1114;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1114; return _r; }
     }
     ;
-    Bool _t1180; { Bool *_hp = (Bool *)TokenType_is_RBracket(self); _t1180 = *_hp; free(_hp); }
-    (void)_t1180;
-    if (_t1180) {
+    Bool _t1181; { Bool *_hp = (Bool *)TokenType_is_RBracket(self); _t1181 = *_hp; free(_hp); }
+    (void)_t1181;
+    if (_t1181) {
         Bool _t1115; { Bool *_hp = (Bool *)TokenType_is_RBracket(other); _t1115 = *_hp; free(_hp); }
         (void)_t1115;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1115; return _r; }
     }
     ;
-    Bool _t1181; { Bool *_hp = (Bool *)TokenType_is_Comma(self); _t1181 = *_hp; free(_hp); }
-    (void)_t1181;
-    if (_t1181) {
+    Bool _t1182; { Bool *_hp = (Bool *)TokenType_is_Comma(self); _t1182 = *_hp; free(_hp); }
+    (void)_t1182;
+    if (_t1182) {
         Bool _t1116; { Bool *_hp = (Bool *)TokenType_is_Comma(other); _t1116 = *_hp; free(_hp); }
         (void)_t1116;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1116; return _r; }
     }
     ;
-    Bool _t1182; { Bool *_hp = (Bool *)TokenType_is_Colon(self); _t1182 = *_hp; free(_hp); }
-    (void)_t1182;
-    if (_t1182) {
+    Bool _t1183; { Bool *_hp = (Bool *)TokenType_is_Colon(self); _t1183 = *_hp; free(_hp); }
+    (void)_t1183;
+    if (_t1183) {
         Bool _t1117; { Bool *_hp = (Bool *)TokenType_is_Colon(other); _t1117 = *_hp; free(_hp); }
         (void)_t1117;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1117; return _r; }
     }
     ;
-    Bool _t1183; { Bool *_hp = (Bool *)TokenType_is_Question(self); _t1183 = *_hp; free(_hp); }
-    (void)_t1183;
-    if (_t1183) {
+    Bool _t1184; { Bool *_hp = (Bool *)TokenType_is_Question(self); _t1184 = *_hp; free(_hp); }
+    (void)_t1184;
+    if (_t1184) {
         Bool _t1118; { Bool *_hp = (Bool *)TokenType_is_Question(other); _t1118 = *_hp; free(_hp); }
         (void)_t1118;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1118; return _r; }
     }
     ;
-    Bool _t1184; { Bool *_hp = (Bool *)TokenType_is_Bang(self); _t1184 = *_hp; free(_hp); }
-    (void)_t1184;
-    if (_t1184) {
+    Bool _t1185; { Bool *_hp = (Bool *)TokenType_is_Bang(self); _t1185 = *_hp; free(_hp); }
+    (void)_t1185;
+    if (_t1185) {
         Bool _t1119; { Bool *_hp = (Bool *)TokenType_is_Bang(other); _t1119 = *_hp; free(_hp); }
         (void)_t1119;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1119; return _r; }
     }
     ;
-    Bool _t1185; { Bool *_hp = (Bool *)TokenType_is_Minus(self); _t1185 = *_hp; free(_hp); }
-    (void)_t1185;
-    if (_t1185) {
+    Bool _t1186; { Bool *_hp = (Bool *)TokenType_is_Minus(self); _t1186 = *_hp; free(_hp); }
+    (void)_t1186;
+    if (_t1186) {
         Bool _t1120; { Bool *_hp = (Bool *)TokenType_is_Minus(other); _t1120 = *_hp; free(_hp); }
         (void)_t1120;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1120; return _r; }
     }
     ;
-    Bool _t1186; { Bool *_hp = (Bool *)TokenType_is_Plus(self); _t1186 = *_hp; free(_hp); }
-    (void)_t1186;
-    if (_t1186) {
+    Bool _t1187; { Bool *_hp = (Bool *)TokenType_is_Plus(self); _t1187 = *_hp; free(_hp); }
+    (void)_t1187;
+    if (_t1187) {
         Bool _t1121; { Bool *_hp = (Bool *)TokenType_is_Plus(other); _t1121 = *_hp; free(_hp); }
         (void)_t1121;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1121; return _r; }
     }
     ;
-    Bool _t1187; { Bool *_hp = (Bool *)TokenType_is_Star(self); _t1187 = *_hp; free(_hp); }
-    (void)_t1187;
-    if (_t1187) {
+    Bool _t1188; { Bool *_hp = (Bool *)TokenType_is_Star(self); _t1188 = *_hp; free(_hp); }
+    (void)_t1188;
+    if (_t1188) {
         Bool _t1122; { Bool *_hp = (Bool *)TokenType_is_Star(other); _t1122 = *_hp; free(_hp); }
         (void)_t1122;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1122; return _r; }
     }
     ;
-    Bool _t1188; { Bool *_hp = (Bool *)TokenType_is_Slash(self); _t1188 = *_hp; free(_hp); }
-    (void)_t1188;
-    if (_t1188) {
+    Bool _t1189; { Bool *_hp = (Bool *)TokenType_is_Slash(self); _t1189 = *_hp; free(_hp); }
+    (void)_t1189;
+    if (_t1189) {
         Bool _t1123; { Bool *_hp = (Bool *)TokenType_is_Slash(other); _t1123 = *_hp; free(_hp); }
         (void)_t1123;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1123; return _r; }
     }
     ;
-    Bool _t1189; { Bool *_hp = (Bool *)TokenType_is_Dot(self); _t1189 = *_hp; free(_hp); }
-    (void)_t1189;
-    if (_t1189) {
+    Bool _t1190; { Bool *_hp = (Bool *)TokenType_is_Dot(self); _t1190 = *_hp; free(_hp); }
+    (void)_t1190;
+    if (_t1190) {
         Bool _t1124; { Bool *_hp = (Bool *)TokenType_is_Dot(other); _t1124 = *_hp; free(_hp); }
         (void)_t1124;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1124; return _r; }
     }
     ;
-    Bool _t1190; { Bool *_hp = (Bool *)TokenType_is_DotDot(self); _t1190 = *_hp; free(_hp); }
-    (void)_t1190;
-    if (_t1190) {
+    Bool _t1191; { Bool *_hp = (Bool *)TokenType_is_DotDot(self); _t1191 = *_hp; free(_hp); }
+    (void)_t1191;
+    if (_t1191) {
         Bool _t1125; { Bool *_hp = (Bool *)TokenType_is_DotDot(other); _t1125 = *_hp; free(_hp); }
         (void)_t1125;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1125; return _r; }
     }
     ;
-    Bool _t1191; { Bool *_hp = (Bool *)TokenType_is_Eq(self); _t1191 = *_hp; free(_hp); }
-    (void)_t1191;
-    if (_t1191) {
-        Bool _t1126; { Bool *_hp = (Bool *)TokenType_is_Eq(other); _t1126 = *_hp; free(_hp); }
+    Bool _t1192; { Bool *_hp = (Bool *)TokenType_is_DotDotDot(self); _t1192 = *_hp; free(_hp); }
+    (void)_t1192;
+    if (_t1192) {
+        Bool _t1126; { Bool *_hp = (Bool *)TokenType_is_DotDotDot(other); _t1126 = *_hp; free(_hp); }
         (void)_t1126;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1126; return _r; }
     }
     ;
-    Bool _t1192; { Bool *_hp = (Bool *)TokenType_is_EqEq(self); _t1192 = *_hp; free(_hp); }
-    (void)_t1192;
-    if (_t1192) {
-        Bool _t1127; { Bool *_hp = (Bool *)TokenType_is_EqEq(other); _t1127 = *_hp; free(_hp); }
+    Bool _t1193; { Bool *_hp = (Bool *)TokenType_is_Eq(self); _t1193 = *_hp; free(_hp); }
+    (void)_t1193;
+    if (_t1193) {
+        Bool _t1127; { Bool *_hp = (Bool *)TokenType_is_Eq(other); _t1127 = *_hp; free(_hp); }
         (void)_t1127;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1127; return _r; }
     }
     ;
-    Bool _t1193; { Bool *_hp = (Bool *)TokenType_is_Neq(self); _t1193 = *_hp; free(_hp); }
-    (void)_t1193;
-    if (_t1193) {
-        Bool _t1128; { Bool *_hp = (Bool *)TokenType_is_Neq(other); _t1128 = *_hp; free(_hp); }
+    Bool _t1194; { Bool *_hp = (Bool *)TokenType_is_EqEq(self); _t1194 = *_hp; free(_hp); }
+    (void)_t1194;
+    if (_t1194) {
+        Bool _t1128; { Bool *_hp = (Bool *)TokenType_is_EqEq(other); _t1128 = *_hp; free(_hp); }
         (void)_t1128;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1128; return _r; }
     }
     ;
-    Bool _t1194; { Bool *_hp = (Bool *)TokenType_is_Lt(self); _t1194 = *_hp; free(_hp); }
-    (void)_t1194;
-    if (_t1194) {
-        Bool _t1129; { Bool *_hp = (Bool *)TokenType_is_Lt(other); _t1129 = *_hp; free(_hp); }
+    Bool _t1195; { Bool *_hp = (Bool *)TokenType_is_Neq(self); _t1195 = *_hp; free(_hp); }
+    (void)_t1195;
+    if (_t1195) {
+        Bool _t1129; { Bool *_hp = (Bool *)TokenType_is_Neq(other); _t1129 = *_hp; free(_hp); }
         (void)_t1129;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1129; return _r; }
     }
     ;
-    Bool _t1195; { Bool *_hp = (Bool *)TokenType_is_LtEq(self); _t1195 = *_hp; free(_hp); }
-    (void)_t1195;
-    if (_t1195) {
-        Bool _t1130; { Bool *_hp = (Bool *)TokenType_is_LtEq(other); _t1130 = *_hp; free(_hp); }
+    Bool _t1196; { Bool *_hp = (Bool *)TokenType_is_Lt(self); _t1196 = *_hp; free(_hp); }
+    (void)_t1196;
+    if (_t1196) {
+        Bool _t1130; { Bool *_hp = (Bool *)TokenType_is_Lt(other); _t1130 = *_hp; free(_hp); }
         (void)_t1130;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1130; return _r; }
     }
     ;
-    Bool _t1196; { Bool *_hp = (Bool *)TokenType_is_Gt(self); _t1196 = *_hp; free(_hp); }
-    (void)_t1196;
-    if (_t1196) {
-        Bool _t1131; { Bool *_hp = (Bool *)TokenType_is_Gt(other); _t1131 = *_hp; free(_hp); }
+    Bool _t1197; { Bool *_hp = (Bool *)TokenType_is_LtEq(self); _t1197 = *_hp; free(_hp); }
+    (void)_t1197;
+    if (_t1197) {
+        Bool _t1131; { Bool *_hp = (Bool *)TokenType_is_LtEq(other); _t1131 = *_hp; free(_hp); }
         (void)_t1131;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1131; return _r; }
     }
     ;
-    Bool _t1197; { Bool *_hp = (Bool *)TokenType_is_GtEq(self); _t1197 = *_hp; free(_hp); }
-    (void)_t1197;
-    if (_t1197) {
-        Bool _t1132; { Bool *_hp = (Bool *)TokenType_is_GtEq(other); _t1132 = *_hp; free(_hp); }
+    Bool _t1198; { Bool *_hp = (Bool *)TokenType_is_Gt(self); _t1198 = *_hp; free(_hp); }
+    (void)_t1198;
+    if (_t1198) {
+        Bool _t1132; { Bool *_hp = (Bool *)TokenType_is_Gt(other); _t1132 = *_hp; free(_hp); }
         (void)_t1132;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1132; return _r; }
     }
     ;
-    Bool _t1198; { Bool *_hp = (Bool *)TokenType_is_ColonEq(self); _t1198 = *_hp; free(_hp); }
-    (void)_t1198;
-    if (_t1198) {
-        Bool _t1133; { Bool *_hp = (Bool *)TokenType_is_ColonEq(other); _t1133 = *_hp; free(_hp); }
+    Bool _t1199; { Bool *_hp = (Bool *)TokenType_is_GtEq(self); _t1199 = *_hp; free(_hp); }
+    (void)_t1199;
+    if (_t1199) {
+        Bool _t1133; { Bool *_hp = (Bool *)TokenType_is_GtEq(other); _t1133 = *_hp; free(_hp); }
         (void)_t1133;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1133; return _r; }
     }
     ;
-    Bool _t1199; { Bool *_hp = (Bool *)TokenType_is_Ident(self); _t1199 = *_hp; free(_hp); }
-    (void)_t1199;
-    if (_t1199) {
-        Bool _t1134; { Bool *_hp = (Bool *)TokenType_is_Ident(other); _t1134 = *_hp; free(_hp); }
+    Bool _t1200; { Bool *_hp = (Bool *)TokenType_is_ColonEq(self); _t1200 = *_hp; free(_hp); }
+    (void)_t1200;
+    if (_t1200) {
+        Bool _t1134; { Bool *_hp = (Bool *)TokenType_is_ColonEq(other); _t1134 = *_hp; free(_hp); }
         (void)_t1134;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1134; return _r; }
     }
     ;
-    Bool _t1200; { Bool *_hp = (Bool *)TokenType_is_StringTok(self); _t1200 = *_hp; free(_hp); }
-    (void)_t1200;
-    if (_t1200) {
-        Bool _t1135; { Bool *_hp = (Bool *)TokenType_is_StringTok(other); _t1135 = *_hp; free(_hp); }
+    Bool _t1201; { Bool *_hp = (Bool *)TokenType_is_Ident(self); _t1201 = *_hp; free(_hp); }
+    (void)_t1201;
+    if (_t1201) {
+        Bool _t1135; { Bool *_hp = (Bool *)TokenType_is_Ident(other); _t1135 = *_hp; free(_hp); }
         (void)_t1135;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1135; return _r; }
     }
     ;
-    Bool _t1201; { Bool *_hp = (Bool *)TokenType_is_Number(self); _t1201 = *_hp; free(_hp); }
-    (void)_t1201;
-    if (_t1201) {
-        Bool _t1136; { Bool *_hp = (Bool *)TokenType_is_Number(other); _t1136 = *_hp; free(_hp); }
+    Bool _t1202; { Bool *_hp = (Bool *)TokenType_is_StringTok(self); _t1202 = *_hp; free(_hp); }
+    (void)_t1202;
+    if (_t1202) {
+        Bool _t1136; { Bool *_hp = (Bool *)TokenType_is_StringTok(other); _t1136 = *_hp; free(_hp); }
         (void)_t1136;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1136; return _r; }
     }
     ;
-    Bool _t1202; { Bool *_hp = (Bool *)TokenType_is_Char(self); _t1202 = *_hp; free(_hp); }
-    (void)_t1202;
-    if (_t1202) {
-        Bool _t1137; { Bool *_hp = (Bool *)TokenType_is_Char(other); _t1137 = *_hp; free(_hp); }
+    Bool _t1203; { Bool *_hp = (Bool *)TokenType_is_Number(self); _t1203 = *_hp; free(_hp); }
+    (void)_t1203;
+    if (_t1203) {
+        Bool _t1137; { Bool *_hp = (Bool *)TokenType_is_Number(other); _t1137 = *_hp; free(_hp); }
         (void)_t1137;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1137; return _r; }
     }
     ;
-    Bool _t1203; { Bool *_hp = (Bool *)TokenType_is_KwMode(self); _t1203 = *_hp; free(_hp); }
-    (void)_t1203;
-    if (_t1203) {
-        Bool _t1138; { Bool *_hp = (Bool *)TokenType_is_KwMode(other); _t1138 = *_hp; free(_hp); }
+    Bool _t1204; { Bool *_hp = (Bool *)TokenType_is_Char(self); _t1204 = *_hp; free(_hp); }
+    (void)_t1204;
+    if (_t1204) {
+        Bool _t1138; { Bool *_hp = (Bool *)TokenType_is_Char(other); _t1138 = *_hp; free(_hp); }
         (void)_t1138;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1138; return _r; }
     }
     ;
-    Bool _t1204; { Bool *_hp = (Bool *)TokenType_is_KwMut(self); _t1204 = *_hp; free(_hp); }
-    (void)_t1204;
-    if (_t1204) {
-        Bool _t1139; { Bool *_hp = (Bool *)TokenType_is_KwMut(other); _t1139 = *_hp; free(_hp); }
+    Bool _t1205; { Bool *_hp = (Bool *)TokenType_is_KwMode(self); _t1205 = *_hp; free(_hp); }
+    (void)_t1205;
+    if (_t1205) {
+        Bool _t1139; { Bool *_hp = (Bool *)TokenType_is_KwMode(other); _t1139 = *_hp; free(_hp); }
         (void)_t1139;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1139; return _r; }
     }
     ;
-    Bool _t1205; { Bool *_hp = (Bool *)TokenType_is_KwOwn(self); _t1205 = *_hp; free(_hp); }
-    (void)_t1205;
-    if (_t1205) {
-        Bool _t1140; { Bool *_hp = (Bool *)TokenType_is_KwOwn(other); _t1140 = *_hp; free(_hp); }
+    Bool _t1206; { Bool *_hp = (Bool *)TokenType_is_KwMut(self); _t1206 = *_hp; free(_hp); }
+    (void)_t1206;
+    if (_t1206) {
+        Bool _t1140; { Bool *_hp = (Bool *)TokenType_is_KwMut(other); _t1140 = *_hp; free(_hp); }
         (void)_t1140;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1140; return _r; }
     }
     ;
-    Bool _t1206; { Bool *_hp = (Bool *)TokenType_is_KwRef(self); _t1206 = *_hp; free(_hp); }
-    (void)_t1206;
-    if (_t1206) {
-        Bool _t1141; { Bool *_hp = (Bool *)TokenType_is_KwRef(other); _t1141 = *_hp; free(_hp); }
+    Bool _t1207; { Bool *_hp = (Bool *)TokenType_is_KwOwn(self); _t1207 = *_hp; free(_hp); }
+    (void)_t1207;
+    if (_t1207) {
+        Bool _t1141; { Bool *_hp = (Bool *)TokenType_is_KwOwn(other); _t1141 = *_hp; free(_hp); }
         (void)_t1141;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1141; return _r; }
     }
     ;
-    Bool _t1207; { Bool *_hp = (Bool *)TokenType_is_KwShallow(self); _t1207 = *_hp; free(_hp); }
-    (void)_t1207;
-    if (_t1207) {
-        Bool _t1142; { Bool *_hp = (Bool *)TokenType_is_KwShallow(other); _t1142 = *_hp; free(_hp); }
+    Bool _t1208; { Bool *_hp = (Bool *)TokenType_is_KwRef(self); _t1208 = *_hp; free(_hp); }
+    (void)_t1208;
+    if (_t1208) {
+        Bool _t1142; { Bool *_hp = (Bool *)TokenType_is_KwRef(other); _t1142 = *_hp; free(_hp); }
         (void)_t1142;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1142; return _r; }
     }
     ;
-    Bool _t1208; { Bool *_hp = (Bool *)TokenType_is_KwStruct(self); _t1208 = *_hp; free(_hp); }
-    (void)_t1208;
-    if (_t1208) {
-        Bool _t1143; { Bool *_hp = (Bool *)TokenType_is_KwStruct(other); _t1143 = *_hp; free(_hp); }
+    Bool _t1209; { Bool *_hp = (Bool *)TokenType_is_KwShallow(self); _t1209 = *_hp; free(_hp); }
+    (void)_t1209;
+    if (_t1209) {
+        Bool _t1143; { Bool *_hp = (Bool *)TokenType_is_KwShallow(other); _t1143 = *_hp; free(_hp); }
         (void)_t1143;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1143; return _r; }
     }
     ;
-    Bool _t1209; { Bool *_hp = (Bool *)TokenType_is_KwExtStruct(self); _t1209 = *_hp; free(_hp); }
-    (void)_t1209;
-    if (_t1209) {
-        Bool _t1144; { Bool *_hp = (Bool *)TokenType_is_KwExtStruct(other); _t1144 = *_hp; free(_hp); }
+    Bool _t1210; { Bool *_hp = (Bool *)TokenType_is_KwStruct(self); _t1210 = *_hp; free(_hp); }
+    (void)_t1210;
+    if (_t1210) {
+        Bool _t1144; { Bool *_hp = (Bool *)TokenType_is_KwStruct(other); _t1144 = *_hp; free(_hp); }
         (void)_t1144;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1144; return _r; }
     }
     ;
-    Bool _t1210; { Bool *_hp = (Bool *)TokenType_is_KwEnum(self); _t1210 = *_hp; free(_hp); }
-    (void)_t1210;
-    if (_t1210) {
-        Bool _t1145; { Bool *_hp = (Bool *)TokenType_is_KwEnum(other); _t1145 = *_hp; free(_hp); }
+    Bool _t1211; { Bool *_hp = (Bool *)TokenType_is_KwExtStruct(self); _t1211 = *_hp; free(_hp); }
+    (void)_t1211;
+    if (_t1211) {
+        Bool _t1145; { Bool *_hp = (Bool *)TokenType_is_KwExtStruct(other); _t1145 = *_hp; free(_hp); }
         (void)_t1145;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1145; return _r; }
     }
     ;
-    Bool _t1211; { Bool *_hp = (Bool *)TokenType_is_KwNamespace(self); _t1211 = *_hp; free(_hp); }
-    (void)_t1211;
-    if (_t1211) {
-        Bool _t1146; { Bool *_hp = (Bool *)TokenType_is_KwNamespace(other); _t1146 = *_hp; free(_hp); }
+    Bool _t1212; { Bool *_hp = (Bool *)TokenType_is_KwEnum(self); _t1212 = *_hp; free(_hp); }
+    (void)_t1212;
+    if (_t1212) {
+        Bool _t1146; { Bool *_hp = (Bool *)TokenType_is_KwEnum(other); _t1146 = *_hp; free(_hp); }
         (void)_t1146;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1146; return _r; }
     }
     ;
-    Bool _t1212; { Bool *_hp = (Bool *)TokenType_is_KwFunc(self); _t1212 = *_hp; free(_hp); }
-    (void)_t1212;
-    if (_t1212) {
-        Bool _t1147; { Bool *_hp = (Bool *)TokenType_is_KwFunc(other); _t1147 = *_hp; free(_hp); }
+    Bool _t1213; { Bool *_hp = (Bool *)TokenType_is_KwNamespace(self); _t1213 = *_hp; free(_hp); }
+    (void)_t1213;
+    if (_t1213) {
+        Bool _t1147; { Bool *_hp = (Bool *)TokenType_is_KwNamespace(other); _t1147 = *_hp; free(_hp); }
         (void)_t1147;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1147; return _r; }
     }
     ;
-    Bool _t1213; { Bool *_hp = (Bool *)TokenType_is_KwProc(self); _t1213 = *_hp; free(_hp); }
-    (void)_t1213;
-    if (_t1213) {
-        Bool _t1148; { Bool *_hp = (Bool *)TokenType_is_KwProc(other); _t1148 = *_hp; free(_hp); }
+    Bool _t1214; { Bool *_hp = (Bool *)TokenType_is_KwFunc(self); _t1214 = *_hp; free(_hp); }
+    (void)_t1214;
+    if (_t1214) {
+        Bool _t1148; { Bool *_hp = (Bool *)TokenType_is_KwFunc(other); _t1148 = *_hp; free(_hp); }
         (void)_t1148;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1148; return _r; }
     }
     ;
-    Bool _t1214; { Bool *_hp = (Bool *)TokenType_is_KwTest(self); _t1214 = *_hp; free(_hp); }
-    (void)_t1214;
-    if (_t1214) {
-        Bool _t1149; { Bool *_hp = (Bool *)TokenType_is_KwTest(other); _t1149 = *_hp; free(_hp); }
+    Bool _t1215; { Bool *_hp = (Bool *)TokenType_is_KwProc(self); _t1215 = *_hp; free(_hp); }
+    (void)_t1215;
+    if (_t1215) {
+        Bool _t1149; { Bool *_hp = (Bool *)TokenType_is_KwProc(other); _t1149 = *_hp; free(_hp); }
         (void)_t1149;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1149; return _r; }
     }
     ;
-    Bool _t1215; { Bool *_hp = (Bool *)TokenType_is_KwMacro(self); _t1215 = *_hp; free(_hp); }
-    (void)_t1215;
-    if (_t1215) {
-        Bool _t1150; { Bool *_hp = (Bool *)TokenType_is_KwMacro(other); _t1150 = *_hp; free(_hp); }
+    Bool _t1216; { Bool *_hp = (Bool *)TokenType_is_KwTest(self); _t1216 = *_hp; free(_hp); }
+    (void)_t1216;
+    if (_t1216) {
+        Bool _t1150; { Bool *_hp = (Bool *)TokenType_is_KwTest(other); _t1150 = *_hp; free(_hp); }
         (void)_t1150;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1150; return _r; }
     }
     ;
-    Bool _t1216; { Bool *_hp = (Bool *)TokenType_is_KwExtFunc(self); _t1216 = *_hp; free(_hp); }
-    (void)_t1216;
-    if (_t1216) {
-        Bool _t1151; { Bool *_hp = (Bool *)TokenType_is_KwExtFunc(other); _t1151 = *_hp; free(_hp); }
+    Bool _t1217; { Bool *_hp = (Bool *)TokenType_is_KwMacro(self); _t1217 = *_hp; free(_hp); }
+    (void)_t1217;
+    if (_t1217) {
+        Bool _t1151; { Bool *_hp = (Bool *)TokenType_is_KwMacro(other); _t1151 = *_hp; free(_hp); }
         (void)_t1151;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1151; return _r; }
     }
     ;
-    Bool _t1217; { Bool *_hp = (Bool *)TokenType_is_KwExtProc(self); _t1217 = *_hp; free(_hp); }
-    (void)_t1217;
-    if (_t1217) {
-        Bool _t1152; { Bool *_hp = (Bool *)TokenType_is_KwExtProc(other); _t1152 = *_hp; free(_hp); }
+    Bool _t1218; { Bool *_hp = (Bool *)TokenType_is_KwExtFunc(self); _t1218 = *_hp; free(_hp); }
+    (void)_t1218;
+    if (_t1218) {
+        Bool _t1152; { Bool *_hp = (Bool *)TokenType_is_KwExtFunc(other); _t1152 = *_hp; free(_hp); }
         (void)_t1152;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1152; return _r; }
     }
     ;
-    Bool _t1218; { Bool *_hp = (Bool *)TokenType_is_KwReturns(self); _t1218 = *_hp; free(_hp); }
-    (void)_t1218;
-    if (_t1218) {
-        Bool _t1153; { Bool *_hp = (Bool *)TokenType_is_KwReturns(other); _t1153 = *_hp; free(_hp); }
+    Bool _t1219; { Bool *_hp = (Bool *)TokenType_is_KwExtProc(self); _t1219 = *_hp; free(_hp); }
+    (void)_t1219;
+    if (_t1219) {
+        Bool _t1153; { Bool *_hp = (Bool *)TokenType_is_KwExtProc(other); _t1153 = *_hp; free(_hp); }
         (void)_t1153;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1153; return _r; }
     }
     ;
-    Bool _t1219; { Bool *_hp = (Bool *)TokenType_is_KwThrows(self); _t1219 = *_hp; free(_hp); }
-    (void)_t1219;
-    if (_t1219) {
-        Bool _t1154; { Bool *_hp = (Bool *)TokenType_is_KwThrows(other); _t1154 = *_hp; free(_hp); }
+    Bool _t1220; { Bool *_hp = (Bool *)TokenType_is_KwReturns(self); _t1220 = *_hp; free(_hp); }
+    (void)_t1220;
+    if (_t1220) {
+        Bool _t1154; { Bool *_hp = (Bool *)TokenType_is_KwReturns(other); _t1154 = *_hp; free(_hp); }
         (void)_t1154;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1154; return _r; }
     }
     ;
-    Bool _t1220; { Bool *_hp = (Bool *)TokenType_is_KwIf(self); _t1220 = *_hp; free(_hp); }
-    (void)_t1220;
-    if (_t1220) {
-        Bool _t1155; { Bool *_hp = (Bool *)TokenType_is_KwIf(other); _t1155 = *_hp; free(_hp); }
+    Bool _t1221; { Bool *_hp = (Bool *)TokenType_is_KwThrows(self); _t1221 = *_hp; free(_hp); }
+    (void)_t1221;
+    if (_t1221) {
+        Bool _t1155; { Bool *_hp = (Bool *)TokenType_is_KwThrows(other); _t1155 = *_hp; free(_hp); }
         (void)_t1155;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1155; return _r; }
     }
     ;
-    Bool _t1221; { Bool *_hp = (Bool *)TokenType_is_KwElse(self); _t1221 = *_hp; free(_hp); }
-    (void)_t1221;
-    if (_t1221) {
-        Bool _t1156; { Bool *_hp = (Bool *)TokenType_is_KwElse(other); _t1156 = *_hp; free(_hp); }
+    Bool _t1222; { Bool *_hp = (Bool *)TokenType_is_KwIf(self); _t1222 = *_hp; free(_hp); }
+    (void)_t1222;
+    if (_t1222) {
+        Bool _t1156; { Bool *_hp = (Bool *)TokenType_is_KwIf(other); _t1156 = *_hp; free(_hp); }
         (void)_t1156;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1156; return _r; }
     }
     ;
-    Bool _t1222; { Bool *_hp = (Bool *)TokenType_is_KwWhile(self); _t1222 = *_hp; free(_hp); }
-    (void)_t1222;
-    if (_t1222) {
-        Bool _t1157; { Bool *_hp = (Bool *)TokenType_is_KwWhile(other); _t1157 = *_hp; free(_hp); }
+    Bool _t1223; { Bool *_hp = (Bool *)TokenType_is_KwElse(self); _t1223 = *_hp; free(_hp); }
+    (void)_t1223;
+    if (_t1223) {
+        Bool _t1157; { Bool *_hp = (Bool *)TokenType_is_KwElse(other); _t1157 = *_hp; free(_hp); }
         (void)_t1157;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1157; return _r; }
     }
     ;
-    Bool _t1223; { Bool *_hp = (Bool *)TokenType_is_KwFor(self); _t1223 = *_hp; free(_hp); }
-    (void)_t1223;
-    if (_t1223) {
-        Bool _t1158; { Bool *_hp = (Bool *)TokenType_is_KwFor(other); _t1158 = *_hp; free(_hp); }
+    Bool _t1224; { Bool *_hp = (Bool *)TokenType_is_KwWhile(self); _t1224 = *_hp; free(_hp); }
+    (void)_t1224;
+    if (_t1224) {
+        Bool _t1158; { Bool *_hp = (Bool *)TokenType_is_KwWhile(other); _t1158 = *_hp; free(_hp); }
         (void)_t1158;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1158; return _r; }
     }
     ;
-    Bool _t1224; { Bool *_hp = (Bool *)TokenType_is_KwIn(self); _t1224 = *_hp; free(_hp); }
-    (void)_t1224;
-    if (_t1224) {
-        Bool _t1159; { Bool *_hp = (Bool *)TokenType_is_KwIn(other); _t1159 = *_hp; free(_hp); }
+    Bool _t1225; { Bool *_hp = (Bool *)TokenType_is_KwFor(self); _t1225 = *_hp; free(_hp); }
+    (void)_t1225;
+    if (_t1225) {
+        Bool _t1159; { Bool *_hp = (Bool *)TokenType_is_KwFor(other); _t1159 = *_hp; free(_hp); }
         (void)_t1159;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1159; return _r; }
     }
     ;
-    Bool _t1225; { Bool *_hp = (Bool *)TokenType_is_KwSwitch(self); _t1225 = *_hp; free(_hp); }
-    (void)_t1225;
-    if (_t1225) {
-        Bool _t1160; { Bool *_hp = (Bool *)TokenType_is_KwSwitch(other); _t1160 = *_hp; free(_hp); }
+    Bool _t1226; { Bool *_hp = (Bool *)TokenType_is_KwIn(self); _t1226 = *_hp; free(_hp); }
+    (void)_t1226;
+    if (_t1226) {
+        Bool _t1160; { Bool *_hp = (Bool *)TokenType_is_KwIn(other); _t1160 = *_hp; free(_hp); }
         (void)_t1160;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1160; return _r; }
     }
     ;
-    Bool _t1226; { Bool *_hp = (Bool *)TokenType_is_KwMatch(self); _t1226 = *_hp; free(_hp); }
-    (void)_t1226;
-    if (_t1226) {
-        Bool _t1161; { Bool *_hp = (Bool *)TokenType_is_KwMatch(other); _t1161 = *_hp; free(_hp); }
+    Bool _t1227; { Bool *_hp = (Bool *)TokenType_is_KwSwitch(self); _t1227 = *_hp; free(_hp); }
+    (void)_t1227;
+    if (_t1227) {
+        Bool _t1161; { Bool *_hp = (Bool *)TokenType_is_KwSwitch(other); _t1161 = *_hp; free(_hp); }
         (void)_t1161;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1161; return _r; }
     }
     ;
-    Bool _t1227; { Bool *_hp = (Bool *)TokenType_is_KwCase(self); _t1227 = *_hp; free(_hp); }
-    (void)_t1227;
-    if (_t1227) {
-        Bool _t1162; { Bool *_hp = (Bool *)TokenType_is_KwCase(other); _t1162 = *_hp; free(_hp); }
+    Bool _t1228; { Bool *_hp = (Bool *)TokenType_is_KwMatch(self); _t1228 = *_hp; free(_hp); }
+    (void)_t1228;
+    if (_t1228) {
+        Bool _t1162; { Bool *_hp = (Bool *)TokenType_is_KwMatch(other); _t1162 = *_hp; free(_hp); }
         (void)_t1162;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1162; return _r; }
     }
     ;
-    Bool _t1228; { Bool *_hp = (Bool *)TokenType_is_KwDefault(self); _t1228 = *_hp; free(_hp); }
-    (void)_t1228;
-    if (_t1228) {
-        Bool _t1163; { Bool *_hp = (Bool *)TokenType_is_KwDefault(other); _t1163 = *_hp; free(_hp); }
+    Bool _t1229; { Bool *_hp = (Bool *)TokenType_is_KwCase(self); _t1229 = *_hp; free(_hp); }
+    (void)_t1229;
+    if (_t1229) {
+        Bool _t1163; { Bool *_hp = (Bool *)TokenType_is_KwCase(other); _t1163 = *_hp; free(_hp); }
         (void)_t1163;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1163; return _r; }
     }
     ;
-    Bool _t1229; { Bool *_hp = (Bool *)TokenType_is_KwReturn(self); _t1229 = *_hp; free(_hp); }
-    (void)_t1229;
-    if (_t1229) {
-        Bool _t1164; { Bool *_hp = (Bool *)TokenType_is_KwReturn(other); _t1164 = *_hp; free(_hp); }
+    Bool _t1230; { Bool *_hp = (Bool *)TokenType_is_KwDefault(self); _t1230 = *_hp; free(_hp); }
+    (void)_t1230;
+    if (_t1230) {
+        Bool _t1164; { Bool *_hp = (Bool *)TokenType_is_KwDefault(other); _t1164 = *_hp; free(_hp); }
         (void)_t1164;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1164; return _r; }
     }
     ;
-    Bool _t1230; { Bool *_hp = (Bool *)TokenType_is_KwThrow(self); _t1230 = *_hp; free(_hp); }
-    (void)_t1230;
-    if (_t1230) {
-        Bool _t1165; { Bool *_hp = (Bool *)TokenType_is_KwThrow(other); _t1165 = *_hp; free(_hp); }
+    Bool _t1231; { Bool *_hp = (Bool *)TokenType_is_KwReturn(self); _t1231 = *_hp; free(_hp); }
+    (void)_t1231;
+    if (_t1231) {
+        Bool _t1165; { Bool *_hp = (Bool *)TokenType_is_KwReturn(other); _t1165 = *_hp; free(_hp); }
         (void)_t1165;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1165; return _r; }
     }
     ;
-    Bool _t1231; { Bool *_hp = (Bool *)TokenType_is_KwCatch(self); _t1231 = *_hp; free(_hp); }
-    (void)_t1231;
-    if (_t1231) {
-        Bool _t1166; { Bool *_hp = (Bool *)TokenType_is_KwCatch(other); _t1166 = *_hp; free(_hp); }
+    Bool _t1232; { Bool *_hp = (Bool *)TokenType_is_KwThrow(self); _t1232 = *_hp; free(_hp); }
+    (void)_t1232;
+    if (_t1232) {
+        Bool _t1166; { Bool *_hp = (Bool *)TokenType_is_KwThrow(other); _t1166 = *_hp; free(_hp); }
         (void)_t1166;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1166; return _r; }
     }
     ;
-    Bool _t1232; { Bool *_hp = (Bool *)TokenType_is_KwBreak(self); _t1232 = *_hp; free(_hp); }
-    (void)_t1232;
-    if (_t1232) {
-        Bool _t1167; { Bool *_hp = (Bool *)TokenType_is_KwBreak(other); _t1167 = *_hp; free(_hp); }
+    Bool _t1233; { Bool *_hp = (Bool *)TokenType_is_KwCatch(self); _t1233 = *_hp; free(_hp); }
+    (void)_t1233;
+    if (_t1233) {
+        Bool _t1167; { Bool *_hp = (Bool *)TokenType_is_KwCatch(other); _t1167 = *_hp; free(_hp); }
         (void)_t1167;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1167; return _r; }
     }
     ;
-    Bool _t1233; { Bool *_hp = (Bool *)TokenType_is_KwContinue(self); _t1233 = *_hp; free(_hp); }
-    (void)_t1233;
-    if (_t1233) {
-        Bool _t1168; { Bool *_hp = (Bool *)TokenType_is_KwContinue(other); _t1168 = *_hp; free(_hp); }
+    Bool _t1234; { Bool *_hp = (Bool *)TokenType_is_KwBreak(self); _t1234 = *_hp; free(_hp); }
+    (void)_t1234;
+    if (_t1234) {
+        Bool _t1168; { Bool *_hp = (Bool *)TokenType_is_KwBreak(other); _t1168 = *_hp; free(_hp); }
         (void)_t1168;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1168; return _r; }
     }
     ;
-    Bool _t1234; { Bool *_hp = (Bool *)TokenType_is_KwDefer(self); _t1234 = *_hp; free(_hp); }
-    (void)_t1234;
-    if (_t1234) {
-        Bool _t1169; { Bool *_hp = (Bool *)TokenType_is_KwDefer(other); _t1169 = *_hp; free(_hp); }
+    Bool _t1235; { Bool *_hp = (Bool *)TokenType_is_KwContinue(self); _t1235 = *_hp; free(_hp); }
+    (void)_t1235;
+    if (_t1235) {
+        Bool _t1169; { Bool *_hp = (Bool *)TokenType_is_KwContinue(other); _t1169 = *_hp; free(_hp); }
         (void)_t1169;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1169; return _r; }
     }
     ;
-    Bool _t1235; { Bool *_hp = (Bool *)TokenType_is_KwTrue(self); _t1235 = *_hp; free(_hp); }
-    (void)_t1235;
-    if (_t1235) {
-        Bool _t1170; { Bool *_hp = (Bool *)TokenType_is_KwTrue(other); _t1170 = *_hp; free(_hp); }
+    Bool _t1236; { Bool *_hp = (Bool *)TokenType_is_KwDefer(self); _t1236 = *_hp; free(_hp); }
+    (void)_t1236;
+    if (_t1236) {
+        Bool _t1170; { Bool *_hp = (Bool *)TokenType_is_KwDefer(other); _t1170 = *_hp; free(_hp); }
         (void)_t1170;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1170; return _r; }
     }
     ;
-    Bool _t1236; { Bool *_hp = (Bool *)TokenType_is_KwFalse(self); _t1236 = *_hp; free(_hp); }
-    (void)_t1236;
-    if (_t1236) {
-        Bool _t1171; { Bool *_hp = (Bool *)TokenType_is_KwFalse(other); _t1171 = *_hp; free(_hp); }
+    Bool _t1237; { Bool *_hp = (Bool *)TokenType_is_KwTrue(self); _t1237 = *_hp; free(_hp); }
+    (void)_t1237;
+    if (_t1237) {
+        Bool _t1171; { Bool *_hp = (Bool *)TokenType_is_KwTrue(other); _t1171 = *_hp; free(_hp); }
         (void)_t1171;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1171; return _r; }
     }
     ;
-    Bool _t1237; { Bool *_hp = (Bool *)TokenType_is_KwNull(self); _t1237 = *_hp; free(_hp); }
-    (void)_t1237;
-    if (_t1237) {
-        Bool _t1172; { Bool *_hp = (Bool *)TokenType_is_KwNull(other); _t1172 = *_hp; free(_hp); }
+    Bool _t1238; { Bool *_hp = (Bool *)TokenType_is_KwFalse(self); _t1238 = *_hp; free(_hp); }
+    (void)_t1238;
+    if (_t1238) {
+        Bool _t1172; { Bool *_hp = (Bool *)TokenType_is_KwFalse(other); _t1172 = *_hp; free(_hp); }
         (void)_t1172;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1172; return _r; }
     }
     ;
-    Bool _t1238; { Bool *_hp = (Bool *)TokenType_is_Error(self); _t1238 = *_hp; free(_hp); }
-    (void)_t1238;
-    if (_t1238) {
-        Bool _t1173; { Bool *_hp = (Bool *)TokenType_is_Error(other); _t1173 = *_hp; free(_hp); }
+    Bool _t1239; { Bool *_hp = (Bool *)TokenType_is_KwNull(self); _t1239 = *_hp; free(_hp); }
+    (void)_t1239;
+    if (_t1239) {
+        Bool _t1173; { Bool *_hp = (Bool *)TokenType_is_KwNull(other); _t1173 = *_hp; free(_hp); }
         (void)_t1173;
         ;
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t1173; return _r; }
     }
     ;
-    Bool _t1239 = 0;
-    (void)_t1239;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1239; return _r; }
+    Bool _t1240; { Bool *_hp = (Bool *)TokenType_is_Error(self); _t1240 = *_hp; free(_hp); }
+    (void)_t1240;
+    if (_t1240) {
+        Bool _t1174; { Bool *_hp = (Bool *)TokenType_is_Error(other); _t1174 = *_hp; free(_hp); }
+        (void)_t1174;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t1174; return _r; }
+    }
+    ;
+    Bool _t1241 = 0;
+    (void)_t1241;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1241; return _r; }
 }
 
 TokenType * TokenType_clone(TokenType * self) {
     (void)self;
-    Bool _t1240; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eof()); _t1240 = *_hp; free(_hp); }
-    (void)_t1240;
-    if (_t1240) {
+    Bool _t1242; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eof()); _t1242 = *_hp; free(_hp); }
+    (void)_t1242;
+    if (_t1242) {
         ;
         return TokenType_Eof();
     }
     ;
-    Bool _t1241; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LParen()); _t1241 = *_hp; free(_hp); }
-    (void)_t1241;
-    if (_t1241) {
+    Bool _t1243; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LParen()); _t1243 = *_hp; free(_hp); }
+    (void)_t1243;
+    if (_t1243) {
         ;
         return TokenType_LParen();
     }
     ;
-    Bool _t1242; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RParen()); _t1242 = *_hp; free(_hp); }
-    (void)_t1242;
-    if (_t1242) {
+    Bool _t1244; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RParen()); _t1244 = *_hp; free(_hp); }
+    (void)_t1244;
+    if (_t1244) {
         ;
         return TokenType_RParen();
     }
     ;
-    Bool _t1243; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBrace()); _t1243 = *_hp; free(_hp); }
-    (void)_t1243;
-    if (_t1243) {
+    Bool _t1245; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBrace()); _t1245 = *_hp; free(_hp); }
+    (void)_t1245;
+    if (_t1245) {
         ;
         return TokenType_LBrace();
     }
     ;
-    Bool _t1244; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBrace()); _t1244 = *_hp; free(_hp); }
-    (void)_t1244;
-    if (_t1244) {
+    Bool _t1246; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBrace()); _t1246 = *_hp; free(_hp); }
+    (void)_t1246;
+    if (_t1246) {
         ;
         return TokenType_RBrace();
     }
     ;
-    Bool _t1245; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBracket()); _t1245 = *_hp; free(_hp); }
-    (void)_t1245;
-    if (_t1245) {
+    Bool _t1247; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBracket()); _t1247 = *_hp; free(_hp); }
+    (void)_t1247;
+    if (_t1247) {
         ;
         return TokenType_LBracket();
     }
     ;
-    Bool _t1246; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBracket()); _t1246 = *_hp; free(_hp); }
-    (void)_t1246;
-    if (_t1246) {
+    Bool _t1248; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBracket()); _t1248 = *_hp; free(_hp); }
+    (void)_t1248;
+    if (_t1248) {
         ;
         return TokenType_RBracket();
     }
     ;
-    Bool _t1247; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Comma()); _t1247 = *_hp; free(_hp); }
-    (void)_t1247;
-    if (_t1247) {
+    Bool _t1249; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Comma()); _t1249 = *_hp; free(_hp); }
+    (void)_t1249;
+    if (_t1249) {
         ;
         return TokenType_Comma();
     }
     ;
-    Bool _t1248; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Colon()); _t1248 = *_hp; free(_hp); }
-    (void)_t1248;
-    if (_t1248) {
+    Bool _t1250; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Colon()); _t1250 = *_hp; free(_hp); }
+    (void)_t1250;
+    if (_t1250) {
         ;
         return TokenType_Colon();
     }
     ;
-    Bool _t1249; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Question()); _t1249 = *_hp; free(_hp); }
-    (void)_t1249;
-    if (_t1249) {
+    Bool _t1251; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Question()); _t1251 = *_hp; free(_hp); }
+    (void)_t1251;
+    if (_t1251) {
         ;
         return TokenType_Question();
     }
     ;
-    Bool _t1250; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Bang()); _t1250 = *_hp; free(_hp); }
-    (void)_t1250;
-    if (_t1250) {
+    Bool _t1252; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Bang()); _t1252 = *_hp; free(_hp); }
+    (void)_t1252;
+    if (_t1252) {
         ;
         return TokenType_Bang();
     }
     ;
-    Bool _t1251; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Minus()); _t1251 = *_hp; free(_hp); }
-    (void)_t1251;
-    if (_t1251) {
+    Bool _t1253; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Minus()); _t1253 = *_hp; free(_hp); }
+    (void)_t1253;
+    if (_t1253) {
         ;
         return TokenType_Minus();
     }
     ;
-    Bool _t1252; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Plus()); _t1252 = *_hp; free(_hp); }
-    (void)_t1252;
-    if (_t1252) {
+    Bool _t1254; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Plus()); _t1254 = *_hp; free(_hp); }
+    (void)_t1254;
+    if (_t1254) {
         ;
         return TokenType_Plus();
     }
     ;
-    Bool _t1253; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Star()); _t1253 = *_hp; free(_hp); }
-    (void)_t1253;
-    if (_t1253) {
+    Bool _t1255; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Star()); _t1255 = *_hp; free(_hp); }
+    (void)_t1255;
+    if (_t1255) {
         ;
         return TokenType_Star();
     }
     ;
-    Bool _t1254; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Slash()); _t1254 = *_hp; free(_hp); }
-    (void)_t1254;
-    if (_t1254) {
+    Bool _t1256; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Slash()); _t1256 = *_hp; free(_hp); }
+    (void)_t1256;
+    if (_t1256) {
         ;
         return TokenType_Slash();
     }
     ;
-    Bool _t1255; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Dot()); _t1255 = *_hp; free(_hp); }
-    (void)_t1255;
-    if (_t1255) {
+    Bool _t1257; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Dot()); _t1257 = *_hp; free(_hp); }
+    (void)_t1257;
+    if (_t1257) {
         ;
         return TokenType_Dot();
     }
     ;
-    Bool _t1256; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDot()); _t1256 = *_hp; free(_hp); }
-    (void)_t1256;
-    if (_t1256) {
+    Bool _t1258; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDot()); _t1258 = *_hp; free(_hp); }
+    (void)_t1258;
+    if (_t1258) {
         ;
         return TokenType_DotDot();
     }
     ;
-    Bool _t1257; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eq()); _t1257 = *_hp; free(_hp); }
-    (void)_t1257;
-    if (_t1257) {
+    Bool _t1259; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDotDot()); _t1259 = *_hp; free(_hp); }
+    (void)_t1259;
+    if (_t1259) {
+        ;
+        return TokenType_DotDotDot();
+    }
+    ;
+    Bool _t1260; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eq()); _t1260 = *_hp; free(_hp); }
+    (void)_t1260;
+    if (_t1260) {
         ;
         return TokenType_Eq();
     }
     ;
-    Bool _t1258; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_EqEq()); _t1258 = *_hp; free(_hp); }
-    (void)_t1258;
-    if (_t1258) {
+    Bool _t1261; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_EqEq()); _t1261 = *_hp; free(_hp); }
+    (void)_t1261;
+    if (_t1261) {
         ;
         return TokenType_EqEq();
     }
     ;
-    Bool _t1259; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Neq()); _t1259 = *_hp; free(_hp); }
-    (void)_t1259;
-    if (_t1259) {
+    Bool _t1262; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Neq()); _t1262 = *_hp; free(_hp); }
+    (void)_t1262;
+    if (_t1262) {
         ;
         return TokenType_Neq();
     }
     ;
-    Bool _t1260; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Lt()); _t1260 = *_hp; free(_hp); }
-    (void)_t1260;
-    if (_t1260) {
+    Bool _t1263; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Lt()); _t1263 = *_hp; free(_hp); }
+    (void)_t1263;
+    if (_t1263) {
         ;
         return TokenType_Lt();
     }
     ;
-    Bool _t1261; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LtEq()); _t1261 = *_hp; free(_hp); }
-    (void)_t1261;
-    if (_t1261) {
+    Bool _t1264; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LtEq()); _t1264 = *_hp; free(_hp); }
+    (void)_t1264;
+    if (_t1264) {
         ;
         return TokenType_LtEq();
     }
     ;
-    Bool _t1262; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Gt()); _t1262 = *_hp; free(_hp); }
-    (void)_t1262;
-    if (_t1262) {
+    Bool _t1265; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Gt()); _t1265 = *_hp; free(_hp); }
+    (void)_t1265;
+    if (_t1265) {
         ;
         return TokenType_Gt();
     }
     ;
-    Bool _t1263; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_GtEq()); _t1263 = *_hp; free(_hp); }
-    (void)_t1263;
-    if (_t1263) {
+    Bool _t1266; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_GtEq()); _t1266 = *_hp; free(_hp); }
+    (void)_t1266;
+    if (_t1266) {
         ;
         return TokenType_GtEq();
     }
     ;
-    Bool _t1264; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_ColonEq()); _t1264 = *_hp; free(_hp); }
-    (void)_t1264;
-    if (_t1264) {
+    Bool _t1267; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_ColonEq()); _t1267 = *_hp; free(_hp); }
+    (void)_t1267;
+    if (_t1267) {
         ;
         return TokenType_ColonEq();
     }
     ;
-    Bool _t1265; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Ident()); _t1265 = *_hp; free(_hp); }
-    (void)_t1265;
-    if (_t1265) {
+    Bool _t1268; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Ident()); _t1268 = *_hp; free(_hp); }
+    (void)_t1268;
+    if (_t1268) {
         ;
         return TokenType_Ident();
     }
     ;
-    Bool _t1266; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_StringTok()); _t1266 = *_hp; free(_hp); }
-    (void)_t1266;
-    if (_t1266) {
+    Bool _t1269; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_StringTok()); _t1269 = *_hp; free(_hp); }
+    (void)_t1269;
+    if (_t1269) {
         ;
         return TokenType_StringTok();
     }
     ;
-    Bool _t1267; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Number()); _t1267 = *_hp; free(_hp); }
-    (void)_t1267;
-    if (_t1267) {
+    Bool _t1270; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Number()); _t1270 = *_hp; free(_hp); }
+    (void)_t1270;
+    if (_t1270) {
         ;
         return TokenType_Number();
     }
     ;
-    Bool _t1268; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Char()); _t1268 = *_hp; free(_hp); }
-    (void)_t1268;
-    if (_t1268) {
+    Bool _t1271; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Char()); _t1271 = *_hp; free(_hp); }
+    (void)_t1271;
+    if (_t1271) {
         ;
         return TokenType_Char();
     }
     ;
-    Bool _t1269; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMode()); _t1269 = *_hp; free(_hp); }
-    (void)_t1269;
-    if (_t1269) {
+    Bool _t1272; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMode()); _t1272 = *_hp; free(_hp); }
+    (void)_t1272;
+    if (_t1272) {
         ;
         return TokenType_KwMode();
     }
     ;
-    Bool _t1270; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMut()); _t1270 = *_hp; free(_hp); }
-    (void)_t1270;
-    if (_t1270) {
+    Bool _t1273; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMut()); _t1273 = *_hp; free(_hp); }
+    (void)_t1273;
+    if (_t1273) {
         ;
         return TokenType_KwMut();
     }
     ;
-    Bool _t1271; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwOwn()); _t1271 = *_hp; free(_hp); }
-    (void)_t1271;
-    if (_t1271) {
+    Bool _t1274; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwOwn()); _t1274 = *_hp; free(_hp); }
+    (void)_t1274;
+    if (_t1274) {
         ;
         return TokenType_KwOwn();
     }
     ;
-    Bool _t1272; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwRef()); _t1272 = *_hp; free(_hp); }
-    (void)_t1272;
-    if (_t1272) {
+    Bool _t1275; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwRef()); _t1275 = *_hp; free(_hp); }
+    (void)_t1275;
+    if (_t1275) {
         ;
         return TokenType_KwRef();
     }
     ;
-    Bool _t1273; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwShallow()); _t1273 = *_hp; free(_hp); }
-    (void)_t1273;
-    if (_t1273) {
+    Bool _t1276; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwShallow()); _t1276 = *_hp; free(_hp); }
+    (void)_t1276;
+    if (_t1276) {
         ;
         return TokenType_KwShallow();
     }
     ;
-    Bool _t1274; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwStruct()); _t1274 = *_hp; free(_hp); }
-    (void)_t1274;
-    if (_t1274) {
+    Bool _t1277; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwStruct()); _t1277 = *_hp; free(_hp); }
+    (void)_t1277;
+    if (_t1277) {
         ;
         return TokenType_KwStruct();
     }
     ;
-    Bool _t1275; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtStruct()); _t1275 = *_hp; free(_hp); }
-    (void)_t1275;
-    if (_t1275) {
+    Bool _t1278; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtStruct()); _t1278 = *_hp; free(_hp); }
+    (void)_t1278;
+    if (_t1278) {
         ;
         return TokenType_KwExtStruct();
     }
     ;
-    Bool _t1276; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwEnum()); _t1276 = *_hp; free(_hp); }
-    (void)_t1276;
-    if (_t1276) {
+    Bool _t1279; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwEnum()); _t1279 = *_hp; free(_hp); }
+    (void)_t1279;
+    if (_t1279) {
         ;
         return TokenType_KwEnum();
     }
     ;
-    Bool _t1277; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNamespace()); _t1277 = *_hp; free(_hp); }
-    (void)_t1277;
-    if (_t1277) {
+    Bool _t1280; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNamespace()); _t1280 = *_hp; free(_hp); }
+    (void)_t1280;
+    if (_t1280) {
         ;
         return TokenType_KwNamespace();
     }
     ;
-    Bool _t1278; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFunc()); _t1278 = *_hp; free(_hp); }
-    (void)_t1278;
-    if (_t1278) {
+    Bool _t1281; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFunc()); _t1281 = *_hp; free(_hp); }
+    (void)_t1281;
+    if (_t1281) {
         ;
         return TokenType_KwFunc();
     }
     ;
-    Bool _t1279; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwProc()); _t1279 = *_hp; free(_hp); }
-    (void)_t1279;
-    if (_t1279) {
+    Bool _t1282; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwProc()); _t1282 = *_hp; free(_hp); }
+    (void)_t1282;
+    if (_t1282) {
         ;
         return TokenType_KwProc();
     }
     ;
-    Bool _t1280; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTest()); _t1280 = *_hp; free(_hp); }
-    (void)_t1280;
-    if (_t1280) {
+    Bool _t1283; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTest()); _t1283 = *_hp; free(_hp); }
+    (void)_t1283;
+    if (_t1283) {
         ;
         return TokenType_KwTest();
     }
     ;
-    Bool _t1281; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMacro()); _t1281 = *_hp; free(_hp); }
-    (void)_t1281;
-    if (_t1281) {
+    Bool _t1284; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMacro()); _t1284 = *_hp; free(_hp); }
+    (void)_t1284;
+    if (_t1284) {
         ;
         return TokenType_KwMacro();
     }
     ;
-    Bool _t1282; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtFunc()); _t1282 = *_hp; free(_hp); }
-    (void)_t1282;
-    if (_t1282) {
+    Bool _t1285; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtFunc()); _t1285 = *_hp; free(_hp); }
+    (void)_t1285;
+    if (_t1285) {
         ;
         return TokenType_KwExtFunc();
     }
     ;
-    Bool _t1283; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtProc()); _t1283 = *_hp; free(_hp); }
-    (void)_t1283;
-    if (_t1283) {
+    Bool _t1286; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtProc()); _t1286 = *_hp; free(_hp); }
+    (void)_t1286;
+    if (_t1286) {
         ;
         return TokenType_KwExtProc();
     }
     ;
-    Bool _t1284; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturns()); _t1284 = *_hp; free(_hp); }
-    (void)_t1284;
-    if (_t1284) {
+    Bool _t1287; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturns()); _t1287 = *_hp; free(_hp); }
+    (void)_t1287;
+    if (_t1287) {
         ;
         return TokenType_KwReturns();
     }
     ;
-    Bool _t1285; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrows()); _t1285 = *_hp; free(_hp); }
-    (void)_t1285;
-    if (_t1285) {
+    Bool _t1288; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrows()); _t1288 = *_hp; free(_hp); }
+    (void)_t1288;
+    if (_t1288) {
         ;
         return TokenType_KwThrows();
     }
     ;
-    Bool _t1286; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIf()); _t1286 = *_hp; free(_hp); }
-    (void)_t1286;
-    if (_t1286) {
+    Bool _t1289; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIf()); _t1289 = *_hp; free(_hp); }
+    (void)_t1289;
+    if (_t1289) {
         ;
         return TokenType_KwIf();
     }
     ;
-    Bool _t1287; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwElse()); _t1287 = *_hp; free(_hp); }
-    (void)_t1287;
-    if (_t1287) {
+    Bool _t1290; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwElse()); _t1290 = *_hp; free(_hp); }
+    (void)_t1290;
+    if (_t1290) {
         ;
         return TokenType_KwElse();
     }
     ;
-    Bool _t1288; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwWhile()); _t1288 = *_hp; free(_hp); }
-    (void)_t1288;
-    if (_t1288) {
+    Bool _t1291; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwWhile()); _t1291 = *_hp; free(_hp); }
+    (void)_t1291;
+    if (_t1291) {
         ;
         return TokenType_KwWhile();
     }
     ;
-    Bool _t1289; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFor()); _t1289 = *_hp; free(_hp); }
-    (void)_t1289;
-    if (_t1289) {
+    Bool _t1292; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFor()); _t1292 = *_hp; free(_hp); }
+    (void)_t1292;
+    if (_t1292) {
         ;
         return TokenType_KwFor();
     }
     ;
-    Bool _t1290; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIn()); _t1290 = *_hp; free(_hp); }
-    (void)_t1290;
-    if (_t1290) {
+    Bool _t1293; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIn()); _t1293 = *_hp; free(_hp); }
+    (void)_t1293;
+    if (_t1293) {
         ;
         return TokenType_KwIn();
     }
     ;
-    Bool _t1291; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwSwitch()); _t1291 = *_hp; free(_hp); }
-    (void)_t1291;
-    if (_t1291) {
+    Bool _t1294; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwSwitch()); _t1294 = *_hp; free(_hp); }
+    (void)_t1294;
+    if (_t1294) {
         ;
         return TokenType_KwSwitch();
     }
     ;
-    Bool _t1292; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMatch()); _t1292 = *_hp; free(_hp); }
-    (void)_t1292;
-    if (_t1292) {
+    Bool _t1295; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMatch()); _t1295 = *_hp; free(_hp); }
+    (void)_t1295;
+    if (_t1295) {
         ;
         return TokenType_KwMatch();
     }
     ;
-    Bool _t1293; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCase()); _t1293 = *_hp; free(_hp); }
-    (void)_t1293;
-    if (_t1293) {
+    Bool _t1296; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCase()); _t1296 = *_hp; free(_hp); }
+    (void)_t1296;
+    if (_t1296) {
         ;
         return TokenType_KwCase();
     }
     ;
-    Bool _t1294; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefault()); _t1294 = *_hp; free(_hp); }
-    (void)_t1294;
-    if (_t1294) {
+    Bool _t1297; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefault()); _t1297 = *_hp; free(_hp); }
+    (void)_t1297;
+    if (_t1297) {
         ;
         return TokenType_KwDefault();
     }
     ;
-    Bool _t1295; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturn()); _t1295 = *_hp; free(_hp); }
-    (void)_t1295;
-    if (_t1295) {
+    Bool _t1298; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturn()); _t1298 = *_hp; free(_hp); }
+    (void)_t1298;
+    if (_t1298) {
         ;
         return TokenType_KwReturn();
     }
     ;
-    Bool _t1296; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrow()); _t1296 = *_hp; free(_hp); }
-    (void)_t1296;
-    if (_t1296) {
+    Bool _t1299; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrow()); _t1299 = *_hp; free(_hp); }
+    (void)_t1299;
+    if (_t1299) {
         ;
         return TokenType_KwThrow();
     }
     ;
-    Bool _t1297; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCatch()); _t1297 = *_hp; free(_hp); }
-    (void)_t1297;
-    if (_t1297) {
+    Bool _t1300; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCatch()); _t1300 = *_hp; free(_hp); }
+    (void)_t1300;
+    if (_t1300) {
         ;
         return TokenType_KwCatch();
     }
     ;
-    Bool _t1298; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwBreak()); _t1298 = *_hp; free(_hp); }
-    (void)_t1298;
-    if (_t1298) {
+    Bool _t1301; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwBreak()); _t1301 = *_hp; free(_hp); }
+    (void)_t1301;
+    if (_t1301) {
         ;
         return TokenType_KwBreak();
     }
     ;
-    Bool _t1299; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwContinue()); _t1299 = *_hp; free(_hp); }
-    (void)_t1299;
-    if (_t1299) {
+    Bool _t1302; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwContinue()); _t1302 = *_hp; free(_hp); }
+    (void)_t1302;
+    if (_t1302) {
         ;
         return TokenType_KwContinue();
     }
     ;
-    Bool _t1300; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefer()); _t1300 = *_hp; free(_hp); }
-    (void)_t1300;
-    if (_t1300) {
+    Bool _t1303; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefer()); _t1303 = *_hp; free(_hp); }
+    (void)_t1303;
+    if (_t1303) {
         ;
         return TokenType_KwDefer();
     }
     ;
-    Bool _t1301; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTrue()); _t1301 = *_hp; free(_hp); }
-    (void)_t1301;
-    if (_t1301) {
+    Bool _t1304; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTrue()); _t1304 = *_hp; free(_hp); }
+    (void)_t1304;
+    if (_t1304) {
         ;
         return TokenType_KwTrue();
     }
     ;
-    Bool _t1302; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFalse()); _t1302 = *_hp; free(_hp); }
-    (void)_t1302;
-    if (_t1302) {
+    Bool _t1305; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFalse()); _t1305 = *_hp; free(_hp); }
+    (void)_t1305;
+    if (_t1305) {
         ;
         return TokenType_KwFalse();
     }
     ;
-    Bool _t1303; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNull()); _t1303 = *_hp; free(_hp); }
-    (void)_t1303;
-    if (_t1303) {
+    Bool _t1306; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNull()); _t1306 = *_hp; free(_hp); }
+    (void)_t1306;
+    if (_t1306) {
         ;
         return TokenType_KwNull();
     }
@@ -7511,594 +7540,603 @@ void TokenType_delete(TokenType * self, Bool * call_free) {
 
 Str * TokenType_to_str(TokenType * self) {
     (void)self;
-    Bool _t1369; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eof()); _t1369 = *_hp; free(_hp); }
-    (void)_t1369;
-    if (_t1369) {
-        Str *_t1304 = Str_lit("Eof", 3ULL);
-        (void)_t1304;
-        ;
-        return _t1304;
-    }
-    ;
-    Bool _t1370; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LParen()); _t1370 = *_hp; free(_hp); }
-    (void)_t1370;
-    if (_t1370) {
-        Str *_t1305 = Str_lit("LParen", 6ULL);
-        (void)_t1305;
-        ;
-        return _t1305;
-    }
-    ;
-    Bool _t1371; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RParen()); _t1371 = *_hp; free(_hp); }
-    (void)_t1371;
-    if (_t1371) {
-        Str *_t1306 = Str_lit("RParen", 6ULL);
-        (void)_t1306;
-        ;
-        return _t1306;
-    }
-    ;
-    Bool _t1372; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBrace()); _t1372 = *_hp; free(_hp); }
-    (void)_t1372;
-    if (_t1372) {
-        Str *_t1307 = Str_lit("LBrace", 6ULL);
+    Bool _t1373; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eof()); _t1373 = *_hp; free(_hp); }
+    (void)_t1373;
+    if (_t1373) {
+        Str *_t1307 = Str_lit("Eof", 3ULL);
         (void)_t1307;
         ;
         return _t1307;
     }
     ;
-    Bool _t1373; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBrace()); _t1373 = *_hp; free(_hp); }
-    (void)_t1373;
-    if (_t1373) {
-        Str *_t1308 = Str_lit("RBrace", 6ULL);
+    Bool _t1374; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LParen()); _t1374 = *_hp; free(_hp); }
+    (void)_t1374;
+    if (_t1374) {
+        Str *_t1308 = Str_lit("LParen", 6ULL);
         (void)_t1308;
         ;
         return _t1308;
     }
     ;
-    Bool _t1374; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBracket()); _t1374 = *_hp; free(_hp); }
-    (void)_t1374;
-    if (_t1374) {
-        Str *_t1309 = Str_lit("LBracket", 8ULL);
+    Bool _t1375; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RParen()); _t1375 = *_hp; free(_hp); }
+    (void)_t1375;
+    if (_t1375) {
+        Str *_t1309 = Str_lit("RParen", 6ULL);
         (void)_t1309;
         ;
         return _t1309;
     }
     ;
-    Bool _t1375; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBracket()); _t1375 = *_hp; free(_hp); }
-    (void)_t1375;
-    if (_t1375) {
-        Str *_t1310 = Str_lit("RBracket", 8ULL);
+    Bool _t1376; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBrace()); _t1376 = *_hp; free(_hp); }
+    (void)_t1376;
+    if (_t1376) {
+        Str *_t1310 = Str_lit("LBrace", 6ULL);
         (void)_t1310;
         ;
         return _t1310;
     }
     ;
-    Bool _t1376; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Comma()); _t1376 = *_hp; free(_hp); }
-    (void)_t1376;
-    if (_t1376) {
-        Str *_t1311 = Str_lit("Comma", 5ULL);
+    Bool _t1377; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBrace()); _t1377 = *_hp; free(_hp); }
+    (void)_t1377;
+    if (_t1377) {
+        Str *_t1311 = Str_lit("RBrace", 6ULL);
         (void)_t1311;
         ;
         return _t1311;
     }
     ;
-    Bool _t1377; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Colon()); _t1377 = *_hp; free(_hp); }
-    (void)_t1377;
-    if (_t1377) {
-        Str *_t1312 = Str_lit("Colon", 5ULL);
+    Bool _t1378; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBracket()); _t1378 = *_hp; free(_hp); }
+    (void)_t1378;
+    if (_t1378) {
+        Str *_t1312 = Str_lit("LBracket", 8ULL);
         (void)_t1312;
         ;
         return _t1312;
     }
     ;
-    Bool _t1378; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Question()); _t1378 = *_hp; free(_hp); }
-    (void)_t1378;
-    if (_t1378) {
-        Str *_t1313 = Str_lit("Question", 8ULL);
+    Bool _t1379; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBracket()); _t1379 = *_hp; free(_hp); }
+    (void)_t1379;
+    if (_t1379) {
+        Str *_t1313 = Str_lit("RBracket", 8ULL);
         (void)_t1313;
         ;
         return _t1313;
     }
     ;
-    Bool _t1379; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Bang()); _t1379 = *_hp; free(_hp); }
-    (void)_t1379;
-    if (_t1379) {
-        Str *_t1314 = Str_lit("Bang", 4ULL);
+    Bool _t1380; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Comma()); _t1380 = *_hp; free(_hp); }
+    (void)_t1380;
+    if (_t1380) {
+        Str *_t1314 = Str_lit("Comma", 5ULL);
         (void)_t1314;
         ;
         return _t1314;
     }
     ;
-    Bool _t1380; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Minus()); _t1380 = *_hp; free(_hp); }
-    (void)_t1380;
-    if (_t1380) {
-        Str *_t1315 = Str_lit("Minus", 5ULL);
+    Bool _t1381; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Colon()); _t1381 = *_hp; free(_hp); }
+    (void)_t1381;
+    if (_t1381) {
+        Str *_t1315 = Str_lit("Colon", 5ULL);
         (void)_t1315;
         ;
         return _t1315;
     }
     ;
-    Bool _t1381; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Plus()); _t1381 = *_hp; free(_hp); }
-    (void)_t1381;
-    if (_t1381) {
-        Str *_t1316 = Str_lit("Plus", 4ULL);
+    Bool _t1382; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Question()); _t1382 = *_hp; free(_hp); }
+    (void)_t1382;
+    if (_t1382) {
+        Str *_t1316 = Str_lit("Question", 8ULL);
         (void)_t1316;
         ;
         return _t1316;
     }
     ;
-    Bool _t1382; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Star()); _t1382 = *_hp; free(_hp); }
-    (void)_t1382;
-    if (_t1382) {
-        Str *_t1317 = Str_lit("Star", 4ULL);
+    Bool _t1383; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Bang()); _t1383 = *_hp; free(_hp); }
+    (void)_t1383;
+    if (_t1383) {
+        Str *_t1317 = Str_lit("Bang", 4ULL);
         (void)_t1317;
         ;
         return _t1317;
     }
     ;
-    Bool _t1383; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Slash()); _t1383 = *_hp; free(_hp); }
-    (void)_t1383;
-    if (_t1383) {
-        Str *_t1318 = Str_lit("Slash", 5ULL);
+    Bool _t1384; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Minus()); _t1384 = *_hp; free(_hp); }
+    (void)_t1384;
+    if (_t1384) {
+        Str *_t1318 = Str_lit("Minus", 5ULL);
         (void)_t1318;
         ;
         return _t1318;
     }
     ;
-    Bool _t1384; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Dot()); _t1384 = *_hp; free(_hp); }
-    (void)_t1384;
-    if (_t1384) {
-        Str *_t1319 = Str_lit("Dot", 3ULL);
+    Bool _t1385; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Plus()); _t1385 = *_hp; free(_hp); }
+    (void)_t1385;
+    if (_t1385) {
+        Str *_t1319 = Str_lit("Plus", 4ULL);
         (void)_t1319;
         ;
         return _t1319;
     }
     ;
-    Bool _t1385; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDot()); _t1385 = *_hp; free(_hp); }
-    (void)_t1385;
-    if (_t1385) {
-        Str *_t1320 = Str_lit("DotDot", 6ULL);
+    Bool _t1386; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Star()); _t1386 = *_hp; free(_hp); }
+    (void)_t1386;
+    if (_t1386) {
+        Str *_t1320 = Str_lit("Star", 4ULL);
         (void)_t1320;
         ;
         return _t1320;
     }
     ;
-    Bool _t1386; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eq()); _t1386 = *_hp; free(_hp); }
-    (void)_t1386;
-    if (_t1386) {
-        Str *_t1321 = Str_lit("Eq", 2ULL);
+    Bool _t1387; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Slash()); _t1387 = *_hp; free(_hp); }
+    (void)_t1387;
+    if (_t1387) {
+        Str *_t1321 = Str_lit("Slash", 5ULL);
         (void)_t1321;
         ;
         return _t1321;
     }
     ;
-    Bool _t1387; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_EqEq()); _t1387 = *_hp; free(_hp); }
-    (void)_t1387;
-    if (_t1387) {
-        Str *_t1322 = Str_lit("EqEq", 4ULL);
+    Bool _t1388; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Dot()); _t1388 = *_hp; free(_hp); }
+    (void)_t1388;
+    if (_t1388) {
+        Str *_t1322 = Str_lit("Dot", 3ULL);
         (void)_t1322;
         ;
         return _t1322;
     }
     ;
-    Bool _t1388; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Neq()); _t1388 = *_hp; free(_hp); }
-    (void)_t1388;
-    if (_t1388) {
-        Str *_t1323 = Str_lit("Neq", 3ULL);
+    Bool _t1389; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDot()); _t1389 = *_hp; free(_hp); }
+    (void)_t1389;
+    if (_t1389) {
+        Str *_t1323 = Str_lit("DotDot", 6ULL);
         (void)_t1323;
         ;
         return _t1323;
     }
     ;
-    Bool _t1389; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Lt()); _t1389 = *_hp; free(_hp); }
-    (void)_t1389;
-    if (_t1389) {
-        Str *_t1324 = Str_lit("Lt", 2ULL);
+    Bool _t1390; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDotDot()); _t1390 = *_hp; free(_hp); }
+    (void)_t1390;
+    if (_t1390) {
+        Str *_t1324 = Str_lit("DotDotDot", 9ULL);
         (void)_t1324;
         ;
         return _t1324;
     }
     ;
-    Bool _t1390; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LtEq()); _t1390 = *_hp; free(_hp); }
-    (void)_t1390;
-    if (_t1390) {
-        Str *_t1325 = Str_lit("LtEq", 4ULL);
+    Bool _t1391; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eq()); _t1391 = *_hp; free(_hp); }
+    (void)_t1391;
+    if (_t1391) {
+        Str *_t1325 = Str_lit("Eq", 2ULL);
         (void)_t1325;
         ;
         return _t1325;
     }
     ;
-    Bool _t1391; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Gt()); _t1391 = *_hp; free(_hp); }
-    (void)_t1391;
-    if (_t1391) {
-        Str *_t1326 = Str_lit("Gt", 2ULL);
+    Bool _t1392; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_EqEq()); _t1392 = *_hp; free(_hp); }
+    (void)_t1392;
+    if (_t1392) {
+        Str *_t1326 = Str_lit("EqEq", 4ULL);
         (void)_t1326;
         ;
         return _t1326;
     }
     ;
-    Bool _t1392; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_GtEq()); _t1392 = *_hp; free(_hp); }
-    (void)_t1392;
-    if (_t1392) {
-        Str *_t1327 = Str_lit("GtEq", 4ULL);
+    Bool _t1393; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Neq()); _t1393 = *_hp; free(_hp); }
+    (void)_t1393;
+    if (_t1393) {
+        Str *_t1327 = Str_lit("Neq", 3ULL);
         (void)_t1327;
         ;
         return _t1327;
     }
     ;
-    Bool _t1393; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_ColonEq()); _t1393 = *_hp; free(_hp); }
-    (void)_t1393;
-    if (_t1393) {
-        Str *_t1328 = Str_lit("ColonEq", 7ULL);
+    Bool _t1394; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Lt()); _t1394 = *_hp; free(_hp); }
+    (void)_t1394;
+    if (_t1394) {
+        Str *_t1328 = Str_lit("Lt", 2ULL);
         (void)_t1328;
         ;
         return _t1328;
     }
     ;
-    Bool _t1394; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Ident()); _t1394 = *_hp; free(_hp); }
-    (void)_t1394;
-    if (_t1394) {
-        Str *_t1329 = Str_lit("Ident", 5ULL);
+    Bool _t1395; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LtEq()); _t1395 = *_hp; free(_hp); }
+    (void)_t1395;
+    if (_t1395) {
+        Str *_t1329 = Str_lit("LtEq", 4ULL);
         (void)_t1329;
         ;
         return _t1329;
     }
     ;
-    Bool _t1395; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_StringTok()); _t1395 = *_hp; free(_hp); }
-    (void)_t1395;
-    if (_t1395) {
-        Str *_t1330 = Str_lit("StringTok", 9ULL);
+    Bool _t1396; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Gt()); _t1396 = *_hp; free(_hp); }
+    (void)_t1396;
+    if (_t1396) {
+        Str *_t1330 = Str_lit("Gt", 2ULL);
         (void)_t1330;
         ;
         return _t1330;
     }
     ;
-    Bool _t1396; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Number()); _t1396 = *_hp; free(_hp); }
-    (void)_t1396;
-    if (_t1396) {
-        Str *_t1331 = Str_lit("Number", 6ULL);
+    Bool _t1397; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_GtEq()); _t1397 = *_hp; free(_hp); }
+    (void)_t1397;
+    if (_t1397) {
+        Str *_t1331 = Str_lit("GtEq", 4ULL);
         (void)_t1331;
         ;
         return _t1331;
     }
     ;
-    Bool _t1397; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Char()); _t1397 = *_hp; free(_hp); }
-    (void)_t1397;
-    if (_t1397) {
-        Str *_t1332 = Str_lit("Char", 4ULL);
+    Bool _t1398; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_ColonEq()); _t1398 = *_hp; free(_hp); }
+    (void)_t1398;
+    if (_t1398) {
+        Str *_t1332 = Str_lit("ColonEq", 7ULL);
         (void)_t1332;
         ;
         return _t1332;
     }
     ;
-    Bool _t1398; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMode()); _t1398 = *_hp; free(_hp); }
-    (void)_t1398;
-    if (_t1398) {
-        Str *_t1333 = Str_lit("KwMode", 6ULL);
+    Bool _t1399; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Ident()); _t1399 = *_hp; free(_hp); }
+    (void)_t1399;
+    if (_t1399) {
+        Str *_t1333 = Str_lit("Ident", 5ULL);
         (void)_t1333;
         ;
         return _t1333;
     }
     ;
-    Bool _t1399; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMut()); _t1399 = *_hp; free(_hp); }
-    (void)_t1399;
-    if (_t1399) {
-        Str *_t1334 = Str_lit("KwMut", 5ULL);
+    Bool _t1400; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_StringTok()); _t1400 = *_hp; free(_hp); }
+    (void)_t1400;
+    if (_t1400) {
+        Str *_t1334 = Str_lit("StringTok", 9ULL);
         (void)_t1334;
         ;
         return _t1334;
     }
     ;
-    Bool _t1400; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwOwn()); _t1400 = *_hp; free(_hp); }
-    (void)_t1400;
-    if (_t1400) {
-        Str *_t1335 = Str_lit("KwOwn", 5ULL);
+    Bool _t1401; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Number()); _t1401 = *_hp; free(_hp); }
+    (void)_t1401;
+    if (_t1401) {
+        Str *_t1335 = Str_lit("Number", 6ULL);
         (void)_t1335;
         ;
         return _t1335;
     }
     ;
-    Bool _t1401; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwRef()); _t1401 = *_hp; free(_hp); }
-    (void)_t1401;
-    if (_t1401) {
-        Str *_t1336 = Str_lit("KwRef", 5ULL);
+    Bool _t1402; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Char()); _t1402 = *_hp; free(_hp); }
+    (void)_t1402;
+    if (_t1402) {
+        Str *_t1336 = Str_lit("Char", 4ULL);
         (void)_t1336;
         ;
         return _t1336;
     }
     ;
-    Bool _t1402; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwShallow()); _t1402 = *_hp; free(_hp); }
-    (void)_t1402;
-    if (_t1402) {
-        Str *_t1337 = Str_lit("KwShallow", 9ULL);
+    Bool _t1403; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMode()); _t1403 = *_hp; free(_hp); }
+    (void)_t1403;
+    if (_t1403) {
+        Str *_t1337 = Str_lit("KwMode", 6ULL);
         (void)_t1337;
         ;
         return _t1337;
     }
     ;
-    Bool _t1403; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwStruct()); _t1403 = *_hp; free(_hp); }
-    (void)_t1403;
-    if (_t1403) {
-        Str *_t1338 = Str_lit("KwStruct", 8ULL);
+    Bool _t1404; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMut()); _t1404 = *_hp; free(_hp); }
+    (void)_t1404;
+    if (_t1404) {
+        Str *_t1338 = Str_lit("KwMut", 5ULL);
         (void)_t1338;
         ;
         return _t1338;
     }
     ;
-    Bool _t1404; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtStruct()); _t1404 = *_hp; free(_hp); }
-    (void)_t1404;
-    if (_t1404) {
-        Str *_t1339 = Str_lit("KwExtStruct", 11ULL);
+    Bool _t1405; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwOwn()); _t1405 = *_hp; free(_hp); }
+    (void)_t1405;
+    if (_t1405) {
+        Str *_t1339 = Str_lit("KwOwn", 5ULL);
         (void)_t1339;
         ;
         return _t1339;
     }
     ;
-    Bool _t1405; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwEnum()); _t1405 = *_hp; free(_hp); }
-    (void)_t1405;
-    if (_t1405) {
-        Str *_t1340 = Str_lit("KwEnum", 6ULL);
+    Bool _t1406; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwRef()); _t1406 = *_hp; free(_hp); }
+    (void)_t1406;
+    if (_t1406) {
+        Str *_t1340 = Str_lit("KwRef", 5ULL);
         (void)_t1340;
         ;
         return _t1340;
     }
     ;
-    Bool _t1406; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNamespace()); _t1406 = *_hp; free(_hp); }
-    (void)_t1406;
-    if (_t1406) {
-        Str *_t1341 = Str_lit("KwNamespace", 11ULL);
+    Bool _t1407; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwShallow()); _t1407 = *_hp; free(_hp); }
+    (void)_t1407;
+    if (_t1407) {
+        Str *_t1341 = Str_lit("KwShallow", 9ULL);
         (void)_t1341;
         ;
         return _t1341;
     }
     ;
-    Bool _t1407; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFunc()); _t1407 = *_hp; free(_hp); }
-    (void)_t1407;
-    if (_t1407) {
-        Str *_t1342 = Str_lit("KwFunc", 6ULL);
+    Bool _t1408; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwStruct()); _t1408 = *_hp; free(_hp); }
+    (void)_t1408;
+    if (_t1408) {
+        Str *_t1342 = Str_lit("KwStruct", 8ULL);
         (void)_t1342;
         ;
         return _t1342;
     }
     ;
-    Bool _t1408; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwProc()); _t1408 = *_hp; free(_hp); }
-    (void)_t1408;
-    if (_t1408) {
-        Str *_t1343 = Str_lit("KwProc", 6ULL);
+    Bool _t1409; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtStruct()); _t1409 = *_hp; free(_hp); }
+    (void)_t1409;
+    if (_t1409) {
+        Str *_t1343 = Str_lit("KwExtStruct", 11ULL);
         (void)_t1343;
         ;
         return _t1343;
     }
     ;
-    Bool _t1409; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTest()); _t1409 = *_hp; free(_hp); }
-    (void)_t1409;
-    if (_t1409) {
-        Str *_t1344 = Str_lit("KwTest", 6ULL);
+    Bool _t1410; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwEnum()); _t1410 = *_hp; free(_hp); }
+    (void)_t1410;
+    if (_t1410) {
+        Str *_t1344 = Str_lit("KwEnum", 6ULL);
         (void)_t1344;
         ;
         return _t1344;
     }
     ;
-    Bool _t1410; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMacro()); _t1410 = *_hp; free(_hp); }
-    (void)_t1410;
-    if (_t1410) {
-        Str *_t1345 = Str_lit("KwMacro", 7ULL);
+    Bool _t1411; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNamespace()); _t1411 = *_hp; free(_hp); }
+    (void)_t1411;
+    if (_t1411) {
+        Str *_t1345 = Str_lit("KwNamespace", 11ULL);
         (void)_t1345;
         ;
         return _t1345;
     }
     ;
-    Bool _t1411; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtFunc()); _t1411 = *_hp; free(_hp); }
-    (void)_t1411;
-    if (_t1411) {
-        Str *_t1346 = Str_lit("KwExtFunc", 9ULL);
+    Bool _t1412; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFunc()); _t1412 = *_hp; free(_hp); }
+    (void)_t1412;
+    if (_t1412) {
+        Str *_t1346 = Str_lit("KwFunc", 6ULL);
         (void)_t1346;
         ;
         return _t1346;
     }
     ;
-    Bool _t1412; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtProc()); _t1412 = *_hp; free(_hp); }
-    (void)_t1412;
-    if (_t1412) {
-        Str *_t1347 = Str_lit("KwExtProc", 9ULL);
+    Bool _t1413; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwProc()); _t1413 = *_hp; free(_hp); }
+    (void)_t1413;
+    if (_t1413) {
+        Str *_t1347 = Str_lit("KwProc", 6ULL);
         (void)_t1347;
         ;
         return _t1347;
     }
     ;
-    Bool _t1413; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturns()); _t1413 = *_hp; free(_hp); }
-    (void)_t1413;
-    if (_t1413) {
-        Str *_t1348 = Str_lit("KwReturns", 9ULL);
+    Bool _t1414; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTest()); _t1414 = *_hp; free(_hp); }
+    (void)_t1414;
+    if (_t1414) {
+        Str *_t1348 = Str_lit("KwTest", 6ULL);
         (void)_t1348;
         ;
         return _t1348;
     }
     ;
-    Bool _t1414; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrows()); _t1414 = *_hp; free(_hp); }
-    (void)_t1414;
-    if (_t1414) {
-        Str *_t1349 = Str_lit("KwThrows", 8ULL);
+    Bool _t1415; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMacro()); _t1415 = *_hp; free(_hp); }
+    (void)_t1415;
+    if (_t1415) {
+        Str *_t1349 = Str_lit("KwMacro", 7ULL);
         (void)_t1349;
         ;
         return _t1349;
     }
     ;
-    Bool _t1415; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIf()); _t1415 = *_hp; free(_hp); }
-    (void)_t1415;
-    if (_t1415) {
-        Str *_t1350 = Str_lit("KwIf", 4ULL);
+    Bool _t1416; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtFunc()); _t1416 = *_hp; free(_hp); }
+    (void)_t1416;
+    if (_t1416) {
+        Str *_t1350 = Str_lit("KwExtFunc", 9ULL);
         (void)_t1350;
         ;
         return _t1350;
     }
     ;
-    Bool _t1416; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwElse()); _t1416 = *_hp; free(_hp); }
-    (void)_t1416;
-    if (_t1416) {
-        Str *_t1351 = Str_lit("KwElse", 6ULL);
+    Bool _t1417; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtProc()); _t1417 = *_hp; free(_hp); }
+    (void)_t1417;
+    if (_t1417) {
+        Str *_t1351 = Str_lit("KwExtProc", 9ULL);
         (void)_t1351;
         ;
         return _t1351;
     }
     ;
-    Bool _t1417; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwWhile()); _t1417 = *_hp; free(_hp); }
-    (void)_t1417;
-    if (_t1417) {
-        Str *_t1352 = Str_lit("KwWhile", 7ULL);
+    Bool _t1418; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturns()); _t1418 = *_hp; free(_hp); }
+    (void)_t1418;
+    if (_t1418) {
+        Str *_t1352 = Str_lit("KwReturns", 9ULL);
         (void)_t1352;
         ;
         return _t1352;
     }
     ;
-    Bool _t1418; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFor()); _t1418 = *_hp; free(_hp); }
-    (void)_t1418;
-    if (_t1418) {
-        Str *_t1353 = Str_lit("KwFor", 5ULL);
+    Bool _t1419; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrows()); _t1419 = *_hp; free(_hp); }
+    (void)_t1419;
+    if (_t1419) {
+        Str *_t1353 = Str_lit("KwThrows", 8ULL);
         (void)_t1353;
         ;
         return _t1353;
     }
     ;
-    Bool _t1419; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIn()); _t1419 = *_hp; free(_hp); }
-    (void)_t1419;
-    if (_t1419) {
-        Str *_t1354 = Str_lit("KwIn", 4ULL);
+    Bool _t1420; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIf()); _t1420 = *_hp; free(_hp); }
+    (void)_t1420;
+    if (_t1420) {
+        Str *_t1354 = Str_lit("KwIf", 4ULL);
         (void)_t1354;
         ;
         return _t1354;
     }
     ;
-    Bool _t1420; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwSwitch()); _t1420 = *_hp; free(_hp); }
-    (void)_t1420;
-    if (_t1420) {
-        Str *_t1355 = Str_lit("KwSwitch", 8ULL);
+    Bool _t1421; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwElse()); _t1421 = *_hp; free(_hp); }
+    (void)_t1421;
+    if (_t1421) {
+        Str *_t1355 = Str_lit("KwElse", 6ULL);
         (void)_t1355;
         ;
         return _t1355;
     }
     ;
-    Bool _t1421; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMatch()); _t1421 = *_hp; free(_hp); }
-    (void)_t1421;
-    if (_t1421) {
-        Str *_t1356 = Str_lit("KwMatch", 7ULL);
+    Bool _t1422; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwWhile()); _t1422 = *_hp; free(_hp); }
+    (void)_t1422;
+    if (_t1422) {
+        Str *_t1356 = Str_lit("KwWhile", 7ULL);
         (void)_t1356;
         ;
         return _t1356;
     }
     ;
-    Bool _t1422; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCase()); _t1422 = *_hp; free(_hp); }
-    (void)_t1422;
-    if (_t1422) {
-        Str *_t1357 = Str_lit("KwCase", 6ULL);
+    Bool _t1423; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFor()); _t1423 = *_hp; free(_hp); }
+    (void)_t1423;
+    if (_t1423) {
+        Str *_t1357 = Str_lit("KwFor", 5ULL);
         (void)_t1357;
         ;
         return _t1357;
     }
     ;
-    Bool _t1423; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefault()); _t1423 = *_hp; free(_hp); }
-    (void)_t1423;
-    if (_t1423) {
-        Str *_t1358 = Str_lit("KwDefault", 9ULL);
+    Bool _t1424; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIn()); _t1424 = *_hp; free(_hp); }
+    (void)_t1424;
+    if (_t1424) {
+        Str *_t1358 = Str_lit("KwIn", 4ULL);
         (void)_t1358;
         ;
         return _t1358;
     }
     ;
-    Bool _t1424; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturn()); _t1424 = *_hp; free(_hp); }
-    (void)_t1424;
-    if (_t1424) {
-        Str *_t1359 = Str_lit("KwReturn", 8ULL);
+    Bool _t1425; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwSwitch()); _t1425 = *_hp; free(_hp); }
+    (void)_t1425;
+    if (_t1425) {
+        Str *_t1359 = Str_lit("KwSwitch", 8ULL);
         (void)_t1359;
         ;
         return _t1359;
     }
     ;
-    Bool _t1425; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrow()); _t1425 = *_hp; free(_hp); }
-    (void)_t1425;
-    if (_t1425) {
-        Str *_t1360 = Str_lit("KwThrow", 7ULL);
+    Bool _t1426; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMatch()); _t1426 = *_hp; free(_hp); }
+    (void)_t1426;
+    if (_t1426) {
+        Str *_t1360 = Str_lit("KwMatch", 7ULL);
         (void)_t1360;
         ;
         return _t1360;
     }
     ;
-    Bool _t1426; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCatch()); _t1426 = *_hp; free(_hp); }
-    (void)_t1426;
-    if (_t1426) {
-        Str *_t1361 = Str_lit("KwCatch", 7ULL);
+    Bool _t1427; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCase()); _t1427 = *_hp; free(_hp); }
+    (void)_t1427;
+    if (_t1427) {
+        Str *_t1361 = Str_lit("KwCase", 6ULL);
         (void)_t1361;
         ;
         return _t1361;
     }
     ;
-    Bool _t1427; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwBreak()); _t1427 = *_hp; free(_hp); }
-    (void)_t1427;
-    if (_t1427) {
-        Str *_t1362 = Str_lit("KwBreak", 7ULL);
+    Bool _t1428; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefault()); _t1428 = *_hp; free(_hp); }
+    (void)_t1428;
+    if (_t1428) {
+        Str *_t1362 = Str_lit("KwDefault", 9ULL);
         (void)_t1362;
         ;
         return _t1362;
     }
     ;
-    Bool _t1428; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwContinue()); _t1428 = *_hp; free(_hp); }
-    (void)_t1428;
-    if (_t1428) {
-        Str *_t1363 = Str_lit("KwContinue", 10ULL);
+    Bool _t1429; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturn()); _t1429 = *_hp; free(_hp); }
+    (void)_t1429;
+    if (_t1429) {
+        Str *_t1363 = Str_lit("KwReturn", 8ULL);
         (void)_t1363;
         ;
         return _t1363;
     }
     ;
-    Bool _t1429; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefer()); _t1429 = *_hp; free(_hp); }
-    (void)_t1429;
-    if (_t1429) {
-        Str *_t1364 = Str_lit("KwDefer", 7ULL);
+    Bool _t1430; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrow()); _t1430 = *_hp; free(_hp); }
+    (void)_t1430;
+    if (_t1430) {
+        Str *_t1364 = Str_lit("KwThrow", 7ULL);
         (void)_t1364;
         ;
         return _t1364;
     }
     ;
-    Bool _t1430; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTrue()); _t1430 = *_hp; free(_hp); }
-    (void)_t1430;
-    if (_t1430) {
-        Str *_t1365 = Str_lit("KwTrue", 6ULL);
+    Bool _t1431; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCatch()); _t1431 = *_hp; free(_hp); }
+    (void)_t1431;
+    if (_t1431) {
+        Str *_t1365 = Str_lit("KwCatch", 7ULL);
         (void)_t1365;
         ;
         return _t1365;
     }
     ;
-    Bool _t1431; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFalse()); _t1431 = *_hp; free(_hp); }
-    (void)_t1431;
-    if (_t1431) {
-        Str *_t1366 = Str_lit("KwFalse", 7ULL);
+    Bool _t1432; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwBreak()); _t1432 = *_hp; free(_hp); }
+    (void)_t1432;
+    if (_t1432) {
+        Str *_t1366 = Str_lit("KwBreak", 7ULL);
         (void)_t1366;
         ;
         return _t1366;
     }
     ;
-    Bool _t1432; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNull()); _t1432 = *_hp; free(_hp); }
-    (void)_t1432;
-    if (_t1432) {
-        Str *_t1367 = Str_lit("KwNull", 6ULL);
+    Bool _t1433; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwContinue()); _t1433 = *_hp; free(_hp); }
+    (void)_t1433;
+    if (_t1433) {
+        Str *_t1367 = Str_lit("KwContinue", 10ULL);
         (void)_t1367;
         ;
         return _t1367;
     }
     ;
-    Bool _t1433; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Error()); _t1433 = *_hp; free(_hp); }
-    (void)_t1433;
-    if (_t1433) {
-        Str *_t1368 = Str_lit("Error", 5ULL);
+    Bool _t1434; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefer()); _t1434 = *_hp; free(_hp); }
+    (void)_t1434;
+    if (_t1434) {
+        Str *_t1368 = Str_lit("KwDefer", 7ULL);
         (void)_t1368;
         ;
         return _t1368;
     }
     ;
-    Str *_t1434 = Str_lit("unknown", 7ULL);
-    (void)_t1434;
-    return _t1434;
+    Bool _t1435; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTrue()); _t1435 = *_hp; free(_hp); }
+    (void)_t1435;
+    if (_t1435) {
+        Str *_t1369 = Str_lit("KwTrue", 6ULL);
+        (void)_t1369;
+        ;
+        return _t1369;
+    }
+    ;
+    Bool _t1436; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFalse()); _t1436 = *_hp; free(_hp); }
+    (void)_t1436;
+    if (_t1436) {
+        Str *_t1370 = Str_lit("KwFalse", 7ULL);
+        (void)_t1370;
+        ;
+        return _t1370;
+    }
+    ;
+    Bool _t1437; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNull()); _t1437 = *_hp; free(_hp); }
+    (void)_t1437;
+    if (_t1437) {
+        Str *_t1371 = Str_lit("KwNull", 6ULL);
+        (void)_t1371;
+        ;
+        return _t1371;
+    }
+    ;
+    Bool _t1438; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Error()); _t1438 = *_hp; free(_hp); }
+    (void)_t1438;
+    if (_t1438) {
+        Str *_t1372 = Str_lit("Error", 5ULL);
+        (void)_t1372;
+        ;
+        return _t1372;
+    }
+    ;
+    Str *_t1439 = Str_lit("unknown", 7ULL);
+    (void)_t1439;
+    return _t1439;
 }
 
 U64 *TokenType_size(void) {
@@ -8110,39 +8148,39 @@ U64 *TokenType_size(void) {
 
 Token * Token_clone(Token * self) {
     (void)self;
-    I64 _t1436 = I64_clone(&self->line);
-    (void)_t1436;
-    I64 _t1437 = I64_clone(&self->col);
-    (void)_t1437;
-    Token *_t1438 = malloc(sizeof(Token));
-    { TokenType *_ca = TokenType_clone(&self->type); _t1438->type = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(&self->text); _t1438->text = *_ca; free(_ca); }
-    _t1438->line = _t1436;
-    _t1438->col = _t1437;
-    (void)_t1438;
+    I64 _t1441 = I64_clone(&self->line);
+    (void)_t1441;
+    I64 _t1442 = I64_clone(&self->col);
+    (void)_t1442;
+    Token *_t1443 = malloc(sizeof(Token));
+    { TokenType *_ca = TokenType_clone(&self->type); _t1443->type = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->text); _t1443->text = *_ca; free(_ca); }
+    _t1443->line = _t1441;
+    _t1443->col = _t1442;
+    (void)_t1443;
     ;
     ;
-    return _t1438;
+    return _t1443;
 }
 
 void Token_delete(Token * self, Bool * call_free) {
     (void)self;
     (void)call_free;
-    Bool _t1439 = 0;
-    (void)_t1439;
-    TokenType_delete(&self->type, &(Bool){_t1439});
+    Bool _t1444 = 0;
+    (void)_t1444;
+    TokenType_delete(&self->type, &(Bool){_t1444});
     ;
-    Bool _t1440 = 0;
-    (void)_t1440;
-    Str_delete(&self->text, &(Bool){_t1440});
+    Bool _t1445 = 0;
+    (void)_t1445;
+    Str_delete(&self->text, &(Bool){_t1445});
     ;
-    Bool _t1441 = 0;
-    (void)_t1441;
-    I64_delete(&self->line, &(Bool){_t1441});
+    Bool _t1446 = 0;
+    (void)_t1446;
+    I64_delete(&self->line, &(Bool){_t1446});
     ;
-    Bool _t1442 = 0;
-    (void)_t1442;
-    I64_delete(&self->col, &(Bool){_t1442});
+    Bool _t1447 = 0;
+    (void)_t1447;
+    I64_delete(&self->col, &(Bool){_t1447});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -8157,28 +8195,9 @@ U64 *Token_size(void) {
 
 Bool * is_digit(U8 * c) {
     (void)c;
-    U8 _t1444 = 48;
-    (void)_t1444;
-    U8 _t1445 = 57;
-    (void)_t1445;
-    Bool _t1446; { Bool *_hp = (Bool *)U8_gte(c, &(U8){_t1444}); _t1446 = *_hp; free(_hp); }
-    (void)_t1446;
-    ;
-    Bool _t1447; { Bool *_hp = (Bool *)U8_lte(c, &(U8){_t1445}); _t1447 = *_hp; free(_hp); }
-    (void)_t1447;
-    ;
-    Bool _t1448 = Bool_and(_t1446, _t1447);
-    (void)_t1448;
-    ;
-    ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1448; return _r; }
-}
-
-Bool * is_alpha(U8 * c) {
-    (void)c;
-    U8 _t1449 = 97;
+    U8 _t1449 = 48;
     (void)_t1449;
-    U8 _t1450 = 122;
+    U8 _t1450 = 57;
     (void)_t1450;
     Bool _t1451; { Bool *_hp = (Bool *)U8_gte(c, &(U8){_t1449}); _t1451 = *_hp; free(_hp); }
     (void)_t1451;
@@ -8186,147 +8205,166 @@ Bool * is_alpha(U8 * c) {
     Bool _t1452; { Bool *_hp = (Bool *)U8_lte(c, &(U8){_t1450}); _t1452 = *_hp; free(_hp); }
     (void)_t1452;
     ;
-    U8 _t1453 = 65;
+    Bool _t1453 = Bool_and(_t1451, _t1452);
     (void)_t1453;
-    U8 _t1454 = 90;
-    (void)_t1454;
-    Bool _t1455; { Bool *_hp = (Bool *)U8_gte(c, &(U8){_t1453}); _t1455 = *_hp; free(_hp); }
-    (void)_t1455;
     ;
-    Bool _t1456; { Bool *_hp = (Bool *)U8_lte(c, &(U8){_t1454}); _t1456 = *_hp; free(_hp); }
+    ;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1453; return _r; }
+}
+
+Bool * is_alpha(U8 * c) {
+    (void)c;
+    U8 _t1454 = 97;
+    (void)_t1454;
+    U8 _t1455 = 122;
+    (void)_t1455;
+    Bool _t1456; { Bool *_hp = (Bool *)U8_gte(c, &(U8){_t1454}); _t1456 = *_hp; free(_hp); }
     (void)_t1456;
     ;
-    Bool _t1457 = Bool_and(_t1451, _t1452);
+    Bool _t1457; { Bool *_hp = (Bool *)U8_lte(c, &(U8){_t1455}); _t1457 = *_hp; free(_hp); }
     (void)_t1457;
     ;
-    ;
-    Bool _t1458 = Bool_and(_t1455, _t1456);
+    U8 _t1458 = 65;
     (void)_t1458;
-    ;
-    ;
-    U8 _t1459 = 95;
+    U8 _t1459 = 90;
     (void)_t1459;
-    Bool _t1460 = Bool_or(_t1457, _t1458);
+    Bool _t1460; { Bool *_hp = (Bool *)U8_gte(c, &(U8){_t1458}); _t1460 = *_hp; free(_hp); }
     (void)_t1460;
     ;
-    ;
-    Bool _t1461 = U8_eq(DEREF(c), _t1459);
+    Bool _t1461; { Bool *_hp = (Bool *)U8_lte(c, &(U8){_t1459}); _t1461 = *_hp; free(_hp); }
     (void)_t1461;
     ;
-    Bool _t1462 = Bool_or(_t1460, _t1461);
+    Bool _t1462 = Bool_and(_t1456, _t1457);
     (void)_t1462;
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1462; return _r; }
+    Bool _t1463 = Bool_and(_t1460, _t1461);
+    (void)_t1463;
+    ;
+    ;
+    U8 _t1464 = 95;
+    (void)_t1464;
+    Bool _t1465 = Bool_or(_t1462, _t1463);
+    (void)_t1465;
+    ;
+    ;
+    Bool _t1466 = U8_eq(DEREF(c), _t1464);
+    (void)_t1466;
+    ;
+    Bool _t1467 = Bool_or(_t1465, _t1466);
+    (void)_t1467;
+    ;
+    ;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1467; return _r; }
 }
 
 Bool * is_alnum(U8 * c) {
     (void)c;
-    Bool _t1463; { Bool *_hp = (Bool *)is_alpha(c); _t1463 = *_hp; free(_hp); }
-    (void)_t1463;
-    Bool _t1464; { Bool *_hp = (Bool *)is_digit(c); _t1464 = *_hp; free(_hp); }
-    (void)_t1464;
-    Bool _t1465 = Bool_or(_t1463, _t1464);
-    (void)_t1465;
+    Bool _t1468; { Bool *_hp = (Bool *)is_alpha(c); _t1468 = *_hp; free(_hp); }
+    (void)_t1468;
+    Bool _t1469; { Bool *_hp = (Bool *)is_digit(c); _t1469 = *_hp; free(_hp); }
+    (void)_t1469;
+    Bool _t1470 = Bool_or(_t1468, _t1469);
+    (void)_t1470;
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1465; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1470; return _r; }
 }
 
 Str * tok_name(TokenType * type) {
     (void)type;
     {
-        TokenType *_sw1466 = TokenType_clone(type);
-        (void)_sw1466;
-        Bool _t1597; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Eof()); _t1597 = *_hp; free(_hp); }
-        (void)_t1597;
-        if (_t1597) {
-            Str *_t1467 = Str_lit("eof", 3ULL);
-            (void)_t1467;
-            TokenType_delete(_sw1466, &(Bool){1});
+        TokenType *_sw1471 = TokenType_clone(type);
+        (void)_sw1471;
+        Bool _t1604; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Eof()); _t1604 = *_hp; free(_hp); }
+        (void)_t1604;
+        if (_t1604) {
+            Str *_t1472 = Str_lit("eof", 3ULL);
+            (void)_t1472;
+            TokenType_delete(_sw1471, &(Bool){1});
             ;
-            return _t1467;
+            return _t1472;
         } else {
-            Bool _t1596; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_LParen()); _t1596 = *_hp; free(_hp); }
-            (void)_t1596;
-            if (_t1596) {
-                Str *_t1468 = Str_lit("(", 1ULL);
-                (void)_t1468;
+            Bool _t1603; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_LParen()); _t1603 = *_hp; free(_hp); }
+            (void)_t1603;
+            if (_t1603) {
+                Str *_t1473 = Str_lit("(", 1ULL);
+                (void)_t1473;
                 ;
-                TokenType_delete(_sw1466, &(Bool){1});
+                TokenType_delete(_sw1471, &(Bool){1});
                 ;
-                return _t1468;
+                return _t1473;
             } else {
-                Bool _t1595; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_RParen()); _t1595 = *_hp; free(_hp); }
-                (void)_t1595;
-                if (_t1595) {
-                    Str *_t1469 = Str_lit(")", 1ULL);
-                    (void)_t1469;
+                Bool _t1602; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_RParen()); _t1602 = *_hp; free(_hp); }
+                (void)_t1602;
+                if (_t1602) {
+                    Str *_t1474 = Str_lit(")", 1ULL);
+                    (void)_t1474;
                     ;
                     ;
-                    TokenType_delete(_sw1466, &(Bool){1});
+                    TokenType_delete(_sw1471, &(Bool){1});
                     ;
-                    return _t1469;
+                    return _t1474;
                 } else {
-                    Bool _t1594; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_LBrace()); _t1594 = *_hp; free(_hp); }
-                    (void)_t1594;
-                    if (_t1594) {
-                        Str *_t1470 = Str_lit("{", 1ULL);
-                        (void)_t1470;
+                    Bool _t1601; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_LBrace()); _t1601 = *_hp; free(_hp); }
+                    (void)_t1601;
+                    if (_t1601) {
+                        Str *_t1475 = Str_lit("{", 1ULL);
+                        (void)_t1475;
                         ;
                         ;
                         ;
-                        TokenType_delete(_sw1466, &(Bool){1});
+                        TokenType_delete(_sw1471, &(Bool){1});
                         ;
-                        return _t1470;
+                        return _t1475;
                     } else {
-                        Bool _t1593; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_RBrace()); _t1593 = *_hp; free(_hp); }
-                        (void)_t1593;
-                        if (_t1593) {
-                            Str *_t1471 = Str_lit("}", 1ULL);
-                            (void)_t1471;
+                        Bool _t1600; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_RBrace()); _t1600 = *_hp; free(_hp); }
+                        (void)_t1600;
+                        if (_t1600) {
+                            Str *_t1476 = Str_lit("}", 1ULL);
+                            (void)_t1476;
                             ;
                             ;
                             ;
                             ;
-                            TokenType_delete(_sw1466, &(Bool){1});
+                            TokenType_delete(_sw1471, &(Bool){1});
                             ;
-                            return _t1471;
+                            return _t1476;
                         } else {
-                            Bool _t1592; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_LBracket()); _t1592 = *_hp; free(_hp); }
-                            (void)_t1592;
-                            if (_t1592) {
-                                Str *_t1472 = Str_lit("[", 1ULL);
-                                (void)_t1472;
+                            Bool _t1599; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_LBracket()); _t1599 = *_hp; free(_hp); }
+                            (void)_t1599;
+                            if (_t1599) {
+                                Str *_t1477 = Str_lit("[", 1ULL);
+                                (void)_t1477;
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                TokenType_delete(_sw1466, &(Bool){1});
+                                TokenType_delete(_sw1471, &(Bool){1});
                                 ;
-                                return _t1472;
+                                return _t1477;
                             } else {
-                                Bool _t1591; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_RBracket()); _t1591 = *_hp; free(_hp); }
-                                (void)_t1591;
-                                if (_t1591) {
-                                    Str *_t1473 = Str_lit("]", 1ULL);
-                                    (void)_t1473;
+                                Bool _t1598; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_RBracket()); _t1598 = *_hp; free(_hp); }
+                                (void)_t1598;
+                                if (_t1598) {
+                                    Str *_t1478 = Str_lit("]", 1ULL);
+                                    (void)_t1478;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    TokenType_delete(_sw1466, &(Bool){1});
+                                    TokenType_delete(_sw1471, &(Bool){1});
                                     ;
-                                    return _t1473;
+                                    return _t1478;
                                 } else {
-                                    Bool _t1590; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Comma()); _t1590 = *_hp; free(_hp); }
-                                    (void)_t1590;
-                                    if (_t1590) {
-                                        Str *_t1474 = Str_lit(",", 1ULL);
-                                        (void)_t1474;
+                                    Bool _t1597; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Comma()); _t1597 = *_hp; free(_hp); }
+                                    (void)_t1597;
+                                    if (_t1597) {
+                                        Str *_t1479 = Str_lit(",", 1ULL);
+                                        (void)_t1479;
                                         ;
                                         ;
                                         ;
@@ -8334,15 +8372,15 @@ Str * tok_name(TokenType * type) {
                                         ;
                                         ;
                                         ;
-                                        TokenType_delete(_sw1466, &(Bool){1});
+                                        TokenType_delete(_sw1471, &(Bool){1});
                                         ;
-                                        return _t1474;
+                                        return _t1479;
                                     } else {
-                                        Bool _t1589; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Colon()); _t1589 = *_hp; free(_hp); }
-                                        (void)_t1589;
-                                        if (_t1589) {
-                                            Str *_t1475 = Str_lit(":", 1ULL);
-                                            (void)_t1475;
+                                        Bool _t1596; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Colon()); _t1596 = *_hp; free(_hp); }
+                                        (void)_t1596;
+                                        if (_t1596) {
+                                            Str *_t1480 = Str_lit(":", 1ULL);
+                                            (void)_t1480;
                                             ;
                                             ;
                                             ;
@@ -8351,15 +8389,15 @@ Str * tok_name(TokenType * type) {
                                             ;
                                             ;
                                             ;
-                                            TokenType_delete(_sw1466, &(Bool){1});
+                                            TokenType_delete(_sw1471, &(Bool){1});
                                             ;
-                                            return _t1475;
+                                            return _t1480;
                                         } else {
-                                            Bool _t1588; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Question()); _t1588 = *_hp; free(_hp); }
-                                            (void)_t1588;
-                                            if (_t1588) {
-                                                Str *_t1476 = Str_lit("?", 1ULL);
-                                                (void)_t1476;
+                                            Bool _t1595; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Question()); _t1595 = *_hp; free(_hp); }
+                                            (void)_t1595;
+                                            if (_t1595) {
+                                                Str *_t1481 = Str_lit("?", 1ULL);
+                                                (void)_t1481;
                                                 ;
                                                 ;
                                                 ;
@@ -8369,15 +8407,15 @@ Str * tok_name(TokenType * type) {
                                                 ;
                                                 ;
                                                 ;
-                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                TokenType_delete(_sw1471, &(Bool){1});
                                                 ;
-                                                return _t1476;
+                                                return _t1481;
                                             } else {
-                                                Bool _t1587; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Bang()); _t1587 = *_hp; free(_hp); }
-                                                (void)_t1587;
-                                                if (_t1587) {
-                                                    Str *_t1477 = Str_lit("!", 1ULL);
-                                                    (void)_t1477;
+                                                Bool _t1594; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Bang()); _t1594 = *_hp; free(_hp); }
+                                                (void)_t1594;
+                                                if (_t1594) {
+                                                    Str *_t1482 = Str_lit("!", 1ULL);
+                                                    (void)_t1482;
                                                     ;
                                                     ;
                                                     ;
@@ -8388,15 +8426,15 @@ Str * tok_name(TokenType * type) {
                                                     ;
                                                     ;
                                                     ;
-                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                     ;
-                                                    return _t1477;
+                                                    return _t1482;
                                                 } else {
-                                                    Bool _t1586; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Minus()); _t1586 = *_hp; free(_hp); }
-                                                    (void)_t1586;
-                                                    if (_t1586) {
-                                                        Str *_t1478 = Str_lit("-", 1ULL);
-                                                        (void)_t1478;
+                                                    Bool _t1593; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Minus()); _t1593 = *_hp; free(_hp); }
+                                                    (void)_t1593;
+                                                    if (_t1593) {
+                                                        Str *_t1483 = Str_lit("-", 1ULL);
+                                                        (void)_t1483;
                                                         ;
                                                         ;
                                                         ;
@@ -8408,15 +8446,15 @@ Str * tok_name(TokenType * type) {
                                                         ;
                                                         ;
                                                         ;
-                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                         ;
-                                                        return _t1478;
+                                                        return _t1483;
                                                     } else {
-                                                        Bool _t1585; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Plus()); _t1585 = *_hp; free(_hp); }
-                                                        (void)_t1585;
-                                                        if (_t1585) {
-                                                            Str *_t1479 = Str_lit("+", 1ULL);
-                                                            (void)_t1479;
+                                                        Bool _t1592; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Plus()); _t1592 = *_hp; free(_hp); }
+                                                        (void)_t1592;
+                                                        if (_t1592) {
+                                                            Str *_t1484 = Str_lit("+", 1ULL);
+                                                            (void)_t1484;
                                                             ;
                                                             ;
                                                             ;
@@ -8429,15 +8467,15 @@ Str * tok_name(TokenType * type) {
                                                             ;
                                                             ;
                                                             ;
-                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                             ;
-                                                            return _t1479;
+                                                            return _t1484;
                                                         } else {
-                                                            Bool _t1584; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Star()); _t1584 = *_hp; free(_hp); }
-                                                            (void)_t1584;
-                                                            if (_t1584) {
-                                                                Str *_t1480 = Str_lit("*", 1ULL);
-                                                                (void)_t1480;
+                                                            Bool _t1591; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Star()); _t1591 = *_hp; free(_hp); }
+                                                            (void)_t1591;
+                                                            if (_t1591) {
+                                                                Str *_t1485 = Str_lit("*", 1ULL);
+                                                                (void)_t1485;
                                                                 ;
                                                                 ;
                                                                 ;
@@ -8451,15 +8489,15 @@ Str * tok_name(TokenType * type) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                 ;
-                                                                return _t1480;
+                                                                return _t1485;
                                                             } else {
-                                                                Bool _t1583; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Slash()); _t1583 = *_hp; free(_hp); }
-                                                                (void)_t1583;
-                                                                if (_t1583) {
-                                                                    Str *_t1481 = Str_lit("/", 1ULL);
-                                                                    (void)_t1481;
+                                                                Bool _t1590; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Slash()); _t1590 = *_hp; free(_hp); }
+                                                                (void)_t1590;
+                                                                if (_t1590) {
+                                                                    Str *_t1486 = Str_lit("/", 1ULL);
+                                                                    (void)_t1486;
                                                                     ;
                                                                     ;
                                                                     ;
@@ -8474,15 +8512,15 @@ Str * tok_name(TokenType * type) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                     ;
-                                                                    return _t1481;
+                                                                    return _t1486;
                                                                 } else {
-                                                                    Bool _t1582; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Dot()); _t1582 = *_hp; free(_hp); }
-                                                                    (void)_t1582;
-                                                                    if (_t1582) {
-                                                                        Str *_t1482 = Str_lit(".", 1ULL);
-                                                                        (void)_t1482;
+                                                                    Bool _t1589; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Dot()); _t1589 = *_hp; free(_hp); }
+                                                                    (void)_t1589;
+                                                                    if (_t1589) {
+                                                                        Str *_t1487 = Str_lit(".", 1ULL);
+                                                                        (void)_t1487;
                                                                         ;
                                                                         ;
                                                                         ;
@@ -8498,15 +8536,15 @@ Str * tok_name(TokenType * type) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                         ;
-                                                                        return _t1482;
+                                                                        return _t1487;
                                                                     } else {
-                                                                        Bool _t1581; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_DotDot()); _t1581 = *_hp; free(_hp); }
-                                                                        (void)_t1581;
-                                                                        if (_t1581) {
-                                                                            Str *_t1483 = Str_lit("..", 2ULL);
-                                                                            (void)_t1483;
+                                                                        Bool _t1588; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_DotDot()); _t1588 = *_hp; free(_hp); }
+                                                                        (void)_t1588;
+                                                                        if (_t1588) {
+                                                                            Str *_t1488 = Str_lit("..", 2ULL);
+                                                                            (void)_t1488;
                                                                             ;
                                                                             ;
                                                                             ;
@@ -8523,15 +8561,15 @@ Str * tok_name(TokenType * type) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                             ;
-                                                                            return _t1483;
+                                                                            return _t1488;
                                                                         } else {
-                                                                            Bool _t1580; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Eq()); _t1580 = *_hp; free(_hp); }
-                                                                            (void)_t1580;
-                                                                            if (_t1580) {
-                                                                                Str *_t1484 = Str_lit("=", 1ULL);
-                                                                                (void)_t1484;
+                                                                            Bool _t1587; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_DotDotDot()); _t1587 = *_hp; free(_hp); }
+                                                                            (void)_t1587;
+                                                                            if (_t1587) {
+                                                                                Str *_t1489 = Str_lit("...", 3ULL);
+                                                                                (void)_t1489;
                                                                                 ;
                                                                                 ;
                                                                                 ;
@@ -8549,15 +8587,15 @@ Str * tok_name(TokenType * type) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                 ;
-                                                                                return _t1484;
+                                                                                return _t1489;
                                                                             } else {
-                                                                                Bool _t1579; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_EqEq()); _t1579 = *_hp; free(_hp); }
-                                                                                (void)_t1579;
-                                                                                if (_t1579) {
-                                                                                    Str *_t1485 = Str_lit("==", 2ULL);
-                                                                                    (void)_t1485;
+                                                                                Bool _t1586; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Eq()); _t1586 = *_hp; free(_hp); }
+                                                                                (void)_t1586;
+                                                                                if (_t1586) {
+                                                                                    Str *_t1490 = Str_lit("=", 1ULL);
+                                                                                    (void)_t1490;
                                                                                     ;
                                                                                     ;
                                                                                     ;
@@ -8576,15 +8614,15 @@ Str * tok_name(TokenType * type) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                     ;
-                                                                                    return _t1485;
+                                                                                    return _t1490;
                                                                                 } else {
-                                                                                    Bool _t1578; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Neq()); _t1578 = *_hp; free(_hp); }
-                                                                                    (void)_t1578;
-                                                                                    if (_t1578) {
-                                                                                        Str *_t1486 = Str_lit("!=", 2ULL);
-                                                                                        (void)_t1486;
+                                                                                    Bool _t1585; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_EqEq()); _t1585 = *_hp; free(_hp); }
+                                                                                    (void)_t1585;
+                                                                                    if (_t1585) {
+                                                                                        Str *_t1491 = Str_lit("==", 2ULL);
+                                                                                        (void)_t1491;
                                                                                         ;
                                                                                         ;
                                                                                         ;
@@ -8604,15 +8642,15 @@ Str * tok_name(TokenType * type) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                         ;
-                                                                                        return _t1486;
+                                                                                        return _t1491;
                                                                                     } else {
-                                                                                        Bool _t1577; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Lt()); _t1577 = *_hp; free(_hp); }
-                                                                                        (void)_t1577;
-                                                                                        if (_t1577) {
-                                                                                            Str *_t1487 = Str_lit("<", 1ULL);
-                                                                                            (void)_t1487;
+                                                                                        Bool _t1584; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Neq()); _t1584 = *_hp; free(_hp); }
+                                                                                        (void)_t1584;
+                                                                                        if (_t1584) {
+                                                                                            Str *_t1492 = Str_lit("!=", 2ULL);
+                                                                                            (void)_t1492;
                                                                                             ;
                                                                                             ;
                                                                                             ;
@@ -8633,15 +8671,15 @@ Str * tok_name(TokenType * type) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                             ;
-                                                                                            return _t1487;
+                                                                                            return _t1492;
                                                                                         } else {
-                                                                                            Bool _t1576; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_LtEq()); _t1576 = *_hp; free(_hp); }
-                                                                                            (void)_t1576;
-                                                                                            if (_t1576) {
-                                                                                                Str *_t1488 = Str_lit("<=", 2ULL);
-                                                                                                (void)_t1488;
+                                                                                            Bool _t1583; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Lt()); _t1583 = *_hp; free(_hp); }
+                                                                                            (void)_t1583;
+                                                                                            if (_t1583) {
+                                                                                                Str *_t1493 = Str_lit("<", 1ULL);
+                                                                                                (void)_t1493;
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
@@ -8663,15 +8701,15 @@ Str * tok_name(TokenType * type) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                 ;
-                                                                                                return _t1488;
+                                                                                                return _t1493;
                                                                                             } else {
-                                                                                                Bool _t1575; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Gt()); _t1575 = *_hp; free(_hp); }
-                                                                                                (void)_t1575;
-                                                                                                if (_t1575) {
-                                                                                                    Str *_t1489 = Str_lit(">", 1ULL);
-                                                                                                    (void)_t1489;
+                                                                                                Bool _t1582; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_LtEq()); _t1582 = *_hp; free(_hp); }
+                                                                                                (void)_t1582;
+                                                                                                if (_t1582) {
+                                                                                                    Str *_t1494 = Str_lit("<=", 2ULL);
+                                                                                                    (void)_t1494;
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
@@ -8694,15 +8732,15 @@ Str * tok_name(TokenType * type) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                     ;
-                                                                                                    return _t1489;
+                                                                                                    return _t1494;
                                                                                                 } else {
-                                                                                                    Bool _t1574; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_GtEq()); _t1574 = *_hp; free(_hp); }
-                                                                                                    (void)_t1574;
-                                                                                                    if (_t1574) {
-                                                                                                        Str *_t1490 = Str_lit(">=", 2ULL);
-                                                                                                        (void)_t1490;
+                                                                                                    Bool _t1581; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Gt()); _t1581 = *_hp; free(_hp); }
+                                                                                                    (void)_t1581;
+                                                                                                    if (_t1581) {
+                                                                                                        Str *_t1495 = Str_lit(">", 1ULL);
+                                                                                                        (void)_t1495;
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
@@ -8726,15 +8764,15 @@ Str * tok_name(TokenType * type) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                         ;
-                                                                                                        return _t1490;
+                                                                                                        return _t1495;
                                                                                                     } else {
-                                                                                                        Bool _t1573; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_ColonEq()); _t1573 = *_hp; free(_hp); }
-                                                                                                        (void)_t1573;
-                                                                                                        if (_t1573) {
-                                                                                                            Str *_t1491 = Str_lit(":=", 2ULL);
-                                                                                                            (void)_t1491;
+                                                                                                        Bool _t1580; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_GtEq()); _t1580 = *_hp; free(_hp); }
+                                                                                                        (void)_t1580;
+                                                                                                        if (_t1580) {
+                                                                                                            Str *_t1496 = Str_lit(">=", 2ULL);
+                                                                                                            (void)_t1496;
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
@@ -8759,15 +8797,15 @@ Str * tok_name(TokenType * type) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                             ;
-                                                                                                            return _t1491;
+                                                                                                            return _t1496;
                                                                                                         } else {
-                                                                                                            Bool _t1572; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Ident()); _t1572 = *_hp; free(_hp); }
-                                                                                                            (void)_t1572;
-                                                                                                            if (_t1572) {
-                                                                                                                Str *_t1492 = Str_lit("identifier", 10ULL);
-                                                                                                                (void)_t1492;
+                                                                                                            Bool _t1579; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_ColonEq()); _t1579 = *_hp; free(_hp); }
+                                                                                                            (void)_t1579;
+                                                                                                            if (_t1579) {
+                                                                                                                Str *_t1497 = Str_lit(":=", 2ULL);
+                                                                                                                (void)_t1497;
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
@@ -8793,15 +8831,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
-                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                 ;
-                                                                                                                return _t1492;
+                                                                                                                return _t1497;
                                                                                                             } else {
-                                                                                                                Bool _t1571; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_StringTok()); _t1571 = *_hp; free(_hp); }
-                                                                                                                (void)_t1571;
-                                                                                                                if (_t1571) {
-                                                                                                                    Str *_t1493 = Str_lit("string", 6ULL);
-                                                                                                                    (void)_t1493;
+                                                                                                                Bool _t1578; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Ident()); _t1578 = *_hp; free(_hp); }
+                                                                                                                (void)_t1578;
+                                                                                                                if (_t1578) {
+                                                                                                                    Str *_t1498 = Str_lit("identifier", 10ULL);
+                                                                                                                    (void)_t1498;
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
@@ -8828,15 +8866,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
-                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                     ;
-                                                                                                                    return _t1493;
+                                                                                                                    return _t1498;
                                                                                                                 } else {
-                                                                                                                    Bool _t1570; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Number()); _t1570 = *_hp; free(_hp); }
-                                                                                                                    (void)_t1570;
-                                                                                                                    if (_t1570) {
-                                                                                                                        Str *_t1494 = Str_lit("number", 6ULL);
-                                                                                                                        (void)_t1494;
+                                                                                                                    Bool _t1577; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_StringTok()); _t1577 = *_hp; free(_hp); }
+                                                                                                                    (void)_t1577;
+                                                                                                                    if (_t1577) {
+                                                                                                                        Str *_t1499 = Str_lit("string", 6ULL);
+                                                                                                                        (void)_t1499;
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
@@ -8864,15 +8902,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
-                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                         ;
-                                                                                                                        return _t1494;
+                                                                                                                        return _t1499;
                                                                                                                     } else {
-                                                                                                                        Bool _t1569; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Char()); _t1569 = *_hp; free(_hp); }
-                                                                                                                        (void)_t1569;
-                                                                                                                        if (_t1569) {
-                                                                                                                            Str *_t1495 = Str_lit("char", 4ULL);
-                                                                                                                            (void)_t1495;
+                                                                                                                        Bool _t1576; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Number()); _t1576 = *_hp; free(_hp); }
+                                                                                                                        (void)_t1576;
+                                                                                                                        if (_t1576) {
+                                                                                                                            Str *_t1500 = Str_lit("number", 6ULL);
+                                                                                                                            (void)_t1500;
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
@@ -8901,15 +8939,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
-                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                             ;
-                                                                                                                            return _t1495;
+                                                                                                                            return _t1500;
                                                                                                                         } else {
-                                                                                                                            Bool _t1568; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwMode()); _t1568 = *_hp; free(_hp); }
-                                                                                                                            (void)_t1568;
-                                                                                                                            if (_t1568) {
-                                                                                                                                Str *_t1496 = Str_lit("mode", 4ULL);
-                                                                                                                                (void)_t1496;
+                                                                                                                            Bool _t1575; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Char()); _t1575 = *_hp; free(_hp); }
+                                                                                                                            (void)_t1575;
+                                                                                                                            if (_t1575) {
+                                                                                                                                Str *_t1501 = Str_lit("char", 4ULL);
+                                                                                                                                (void)_t1501;
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
@@ -8939,15 +8977,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
-                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                 ;
-                                                                                                                                return _t1496;
+                                                                                                                                return _t1501;
                                                                                                                             } else {
-                                                                                                                                Bool _t1567; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwMut()); _t1567 = *_hp; free(_hp); }
-                                                                                                                                (void)_t1567;
-                                                                                                                                if (_t1567) {
-                                                                                                                                    Str *_t1497 = Str_lit("mut", 3ULL);
-                                                                                                                                    (void)_t1497;
+                                                                                                                                Bool _t1574; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwMode()); _t1574 = *_hp; free(_hp); }
+                                                                                                                                (void)_t1574;
+                                                                                                                                if (_t1574) {
+                                                                                                                                    Str *_t1502 = Str_lit("mode", 4ULL);
+                                                                                                                                    (void)_t1502;
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
@@ -8978,15 +9016,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
-                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                     ;
-                                                                                                                                    return _t1497;
+                                                                                                                                    return _t1502;
                                                                                                                                 } else {
-                                                                                                                                    Bool _t1566; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwOwn()); _t1566 = *_hp; free(_hp); }
-                                                                                                                                    (void)_t1566;
-                                                                                                                                    if (_t1566) {
-                                                                                                                                        Str *_t1498 = Str_lit("own", 3ULL);
-                                                                                                                                        (void)_t1498;
+                                                                                                                                    Bool _t1573; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwMut()); _t1573 = *_hp; free(_hp); }
+                                                                                                                                    (void)_t1573;
+                                                                                                                                    if (_t1573) {
+                                                                                                                                        Str *_t1503 = Str_lit("mut", 3ULL);
+                                                                                                                                        (void)_t1503;
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
@@ -9018,15 +9056,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
-                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                         ;
-                                                                                                                                        return _t1498;
+                                                                                                                                        return _t1503;
                                                                                                                                     } else {
-                                                                                                                                        Bool _t1565; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwRef()); _t1565 = *_hp; free(_hp); }
-                                                                                                                                        (void)_t1565;
-                                                                                                                                        if (_t1565) {
-                                                                                                                                            Str *_t1499 = Str_lit("ref", 3ULL);
-                                                                                                                                            (void)_t1499;
+                                                                                                                                        Bool _t1572; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwOwn()); _t1572 = *_hp; free(_hp); }
+                                                                                                                                        (void)_t1572;
+                                                                                                                                        if (_t1572) {
+                                                                                                                                            Str *_t1504 = Str_lit("own", 3ULL);
+                                                                                                                                            (void)_t1504;
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
@@ -9059,15 +9097,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
-                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                             ;
-                                                                                                                                            return _t1499;
+                                                                                                                                            return _t1504;
                                                                                                                                         } else {
-                                                                                                                                            Bool _t1564; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwShallow()); _t1564 = *_hp; free(_hp); }
-                                                                                                                                            (void)_t1564;
-                                                                                                                                            if (_t1564) {
-                                                                                                                                                Str *_t1500 = Str_lit("shallow", 7ULL);
-                                                                                                                                                (void)_t1500;
+                                                                                                                                            Bool _t1571; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwRef()); _t1571 = *_hp; free(_hp); }
+                                                                                                                                            (void)_t1571;
+                                                                                                                                            if (_t1571) {
+                                                                                                                                                Str *_t1505 = Str_lit("ref", 3ULL);
+                                                                                                                                                (void)_t1505;
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
@@ -9101,15 +9139,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
-                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                 ;
-                                                                                                                                                return _t1500;
+                                                                                                                                                return _t1505;
                                                                                                                                             } else {
-                                                                                                                                                Bool _t1563; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwStruct()); _t1563 = *_hp; free(_hp); }
-                                                                                                                                                (void)_t1563;
-                                                                                                                                                if (_t1563) {
-                                                                                                                                                    Str *_t1501 = Str_lit("struct", 6ULL);
-                                                                                                                                                    (void)_t1501;
+                                                                                                                                                Bool _t1570; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwShallow()); _t1570 = *_hp; free(_hp); }
+                                                                                                                                                (void)_t1570;
+                                                                                                                                                if (_t1570) {
+                                                                                                                                                    Str *_t1506 = Str_lit("shallow", 7ULL);
+                                                                                                                                                    (void)_t1506;
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
@@ -9144,15 +9182,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                     ;
-                                                                                                                                                    return _t1501;
+                                                                                                                                                    return _t1506;
                                                                                                                                                 } else {
-                                                                                                                                                    Bool _t1562; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwExtStruct()); _t1562 = *_hp; free(_hp); }
-                                                                                                                                                    (void)_t1562;
-                                                                                                                                                    if (_t1562) {
-                                                                                                                                                        Str *_t1502 = Str_lit("ext_struct", 10ULL);
-                                                                                                                                                        (void)_t1502;
+                                                                                                                                                    Bool _t1569; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwStruct()); _t1569 = *_hp; free(_hp); }
+                                                                                                                                                    (void)_t1569;
+                                                                                                                                                    if (_t1569) {
+                                                                                                                                                        Str *_t1507 = Str_lit("struct", 6ULL);
+                                                                                                                                                        (void)_t1507;
                                                                                                                                                         ;
                                                                                                                                                         ;
                                                                                                                                                         ;
@@ -9188,15 +9226,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                         ;
                                                                                                                                                         ;
                                                                                                                                                         ;
-                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                         ;
-                                                                                                                                                        return _t1502;
+                                                                                                                                                        return _t1507;
                                                                                                                                                     } else {
-                                                                                                                                                        Bool _t1561; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwEnum()); _t1561 = *_hp; free(_hp); }
-                                                                                                                                                        (void)_t1561;
-                                                                                                                                                        if (_t1561) {
-                                                                                                                                                            Str *_t1503 = Str_lit("enum", 4ULL);
-                                                                                                                                                            (void)_t1503;
+                                                                                                                                                        Bool _t1568; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwExtStruct()); _t1568 = *_hp; free(_hp); }
+                                                                                                                                                        (void)_t1568;
+                                                                                                                                                        if (_t1568) {
+                                                                                                                                                            Str *_t1508 = Str_lit("ext_struct", 10ULL);
+                                                                                                                                                            (void)_t1508;
                                                                                                                                                             ;
                                                                                                                                                             ;
                                                                                                                                                             ;
@@ -9233,15 +9271,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                             ;
                                                                                                                                                             ;
                                                                                                                                                             ;
-                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                             ;
-                                                                                                                                                            return _t1503;
+                                                                                                                                                            return _t1508;
                                                                                                                                                         } else {
-                                                                                                                                                            Bool _t1560; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwNamespace()); _t1560 = *_hp; free(_hp); }
-                                                                                                                                                            (void)_t1560;
-                                                                                                                                                            if (_t1560) {
-                                                                                                                                                                Str *_t1504 = Str_lit("namespace", 9ULL);
-                                                                                                                                                                (void)_t1504;
+                                                                                                                                                            Bool _t1567; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwEnum()); _t1567 = *_hp; free(_hp); }
+                                                                                                                                                            (void)_t1567;
+                                                                                                                                                            if (_t1567) {
+                                                                                                                                                                Str *_t1509 = Str_lit("enum", 4ULL);
+                                                                                                                                                                (void)_t1509;
                                                                                                                                                                 ;
                                                                                                                                                                 ;
                                                                                                                                                                 ;
@@ -9279,15 +9317,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                 ;
                                                                                                                                                                 ;
                                                                                                                                                                 ;
-                                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                 ;
-                                                                                                                                                                return _t1504;
+                                                                                                                                                                return _t1509;
                                                                                                                                                             } else {
-                                                                                                                                                                Bool _t1559; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwFunc()); _t1559 = *_hp; free(_hp); }
-                                                                                                                                                                (void)_t1559;
-                                                                                                                                                                if (_t1559) {
-                                                                                                                                                                    Str *_t1505 = Str_lit("func", 4ULL);
-                                                                                                                                                                    (void)_t1505;
+                                                                                                                                                                Bool _t1566; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwNamespace()); _t1566 = *_hp; free(_hp); }
+                                                                                                                                                                (void)_t1566;
+                                                                                                                                                                if (_t1566) {
+                                                                                                                                                                    Str *_t1510 = Str_lit("namespace", 9ULL);
+                                                                                                                                                                    (void)_t1510;
                                                                                                                                                                     ;
                                                                                                                                                                     ;
                                                                                                                                                                     ;
@@ -9326,15 +9364,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                     ;
                                                                                                                                                                     ;
                                                                                                                                                                     ;
-                                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                     ;
-                                                                                                                                                                    return _t1505;
+                                                                                                                                                                    return _t1510;
                                                                                                                                                                 } else {
-                                                                                                                                                                    Bool _t1558; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwProc()); _t1558 = *_hp; free(_hp); }
-                                                                                                                                                                    (void)_t1558;
-                                                                                                                                                                    if (_t1558) {
-                                                                                                                                                                        Str *_t1506 = Str_lit("proc", 4ULL);
-                                                                                                                                                                        (void)_t1506;
+                                                                                                                                                                    Bool _t1565; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwFunc()); _t1565 = *_hp; free(_hp); }
+                                                                                                                                                                    (void)_t1565;
+                                                                                                                                                                    if (_t1565) {
+                                                                                                                                                                        Str *_t1511 = Str_lit("func", 4ULL);
+                                                                                                                                                                        (void)_t1511;
                                                                                                                                                                         ;
                                                                                                                                                                         ;
                                                                                                                                                                         ;
@@ -9374,15 +9412,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                         ;
                                                                                                                                                                         ;
                                                                                                                                                                         ;
-                                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                         ;
-                                                                                                                                                                        return _t1506;
+                                                                                                                                                                        return _t1511;
                                                                                                                                                                     } else {
-                                                                                                                                                                        Bool _t1557; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwTest()); _t1557 = *_hp; free(_hp); }
-                                                                                                                                                                        (void)_t1557;
-                                                                                                                                                                        if (_t1557) {
-                                                                                                                                                                            Str *_t1507 = Str_lit("test", 4ULL);
-                                                                                                                                                                            (void)_t1507;
+                                                                                                                                                                        Bool _t1564; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwProc()); _t1564 = *_hp; free(_hp); }
+                                                                                                                                                                        (void)_t1564;
+                                                                                                                                                                        if (_t1564) {
+                                                                                                                                                                            Str *_t1512 = Str_lit("proc", 4ULL);
+                                                                                                                                                                            (void)_t1512;
                                                                                                                                                                             ;
                                                                                                                                                                             ;
                                                                                                                                                                             ;
@@ -9423,15 +9461,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                             ;
                                                                                                                                                                             ;
                                                                                                                                                                             ;
-                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                             ;
-                                                                                                                                                                            return _t1507;
+                                                                                                                                                                            return _t1512;
                                                                                                                                                                         } else {
-                                                                                                                                                                            Bool _t1556; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwMacro()); _t1556 = *_hp; free(_hp); }
-                                                                                                                                                                            (void)_t1556;
-                                                                                                                                                                            if (_t1556) {
-                                                                                                                                                                                Str *_t1508 = Str_lit("macro", 5ULL);
-                                                                                                                                                                                (void)_t1508;
+                                                                                                                                                                            Bool _t1563; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwTest()); _t1563 = *_hp; free(_hp); }
+                                                                                                                                                                            (void)_t1563;
+                                                                                                                                                                            if (_t1563) {
+                                                                                                                                                                                Str *_t1513 = Str_lit("test", 4ULL);
+                                                                                                                                                                                (void)_t1513;
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
@@ -9473,15 +9511,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
-                                                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                 ;
-                                                                                                                                                                                return _t1508;
+                                                                                                                                                                                return _t1513;
                                                                                                                                                                             } else {
-                                                                                                                                                                                Bool _t1555; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwExtFunc()); _t1555 = *_hp; free(_hp); }
-                                                                                                                                                                                (void)_t1555;
-                                                                                                                                                                                if (_t1555) {
-                                                                                                                                                                                    Str *_t1509 = Str_lit("ext_func", 8ULL);
-                                                                                                                                                                                    (void)_t1509;
+                                                                                                                                                                                Bool _t1562; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwMacro()); _t1562 = *_hp; free(_hp); }
+                                                                                                                                                                                (void)_t1562;
+                                                                                                                                                                                if (_t1562) {
+                                                                                                                                                                                    Str *_t1514 = Str_lit("macro", 5ULL);
+                                                                                                                                                                                    (void)_t1514;
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
@@ -9524,15 +9562,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
-                                                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                     ;
-                                                                                                                                                                                    return _t1509;
+                                                                                                                                                                                    return _t1514;
                                                                                                                                                                                 } else {
-                                                                                                                                                                                    Bool _t1554; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwExtProc()); _t1554 = *_hp; free(_hp); }
-                                                                                                                                                                                    (void)_t1554;
-                                                                                                                                                                                    if (_t1554) {
-                                                                                                                                                                                        Str *_t1510 = Str_lit("ext_proc", 8ULL);
-                                                                                                                                                                                        (void)_t1510;
+                                                                                                                                                                                    Bool _t1561; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwExtFunc()); _t1561 = *_hp; free(_hp); }
+                                                                                                                                                                                    (void)_t1561;
+                                                                                                                                                                                    if (_t1561) {
+                                                                                                                                                                                        Str *_t1515 = Str_lit("ext_func", 8ULL);
+                                                                                                                                                                                        (void)_t1515;
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
@@ -9576,15 +9614,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
-                                                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                         ;
-                                                                                                                                                                                        return _t1510;
+                                                                                                                                                                                        return _t1515;
                                                                                                                                                                                     } else {
-                                                                                                                                                                                        Bool _t1553; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwReturns()); _t1553 = *_hp; free(_hp); }
-                                                                                                                                                                                        (void)_t1553;
-                                                                                                                                                                                        if (_t1553) {
-                                                                                                                                                                                            Str *_t1511 = Str_lit("returns", 7ULL);
-                                                                                                                                                                                            (void)_t1511;
+                                                                                                                                                                                        Bool _t1560; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwExtProc()); _t1560 = *_hp; free(_hp); }
+                                                                                                                                                                                        (void)_t1560;
+                                                                                                                                                                                        if (_t1560) {
+                                                                                                                                                                                            Str *_t1516 = Str_lit("ext_proc", 8ULL);
+                                                                                                                                                                                            (void)_t1516;
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
@@ -9629,15 +9667,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
-                                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                             ;
-                                                                                                                                                                                            return _t1511;
+                                                                                                                                                                                            return _t1516;
                                                                                                                                                                                         } else {
-                                                                                                                                                                                            Bool _t1552; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwThrows()); _t1552 = *_hp; free(_hp); }
-                                                                                                                                                                                            (void)_t1552;
-                                                                                                                                                                                            if (_t1552) {
-                                                                                                                                                                                                Str *_t1512 = Str_lit("throws", 6ULL);
-                                                                                                                                                                                                (void)_t1512;
+                                                                                                                                                                                            Bool _t1559; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwReturns()); _t1559 = *_hp; free(_hp); }
+                                                                                                                                                                                            (void)_t1559;
+                                                                                                                                                                                            if (_t1559) {
+                                                                                                                                                                                                Str *_t1517 = Str_lit("returns", 7ULL);
+                                                                                                                                                                                                (void)_t1517;
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
@@ -9683,15 +9721,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
-                                                                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                 ;
-                                                                                                                                                                                                return _t1512;
+                                                                                                                                                                                                return _t1517;
                                                                                                                                                                                             } else {
-                                                                                                                                                                                                Bool _t1551; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwIf()); _t1551 = *_hp; free(_hp); }
-                                                                                                                                                                                                (void)_t1551;
-                                                                                                                                                                                                if (_t1551) {
-                                                                                                                                                                                                    Str *_t1513 = Str_lit("if", 2ULL);
-                                                                                                                                                                                                    (void)_t1513;
+                                                                                                                                                                                                Bool _t1558; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwThrows()); _t1558 = *_hp; free(_hp); }
+                                                                                                                                                                                                (void)_t1558;
+                                                                                                                                                                                                if (_t1558) {
+                                                                                                                                                                                                    Str *_t1518 = Str_lit("throws", 6ULL);
+                                                                                                                                                                                                    (void)_t1518;
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
@@ -9738,15 +9776,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
-                                                                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                     ;
-                                                                                                                                                                                                    return _t1513;
+                                                                                                                                                                                                    return _t1518;
                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                    Bool _t1550; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwElse()); _t1550 = *_hp; free(_hp); }
-                                                                                                                                                                                                    (void)_t1550;
-                                                                                                                                                                                                    if (_t1550) {
-                                                                                                                                                                                                        Str *_t1514 = Str_lit("else", 4ULL);
-                                                                                                                                                                                                        (void)_t1514;
+                                                                                                                                                                                                    Bool _t1557; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwIf()); _t1557 = *_hp; free(_hp); }
+                                                                                                                                                                                                    (void)_t1557;
+                                                                                                                                                                                                    if (_t1557) {
+                                                                                                                                                                                                        Str *_t1519 = Str_lit("if", 2ULL);
+                                                                                                                                                                                                        (void)_t1519;
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
@@ -9794,15 +9832,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
-                                                                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                         ;
-                                                                                                                                                                                                        return _t1514;
+                                                                                                                                                                                                        return _t1519;
                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                        Bool _t1549; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwWhile()); _t1549 = *_hp; free(_hp); }
-                                                                                                                                                                                                        (void)_t1549;
-                                                                                                                                                                                                        if (_t1549) {
-                                                                                                                                                                                                            Str *_t1515 = Str_lit("while", 5ULL);
-                                                                                                                                                                                                            (void)_t1515;
+                                                                                                                                                                                                        Bool _t1556; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwElse()); _t1556 = *_hp; free(_hp); }
+                                                                                                                                                                                                        (void)_t1556;
+                                                                                                                                                                                                        if (_t1556) {
+                                                                                                                                                                                                            Str *_t1520 = Str_lit("else", 4ULL);
+                                                                                                                                                                                                            (void)_t1520;
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
@@ -9851,15 +9889,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
-                                                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                             ;
-                                                                                                                                                                                                            return _t1515;
+                                                                                                                                                                                                            return _t1520;
                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                            Bool _t1548; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwFor()); _t1548 = *_hp; free(_hp); }
-                                                                                                                                                                                                            (void)_t1548;
-                                                                                                                                                                                                            if (_t1548) {
-                                                                                                                                                                                                                Str *_t1516 = Str_lit("for", 3ULL);
-                                                                                                                                                                                                                (void)_t1516;
+                                                                                                                                                                                                            Bool _t1555; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwWhile()); _t1555 = *_hp; free(_hp); }
+                                                                                                                                                                                                            (void)_t1555;
+                                                                                                                                                                                                            if (_t1555) {
+                                                                                                                                                                                                                Str *_t1521 = Str_lit("while", 5ULL);
+                                                                                                                                                                                                                (void)_t1521;
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
@@ -9909,15 +9947,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                return _t1516;
+                                                                                                                                                                                                                return _t1521;
                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                Bool _t1547; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwIn()); _t1547 = *_hp; free(_hp); }
-                                                                                                                                                                                                                (void)_t1547;
-                                                                                                                                                                                                                if (_t1547) {
-                                                                                                                                                                                                                    Str *_t1517 = Str_lit("in", 2ULL);
-                                                                                                                                                                                                                    (void)_t1517;
+                                                                                                                                                                                                                Bool _t1554; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwFor()); _t1554 = *_hp; free(_hp); }
+                                                                                                                                                                                                                (void)_t1554;
+                                                                                                                                                                                                                if (_t1554) {
+                                                                                                                                                                                                                    Str *_t1522 = Str_lit("for", 3ULL);
+                                                                                                                                                                                                                    (void)_t1522;
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
@@ -9968,15 +10006,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                    return _t1517;
+                                                                                                                                                                                                                    return _t1522;
                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                    Bool _t1546; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwSwitch()); _t1546 = *_hp; free(_hp); }
-                                                                                                                                                                                                                    (void)_t1546;
-                                                                                                                                                                                                                    if (_t1546) {
-                                                                                                                                                                                                                        Str *_t1518 = Str_lit("switch", 6ULL);
-                                                                                                                                                                                                                        (void)_t1518;
+                                                                                                                                                                                                                    Bool _t1553; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwIn()); _t1553 = *_hp; free(_hp); }
+                                                                                                                                                                                                                    (void)_t1553;
+                                                                                                                                                                                                                    if (_t1553) {
+                                                                                                                                                                                                                        Str *_t1523 = Str_lit("in", 2ULL);
+                                                                                                                                                                                                                        (void)_t1523;
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
@@ -10028,15 +10066,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                        return _t1518;
+                                                                                                                                                                                                                        return _t1523;
                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                        Bool _t1545; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwMatch()); _t1545 = *_hp; free(_hp); }
-                                                                                                                                                                                                                        (void)_t1545;
-                                                                                                                                                                                                                        if (_t1545) {
-                                                                                                                                                                                                                            Str *_t1519 = Str_lit("match", 5ULL);
-                                                                                                                                                                                                                            (void)_t1519;
+                                                                                                                                                                                                                        Bool _t1552; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwSwitch()); _t1552 = *_hp; free(_hp); }
+                                                                                                                                                                                                                        (void)_t1552;
+                                                                                                                                                                                                                        if (_t1552) {
+                                                                                                                                                                                                                            Str *_t1524 = Str_lit("switch", 6ULL);
+                                                                                                                                                                                                                            (void)_t1524;
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
@@ -10089,15 +10127,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                            return _t1519;
+                                                                                                                                                                                                                            return _t1524;
                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                            Bool _t1544; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwCase()); _t1544 = *_hp; free(_hp); }
-                                                                                                                                                                                                                            (void)_t1544;
-                                                                                                                                                                                                                            if (_t1544) {
-                                                                                                                                                                                                                                Str *_t1520 = Str_lit("case", 4ULL);
-                                                                                                                                                                                                                                (void)_t1520;
+                                                                                                                                                                                                                            Bool _t1551; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwMatch()); _t1551 = *_hp; free(_hp); }
+                                                                                                                                                                                                                            (void)_t1551;
+                                                                                                                                                                                                                            if (_t1551) {
+                                                                                                                                                                                                                                Str *_t1525 = Str_lit("match", 5ULL);
+                                                                                                                                                                                                                                (void)_t1525;
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
@@ -10151,15 +10189,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                return _t1520;
+                                                                                                                                                                                                                                return _t1525;
                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                Bool _t1543; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwDefault()); _t1543 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                (void)_t1543;
-                                                                                                                                                                                                                                if (_t1543) {
-                                                                                                                                                                                                                                    Str *_t1521 = Str_lit("default", 7ULL);
-                                                                                                                                                                                                                                    (void)_t1521;
+                                                                                                                                                                                                                                Bool _t1550; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwCase()); _t1550 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                (void)_t1550;
+                                                                                                                                                                                                                                if (_t1550) {
+                                                                                                                                                                                                                                    Str *_t1526 = Str_lit("case", 4ULL);
+                                                                                                                                                                                                                                    (void)_t1526;
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
@@ -10214,15 +10252,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                    return _t1521;
+                                                                                                                                                                                                                                    return _t1526;
                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                    Bool _t1542; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwReturn()); _t1542 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                    (void)_t1542;
-                                                                                                                                                                                                                                    if (_t1542) {
-                                                                                                                                                                                                                                        Str *_t1522 = Str_lit("return", 6ULL);
-                                                                                                                                                                                                                                        (void)_t1522;
+                                                                                                                                                                                                                                    Bool _t1549; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwDefault()); _t1549 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                    (void)_t1549;
+                                                                                                                                                                                                                                    if (_t1549) {
+                                                                                                                                                                                                                                        Str *_t1527 = Str_lit("default", 7ULL);
+                                                                                                                                                                                                                                        (void)_t1527;
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
@@ -10278,15 +10316,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                        return _t1522;
+                                                                                                                                                                                                                                        return _t1527;
                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                        Bool _t1541; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwThrow()); _t1541 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                        (void)_t1541;
-                                                                                                                                                                                                                                        if (_t1541) {
-                                                                                                                                                                                                                                            Str *_t1523 = Str_lit("throw", 5ULL);
-                                                                                                                                                                                                                                            (void)_t1523;
+                                                                                                                                                                                                                                        Bool _t1548; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwReturn()); _t1548 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                        (void)_t1548;
+                                                                                                                                                                                                                                        if (_t1548) {
+                                                                                                                                                                                                                                            Str *_t1528 = Str_lit("return", 6ULL);
+                                                                                                                                                                                                                                            (void)_t1528;
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
@@ -10343,15 +10381,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                            return _t1523;
+                                                                                                                                                                                                                                            return _t1528;
                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                            Bool _t1540; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwCatch()); _t1540 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                            (void)_t1540;
-                                                                                                                                                                                                                                            if (_t1540) {
-                                                                                                                                                                                                                                                Str *_t1524 = Str_lit("catch", 5ULL);
-                                                                                                                                                                                                                                                (void)_t1524;
+                                                                                                                                                                                                                                            Bool _t1547; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwThrow()); _t1547 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                            (void)_t1547;
+                                                                                                                                                                                                                                            if (_t1547) {
+                                                                                                                                                                                                                                                Str *_t1529 = Str_lit("throw", 5ULL);
+                                                                                                                                                                                                                                                (void)_t1529;
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
@@ -10409,15 +10447,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                return _t1524;
+                                                                                                                                                                                                                                                return _t1529;
                                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                                Bool _t1539; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwBreak()); _t1539 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                (void)_t1539;
-                                                                                                                                                                                                                                                if (_t1539) {
-                                                                                                                                                                                                                                                    Str *_t1525 = Str_lit("break", 5ULL);
-                                                                                                                                                                                                                                                    (void)_t1525;
+                                                                                                                                                                                                                                                Bool _t1546; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwCatch()); _t1546 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                (void)_t1546;
+                                                                                                                                                                                                                                                if (_t1546) {
+                                                                                                                                                                                                                                                    Str *_t1530 = Str_lit("catch", 5ULL);
+                                                                                                                                                                                                                                                    (void)_t1530;
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
@@ -10476,15 +10514,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                    return _t1525;
+                                                                                                                                                                                                                                                    return _t1530;
                                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                                    Bool _t1538; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwContinue()); _t1538 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                    (void)_t1538;
-                                                                                                                                                                                                                                                    if (_t1538) {
-                                                                                                                                                                                                                                                        Str *_t1526 = Str_lit("continue", 8ULL);
-                                                                                                                                                                                                                                                        (void)_t1526;
+                                                                                                                                                                                                                                                    Bool _t1545; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwBreak()); _t1545 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                    (void)_t1545;
+                                                                                                                                                                                                                                                    if (_t1545) {
+                                                                                                                                                                                                                                                        Str *_t1531 = Str_lit("break", 5ULL);
+                                                                                                                                                                                                                                                        (void)_t1531;
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
@@ -10544,15 +10582,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                        return _t1526;
+                                                                                                                                                                                                                                                        return _t1531;
                                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                                        Bool _t1537; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwDefer()); _t1537 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                        (void)_t1537;
-                                                                                                                                                                                                                                                        if (_t1537) {
-                                                                                                                                                                                                                                                            Str *_t1527 = Str_lit("defer", 5ULL);
-                                                                                                                                                                                                                                                            (void)_t1527;
+                                                                                                                                                                                                                                                        Bool _t1544; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwContinue()); _t1544 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                        (void)_t1544;
+                                                                                                                                                                                                                                                        if (_t1544) {
+                                                                                                                                                                                                                                                            Str *_t1532 = Str_lit("continue", 8ULL);
+                                                                                                                                                                                                                                                            (void)_t1532;
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
@@ -10613,15 +10651,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                            return _t1527;
+                                                                                                                                                                                                                                                            return _t1532;
                                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                                            Bool _t1536; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwTrue()); _t1536 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                            (void)_t1536;
-                                                                                                                                                                                                                                                            if (_t1536) {
-                                                                                                                                                                                                                                                                Str *_t1528 = Str_lit("true", 4ULL);
-                                                                                                                                                                                                                                                                (void)_t1528;
+                                                                                                                                                                                                                                                            Bool _t1543; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwDefer()); _t1543 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                            (void)_t1543;
+                                                                                                                                                                                                                                                            if (_t1543) {
+                                                                                                                                                                                                                                                                Str *_t1533 = Str_lit("defer", 5ULL);
+                                                                                                                                                                                                                                                                (void)_t1533;
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
@@ -10683,86 +10721,86 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                                TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                                return _t1528;
+                                                                                                                                                                                                                                                                return _t1533;
                                                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                                                Bool _t1535; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwFalse()); _t1535 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                                (void)_t1535;
-                                                                                                                                                                                                                                                                if (_t1535) {
-                                                                                                                                                                                                                                                                    Str *_t1529 = Str_lit("false", 5ULL);
-                                                                                                                                                                                                                                                                    (void)_t1529;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    TokenType_delete(_sw1466, &(Bool){1});
-                                                                                                                                                                                                                                                                    ;
-                                                                                                                                                                                                                                                                    return _t1529;
-                                                                                                                                                                                                                                                                } else {
-                                                                                                                                                                                                                                                                    Bool _t1534; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_KwNull()); _t1534 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                Bool _t1542; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwTrue()); _t1542 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                (void)_t1542;
+                                                                                                                                                                                                                                                                if (_t1542) {
+                                                                                                                                                                                                                                                                    Str *_t1534 = Str_lit("true", 4ULL);
                                                                                                                                                                                                                                                                     (void)_t1534;
-                                                                                                                                                                                                                                                                    if (_t1534) {
-                                                                                                                                                                                                                                                                        Str *_t1530 = Str_lit("NULL", 4ULL);
-                                                                                                                                                                                                                                                                        (void)_t1530;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    TokenType_delete(_sw1471, &(Bool){1});
+                                                                                                                                                                                                                                                                    ;
+                                                                                                                                                                                                                                                                    return _t1534;
+                                                                                                                                                                                                                                                                } else {
+                                                                                                                                                                                                                                                                    Bool _t1541; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwFalse()); _t1541 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                    (void)_t1541;
+                                                                                                                                                                                                                                                                    if (_t1541) {
+                                                                                                                                                                                                                                                                        Str *_t1535 = Str_lit("false", 5ULL);
+                                                                                                                                                                                                                                                                        (void)_t1535;
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
@@ -10826,15 +10864,15 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                                        TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                                                        TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                                        return _t1530;
+                                                                                                                                                                                                                                                                        return _t1535;
                                                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                                                        Bool _t1533; { Bool *_hp = (Bool *)TokenType_eq(_sw1466, TokenType_Error()); _t1533 = *_hp; free(_hp); }
-                                                                                                                                                                                                                                                                        (void)_t1533;
-                                                                                                                                                                                                                                                                        if (_t1533) {
-                                                                                                                                                                                                                                                                            Str *_t1531 = Str_lit("error", 5ULL);
-                                                                                                                                                                                                                                                                            (void)_t1531;
+                                                                                                                                                                                                                                                                        Bool _t1540; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_KwNull()); _t1540 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                        (void)_t1540;
+                                                                                                                                                                                                                                                                        if (_t1540) {
+                                                                                                                                                                                                                                                                            Str *_t1536 = Str_lit("NULL", 4ULL);
+                                                                                                                                                                                                                                                                            (void)_t1536;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
@@ -10899,79 +10937,156 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
+                                                                                                                                                                                                                                                                            TokenType_delete(_sw1471, &(Bool){1});
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            return _t1531;
+                                                                                                                                                                                                                                                                            return _t1536;
                                                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                                                            Str *_t1532 = Str_lit("?", 1ULL);
-                                                                                                                                                                                                                                                                            (void)_t1532;
+                                                                                                                                                                                                                                                                            Bool _t1539; { Bool *_hp = (Bool *)TokenType_eq(_sw1471, TokenType_Error()); _t1539 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                            (void)_t1539;
+                                                                                                                                                                                                                                                                            if (_t1539) {
+                                                                                                                                                                                                                                                                                Str *_t1537 = Str_lit("error", 5ULL);
+                                                                                                                                                                                                                                                                                (void)_t1537;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                return _t1537;
+                                                                                                                                                                                                                                                                            } else {
+                                                                                                                                                                                                                                                                                Str *_t1538 = Str_lit("?", 1ULL);
+                                                                                                                                                                                                                                                                                (void)_t1538;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                TokenType_delete(_sw1471, &(Bool){1});
+                                                                                                                                                                                                                                                                                ;
+                                                                                                                                                                                                                                                                                return _t1538;
+                                                                                                                                                                                                                                                                            }
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            TokenType_delete(_sw1466, &(Bool){1});
-                                                                                                                                                                                                                                                                            ;
-                                                                                                                                                                                                                                                                            return _t1532;
                                                                                                                                                                                                                                                                         }
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                     }
@@ -11101,7 +11216,7 @@ Str * tok_name(TokenType * type) {
             }
             ;
         }
-        TokenType_delete(_sw1466, &(Bool){1});
+        TokenType_delete(_sw1471, &(Bool){1});
         ;
     }
 }
@@ -11109,105 +11224,105 @@ Str * tok_name(TokenType * type) {
 TokenType * lookup_keyword(Str * word) {
     (void)word;
     {
-        Str *_sw1598 = Str_clone(word);
-        (void)_sw1598;
-        Str *_t1667 = Str_lit("mode", 4ULL);
-        (void)_t1667;
-        Bool _t1668; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1667); _t1668 = *_hp; free(_hp); }
-        (void)_t1668;
-        Str_delete(_t1667, &(Bool){1});
-        if (_t1668) {
-            Str_delete(_sw1598, &(Bool){1});
+        Str *_sw1605 = Str_clone(word);
+        (void)_sw1605;
+        Str *_t1674 = Str_lit("mode", 4ULL);
+        (void)_t1674;
+        Bool _t1675; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1674); _t1675 = *_hp; free(_hp); }
+        (void)_t1675;
+        Str_delete(_t1674, &(Bool){1});
+        if (_t1675) {
+            Str_delete(_sw1605, &(Bool){1});
             ;
             return TokenType_KwMode();
         } else {
-            Str *_t1665 = Str_lit("mut", 3ULL);
-            (void)_t1665;
-            Bool _t1666; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1665); _t1666 = *_hp; free(_hp); }
-            (void)_t1666;
-            Str_delete(_t1665, &(Bool){1});
-            if (_t1666) {
+            Str *_t1672 = Str_lit("mut", 3ULL);
+            (void)_t1672;
+            Bool _t1673; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1672); _t1673 = *_hp; free(_hp); }
+            (void)_t1673;
+            Str_delete(_t1672, &(Bool){1});
+            if (_t1673) {
                 ;
-                Str_delete(_sw1598, &(Bool){1});
+                Str_delete(_sw1605, &(Bool){1});
                 ;
                 return TokenType_KwMut();
             } else {
-                Str *_t1663 = Str_lit("own", 3ULL);
-                (void)_t1663;
-                Bool _t1664; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1663); _t1664 = *_hp; free(_hp); }
-                (void)_t1664;
-                Str_delete(_t1663, &(Bool){1});
-                if (_t1664) {
+                Str *_t1670 = Str_lit("own", 3ULL);
+                (void)_t1670;
+                Bool _t1671; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1670); _t1671 = *_hp; free(_hp); }
+                (void)_t1671;
+                Str_delete(_t1670, &(Bool){1});
+                if (_t1671) {
                     ;
                     ;
-                    Str_delete(_sw1598, &(Bool){1});
+                    Str_delete(_sw1605, &(Bool){1});
                     ;
                     return TokenType_KwOwn();
                 } else {
-                    Str *_t1661 = Str_lit("ref", 3ULL);
-                    (void)_t1661;
-                    Bool _t1662; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1661); _t1662 = *_hp; free(_hp); }
-                    (void)_t1662;
-                    Str_delete(_t1661, &(Bool){1});
-                    if (_t1662) {
+                    Str *_t1668 = Str_lit("ref", 3ULL);
+                    (void)_t1668;
+                    Bool _t1669; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1668); _t1669 = *_hp; free(_hp); }
+                    (void)_t1669;
+                    Str_delete(_t1668, &(Bool){1});
+                    if (_t1669) {
                         ;
                         ;
                         ;
-                        Str_delete(_sw1598, &(Bool){1});
+                        Str_delete(_sw1605, &(Bool){1});
                         ;
                         return TokenType_KwRef();
                     } else {
-                        Str *_t1659 = Str_lit("shallow", 7ULL);
-                        (void)_t1659;
-                        Bool _t1660; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1659); _t1660 = *_hp; free(_hp); }
-                        (void)_t1660;
-                        Str_delete(_t1659, &(Bool){1});
-                        if (_t1660) {
+                        Str *_t1666 = Str_lit("shallow", 7ULL);
+                        (void)_t1666;
+                        Bool _t1667; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1666); _t1667 = *_hp; free(_hp); }
+                        (void)_t1667;
+                        Str_delete(_t1666, &(Bool){1});
+                        if (_t1667) {
                             ;
                             ;
                             ;
                             ;
-                            Str_delete(_sw1598, &(Bool){1});
+                            Str_delete(_sw1605, &(Bool){1});
                             ;
                             return TokenType_KwShallow();
                         } else {
-                            Str *_t1657 = Str_lit("struct", 6ULL);
-                            (void)_t1657;
-                            Bool _t1658; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1657); _t1658 = *_hp; free(_hp); }
-                            (void)_t1658;
-                            Str_delete(_t1657, &(Bool){1});
-                            if (_t1658) {
+                            Str *_t1664 = Str_lit("struct", 6ULL);
+                            (void)_t1664;
+                            Bool _t1665; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1664); _t1665 = *_hp; free(_hp); }
+                            (void)_t1665;
+                            Str_delete(_t1664, &(Bool){1});
+                            if (_t1665) {
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                Str_delete(_sw1598, &(Bool){1});
+                                Str_delete(_sw1605, &(Bool){1});
                                 ;
                                 return TokenType_KwStruct();
                             } else {
-                                Str *_t1655 = Str_lit("ext_struct", 10ULL);
-                                (void)_t1655;
-                                Bool _t1656; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1655); _t1656 = *_hp; free(_hp); }
-                                (void)_t1656;
-                                Str_delete(_t1655, &(Bool){1});
-                                if (_t1656) {
+                                Str *_t1662 = Str_lit("ext_struct", 10ULL);
+                                (void)_t1662;
+                                Bool _t1663; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1662); _t1663 = *_hp; free(_hp); }
+                                (void)_t1663;
+                                Str_delete(_t1662, &(Bool){1});
+                                if (_t1663) {
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    Str_delete(_sw1598, &(Bool){1});
+                                    Str_delete(_sw1605, &(Bool){1});
                                     ;
                                     return TokenType_KwExtStruct();
                                 } else {
-                                    Str *_t1653 = Str_lit("enum", 4ULL);
-                                    (void)_t1653;
-                                    Bool _t1654; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1653); _t1654 = *_hp; free(_hp); }
-                                    (void)_t1654;
-                                    Str_delete(_t1653, &(Bool){1});
-                                    if (_t1654) {
+                                    Str *_t1660 = Str_lit("enum", 4ULL);
+                                    (void)_t1660;
+                                    Bool _t1661; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1660); _t1661 = *_hp; free(_hp); }
+                                    (void)_t1661;
+                                    Str_delete(_t1660, &(Bool){1});
+                                    if (_t1661) {
                                         ;
                                         ;
                                         ;
@@ -11215,16 +11330,16 @@ TokenType * lookup_keyword(Str * word) {
                                         ;
                                         ;
                                         ;
-                                        Str_delete(_sw1598, &(Bool){1});
+                                        Str_delete(_sw1605, &(Bool){1});
                                         ;
                                         return TokenType_KwEnum();
                                     } else {
-                                        Str *_t1651 = Str_lit("namespace", 9ULL);
-                                        (void)_t1651;
-                                        Bool _t1652; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1651); _t1652 = *_hp; free(_hp); }
-                                        (void)_t1652;
-                                        Str_delete(_t1651, &(Bool){1});
-                                        if (_t1652) {
+                                        Str *_t1658 = Str_lit("namespace", 9ULL);
+                                        (void)_t1658;
+                                        Bool _t1659; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1658); _t1659 = *_hp; free(_hp); }
+                                        (void)_t1659;
+                                        Str_delete(_t1658, &(Bool){1});
+                                        if (_t1659) {
                                             ;
                                             ;
                                             ;
@@ -11233,16 +11348,16 @@ TokenType * lookup_keyword(Str * word) {
                                             ;
                                             ;
                                             ;
-                                            Str_delete(_sw1598, &(Bool){1});
+                                            Str_delete(_sw1605, &(Bool){1});
                                             ;
                                             return TokenType_KwNamespace();
                                         } else {
-                                            Str *_t1649 = Str_lit("func", 4ULL);
-                                            (void)_t1649;
-                                            Bool _t1650; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1649); _t1650 = *_hp; free(_hp); }
-                                            (void)_t1650;
-                                            Str_delete(_t1649, &(Bool){1});
-                                            if (_t1650) {
+                                            Str *_t1656 = Str_lit("func", 4ULL);
+                                            (void)_t1656;
+                                            Bool _t1657; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1656); _t1657 = *_hp; free(_hp); }
+                                            (void)_t1657;
+                                            Str_delete(_t1656, &(Bool){1});
+                                            if (_t1657) {
                                                 ;
                                                 ;
                                                 ;
@@ -11252,16 +11367,16 @@ TokenType * lookup_keyword(Str * word) {
                                                 ;
                                                 ;
                                                 ;
-                                                Str_delete(_sw1598, &(Bool){1});
+                                                Str_delete(_sw1605, &(Bool){1});
                                                 ;
                                                 return TokenType_KwFunc();
                                             } else {
-                                                Str *_t1647 = Str_lit("proc", 4ULL);
-                                                (void)_t1647;
-                                                Bool _t1648; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1647); _t1648 = *_hp; free(_hp); }
-                                                (void)_t1648;
-                                                Str_delete(_t1647, &(Bool){1});
-                                                if (_t1648) {
+                                                Str *_t1654 = Str_lit("proc", 4ULL);
+                                                (void)_t1654;
+                                                Bool _t1655; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1654); _t1655 = *_hp; free(_hp); }
+                                                (void)_t1655;
+                                                Str_delete(_t1654, &(Bool){1});
+                                                if (_t1655) {
                                                     ;
                                                     ;
                                                     ;
@@ -11272,16 +11387,16 @@ TokenType * lookup_keyword(Str * word) {
                                                     ;
                                                     ;
                                                     ;
-                                                    Str_delete(_sw1598, &(Bool){1});
+                                                    Str_delete(_sw1605, &(Bool){1});
                                                     ;
                                                     return TokenType_KwProc();
                                                 } else {
-                                                    Str *_t1645 = Str_lit("test", 4ULL);
-                                                    (void)_t1645;
-                                                    Bool _t1646; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1645); _t1646 = *_hp; free(_hp); }
-                                                    (void)_t1646;
-                                                    Str_delete(_t1645, &(Bool){1});
-                                                    if (_t1646) {
+                                                    Str *_t1652 = Str_lit("test", 4ULL);
+                                                    (void)_t1652;
+                                                    Bool _t1653; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1652); _t1653 = *_hp; free(_hp); }
+                                                    (void)_t1653;
+                                                    Str_delete(_t1652, &(Bool){1});
+                                                    if (_t1653) {
                                                         ;
                                                         ;
                                                         ;
@@ -11293,16 +11408,16 @@ TokenType * lookup_keyword(Str * word) {
                                                         ;
                                                         ;
                                                         ;
-                                                        Str_delete(_sw1598, &(Bool){1});
+                                                        Str_delete(_sw1605, &(Bool){1});
                                                         ;
                                                         return TokenType_KwTest();
                                                     } else {
-                                                        Str *_t1643 = Str_lit("macro", 5ULL);
-                                                        (void)_t1643;
-                                                        Bool _t1644; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1643); _t1644 = *_hp; free(_hp); }
-                                                        (void)_t1644;
-                                                        Str_delete(_t1643, &(Bool){1});
-                                                        if (_t1644) {
+                                                        Str *_t1650 = Str_lit("macro", 5ULL);
+                                                        (void)_t1650;
+                                                        Bool _t1651; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1650); _t1651 = *_hp; free(_hp); }
+                                                        (void)_t1651;
+                                                        Str_delete(_t1650, &(Bool){1});
+                                                        if (_t1651) {
                                                             ;
                                                             ;
                                                             ;
@@ -11315,16 +11430,16 @@ TokenType * lookup_keyword(Str * word) {
                                                             ;
                                                             ;
                                                             ;
-                                                            Str_delete(_sw1598, &(Bool){1});
+                                                            Str_delete(_sw1605, &(Bool){1});
                                                             ;
                                                             return TokenType_KwMacro();
                                                         } else {
-                                                            Str *_t1641 = Str_lit("ext_func", 8ULL);
-                                                            (void)_t1641;
-                                                            Bool _t1642; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1641); _t1642 = *_hp; free(_hp); }
-                                                            (void)_t1642;
-                                                            Str_delete(_t1641, &(Bool){1});
-                                                            if (_t1642) {
+                                                            Str *_t1648 = Str_lit("ext_func", 8ULL);
+                                                            (void)_t1648;
+                                                            Bool _t1649; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1648); _t1649 = *_hp; free(_hp); }
+                                                            (void)_t1649;
+                                                            Str_delete(_t1648, &(Bool){1});
+                                                            if (_t1649) {
                                                                 ;
                                                                 ;
                                                                 ;
@@ -11338,16 +11453,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                Str_delete(_sw1598, &(Bool){1});
+                                                                Str_delete(_sw1605, &(Bool){1});
                                                                 ;
                                                                 return TokenType_KwExtFunc();
                                                             } else {
-                                                                Str *_t1639 = Str_lit("ext_proc", 8ULL);
-                                                                (void)_t1639;
-                                                                Bool _t1640; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1639); _t1640 = *_hp; free(_hp); }
-                                                                (void)_t1640;
-                                                                Str_delete(_t1639, &(Bool){1});
-                                                                if (_t1640) {
+                                                                Str *_t1646 = Str_lit("ext_proc", 8ULL);
+                                                                (void)_t1646;
+                                                                Bool _t1647; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1646); _t1647 = *_hp; free(_hp); }
+                                                                (void)_t1647;
+                                                                Str_delete(_t1646, &(Bool){1});
+                                                                if (_t1647) {
                                                                     ;
                                                                     ;
                                                                     ;
@@ -11362,16 +11477,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    Str_delete(_sw1598, &(Bool){1});
+                                                                    Str_delete(_sw1605, &(Bool){1});
                                                                     ;
                                                                     return TokenType_KwExtProc();
                                                                 } else {
-                                                                    Str *_t1637 = Str_lit("returns", 7ULL);
-                                                                    (void)_t1637;
-                                                                    Bool _t1638; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1637); _t1638 = *_hp; free(_hp); }
-                                                                    (void)_t1638;
-                                                                    Str_delete(_t1637, &(Bool){1});
-                                                                    if (_t1638) {
+                                                                    Str *_t1644 = Str_lit("returns", 7ULL);
+                                                                    (void)_t1644;
+                                                                    Bool _t1645; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1644); _t1645 = *_hp; free(_hp); }
+                                                                    (void)_t1645;
+                                                                    Str_delete(_t1644, &(Bool){1});
+                                                                    if (_t1645) {
                                                                         ;
                                                                         ;
                                                                         ;
@@ -11387,16 +11502,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        Str_delete(_sw1598, &(Bool){1});
+                                                                        Str_delete(_sw1605, &(Bool){1});
                                                                         ;
                                                                         return TokenType_KwReturns();
                                                                     } else {
-                                                                        Str *_t1635 = Str_lit("throws", 6ULL);
-                                                                        (void)_t1635;
-                                                                        Bool _t1636; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1635); _t1636 = *_hp; free(_hp); }
-                                                                        (void)_t1636;
-                                                                        Str_delete(_t1635, &(Bool){1});
-                                                                        if (_t1636) {
+                                                                        Str *_t1642 = Str_lit("throws", 6ULL);
+                                                                        (void)_t1642;
+                                                                        Bool _t1643; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1642); _t1643 = *_hp; free(_hp); }
+                                                                        (void)_t1643;
+                                                                        Str_delete(_t1642, &(Bool){1});
+                                                                        if (_t1643) {
                                                                             ;
                                                                             ;
                                                                             ;
@@ -11413,16 +11528,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            Str_delete(_sw1598, &(Bool){1});
+                                                                            Str_delete(_sw1605, &(Bool){1});
                                                                             ;
                                                                             return TokenType_KwThrows();
                                                                         } else {
-                                                                            Str *_t1633 = Str_lit("if", 2ULL);
-                                                                            (void)_t1633;
-                                                                            Bool _t1634; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1633); _t1634 = *_hp; free(_hp); }
-                                                                            (void)_t1634;
-                                                                            Str_delete(_t1633, &(Bool){1});
-                                                                            if (_t1634) {
+                                                                            Str *_t1640 = Str_lit("if", 2ULL);
+                                                                            (void)_t1640;
+                                                                            Bool _t1641; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1640); _t1641 = *_hp; free(_hp); }
+                                                                            (void)_t1641;
+                                                                            Str_delete(_t1640, &(Bool){1});
+                                                                            if (_t1641) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
@@ -11440,16 +11555,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                Str_delete(_sw1598, &(Bool){1});
+                                                                                Str_delete(_sw1605, &(Bool){1});
                                                                                 ;
                                                                                 return TokenType_KwIf();
                                                                             } else {
-                                                                                Str *_t1631 = Str_lit("else", 4ULL);
-                                                                                (void)_t1631;
-                                                                                Bool _t1632; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1631); _t1632 = *_hp; free(_hp); }
-                                                                                (void)_t1632;
-                                                                                Str_delete(_t1631, &(Bool){1});
-                                                                                if (_t1632) {
+                                                                                Str *_t1638 = Str_lit("else", 4ULL);
+                                                                                (void)_t1638;
+                                                                                Bool _t1639; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1638); _t1639 = *_hp; free(_hp); }
+                                                                                (void)_t1639;
+                                                                                Str_delete(_t1638, &(Bool){1});
+                                                                                if (_t1639) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
@@ -11468,16 +11583,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    Str_delete(_sw1598, &(Bool){1});
+                                                                                    Str_delete(_sw1605, &(Bool){1});
                                                                                     ;
                                                                                     return TokenType_KwElse();
                                                                                 } else {
-                                                                                    Str *_t1629 = Str_lit("while", 5ULL);
-                                                                                    (void)_t1629;
-                                                                                    Bool _t1630; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1629); _t1630 = *_hp; free(_hp); }
-                                                                                    (void)_t1630;
-                                                                                    Str_delete(_t1629, &(Bool){1});
-                                                                                    if (_t1630) {
+                                                                                    Str *_t1636 = Str_lit("while", 5ULL);
+                                                                                    (void)_t1636;
+                                                                                    Bool _t1637; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1636); _t1637 = *_hp; free(_hp); }
+                                                                                    (void)_t1637;
+                                                                                    Str_delete(_t1636, &(Bool){1});
+                                                                                    if (_t1637) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
@@ -11497,16 +11612,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        Str_delete(_sw1598, &(Bool){1});
+                                                                                        Str_delete(_sw1605, &(Bool){1});
                                                                                         ;
                                                                                         return TokenType_KwWhile();
                                                                                     } else {
-                                                                                        Str *_t1627 = Str_lit("for", 3ULL);
-                                                                                        (void)_t1627;
-                                                                                        Bool _t1628; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1627); _t1628 = *_hp; free(_hp); }
-                                                                                        (void)_t1628;
-                                                                                        Str_delete(_t1627, &(Bool){1});
-                                                                                        if (_t1628) {
+                                                                                        Str *_t1634 = Str_lit("for", 3ULL);
+                                                                                        (void)_t1634;
+                                                                                        Bool _t1635; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1634); _t1635 = *_hp; free(_hp); }
+                                                                                        (void)_t1635;
+                                                                                        Str_delete(_t1634, &(Bool){1});
+                                                                                        if (_t1635) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
@@ -11527,16 +11642,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            Str_delete(_sw1598, &(Bool){1});
+                                                                                            Str_delete(_sw1605, &(Bool){1});
                                                                                             ;
                                                                                             return TokenType_KwFor();
                                                                                         } else {
-                                                                                            Str *_t1625 = Str_lit("in", 2ULL);
-                                                                                            (void)_t1625;
-                                                                                            Bool _t1626; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1625); _t1626 = *_hp; free(_hp); }
-                                                                                            (void)_t1626;
-                                                                                            Str_delete(_t1625, &(Bool){1});
-                                                                                            if (_t1626) {
+                                                                                            Str *_t1632 = Str_lit("in", 2ULL);
+                                                                                            (void)_t1632;
+                                                                                            Bool _t1633; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1632); _t1633 = *_hp; free(_hp); }
+                                                                                            (void)_t1633;
+                                                                                            Str_delete(_t1632, &(Bool){1});
+                                                                                            if (_t1633) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
@@ -11558,16 +11673,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                Str_delete(_sw1598, &(Bool){1});
+                                                                                                Str_delete(_sw1605, &(Bool){1});
                                                                                                 ;
                                                                                                 return TokenType_KwIn();
                                                                                             } else {
-                                                                                                Str *_t1623 = Str_lit("switch", 6ULL);
-                                                                                                (void)_t1623;
-                                                                                                Bool _t1624; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1623); _t1624 = *_hp; free(_hp); }
-                                                                                                (void)_t1624;
-                                                                                                Str_delete(_t1623, &(Bool){1});
-                                                                                                if (_t1624) {
+                                                                                                Str *_t1630 = Str_lit("switch", 6ULL);
+                                                                                                (void)_t1630;
+                                                                                                Bool _t1631; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1630); _t1631 = *_hp; free(_hp); }
+                                                                                                (void)_t1631;
+                                                                                                Str_delete(_t1630, &(Bool){1});
+                                                                                                if (_t1631) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
@@ -11590,16 +11705,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    Str_delete(_sw1598, &(Bool){1});
+                                                                                                    Str_delete(_sw1605, &(Bool){1});
                                                                                                     ;
                                                                                                     return TokenType_KwSwitch();
                                                                                                 } else {
-                                                                                                    Str *_t1621 = Str_lit("match", 5ULL);
-                                                                                                    (void)_t1621;
-                                                                                                    Bool _t1622; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1621); _t1622 = *_hp; free(_hp); }
-                                                                                                    (void)_t1622;
-                                                                                                    Str_delete(_t1621, &(Bool){1});
-                                                                                                    if (_t1622) {
+                                                                                                    Str *_t1628 = Str_lit("match", 5ULL);
+                                                                                                    (void)_t1628;
+                                                                                                    Bool _t1629; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1628); _t1629 = *_hp; free(_hp); }
+                                                                                                    (void)_t1629;
+                                                                                                    Str_delete(_t1628, &(Bool){1});
+                                                                                                    if (_t1629) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
@@ -11623,16 +11738,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        Str_delete(_sw1598, &(Bool){1});
+                                                                                                        Str_delete(_sw1605, &(Bool){1});
                                                                                                         ;
                                                                                                         return TokenType_KwMatch();
                                                                                                     } else {
-                                                                                                        Str *_t1619 = Str_lit("case", 4ULL);
-                                                                                                        (void)_t1619;
-                                                                                                        Bool _t1620; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1619); _t1620 = *_hp; free(_hp); }
-                                                                                                        (void)_t1620;
-                                                                                                        Str_delete(_t1619, &(Bool){1});
-                                                                                                        if (_t1620) {
+                                                                                                        Str *_t1626 = Str_lit("case", 4ULL);
+                                                                                                        (void)_t1626;
+                                                                                                        Bool _t1627; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1626); _t1627 = *_hp; free(_hp); }
+                                                                                                        (void)_t1627;
+                                                                                                        Str_delete(_t1626, &(Bool){1});
+                                                                                                        if (_t1627) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
@@ -11657,16 +11772,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            Str_delete(_sw1598, &(Bool){1});
+                                                                                                            Str_delete(_sw1605, &(Bool){1});
                                                                                                             ;
                                                                                                             return TokenType_KwCase();
                                                                                                         } else {
-                                                                                                            Str *_t1617 = Str_lit("default", 7ULL);
-                                                                                                            (void)_t1617;
-                                                                                                            Bool _t1618; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1617); _t1618 = *_hp; free(_hp); }
-                                                                                                            (void)_t1618;
-                                                                                                            Str_delete(_t1617, &(Bool){1});
-                                                                                                            if (_t1618) {
+                                                                                                            Str *_t1624 = Str_lit("default", 7ULL);
+                                                                                                            (void)_t1624;
+                                                                                                            Bool _t1625; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1624); _t1625 = *_hp; free(_hp); }
+                                                                                                            (void)_t1625;
+                                                                                                            Str_delete(_t1624, &(Bool){1});
+                                                                                                            if (_t1625) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
@@ -11692,16 +11807,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
-                                                                                                                Str_delete(_sw1598, &(Bool){1});
+                                                                                                                Str_delete(_sw1605, &(Bool){1});
                                                                                                                 ;
                                                                                                                 return TokenType_KwDefault();
                                                                                                             } else {
-                                                                                                                Str *_t1615 = Str_lit("return", 6ULL);
-                                                                                                                (void)_t1615;
-                                                                                                                Bool _t1616; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1615); _t1616 = *_hp; free(_hp); }
-                                                                                                                (void)_t1616;
-                                                                                                                Str_delete(_t1615, &(Bool){1});
-                                                                                                                if (_t1616) {
+                                                                                                                Str *_t1622 = Str_lit("return", 6ULL);
+                                                                                                                (void)_t1622;
+                                                                                                                Bool _t1623; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1622); _t1623 = *_hp; free(_hp); }
+                                                                                                                (void)_t1623;
+                                                                                                                Str_delete(_t1622, &(Bool){1});
+                                                                                                                if (_t1623) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
@@ -11728,16 +11843,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
-                                                                                                                    Str_delete(_sw1598, &(Bool){1});
+                                                                                                                    Str_delete(_sw1605, &(Bool){1});
                                                                                                                     ;
                                                                                                                     return TokenType_KwReturn();
                                                                                                                 } else {
-                                                                                                                    Str *_t1613 = Str_lit("throw", 5ULL);
-                                                                                                                    (void)_t1613;
-                                                                                                                    Bool _t1614; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1613); _t1614 = *_hp; free(_hp); }
-                                                                                                                    (void)_t1614;
-                                                                                                                    Str_delete(_t1613, &(Bool){1});
-                                                                                                                    if (_t1614) {
+                                                                                                                    Str *_t1620 = Str_lit("throw", 5ULL);
+                                                                                                                    (void)_t1620;
+                                                                                                                    Bool _t1621; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1620); _t1621 = *_hp; free(_hp); }
+                                                                                                                    (void)_t1621;
+                                                                                                                    Str_delete(_t1620, &(Bool){1});
+                                                                                                                    if (_t1621) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
@@ -11765,16 +11880,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
-                                                                                                                        Str_delete(_sw1598, &(Bool){1});
+                                                                                                                        Str_delete(_sw1605, &(Bool){1});
                                                                                                                         ;
                                                                                                                         return TokenType_KwThrow();
                                                                                                                     } else {
-                                                                                                                        Str *_t1611 = Str_lit("catch", 5ULL);
-                                                                                                                        (void)_t1611;
-                                                                                                                        Bool _t1612; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1611); _t1612 = *_hp; free(_hp); }
-                                                                                                                        (void)_t1612;
-                                                                                                                        Str_delete(_t1611, &(Bool){1});
-                                                                                                                        if (_t1612) {
+                                                                                                                        Str *_t1618 = Str_lit("catch", 5ULL);
+                                                                                                                        (void)_t1618;
+                                                                                                                        Bool _t1619; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1618); _t1619 = *_hp; free(_hp); }
+                                                                                                                        (void)_t1619;
+                                                                                                                        Str_delete(_t1618, &(Bool){1});
+                                                                                                                        if (_t1619) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
@@ -11803,16 +11918,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
-                                                                                                                            Str_delete(_sw1598, &(Bool){1});
+                                                                                                                            Str_delete(_sw1605, &(Bool){1});
                                                                                                                             ;
                                                                                                                             return TokenType_KwCatch();
                                                                                                                         } else {
-                                                                                                                            Str *_t1609 = Str_lit("break", 5ULL);
-                                                                                                                            (void)_t1609;
-                                                                                                                            Bool _t1610; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1609); _t1610 = *_hp; free(_hp); }
-                                                                                                                            (void)_t1610;
-                                                                                                                            Str_delete(_t1609, &(Bool){1});
-                                                                                                                            if (_t1610) {
+                                                                                                                            Str *_t1616 = Str_lit("break", 5ULL);
+                                                                                                                            (void)_t1616;
+                                                                                                                            Bool _t1617; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1616); _t1617 = *_hp; free(_hp); }
+                                                                                                                            (void)_t1617;
+                                                                                                                            Str_delete(_t1616, &(Bool){1});
+                                                                                                                            if (_t1617) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
@@ -11842,16 +11957,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
-                                                                                                                                Str_delete(_sw1598, &(Bool){1});
+                                                                                                                                Str_delete(_sw1605, &(Bool){1});
                                                                                                                                 ;
                                                                                                                                 return TokenType_KwBreak();
                                                                                                                             } else {
-                                                                                                                                Str *_t1607 = Str_lit("continue", 8ULL);
-                                                                                                                                (void)_t1607;
-                                                                                                                                Bool _t1608; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1607); _t1608 = *_hp; free(_hp); }
-                                                                                                                                (void)_t1608;
-                                                                                                                                Str_delete(_t1607, &(Bool){1});
-                                                                                                                                if (_t1608) {
+                                                                                                                                Str *_t1614 = Str_lit("continue", 8ULL);
+                                                                                                                                (void)_t1614;
+                                                                                                                                Bool _t1615; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1614); _t1615 = *_hp; free(_hp); }
+                                                                                                                                (void)_t1615;
+                                                                                                                                Str_delete(_t1614, &(Bool){1});
+                                                                                                                                if (_t1615) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
@@ -11882,16 +11997,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
-                                                                                                                                    Str_delete(_sw1598, &(Bool){1});
+                                                                                                                                    Str_delete(_sw1605, &(Bool){1});
                                                                                                                                     ;
                                                                                                                                     return TokenType_KwContinue();
                                                                                                                                 } else {
-                                                                                                                                    Str *_t1605 = Str_lit("defer", 5ULL);
-                                                                                                                                    (void)_t1605;
-                                                                                                                                    Bool _t1606; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1605); _t1606 = *_hp; free(_hp); }
-                                                                                                                                    (void)_t1606;
-                                                                                                                                    Str_delete(_t1605, &(Bool){1});
-                                                                                                                                    if (_t1606) {
+                                                                                                                                    Str *_t1612 = Str_lit("defer", 5ULL);
+                                                                                                                                    (void)_t1612;
+                                                                                                                                    Bool _t1613; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1612); _t1613 = *_hp; free(_hp); }
+                                                                                                                                    (void)_t1613;
+                                                                                                                                    Str_delete(_t1612, &(Bool){1});
+                                                                                                                                    if (_t1613) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
@@ -11923,16 +12038,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
-                                                                                                                                        Str_delete(_sw1598, &(Bool){1});
+                                                                                                                                        Str_delete(_sw1605, &(Bool){1});
                                                                                                                                         ;
                                                                                                                                         return TokenType_KwDefer();
                                                                                                                                     } else {
-                                                                                                                                        Str *_t1603 = Str_lit("true", 4ULL);
-                                                                                                                                        (void)_t1603;
-                                                                                                                                        Bool _t1604; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1603); _t1604 = *_hp; free(_hp); }
-                                                                                                                                        (void)_t1604;
-                                                                                                                                        Str_delete(_t1603, &(Bool){1});
-                                                                                                                                        if (_t1604) {
+                                                                                                                                        Str *_t1610 = Str_lit("true", 4ULL);
+                                                                                                                                        (void)_t1610;
+                                                                                                                                        Bool _t1611; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1610); _t1611 = *_hp; free(_hp); }
+                                                                                                                                        (void)_t1611;
+                                                                                                                                        Str_delete(_t1610, &(Bool){1});
+                                                                                                                                        if (_t1611) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
@@ -11965,16 +12080,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
-                                                                                                                                            Str_delete(_sw1598, &(Bool){1});
+                                                                                                                                            Str_delete(_sw1605, &(Bool){1});
                                                                                                                                             ;
                                                                                                                                             return TokenType_KwTrue();
                                                                                                                                         } else {
-                                                                                                                                            Str *_t1601 = Str_lit("false", 5ULL);
-                                                                                                                                            (void)_t1601;
-                                                                                                                                            Bool _t1602; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1601); _t1602 = *_hp; free(_hp); }
-                                                                                                                                            (void)_t1602;
-                                                                                                                                            Str_delete(_t1601, &(Bool){1});
-                                                                                                                                            if (_t1602) {
+                                                                                                                                            Str *_t1608 = Str_lit("false", 5ULL);
+                                                                                                                                            (void)_t1608;
+                                                                                                                                            Bool _t1609; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1608); _t1609 = *_hp; free(_hp); }
+                                                                                                                                            (void)_t1609;
+                                                                                                                                            Str_delete(_t1608, &(Bool){1});
+                                                                                                                                            if (_t1609) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
@@ -12008,16 +12123,16 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
-                                                                                                                                                Str_delete(_sw1598, &(Bool){1});
+                                                                                                                                                Str_delete(_sw1605, &(Bool){1});
                                                                                                                                                 ;
                                                                                                                                                 return TokenType_KwFalse();
                                                                                                                                             } else {
-                                                                                                                                                Str *_t1599 = Str_lit("NULL", 4ULL);
-                                                                                                                                                (void)_t1599;
-                                                                                                                                                Bool _t1600; { Bool *_hp = (Bool *)Str_eq(_sw1598, _t1599); _t1600 = *_hp; free(_hp); }
-                                                                                                                                                (void)_t1600;
-                                                                                                                                                Str_delete(_t1599, &(Bool){1});
-                                                                                                                                                if (_t1600) {
+                                                                                                                                                Str *_t1606 = Str_lit("NULL", 4ULL);
+                                                                                                                                                (void)_t1606;
+                                                                                                                                                Bool _t1607; { Bool *_hp = (Bool *)Str_eq(_sw1605, _t1606); _t1607 = *_hp; free(_hp); }
+                                                                                                                                                (void)_t1607;
+                                                                                                                                                Str_delete(_t1606, &(Bool){1});
+                                                                                                                                                if (_t1607) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
@@ -12052,7 +12167,7 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    Str_delete(_sw1598, &(Bool){1});
+                                                                                                                                                    Str_delete(_sw1605, &(Bool){1});
                                                                                                                                                     ;
                                                                                                                                                     return TokenType_KwNull();
                                                                                                                                                 } else {
@@ -12090,7 +12205,7 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    Str_delete(_sw1598, &(Bool){1});
+                                                                                                                                                    Str_delete(_sw1605, &(Bool){1});
                                                                                                                                                     ;
                                                                                                                                                     return TokenType_Ident();
                                                                                                                                                 }
@@ -12162,7 +12277,7 @@ TokenType * lookup_keyword(Str * word) {
             }
             ;
         }
-        Str_delete(_sw1598, &(Bool){1});
+        Str_delete(_sw1605, &(Bool){1});
         ;
     }
 }
@@ -12170,13 +12285,13 @@ TokenType * lookup_keyword(Str * word) {
 Vec * tokenize(Str * src, Str * path) {
     (void)src;
     (void)path;
-    Str *_t2005 = Str_lit("Token", 5ULL);
-    (void)_t2005;
-    U64 _t2006; { U64 *_hp = (U64 *)Token_size(); _t2006 = *_hp; free(_hp); }
-    (void)_t2006;
-    Vec *tokens = Vec_new(_t2005, &(U64){_t2006});
+    Str *_t2024 = Str_lit("Token", 5ULL);
+    (void)_t2024;
+    U64 _t2025; { U64 *_hp = (U64 *)Token_size(); _t2025 = *_hp; free(_hp); }
+    (void)_t2025;
+    Vec *tokens = Vec_new(_t2024, &(U64){_t2025});
     (void)tokens;
-    Str_delete(_t2005, &(Bool){1});
+    Str_delete(_t2024, &(Bool){1});
     ;
     U64 *pos = malloc(sizeof(U64));
     *pos = 0;
@@ -12188,9 +12303,9 @@ Vec * tokenize(Str * src, Str * path) {
     U64 src_len; { U64 *_hp = (U64 *)Str_len(src); src_len = *_hp; free(_hp); }
     (void)src_len;
     while (1) {
-        Bool _wcond1669; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1669 = *_hp; free(_hp); }
-        (void)_wcond1669;
-        if (_wcond1669) {
+        Bool _wcond1676; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1676 = *_hp; free(_hp); }
+        (void)_wcond1676;
+        if (_wcond1676) {
         } else {
             ;
             break;
@@ -12198,115 +12313,115 @@ Vec * tokenize(Str * src, Str * path) {
         ;
         U8 *c = Str_byte_at(src, pos);
         (void)c;
-        U8 _t1951 = 32;
-        (void)_t1951;
-        U8 _t1952 = 9;
-        (void)_t1952;
-        Bool _t1953 = U8_eq(DEREF(c), _t1951);
-        (void)_t1953;
+        U8 _t1970 = 32;
+        (void)_t1970;
+        U8 _t1971 = 9;
+        (void)_t1971;
+        Bool _t1972 = U8_eq(DEREF(c), _t1970);
+        (void)_t1972;
         ;
-        Bool _t1954 = U8_eq(DEREF(c), _t1952);
-        (void)_t1954;
+        Bool _t1973 = U8_eq(DEREF(c), _t1971);
+        (void)_t1973;
         ;
-        U8 _t1955 = 13;
-        (void)_t1955;
-        Bool _t1956 = Bool_or(_t1953, _t1954);
-        (void)_t1956;
-        ;
-        ;
-        Bool _t1957 = U8_eq(DEREF(c), _t1955);
-        (void)_t1957;
-        ;
-        U8 _t1958 = 59;
-        (void)_t1958;
-        Bool _t1959 = Bool_or(_t1956, _t1957);
-        (void)_t1959;
+        U8 _t1974 = 13;
+        (void)_t1974;
+        Bool _t1975 = Bool_or(_t1972, _t1973);
+        (void)_t1975;
         ;
         ;
-        Bool _t1960 = U8_eq(DEREF(c), _t1958);
-        (void)_t1960;
+        Bool _t1976 = U8_eq(DEREF(c), _t1974);
+        (void)_t1976;
         ;
-        Bool _t1961 = Bool_or(_t1959, _t1960);
-        (void)_t1961;
+        U8 _t1977 = 59;
+        (void)_t1977;
+        Bool _t1978 = Bool_or(_t1975, _t1976);
+        (void)_t1978;
         ;
         ;
-        if (_t1961) {
-            U64 _t1670 = U64_inc(DEREF(pos));
-            (void)_t1670;
-            *pos = _t1670;
+        Bool _t1979 = U8_eq(DEREF(c), _t1977);
+        (void)_t1979;
+        ;
+        Bool _t1980 = Bool_or(_t1978, _t1979);
+        (void)_t1980;
+        ;
+        ;
+        if (_t1980) {
+            U64 _t1677 = U64_inc(DEREF(pos));
+            (void)_t1677;
+            *pos = _t1677;
             ;
             ;
             continue;
         }
         ;
-        U8 _t1962 = 10;
-        (void)_t1962;
-        Bool _t1963 = U8_eq(DEREF(c), _t1962);
-        (void)_t1963;
+        U8 _t1981 = 10;
+        (void)_t1981;
+        Bool _t1982 = U8_eq(DEREF(c), _t1981);
+        (void)_t1982;
         ;
-        if (_t1963) {
-            U64 _t1671 = U64_inc(DEREF(pos));
-            (void)_t1671;
-            *pos = _t1671;
+        if (_t1982) {
+            U64 _t1678 = U64_inc(DEREF(pos));
+            (void)_t1678;
+            *pos = _t1678;
             ;
-            I64 _t1672 = 1;
-            (void)_t1672;
-            I64 _t1673 = I64_add(line, _t1672);
-            (void)_t1673;
+            I64 _t1679 = 1;
+            (void)_t1679;
+            I64 _t1680 = I64_add(line, _t1679);
+            (void)_t1680;
             ;
-            line = _t1673;
+            line = _t1680;
             ;
-            U64 _t1674 = U64_clone(pos);
-            (void)_t1674;
-            line_start = _t1674;
+            U64 _t1681 = U64_clone(pos);
+            (void)_t1681;
+            line_start = _t1681;
             ;
             ;
             continue;
         }
         ;
-        U64 _t1964 = U64_sub(DEREF(pos), line_start);
-        (void)_t1964;
-        U64 _t1965 = 1;
-        (void)_t1965;
-        U64 _t1966 = U64_add(_t1964, _t1965);
-        (void)_t1966;
+        U64 _t1983 = U64_sub(DEREF(pos), line_start);
+        (void)_t1983;
+        U64 _t1984 = 1;
+        (void)_t1984;
+        U64 _t1985 = U64_add(_t1983, _t1984);
+        (void)_t1985;
         ;
         ;
-        I64 col = U64_to_i64(_t1966);
+        I64 col = U64_to_i64(_t1985);
         (void)col;
         ;
         U64 start = U64_clone(pos);
         (void)start;
-        U8 _t1967 = 35;
-        (void)_t1967;
-        Bool _t1968 = U8_eq(DEREF(c), _t1967);
-        (void)_t1968;
+        U8 _t1986 = 35;
+        (void)_t1986;
+        Bool _t1987 = U8_eq(DEREF(c), _t1986);
+        (void)_t1987;
         ;
-        if (_t1968) {
+        if (_t1987) {
             while (1) {
-                Bool _wcond1675; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1675 = *_hp; free(_hp); }
-                (void)_wcond1675;
-                if (_wcond1675) {
+                Bool _wcond1682; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1682 = *_hp; free(_hp); }
+                (void)_wcond1682;
+                if (_wcond1682) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U8 *_t1676 = Str_byte_at(src, pos);
-                (void)_t1676;
-                U8 _t1677 = 10;
-                (void)_t1677;
-                Bool _t1678 = U8_eq(DEREF(_t1676), _t1677);
-                (void)_t1678;
+                U8 *_t1683 = Str_byte_at(src, pos);
+                (void)_t1683;
+                U8 _t1684 = 10;
+                (void)_t1684;
+                Bool _t1685 = U8_eq(DEREF(_t1683), _t1684);
+                (void)_t1685;
                 ;
-                if (_t1678) {
+                if (_t1685) {
                     ;
                     break;
                 }
                 ;
-                U64 _t1679 = U64_inc(DEREF(pos));
-                (void)_t1679;
-                *pos = _t1679;
+                U64 _t1686 = U64_inc(DEREF(pos));
+                (void)_t1686;
+                *pos = _t1686;
                 ;
             }
             ;
@@ -12315,64 +12430,64 @@ Vec * tokenize(Str * src, Str * path) {
             continue;
         }
         ;
-        U8 _t1969 = 47;
-        (void)_t1969;
-        U64 _t1970 = 1;
-        (void)_t1970;
-        U64 _t1971 = U64_add(DEREF(pos), _t1970);
-        (void)_t1971;
+        U8 _t1988 = 47;
+        (void)_t1988;
+        U64 _t1989 = 1;
+        (void)_t1989;
+        U64 _t1990 = U64_add(DEREF(pos), _t1989);
+        (void)_t1990;
         ;
-        Bool _t1972 = U8_eq(DEREF(c), _t1969);
-        (void)_t1972;
+        Bool _t1991 = U8_eq(DEREF(c), _t1988);
+        (void)_t1991;
         ;
-        Bool _t1973; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1971}, &(U64){src_len}); _t1973 = *_hp; free(_hp); }
-        (void)_t1973;
+        Bool _t1992; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1990}, &(U64){src_len}); _t1992 = *_hp; free(_hp); }
+        (void)_t1992;
         ;
-        Bool _t1974 = Bool_and(_t1972, _t1973);
-        (void)_t1974;
+        Bool _t1993 = Bool_and(_t1991, _t1992);
+        (void)_t1993;
         ;
         ;
-        if (_t1974) {
-            U64 _t1738 = 1;
-            (void)_t1738;
-            U64 *_t1739 = malloc(sizeof(U64)); *_t1739 = U64_add(DEREF(pos), _t1738);
-            (void)_t1739;
+        if (_t1993) {
+            U64 _t1745 = 1;
+            (void)_t1745;
+            U64 *_t1746 = malloc(sizeof(U64)); *_t1746 = U64_add(DEREF(pos), _t1745);
+            (void)_t1746;
             ;
-            U8 *c2 = Str_byte_at(src, _t1739);
+            U8 *c2 = Str_byte_at(src, _t1746);
             (void)c2;
-            U8 _t1740 = 47;
-            (void)_t1740;
-            Bool _t1741 = U8_eq(DEREF(c2), _t1740);
-            (void)_t1741;
+            U8 _t1747 = 47;
+            (void)_t1747;
+            Bool _t1748 = U8_eq(DEREF(c2), _t1747);
+            (void)_t1748;
             ;
-            if (_t1741) {
+            if (_t1748) {
                 while (1) {
-                    Bool _wcond1680; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1680 = *_hp; free(_hp); }
-                    (void)_wcond1680;
-                    if (_wcond1680) {
+                    Bool _wcond1687; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1687 = *_hp; free(_hp); }
+                    (void)_wcond1687;
+                    if (_wcond1687) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U8 *_t1681 = Str_byte_at(src, pos);
-                    (void)_t1681;
-                    U8 _t1682 = 10;
-                    (void)_t1682;
-                    Bool _t1683 = U8_eq(DEREF(_t1681), _t1682);
-                    (void)_t1683;
+                    U8 *_t1688 = Str_byte_at(src, pos);
+                    (void)_t1688;
+                    U8 _t1689 = 10;
+                    (void)_t1689;
+                    Bool _t1690 = U8_eq(DEREF(_t1688), _t1689);
+                    (void)_t1690;
                     ;
-                    if (_t1683) {
+                    if (_t1690) {
                         ;
                         break;
                     }
                     ;
-                    U64 _t1684 = U64_inc(DEREF(pos));
-                    (void)_t1684;
-                    *pos = _t1684;
+                    U64 _t1691 = U64_inc(DEREF(pos));
+                    (void)_t1691;
+                    *pos = _t1691;
                     ;
                 }
-                U64_delete(_t1739, &(Bool){1});
+                U64_delete(_t1746, &(Bool){1});
                 ;
                 ;
                 ;
@@ -12380,123 +12495,123 @@ Vec * tokenize(Str * src, Str * path) {
                 continue;
             }
             ;
-            U8 _t1742 = 42;
-            (void)_t1742;
-            Bool _t1743 = U8_eq(DEREF(c2), _t1742);
-            (void)_t1743;
-            U64_delete(_t1739, &(Bool){1});
+            U8 _t1749 = 42;
+            (void)_t1749;
+            Bool _t1750 = U8_eq(DEREF(c2), _t1749);
+            (void)_t1750;
+            U64_delete(_t1746, &(Bool){1});
             ;
-            if (_t1743) {
-                U64 _t1734 = 2;
-                (void)_t1734;
-                U64 _t1735 = U64_add(DEREF(pos), _t1734);
-                (void)_t1735;
+            if (_t1750) {
+                U64 _t1741 = 2;
+                (void)_t1741;
+                U64 _t1742 = U64_add(DEREF(pos), _t1741);
+                (void)_t1742;
                 ;
-                *pos = _t1735;
+                *pos = _t1742;
                 ;
                 I64 depth = 1;
                 (void)depth;
                 while (1) {
-                    Bool _wcond1685; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1685 = *_hp; free(_hp); }
-                    (void)_wcond1685;
-                    if (_wcond1685) {
+                    Bool _wcond1692; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1692 = *_hp; free(_hp); }
+                    (void)_wcond1692;
+                    if (_wcond1692) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    I64 _t1710 = 0;
-                    (void)_t1710;
-                    Bool _t1711; { Bool *_hp = (Bool *)I64_lte(&(I64){depth}, &(I64){_t1710}); _t1711 = *_hp; free(_hp); }
-                    (void)_t1711;
+                    I64 _t1717 = 0;
+                    (void)_t1717;
+                    Bool _t1718; { Bool *_hp = (Bool *)I64_lte(&(I64){depth}, &(I64){_t1717}); _t1718 = *_hp; free(_hp); }
+                    (void)_t1718;
                     ;
-                    if (_t1711) {
+                    if (_t1718) {
                         ;
                         break;
                     }
                     ;
-                    U64 _t1712 = 1;
-                    (void)_t1712;
-                    U64 _t1713 = U64_add(DEREF(pos), _t1712);
-                    (void)_t1713;
+                    U64 _t1719 = 1;
+                    (void)_t1719;
+                    U64 _t1720 = U64_add(DEREF(pos), _t1719);
+                    (void)_t1720;
                     ;
-                    Bool _t1714; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1713}, &(U64){src_len}); _t1714 = *_hp; free(_hp); }
-                    (void)_t1714;
+                    Bool _t1721; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1720}, &(U64){src_len}); _t1721 = *_hp; free(_hp); }
+                    (void)_t1721;
                     ;
-                    if (_t1714) {
+                    if (_t1721) {
                         U8 *b1 = Str_byte_at(src, pos);
                         (void)b1;
-                        U64 _t1694 = 1;
-                        (void)_t1694;
-                        U64 *_t1695 = malloc(sizeof(U64)); *_t1695 = U64_add(DEREF(pos), _t1694);
-                        (void)_t1695;
-                        ;
-                        U8 *b2 = Str_byte_at(src, _t1695);
-                        (void)b2;
-                        U8 _t1696 = 47;
-                        (void)_t1696;
-                        U8 _t1697 = 42;
-                        (void)_t1697;
-                        Bool _t1698 = U8_eq(DEREF(b1), _t1696);
-                        (void)_t1698;
-                        ;
-                        Bool _t1699 = U8_eq(DEREF(b2), _t1697);
-                        (void)_t1699;
-                        ;
-                        Bool _t1700 = Bool_and(_t1698, _t1699);
-                        (void)_t1700;
-                        ;
-                        ;
-                        if (_t1700) {
-                            I64 _t1686 = 1;
-                            (void)_t1686;
-                            I64 _t1687 = I64_add(depth, _t1686);
-                            (void)_t1687;
-                            ;
-                            depth = _t1687;
-                            ;
-                            U64 _t1688 = 2;
-                            (void)_t1688;
-                            U64 _t1689 = U64_add(DEREF(pos), _t1688);
-                            (void)_t1689;
-                            ;
-                            *pos = _t1689;
-                            ;
-                            U64_delete(_t1695, &(Bool){1});
-                            ;
-                            ;
-                            continue;
-                        }
-                        ;
-                        U8 _t1701 = 42;
+                        U64 _t1701 = 1;
                         (void)_t1701;
-                        U8 _t1702 = 47;
+                        U64 *_t1702 = malloc(sizeof(U64)); *_t1702 = U64_add(DEREF(pos), _t1701);
                         (void)_t1702;
-                        Bool _t1703 = U8_eq(DEREF(b1), _t1701);
+                        ;
+                        U8 *b2 = Str_byte_at(src, _t1702);
+                        (void)b2;
+                        U8 _t1703 = 47;
                         (void)_t1703;
-                        ;
-                        Bool _t1704 = U8_eq(DEREF(b2), _t1702);
+                        U8 _t1704 = 42;
                         (void)_t1704;
-                        U64_delete(_t1695, &(Bool){1});
-                        ;
-                        Bool _t1705 = Bool_and(_t1703, _t1704);
+                        Bool _t1705 = U8_eq(DEREF(b1), _t1703);
                         (void)_t1705;
                         ;
+                        Bool _t1706 = U8_eq(DEREF(b2), _t1704);
+                        (void)_t1706;
                         ;
-                        if (_t1705) {
-                            I64 _t1690 = 1;
-                            (void)_t1690;
-                            I64 _t1691 = I64_sub(depth, _t1690);
-                            (void)_t1691;
-                            ;
-                            depth = _t1691;
-                            ;
-                            U64 _t1692 = 2;
-                            (void)_t1692;
-                            U64 _t1693 = U64_add(DEREF(pos), _t1692);
+                        Bool _t1707 = Bool_and(_t1705, _t1706);
+                        (void)_t1707;
+                        ;
+                        ;
+                        if (_t1707) {
+                            I64 _t1693 = 1;
                             (void)_t1693;
+                            I64 _t1694 = I64_add(depth, _t1693);
+                            (void)_t1694;
                             ;
-                            *pos = _t1693;
+                            depth = _t1694;
+                            ;
+                            U64 _t1695 = 2;
+                            (void)_t1695;
+                            U64 _t1696 = U64_add(DEREF(pos), _t1695);
+                            (void)_t1696;
+                            ;
+                            *pos = _t1696;
+                            ;
+                            U64_delete(_t1702, &(Bool){1});
+                            ;
+                            ;
+                            continue;
+                        }
+                        ;
+                        U8 _t1708 = 42;
+                        (void)_t1708;
+                        U8 _t1709 = 47;
+                        (void)_t1709;
+                        Bool _t1710 = U8_eq(DEREF(b1), _t1708);
+                        (void)_t1710;
+                        ;
+                        Bool _t1711 = U8_eq(DEREF(b2), _t1709);
+                        (void)_t1711;
+                        U64_delete(_t1702, &(Bool){1});
+                        ;
+                        Bool _t1712 = Bool_and(_t1710, _t1711);
+                        (void)_t1712;
+                        ;
+                        ;
+                        if (_t1712) {
+                            I64 _t1697 = 1;
+                            (void)_t1697;
+                            I64 _t1698 = I64_sub(depth, _t1697);
+                            (void)_t1698;
+                            ;
+                            depth = _t1698;
+                            ;
+                            U64 _t1699 = 2;
+                            (void)_t1699;
+                            U64 _t1700 = U64_add(DEREF(pos), _t1699);
+                            (void)_t1700;
+                            ;
+                            *pos = _t1700;
                             ;
                             ;
                             ;
@@ -12505,88 +12620,88 @@ Vec * tokenize(Str * src, Str * path) {
                         ;
                     }
                     ;
-                    U8 *_t1715 = Str_byte_at(src, pos);
-                    (void)_t1715;
-                    U8 _t1716 = 10;
-                    (void)_t1716;
-                    Bool _t1717 = U8_eq(DEREF(_t1715), _t1716);
-                    (void)_t1717;
+                    U8 *_t1722 = Str_byte_at(src, pos);
+                    (void)_t1722;
+                    U8 _t1723 = 10;
+                    (void)_t1723;
+                    Bool _t1724 = U8_eq(DEREF(_t1722), _t1723);
+                    (void)_t1724;
                     ;
-                    if (_t1717) {
-                        I64 _t1706 = 1;
-                        (void)_t1706;
-                        I64 _t1707 = I64_add(line, _t1706);
-                        (void)_t1707;
+                    if (_t1724) {
+                        I64 _t1713 = 1;
+                        (void)_t1713;
+                        I64 _t1714 = I64_add(line, _t1713);
+                        (void)_t1714;
                         ;
-                        line = _t1707;
+                        line = _t1714;
                         ;
-                        U64 _t1708 = 1;
-                        (void)_t1708;
-                        U64 _t1709 = U64_add(DEREF(pos), _t1708);
-                        (void)_t1709;
+                        U64 _t1715 = 1;
+                        (void)_t1715;
+                        U64 _t1716 = U64_add(DEREF(pos), _t1715);
+                        (void)_t1716;
                         ;
-                        line_start = _t1709;
+                        line_start = _t1716;
                         ;
                     }
                     ;
-                    U64 _t1718 = U64_inc(DEREF(pos));
-                    (void)_t1718;
-                    *pos = _t1718;
+                    U64 _t1725 = U64_inc(DEREF(pos));
+                    (void)_t1725;
+                    *pos = _t1725;
                     ;
                 }
-                I64 _t1736 = 0;
-                (void)_t1736;
-                Bool _t1737; { Bool *_hp = (Bool *)I64_gt(&(I64){depth}, &(I64){_t1736}); _t1737 = *_hp; free(_hp); }
-                (void)_t1737;
+                I64 _t1743 = 0;
+                (void)_t1743;
+                Bool _t1744; { Bool *_hp = (Bool *)I64_gt(&(I64){depth}, &(I64){_t1743}); _t1744 = *_hp; free(_hp); }
+                (void)_t1744;
                 ;
                 ;
-                if (_t1737) {
-                    Str *_t1719 = Str_lit("Str", 3ULL);
-                    (void)_t1719;
-                    U64 _t1720; { U64 *_hp = (U64 *)Str_size(); _t1720 = *_hp; free(_hp); }
-                    (void)_t1720;
-                    U64 _t1721 = 6;
-                    (void)_t1721;
-                    Array *_va20 = Array_new(_t1719, &(U64){_t1720}, &(U64){_t1721});
-                    (void)_va20;
-                    Str_delete(_t1719, &(Bool){1});
-                    ;
-                    ;
-                    U64 _t1722 = 0;
-                    (void)_t1722;
-                    Str *_t1723 = Str_clone(path);
-                    (void)_t1723;
-                    Array_set(_va20, &(U64){_t1722}, _t1723);
-                    ;
-                    U64 _t1724 = 1;
-                    (void)_t1724;
-                    Str *_t1725 = Str_lit(":", 1ULL);
-                    (void)_t1725;
-                    Array_set(_va20, &(U64){_t1724}, _t1725);
-                    ;
-                    U64 _t1726 = 2;
+                if (_t1744) {
+                    Str *_t1726 = Str_lit("Str", 3ULL);
                     (void)_t1726;
-                    Str *_t1727 = I64_to_str(&(I64){line});
+                    U64 _t1727; { U64 *_hp = (U64 *)Str_size(); _t1727 = *_hp; free(_hp); }
                     (void)_t1727;
-                    Array_set(_va20, &(U64){_t1726}, _t1727);
-                    ;
-                    U64 _t1728 = 3;
+                    U64 _t1728 = 6;
                     (void)_t1728;
-                    Str *_t1729 = Str_lit(":", 1ULL);
+                    Array *_va20 = Array_new(_t1726, &(U64){_t1727}, &(U64){_t1728});
+                    (void)_va20;
+                    Str_delete(_t1726, &(Bool){1});
+                    ;
+                    ;
+                    U64 _t1729 = 0;
                     (void)_t1729;
-                    Array_set(_va20, &(U64){_t1728}, _t1729);
-                    ;
-                    U64 _t1730 = 4;
+                    Str *_t1730 = Str_clone(path);
                     (void)_t1730;
-                    Str *_t1731 = I64_to_str(&(I64){col});
-                    (void)_t1731;
-                    Array_set(_va20, &(U64){_t1730}, _t1731);
+                    Array_set(_va20, &(U64){_t1729}, _t1730);
                     ;
-                    U64 _t1732 = 5;
+                    U64 _t1731 = 1;
+                    (void)_t1731;
+                    Str *_t1732 = Str_lit(":", 1ULL);
                     (void)_t1732;
-                    Str *_t1733 = Str_lit(": error: unterminated comment", 29ULL);
+                    Array_set(_va20, &(U64){_t1731}, _t1732);
+                    ;
+                    U64 _t1733 = 2;
                     (void)_t1733;
-                    Array_set(_va20, &(U64){_t1732}, _t1733);
+                    Str *_t1734 = I64_to_str(&(I64){line});
+                    (void)_t1734;
+                    Array_set(_va20, &(U64){_t1733}, _t1734);
+                    ;
+                    U64 _t1735 = 3;
+                    (void)_t1735;
+                    Str *_t1736 = Str_lit(":", 1ULL);
+                    (void)_t1736;
+                    Array_set(_va20, &(U64){_t1735}, _t1736);
+                    ;
+                    U64 _t1737 = 4;
+                    (void)_t1737;
+                    Str *_t1738 = I64_to_str(&(I64){col});
+                    (void)_t1738;
+                    Array_set(_va20, &(U64){_t1737}, _t1738);
+                    ;
+                    U64 _t1739 = 5;
+                    (void)_t1739;
+                    Str *_t1740 = Str_lit(": error: unterminated comment", 29ULL);
+                    (void)_t1740;
+                    Array_set(_va20, &(U64){_t1739}, _t1740);
                     ;
                     println(_va20);
                 }
@@ -12600,367 +12715,367 @@ Vec * tokenize(Str * src, Str * path) {
             ;
         }
         ;
-        Bool _t1975; { Bool *_hp = (Bool *)is_digit(c); _t1975 = *_hp; free(_hp); }
-        (void)_t1975;
-        if (_t1975) {
+        Bool _t1994; { Bool *_hp = (Bool *)is_digit(c); _t1994 = *_hp; free(_hp); }
+        (void)_t1994;
+        if (_t1994) {
             while (1) {
-                Bool _wcond1744; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1744 = *_hp; free(_hp); }
-                (void)_wcond1744;
-                if (_wcond1744) {
+                Bool _wcond1751; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1751 = *_hp; free(_hp); }
+                (void)_wcond1751;
+                if (_wcond1751) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U8 *_t1745 = Str_byte_at(src, pos);
-                (void)_t1745;
-                Bool _t1746; { Bool *_hp = (Bool *)is_digit(_t1745); _t1746 = *_hp; free(_hp); }
-                (void)_t1746;
-                Bool _t1747 = Bool_not(_t1746);
-                (void)_t1747;
+                U8 *_t1752 = Str_byte_at(src, pos);
+                (void)_t1752;
+                Bool _t1753; { Bool *_hp = (Bool *)is_digit(_t1752); _t1753 = *_hp; free(_hp); }
+                (void)_t1753;
+                Bool _t1754 = Bool_not(_t1753);
+                (void)_t1754;
                 ;
-                if (_t1747) {
+                if (_t1754) {
                     ;
                     break;
                 }
                 ;
-                U64 _t1748 = U64_inc(DEREF(pos));
-                (void)_t1748;
-                *pos = _t1748;
+                U64 _t1755 = U64_inc(DEREF(pos));
+                (void)_t1755;
+                *pos = _t1755;
                 ;
             }
-            U64 _t1763 = 1;
-            (void)_t1763;
-            U64 _t1764 = U64_add(DEREF(pos), _t1763);
-            (void)_t1764;
+            U64 _t1770 = 1;
+            (void)_t1770;
+            U64 _t1771 = U64_add(DEREF(pos), _t1770);
+            (void)_t1771;
             ;
-            Bool _t1765; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1764}, &(U64){src_len}); _t1765 = *_hp; free(_hp); }
-            (void)_t1765;
+            Bool _t1772; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1771}, &(U64){src_len}); _t1772 = *_hp; free(_hp); }
+            (void)_t1772;
             ;
-            if (_t1765) {
-                U8 *_t1755 = Str_byte_at(src, pos);
-                (void)_t1755;
-                U8 _t1756 = 46;
-                (void)_t1756;
-                U64 _t1757 = 1;
-                (void)_t1757;
-                U64 *_t1758 = malloc(sizeof(U64)); *_t1758 = U64_add(DEREF(pos), _t1757);
-                (void)_t1758;
-                ;
-                U8 *_t1759 = Str_byte_at(src, _t1758);
-                (void)_t1759;
-                Bool _t1760 = U8_eq(DEREF(_t1755), _t1756);
-                (void)_t1760;
-                ;
-                Bool _t1761; { Bool *_hp = (Bool *)is_digit(_t1759); _t1761 = *_hp; free(_hp); }
-                (void)_t1761;
-                U64_delete(_t1758, &(Bool){1});
-                Bool _t1762 = Bool_and(_t1760, _t1761);
+            if (_t1772) {
+                U8 *_t1762 = Str_byte_at(src, pos);
                 (void)_t1762;
+                U8 _t1763 = 46;
+                (void)_t1763;
+                U64 _t1764 = 1;
+                (void)_t1764;
+                U64 *_t1765 = malloc(sizeof(U64)); *_t1765 = U64_add(DEREF(pos), _t1764);
+                (void)_t1765;
+                ;
+                U8 *_t1766 = Str_byte_at(src, _t1765);
+                (void)_t1766;
+                Bool _t1767 = U8_eq(DEREF(_t1762), _t1763);
+                (void)_t1767;
+                ;
+                Bool _t1768; { Bool *_hp = (Bool *)is_digit(_t1766); _t1768 = *_hp; free(_hp); }
+                (void)_t1768;
+                U64_delete(_t1765, &(Bool){1});
+                Bool _t1769 = Bool_and(_t1767, _t1768);
+                (void)_t1769;
                 ;
                 ;
-                if (_t1762) {
-                    U64 _t1754 = U64_inc(DEREF(pos));
-                    (void)_t1754;
-                    *pos = _t1754;
+                if (_t1769) {
+                    U64 _t1761 = U64_inc(DEREF(pos));
+                    (void)_t1761;
+                    *pos = _t1761;
                     ;
                     while (1) {
-                        Bool _wcond1749; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1749 = *_hp; free(_hp); }
-                        (void)_wcond1749;
-                        if (_wcond1749) {
+                        Bool _wcond1756; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1756 = *_hp; free(_hp); }
+                        (void)_wcond1756;
+                        if (_wcond1756) {
                         } else {
                             ;
                             break;
                         }
                         ;
-                        U8 *_t1750 = Str_byte_at(src, pos);
-                        (void)_t1750;
-                        Bool _t1751; { Bool *_hp = (Bool *)is_digit(_t1750); _t1751 = *_hp; free(_hp); }
-                        (void)_t1751;
-                        Bool _t1752 = Bool_not(_t1751);
-                        (void)_t1752;
+                        U8 *_t1757 = Str_byte_at(src, pos);
+                        (void)_t1757;
+                        Bool _t1758; { Bool *_hp = (Bool *)is_digit(_t1757); _t1758 = *_hp; free(_hp); }
+                        (void)_t1758;
+                        Bool _t1759 = Bool_not(_t1758);
+                        (void)_t1759;
                         ;
-                        if (_t1752) {
+                        if (_t1759) {
                             ;
                             break;
                         }
                         ;
-                        U64 _t1753 = U64_inc(DEREF(pos));
-                        (void)_t1753;
-                        *pos = _t1753;
+                        U64 _t1760 = U64_inc(DEREF(pos));
+                        (void)_t1760;
+                        *pos = _t1760;
                         ;
                     }
                 }
                 ;
             }
             ;
-            U64 _t1766 = U64_sub(DEREF(pos), start);
-            (void)_t1766;
-            I64 _t1767 = I64_clone(&(I64){col});
-            (void)_t1767;
-            Token *_t1768 = malloc(sizeof(Token));
-            { TokenType *_ca = TokenType_clone(TokenType_Number()); _t1768->type = *_ca; free(_ca); }
-            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1766}); _t1768->text = *_ca; free(_ca); }
-            _t1768->line = I64_clone(&(I64){line});
-            _t1768->col = _t1767;
-            (void)_t1768;
+            U64 _t1773 = U64_sub(DEREF(pos), start);
+            (void)_t1773;
+            I64 _t1774 = I64_clone(&(I64){col});
+            (void)_t1774;
+            Token *_t1775 = malloc(sizeof(Token));
+            { TokenType *_ca = TokenType_clone(TokenType_Number()); _t1775->type = *_ca; free(_ca); }
+            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1773}); _t1775->text = *_ca; free(_ca); }
+            _t1775->line = I64_clone(&(I64){line});
+            _t1775->col = _t1774;
+            (void)_t1775;
             ;
             ;
-            Vec_push(tokens, _t1768);
+            Vec_push(tokens, _t1775);
             ;
             ;
             ;
             continue;
         }
         ;
-        Bool _t1976; { Bool *_hp = (Bool *)is_alpha(c); _t1976 = *_hp; free(_hp); }
-        (void)_t1976;
-        if (_t1976) {
+        Bool _t1995; { Bool *_hp = (Bool *)is_alpha(c); _t1995 = *_hp; free(_hp); }
+        (void)_t1995;
+        if (_t1995) {
             while (1) {
-                Bool _wcond1769; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1769 = *_hp; free(_hp); }
-                (void)_wcond1769;
-                if (_wcond1769) {
+                Bool _wcond1776; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1776 = *_hp; free(_hp); }
+                (void)_wcond1776;
+                if (_wcond1776) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U8 *_t1770 = Str_byte_at(src, pos);
-                (void)_t1770;
-                Bool _t1771; { Bool *_hp = (Bool *)is_alnum(_t1770); _t1771 = *_hp; free(_hp); }
-                (void)_t1771;
-                Bool _t1772 = Bool_not(_t1771);
-                (void)_t1772;
+                U8 *_t1777 = Str_byte_at(src, pos);
+                (void)_t1777;
+                Bool _t1778; { Bool *_hp = (Bool *)is_alnum(_t1777); _t1778 = *_hp; free(_hp); }
+                (void)_t1778;
+                Bool _t1779 = Bool_not(_t1778);
+                (void)_t1779;
                 ;
-                if (_t1772) {
+                if (_t1779) {
                     ;
                     break;
                 }
                 ;
-                U64 _t1773 = U64_inc(DEREF(pos));
-                (void)_t1773;
-                *pos = _t1773;
+                U64 _t1780 = U64_inc(DEREF(pos));
+                (void)_t1780;
+                *pos = _t1780;
                 ;
             }
-            U64 _t1774 = U64_sub(DEREF(pos), start);
-            (void)_t1774;
-            Str *word = Str_substr(src, &(U64){start}, &(U64){_t1774});
+            U64 _t1781 = U64_sub(DEREF(pos), start);
+            (void)_t1781;
+            Str *word = Str_substr(src, &(U64){start}, &(U64){_t1781});
             (void)word;
             ;
             TokenType *type = lookup_keyword(word);
             (void)type;
-            I64 _t1775 = I64_clone(&(I64){line});
-            (void)_t1775;
-            I64 _t1776 = I64_clone(&(I64){col});
-            (void)_t1776;
-            Token *_t1777 = malloc(sizeof(Token));
-            { TokenType *_ca = TokenType_clone(type); _t1777->type = *_ca; free(_ca); }
-            { Str *_ca = Str_clone(word); _t1777->text = *_ca; free(_ca); }
-            _t1777->line = _t1775;
-            _t1777->col = _t1776;
-            (void)_t1777;
+            I64 _t1782 = I64_clone(&(I64){line});
+            (void)_t1782;
+            I64 _t1783 = I64_clone(&(I64){col});
+            (void)_t1783;
+            Token *_t1784 = malloc(sizeof(Token));
+            { TokenType *_ca = TokenType_clone(type); _t1784->type = *_ca; free(_ca); }
+            { Str *_ca = Str_clone(word); _t1784->text = *_ca; free(_ca); }
+            _t1784->line = _t1782;
+            _t1784->col = _t1783;
+            (void)_t1784;
             ;
             ;
             TokenType_delete(type, &(Bool){1});
             Str_delete(word, &(Bool){1});
-            Vec_push(tokens, _t1777);
+            Vec_push(tokens, _t1784);
             ;
             ;
             ;
             continue;
         }
         ;
-        U8 _t1977 = 34;
-        (void)_t1977;
-        Bool _t1978 = U8_eq(DEREF(c), _t1977);
-        (void)_t1978;
+        U8 _t1996 = 34;
+        (void)_t1996;
+        Bool _t1997 = U8_eq(DEREF(c), _t1996);
+        (void)_t1997;
         ;
-        if (_t1978) {
-            U64 _t1824 = U64_inc(DEREF(pos));
-            (void)_t1824;
-            *pos = _t1824;
+        if (_t1997) {
+            U64 _t1831 = U64_inc(DEREF(pos));
+            (void)_t1831;
+            *pos = _t1831;
             ;
             while (1) {
-                Bool _wcond1778; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1778 = *_hp; free(_hp); }
-                (void)_wcond1778;
-                if (_wcond1778) {
+                Bool _wcond1785; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _wcond1785 = *_hp; free(_hp); }
+                (void)_wcond1785;
+                if (_wcond1785) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U8 *_t1784 = Str_byte_at(src, pos);
-                (void)_t1784;
-                U8 _t1785 = 34;
-                (void)_t1785;
-                Bool _t1786 = U8_eq(DEREF(_t1784), _t1785);
-                (void)_t1786;
-                ;
-                if (_t1786) {
-                    ;
-                    break;
-                }
-                ;
-                U8 *_t1787 = Str_byte_at(src, pos);
-                (void)_t1787;
-                U8 _t1788 = 92;
-                (void)_t1788;
-                U64 _t1789 = 1;
-                (void)_t1789;
-                U64 _t1790 = U64_add(DEREF(pos), _t1789);
-                (void)_t1790;
-                ;
-                Bool _t1791 = U8_eq(DEREF(_t1787), _t1788);
+                U8 *_t1791 = Str_byte_at(src, pos);
                 (void)_t1791;
-                ;
-                Bool _t1792; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1790}, &(U64){src_len}); _t1792 = *_hp; free(_hp); }
+                U8 _t1792 = 34;
                 (void)_t1792;
-                ;
-                Bool _t1793 = Bool_and(_t1791, _t1792);
+                Bool _t1793 = U8_eq(DEREF(_t1791), _t1792);
                 (void)_t1793;
                 ;
-                ;
                 if (_t1793) {
-                    U64 _t1779 = U64_inc(DEREF(pos));
-                    (void)_t1779;
-                    *pos = _t1779;
                     ;
+                    break;
                 }
                 ;
                 U8 *_t1794 = Str_byte_at(src, pos);
                 (void)_t1794;
-                U8 _t1795 = 10;
+                U8 _t1795 = 92;
                 (void)_t1795;
-                Bool _t1796 = U8_eq(DEREF(_t1794), _t1795);
+                U64 _t1796 = 1;
                 (void)_t1796;
+                U64 _t1797 = U64_add(DEREF(pos), _t1796);
+                (void)_t1797;
                 ;
-                if (_t1796) {
-                    I64 _t1780 = 1;
-                    (void)_t1780;
-                    I64 _t1781 = I64_add(line, _t1780);
-                    (void)_t1781;
-                    ;
-                    line = _t1781;
-                    ;
-                    U64 _t1782 = 1;
-                    (void)_t1782;
-                    U64 _t1783 = U64_add(DEREF(pos), _t1782);
-                    (void)_t1783;
-                    ;
-                    line_start = _t1783;
+                Bool _t1798 = U8_eq(DEREF(_t1794), _t1795);
+                (void)_t1798;
+                ;
+                Bool _t1799; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1797}, &(U64){src_len}); _t1799 = *_hp; free(_hp); }
+                (void)_t1799;
+                ;
+                Bool _t1800 = Bool_and(_t1798, _t1799);
+                (void)_t1800;
+                ;
+                ;
+                if (_t1800) {
+                    U64 _t1786 = U64_inc(DEREF(pos));
+                    (void)_t1786;
+                    *pos = _t1786;
                     ;
                 }
                 ;
-                U64 _t1797 = U64_inc(DEREF(pos));
-                (void)_t1797;
-                *pos = _t1797;
-                ;
-            }
-            U8 *_t1825 = Str_byte_at(src, pos);
-            (void)_t1825;
-            U8 _t1826 = 34;
-            (void)_t1826;
-            Bool _t1827; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _t1827 = *_hp; free(_hp); }
-            (void)_t1827;
-            Bool _t1828 = U8_eq(DEREF(_t1825), _t1826);
-            (void)_t1828;
-            ;
-            Bool _t1829 = Bool_and(_t1827, _t1828);
-            (void)_t1829;
-            ;
-            ;
-            if (_t1829) {
-                U64 _t1798 = U64_inc(DEREF(pos));
-                (void)_t1798;
-                *pos = _t1798;
-                ;
-                U64 _t1799 = 1;
-                (void)_t1799;
-                U64 _t1800 = U64_sub(DEREF(pos), start);
-                (void)_t1800;
-                U64 _t1801 = 2;
+                U8 *_t1801 = Str_byte_at(src, pos);
                 (void)_t1801;
-                U64 _t1802 = U64_add(start, _t1799);
+                U8 _t1802 = 10;
                 (void)_t1802;
-                ;
-                U64 _t1803 = U64_sub(_t1800, _t1801);
+                Bool _t1803 = U8_eq(DEREF(_t1801), _t1802);
                 (void)_t1803;
                 ;
+                if (_t1803) {
+                    I64 _t1787 = 1;
+                    (void)_t1787;
+                    I64 _t1788 = I64_add(line, _t1787);
+                    (void)_t1788;
+                    ;
+                    line = _t1788;
+                    ;
+                    U64 _t1789 = 1;
+                    (void)_t1789;
+                    U64 _t1790 = U64_add(DEREF(pos), _t1789);
+                    (void)_t1790;
+                    ;
+                    line_start = _t1790;
+                    ;
+                }
                 ;
-                I64 _t1804 = I64_clone(&(I64){col});
+                U64 _t1804 = U64_inc(DEREF(pos));
                 (void)_t1804;
-                Token *_t1805 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_StringTok()); _t1805->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){_t1802}, &(U64){_t1803}); _t1805->text = *_ca; free(_ca); }
-                _t1805->line = I64_clone(&(I64){line});
-                _t1805->col = _t1804;
+                *pos = _t1804;
+                ;
+            }
+            U8 *_t1832 = Str_byte_at(src, pos);
+            (void)_t1832;
+            U8 _t1833 = 34;
+            (void)_t1833;
+            Bool _t1834; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _t1834 = *_hp; free(_hp); }
+            (void)_t1834;
+            Bool _t1835 = U8_eq(DEREF(_t1832), _t1833);
+            (void)_t1835;
+            ;
+            Bool _t1836 = Bool_and(_t1834, _t1835);
+            (void)_t1836;
+            ;
+            ;
+            if (_t1836) {
+                U64 _t1805 = U64_inc(DEREF(pos));
                 (void)_t1805;
+                *pos = _t1805;
                 ;
-                ;
-                ;
-                Vec_push(tokens, _t1805);
-            } else {
-                Str *_t1806 = Str_lit("Str", 3ULL);
+                U64 _t1806 = 1;
                 (void)_t1806;
-                U64 _t1807; { U64 *_hp = (U64 *)Str_size(); _t1807 = *_hp; free(_hp); }
+                U64 _t1807 = U64_sub(DEREF(pos), start);
                 (void)_t1807;
-                U64 _t1808 = 6;
+                U64 _t1808 = 2;
                 (void)_t1808;
-                Array *_va21 = Array_new(_t1806, &(U64){_t1807}, &(U64){_t1808});
-                (void)_va21;
-                Str_delete(_t1806, &(Bool){1});
-                ;
-                ;
-                U64 _t1809 = 0;
+                U64 _t1809 = U64_add(start, _t1806);
                 (void)_t1809;
-                Str *_t1810 = Str_clone(path);
+                ;
+                U64 _t1810 = U64_sub(_t1807, _t1808);
                 (void)_t1810;
-                Array_set(_va21, &(U64){_t1809}, _t1810);
                 ;
-                U64 _t1811 = 1;
+                ;
+                I64 _t1811 = I64_clone(&(I64){col});
                 (void)_t1811;
-                Str *_t1812 = Str_lit(":", 1ULL);
+                Token *_t1812 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_StringTok()); _t1812->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){_t1809}, &(U64){_t1810}); _t1812->text = *_ca; free(_ca); }
+                _t1812->line = I64_clone(&(I64){line});
+                _t1812->col = _t1811;
                 (void)_t1812;
-                Array_set(_va21, &(U64){_t1811}, _t1812);
                 ;
-                U64 _t1813 = 2;
+                ;
+                ;
+                Vec_push(tokens, _t1812);
+            } else {
+                Str *_t1813 = Str_lit("Str", 3ULL);
                 (void)_t1813;
-                Str *_t1814 = I64_to_str(&(I64){line});
+                U64 _t1814; { U64 *_hp = (U64 *)Str_size(); _t1814 = *_hp; free(_hp); }
                 (void)_t1814;
-                Array_set(_va21, &(U64){_t1813}, _t1814);
-                ;
-                U64 _t1815 = 3;
+                U64 _t1815 = 6;
                 (void)_t1815;
-                Str *_t1816 = Str_lit(":", 1ULL);
+                Array *_va21 = Array_new(_t1813, &(U64){_t1814}, &(U64){_t1815});
+                (void)_va21;
+                Str_delete(_t1813, &(Bool){1});
+                ;
+                ;
+                U64 _t1816 = 0;
                 (void)_t1816;
-                Array_set(_va21, &(U64){_t1815}, _t1816);
-                ;
-                U64 _t1817 = 4;
+                Str *_t1817 = Str_clone(path);
                 (void)_t1817;
-                Str *_t1818 = I64_to_str(&(I64){col});
-                (void)_t1818;
-                Array_set(_va21, &(U64){_t1817}, _t1818);
+                Array_set(_va21, &(U64){_t1816}, _t1817);
                 ;
-                U64 _t1819 = 5;
+                U64 _t1818 = 1;
+                (void)_t1818;
+                Str *_t1819 = Str_lit(":", 1ULL);
                 (void)_t1819;
-                Str *_t1820 = Str_lit(": error: unterminated string", 28ULL);
+                Array_set(_va21, &(U64){_t1818}, _t1819);
+                ;
+                U64 _t1820 = 2;
                 (void)_t1820;
-                Array_set(_va21, &(U64){_t1819}, _t1820);
+                Str *_t1821 = I64_to_str(&(I64){line});
+                (void)_t1821;
+                Array_set(_va21, &(U64){_t1820}, _t1821);
+                ;
+                U64 _t1822 = 3;
+                (void)_t1822;
+                Str *_t1823 = Str_lit(":", 1ULL);
+                (void)_t1823;
+                Array_set(_va21, &(U64){_t1822}, _t1823);
+                ;
+                U64 _t1824 = 4;
+                (void)_t1824;
+                Str *_t1825 = I64_to_str(&(I64){col});
+                (void)_t1825;
+                Array_set(_va21, &(U64){_t1824}, _t1825);
+                ;
+                U64 _t1826 = 5;
+                (void)_t1826;
+                Str *_t1827 = Str_lit(": error: unterminated string", 28ULL);
+                (void)_t1827;
+                Array_set(_va21, &(U64){_t1826}, _t1827);
                 ;
                 println(_va21);
-                U64 _t1821 = U64_sub(DEREF(pos), start);
-                (void)_t1821;
-                I64 _t1822 = I64_clone(&(I64){col});
-                (void)_t1822;
-                Token *_t1823 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1823->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1821}); _t1823->text = *_ca; free(_ca); }
-                _t1823->line = I64_clone(&(I64){line});
-                _t1823->col = _t1822;
-                (void)_t1823;
+                U64 _t1828 = U64_sub(DEREF(pos), start);
+                (void)_t1828;
+                I64 _t1829 = I64_clone(&(I64){col});
+                (void)_t1829;
+                Token *_t1830 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1830->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1828}); _t1830->text = *_ca; free(_ca); }
+                _t1830->line = I64_clone(&(I64){line});
+                _t1830->col = _t1829;
+                (void)_t1830;
                 ;
                 ;
-                Vec_push(tokens, _t1823);
+                Vec_push(tokens, _t1830);
             }
             ;
             ;
@@ -12969,147 +13084,147 @@ Vec * tokenize(Str * src, Str * path) {
             continue;
         }
         ;
-        U8 _t1979 = 39;
-        (void)_t1979;
-        Bool _t1980 = U8_eq(DEREF(c), _t1979);
-        (void)_t1980;
+        U8 _t1998 = 39;
+        (void)_t1998;
+        Bool _t1999 = U8_eq(DEREF(c), _t1998);
+        (void)_t1999;
         ;
-        if (_t1980) {
-            U64 _t1853 = U64_inc(DEREF(pos));
-            (void)_t1853;
-            *pos = _t1853;
+        if (_t1999) {
+            U64 _t1860 = U64_inc(DEREF(pos));
+            (void)_t1860;
+            *pos = _t1860;
             ;
             U64 ch_start = U64_clone(pos);
             (void)ch_start;
-            U8 *_t1854 = Str_byte_at(src, pos);
-            (void)_t1854;
-            U8 _t1855 = 92;
-            (void)_t1855;
-            U64 _t1856 = 1;
-            (void)_t1856;
-            U64 _t1857 = U64_add(DEREF(pos), _t1856);
-            (void)_t1857;
-            ;
-            Bool _t1858 = U8_eq(DEREF(_t1854), _t1855);
-            (void)_t1858;
-            ;
-            Bool _t1859; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1857}, &(U64){src_len}); _t1859 = *_hp; free(_hp); }
-            (void)_t1859;
-            ;
-            Bool _t1860; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _t1860 = *_hp; free(_hp); }
-            (void)_t1860;
-            Bool _t1861 = Bool_and(_t1858, _t1859);
+            U8 *_t1861 = Str_byte_at(src, pos);
             (void)_t1861;
-            ;
-            ;
-            Bool _t1862 = Bool_and(_t1860, _t1861);
+            U8 _t1862 = 92;
             (void)_t1862;
-            ;
-            ;
-            if (_t1862) {
-                U64 _t1830 = U64_inc(DEREF(pos));
-                (void)_t1830;
-                *pos = _t1830;
-                ;
-            }
-            ;
-            U64 _t1863 = U64_inc(DEREF(pos));
+            U64 _t1863 = 1;
             (void)_t1863;
-            *pos = _t1863;
-            ;
-            U8 *_t1864 = Str_byte_at(src, pos);
+            U64 _t1864 = U64_add(DEREF(pos), _t1863);
             (void)_t1864;
-            U8 _t1865 = 39;
-            (void)_t1865;
-            Bool _t1866; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _t1866 = *_hp; free(_hp); }
-            (void)_t1866;
-            Bool _t1867 = U8_eq(DEREF(_t1864), _t1865);
-            (void)_t1867;
             ;
-            Bool _t1868 = Bool_and(_t1866, _t1867);
+            Bool _t1865 = U8_eq(DEREF(_t1861), _t1862);
+            (void)_t1865;
+            ;
+            Bool _t1866; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1864}, &(U64){src_len}); _t1866 = *_hp; free(_hp); }
+            (void)_t1866;
+            ;
+            Bool _t1867; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _t1867 = *_hp; free(_hp); }
+            (void)_t1867;
+            Bool _t1868 = Bool_and(_t1865, _t1866);
             (void)_t1868;
             ;
             ;
-            if (_t1868) {
-                U64 _t1831 = U64_sub(DEREF(pos), ch_start);
-                (void)_t1831;
-                I64 _t1832 = I64_clone(&(I64){col});
-                (void)_t1832;
-                Token *_t1833 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_Char()); _t1833->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){ch_start}, &(U64){_t1831}); _t1833->text = *_ca; free(_ca); }
-                _t1833->line = I64_clone(&(I64){line});
-                _t1833->col = _t1832;
-                (void)_t1833;
+            Bool _t1869 = Bool_and(_t1867, _t1868);
+            (void)_t1869;
+            ;
+            ;
+            if (_t1869) {
+                U64 _t1837 = U64_inc(DEREF(pos));
+                (void)_t1837;
+                *pos = _t1837;
+                ;
+            }
+            ;
+            U64 _t1870 = U64_inc(DEREF(pos));
+            (void)_t1870;
+            *pos = _t1870;
+            ;
+            U8 *_t1871 = Str_byte_at(src, pos);
+            (void)_t1871;
+            U8 _t1872 = 39;
+            (void)_t1872;
+            Bool _t1873; { Bool *_hp = (Bool *)U64_lt(pos, &(U64){src_len}); _t1873 = *_hp; free(_hp); }
+            (void)_t1873;
+            Bool _t1874 = U8_eq(DEREF(_t1871), _t1872);
+            (void)_t1874;
+            ;
+            Bool _t1875 = Bool_and(_t1873, _t1874);
+            (void)_t1875;
+            ;
+            ;
+            if (_t1875) {
+                U64 _t1838 = U64_sub(DEREF(pos), ch_start);
+                (void)_t1838;
+                I64 _t1839 = I64_clone(&(I64){col});
+                (void)_t1839;
+                Token *_t1840 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_Char()); _t1840->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){ch_start}, &(U64){_t1838}); _t1840->text = *_ca; free(_ca); }
+                _t1840->line = I64_clone(&(I64){line});
+                _t1840->col = _t1839;
+                (void)_t1840;
                 ;
                 ;
-                Vec_push(tokens, _t1833);
-                U64 _t1834 = U64_inc(DEREF(pos));
-                (void)_t1834;
-                *pos = _t1834;
+                Vec_push(tokens, _t1840);
+                U64 _t1841 = U64_inc(DEREF(pos));
+                (void)_t1841;
+                *pos = _t1841;
                 ;
             } else {
-                Str *_t1835 = Str_lit("Str", 3ULL);
-                (void)_t1835;
-                U64 _t1836; { U64 *_hp = (U64 *)Str_size(); _t1836 = *_hp; free(_hp); }
-                (void)_t1836;
-                U64 _t1837 = 6;
-                (void)_t1837;
-                Array *_va22 = Array_new(_t1835, &(U64){_t1836}, &(U64){_t1837});
-                (void)_va22;
-                Str_delete(_t1835, &(Bool){1});
-                ;
-                ;
-                U64 _t1838 = 0;
-                (void)_t1838;
-                Str *_t1839 = Str_clone(path);
-                (void)_t1839;
-                Array_set(_va22, &(U64){_t1838}, _t1839);
-                ;
-                U64 _t1840 = 1;
-                (void)_t1840;
-                Str *_t1841 = Str_lit(":", 1ULL);
-                (void)_t1841;
-                Array_set(_va22, &(U64){_t1840}, _t1841);
-                ;
-                U64 _t1842 = 2;
+                Str *_t1842 = Str_lit("Str", 3ULL);
                 (void)_t1842;
-                Str *_t1843 = I64_to_str(&(I64){line});
+                U64 _t1843; { U64 *_hp = (U64 *)Str_size(); _t1843 = *_hp; free(_hp); }
                 (void)_t1843;
-                Array_set(_va22, &(U64){_t1842}, _t1843);
-                ;
-                U64 _t1844 = 3;
+                U64 _t1844 = 6;
                 (void)_t1844;
-                Str *_t1845 = Str_lit(":", 1ULL);
+                Array *_va22 = Array_new(_t1842, &(U64){_t1843}, &(U64){_t1844});
+                (void)_va22;
+                Str_delete(_t1842, &(Bool){1});
+                ;
+                ;
+                U64 _t1845 = 0;
                 (void)_t1845;
-                Array_set(_va22, &(U64){_t1844}, _t1845);
-                ;
-                U64 _t1846 = 4;
+                Str *_t1846 = Str_clone(path);
                 (void)_t1846;
-                Str *_t1847 = I64_to_str(&(I64){col});
-                (void)_t1847;
-                Array_set(_va22, &(U64){_t1846}, _t1847);
+                Array_set(_va22, &(U64){_t1845}, _t1846);
                 ;
-                U64 _t1848 = 5;
+                U64 _t1847 = 1;
+                (void)_t1847;
+                Str *_t1848 = Str_lit(":", 1ULL);
                 (void)_t1848;
-                Str *_t1849 = Str_lit(": error: unterminated character literal", 39ULL);
+                Array_set(_va22, &(U64){_t1847}, _t1848);
+                ;
+                U64 _t1849 = 2;
                 (void)_t1849;
-                Array_set(_va22, &(U64){_t1848}, _t1849);
+                Str *_t1850 = I64_to_str(&(I64){line});
+                (void)_t1850;
+                Array_set(_va22, &(U64){_t1849}, _t1850);
+                ;
+                U64 _t1851 = 3;
+                (void)_t1851;
+                Str *_t1852 = Str_lit(":", 1ULL);
+                (void)_t1852;
+                Array_set(_va22, &(U64){_t1851}, _t1852);
+                ;
+                U64 _t1853 = 4;
+                (void)_t1853;
+                Str *_t1854 = I64_to_str(&(I64){col});
+                (void)_t1854;
+                Array_set(_va22, &(U64){_t1853}, _t1854);
+                ;
+                U64 _t1855 = 5;
+                (void)_t1855;
+                Str *_t1856 = Str_lit(": error: unterminated character literal", 39ULL);
+                (void)_t1856;
+                Array_set(_va22, &(U64){_t1855}, _t1856);
                 ;
                 println(_va22);
-                U64 _t1850 = U64_sub(DEREF(pos), start);
-                (void)_t1850;
-                I64 _t1851 = I64_clone(&(I64){col});
-                (void)_t1851;
-                Token *_t1852 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1852->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1850}); _t1852->text = *_ca; free(_ca); }
-                _t1852->line = I64_clone(&(I64){line});
-                _t1852->col = _t1851;
-                (void)_t1852;
+                U64 _t1857 = U64_sub(DEREF(pos), start);
+                (void)_t1857;
+                I64 _t1858 = I64_clone(&(I64){col});
+                (void)_t1858;
+                Token *_t1859 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(TokenType_Error()); _t1859->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1857}); _t1859->text = *_ca; free(_ca); }
+                _t1859->line = I64_clone(&(I64){line});
+                _t1859->col = _t1858;
+                (void)_t1859;
                 ;
                 ;
-                Vec_push(tokens, _t1852);
+                Vec_push(tokens, _t1859);
             }
             ;
             ;
@@ -13119,124 +13234,185 @@ Vec * tokenize(Str * src, Str * path) {
             continue;
         }
         ;
-        U64 _t1981 = 1;
-        (void)_t1981;
-        U64 _t1982 = U64_add(DEREF(pos), _t1981);
-        (void)_t1982;
+        U64 _t2000 = 1;
+        (void)_t2000;
+        U64 _t2001 = U64_add(DEREF(pos), _t2000);
+        (void)_t2001;
         ;
-        Bool _t1983; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1982}, &(U64){src_len}); _t1983 = *_hp; free(_hp); }
-        (void)_t1983;
+        Bool _t2002; { Bool *_hp = (Bool *)U64_lt(&(U64){_t2001}, &(U64){src_len}); _t2002 = *_hp; free(_hp); }
+        (void)_t2002;
         ;
-        if (_t1983) {
-            U64 _t1900 = 1;
-            (void)_t1900;
-            U64 *_t1901 = malloc(sizeof(U64)); *_t1901 = U64_add(DEREF(pos), _t1900);
-            (void)_t1901;
+        if (_t2002) {
+            U64 _t1919 = 1;
+            (void)_t1919;
+            U64 *_t1920 = malloc(sizeof(U64)); *_t1920 = U64_add(DEREF(pos), _t1919);
+            (void)_t1920;
             ;
-            U8 *c2 = Str_byte_at(src, _t1901);
+            U8 *c2 = Str_byte_at(src, _t1920);
             (void)c2;
             TokenType *two = TokenType_clone(TokenType_Eof());
             (void)two;
-            U8 _t1902 = 58;
-            (void)_t1902;
-            U8 _t1903 = 61;
-            (void)_t1903;
-            Bool _t1904 = U8_eq(DEREF(c), _t1902);
-            (void)_t1904;
+            U8 _t1921 = 58;
+            (void)_t1921;
+            U8 _t1922 = 61;
+            (void)_t1922;
+            Bool _t1923 = U8_eq(DEREF(c), _t1921);
+            (void)_t1923;
             ;
-            Bool _t1905 = U8_eq(DEREF(c2), _t1903);
-            (void)_t1905;
+            Bool _t1924 = U8_eq(DEREF(c2), _t1922);
+            (void)_t1924;
             ;
-            Bool _t1906 = Bool_and(_t1904, _t1905);
-            (void)_t1906;
+            Bool _t1925 = Bool_and(_t1923, _t1924);
+            (void)_t1925;
             ;
             ;
-            if (_t1906) {
+            if (_t1925) {
                 two = TokenType_clone(TokenType_ColonEq());
             } else {
-                U8 _t1889 = 61;
-                (void)_t1889;
-                U8 _t1890 = 61;
-                (void)_t1890;
-                Bool _t1891 = U8_eq(DEREF(c), _t1889);
-                (void)_t1891;
+                U8 _t1908 = 61;
+                (void)_t1908;
+                U8 _t1909 = 61;
+                (void)_t1909;
+                Bool _t1910 = U8_eq(DEREF(c), _t1908);
+                (void)_t1910;
                 ;
-                Bool _t1892 = U8_eq(DEREF(c2), _t1890);
-                (void)_t1892;
+                Bool _t1911 = U8_eq(DEREF(c2), _t1909);
+                (void)_t1911;
                 ;
-                Bool _t1893 = Bool_and(_t1891, _t1892);
-                (void)_t1893;
+                Bool _t1912 = Bool_and(_t1910, _t1911);
+                (void)_t1912;
                 ;
                 ;
-                if (_t1893) {
+                if (_t1912) {
                     two = TokenType_clone(TokenType_EqEq());
                 } else {
-                    U8 _t1884 = 33;
-                    (void)_t1884;
-                    U8 _t1885 = 61;
-                    (void)_t1885;
-                    Bool _t1886 = U8_eq(DEREF(c), _t1884);
-                    (void)_t1886;
+                    U8 _t1903 = 33;
+                    (void)_t1903;
+                    U8 _t1904 = 61;
+                    (void)_t1904;
+                    Bool _t1905 = U8_eq(DEREF(c), _t1903);
+                    (void)_t1905;
                     ;
-                    Bool _t1887 = U8_eq(DEREF(c2), _t1885);
-                    (void)_t1887;
+                    Bool _t1906 = U8_eq(DEREF(c2), _t1904);
+                    (void)_t1906;
                     ;
-                    Bool _t1888 = Bool_and(_t1886, _t1887);
-                    (void)_t1888;
+                    Bool _t1907 = Bool_and(_t1905, _t1906);
+                    (void)_t1907;
                     ;
                     ;
-                    if (_t1888) {
+                    if (_t1907) {
                         two = TokenType_clone(TokenType_Neq());
                     } else {
-                        U8 _t1879 = 60;
-                        (void)_t1879;
-                        U8 _t1880 = 61;
-                        (void)_t1880;
-                        Bool _t1881 = U8_eq(DEREF(c), _t1879);
-                        (void)_t1881;
+                        U8 _t1898 = 60;
+                        (void)_t1898;
+                        U8 _t1899 = 61;
+                        (void)_t1899;
+                        Bool _t1900 = U8_eq(DEREF(c), _t1898);
+                        (void)_t1900;
                         ;
-                        Bool _t1882 = U8_eq(DEREF(c2), _t1880);
-                        (void)_t1882;
+                        Bool _t1901 = U8_eq(DEREF(c2), _t1899);
+                        (void)_t1901;
                         ;
-                        Bool _t1883 = Bool_and(_t1881, _t1882);
-                        (void)_t1883;
+                        Bool _t1902 = Bool_and(_t1900, _t1901);
+                        (void)_t1902;
                         ;
                         ;
-                        if (_t1883) {
+                        if (_t1902) {
                             two = TokenType_clone(TokenType_LtEq());
                         } else {
-                            U8 _t1874 = 62;
-                            (void)_t1874;
-                            U8 _t1875 = 61;
-                            (void)_t1875;
-                            Bool _t1876 = U8_eq(DEREF(c), _t1874);
-                            (void)_t1876;
+                            U8 _t1893 = 62;
+                            (void)_t1893;
+                            U8 _t1894 = 61;
+                            (void)_t1894;
+                            Bool _t1895 = U8_eq(DEREF(c), _t1893);
+                            (void)_t1895;
                             ;
-                            Bool _t1877 = U8_eq(DEREF(c2), _t1875);
-                            (void)_t1877;
+                            Bool _t1896 = U8_eq(DEREF(c2), _t1894);
+                            (void)_t1896;
                             ;
-                            Bool _t1878 = Bool_and(_t1876, _t1877);
-                            (void)_t1878;
+                            Bool _t1897 = Bool_and(_t1895, _t1896);
+                            (void)_t1897;
                             ;
                             ;
-                            if (_t1878) {
+                            if (_t1897) {
                                 two = TokenType_clone(TokenType_GtEq());
                             } else {
-                                U8 _t1869 = 46;
-                                (void)_t1869;
-                                U8 _t1870 = 46;
-                                (void)_t1870;
-                                Bool _t1871 = U8_eq(DEREF(c), _t1869);
-                                (void)_t1871;
+                                U8 _t1888 = 46;
+                                (void)_t1888;
+                                U8 _t1889 = 46;
+                                (void)_t1889;
+                                Bool _t1890 = U8_eq(DEREF(c), _t1888);
+                                (void)_t1890;
                                 ;
-                                Bool _t1872 = U8_eq(DEREF(c2), _t1870);
-                                (void)_t1872;
+                                Bool _t1891 = U8_eq(DEREF(c2), _t1889);
+                                (void)_t1891;
                                 ;
-                                Bool _t1873 = Bool_and(_t1871, _t1872);
-                                (void)_t1873;
+                                Bool _t1892 = Bool_and(_t1890, _t1891);
+                                (void)_t1892;
                                 ;
                                 ;
-                                if (_t1873) {
+                                if (_t1892) {
+                                    U64 _t1885 = 2;
+                                    (void)_t1885;
+                                    U64 _t1886 = U64_add(DEREF(pos), _t1885);
+                                    (void)_t1886;
+                                    ;
+                                    Bool _t1887; { Bool *_hp = (Bool *)U64_lt(&(U64){_t1886}, &(U64){src_len}); _t1887 = *_hp; free(_hp); }
+                                    (void)_t1887;
+                                    ;
+                                    if (_t1887) {
+                                        U64 _t1881 = 2;
+                                        (void)_t1881;
+                                        U64 *_t1882 = malloc(sizeof(U64)); *_t1882 = U64_add(DEREF(pos), _t1881);
+                                        (void)_t1882;
+                                        ;
+                                        U8 *c3 = Str_byte_at(src, _t1882);
+                                        (void)c3;
+                                        U8 _t1883 = 46;
+                                        (void)_t1883;
+                                        Bool _t1884 = U8_eq(DEREF(c3), _t1883);
+                                        (void)_t1884;
+                                        U64_delete(_t1882, &(Bool){1});
+                                        ;
+                                        if (_t1884) {
+                                            U64 _t1876 = 3;
+                                            (void)_t1876;
+                                            I64 _t1877 = I64_clone(&(I64){col});
+                                            (void)_t1877;
+                                            Token *_t1878 = malloc(sizeof(Token));
+                                            { TokenType *_ca = TokenType_clone(TokenType_DotDotDot()); _t1878->type = *_ca; free(_ca); }
+                                            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1876}); _t1878->text = *_ca; free(_ca); }
+                                            _t1878->line = I64_clone(&(I64){line});
+                                            _t1878->col = _t1877;
+                                            (void)_t1878;
+                                            ;
+                                            ;
+                                            Vec_push(tokens, _t1878);
+                                            U64 _t1879 = 3;
+                                            (void)_t1879;
+                                            U64 _t1880 = U64_add(DEREF(pos), _t1879);
+                                            (void)_t1880;
+                                            ;
+                                            *pos = _t1880;
+                                            ;
+                                            ;
+                                            ;
+                                            ;
+                                            ;
+                                            ;
+                                            ;
+                                            ;
+                                            U64_delete(_t1920, &(Bool){1});
+                                            ;
+                                            TokenType_delete(two, &(Bool){1});
+                                            ;
+                                            ;
+                                            ;
+                                            continue;
+                                        }
+                                        ;
+                                    }
+                                    ;
                                     two = TokenType_clone(TokenType_DotDot());
                                 }
                                 ;
@@ -13249,36 +13425,36 @@ Vec * tokenize(Str * src, Str * path) {
                 }
                 ;
             }
-            U64_delete(_t1901, &(Bool){1});
+            U64_delete(_t1920, &(Bool){1});
             ;
-            Bool _t1907; { Bool *_hp = (Bool *)TokenType_eq(two, TokenType_Eof()); _t1907 = *_hp; free(_hp); }
-            (void)_t1907;
-            Bool _t1908 = Bool_not(_t1907);
-            (void)_t1908;
+            Bool _t1926; { Bool *_hp = (Bool *)TokenType_eq(two, TokenType_Eof()); _t1926 = *_hp; free(_hp); }
+            (void)_t1926;
+            Bool _t1927 = Bool_not(_t1926);
+            (void)_t1927;
             ;
-            if (_t1908) {
-                U64 _t1894 = 2;
-                (void)_t1894;
-                I64 _t1895 = I64_clone(&(I64){line});
-                (void)_t1895;
-                I64 _t1896 = I64_clone(&(I64){col});
-                (void)_t1896;
-                Token *_t1897 = malloc(sizeof(Token));
-                { TokenType *_ca = TokenType_clone(two); _t1897->type = *_ca; free(_ca); }
-                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1894}); _t1897->text = *_ca; free(_ca); }
-                _t1897->line = _t1895;
-                _t1897->col = _t1896;
-                (void)_t1897;
+            if (_t1927) {
+                U64 _t1913 = 2;
+                (void)_t1913;
+                I64 _t1914 = I64_clone(&(I64){line});
+                (void)_t1914;
+                I64 _t1915 = I64_clone(&(I64){col});
+                (void)_t1915;
+                Token *_t1916 = malloc(sizeof(Token));
+                { TokenType *_ca = TokenType_clone(two); _t1916->type = *_ca; free(_ca); }
+                { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1913}); _t1916->text = *_ca; free(_ca); }
+                _t1916->line = _t1914;
+                _t1916->col = _t1915;
+                (void)_t1916;
                 ;
                 ;
                 ;
-                Vec_push(tokens, _t1897);
-                U64 _t1898 = 2;
-                (void)_t1898;
-                U64 _t1899 = U64_add(DEREF(pos), _t1898);
-                (void)_t1899;
+                Vec_push(tokens, _t1916);
+                U64 _t1917 = 2;
+                (void)_t1917;
+                U64 _t1918 = U64_add(DEREF(pos), _t1917);
+                (void)_t1918;
                 ;
-                *pos = _t1899;
+                *pos = _t1918;
                 ;
                 ;
                 TokenType_delete(two, &(Bool){1});
@@ -13294,150 +13470,150 @@ Vec * tokenize(Str * src, Str * path) {
         TokenType *single = TokenType_clone(TokenType_Eof());
         (void)single;
         {
-            U8 _sw1909 = U8_clone(c);
-            (void)_sw1909;
-            U8 _t1944 = 40;
-            (void)_t1944;
-            Bool _t1945 = U8_eq(_sw1909, _t1944);
-            (void)_t1945;
+            U8 _sw1928 = U8_clone(c);
+            (void)_sw1928;
+            U8 _t1963 = 40;
+            (void)_t1963;
+            Bool _t1964 = U8_eq(_sw1928, _t1963);
+            (void)_t1964;
             ;
-            if (_t1945) {
+            if (_t1964) {
                 single = TokenType_clone(TokenType_LParen());
             } else {
-                U8 _t1942 = 41;
-                (void)_t1942;
-                Bool _t1943 = U8_eq(_sw1909, _t1942);
-                (void)_t1943;
+                U8 _t1961 = 41;
+                (void)_t1961;
+                Bool _t1962 = U8_eq(_sw1928, _t1961);
+                (void)_t1962;
                 ;
-                if (_t1943) {
+                if (_t1962) {
                     single = TokenType_clone(TokenType_RParen());
                 } else {
-                    U8 _t1940 = 123;
-                    (void)_t1940;
-                    Bool _t1941 = U8_eq(_sw1909, _t1940);
-                    (void)_t1941;
+                    U8 _t1959 = 123;
+                    (void)_t1959;
+                    Bool _t1960 = U8_eq(_sw1928, _t1959);
+                    (void)_t1960;
                     ;
-                    if (_t1941) {
+                    if (_t1960) {
                         single = TokenType_clone(TokenType_LBrace());
                     } else {
-                        U8 _t1938 = 125;
-                        (void)_t1938;
-                        Bool _t1939 = U8_eq(_sw1909, _t1938);
-                        (void)_t1939;
+                        U8 _t1957 = 125;
+                        (void)_t1957;
+                        Bool _t1958 = U8_eq(_sw1928, _t1957);
+                        (void)_t1958;
                         ;
-                        if (_t1939) {
+                        if (_t1958) {
                             single = TokenType_clone(TokenType_RBrace());
                         } else {
-                            U8 _t1936 = 91;
-                            (void)_t1936;
-                            Bool _t1937 = U8_eq(_sw1909, _t1936);
-                            (void)_t1937;
+                            U8 _t1955 = 91;
+                            (void)_t1955;
+                            Bool _t1956 = U8_eq(_sw1928, _t1955);
+                            (void)_t1956;
                             ;
-                            if (_t1937) {
+                            if (_t1956) {
                                 single = TokenType_clone(TokenType_LBracket());
                             } else {
-                                U8 _t1934 = 93;
-                                (void)_t1934;
-                                Bool _t1935 = U8_eq(_sw1909, _t1934);
-                                (void)_t1935;
+                                U8 _t1953 = 93;
+                                (void)_t1953;
+                                Bool _t1954 = U8_eq(_sw1928, _t1953);
+                                (void)_t1954;
                                 ;
-                                if (_t1935) {
+                                if (_t1954) {
                                     single = TokenType_clone(TokenType_RBracket());
                                 } else {
-                                    U8 _t1932 = 44;
-                                    (void)_t1932;
-                                    Bool _t1933 = U8_eq(_sw1909, _t1932);
-                                    (void)_t1933;
+                                    U8 _t1951 = 44;
+                                    (void)_t1951;
+                                    Bool _t1952 = U8_eq(_sw1928, _t1951);
+                                    (void)_t1952;
                                     ;
-                                    if (_t1933) {
+                                    if (_t1952) {
                                         single = TokenType_clone(TokenType_Comma());
                                     } else {
-                                        U8 _t1930 = 58;
-                                        (void)_t1930;
-                                        Bool _t1931 = U8_eq(_sw1909, _t1930);
-                                        (void)_t1931;
+                                        U8 _t1949 = 58;
+                                        (void)_t1949;
+                                        Bool _t1950 = U8_eq(_sw1928, _t1949);
+                                        (void)_t1950;
                                         ;
-                                        if (_t1931) {
+                                        if (_t1950) {
                                             single = TokenType_clone(TokenType_Colon());
                                         } else {
-                                            U8 _t1928 = 46;
-                                            (void)_t1928;
-                                            Bool _t1929 = U8_eq(_sw1909, _t1928);
-                                            (void)_t1929;
+                                            U8 _t1947 = 46;
+                                            (void)_t1947;
+                                            Bool _t1948 = U8_eq(_sw1928, _t1947);
+                                            (void)_t1948;
                                             ;
-                                            if (_t1929) {
+                                            if (_t1948) {
                                                 single = TokenType_clone(TokenType_Dot());
                                             } else {
-                                                U8 _t1926 = 63;
-                                                (void)_t1926;
-                                                Bool _t1927 = U8_eq(_sw1909, _t1926);
-                                                (void)_t1927;
+                                                U8 _t1945 = 63;
+                                                (void)_t1945;
+                                                Bool _t1946 = U8_eq(_sw1928, _t1945);
+                                                (void)_t1946;
                                                 ;
-                                                if (_t1927) {
+                                                if (_t1946) {
                                                     single = TokenType_clone(TokenType_Question());
                                                 } else {
-                                                    U8 _t1924 = 33;
-                                                    (void)_t1924;
-                                                    Bool _t1925 = U8_eq(_sw1909, _t1924);
-                                                    (void)_t1925;
+                                                    U8 _t1943 = 33;
+                                                    (void)_t1943;
+                                                    Bool _t1944 = U8_eq(_sw1928, _t1943);
+                                                    (void)_t1944;
                                                     ;
-                                                    if (_t1925) {
+                                                    if (_t1944) {
                                                         single = TokenType_clone(TokenType_Bang());
                                                     } else {
-                                                        U8 _t1922 = 43;
-                                                        (void)_t1922;
-                                                        Bool _t1923 = U8_eq(_sw1909, _t1922);
-                                                        (void)_t1923;
+                                                        U8 _t1941 = 43;
+                                                        (void)_t1941;
+                                                        Bool _t1942 = U8_eq(_sw1928, _t1941);
+                                                        (void)_t1942;
                                                         ;
-                                                        if (_t1923) {
+                                                        if (_t1942) {
                                                             single = TokenType_clone(TokenType_Plus());
                                                         } else {
-                                                            U8 _t1920 = 45;
-                                                            (void)_t1920;
-                                                            Bool _t1921 = U8_eq(_sw1909, _t1920);
-                                                            (void)_t1921;
+                                                            U8 _t1939 = 45;
+                                                            (void)_t1939;
+                                                            Bool _t1940 = U8_eq(_sw1928, _t1939);
+                                                            (void)_t1940;
                                                             ;
-                                                            if (_t1921) {
+                                                            if (_t1940) {
                                                                 single = TokenType_clone(TokenType_Minus());
                                                             } else {
-                                                                U8 _t1918 = 42;
-                                                                (void)_t1918;
-                                                                Bool _t1919 = U8_eq(_sw1909, _t1918);
-                                                                (void)_t1919;
+                                                                U8 _t1937 = 42;
+                                                                (void)_t1937;
+                                                                Bool _t1938 = U8_eq(_sw1928, _t1937);
+                                                                (void)_t1938;
                                                                 ;
-                                                                if (_t1919) {
+                                                                if (_t1938) {
                                                                     single = TokenType_clone(TokenType_Star());
                                                                 } else {
-                                                                    U8 _t1916 = 47;
-                                                                    (void)_t1916;
-                                                                    Bool _t1917 = U8_eq(_sw1909, _t1916);
-                                                                    (void)_t1917;
+                                                                    U8 _t1935 = 47;
+                                                                    (void)_t1935;
+                                                                    Bool _t1936 = U8_eq(_sw1928, _t1935);
+                                                                    (void)_t1936;
                                                                     ;
-                                                                    if (_t1917) {
+                                                                    if (_t1936) {
                                                                         single = TokenType_clone(TokenType_Slash());
                                                                     } else {
-                                                                        U8 _t1914 = 61;
-                                                                        (void)_t1914;
-                                                                        Bool _t1915 = U8_eq(_sw1909, _t1914);
-                                                                        (void)_t1915;
+                                                                        U8 _t1933 = 61;
+                                                                        (void)_t1933;
+                                                                        Bool _t1934 = U8_eq(_sw1928, _t1933);
+                                                                        (void)_t1934;
                                                                         ;
-                                                                        if (_t1915) {
+                                                                        if (_t1934) {
                                                                             single = TokenType_clone(TokenType_Eq());
                                                                         } else {
-                                                                            U8 _t1912 = 60;
-                                                                            (void)_t1912;
-                                                                            Bool _t1913 = U8_eq(_sw1909, _t1912);
-                                                                            (void)_t1913;
+                                                                            U8 _t1931 = 60;
+                                                                            (void)_t1931;
+                                                                            Bool _t1932 = U8_eq(_sw1928, _t1931);
+                                                                            (void)_t1932;
                                                                             ;
-                                                                            if (_t1913) {
+                                                                            if (_t1932) {
                                                                                 single = TokenType_clone(TokenType_Lt());
                                                                             } else {
-                                                                                U8 _t1910 = 62;
-                                                                                (void)_t1910;
-                                                                                Bool _t1911 = U8_eq(_sw1909, _t1910);
-                                                                                (void)_t1911;
+                                                                                U8 _t1929 = 62;
+                                                                                (void)_t1929;
+                                                                                Bool _t1930 = U8_eq(_sw1928, _t1929);
+                                                                                (void)_t1930;
                                                                                 ;
-                                                                                if (_t1911) {
+                                                                                if (_t1930) {
                                                                                     single = TokenType_clone(TokenType_Gt());
                                                                                 }
                                                                                 ;
@@ -13477,31 +13653,31 @@ Vec * tokenize(Str * src, Str * path) {
             ;
             ;
         }
-        Bool _t1984; { Bool *_hp = (Bool *)TokenType_eq(single, TokenType_Eof()); _t1984 = *_hp; free(_hp); }
-        (void)_t1984;
-        Bool _t1985 = Bool_not(_t1984);
-        (void)_t1985;
+        Bool _t2003; { Bool *_hp = (Bool *)TokenType_eq(single, TokenType_Eof()); _t2003 = *_hp; free(_hp); }
+        (void)_t2003;
+        Bool _t2004 = Bool_not(_t2003);
+        (void)_t2004;
         ;
-        if (_t1985) {
-            U64 _t1946 = 1;
-            (void)_t1946;
-            I64 _t1947 = I64_clone(&(I64){line});
-            (void)_t1947;
-            I64 _t1948 = I64_clone(&(I64){col});
-            (void)_t1948;
-            Token *_t1949 = malloc(sizeof(Token));
-            { TokenType *_ca = TokenType_clone(single); _t1949->type = *_ca; free(_ca); }
-            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1946}); _t1949->text = *_ca; free(_ca); }
-            _t1949->line = _t1947;
-            _t1949->col = _t1948;
-            (void)_t1949;
+        if (_t2004) {
+            U64 _t1965 = 1;
+            (void)_t1965;
+            I64 _t1966 = I64_clone(&(I64){line});
+            (void)_t1966;
+            I64 _t1967 = I64_clone(&(I64){col});
+            (void)_t1967;
+            Token *_t1968 = malloc(sizeof(Token));
+            { TokenType *_ca = TokenType_clone(single); _t1968->type = *_ca; free(_ca); }
+            { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t1965}); _t1968->text = *_ca; free(_ca); }
+            _t1968->line = _t1966;
+            _t1968->col = _t1967;
+            (void)_t1968;
             ;
             ;
             ;
-            Vec_push(tokens, _t1949);
-            U64 _t1950 = U64_inc(DEREF(pos));
-            (void)_t1950;
-            *pos = _t1950;
+            Vec_push(tokens, _t1968);
+            U64 _t1969 = U64_inc(DEREF(pos));
+            (void)_t1969;
+            *pos = _t1969;
             ;
             ;
             ;
@@ -13511,100 +13687,100 @@ Vec * tokenize(Str * src, Str * path) {
         }
         ;
         TokenType_delete(single, &(Bool){1});
-        Str *_t1986 = Str_lit("Str", 3ULL);
-        (void)_t1986;
-        U64 _t1987; { U64 *_hp = (U64 *)Str_size(); _t1987 = *_hp; free(_hp); }
-        (void)_t1987;
-        U64 _t1988 = 6;
-        (void)_t1988;
-        Array *_va23 = Array_new(_t1986, &(U64){_t1987}, &(U64){_t1988});
+        Str *_t2005 = Str_lit("Str", 3ULL);
+        (void)_t2005;
+        U64 _t2006; { U64 *_hp = (U64 *)Str_size(); _t2006 = *_hp; free(_hp); }
+        (void)_t2006;
+        U64 _t2007 = 6;
+        (void)_t2007;
+        Array *_va23 = Array_new(_t2005, &(U64){_t2006}, &(U64){_t2007});
         (void)_va23;
-        Str_delete(_t1986, &(Bool){1});
+        Str_delete(_t2005, &(Bool){1});
         ;
         ;
-        U64 _t1989 = 0;
-        (void)_t1989;
-        Str *_t1990 = Str_clone(path);
-        (void)_t1990;
-        Array_set(_va23, &(U64){_t1989}, _t1990);
+        U64 _t2008 = 0;
+        (void)_t2008;
+        Str *_t2009 = Str_clone(path);
+        (void)_t2009;
+        Array_set(_va23, &(U64){_t2008}, _t2009);
         ;
-        U64 _t1991 = 1;
-        (void)_t1991;
-        Str *_t1992 = Str_lit(":", 1ULL);
-        (void)_t1992;
-        Array_set(_va23, &(U64){_t1991}, _t1992);
+        U64 _t2010 = 1;
+        (void)_t2010;
+        Str *_t2011 = Str_lit(":", 1ULL);
+        (void)_t2011;
+        Array_set(_va23, &(U64){_t2010}, _t2011);
         ;
-        U64 _t1993 = 2;
-        (void)_t1993;
-        Str *_t1994 = I64_to_str(&(I64){line});
-        (void)_t1994;
-        Array_set(_va23, &(U64){_t1993}, _t1994);
+        U64 _t2012 = 2;
+        (void)_t2012;
+        Str *_t2013 = I64_to_str(&(I64){line});
+        (void)_t2013;
+        Array_set(_va23, &(U64){_t2012}, _t2013);
         ;
-        U64 _t1995 = 3;
-        (void)_t1995;
-        Str *_t1996 = Str_lit(":", 1ULL);
-        (void)_t1996;
-        Array_set(_va23, &(U64){_t1995}, _t1996);
+        U64 _t2014 = 3;
+        (void)_t2014;
+        Str *_t2015 = Str_lit(":", 1ULL);
+        (void)_t2015;
+        Array_set(_va23, &(U64){_t2014}, _t2015);
         ;
-        U64 _t1997 = 4;
-        (void)_t1997;
-        Str *_t1998 = I64_to_str(&(I64){col});
-        (void)_t1998;
-        Array_set(_va23, &(U64){_t1997}, _t1998);
+        U64 _t2016 = 4;
+        (void)_t2016;
+        Str *_t2017 = I64_to_str(&(I64){col});
+        (void)_t2017;
+        Array_set(_va23, &(U64){_t2016}, _t2017);
         ;
-        U64 _t1999 = 5;
-        (void)_t1999;
-        Str *_t2000 = Str_lit(": error: unexpected character", 29ULL);
-        (void)_t2000;
-        Array_set(_va23, &(U64){_t1999}, _t2000);
+        U64 _t2018 = 5;
+        (void)_t2018;
+        Str *_t2019 = Str_lit(": error: unexpected character", 29ULL);
+        (void)_t2019;
+        Array_set(_va23, &(U64){_t2018}, _t2019);
         ;
         println(_va23);
-        U64 _t2001 = 1;
-        (void)_t2001;
-        I64 _t2002 = I64_clone(&(I64){col});
-        (void)_t2002;
+        U64 _t2020 = 1;
+        (void)_t2020;
+        I64 _t2021 = I64_clone(&(I64){col});
+        (void)_t2021;
         ;
-        Token *_t2003 = malloc(sizeof(Token));
-        { TokenType *_ca = TokenType_clone(TokenType_Error()); _t2003->type = *_ca; free(_ca); }
-        { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t2001}); _t2003->text = *_ca; free(_ca); }
-        _t2003->line = I64_clone(&(I64){line});
-        _t2003->col = _t2002;
-        (void)_t2003;
+        Token *_t2022 = malloc(sizeof(Token));
+        { TokenType *_ca = TokenType_clone(TokenType_Error()); _t2022->type = *_ca; free(_ca); }
+        { Str *_ca = Str_substr(src, &(U64){start}, &(U64){_t2020}); _t2022->text = *_ca; free(_ca); }
+        _t2022->line = I64_clone(&(I64){line});
+        _t2022->col = _t2021;
+        (void)_t2022;
         ;
         ;
         ;
-        Vec_push(tokens, _t2003);
-        U64 _t2004 = U64_inc(DEREF(pos));
-        (void)_t2004;
-        *pos = _t2004;
+        Vec_push(tokens, _t2022);
+        U64 _t2023 = U64_inc(DEREF(pos));
+        (void)_t2023;
+        *pos = _t2023;
         ;
     }
     ;
-    U64 _t2007 = U64_sub(DEREF(pos), line_start);
-    (void)_t2007;
+    U64 _t2026 = U64_sub(DEREF(pos), line_start);
+    (void)_t2026;
     ;
     U64_delete(pos, &(Bool){1});
-    U64 _t2008 = 1;
-    (void)_t2008;
-    U64 _t2009 = U64_add(_t2007, _t2008);
-    (void)_t2009;
+    U64 _t2027 = 1;
+    (void)_t2027;
+    U64 _t2028 = U64_add(_t2026, _t2027);
+    (void)_t2028;
     ;
     ;
-    I64 col = U64_to_i64(_t2009);
+    I64 col = U64_to_i64(_t2028);
     (void)col;
     ;
-    I64 _t2010 = I64_clone(&(I64){col});
-    (void)_t2010;
+    I64 _t2029 = I64_clone(&(I64){col});
+    (void)_t2029;
     ;
-    Token *_t2011 = malloc(sizeof(Token));
-    { TokenType *_ca = TokenType_clone(TokenType_Eof()); _t2011->type = *_ca; free(_ca); }
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t2011->text = *_ca; free(_ca); }
-    _t2011->line = I64_clone(&(I64){line});
-    _t2011->col = _t2010;
-    (void)_t2011;
+    Token *_t2030 = malloc(sizeof(Token));
+    { TokenType *_ca = TokenType_clone(TokenType_Eof()); _t2030->type = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t2030->text = *_ca; free(_ca); }
+    _t2030->line = I64_clone(&(I64){line});
+    _t2030->col = _t2029;
+    (void)_t2030;
     ;
     ;
-    Vec_push(tokens, _t2011);
+    Vec_push(tokens, _t2030);
     return tokens;
 }
 
@@ -13684,25 +13860,25 @@ Bool dyn_has_cmp(Str *type_name) {
 
 __attribute__((constructor))
 static void _til_lib_init(void) {
-    _t2012 = malloc(sizeof(I64));
-    *_t2012 = 0;
-    (void)_t2012;
-    _t2013 = malloc(sizeof(I64));
-    *_t2013 = 1;
-    (void)_t2013;
-    _t2014 = malloc(sizeof(I64)); *_t2014 = I64_sub(DEREF(_t2012), DEREF(_t2013));
-    (void)_t2014;
-    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t2014));
+    _t2031 = malloc(sizeof(I64));
+    *_t2031 = 0;
+    (void)_t2031;
+    _t2032 = malloc(sizeof(I64));
+    *_t2032 = 1;
+    (void)_t2032;
+    _t2033 = malloc(sizeof(I64)); *_t2033 = I64_sub(DEREF(_t2031), DEREF(_t2032));
+    (void)_t2033;
+    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t2033));
     (void)CAP_LIT;
-    _t2015 = malloc(sizeof(I64));
-    *_t2015 = 0;
-    (void)_t2015;
-    _t2016 = malloc(sizeof(I64));
-    *_t2016 = 2;
-    (void)_t2016;
-    _t2017 = malloc(sizeof(I64)); *_t2017 = I64_sub(DEREF(_t2015), DEREF(_t2016));
-    (void)_t2017;
-    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t2017));
+    _t2034 = malloc(sizeof(I64));
+    *_t2034 = 0;
+    (void)_t2034;
+    _t2035 = malloc(sizeof(I64));
+    *_t2035 = 2;
+    (void)_t2035;
+    _t2036 = malloc(sizeof(I64)); *_t2036 = I64_sub(DEREF(_t2034), DEREF(_t2035));
+    (void)_t2036;
+    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t2036));
     (void)CAP_VIEW;
 }
 

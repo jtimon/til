@@ -384,6 +384,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         func_def->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
         func_def->type.func_def.return_type = sname;
         func_def->type.func_def.variadic_index = -1;
+        func_def->type.func_def.kwargs_index = -1;
         expr_add_child(func_def, func_body);
 
         // clone := func(...)  (namespace decl)
@@ -515,6 +516,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         proc_def->type.func_def.param_defaults[1] = default_true;
         proc_def->type.func_def.return_type = NULL;
         proc_def->type.func_def.variadic_index = -1;
+        proc_def->type.func_def.kwargs_index = -1;
         expr_add_child(proc_def, proc_body);
 
         // delete := proc(...)  (namespace decl)
@@ -605,6 +607,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
                     fdef->type.func_def.return_type = ename;
                     fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
+                fdef->type.func_def.kwargs_index = -1;
+                    fdef->type.func_def.kwargs_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
                     decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
@@ -624,6 +629,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->type.func_def.param_defaults = NULL;
                     fdef->type.func_def.return_type = ename;
                     fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
+                fdef->type.func_def.kwargs_index = -1;
+                    fdef->type.func_def.kwargs_index = -1;
                     expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                     Expr *decl = expr_new(NODE_DECL, line, col, path);
                     decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
@@ -650,6 +658,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
                 fdef->type.func_def.return_type = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
                 fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
+                fdef->type.func_def.kwargs_index = -1;
                 expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
                 Expr *decl = expr_new(NODE_DECL, line, col, path);
                 decl->type.decl.name = Str_new(name_buf);
@@ -675,6 +685,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
             fdef->type.func_def.return_type = Str_new("Bool");
             fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
             expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
             Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->type.decl.name = Str_new(name_buf);
@@ -826,6 +837,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fdef->type.func_def.param_defaults = calloc(2, sizeof(Expr *));
             fdef->type.func_def.return_type = Str_new("Bool");
             fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
@@ -931,6 +943,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
             fdef->type.func_def.return_type = ename;
             fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
@@ -983,6 +996,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fdef->type.func_def.param_defaults[1] = default_true;
             fdef->type.func_def.return_type = NULL;
             fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
             expr_add_child(fdef, proc_body);
             Expr *decl = expr_new(NODE_DECL, line, col, path);
             decl->type.decl.name = Str_new("delete");
@@ -1120,6 +1134,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
             fdef->type.func_def.return_type = Str_new("Str");
             fdef->type.func_def.variadic_index = -1;
+            fdef->type.func_def.kwargs_index = -1;
             expr_add_child(fdef, func_body);
 
             Expr *decl = expr_new(NODE_DECL, line, col, path);
@@ -1198,6 +1213,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         func_def->type.func_def.param_defaults = NULL;
         func_def->type.func_def.return_type = Str_new("U64");
         func_def->type.func_def.variadic_index = -1;
+        func_def->type.func_def.kwargs_index = -1;
         expr_add_child(func_def, func_body);
 
         Expr *decl = expr_new(NODE_DECL, line, col, path);
@@ -1275,6 +1291,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fd->type.func_def.param_defaults = calloc(2, sizeof(Expr *)); \
             fd->type.func_def.return_type = Str_new("Bool"); \
             fd->type.func_def.variadic_index = -1; \
+            fd->type.func_def.kwargs_index = -1; \
             expr_add_child(fd, fb); \
             Expr *dc = MK(NODE_DECL); \
             dc->type.decl.name = Str_new(method_name); \

@@ -107,6 +107,7 @@ static Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
     sig->type.func_def.param_fn_sigs = NULL;
     sig->type.func_def.return_type = return_type;
     sig->type.func_def.variadic_index = -1;
+    sig->type.func_def.kwargs_index = -1;
     sig->type.func_def.return_is_ref = false;
     sig->type.func_def.return_is_shallow = false;
     // No body — this is just a type signature
@@ -141,6 +142,7 @@ static Expr *parse_func_def(Parser *p) {
     Vec pshallows; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(bool)}); pshallows = *_vp; free(_vp); }
     Vec pfnsigs; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); pfnsigs = *_vp; free(_vp); }
     I32 variadic_index = -1;
+    I32 kwargs_index = -1;
     while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
         bool is_shallow = false;
         if (check(p, TokenType_TAG_KwShallow)) {
@@ -168,7 +170,28 @@ static Expr *parse_func_def(Parser *p) {
             nm = Str_new("");  // no param name
         } else {
             expect(p, TokenType_TAG_Colon);
-            if (check(p, TokenType_TAG_DotDot)) {
+            if (check(p, TokenType_TAG_DotDotDot)) {
+                advance(p); // consume '...'
+                if (is_own || is_mut || is_shallow) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: kwargs parameter '%.*s' cannot be own/mut/shallow\n",
+                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                    exit(1);
+                }
+                if (kwargs_index >= 0) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: only one kwargs parameter is allowed\n",
+                            p->path->c_str, pname->line, pname->col);
+                    exit(1);
+                }
+                if (variadic_index >= 0) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: cannot combine variadic and kwargs in the same function\n",
+                            p->path->c_str, pname->line, pname->col);
+                    exit(1);
+                }
+                kwargs_index = pnames.count;
+                is_own = true; // kwargs Map is owned by callee
+                nm = tok_str(pname);
+                tp = Str_new("Map"); // implicit type
+            } else if (check(p, TokenType_TAG_DotDot)) {
                 advance(p); // consume '..'
                 if (is_own) {
                     fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
@@ -190,12 +213,21 @@ static Expr *parse_func_def(Parser *p) {
                             p->path->c_str, pname->line, pname->col);
                     exit(1);
                 }
-                variadic_index = pnames.count; // index of this param (before push)
+                if (kwargs_index >= 0) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: cannot combine variadic and kwargs in the same function\n",
+                            p->path->c_str, pname->line, pname->col);
+                    exit(1);
+                }
+                variadic_index = pnames.count;
                 is_this_variadic = true;
+                Token *ptype = expect(p, TokenType_TAG_Ident);
+                nm = tok_str(pname);
+                tp = tok_str(ptype);
+            } else {
+                Token *ptype = expect(p, TokenType_TAG_Ident);
+                nm = tok_str(pname);
+                tp = tok_str(ptype);
             }
-            Token *ptype = expect(p, TokenType_TAG_Ident);
-            nm = tok_str(pname);
-            tp = tok_str(ptype);
         }
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
         Expr *fn_sig = NULL;
@@ -255,6 +287,7 @@ static Expr *parse_func_def(Parser *p) {
     def->type.func_def.return_is_ref = return_is_ref;
     def->type.func_def.return_is_shallow = return_is_shallow;
     def->type.func_def.variadic_index = variadic_index;
+    def->type.func_def.kwargs_index = kwargs_index;
 
     if (check(p, TokenType_TAG_LBrace)) {
         expect(p, TokenType_TAG_LBrace);
@@ -659,6 +692,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
                 def->type.func_def.param_defaults = calloc(np, sizeof(Expr *));
                 def->type.func_def.return_type = NULL;
                 def->type.func_def.variadic_index = -1;
+                def->type.func_def.kwargs_index = -1;
                 expr_add_child(def, body);
                 // Wrap in NODE_DECL with explicit_type (initer fills types)
                 Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->path);

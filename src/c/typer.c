@@ -177,6 +177,12 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     tscope_set(func_scope, e->type.func_def.param_names[i], TIL_TYPE_STRUCT, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
                     if (pb) pb->struct_name = Str_new("Array");
+                } else if ((I32)i == e->type.func_def.kwargs_index) {
+                    // Kwargs param: bind as Map
+                    if (e->type.func_def.param_owns) e->type.func_def.param_owns[i] = true;
+                    tscope_set(func_scope, e->type.func_def.param_names[i], TIL_TYPE_STRUCT, -1, 0, e->line, e->col, 1, 1);
+                    TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
+                    if (pb) pb->struct_name = Str_new("Map");
                 } else {
                     tscope_set(func_scope, e->type.func_def.param_names[i], pt, -1, pmut, e->line, e->col, 1, pown);
                     // For struct/enum-typed params, store struct_name
@@ -689,9 +695,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Expr *fdef = callee_bind->func_def;
             U32 nparam = fdef->type.func_def.nparam;
             I32 vi = fdef->type.func_def.variadic_index; // -1 if not variadic
+            I32 kwi = fdef->type.func_def.kwargs_index;  // -1 if no kwargs
             U32 fixed_count = (vi >= 0) ? (U32)vi : nparam; // params before variadic
             // Collect positional and named args
             Vec va_args; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); va_args = *_vp; free(_vp); } // variadic args (only if vi >= 0)
+            Vec kw_args; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); kw_args = *_vp; free(_vp); } // kwargs args (NODE_NAMED_ARG nodes)
             Expr **new_args = calloc(nparam, sizeof(Expr *));
             U32 pos_idx = 0;
             Bool seen_named = 0;
@@ -703,12 +711,16 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     I32 slot = -1;
                     for (U32 j = 0; j < nparam; j++) {
                         if ((I32)j == vi) continue; // can't name the variadic param
+                        if ((I32)j == kwi) continue; // can't name the kwargs param
                         if (*Str_eq(fdef->type.func_def.param_names[j], aname)) {
                             slot = j;
                             break;
                         }
                     }
-                    if (slot < 0) {
+                    if (slot < 0 && kwi >= 0) {
+                        // Unmatched named arg goes to kwargs
+                        { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&kw_args, _p); }
+                    } else if (slot < 0) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "'%s' has no parameter '%s'", name->c_str, aname->c_str);
                         type_error(arg, buf);
@@ -732,9 +744,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     pos_idx++;
                 }
             }
-            // Fill defaults for missing non-variadic params
+            // Fill defaults for missing non-variadic/non-kwargs params
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) continue; // variadic param handled separately
+                if ((I32)i == kwi) continue; // kwargs param handled separately
                 if (!new_args[i]) {
                     if (fdef->type.func_def.param_defaults &&
                         fdef->type.func_def.param_defaults[i]) {
@@ -747,7 +760,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                 }
             }
-            if (vi < 0 && pos_idx > nparam) {
+            U32 max_pos = nparam - (kwi >= 0 ? 1 : 0);
+            if (vi < 0 && pos_idx > max_pos) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d",
                          nparam, pos_idx);
@@ -765,6 +779,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         { Expr **_p = malloc(sizeof(Expr *)); *_p = va; Vec_push(&new_ch, _p); }
                     }
                     e->variadic_count = va_args.count;
+                } else if ((I32)i == kwi) {
+                    e->kwargs_index = new_ch.count; // children index of first kwargs arg
+                    for (U32 j = 0; j < kw_args.count; j++) {
+                        Expr *kw = *(Expr **)Vec_get(&kw_args, &(U64){(U64)(j)});
+                        { Expr **_p = malloc(sizeof(Expr *)); *_p = kw; Vec_push(&new_ch, _p); }
+                    }
+                    e->kwargs_count = kw_args.count;
                 } else {
                     { Expr **_p = malloc(sizeof(Expr *)); *_p = new_args[i]; Vec_push(&new_ch, _p); }
                 }
@@ -773,6 +794,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             e->children = new_ch;
             free(new_args);
             Vec_delete(&va_args, &(Bool){0});
+            Vec_delete(&kw_args, &(Bool){0});
         }
         // Infer types of all arguments
         for (U32 i = 1; i < e->children.count; i++) {
@@ -782,10 +804,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (callee_bind && callee_bind->func_def) {
             Expr *fdef = callee_bind->func_def;
             I32 fvi = fdef->type.func_def.variadic_index;
+            I32 fkwi = fdef->type.func_def.kwargs_index;
             U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
+            U32 fkc = (fkwi >= 0) ? e->kwargs_count : 0;
             U32 ci = 1;
             for (U32 pi = 0; pi < fdef->type.func_def.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
+                if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
                 Str *ptype = fdef->type.func_def.param_types[pi];
                 if (ptype)
                     narrow_dynamic(expr_child(e, ci), type_from_name(ptype, scope), ptype);
@@ -795,6 +820,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             ci = 1;
             for (U32 pi = 0; pi < fdef->type.func_def.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
+                if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
                 Str *ptype_name = fdef->type.func_def.param_types[pi];
                 if (!ptype_name) { ci++; continue; }
                 Expr *arg = expr_child(e, ci);
@@ -849,11 +875,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Expr *fdef = callee_bind->func_def;
             bool *po = fdef->type.func_def.param_owns;
             I32 fvi = fdef->type.func_def.variadic_index;
+            I32 fkwi = fdef->type.func_def.kwargs_index;
             U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
+            U32 fkc = (fkwi >= 0) ? e->kwargs_count : 0;
             U32 ci = 1; // children index
             for (U32 pi = 0; pi < fdef->type.func_def.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) {
                     ci += fvc; // skip variadic args
+                    continue;
+                }
+                if (fkwi >= 0 && (I32)pi == fkwi) {
+                    ci += fkc; // skip kwargs args
                     continue;
                 }
                 Bool pown = po ? po[pi] : 0;
@@ -1037,6 +1069,15 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             infer_expr(scope, expr_child(e, i), in_func);
         e->til_type = TIL_TYPE_STRUCT;
         e->struct_name = Str_new("Set");
+        break;
+    case NODE_NAMED_ARG:
+        // Infer the value inside the named arg (child[0])
+        if (e->children.count > 0) {
+            infer_expr(scope, expr_child(e, 0), in_func);
+            Expr *val = expr_child(e, 0);
+            e->til_type = val->til_type;
+            e->struct_name = val->struct_name;
+        }
         break;
     default:
         e->til_type = TIL_TYPE_UNKNOWN;
@@ -1532,6 +1573,180 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         fcall->children = fcall_new_ch;
         fcall->variadic_index = -1;
         fcall->variadic_count = 0;
+
+        // Insert the original statement
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+    }
+
+    if (changed) {
+        Vec_delete(&body->children, &(Bool){0});
+        body->children = new_ch;
+    } else {
+        Vec_delete(&new_ch, &(Bool){0});
+    }
+}
+
+// --- Kwargs call desugaring ---
+// Transforms kwargs function calls into Map.new + Map.set + normal call.
+
+static Expr *find_kwargs_fcall(Expr *e) {
+    if (!e) return NULL;
+    if (e->type.tag == NODE_FUNC_DEF || e->type.tag == NODE_STRUCT_DEF ||
+        e->type.tag == NODE_ENUM_DEF || e->type.tag == NODE_BODY) return NULL;
+    if (e->type.tag == NODE_FCALL && e->kwargs_index >= 0) return e;
+    for (U32 i = 0; i < e->children.count; i++) {
+        Expr *found = find_kwargs_fcall(expr_child(e, i));
+        if (found) return found;
+    }
+    return NULL;
+}
+
+static I32 _kw_counter = 0;
+
+static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
+    Vec new_ch; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Bool changed = 0;
+
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *stmt = expr_child(body, i);
+        Expr *fcall = find_kwargs_fcall(stmt);
+        if (!fcall) {
+            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            continue;
+        }
+        changed = 1;
+        I32 ki = fcall->kwargs_index;
+        U32 kc = fcall->kwargs_count;
+        I32 line = fcall->line, col = fcall->col;
+        Str *path = fcall->path;
+
+        // Create temp variable name
+        char buf[32];
+        snprintf(buf, sizeof(buf), "_kw%d", _kw_counter++);
+        Str *kw_name = Str_new(buf);
+
+        // Find the widest value type among kwargs args for val_size
+        const char *val_size_type = "I64"; // default: 8 bytes for primitives
+        for (U32 j = 0; j < kc; j++) {
+            Expr *na = expr_child(fcall, ki + j);
+            Expr *v = expr_child(na, 0);
+            if (v->til_type == TIL_TYPE_STRUCT && v->struct_name) {
+                val_size_type = (const char *)v->struct_name->c_str;
+                break; // struct types are bigger than primitives
+            }
+        }
+
+        // 1. _kw := Map.new("Str", Str.size(), "", MaxType.size())
+        // Use empty val_type to skip dyn_call delete/clone on values
+        Expr *new_call = make_ns_call("Map", "new", TIL_TYPE_STRUCT,
+                                       Str_new("Map"), fcall);
+        // Arg: key_type = "Str"
+        Expr *kt = expr_new(NODE_LITERAL_STR, line, col, path);
+        kt->type.str_val = Str_new("Str");
+        kt->til_type = TIL_TYPE_STRUCT;
+        kt->struct_name = Str_new("Str");
+        expr_add_child(new_call, kt);
+        // Arg: Str.size()
+        Expr *ksz = make_ns_call("Str", "size", TIL_TYPE_U64, NULL, fcall);
+        expr_add_child(new_call, ksz);
+        // Arg: val_type = "" (skip dyn_call on values)
+        Expr *vt = expr_new(NODE_LITERAL_STR, line, col, path);
+        vt->type.str_val = Str_new("");
+        vt->til_type = TIL_TYPE_STRUCT;
+        vt->struct_name = Str_new("Str");
+        expr_add_child(new_call, vt);
+        // Arg: val_size = widest type's .size()
+        Expr *vsz = make_ns_call(val_size_type, "size", TIL_TYPE_U64, NULL, fcall);
+        expr_add_child(new_call, vsz);
+
+        // DECL _kw := Map.new(...)
+        Expr *kw_decl = expr_new(NODE_DECL, line, col, path);
+        kw_decl->type.decl.name = kw_name;
+        kw_decl->til_type = TIL_TYPE_STRUCT;
+        expr_add_child(kw_decl, new_call);
+
+        // Register _kw in scope
+        tscope_set(scope, kw_name, TIL_TYPE_STRUCT, -1, 0, line, col, 0, 0);
+        TypeBinding *kwb = tscope_find(scope, kw_name);
+        if (kwb) kwb->struct_name = Str_new("Map");
+
+        { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_decl; Vec_push(&new_ch, _p); }
+
+        // 2. Map.set calls for each kwargs arg
+        for (U32 j = 0; j < kc; j++) {
+            Expr *named_arg = expr_child(fcall, ki + j);
+            // named_arg is NODE_NAMED_ARG with str_val = key name, child[0] = value
+            Str *key_name = named_arg->type.str_val;
+            Expr *val = expr_child(named_arg, 0);
+
+            Expr *set_call = make_ns_call("Map", "set", TIL_TYPE_NONE, NULL, fcall);
+            // Arg: self = _kw (mut)
+            Expr *self_id = expr_new(NODE_IDENT, line, col, path);
+            self_id->type.str_val = kw_name;
+            self_id->til_type = TIL_TYPE_STRUCT;
+            self_id->struct_name = Str_new("Map");
+            expr_add_child(set_call, self_id);
+            // Arg: key string
+            Expr *key_lit = expr_new(NODE_LITERAL_STR, line, col, path);
+            key_lit->type.str_val = Str_clone(key_name);
+            key_lit->til_type = TIL_TYPE_STRUCT;
+            key_lit->struct_name = Str_new("Str");
+            key_lit->is_own_arg = true;
+            expr_add_child(set_call, key_lit);
+            // Arg: value (clone idents to prevent double-free)
+            if (val->type.tag == NODE_IDENT || val->type.tag == NODE_FIELD_ACCESS) {
+                const char *tname = type_to_name(val->til_type, val->struct_name);
+                if (tname)
+                    val = make_clone_call(tname, val->til_type, val, val);
+            }
+            val->is_own_arg = true;
+            expr_add_child(set_call, val);
+
+            { Expr **_p = malloc(sizeof(Expr *)); *_p = set_call; Vec_push(&new_ch, _p); }
+        }
+
+        // 3. Replace kwargs args in FCALL with _kw ident
+        Vec fcall_new_ch; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); fcall_new_ch = *_vp; free(_vp); }
+        Bool kw_inserted = 0;
+        for (U32 j = 0; j < fcall->children.count; j++) {
+            if ((I32)j >= ki && (I32)j < ki + (I32)kc) {
+                if (!kw_inserted) {
+                    Expr *kw_id = expr_new(NODE_IDENT, line, col, path);
+                    kw_id->type.str_val = kw_name;
+                    kw_id->til_type = TIL_TYPE_STRUCT;
+                    kw_id->struct_name = Str_new("Map");
+                    kw_id->is_own_arg = true;
+                    { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_id; Vec_push(&fcall_new_ch, _p); }
+                    kw_inserted = 1;
+                }
+                continue;
+            }
+            // Insert _kw when kc==0 (no kwargs args, but still need empty Map)
+            if ((I32)j == ki && !kw_inserted) {
+                Expr *kw_id = expr_new(NODE_IDENT, line, col, path);
+                kw_id->type.str_val = kw_name;
+                kw_id->til_type = TIL_TYPE_STRUCT;
+                kw_id->struct_name = Str_new("Map");
+                kw_id->is_own_arg = true;
+                { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_id; Vec_push(&fcall_new_ch, _p); }
+                kw_inserted = 1;
+            }
+            Expr *ch = expr_child(fcall, j);
+            { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&fcall_new_ch, _p); }
+        }
+        // Insert _kw at end if kwargs was last param and kc==0
+        if (!kw_inserted) {
+            Expr *kw_id = expr_new(NODE_IDENT, line, col, path);
+            kw_id->type.str_val = kw_name;
+            kw_id->til_type = TIL_TYPE_STRUCT;
+            kw_id->struct_name = Str_new("Map");
+            kw_id->is_own_arg = true;
+            { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_id; Vec_push(&fcall_new_ch, _p); }
+        }
+        Vec_delete(&fcall->children, &(Bool){0});
+        fcall->children = fcall_new_ch;
+        fcall->kwargs_index = -1;
+        fcall->kwargs_count = 0;
 
         // Insert the original statement
         { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
@@ -3218,6 +3433,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
     if (owns_scope) desugar_set_literals(body, scope);
     if (owns_scope) desugar_map_literals(body, scope);
     if (owns_scope) desugar_variadic_calls(body, scope);
+    if (owns_scope) desugar_kwargs_calls(body, scope);
     if (owns_scope) hoist_fcall_args(body, scope);
     insert_field_deletes(body);
     insert_free_calls(body, scope, owns_scope);
