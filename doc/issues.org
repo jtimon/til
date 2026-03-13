@@ -1,10 +1,28 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 62
+# NEXT_ISSUE: 63
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #62 Investigate: ctil-i slower than til-i — precomp overhead?
+  ctil-i (C interpreter) is slower than til-i (self-hosting interpreter
+  built by the builder). This is counterintuitive — the C interpreter
+  should be faster since it avoids the translate-to-C-then-compile step.
+
+  Primary suspect: the precomp pass (constant folding / partial evaluation)
+  runs before interpretation and adds overhead that exceeds its optimization
+  benefit. precomp creates its own interpreter scope, walks the AST, and
+  tries to fold pure function calls — this is expensive and may not pay off
+  for short-running programs or test suites.
+
+  Investigation steps:
+  - [ ] Benchmark ctil-i vs til-i on test suite and examples
+  - [ ] Profile ctil-i to confirm where time is spent (precomp vs eval)
+  - [ ] Try skipping precomp in interpret mode, measure impact
+  - [ ] If precomp is the bottleneck, either skip it for interpret mode
+        or make it cheaper (limit folding depth, skip non-trivial calls)
 
 ** OPEN #60 Trailing commas anywhere they make sense
    Allow an optional trailing comma in comma-separated lists:
