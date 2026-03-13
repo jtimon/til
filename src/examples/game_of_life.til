@@ -73,12 +73,12 @@ main := proc() {
                         mut nx := cx.sub(1)
                         while nx.lte(cx.add(1)) {
                             if nx.eq(cx).and(ny.eq(cy)).not() {
-                                if nx.gte(0).and(nx.lt(cols)).and(ny.gte(0)).and(ny.lt(rows)) {
-                                    ni := ny.mul(cols).add(nx)
-                                    ref nv : I64 = grid.get(ni.to_u64())
-                                    if nv.eq(1) {
-                                        neighbors = neighbors.add(1)
-                                    }
+                                wx := nx.add(cols).mod(cols)
+                                wy := ny.add(rows).mod(rows)
+                                ni := wy.mul(cols).add(wx)
+                                ref nv : I64 = grid.get(ni.to_u64())
+                                if nv.eq(1) {
+                                    neighbors = neighbors.add(1)
                                 }
                             }
                             nx = nx.add(1)
