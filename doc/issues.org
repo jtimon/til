@@ -254,7 +254,6 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-
 ** WIP #14 Function pointers: first-class functions as values
   til currently has no way to declare function *types* (signatures) as
   standalone named values. Functions can only be called directly by name.
@@ -280,11 +279,17 @@
    - Bare-type params in func/proc (~func(I64, I64)~ without names)
    - Tests: src/test/fn_ptr.til (FuncSig section)
 
-*** Remaining: FuncSig advanced
-   - FuncSig form for defining functions (~add : BinaryOp = (a, b) { ... }~) — needs lambda syntax
-   - Returning FuncSig-typed values from functions
-   - Storing in collections and struct fields
-   - Lambdas and closures with capture lists
+*** Remaining (incremental, in dependency order)
+   Independent (any order):
+   - Returning FuncSig-typed values from functions (~get_op := func(Str) returns BinaryOp~)
+   - Storing in struct fields (~Handler := struct { mut on_click : BinaryOp }~)
+   - Storing in collections (~Vec.new("BinaryOp")~)
+   Depends on nothing above:
+   - Lambdas: anonymous inline functions (~func(a: I64) returns I64 { ... }~ as expression)
+   Depends on lambdas:
+   - FuncSig form (~add : BinaryOp = (a, b) { ... }~)
+   Out of scope — see #54:
+   - Closures (lambdas with ~captures~ keyword)
 
 *** Function type syntax (FuncSig)
 
@@ -366,29 +371,11 @@
    doubled := numbers.map(double)
    #+end_src
 
-*** Closures (lambdas that capture outer variables)
+*** Closures (see #54)
 
-   Closures use the ~captures~ keyword (#54) to list captured variables.
-   Captures are explicit — if a function references an outer variable, it
-   MUST be listed in the capture list. This makes dependencies visible
-   and refactoring mechanical.
-
-   #+begin_src til
-   scale := 3
-
-   // Closure: captures scale from outer scope
-   scaled := numbers.map(
-       func(a: I64) captures scale returns I64 { return a.mul(scale) }
-   )
-   // [3, 6, 9, 12, 15]
-
-   // Factory returning a closure
-   make_scaler := func(s: I64) returns Transformer {
-       return func(a: I64) captures s returns I64 { return a.mul(s) }
-   }
-   triple := make_scaler(3)
-   tripled := numbers.map(triple)  // [3, 6, 9, 12, 15]
-   #+end_src
+   Closures (lambdas that capture outer variables) are tracked in #54.
+   #54 depends on #14's lambda support — lambdas are anonymous functions
+   without captures, closures add the ~captures~ keyword on top.
 
 *** Stored in collections
 
@@ -581,7 +568,6 @@
    - builder: emit sizeof() for struct/enum size() instead of computed sum
    - typer: ASAP ref lifetime extension for UFCS field-access chain args
      and transitive ref chains (fixed-point propagation)
-
 
 * Post-self-hosting
 
@@ -1024,11 +1010,16 @@
    implicitly (~yield~) or explicitly (~&block~), and ~Proc.new~ wraps a
    block into a first-class value.
 
-** OPEN #54 Explicit capture syntax
+** OPEN #54 Explicit capture syntax (closures)
+  :DEPENDENCIES: #14
   :DEPENDENCIES_OF: #12 #13
   Add syntax for listing captured variables from outer scopes, both for
   function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
   Split from #17 (global variable access, now fixed).
+
+  Closures = lambdas (#14) + captures. #14 provides anonymous inline
+  functions (lambdas); this issue adds the ~captures~ keyword that turns
+  a lambda into a closure by binding outer-scope variables.
 
   til requires *explicit capture lists* — if a function references an outer
   variable, it MUST be listed in the capture list. This makes dependencies
