@@ -13,6 +13,32 @@
   (desugar_kwargs_calls), builder.c, initer.c.
   Test: src/test/kwargs.til
 
+* FIXED #59 Bundle all dependencies: zero external packages needed
+  ~git clone~ + ~make test~ just works on any Linux with a C compiler.
+  No ~apt install~ needed.
+
+  What was bundled:
+  - ~lib/raylib/~ — raylib via git subtree (~30MB, built from source)
+  - ~lib/libffi/~ — libffi built from source (configure + make)
+  - ~lib/x11/include/~ — X11 headers for compiling raylib's GLFW backend
+
+  Link-time dependencies eliminated:
+  - ~-lGL~ removed: GLFW loads GL via ~dlopen("libGL.so.1")~ at runtime,
+    raylib uses bundled ~glad.h~ for GL headers
+  - ~-lX11~ removed: GLFW loads all X11 libs via ~dlopen~ at runtime.
+    Raylib built with ~-DSUPPORT_CLIPBOARD_IMAGE=0~ to avoid the one
+    function (~GetClipboardImage~) that called X11 directly
+  - Generated GUI binaries depend only on libc/libm (~ldd~ shows no
+    libGL, libX11, libraylib)
+
+  Also fixed:
+  - ~make clean~ now cleans raylib and libffi builds
+  - libffi generated files (~Makefile~, ~doc/libffi.info~) gitignored
+    so ~make clean~ doesn't leave unstaged changes
+
+  To update raylib:
+  ~git subtree pull --prefix=lib/raylib https://github.com/raysan5/raylib.git master --squash~
+
 * FIXED #60 Trailing commas anywhere they make sense
   The parser already supported trailing commas in all comma-separated contexts
   due to the ~if (check(Comma)) advance(p)~ pattern inside

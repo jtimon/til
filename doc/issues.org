@@ -460,51 +460,6 @@
 
   No captures — pure lambdas only. Closures (captures) are #54.
 
-** WIP #59 Bundle raylib: fix CI GUI tests, enable static linking
-  GUI tests were broken in CI (GitHub Actions) because raylib was not
-  installed. Friends who cloned the repo couldn't run GUI demos either.
-
-*** Done
-
-   Raylib bundled via git subtree into ~lib/raylib/~. Chosen over
-   submodule for zero friction: ~git clone~ + ~make test~ just works.
-   Trade-off: repo is ~30MB larger (acceptable, raylib is stable).
-
-   What was implemented:
-   - [x] ~lib/raylib/~ added via ~git subtree add --squash~
-   - [x] Makefile builds ~lib/raylib/src/libraylib.a~ from source
-         (plain ~make~ in raylib's ~src/~, no cmake)
-   - [x] ~bin/ctil~ and ~bin/c/til~ link raylib statically (~-Llib/raylib/src
-         -lraylib -lm -lpthread -lrt~) so interpreter FFI finds
-         raylib symbols via ~RTLD_DEFAULT~ (no ~dlopen("libraylib.so")~ needed)
-   - [x] builder.c ~compile_c~ and ~compile_lib~: add ~-Llib/raylib/src~ so
-         generated gui binaries find bundled ~libraylib.a~
-   - [x] Non-gui programs unaffected (~-L~ path is harmless, linker only
-         pulls in referenced symbols — hello_cli is 52KB, gui_hello is 1.1MB)
-   - [x] ~src/examples/raylib.til~ removed from test suite (stays as
-         standalone FFI example, not a mode gui program)
-   - [x] CI: X11/GL dev packages no longer needed (GLFW loads dynamically)
-   - [x] 80/80 tests pass, gui binaries self-contained (~ldd~ shows no libraylib.so)
-
-*** Remaining: other system dependencies
-
-   All external dev package dependencies have been eliminated:
-   - ~libffi-dev~ — bundled in ~lib/libffi/~ (built from source)
-   - ~libgl-dev~ — eliminated: GLFW loads GL via ~dlopen("libGL.so.1")~
-   - ~libx11-dev~ and all X11 extensions (~libxrandr-dev~, ~libxinerama-dev~,
-     ~libxcursor-dev~, ~libxi-dev~) — eliminated: GLFW loads all X11
-     libraries dynamically via ~dlopen~ at runtime
-
-   GLFW bundles its own X11/GL type definitions and loads all symbols
-   via ~dlsym~, so neither headers nor ~-l~ flags are needed at build
-   time. GUI programs need X11 + GL at runtime (present on any desktop
-   Linux with a display).
-
-*** To update raylib
-
-   #+begin_example
-   git subtree pull --prefix=lib/raylib https://github.com/raysan5/raylib.git master --squash
-   #+end_example
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
   :DEPENDENCIES: #14 #61
