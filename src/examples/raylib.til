@@ -1,7 +1,6 @@
 mode script
 
 link("raylib")
-link("GL")
 link("m")
 link("pthread")
 link("dl")

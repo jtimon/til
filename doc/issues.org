@@ -475,7 +475,7 @@
    - [x] Makefile builds ~lib/raylib/src/libraylib.a~ from source
          (plain ~make~ in raylib's ~src/~, no cmake)
    - [x] ~bin/ctil~ and ~bin/c/til~ link raylib statically (~-Llib/raylib/src
-         -lraylib -lGL -lm -lpthread -lrt -lX11~) so interpreter FFI finds
+         -lraylib -lm -lpthread -lrt -lX11~) so interpreter FFI finds
          raylib symbols via ~RTLD_DEFAULT~ (no ~dlopen("libraylib.so")~ needed)
    - [x] builder.c ~compile_c~ and ~compile_lib~: add ~-Llib/raylib/src~ so
          generated gui binaries find bundled ~libraylib.a~
@@ -483,20 +483,21 @@
          pulls in referenced symbols — hello_cli is 52KB, gui_hello is 1.1MB)
    - [x] ~src/examples/raylib.til~ removed from test suite (stays as
          standalone FFI example, not a mode gui program)
-   - [x] CI: added X11/GL dev packages for building raylib from source
+   - [x] CI: added X11 dev packages for building raylib from source
    - [x] 80/80 tests pass, gui binaries self-contained (~ldd~ shows no libraylib.so)
 
 *** Remaining: other system dependencies
 
    Users still need these installed to build til:
-   - ~libffi-dev~ — for FFI dispatch (interpreter calls ext_funcs via libffi)
-   - ~libx11-dev~, ~libgl-dev~, ~libxrandr-dev~, ~libxinerama-dev~,
+   - ~libx11-dev~, ~libxrandr-dev~, ~libxinerama-dev~,
      ~libxcursor-dev~, ~libxi-dev~ — for building raylib from source
 
-   These are standard dev packages on Linux, but they're still external
-   dependencies. The raylib bundling sets a precedent — could we bundle
-   or eliminate more? libffi is the most painful one (not always pre-installed).
-   X11/GL headers are arguably reasonable assumptions for a desktop GUI toolkit.
+   ~libffi-dev~ was bundled in ~lib/libffi/~ (built from source).
+   ~libgl-dev~ was eliminated: GLFW loads GL dynamically via
+   ~dlopen("libGL.so.1")~ at runtime, so ~-lGL~ is not needed at link
+   time. Raylib uses bundled ~glad.h~ for GL headers.
+
+   X11 dev headers remain — needed for compiling GLFW's X11 backend.
 
 *** To update raylib
 

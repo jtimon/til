@@ -12,7 +12,7 @@ Always run `make test` and verify all tests pass before committing.
 - `bin/ctil interpret file.til` — run via interpreter
 - Use `tmp/` dir for ad-hoc test files
 - All dependencies (raylib, libffi) are bundled in `lib/` — no manual installs needed
-- On Linux, X11/GL dev headers are needed: `sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev`
+- On Linux, X11 dev headers are needed: `sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev`
 
 ## GUI Testing (Headless / Virtual Screen)
 

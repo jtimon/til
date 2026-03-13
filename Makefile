@@ -8,7 +8,7 @@ CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 
 RAYLIB_LIB := lib/raylib/src/libraylib.a
-RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lGL -lm -lpthread -lrt -lX11
+RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lm -lpthread -lrt -lX11
 
 LIBFFI_DIR := lib/libffi
 LIBFFI_FLAGS = -I$(firstword $(wildcard $(LIBFFI_DIR)/*/include)) -L$(firstword $(wildcard $(LIBFFI_DIR)/*/.libs)) -lffi
