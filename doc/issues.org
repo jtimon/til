@@ -1,10 +1,24 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 60
+# NEXT_ISSUE: 61
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #60 Trailing commas anywhere they make sense
+   Allow an optional trailing comma in comma-separated lists:
+   - Function/proc call arguments: ~foo(a, b, c,)~
+   - Enum variant declarations
+   - Array literals: ~array("Str", "a", "b", "c",)~
+   - Struct instantiation: ~Foo(x=1, y=2,)~
+   - Function/proc parameter declarations
+   - Any other comma-separated list
+
+   Motivation: cleaner diffs when adding/removing items from multi-line lists.
+   Without trailing commas, adding an entry to the end requires modifying the
+   previous last line too, causing noisy diffs and unnecessary merge conflicts
+   (e.g. gui_files array in tests.til).
 
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
