@@ -1293,6 +1293,35 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             continue;
         }
 
+        // Named FuncSig form: name : Type = (names) { body }
+        // Fill types from the named FuncSig before normal processing
+        if (stmt->type.decl.explicit_type) {
+            TypeBinding *fsb = tscope_find(scope, stmt->type.decl.explicit_type);
+            if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
+                Expr *def = expr_child(stmt, 0);
+                Expr *sig = fsb->func_def;
+                if (def->type.func_def.nparam != sig->type.func_def.nparam) {
+                    fprintf(stderr, "%s:%u:%u: error: '%s' expects %u params but FuncSig '%s' has %u\n",
+                            stmt->path->c_str, stmt->line, stmt->col,
+                            stmt->type.decl.name->c_str, def->type.func_def.nparam,
+                            stmt->type.decl.explicit_type->c_str, sig->type.func_def.nparam);
+                    exit(1);
+                }
+                def->type.func_def.func_type = sig->type.func_def.func_type;
+                for (U32 j = 0; j < sig->type.func_def.nparam; j++) {
+                    def->type.func_def.param_types[j] = sig->type.func_def.param_types[j];
+                    def->type.func_def.param_muts[j] = sig->type.func_def.param_muts[j];
+                    def->type.func_def.param_owns[j] = sig->type.func_def.param_owns[j];
+                    def->type.func_def.param_shallows[j] = sig->type.func_def.param_shallows[j];
+                }
+                def->type.func_def.param_fn_sigs = sig->type.func_def.param_fn_sigs;
+                def->type.func_def.return_type = sig->type.func_def.return_type;
+                def->type.func_def.return_is_ref = sig->type.func_def.return_is_ref;
+                def->type.func_def.return_is_shallow = sig->type.func_def.return_is_shallow;
+                stmt->type.decl.explicit_type = NULL; // now a normal FuncDef
+            }
+        }
+
         FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
         I32 callee_is_proc = (ft == FUNC_TEST) ? 2 : (ft == FUNC_PROC || ft == FUNC_EXT_PROC) ? 1 : 0;
         TilType rt = TIL_TYPE_NONE;

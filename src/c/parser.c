@@ -612,6 +612,65 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
             fn_sig = parse_fn_signature(p, type_tok->line, type_tok->col);
         }
         expect(p, TokenType_TAG_Eq); // consume =
+
+        // Named FuncSig form: name : Type = (names) { body }
+        // Lookahead: check if pattern is (ident [, ident]* [,]) {
+        if (check(p, TokenType_TAG_LParen)) {
+            U32 saved = p->pos;
+            advance(p); // skip (
+            Bool is_fsf = 1;
+            while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
+                if (!check(p, TokenType_TAG_Ident)) { is_fsf = 0; break; }
+                advance(p);
+                if (check(p, TokenType_TAG_Comma)) advance(p);
+            }
+            if (is_fsf && check(p, TokenType_TAG_RParen)) {
+                advance(p); // skip )
+                if (!check(p, TokenType_TAG_LBrace)) is_fsf = 0;
+            } else {
+                is_fsf = 0;
+            }
+            p->pos = saved; // restore
+
+            if (is_fsf) {
+                // Parse (name1, name2, ...) as param names
+                expect(p, TokenType_TAG_LParen);
+                Vec pnames; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); pnames = *_vp; free(_vp); }
+                while (!check(p, TokenType_TAG_RParen)) {
+                    Token *pn = expect(p, TokenType_TAG_Ident);
+                    { Str **_p = malloc(sizeof(Str *)); *_p = tok_str(pn); Vec_push(&pnames, _p); }
+                    if (check(p, TokenType_TAG_Comma)) advance(p);
+                }
+                expect(p, TokenType_TAG_RParen);
+                // Parse { body }
+                expect(p, TokenType_TAG_LBrace);
+                Expr *body = parse_block(p);
+                // Build incomplete NODE_FUNC_DEF (types filled by initer)
+                Expr *def = expr_new(NODE_FUNC_DEF, t->line, t->col, p->path);
+                U32 np = pnames.count;
+                def->type.func_def.func_type = FUNC_FUNC; // placeholder
+                def->type.func_def.nparam = np;
+                def->type.func_def.param_names = Vec_take(&pnames);
+                def->type.func_def.param_types = calloc(np, sizeof(Str *));
+                def->type.func_def.param_muts = calloc(np, sizeof(bool));
+                def->type.func_def.param_owns = calloc(np, sizeof(bool));
+                def->type.func_def.param_shallows = calloc(np, sizeof(bool));
+                def->type.func_def.param_fn_sigs = NULL;
+                def->type.func_def.param_defaults = calloc(np, sizeof(Expr *));
+                def->type.func_def.return_type = NULL;
+                def->type.func_def.variadic_index = -1;
+                expr_add_child(def, body);
+                // Wrap in NODE_DECL with explicit_type (initer fills types)
+                Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->path);
+                decl->type.decl.name = name;
+                decl->type.decl.explicit_type = type_name;
+                decl->type.decl.is_mut = is_mut;
+                decl->type.decl.is_own = is_own;
+                expr_add_child(decl, def);
+                return decl;
+            }
+        }
+
         Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->path);
         decl->type.decl.name = name;
         decl->type.decl.explicit_type = type_name;

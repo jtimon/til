@@ -137,3 +137,34 @@ test_funcsig_form_as_value := test() {
     assert_eq(__LOC__, f(10, 20), 30)
     assert_eq(__LOC__, apply_binop(sum_sig, 4, 6), 10)
 }
+
+// --- Named FuncSig form ---
+
+sum_named : BinaryOp = (a, b) {
+    return a.add(b)
+}
+
+negate_named : UnaryOp = (x) {
+    return 0.sub(x)
+}
+
+greet_named : Mutator = (x) {
+    x = x.add(100)
+}
+
+test_named_funcsig_form := test() {
+    assert_eq(__LOC__, sum_named(3, 5), 8)
+    assert_eq(__LOC__, negate_named(7), 0.sub(7))
+    assert_eq(__LOC__, apply_binop(sum_named, 4, 6), 10)
+}
+
+test_named_funcsig_form_proc := test() {
+    mut val := 10
+    greet_named(val)
+    assert_eq(__LOC__, val, 110)
+}
+
+test_named_funcsig_form_as_value := test() {
+    f : BinaryOp = sum_named
+    assert_eq(__LOC__, f(10, 20), 30)
+}
