@@ -2,7 +2,7 @@
 
 all: bin/ctil bin/c/til
 
-SRCS := $(wildcard src/*.c) $(filter-out src/c/ext.c src/c/lexer.c, $(wildcard src/c/*.c)) src/bootstrap/lexer.c
+SRCS := $(wildcard src/*.c) $(filter-out src/c/lexer.c, $(wildcard src/c/*.c)) src/bootstrap/lexer.c
 HDRS := $(filter-out src/c/lexer.h, $(wildcard src/c/*.h)) src/bootstrap/lexer.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)

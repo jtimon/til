@@ -71,7 +71,7 @@
 
 * NOT_ANYMORE Primitive clone is defined in pure til in core.til
   Scalar clones (I64, U8, I16, I32, U32, U64, F32, Bool) are now ext_func
-  returns shallow — identity functions in ccore.c. Str.clone still uses
+  returns shallow — identity functions in ext.c. Str.clone still uses
   format(val). The initer skips auto-generation when a clone already exists.
 
 * TRUE The initer auto-generates clone and delete for structs

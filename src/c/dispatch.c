@@ -1,6 +1,16 @@
 #include "dispatch.h"
-#include "ccore.h"
+#include "ext.h"
 #include <stdio.h>
+
+// Forward declarations for value-param scalar functions (not in ext.h
+// because bootstrap redefines them with pointer-param signatures)
+U8 U8_from_i64(I64 v);
+I16 I16_from_i64(I64 v);
+I32 I32_from_i64(I64 v);
+F32 F32_from_i64(I64 v);
+U32 U32_from_i64(I64 v);
+U64 U64_from_i64(I64 v);
+I64 *I64_new(I64 val);
 #include <stdlib.h>
 #include <string.h>
 #include <dlfcn.h>

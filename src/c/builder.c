@@ -1204,7 +1204,7 @@ static Bool is_skip_ext_decl(Str *name) {
 }
 
 // Scalar types whose methods should be emitted as static in core.c
-// (avoids duplicate symbol conflicts with ccore.c)
+// (avoids duplicate symbol conflicts with ext.c)
 static Bool is_scalar_method_type(Str *name) {
     return Str_eq_c(name, "U8") || Str_eq_c(name, "I16") || Str_eq_c(name, "I32") ||
            Str_eq_c(name, "F32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") ||

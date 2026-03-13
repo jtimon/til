@@ -2,7 +2,7 @@
 #define TIL_AST_H
 
 #include <stddef.h>
-#include "ccore.h"
+#include "ext.h"
 #include "compat.h"
 
 typedef enum {
