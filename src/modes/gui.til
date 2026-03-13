@@ -3,7 +3,6 @@ link("m")
 link("pthread")
 link("dl")
 link("rt")
-link("X11")
 
 // Raylib struct declarations for audio
 // Wave: { U32 frameCount, U32 sampleRate, U32 sampleSize, U32 channels, void *data }

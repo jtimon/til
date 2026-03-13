@@ -5,7 +5,6 @@ link("m")
 link("pthread")
 link("dl")
 link("rt")
-link("X11")
 
 // Direct raylib FFI — no companion .c needed
 InitWindow := ext_proc(shallow w: I32, shallow h: I32, title: U8) {}

@@ -14,7 +14,7 @@ LIBFFI_DIR := lib/libffi
 LIBFFI_FLAGS = -I$(firstword $(wildcard $(LIBFFI_DIR)/*/include)) -L$(firstword $(wildcard $(LIBFFI_DIR)/*/.libs)) -lffi
 
 $(RAYLIB_LIB):
-	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP
+	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0"
 
 lib/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --quiet
@@ -61,3 +61,5 @@ src/bootstrap/til.c: bin/ctil $(CORE) $(SELF) src/til.til
 
 clean:
 	rm -rf bin/*
+	$(MAKE) -C lib/raylib/src clean
+	cd $(LIBFFI_DIR) && $(MAKE) clean && rm -f .built
