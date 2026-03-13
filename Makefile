@@ -8,13 +8,15 @@ CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 
 RAYLIB_LIB := lib/raylib/src/libraylib.a
-RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lGL -lm -lpthread -lrt -lX11
+RAYLIB_FLAGS := -Llib/raylib/src -Llib/system -lraylib -lGL -lm -lpthread -lrt -lX11
 
 LIBFFI_DIR := lib/libffi
 LIBFFI_FLAGS = -I$(firstword $(wildcard $(LIBFFI_DIR)/*/include)) -L$(firstword $(wildcard $(LIBFFI_DIR)/*/.libs)) -lffi
 
+BUNDLED_INCLUDES := -I$(CURDIR)/lib/x11/include -I$(CURDIR)/lib/gl/include
+
 $(RAYLIB_LIB):
-	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP
+	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP CUSTOM_CFLAGS="$(BUNDLED_INCLUDES)"
 
 lib/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --quiet

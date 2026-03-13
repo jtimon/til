@@ -416,6 +416,8 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "")
 
     // === 20 build tests (build + run with timeout) ===
+    // Use xvfb-run for headless environments (no DISPLAY)
+    XVFB := "xvfb-run -a "
     gui_files := array("Str",
         "src/examples/gui_hello.til", "src/examples/snake.til",
         "src/examples/piano.til", "src/examples/music.til",
@@ -429,12 +431,12 @@ main := proc(args: ..Str) {
         if bn.eq("popcorn") { run_args = " --mute" }
         add_single(tests, "build_c_".concat(bn), "build", 124, "",
                    CTIL.concat(" build ").concat(gf)
-                       .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                       .concat(" '&&' ").concat(XVFB).concat("timeout ").concat(GUI_TIMEOUT)
                        .concat(" bin/c/").concat(bn).concat(run_args))
         if en_tr.eq(1) {
             add_single(tests, "build_t_".concat(bn), "build", 124, "",
                        TIL.concat(" build ").concat(gf)
-                           .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                           .concat(" '&&' ").concat(XVFB).concat("timeout ").concat(GUI_TIMEOUT)
                            .concat(" bin/til/").concat(bn).concat(run_args))
         }
     }

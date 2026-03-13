@@ -266,11 +266,13 @@ typedef struct FuncDefData {
     Bool return_is_ref;
     Bool return_is_shallow;
     I64 variadic_index;
+    I64 kwargs_index;
     Vec param_names;
     Vec param_types;
     Vec param_muts;
     Vec param_owns;
     Vec param_shallows;
+    Vec param_fn_sigs;
     Vec param_defaults;
 } FuncDefData;
 
@@ -300,6 +302,8 @@ typedef struct Expr {
     I64 total_struct_size;
     I64 variadic_index;
     I64 variadic_count;
+    I64 kwargs_index;
+    I64 kwargs_count;
     I64 fn_sig_index;
     Vec children;
     I64 line;
@@ -480,6 +484,7 @@ void expect(Parser * p, TokenType * type);
 Str * expect_text(Parser * p, TokenType * type);
 I64 * peek_line(Parser * p);
 I64 * peek_col(Parser * p);
+Expr * parse_fn_signature(Parser * p, I64 * line, I64 * col);
 Expr * parse_block(Parser * p);
 Expr * parse_func_def(Parser * p);
 Expr * parse_struct_def(Parser * p);
