@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 63
+# NEXT_ISSUE: 64
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -353,6 +353,48 @@
      and transitive ref chains (fixed-point propagation)
 
 * Post-self-hosting
+
+** OPEN #63 User-defined modes
+  Currently ~mode cli~, ~mode test~, ~mode gui~, ~mode script~ are hardcoded
+  in the compiler. User-defined modes would let users declare their own modes
+  using the same mechanism, with the built-in modes becoming just pre-linked
+  defaults — eating our own dogfood.
+
+  #+begin_src til
+  // Declare a mode
+  server := mode {
+      // mode body: what this mode provides (entry point shape, imports, etc.)
+  }
+
+  // Use it
+  mode server
+  #+end_src
+
+  The built-in modes would be redefined using the same system:
+  #+begin_src til
+  // These would ship as stdlib modes, linked by default
+  cli := mode { ... }    // main(args: ..Str)
+  test := mode { ... }   // test() blocks, assert helpers
+  gui := mode { ... }    // links raylib, provides window/draw
+  script := mode { ... } // top-level statements
+  lib := mode { ... }    // library, no entry point, exports funcs/types
+  liba := mode { ... }   // lib + allows print/println inside funcs
+  pure := mode { ... }   // pure only, no procs at all
+  pura := mode { ... }   // pure + allows print/println inside funcs
+  #+end_src
+
+  The ~a~ suffix ("annotated"/"audible") relaxes the func-cannot-call-proc
+  rule specifically for print/println, letting you debug/log from funcs
+  without switching to procs.
+
+  Needs a linking mechanism so modes can compose or depend on each other
+  (e.g. a ~game~ mode might link ~gui~ and add game-loop scaffolding).
+
+  Design questions:
+  - What exactly goes in a mode body? Entry point signature, auto-imports,
+    linked libraries, compiler flags?
+  - How does mode linking/composition work? ~mode gui + server~? Inheritance?
+  - How are stdlib modes distributed — as .til files? Compiled-in?
 
 ** OPEN #61 Lambdas: anonymous inline functions
   :DEPENDENCIES: #14
