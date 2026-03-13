@@ -17,23 +17,27 @@
   Reproduce: ~bin/ctil run tmp/hello_pure.til~ with any pure-mode file.
   Interpreter also fails (~undefined variable 'I64'~ in str.til:3).
 
-** OPEN #62 Investigate: ctil-i slower than til-i — precomp overhead?
+** OPEN #62 Investigate: ctil-i slower than til-i — til.til divergence?
   ctil-i (C interpreter) is slower than til-i (self-hosting interpreter
   built by the builder). This is counterintuitive — the C interpreter
   should be faster since it avoids the translate-to-C-then-compile step.
 
-  Primary suspect: the precomp pass (constant folding / partial evaluation)
-  runs before interpretation and adds overhead that exceeds its optimization
-  benefit. precomp creates its own interpreter scope, walks the AST, and
-  tries to fold pure function calls — this is expensive and may not pay off
-  for short-running programs or test suites.
+  Primary suspect: til.til is not an exact faithful port of ctil.c.
+  Divergences in the til reimplementation may explain the performance
+  difference — til.til may be doing less work, skipping steps, or
+  structuring the pipeline differently.
+
+  Secondary hypothesis: precomp. When ctil compiles til.til into the
+  til-i binary, precomp runs on til.til's own code — folding constants
+  and precalculating things in the compiler itself. ctil.c is hand-written
+  C and never gets this optimization applied to its own code.
 
   Investigation steps:
+  - [ ] Diff til.til against ctil.c function by function
+  - [ ] Identify any missing or divergent logic in til.til
   - [ ] Benchmark ctil-i vs til-i on test suite and examples
-  - [ ] Profile ctil-i to confirm where time is spent (precomp vs eval)
-  - [ ] Try skipping precomp in interpret mode, measure impact
-  - [ ] If precomp is the bottleneck, either skip it for interpret mode
-        or make it cheaper (limit folding depth, skip non-trivial calls)
+  - [ ] Once divergences are found, determine which version is correct
+  - [ ] Measure precomp's impact: time with vs without in interpret mode
 
 
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
