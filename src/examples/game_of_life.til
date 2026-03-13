@@ -1,0 +1,159 @@
+mode gui
+
+main := proc() {
+    cols := 40
+    rows := 30
+    cell := 15
+    bar_h := 30
+    grid_w := cols.mul(cell)
+    grid_h := rows.mul(cell)
+    total := cols.mul(rows)
+
+    init_window(grid_w, grid_h.add(bar_h), "game of life")
+    set_target_fps(60)
+
+    // Two grids for double buffering
+    mut grid := Array.new("I64", 8, total.to_u64())
+    mut next := Array.new("I64", 8, total.to_u64())
+
+    mut running := false
+    mut frame := 0
+    mut speed := 6
+    mut generation := 0
+
+    while window_should_close().not() {
+        // Input: SPACE to toggle pause/run
+        if is_key_pressed(32) {
+            running = running.not()
+        }
+
+        // Input: C to clear
+        if is_key_pressed(67) {
+            running = false
+            generation = 0
+            mut ci := 0
+            while ci.lt(total) {
+                grid.set(ci.to_u64(), own 0)
+                ci = ci.add(1)
+            }
+        }
+
+        // Input: mouse click to toggle cells
+        if is_mouse_button_pressed(0) {
+            mx := get_mouse_x().div(cell)
+            my := get_mouse_y().sub(bar_h).div(cell)
+            if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
+                idx := my.mul(cols).add(mx)
+                ref val : I64 = grid.get(idx.to_u64())
+                if val.eq(0) {
+                    grid.set(idx.to_u64(), own 1)
+                } else {
+                    grid.set(idx.to_u64(), own 0)
+                }
+            }
+        }
+
+        // Simulation step
+        if running {
+            frame = frame.add(1)
+            if frame.gte(speed) {
+                frame = 0
+                generation = generation.add(1)
+
+                // Compute next generation
+                mut i := 0
+                while i.lt(total) {
+                    cx := i.mod(cols)
+                    cy := i.div(cols)
+
+                    // Count neighbors
+                    mut neighbors := 0
+                    mut ny := cy.sub(1)
+                    while ny.lte(cy.add(1)) {
+                        mut nx := cx.sub(1)
+                        while nx.lte(cx.add(1)) {
+                            if nx.eq(cx).and(ny.eq(cy)).not() {
+                                if nx.gte(0).and(nx.lt(cols)).and(ny.gte(0)).and(ny.lt(rows)) {
+                                    ni := ny.mul(cols).add(nx)
+                                    ref nv : I64 = grid.get(ni.to_u64())
+                                    if nv.eq(1) {
+                                        neighbors = neighbors.add(1)
+                                    }
+                                }
+                            }
+                            nx = nx.add(1)
+                        }
+                        ny = ny.add(1)
+                    }
+
+                    // Conway rules
+                    ref cur : I64 = grid.get(i.to_u64())
+                    if cur.eq(1) {
+                        // Live cell: survives with 2 or 3 neighbors
+                        if neighbors.eq(2).or(neighbors.eq(3)) {
+                            next.set(i.to_u64(), own 1)
+                        } else {
+                            next.set(i.to_u64(), own 0)
+                        }
+                    } else {
+                        // Dead cell: born with exactly 3 neighbors
+                        if neighbors.eq(3) {
+                            next.set(i.to_u64(), own 1)
+                        } else {
+                            next.set(i.to_u64(), own 0)
+                        }
+                    }
+
+                    i = i.add(1)
+                }
+
+                // Copy next to grid
+                mut j := 0
+                while j.lt(total) {
+                    ref nval : I64 = next.get(j.to_u64())
+                    nv := nval
+                    grid.set(j.to_u64(), own nv)
+                    j = j.add(1)
+                }
+            }
+        }
+
+        // Draw
+        begin_drawing()
+        clear_background(0, 0, 0, 255)
+
+        // Top bar
+        if running {
+            draw_text("RUNNING", 10, 7, 16, 0, 200, 0, 255)
+        } else {
+            draw_text("PAUSED", 10, 7, 16, 200, 200, 0, 255)
+        }
+        draw_text(format("gen: ", generation.to_str()), 120, 7, 16, 200, 200, 200, 255)
+        draw_text("SPACE=run/pause  C=clear  click=toggle", grid_w.sub(370), 7, 14, 150, 150, 150, 255)
+        draw_rectangle(0, bar_h.sub(1), grid_w, 1, 80, 80, 80, 255)
+
+        // Grid cells
+        mut di := 0
+        while di.lt(total) {
+            dx := di.mod(cols)
+            dy := di.div(cols)
+            px := dx.mul(cell)
+            py := dy.mul(cell).add(bar_h)
+
+            ref dv : I64 = grid.get(di.to_u64())
+            if dv.eq(1) {
+                // Alive: green
+                draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 0, 200, 0, 255)
+            } else {
+                // Dead: dark gray
+                draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 30, 30, 30, 255)
+            }
+
+            di = di.add(1)
+        }
+
+        end_drawing()
+    }
+
+    close_window()
+}
