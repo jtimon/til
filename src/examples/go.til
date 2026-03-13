@@ -323,6 +323,20 @@ try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     return captured
 }
 
+// Go stone count evaluation relative to side (1=black, 2=white)
+go_eval := func(mut board: Array, total: I64, side: I64) returns I64 {
+    opp := 3.sub(side)
+    mut score := 0
+    mut i := 0
+    while i.lt(total) {
+        ref p : I64 = board.get(i.to_u64())
+        if p.eq(side) { score = score.add(1) }
+        if p.eq(opp) { score = score.sub(1) }
+        i = i.add(1)
+    }
+    return score
+}
+
 // Alpha-beta negamax search for Go
 // Returns score relative to `side` (positive = good for side)
 go_ab := proc(mut board: Array, side: I64, size: I64, depth: I64,

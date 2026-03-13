@@ -583,6 +583,29 @@ copy_cf := proc(mut dst: Array, mut src: Array) {
     }
 }
 
+// Chess material evaluation relative to side (0=white, 1=black)
+// Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=10
+// Piece encoding: 1-6 white (P,N,B,R,Q,K), 7-12 black
+chess_eval := func(mut board: Array, side: I64) returns I64 {
+    WEIGHTS := array("I64", 0, 1, 3, 3, 5, 10, 0)
+    mut score := 0
+    mut i := 0
+    while i.lt(64) {
+        ref p : I64 = board.get(i.to_u64())
+        if p.gt(0).and(p.lte(6)) {
+            ref w : I64 = WEIGHTS.get(p.to_u64())
+            score = score.add(w)
+        }
+        if p.gt(6).and(p.lte(12)) {
+            ref w : I64 = WEIGHTS.get(p.sub(6).to_u64())
+            score = score.sub(w)
+        }
+        i = i.add(1)
+    }
+    if side.eq(1) { return 0.sub(score) }
+    return score
+}
+
 // Alpha-beta negamax search for chess
 // Returns score relative to `side` (positive = good for side)
 chess_ab := proc(mut board: Array, side: I64, depth: I64,
