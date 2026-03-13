@@ -255,6 +255,31 @@
   interpreted, til compiled — all must produce identical results.
 
 
+** WIP #14 Function pointers: first-class functions as values
+  til currently has no way to declare function *types* (signatures) as
+  standalone named values. Functions can only be called directly by name.
+  Function pointers would allow storing and passing functions as arguments
+  — needed for comparators (Map), callbacks, and generic algorithms.
+
+  Blocks Map (needs comparator), generic sort, event handlers,
+  and many patterns needed for self-hosting (visitor, dispatch tables).
+
+*** Done: runtime mechanics
+   - Inline ~Fn(I64, I64) returns I64~ type annotations on params/declarations
+   - Passing named functions as values (~f := fn_double~)
+   - Indirect calls through Fn-typed variables (~f(5)~)
+   - Type checking (arg count/types) at fn_ptr call sites
+   - Builder: void* representation, cast-based indirect calls
+   - Interpreter: VAL_FUNC clone/free/equal
+   - Tests: src/test/fn_ptr.til
+
+*** Remaining: FuncSig declaration syntax
+   - Bodyless func/proc as FuncSig type definition
+   - FuncSig form for defining functions (~add : BinaryOp = (a, b) { ... }~)
+   - Using named FuncSig as parameter types (~apply := func(op: BinaryOp, ...) { ... }~)
+   - Returning FuncSig-typed values from functions
+   - Storing in collections and struct fields
+
 *** Function type syntax (FuncSig)
 
    A bodyless func/proc declaration defines a function *type* (signature).
