@@ -11,6 +11,24 @@ Always run `make test` and verify all tests pass before committing.
 - `bin/ctil run file.til` — compile and run via builder
 - `bin/ctil interpret file.til` — run via interpreter
 - Use `tmp/` dir for ad-hoc test files
+- All dependencies (raylib, libffi) are bundled in `lib/` — no manual installs needed
+- On Linux, X11/GL dev headers are needed: `sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev`
+
+## GUI Testing (Headless / Virtual Screen)
+
+GUI programs (mode gui) open a raylib window. In headless environments (CI, remote
+agents, SSH), you need a virtual framebuffer to run them:
+
+```sh
+# Install Xvfb if not present
+sudo apt install xvfb
+
+# Run a GUI program with a virtual screen
+xvfb-run bin/ctil run src/examples/gui_hello.til
+```
+
+For build-only testing (no window needed), use `bin/ctil build` which just compiles
+without running. The test suite already handles this — GUI tests are build-only.
 
 ## Generated Files (src/bootstrap/)
 
