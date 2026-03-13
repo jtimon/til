@@ -53,6 +53,13 @@ without running. The test suite already handles this — GUI tests are build-onl
   Example: `make > tmp/build.log 2>&1` then use Read/Grep on `tmp/build.log`.
   ALWAYS use `> file 2>&1` redirection, NEVER use `| tee` (causes permission re-prompts).
 
+## Recovery
+
+- The last commit ALWAYS works unless its message has an "ERROR: " prefix.
+- When you break something during development (bad bootstrap, etc.), restore from HEAD:
+  `git checkout HEAD -- src/bootstrap/` — not git stash, not git reset.
+- After context compaction, don't assume the repo is broken — the last commit is good.
+
 ## Commits
 
 - Always include ALL modified files in commits, including generated files (src/bootstrap/)

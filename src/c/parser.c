@@ -158,40 +158,49 @@ static Expr *parse_func_def(Parser *p) {
             is_mut = true;
         }
         Token *pname = expect(p, TokenType_TAG_Ident);
-        expect(p, TokenType_TAG_Colon);
+        // Bare type (FuncSig style): no colon after identifier
+        Str *nm = NULL;
+        Str *tp = NULL;
         bool is_this_variadic = false;
-        if (check(p, TokenType_TAG_DotDot)) {
-            advance(p); // consume '..'
-            if (is_own) {
-                fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
-                        p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
-                exit(1);
+        if (!check(p, TokenType_TAG_Colon)) {
+            // No colon — this is a bare type, not name: Type
+            tp = tok_str(pname);
+            nm = Str_new("");  // no param name
+        } else {
+            expect(p, TokenType_TAG_Colon);
+            if (check(p, TokenType_TAG_DotDot)) {
+                advance(p); // consume '..'
+                if (is_own) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
+                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                    exit(1);
+                }
+                if (is_mut) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
+                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                    exit(1);
+                }
+                if (is_shallow) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'shallow'\n",
+                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                    exit(1);
+                }
+                if (variadic_index >= 0) {
+                    fprintf(stderr, "%s:%lld:%lld: parse error: only one variadic parameter is allowed\n",
+                            p->path->c_str, pname->line, pname->col);
+                    exit(1);
+                }
+                variadic_index = pnames.count; // index of this param (before push)
+                is_this_variadic = true;
             }
-            if (is_mut) {
-                fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
-                        p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
-                exit(1);
-            }
-            if (is_shallow) {
-                fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'shallow'\n",
-                        p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
-                exit(1);
-            }
-            if (variadic_index >= 0) {
-                fprintf(stderr, "%s:%lld:%lld: parse error: only one variadic parameter is allowed\n",
-                        p->path->c_str, pname->line, pname->col);
-                exit(1);
-            }
-            variadic_index = pnames.count; // index of this param (before push)
-            is_this_variadic = true;
+            Token *ptype = expect(p, TokenType_TAG_Ident);
+            nm = tok_str(pname);
+            tp = tok_str(ptype);
         }
-        Token *ptype = expect(p, TokenType_TAG_Ident);
-        Str *nm = tok_str(pname);
-        Str *tp = tok_str(ptype);
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
         Expr *fn_sig = NULL;
         if (Str_eq_c(tp, "Fn")) {
-            fn_sig = parse_fn_signature(p, ptype->line, ptype->col);
+            fn_sig = parse_fn_signature(p, pname->line, pname->col);
         }
         { Str **_p = malloc(sizeof(Str *)); *_p = nm; Vec_push(&pnames, _p); }
         { Str **_p = malloc(sizeof(Str *)); *_p = tp; Vec_push(&ptypes, _p); }
@@ -247,8 +256,18 @@ static Expr *parse_func_def(Parser *p) {
     def->type.func_def.return_is_shallow = return_is_shallow;
     def->type.func_def.variadic_index = variadic_index;
 
-    expect(p, TokenType_TAG_LBrace);
-    expr_add_child(def, parse_block(p));
+    if (check(p, TokenType_TAG_LBrace)) {
+        expect(p, TokenType_TAG_LBrace);
+        expr_add_child(def, parse_block(p));
+    } else {
+        // Bodyless = FuncSig type definition (only for func/proc)
+        if (ft != FUNC_FUNC && ft != FUNC_PROC) {
+            fprintf(stderr, "%s:%lld:%lld: parse error: %s requires a body\n",
+                    p->path->c_str, kw->line, kw->col,
+                    ft == FUNC_TEST ? "test" : "ext_func/ext_proc");
+            exit(1);
+        }
+    }
 
     return def;
 }

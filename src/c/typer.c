@@ -34,6 +34,10 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) return (sdef->type.tag == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
+        // Named FuncSig type (bodyless func/proc)
+        TypeBinding *b = tscope_find(scope, name);
+        if (b && b->func_def && b->func_def->children.count == 0)
+            return TIL_TYPE_FUNC_PTR;
     }
     return TIL_TYPE_UNKNOWN;
 }
@@ -120,6 +124,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         break;
     }
     case NODE_FUNC_DEF:
+        if (e->children.count == 0) {
+            // Bodyless = FuncSig type definition, no body to type
+            e->til_type = TIL_TYPE_FUNC_PTR;
+            break;
+        }
         e->til_type = TIL_TYPE_NONE;
         // Type the body
         {
@@ -180,6 +189,15 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         e->type.func_def.param_fn_sigs[i]) {
                         TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
                         if (pb) pb->func_def = e->type.func_def.param_fn_sigs[i];
+                    }
+                    // For named FuncSig params (no inline sig), resolve from outer scope
+                    if (pt == TIL_TYPE_FUNC_PTR &&
+                        !(e->type.func_def.param_fn_sigs && e->type.func_def.param_fn_sigs[i])) {
+                        TypeBinding *fsb = tscope_find(scope, ptn);
+                        if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
+                            TypeBinding *pb = tscope_find(func_scope, e->type.func_def.param_names[i]);
+                            if (pb) pb->func_def = fsb->func_def;
+                        }
                     }
                 }
             }
@@ -2457,6 +2475,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 } else if (dst && expr_child(stmt, 0)->type.tag == NODE_IDENT) {
                     TypeBinding *src = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
                     if (src && src->func_def) dst->func_def = src->func_def;
+                }
+                // Named FuncSig type in explicit type position
+                if (dst && !dst->func_def && stmt->type.decl.explicit_type) {
+                    TypeBinding *fsb = tscope_find(scope, stmt->type.decl.explicit_type);
+                    if (fsb && fsb->func_def && fsb->func_def->children.count == 0)
+                        dst->func_def = fsb->func_def;
                 }
             }
             if (stmt->type.decl.is_ref) {

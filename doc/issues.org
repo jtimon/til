@@ -273,12 +273,18 @@
    - Interpreter: VAL_FUNC clone/free/equal
    - Tests: src/test/fn_ptr.til
 
-*** Remaining: FuncSig declaration syntax
-   - Bodyless func/proc as FuncSig type definition
-   - FuncSig form for defining functions (~add : BinaryOp = (a, b) { ... }~)
+*** Done: FuncSig type definitions
+   - Bodyless func/proc as FuncSig type definition (~BinaryOp := func(I64, I64) returns I64~)
    - Using named FuncSig as parameter types (~apply := func(op: BinaryOp, ...) { ... }~)
+   - Using named FuncSig as declaration type (~f : BinaryOp = fn_add~)
+   - Bare-type params in func/proc (~func(I64, I64)~ without names)
+   - Tests: src/test/fn_ptr.til (FuncSig section)
+
+*** Remaining: FuncSig advanced
+   - FuncSig form for defining functions (~add : BinaryOp = (a, b) { ... }~) — needs lambda syntax
    - Returning FuncSig-typed values from functions
    - Storing in collections and struct fields
+   - Lambdas and closures with capture lists
 
 *** Function type syntax (FuncSig)
 

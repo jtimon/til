@@ -10,6 +10,8 @@ static Set script_globals; // names of top-level vars emitted as file-scope glob
 static Bool has_script_globals; // whether script_globals is initialized
 static Bool in_func_def; // true while emitting a function/proc body
 static Bool in_main_func; // true while emitting main() body (for return 0)
+static Set funcsig_names; // names of FuncSig type definitions (bodyless func/proc)
+static Bool has_funcsig_names;
 
 // Collect unique array/vec builtin type names from AST
 typedef struct { Str *type_name; I32 is_vec; } CollectionInfo;
@@ -525,6 +527,13 @@ static const char *type_name_to_c(Str *name) {
     if (Str_eq_c(name, "Bool")) return "Bool *";
     if (Str_eq_c(name, "Dynamic")) return "void *";
     if (Str_eq_c(name, "Fn"))      return "void *"; // function pointer (opaque)
+    // Named FuncSig type → void * (opaque function pointer)
+    if (has_funcsig_names) {
+        Str key = {name->c_str, name->count, CAP_VIEW};
+        Bool *r = Set_has(&funcsig_names, &key);
+        Bool hit = *r; free(r);
+        if (hit) return "void *";
+    }
     // User-defined struct type — pointer
     static char buf[128];
     snprintf(buf, sizeof(buf), "%s *", name->c_str);
@@ -542,6 +551,13 @@ static const char *type_name_to_c_value(Str *name) {
     if (Str_eq_c(name, "F32"))  return "F32";
     if (Str_eq_c(name, "Bool")) return "Bool";
     if (Str_eq_c(name, "Fn"))   return "void *"; // function pointer (opaque)
+    // Named FuncSig type → void * (opaque function pointer)
+    if (has_funcsig_names) {
+        Str key = {name->c_str, name->count, CAP_VIEW};
+        Bool *r = Set_has(&funcsig_names, &key);
+        Bool hit = *r; free(r);
+        if (hit) return "void *";
+    }
     static char buf2[128];
     snprintf(buf2, sizeof(buf2), "%s", name->c_str);
     return buf2;
@@ -894,6 +910,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 } else {
                     fprintf(f, "%s = ", e->type.str_val->c_str);
                 }
+                emit_expr(f, rhs, depth);
+            } else if (e->til_type == TIL_TYPE_FUNC_PTR) {
+                // Function pointer: assign opaque pointer directly (no deref)
+                fprintf(f, "%s = ", e->type.str_val->c_str);
                 emit_expr(f, rhs, depth);
             } else {
                 fprintf(f, "*%s = ", e->type.str_val->c_str);
@@ -1581,6 +1601,17 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){fname->c_str, fname->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
         }
     }
+    // Collect FuncSig names (bodyless func/proc definitions)
+    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
+    has_funcsig_names = 1;
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
+            expr_child(stmt, 0)->children.count == 0) {
+            Str *n = stmt->type.decl.name;
+            { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
+        }
+    }
     FILE *f = fopen((const char *)c_output_path->c_str, "w");
     if (!f) {
         fprintf(stderr, "error: could not open '%s' for writing\n", (const char *)c_output_path->c_str);
@@ -1878,6 +1909,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             FuncType fft2 = expr_child(stmt, 0)->type.func_def.func_type;
             if (fft2 == FUNC_EXT_FUNC || fft2 == FUNC_EXT_PROC) continue;
+            if (expr_child(stmt, 0)->children.count == 0) continue;  // FuncSig: skip
             emit_func_def(f, stmt->type.decl.name, expr_child(stmt, 0), mode, 0);
             fprintf(f, "\n");
         }
@@ -2167,6 +2199,19 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 }
 
 I32 build_header(Expr *program, Str *h_path) {
+    // Collect FuncSig names for type_name_to_c
+    if (!has_funcsig_names) {
+        { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
+        has_funcsig_names = 1;
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = expr_child(program, i);
+            if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
+                expr_child(stmt, 0)->children.count == 0) {
+                Str *n = stmt->type.decl.name;
+                { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
+            }
+        }
+    }
     FILE *f = fopen((const char *)h_path->c_str, "w");
     if (!f) {
         fprintf(stderr, "error: could not open '%s' for writing\n", (const char *)h_path->c_str);
@@ -2256,6 +2301,7 @@ I32 build_header(Expr *program, Str *h_path) {
             }
         } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
             Expr *func_def = expr_child(stmt, 0);
+            if (func_def->children.count == 0) continue;  // FuncSig: skip
             FuncType fft = func_def->type.func_def.func_type;
             if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
             const char *ret = "void";

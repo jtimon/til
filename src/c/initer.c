@@ -77,6 +77,10 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) return (sdef->type.tag == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
+        // Named FuncSig type (bodyless func/proc)
+        TypeBinding *b = tscope_find(scope, name);
+        if (b && b->func_def && b->func_def->children.count == 0)
+            return TIL_TYPE_FUNC_PTR;
     }
     return TIL_TYPE_UNKNOWN;
 }
@@ -1279,6 +1283,15 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *stmt = expr_child(program, i);
         if (stmt->type.tag != NODE_DECL) continue;
         if (expr_child(stmt, 0)->type.tag != NODE_FUNC_DEF) continue;
+
+        // Bodyless func/proc = FuncSig type definition
+        if (expr_child(stmt, 0)->children.count == 0) {
+            tscope_set(scope, stmt->type.decl.name, TIL_TYPE_FUNC_PTR, -1, 0,
+                       stmt->line, stmt->col, 0, 0);
+            TypeBinding *fb = tscope_find(scope, stmt->type.decl.name);
+            if (fb) fb->func_def = expr_child(stmt, 0);
+            continue;
+        }
 
         FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
         I32 callee_is_proc = (ft == FUNC_TEST) ? 2 : (ft == FUNC_PROC || ft == FUNC_EXT_PROC) ? 1 : 0;

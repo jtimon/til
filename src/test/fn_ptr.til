@@ -51,3 +51,58 @@ test_fn_ptr_mut_param := test() {
     mutate(greet, val)
     assert_eq(__LOC__, val, 142)
 }
+
+// --- FuncSig type definitions ---
+
+BinaryOp := func(I64, I64) returns I64
+
+fn_mul := func(a: I64, b: I64) returns I64 {
+    return a.mul(b)
+}
+
+apply_binop := func(op: BinaryOp, a: I64, b: I64) returns I64 {
+    return op(a, b)
+}
+
+test_funcsig_named_param := test() {
+    assert_eq(__LOC__, apply_binop(fn_add, 3, 5), 8)
+    assert_eq(__LOC__, apply_binop(fn_mul, 3, 5), 15)
+}
+
+test_funcsig_decl_type := test() {
+    f : BinaryOp = fn_add
+    assert_eq(__LOC__, f(10, 20), 30)
+
+    g : BinaryOp = fn_mul
+    assert_eq(__LOC__, g(4, 5), 20)
+}
+
+test_funcsig_reassign := test() {
+    mut f : BinaryOp = fn_add
+    assert_eq(__LOC__, f(2, 3), 5)
+    f = fn_mul
+    assert_eq(__LOC__, f(2, 3), 6)
+}
+
+UnaryOp := func(I64) returns I64
+
+apply_unary := func(op: UnaryOp, x: I64) returns I64 {
+    return op(x)
+}
+
+test_funcsig_unary := test() {
+    assert_eq(__LOC__, apply_unary(fn_double, 7), 14)
+    assert_eq(__LOC__, apply_unary(fn_negate, 5), 0.sub(5))
+}
+
+Mutator := proc(mut I64)
+
+apply_mutator := proc(f: Mutator, mut x: I64) {
+    f(x)
+}
+
+test_funcsig_proc := test() {
+    mut val := 10
+    apply_mutator(greet, val)
+    assert_eq(__LOC__, val, 110)
+}
