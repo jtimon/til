@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 61
+# NEXT_ISSUE: 62
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -254,248 +254,6 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-** WIP #14 Function pointers: first-class functions as values
-  til currently has no way to declare function *types* (signatures) as
-  standalone named values. Functions can only be called directly by name.
-  Function pointers would allow storing and passing functions as arguments
-  — needed for comparators (Map), callbacks, and generic algorithms.
-
-  Blocks Map (needs comparator), generic sort, event handlers,
-  and many patterns needed for self-hosting (visitor, dispatch tables).
-
-*** Done: runtime mechanics
-   - Inline ~Fn(I64, I64) returns I64~ type annotations on params/declarations
-   - Passing named functions as values (~f := fn_double~)
-   - Indirect calls through Fn-typed variables (~f(5)~)
-   - Type checking (arg count/types) at fn_ptr call sites
-   - Builder: void* representation, cast-based indirect calls
-   - Interpreter: VAL_FUNC clone/free/equal
-   - Tests: src/test/fn_ptr.til
-
-*** Done: FuncSig type definitions
-   - Bodyless func/proc as FuncSig type definition (~BinaryOp := func(I64, I64) returns I64~)
-   - Using named FuncSig as parameter types (~apply := func(op: BinaryOp, ...) { ... }~)
-   - Using named FuncSig as declaration type (~f : BinaryOp = fn_add~)
-   - Bare-type params in func/proc (~func(I64, I64)~ without names)
-   - Tests: src/test/fn_ptr.til (FuncSig section)
-
-*** Done: FuncSig form (inline and named)
-   - ~sum : func(I64, I64) returns I64 = (a, b) { return a.add(b) }~ — inline FuncSig form
-   - ~sum : BinaryOp = (a, b) { return a.add(b) }~ — named FuncSig form
-   - Works with func and proc
-   - Parser detects ~(names) { body }~ pattern via lookahead, initer fills types from FuncSig
-   - Tests: src/test/fn_ptr.til (FuncSig form + named FuncSig form sections)
-
-*** Done: Returning FuncSig-typed values
-   - ~get_op := func(Str) returns BinaryOp { ... }~ — functions returning func ptrs
-   - Typer propagates fn_sig from FCALL result to declaration binding
-   - Fixed func ptr call guard (~is_proc < 0~) to distinguish func ptr vars from functions returning func ptrs
-   - Interpreter: fixed VAL_FUNC not being nulled on move (NODE_ASSIGN, struct ctor, field assign)
-   - Tests: src/test/fn_ptr.til (returning FuncSig section)
-
-*** Done: Struct fields with FuncSig type
-   - ~Handler := struct { mut on_click : BinaryOp = fn_add }~ — func ptr struct fields
-   - Requires explicit type annotation (~: BinaryOp~) since func ptr default alone can't infer type
-   - Initer: early FuncSig registration (Pass 1.1), auto-clone/delete skip func ptr fields
-   - Typer: UFCS fallback recognizes ~h.on_click(3, 5)~ as field access + indirect call
-   - Builder: indirect call codegen through struct field, ~emit_deref~ skips DEREF for func ptrs
-   - Interpreter: read_field/write_field handle VAL_FUNC as void* in struct data
-   - Tests: src/test/fn_ptr.til (struct fields section)
-
-*** Remaining
-   - Storing in collections (~Vec.new("BinaryOp")~) — may work already since func ptrs are void*
-   - Enum payloads with FuncSig type
-   - Lambdas: anonymous inline functions — split to new issue (TODO: create #61)
-   Out of scope — see #54:
-   - Closures (lambdas with ~captures~ keyword)
-
-*** Function type syntax (FuncSig)
-
-   A bodyless func/proc declaration defines a function *type* (signature).
-   Parameter names are optional documentation, not part of the type identity.
-   Two signatures with the same parameter types, return type, and func/proc
-   kind are the same type (structural equality).
-
-   #+begin_src til
-   // Function type (no body = type definition)
-   BinaryOp := func(I64, I64) returns I64
-
-   // Same type with parameter names (names are documentation only)
-   BinaryOp := func(a: I64, b: I64) returns I64
-
-   // These are equal:
-   Adder := func(a: I64, b: I64) returns I64
-   Combiner := func(x: I64, y: I64) returns I64
-   // Adder.eq(Combiner) → true (same param types, same return type)
-   #+end_src
-
-*** Passing functions as arguments
-
-   #+begin_src til
-   // apply takes a function pointer and calls it
-   apply := func(op: BinaryOp, a: I64, b: I64) returns I64 {
-       return op(a, b)
-   }
-
-   add := func(a: I64, b: I64) returns I64 { return a.add(b) }
-   mul := func(a: I64, b: I64) returns I64 { return a.mul(b) }
-
-   apply(add, 3, 5)  // 8
-   apply(mul, 3, 5)  // 15
-
-   // Also works with inline signature instead of named type alias
-   apply2 := func(op: func(I64, I64) returns I64, a: I64, b: I64) returns I64 {
-       return op(a, b)
-   }
-   #+end_src
-
-*** Returning functions
-
-   #+begin_src til
-   get_op := func(which: Str) returns BinaryOp {
-       if which.eq("add") {
-           return add
-       }
-       return mul
-   }
-   op := get_op("add")
-   op(3, 5)  // 8
-   #+end_src
-
-*** Lambdas (anonymous inline functions)
-
-   Anonymous FuncDef literals passed directly as arguments. Same syntax
-   as named function definitions, just without a name.
-
-   #+begin_src til
-   Transformer := func(I64) returns I64
-
-   map := func(v: Vec, f: Transformer) returns Vec {
-       mut result := Vec.new("I64")
-       for item : I64 in v {
-           result.push(own f(item))
-       }
-       return result
-   }
-
-   numbers := vec("I64", 1, 2, 3, 4, 5)
-
-   // Lambda: anonymous FuncDef literal passed inline
-   doubled := numbers.map(func(a: I64) returns I64 { return a.mul(2) })
-   // [2, 4, 6, 8, 10]
-
-   // Named function works too
-   double := func(a: I64) returns I64 { return a.mul(2) }
-   doubled := numbers.map(double)
-   #+end_src
-
-*** Closures (see #54)
-
-   Closures (lambdas that capture outer variables) are tracked in #54.
-   #54 depends on #14's lambda support — lambdas are anonymous functions
-   without captures, closures add the ~captures~ keyword on top.
-
-*** Stored in collections
-
-   #+begin_src til
-   // Vec of function pointers with the SAME signature
-   ops := Vec.new("BinaryOp")
-   ops.push(own add)
-   ops.push(own mul)
-   ref op : BinaryOp = ops.get(0)
-   op(3, 5)  // 8
-   #+end_src
-
-*** Stored in struct fields
-
-   #+begin_src til
-   Handler := struct {
-       mut on_click : BinaryOp = add
-   }
-   h := Handler(on_click = add)
-   h.on_click(3, 5)  // 8
-   h.on_click = mul
-   h.on_click(3, 5)  // 15
-   #+end_src
-
-*** Alternative declaration forms
-
-   There are two ways to define a function, reflecting the distinction
-   between a function *type* (FuncSig) and a function *value* (FuncDef).
-
-**** FuncDef form (current syntax)
-
-    The whole ~func(names: Types) returns Type { body }~ is a FuncDef
-    literal, just as ~struct { ... }~ is a StructDef literal. The type
-    is inferred as FuncDef:
-
-    #+begin_src til
-    // FuncDef form: the whole thing is a literal, type inferred
-    add := func(a: I64, b: I64) returns I64 { return a.add(b) }
-
-    // Same with explicit metatype annotation
-    add : FuncDef = func(a: I64, b: I64) returns I64 { return a.add(b) }
-    #+end_src
-
-**** FuncSig form (type separated from value)
-
-    The type between ~:~ and ~=~ is a FuncSig (pure types, no names).
-    The value after ~=~ provides argument names and body:
-
-    #+begin_src til
-    // FuncSig form: signature is the type, names + body are the value
-    add : func(I64, I64) returns I64 = (a, b) {
-        return a.add(b)
-    }
-
-    // Same with a named type alias
-    add : BinaryOp = (a, b) {
-        return a.add(b)
-    }
-
-    // Proc — FuncSig form
-    greet : proc(Str) = (name) {
-        println("hello", name)
-    }
-    // Proc — FuncDef form (equivalent)
-    greet := proc(name: Str) {
-        println("hello", name)
-    }
-    #+end_src
-
-**** Equivalence
-
-    All forms produce the same result:
-
-    #+begin_src til
-    // 1. FuncDef form: FuncDef literal (type inferred)
-    add := func(a: I64, b: I64) returns I64 { return a.add(b) }
-
-    // 2. FuncSig form: explicit signature as type
-    add : func(I64, I64) returns I64 = (a, b) { return a.add(b) }
-
-    // 3. FuncSig form with named alias
-    add : BinaryOp = (a, b) { return a.add(b) }
-    #+end_src
-
-    The FuncSig form is especially useful when a type alias already
-    exists — the definition is shorter and reads as "add is a BinaryOp
-    defined as...". It also enables collections of functions with the
-    same signature to be declared naturally.
-
-*** Implementation
-
-   - Parser: bodyless func/proc → FuncSig type definition; bodied → FuncDef value.
-     FuncSig form: ~name : FuncSig = (args) { body }~ — parser sees a
-     parenthesized arg list after ~=~ and combines it with the FuncSig type
-     to produce a FuncDef node
-   - AST: FuncSig stored as type; FuncDef stores sig + arg names + body
-   - Typer: structural equality on function types (param types + return type),
-     validate call sites match signature
-   - Interpreter: Value variant for function pointers (VAL_FUNC_PTR or similar),
-     indirect call through function pointer variables
-   - Builder: emit C function pointer types (~I64 (*)(I64, I64)~) and indirect calls
-
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #2
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
@@ -591,6 +349,21 @@
 
 * Post-self-hosting
 
+** OPEN #61 Lambdas: anonymous inline functions
+  :DEPENDENCIES: #14
+  :BLOCKS: #54
+  :RELATED: #58
+  Anonymous inline functions (lambdas) without captures.
+  Split from #14 which covered named function pointers.
+
+  Syntax TBD — likely ~|a, b| { a.add(b) }~ or ~func(a: I64, b: I64) returns I64 { a.add(b) }~.
+  Must work anywhere a FuncSig-typed value is expected:
+  - As argument: ~apply(|x| { x.mul(2) }, 5)~
+  - As value: ~f : UnaryOp = |x| { x.mul(2) }~
+  - In collections: ~ops.push(|a, b| { a.add(b) })~
+
+  No captures — pure lambdas only. Closures (captures) are #54.
+
 ** WIP #59 Bundle raylib: fix CI GUI tests, enable static linking
   GUI tests were broken in CI (GitHub Actions) because raylib was not
   installed. Friends who cloned the repo couldn't run GUI demos either.
@@ -636,7 +409,7 @@
    #+end_example
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
-  :DEPENDENCIES: #14
+  :DEPENDENCIES: #14 #61
   Based on rstil/doc/first_class.org. Everything in til is a value —
   functions, structs, enums can all be assigned, passed, returned, and
   stored. This issue covers the metatype system that makes it work.
@@ -1031,13 +804,13 @@
    block into a first-class value.
 
 ** OPEN #54 Explicit capture syntax (closures)
-  :DEPENDENCIES: #14
+  :DEPENDENCIES: #61
   :DEPENDENCIES_OF: #12 #13
   Add syntax for listing captured variables from outer scopes, both for
   function definitions and anonymous blocks. Based on rstil/doc/first_class.org.
   Split from #17 (global variable access, now fixed).
 
-  Closures = lambdas (#14) + captures. #14 provides anonymous inline
+  Closures = lambdas (#61) + captures. #61 provides anonymous inline
   functions (lambdas); this issue adds the ~captures~ keyword that turns
   a lambda into a closure by binding outer-scope variables.
 

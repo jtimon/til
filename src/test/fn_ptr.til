@@ -212,3 +212,27 @@ test_struct_field_default := test() {
     h := Handler()
     assert_eq(__LOC__, h.on_click(3, 5), 8)
 }
+
+// --- Enum payloads with FuncSig type ---
+
+Action := enum { Click: BinaryOp, Idle }
+
+test_enum_funcsig_payload := test() {
+    a := Action.Click(fn_add)
+    test_expect(__LOC__, a.is_Click(), "Click is_Click")
+    op := a.get_Click()
+    assert_eq(__LOC__, op(3, 5), 8)
+}
+
+test_enum_funcsig_payload_mul := test() {
+    a := Action.Click(fn_mul)
+    test_expect(__LOC__, a.is_Click(), "Click is_Click")
+    op := a.get_Click()
+    assert_eq(__LOC__, op(4, 5), 20)
+}
+
+test_enum_funcsig_idle := test() {
+    a : Action = Action.Idle
+    test_expect(__LOC__, a.is_Idle(), "Idle is_Idle")
+    test_expect(__LOC__, a.is_Click().not(), "Idle not Click")
+}

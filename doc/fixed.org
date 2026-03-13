@@ -1172,3 +1172,64 @@
 ** Test categories
    c_common (both modes), c_interpreted (interpret only), c_compiled
    (run only). TestFile struct tracks per-file results.
+
+* FIXED #14 Function pointers: first-class functions as values
+  til currently has no way to declare function *types* (signatures) as
+  standalone named values. Functions can only be called directly by name.
+  Function pointers would allow storing and passing functions as arguments
+  — needed for comparators (Map), callbacks, and generic algorithms.
+
+  Blocks Map (needs comparator), generic sort, event handlers,
+  and many patterns needed for self-hosting (visitor, dispatch tables).
+
+** Done: runtime mechanics
+   - Inline ~Fn(I64, I64) returns I64~ type annotations on params/declarations
+   - Passing named functions as values (~f := fn_double~)
+   - Indirect calls through Fn-typed variables (~f(5)~)
+   - Type checking (arg count/types) at fn_ptr call sites
+   - Builder: void* representation, cast-based indirect calls
+   - Interpreter: VAL_FUNC clone/free/equal
+   - Tests: src/test/fn_ptr.til
+
+** Done: FuncSig type definitions
+   - Bodyless func/proc as FuncSig type definition (~BinaryOp := func(I64, I64) returns I64~)
+   - Using named FuncSig as parameter types (~apply := func(op: BinaryOp, ...) { ... }~)
+   - Using named FuncSig as declaration type (~f : BinaryOp = fn_add~)
+   - Bare-type params in func/proc (~func(I64, I64)~ without names)
+   - Tests: src/test/fn_ptr.til (FuncSig section)
+
+** Done: FuncSig form (inline and named)
+   - ~sum : func(I64, I64) returns I64 = (a, b) { return a.add(b) }~ — inline FuncSig form
+   - ~sum : BinaryOp = (a, b) { return a.add(b) }~ — named FuncSig form
+   - Works with func and proc
+   - Parser detects ~(names) { body }~ pattern via lookahead, initer fills types from FuncSig
+   - Tests: src/test/fn_ptr.til (FuncSig form + named FuncSig form sections)
+
+** Done: Returning FuncSig-typed values
+   - ~get_op := func(Str) returns BinaryOp { ... }~ — functions returning func ptrs
+   - Typer propagates fn_sig from FCALL result to declaration binding
+   - Fixed func ptr call guard (~is_proc < 0~) to distinguish func ptr vars from functions returning func ptrs
+   - Interpreter: fixed VAL_FUNC not being nulled on move (NODE_ASSIGN, struct ctor, field assign)
+   - Tests: src/test/fn_ptr.til (returning FuncSig section)
+
+** Done: Struct fields with FuncSig type
+   - ~Handler := struct { mut on_click : BinaryOp = fn_add }~ — func ptr struct fields
+   - Requires explicit type annotation (~: BinaryOp~) since func ptr default alone can't infer type
+   - Initer: early FuncSig registration (Pass 1.1), auto-clone/delete skip func ptr fields
+   - Typer: UFCS fallback recognizes ~h.on_click(3, 5)~ as field access + indirect call
+   - Builder: indirect call codegen through struct field, ~emit_deref~ skips DEREF for func ptrs
+   - Interpreter: read_field/write_field handle VAL_FUNC as void* in struct data
+   - Tests: src/test/fn_ptr.til (struct fields section)
+
+** Done: Enum payloads with FuncSig type
+   - ~Action := enum { Click: BinaryOp, Idle }~ — func ptr enum payloads
+   - Initer: auto-eq uses tag-only comparison for FuncSig payloads (no .eq() on func ptrs)
+   - Initer: auto-to_str returns "Variant(func)" for FuncSig payloads (no .to_str() on func ptrs)
+   - Builder: enum constructor stores func ptr directly (no clone), accessor returns directly
+   - Interpreter: works out of the box (Value union handles VAL_FUNC generically)
+   - Tests: src/test/fn_ptr.til (enum payloads section)
+
+** Deferred
+   - Storing in collections (~Vec.new("BinaryOp")~) — may work already since func ptrs are void*
+   - Lambdas: anonymous inline functions — see #61
+   - Closures (lambdas with ~captures~ keyword) — see #54

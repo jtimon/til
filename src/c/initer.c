@@ -715,9 +715,13 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 Expr *then_body = expr_new(NODE_BODY, line, col, path);
 
                 if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
+                    Str *vtype = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                    Bool is_funcsig = type_from_name_init(vtype, scope) == TIL_TYPE_FUNC_PTR;
+
                     // Payload variant:
                     //   if other.is_Vj().not() { return false }
-                    //   return self.get_Vj().eq(other.get_Vj())
+                    //   FuncSig: return true (tag-only eq)
+                    //   Other:   return self.get_Vj().eq(other.get_Vj())
                     Expr *other_id = expr_new(NODE_IDENT, line, col, path);
                     other_id->type.str_val = Str_new("other");
                     Expr *is_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
@@ -742,37 +746,46 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     expr_add_child(guard_if, guard_body);
                     expr_add_child(then_body, guard_if);
 
-                    // return self.get_Vj().eq(other.get_Vj())
-                    char get_buf[256];
-                    snprintf(get_buf, sizeof(get_buf), "get_%s",
-                             (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                    Expr *self2 = expr_new(NODE_IDENT, line, col, path);
-                    self2->type.str_val = Str_new("self");
-                    Expr *get_acc1 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    get_acc1->type.str_val = Str_new(get_buf);
-                    expr_add_child(get_acc1, self2);
-                    Expr *get_call1 = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(get_call1, get_acc1);
+                    if (is_funcsig) {
+                        // FuncSig payload: tag-only equality (return true)
+                        Expr *ret_true = expr_new(NODE_RETURN, line, col, path);
+                        Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
+                        true_lit->type.str_val = Str_new("true");
+                        expr_add_child(ret_true, true_lit);
+                        expr_add_child(then_body, ret_true);
+                    } else {
+                        // return self.get_Vj().eq(other.get_Vj())
+                        char get_buf[256];
+                        snprintf(get_buf, sizeof(get_buf), "get_%s",
+                                 (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        Expr *self2 = expr_new(NODE_IDENT, line, col, path);
+                        self2->type.str_val = Str_new("self");
+                        Expr *get_acc1 = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                        get_acc1->type.str_val = Str_new(get_buf);
+                        expr_add_child(get_acc1, self2);
+                        Expr *get_call1 = expr_new(NODE_FCALL, line, col, path);
+                        expr_add_child(get_call1, get_acc1);
 
-                    Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    eq_acc->type.str_val = Str_new("eq");
-                    expr_add_child(eq_acc, get_call1);
+                        Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                        eq_acc->type.str_val = Str_new("eq");
+                        expr_add_child(eq_acc, get_call1);
 
-                    Expr *other2 = expr_new(NODE_IDENT, line, col, path);
-                    other2->type.str_val = Str_new("other");
-                    Expr *get_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    get_acc2->type.str_val = Str_new(get_buf);
-                    expr_add_child(get_acc2, other2);
-                    Expr *get_call2 = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(get_call2, get_acc2);
+                        Expr *other2 = expr_new(NODE_IDENT, line, col, path);
+                        other2->type.str_val = Str_new("other");
+                        Expr *get_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
+                        get_acc2->type.str_val = Str_new(get_buf);
+                        expr_add_child(get_acc2, other2);
+                        Expr *get_call2 = expr_new(NODE_FCALL, line, col, path);
+                        expr_add_child(get_call2, get_acc2);
 
-                    Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(eq_call, eq_acc);
-                    expr_add_child(eq_call, get_call2);
+                        Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
+                        expr_add_child(eq_call, eq_acc);
+                        expr_add_child(eq_call, get_call2);
 
-                    Expr *ret_eq = expr_new(NODE_RETURN, line, col, path);
-                    expr_add_child(ret_eq, eq_call);
-                    expr_add_child(then_body, ret_eq);
+                        Expr *ret_eq = expr_new(NODE_RETURN, line, col, path);
+                        expr_add_child(ret_eq, eq_call);
+                        expr_add_child(then_body, ret_eq);
+                    }
                 } else {
                     // No-payload variant: return other.is_Vj()
                     Expr *other_id = expr_new(NODE_IDENT, line, col, path);
@@ -996,7 +1009,17 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     expr_add_child(is_call, is_acc);
 
                     Expr *then_body = expr_new(NODE_BODY, line, col, path);
-                    if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
+                    Str *vtype = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                    if (vtype && type_from_name_init(vtype, scope) == TIL_TYPE_FUNC_PTR) {
+                        // FuncSig payload: return "Variant(func)"
+                        char buf[256];
+                        snprintf(buf, sizeof(buf), "%s(func)", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
+                        ret_str->type.str_val = Str_new(buf);
+                        Expr *ret = expr_new(NODE_RETURN, line, col, path);
+                        expr_add_child(ret, ret_str);
+                        expr_add_child(then_body, ret);
+                    } else if (vtype) {
                         // return format("Variant(", self.get_Variant().to_str(), ")")
                         Expr *fmt_call = expr_new(NODE_FCALL, line, col, path);
                         Expr *fmt_id = expr_new(NODE_IDENT, line, col, path);

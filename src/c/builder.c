@@ -614,6 +614,14 @@ static Bool is_primitive_type(Str *name) {
            Str_eq_c(name, "I32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") || Str_eq_c(name, "F32") || Str_eq_c(name, "Bool");
 }
 
+static Bool is_funcsig_type(Str *name) {
+    if (!has_funcsig_names) return 0;
+    Str key = {name->c_str, name->count, CAP_VIEW};
+    Bool *r = Set_has(&funcsig_names, &key);
+    Bool hit = *r; free(r);
+    return hit;
+}
+
 // Emit a function parameter list (with variadic support)
 static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
     U32 np = fdef->type.func_def.nparam;
@@ -1519,6 +1527,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             // Store payload inline (by value)
             if (is_primitive_type(vt)) {
                 fprintf(f, "    r->data.%s = *val;\n", vn->c_str);
+            } else if (is_funcsig_type(vt)) {
+                // FuncSig: store func pointer directly
+                fprintf(f, "    r->data.%s = val;\n", vn->c_str);
             } else {
                 // Struct/enum: clone into inline storage
                 fprintf(f, "    { %s _tmp = %s_clone(val); r->data.%s = *_tmp; free(_tmp); }\n",
@@ -1554,6 +1565,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             if (is_primitive_type(vt)) {
                 fprintf(f, "    %s r = malloc(sizeof(%s)); *r = self->data.%s; return r;\n",
                         ptype, type_name_to_c_value(vt), vn->c_str);
+            } else if (is_funcsig_type(vt)) {
+                // FuncSig: return func pointer directly
+                fprintf(f, "    return self->data.%s;\n", vn->c_str);
             } else {
                 // Struct/enum: clone from inline address
                 fprintf(f, "    return %s_clone(&self->data.%s);\n", vt->c_str, vn->c_str);
