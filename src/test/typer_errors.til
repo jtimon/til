@@ -175,7 +175,7 @@ bad_dyn2 := malloc(32)
 
 // dyn_call: method must be a string literal
 method_var := "clone"
-dyn_call1_ret("I64", method_var, 42)
+dyn_call_ret("I64", method_var, 1, 42)
 
 // argument type mismatch: I64 method with Bool arg
 32.add(true)

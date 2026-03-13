@@ -36,7 +36,7 @@ namespace:
     delete := proc(own self: Vec, call_free: Bool = true) {
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {
-                dyn_call2(self.elem_type, "delete", ptr_add(self.data, i.mul(self.elem_size)), false)
+                dyn_call(self.elem_type, "delete", 2, ptr_add(self.data, i.mul(self.elem_size)), false)
             }
         }
         free(own self.data)
@@ -49,7 +49,7 @@ namespace:
     clone := func(self: Vec) returns Vec {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.count {
-            own cloned : Dynamic = dyn_call1_ret(self.elem_type, "clone", ptr_add(self.data, i.mul(self.elem_size)))
+            own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, ptr_add(self.data, i.mul(self.elem_size)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
         }

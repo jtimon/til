@@ -25,7 +25,7 @@ namespace:
         mut hi := self.count
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = dyn_call2_ret(self.elem_type, "cmp",
+            own c : I64 = dyn_call_ret(self.elem_type, "cmp", 2,
                           ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -42,7 +42,7 @@ namespace:
         mut found := false
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = dyn_call2_ret(self.elem_type, "cmp",
+            own c : I64 = dyn_call_ret(self.elem_type, "cmp", 2,
                           ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -52,7 +52,7 @@ namespace:
         }
         if found {
             if self.elem_type.is_empty().not() {
-                dyn_call2(self.elem_type, "delete", val, false)
+                dyn_call(self.elem_type, "delete", 2, val, false)
             }
             free(own val)
         } else {
@@ -73,7 +73,7 @@ namespace:
     delete := proc(own self: Set, call_free: Bool = true) {
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {
-                dyn_call2(self.elem_type, "delete",
+                dyn_call(self.elem_type, "delete", 2,
                           ptr_add(self.data, i.mul(self.elem_size)), false)
             }
         }
@@ -87,7 +87,7 @@ namespace:
     clone := func(self: Set) returns Set {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.count {
-            own cloned : Dynamic = dyn_call1_ret(self.elem_type, "clone",
+            own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1,
                          ptr_add(self.data, i.mul(self.elem_size)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)

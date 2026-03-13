@@ -42,11 +42,9 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
 // Collect unique dyn_call method literals from AST
 typedef struct { Str *method; I32 nargs; Bool returns; } DynCallInfo;
 
-static Bool is_dyn_call_name(Str *name, I32 *nargs, Bool *returns) {
-    if (Str_eq_c(name, "dyn_call1"))     { *nargs = 1; *returns = 0; return 1; }
-    if (Str_eq_c(name, "dyn_call2"))     { *nargs = 2; *returns = 0; return 1; }
-    if (Str_eq_c(name, "dyn_call1_ret")) { *nargs = 1; *returns = 1; return 1; }
-    if (Str_eq_c(name, "dyn_call2_ret")) { *nargs = 2; *returns = 1; return 1; }
+static Bool is_dyn_call_name(Str *name, Bool *returns) {
+    if (Str_eq_c(name, "dyn_call"))     { *returns = 0; return 1; }
+    if (Str_eq_c(name, "dyn_call_ret")) { *returns = 1; return 1; }
     return 0;
 }
 
@@ -54,9 +52,14 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
     if (!e) return;
     if (e->type.tag == NODE_FCALL && expr_child(e, 0)->type.tag == NODE_IDENT &&
         e->children.count >= 3 && expr_child(e, 2)->type.tag == NODE_LITERAL_STR) {
-        I32 nargs; Bool returns;
-        if (is_dyn_call_name(expr_child(e, 0)->type.str_val, &nargs, &returns)) {
+        Bool returns;
+        if (is_dyn_call_name(expr_child(e, 0)->type.str_val, &returns)) {
             Str *method = expr_child(e, 2)->type.str_val;
+            // Read arity from 3rd arg (child 3) — a literal number
+            I32 nargs = 1;
+            if (e->children.count >= 4 && expr_child(e, 3)->type.tag == NODE_LITERAL_NUM) {
+                nargs = (I32)atol((char *)expr_child(e, 3)->type.str_val->c_str);
+            }
             for (U32 i = 0; i < methods->count; i++) {
                 DynCallInfo *existing = Vec_get(methods, &(U64){(U64)(i)});
                 if (*Str_eq(existing->method, method)) return;
@@ -415,15 +418,14 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             break;
         }
         Str *name = expr_child(e, 0)->type.str_val;
-        if (Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
-                   Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret")) {
-            // dyn_call*(type_name, "method", val, ...) → dyn_call_method(type_name, val, ...)
+        if (Str_eq_c(name, "dyn_call") || Str_eq_c(name, "dyn_call_ret")) {
+            // dyn_call(type_name, "method", arity, val, ...) → dyn_call_method(type_name, val, ...)
             Str *method = expr_child(e, 2)->type.str_val;
             fprintf(f, "dyn_call_%s(", method->c_str);
             // Emit type_name as first arg
             emit_as_ptr(f, expr_child(e, 1), depth);
-            // Emit remaining args (val, and any extra args like call_free)
-            for (U32 i = 3; i < e->children.count; i++) {
+            // Emit remaining args (skip arity at child 3, emit from child 4)
+            for (U32 i = 4; i < e->children.count; i++) {
                 fprintf(f, ", ");
                 emit_as_ptr(f, expr_child(e, i), depth);
             }

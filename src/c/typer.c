@@ -828,8 +828,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
         }
         // dyn_call variants: method (2nd arg) must be a string literal
-        if ((Str_eq_c(name, "dyn_call1") || Str_eq_c(name, "dyn_call2") ||
-             Str_eq_c(name, "dyn_call1_ret") || Str_eq_c(name, "dyn_call2_ret") ||
+        if ((Str_eq_c(name, "dyn_call") || Str_eq_c(name, "dyn_call_ret") ||
              Str_eq_c(name, "dyn_has_method")) &&
             e->children.count >= 3) {
             Expr *method_arg = expr_child(e, 2);
@@ -1638,8 +1637,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
     Bool is_dyn_call = 0;
     if (expr_child(e, 0)->type.tag == NODE_IDENT) {
         Str *cn = expr_child(e, 0)->type.str_val;
-        is_dyn_call = Str_eq_c(cn, "dyn_call1") || Str_eq_c(cn, "dyn_call2") ||
-                      Str_eq_c(cn, "dyn_call1_ret") || Str_eq_c(cn, "dyn_call2_ret") ||
+        is_dyn_call = Str_eq_c(cn, "dyn_call") || Str_eq_c(cn, "dyn_call_ret") ||
                       Str_eq_c(cn, "dyn_has_method");
     }
     Bool is_array_vec = 0;
@@ -1649,7 +1647,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
     }
     U32 fi = 0; // instance field index for struct constructors
     for (U32 i = 1; i < e->children.count; i++) {
-        if (is_dyn_call && i == 2) continue; // keep method as NODE_LITERAL_STR
+        if (is_dyn_call && (i == 2 || i == 3)) continue; // keep method and arity as literals
         if (is_array_vec && i == 1) continue; // keep type_name as NODE_LITERAL_STR
         if (expr_child(e, i)->type.tag != NODE_FCALL &&
             expr_child(e, i)->type.tag != NODE_LITERAL_NUM &&

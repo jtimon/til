@@ -59,7 +59,7 @@ namespace:
         while i.lt(self.type_names.len()) {
             ref tn : Str = self.type_names.get(i)
             ref ts : U64 = self.type_sizes.get(i)
-            dyn_call2(tn, "delete", ptr_add(self.data, offset), false)
+            dyn_call(tn, "delete", 2, ptr_add(self.data, offset), false)
             offset = offset.add(ts)
             i = i.add(1)
         }
@@ -78,7 +78,7 @@ namespace:
         while i.lt(self.type_names.len()) {
             ref tn : Str = self.type_names.get(i)
             ref ts : U64 = self.type_sizes.get(i)
-            own cloned : Dynamic = dyn_call1_ret(tn, "clone", ptr_add(self.data, offset))
+            own cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
             memcpy(ptr_add(new_data, offset), cloned, ts)
             free(own cloned)
             offset = offset.add(ts)

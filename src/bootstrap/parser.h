@@ -84,6 +84,7 @@ typedef enum {
     NodeType_TAG_LiteralStr,
     NodeType_TAG_LiteralNum,
     NodeType_TAG_LiteralBool,
+    NodeType_TAG_LiteralNull,
     NodeType_TAG_Ident,
     NodeType_TAG_Decl,
     NodeType_TAG_Assign,
@@ -123,12 +124,15 @@ typedef enum {
     TilType_TAG_TypeI16,
     TilType_TAG_TypeI32,
     TilType_TAG_TypeU32,
+    TilType_TAG_TypeU64,
+    TilType_TAG_TypeF32,
     TilType_TAG_TypeBool,
     TilType_TAG_TypeStruct,
     TilType_TAG_TypeStructDef,
     TilType_TAG_TypeEnum,
     TilType_TAG_TypeEnumDef,
     TilType_TAG_TypeFuncDef,
+    TilType_TAG_TypeFuncPtr,
     TilType_TAG_TypeDynamic
 } TilType_tag;
 typedef struct TilType TilType;
@@ -259,11 +263,13 @@ typedef struct FuncDefData {
     FuncType func_type;
     Str return_type;
     Bool return_is_ref;
+    Bool return_is_shallow;
     I64 variadic_index;
     Vec param_names;
     Vec param_types;
     Vec param_muts;
     Vec param_owns;
+    Vec param_shallows;
     Vec param_defaults;
 } FuncDefData;
 
@@ -285,12 +291,15 @@ typedef struct Expr {
     Bool is_own_arg;
     Bool is_splat;
     Bool is_own_field;
+    Bool is_ref_field;
     Bool is_ns_field;
     Bool is_ext;
     Bool is_core;
+    Bool save_old_delete;
     I64 total_struct_size;
     I64 variadic_index;
     I64 variadic_count;
+    I64 fn_sig_index;
     Vec children;
     I64 line;
     I64 col;
@@ -431,6 +440,7 @@ TilType * TilType_clone(TilType * self);
 void TilType_delete(TilType * self, Bool * call_free);
 Str * TilType_to_str(TilType * self);
 U64 * TilType_size(void);
+Str * til_type_name(TilType * t);
 Bool * DeclData_eq(DeclData * a, DeclData * b);
 Str * DeclData_to_str(DeclData * self);
 DeclData * DeclData_clone(DeclData * self);
@@ -452,6 +462,13 @@ U64 * Expr_size(void);
 Expr * expr_new(NodeType * type, I64 * line, I64 * col, Str * path);
 void expr_add_child(Expr * parent, Expr * child);
 Expr * expr_child(Expr * parent, I64 * i);
+I64 * expr_child_count(Expr * parent);
+void expr_error(Expr * e, Str * msg);
+void expr_todo_error(Expr * e, Str * msg);
+void expr_lang_error(Expr * e, Str * msg);
+Bool * enum_has_payloads(Expr * enum_def);
+I64 * enum_variant_tag(Expr * enum_def, Str * variant_name);
+Str * enum_variant_type(Expr * enum_def, I64 * tag);
 Parser * Parser_clone(Parser * self);
 void Parser_delete(Parser * self, Bool * call_free);
 U64 * Parser_size(void);
@@ -542,6 +559,7 @@ NodeType *NodeType_Body();
 NodeType *NodeType_LiteralStr();
 NodeType *NodeType_LiteralNum();
 NodeType *NodeType_LiteralBool();
+NodeType *NodeType_LiteralNull();
 NodeType *NodeType_Ident();
 NodeType *NodeType_Decl();
 NodeType *NodeType_Assign();
@@ -577,12 +595,15 @@ TilType *TilType_TypeU8();
 TilType *TilType_TypeI16();
 TilType *TilType_TypeI32();
 TilType *TilType_TypeU32();
+TilType *TilType_TypeU64();
+TilType *TilType_TypeF32();
 TilType *TilType_TypeBool();
 TilType *TilType_TypeStruct();
 TilType *TilType_TypeStructDef();
 TilType *TilType_TypeEnum();
 TilType *TilType_TypeEnumDef();
 TilType *TilType_TypeFuncDef();
+TilType *TilType_TypeFuncPtr();
 TilType *TilType_TypeDynamic();
 Bool * ExprData_eq(ExprData *, ExprData *);
 Bool * ExprData_is_StrVal(ExprData *);

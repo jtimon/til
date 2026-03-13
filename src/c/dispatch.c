@@ -297,7 +297,8 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
     Expr *fa_ptr = &field_access;
     { Expr **_p = malloc(sizeof(Expr *)); *_p = fa_ptr; Vec_push(&fake_call.children, _p); }
-    for (U32 i = 3; i < e->children.count; i++) {
+    // Skip child 3 (arity literal), actual args start at child 4
+    for (U32 i = 4; i < e->children.count; i++) {
         Expr *arg = expr_child(e, i);
         { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&fake_call.children, _p); }
     }
@@ -670,10 +671,8 @@ static void dispatch_init(void) {
     REG("vec", h_vec);
 
     // Dynamic dispatch
-    REG("dyn_call1", h_dyn_call);
-    REG("dyn_call2", h_dyn_call);
-    REG("dyn_call1_ret", h_dyn_call);
-    REG("dyn_call2_ret", h_dyn_call);
+    REG("dyn_call", h_dyn_call);
+    REG("dyn_call_ret", h_dyn_call);
     REG("dyn_has_method", h_dyn_has_method);
 
     // System primitives
