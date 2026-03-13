@@ -6,4 +6,9 @@ src/bootstrap/core.h linguist-generated=true
 src/bootstrap/core.c linguist-generated=true
 src/bootstrap/lexer.h linguist-generated=true
 src/bootstrap/lexer.c linguist-generated=true
+src/bootstrap/parser.h linguist-generated=true
+src/bootstrap/parser.c linguist-generated=true
 src/bootstrap/til.c linguist-generated=true
+
+# Vendored libraries — exclude from language stats
+lib/** linguist-vendored

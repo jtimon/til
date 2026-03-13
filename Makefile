@@ -10,19 +10,27 @@ SELF := $(wildcard src/self/*.til)
 RAYLIB_LIB := lib/raylib/src/libraylib.a
 RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lGL -lm -lpthread -lrt -lX11
 
+LIBFFI_DIR := lib/libffi
+LIBFFI_FLAGS = -I$(firstword $(wildcard $(LIBFFI_DIR)/*/include)) -L$(firstword $(wildcard $(LIBFFI_DIR)/*/.libs)) -lffi
+
 $(RAYLIB_LIB):
 	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP
 
-bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB)
+lib/libffi/.built:
+	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --quiet
+	$(MAKE) -C $(LIBFFI_DIR)
+	@touch $@
+
+bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi $(RAYLIB_FLAGS) -o bin/ctil
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
 	@$(MAKE) ctil_core
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl -lffi $(RAYLIB_FLAGS) -o bin/ctil
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
 
 TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
 bin/c/til: bin/ctil $(CORE) $(SELF) src/til.til
 	@bin/ctil translate src/til.til
-	@cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl -lffi $(RAYLIB_FLAGS) -o bin/c/til
+	@cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/c/til
 
 bin/c/test_runner: bin/ctil $(CORE) src/test_runner.til
 	@bin/ctil build src/test_runner.til

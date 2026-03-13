@@ -3,4 +3,6 @@ gen/
 tmp/
 src/bootstrap/til.c
 lib/raylib/src/libraylib.a
+lib/libffi/.built
+lib/libffi/*-*-*/
 *~
