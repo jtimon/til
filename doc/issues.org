@@ -279,15 +279,20 @@
    - Bare-type params in func/proc (~func(I64, I64)~ without names)
    - Tests: src/test/fn_ptr.til (FuncSig section)
 
+*** Done: FuncSig form (inline)
+   - ~sum : func(I64, I64) returns I64 = (a, b) { return a.add(b) }~ — same AST as FuncDef form
+   - Works with func and proc
+   - Parser-only: bodyless FuncSig + param names + body → regular NODE_FUNC_DEF
+   - Tests: src/test/fn_ptr.til (FuncSig form section)
+
 *** Remaining (incremental, in dependency order)
    Independent (any order):
    - Returning FuncSig-typed values from functions (~get_op := func(Str) returns BinaryOp~)
    - Storing in struct fields (~Handler := struct { mut on_click : BinaryOp }~)
    - Storing in collections (~Vec.new("BinaryOp")~)
+   - FuncSig form with named type (~add : BinaryOp = (a, b) { ... }~) — needs named FuncSig resolution at parse time
    Depends on nothing above:
    - Lambdas: anonymous inline functions (~func(a: I64) returns I64 { ... }~ as expression)
-   Depends on lambdas:
-   - FuncSig form (~add : BinaryOp = (a, b) { ... }~)
    Out of scope — see #54:
    - Closures (lambdas with ~captures~ keyword)
 

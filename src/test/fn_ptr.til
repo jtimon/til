@@ -106,3 +106,34 @@ test_funcsig_proc := test() {
     apply_mutator(greet, val)
     assert_eq(__LOC__, val, 110)
 }
+
+// --- FuncSig form declarations ---
+
+sum_sig : func(I64, I64) returns I64 = (a, b) {
+    return a.add(b)
+}
+
+negate_sig : func(I64) returns I64 = (x) {
+    return 0.sub(x)
+}
+
+greet_sig : proc(mut I64) = (x) {
+    x = x.add(100)
+}
+
+test_funcsig_form_basic := test() {
+    assert_eq(__LOC__, sum_sig(3, 5), 8)
+    assert_eq(__LOC__, negate_sig(7), 0.sub(7))
+}
+
+test_funcsig_form_proc := test() {
+    mut val := 10
+    greet_sig(val)
+    assert_eq(__LOC__, val, 110)
+}
+
+test_funcsig_form_as_value := test() {
+    f : BinaryOp = sum_sig
+    assert_eq(__LOC__, f(10, 20), 30)
+    assert_eq(__LOC__, apply_binop(sum_sig, 4, 6), 10)
+}

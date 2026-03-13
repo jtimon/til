@@ -576,6 +576,33 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     // Declaration with explicit type: name : Type = value
     if (check(p, TokenType_TAG_Colon)) {
         advance(p); // consume :
+
+        // FuncSig form: name : func(Types) returns T = (names) { body }
+        if (check(p, TokenType_TAG_KwFunc) || check(p, TokenType_TAG_KwProc)) {
+            Expr *sig = parse_func_def(p);  // parses bodyless func(I64, I64) returns I64
+            expect(p, TokenType_TAG_Eq);    // consume =
+            // Parse (name1, name2, ...) — just identifiers
+            expect(p, TokenType_TAG_LParen);
+            for (U32 i = 0; i < sig->type.func_def.nparam; i++) {
+                if (i > 0) expect(p, TokenType_TAG_Comma);
+                Token *pn = expect(p, TokenType_TAG_Ident);
+                sig->type.func_def.param_names[i] = tok_str(pn);
+            }
+            if (check(p, TokenType_TAG_Comma)) advance(p); // trailing comma
+            expect(p, TokenType_TAG_RParen);
+            // Parse { body }
+            expect(p, TokenType_TAG_LBrace);
+            expr_add_child(sig, parse_block(p));
+            // Wrap in NODE_DECL — same AST as FuncDef form
+            Expr *decl = expr_new(NODE_DECL, t->line, t->col, p->path);
+            decl->type.decl.name = name;
+            decl->type.decl.explicit_type = NULL;
+            decl->type.decl.is_mut = is_mut;
+            decl->type.decl.is_own = is_own;
+            expr_add_child(decl, sig);
+            return decl;
+        }
+
         Token *type_tok = peek(p);
         Str *type_name = tok_str(type_tok);
         advance(p); // consume type name
