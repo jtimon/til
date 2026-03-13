@@ -14,7 +14,7 @@ LIBFFI_DIR := lib/libffi
 LIBFFI_FLAGS = -I$(firstword $(wildcard $(LIBFFI_DIR)/*/include)) -L$(firstword $(wildcard $(LIBFFI_DIR)/*/.libs)) -lffi
 
 $(RAYLIB_LIB):
-	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0"
+	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/lib/x11/include"
 
 lib/libffi/.built:
 	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --quiet
