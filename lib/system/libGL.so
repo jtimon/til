@@ -1,0 +1,2 @@
+/* GNU ld script - provides libGL.so -> libGL.so.1 without libgl-dev */
+GROUP ( libGL.so.1 )

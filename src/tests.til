@@ -472,6 +472,8 @@ main := proc(args: ..Str) {
                asan_safe_cmd(til_bin.concat(" run src/test/pura.til"), til_bin))
 
     // === build tests (build + run with timeout) ===
+    // Use xvfb-run for headless environments (no DISPLAY)
+    XVFB := "xvfb-run -a "
     if en_gui.eq(1) {
         gui_files := array("Str",
             "src/examples/chess.til",
@@ -494,7 +496,7 @@ main := proc(args: ..Str) {
             add_single(tests, "build_".concat(bn), "build", 124, "",
                        asan_safe_cmd(
                            til_bin.concat(" build ").concat(gf)
-                               .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                               .concat(" '&&' ").concat(XVFB).concat("timeout ").concat(GUI_TIMEOUT)
                                .concat(" bin/").concat(bn).concat(run_args),
                            til_bin))
         }

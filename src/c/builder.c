@@ -3288,8 +3288,6 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     }
 
     Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-
-    // Compile library .c to object
     Str *obj_path = Str_concat(Str_concat(&(Str){.c_str = (U8*)"gen/lib/", .count = 8, .cap = CAP_LIT}, lib_name), &(Str){.c_str = (U8*)".o", .count = 2, .cap = CAP_LIT});
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
         &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),

@@ -21,7 +21,7 @@ SELF := $(wildcard src/self/*.til)
 LD_FLAGS := -Wl,--allow-multiple-definition -rdynamic -ldl
 
 RAYLIB_LIB := lib/raylib/src/libraylib.a
-RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lm -lpthread -lrt
+RAYLIB_FLAGS := -Llib/raylib/src -Llib/system -lraylib -lGL -lm -lpthread -lrt -lX11
 
 TINYFD_LIB := lib/tinyfiledialogs/libtinyfd.a
 TINYFD_FLAGS := -Llib/tinyfiledialogs -ltinyfd
@@ -31,9 +31,11 @@ LIBFFI_INCDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/include))
 LIBFFI_LIBDIR = $(firstword $(wildcard $(LIBFFI_DIR)/*/.libs))
 LIBFFI_FLAGS = -I$(LIBFFI_INCDIR) -L$(LIBFFI_LIBDIR) -lffi
 
+BUNDLED_INCLUDES := -I$(CURDIR)/lib/x11/include -I$(CURDIR)/lib/gl/include
+
 $(RAYLIB_LIB):
 	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP \
-	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/lib/x11/include"
+	  CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 $(BUNDLED_INCLUDES)"
 
 $(TINYFD_LIB):
 	cc -Wall -Wextra -c -o lib/tinyfiledialogs/tinyfiledialogs.o lib/tinyfiledialogs/tinyfiledialogs.c

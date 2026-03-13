@@ -1,0 +1,2 @@
+/* GNU ld script - provides libX11.so -> libX11.so.6 without libx11-dev */
+GROUP ( libX11.so.6 )
