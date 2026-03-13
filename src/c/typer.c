@@ -323,6 +323,45 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         expr_child(e, 1) = instance;
                         goto regular_call;
                     }
+                    // Fallback: check if method is a FuncSig-typed struct field
+                    // e.g. h.on_click(3, 5) where on_click is a BinaryOp field
+                    if (sdef && (obj->til_type == TIL_TYPE_STRUCT || obj->til_type == TIL_TYPE_ENUM)) {
+                        Expr *body = expr_child(sdef, 0);
+                        for (U32 fi = 0; fi < body->children.count; fi++) {
+                            Expr *field = expr_child(body, fi);
+                            if (field->type.tag != NODE_DECL || field->type.decl.is_namespace) continue;
+                            if (!*Str_eq(field->type.decl.name, method)) continue;
+                            if (!field->type.decl.explicit_type) continue;
+                            TypeBinding *ftb = tscope_find(scope, field->type.decl.explicit_type);
+                            if (ftb && ftb->func_def && ftb->func_def->children.count == 0) {
+                                // Rewrite: h.on_click(3, 5) → indirect call through field access
+                                // The field access node becomes the callee, typed as FUNC_PTR
+                                fa->til_type = TIL_TYPE_FUNC_PTR;
+                                fa->fn_sig = ftb->func_def;
+                                // Type-check and resolve like a func ptr call
+                                Expr *sig = ftb->func_def;
+                                U32 nargs = e->children.count - 1;
+                                if (nargs != sig->type.func_def.nparam) {
+                                    char buf2[128];
+                                    snprintf(buf2, sizeof(buf2), "function pointer field '%s' expects %u args, got %u",
+                                             method->c_str, sig->type.func_def.nparam, nargs);
+                                    type_error(e, buf2);
+                                }
+                                for (U32 ai = 0; ai < nargs && ai < sig->type.func_def.nparam; ai++) {
+                                    infer_expr(scope, expr_child(e, ai + 1), in_func);
+                                }
+                                e->fn_sig = sig;
+                                if (sig->type.func_def.return_type) {
+                                    e->til_type = type_from_name(sig->type.func_def.return_type, scope);
+                                    if ((e->til_type == TIL_TYPE_STRUCT || e->til_type == TIL_TYPE_ENUM))
+                                        e->struct_name = sig->type.func_def.return_type;
+                                } else {
+                                    e->til_type = TIL_TYPE_NONE;
+                                }
+                                goto done_fcall;
+                            }
+                        }
+                    }
                     char buf[256];
                     if (!type_name && obj->til_type == TIL_TYPE_DYNAMIC) {
                         snprintf(buf, sizeof(buf),
@@ -850,7 +889,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             type_error(e, buf);
         }
         // Function pointer call: resolve return type from func_def if available
-        if (fn_type == TIL_TYPE_FUNC_PTR) {
+        // Only for actual func ptr variables (is_proc == -1), not functions returning func ptrs
+        if (fn_type == TIL_TYPE_FUNC_PTR && callee_bind && callee_bind->is_proc < 0) {
             expr_child(e, 0)->til_type = TIL_TYPE_FUNC_PTR; // mark callee for builder
             // Store signature on FCALL for builder to use
             if (callee_bind && callee_bind->func_def)
@@ -897,6 +937,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 callee_bind->func_def->type.func_def.return_type) {
                 e->struct_name = callee_bind->func_def->type.func_def.return_type;
             }
+            // Propagate FuncSig for functions returning func ptrs
+            if (fn_type == TIL_TYPE_FUNC_PTR && callee_bind && callee_bind->func_def &&
+                callee_bind->func_def->type.func_def.return_type) {
+                TypeBinding *rsb = tscope_find(scope, callee_bind->func_def->type.func_def.return_type);
+                if (rsb && rsb->func_def && rsb->func_def->children.count == 0)
+                    e->fn_sig = rsb->func_def;
+            }
         }
         // Check: func cannot call proc (panic is exempt; print/println exempt in debug_prints modes)
         // Skip for function pointer calls (callee proc-ness unknown at compile time)
@@ -914,6 +961,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             snprintf(buf, sizeof(buf), "test functions cannot be called ('%s')", name->c_str);
             type_error(e, buf);
         }
+        done_fcall:
         break;
     }
     case NODE_FIELD_ACCESS: {
@@ -2475,6 +2523,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 } else if (dst && expr_child(stmt, 0)->type.tag == NODE_IDENT) {
                     TypeBinding *src = tscope_find(scope, expr_child(stmt, 0)->type.str_val);
                     if (src && src->func_def) dst->func_def = src->func_def;
+                } else if (dst && expr_child(stmt, 0)->fn_sig) {
+                    dst->func_def = expr_child(stmt, 0)->fn_sig;
                 }
                 // Named FuncSig type in explicit type position
                 if (dst && !dst->func_def && stmt->type.decl.explicit_type) {

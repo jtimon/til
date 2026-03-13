@@ -286,13 +286,26 @@
    - Parser detects ~(names) { body }~ pattern via lookahead, initer fills types from FuncSig
    - Tests: src/test/fn_ptr.til (FuncSig form + named FuncSig form sections)
 
-*** Remaining (incremental, in dependency order)
-   Independent (any order):
-   - Returning FuncSig-typed values from functions (~get_op := func(Str) returns BinaryOp~)
-   - Storing in struct fields (~Handler := struct { mut on_click : BinaryOp }~)
-   - Storing in collections (~Vec.new("BinaryOp")~)
-   Depends on nothing above:
-   - Lambdas: anonymous inline functions (~func(a: I64) returns I64 { ... }~ as expression)
+*** Done: Returning FuncSig-typed values
+   - ~get_op := func(Str) returns BinaryOp { ... }~ — functions returning func ptrs
+   - Typer propagates fn_sig from FCALL result to declaration binding
+   - Fixed func ptr call guard (~is_proc < 0~) to distinguish func ptr vars from functions returning func ptrs
+   - Interpreter: fixed VAL_FUNC not being nulled on move (NODE_ASSIGN, struct ctor, field assign)
+   - Tests: src/test/fn_ptr.til (returning FuncSig section)
+
+*** Done: Struct fields with FuncSig type
+   - ~Handler := struct { mut on_click : BinaryOp = fn_add }~ — func ptr struct fields
+   - Requires explicit type annotation (~: BinaryOp~) since func ptr default alone can't infer type
+   - Initer: early FuncSig registration (Pass 1.1), auto-clone/delete skip func ptr fields
+   - Typer: UFCS fallback recognizes ~h.on_click(3, 5)~ as field access + indirect call
+   - Builder: indirect call codegen through struct field, ~emit_deref~ skips DEREF for func ptrs
+   - Interpreter: read_field/write_field handle VAL_FUNC as void* in struct data
+   - Tests: src/test/fn_ptr.til (struct fields section)
+
+*** Remaining
+   - Storing in collections (~Vec.new("BinaryOp")~) — may work already since func ptrs are void*
+   - Enum payloads with FuncSig type
+   - Lambdas: anonymous inline functions — split to new issue (TODO: create #61)
    Out of scope — see #54:
    - Closures (lambdas with ~captures~ keyword)
 
@@ -397,10 +410,12 @@
 
    #+begin_src til
    Handler := struct {
-       mut on_click : BinaryOp
+       mut on_click : BinaryOp = add
    }
    h := Handler(on_click = add)
    h.on_click(3, 5)  // 8
+   h.on_click = mul
+   h.on_click(3, 5)  // 15
    #+end_src
 
 *** Alternative declaration forms

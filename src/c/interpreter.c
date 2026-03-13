@@ -171,6 +171,11 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         sub->borrowed = 1;     // always borrowed — field lives in parent
         return (Value){.type = VAL_STRUCT, .instance = sub};
     }
+    // FuncSig-typed field: stored as Expr * pointer (func ptr)
+    if (ftype) {
+        void *stored = *(void **)ptr;
+        if (stored) return (Value){.type = VAL_FUNC, .func = (Expr *)stored};
+    }
     // Fallback: treat as I64
     return val_i64(*(I64 *)ptr);
 }
@@ -222,6 +227,7 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
         break;
     }
     case VAL_PTR:  *(void **)ptr = val.ptr; break;
+    case VAL_FUNC: *(void **)ptr = (void *)val.func; break;
     default: break;
     }
 }
@@ -605,7 +611,8 @@ Value eval_call(Scope *scope, Expr *e) {
             if (arg->type.tag == NODE_IDENT) {
                 Cell *src = scope_get(scope, arg->type.str_val);
                 val = src->val;
-                src->val = val_none();
+                if (val.type != VAL_FUNC)
+                    src->val = val_none();
             } else {
                 val = eval_expr(scope, arg);
             }
@@ -859,7 +866,8 @@ static void eval_body(Scope *scope, Expr *body) {
                 Cell *src = scope_get(scope, rhs->type.str_val);
                 free_value(cell->val);
                 cell->val = src->val;
-                src->val = val_none();
+                if (src->val.type != VAL_FUNC)
+                    src->val = val_none();
             } else {
                 Value new_val = eval_expr(scope,rhs);
                 free_value(cell->val);
@@ -966,10 +974,11 @@ static void eval_body(Scope *scope, Expr *body) {
                         break;
                     }
                     case VAL_PTR: *(void **)ptr = val.ptr; break;
+                    case VAL_FUNC: *(void **)ptr = (void *)val.func; break;
                     default: break;
                     }
                 }
-                if (move_src) move_src->val = val_none();
+                if (move_src && move_src->val.type != VAL_FUNC) move_src->val = val_none();
             }
             break;
         }

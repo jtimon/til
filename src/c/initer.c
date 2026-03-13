@@ -159,7 +159,10 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             else if (Str_eq_c(ftype, "I32"))  { fsz = 4; falign = 4; }
             else if (Str_eq_c(ftype, "U32"))  { fsz = 4; falign = 4; }
             else if (Str_eq_c(ftype, "Bool")) { fsz = 1; falign = 1; }
-            else {
+            else if (type_from_name_init(ftype, scope) == TIL_TYPE_FUNC_PTR) {
+                // FuncSig-typed field: function pointer (void *)
+                fsz = 8; falign = 8;
+            } else {
                 // Inline struct/enum field
                 Expr *nested_def = tscope_get_struct(scope, ftype);
                 if (nested_def && nested_def->type.tag == NODE_ENUM_DEF) {
@@ -251,6 +254,19 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         b->is_ext = expr_child(stmt, 0)->is_ext;
     }
 
+    // Pass 1.1: pre-register FuncSig type aliases (bodyless func/proc defs)
+    // Needed before struct layout/clone/delete so FuncSig-typed struct fields are recognized
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type.tag != NODE_DECL) continue;
+        if (expr_child(stmt, 0)->type.tag != NODE_FUNC_DEF) continue;
+        if (expr_child(stmt, 0)->children.count != 0) continue; // bodyless = FuncSig
+        tscope_set(scope, stmt->type.decl.name, TIL_TYPE_FUNC_PTR, -1, 0,
+                   stmt->line, stmt->col, 0, 0);
+        TypeBinding *fb = tscope_find(scope, stmt->type.decl.name);
+        if (fb) fb->func_def = expr_child(stmt, 0);
+    }
+
     // Pass 1.5: auto-generate clone methods for all structs
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = expr_child(program, i);
@@ -281,7 +297,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         }
         if (has_clone) continue;
 
-        // Collect instance field names and ref flags
+        // Collect instance field names and ref/funcptr flags
         Vec field_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
         Vec field_refs; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(I32)}); field_refs = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
@@ -289,6 +305,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace) {
                 { Str **_p = malloc(sizeof(Str *)); *_p = field->type.decl.name; Vec_push(&field_names, _p); }
                 I32 ref_flag = field->type.decl.is_ref ? 1 : 0;
+                // FuncSig-typed fields are just pointers — treat like ref for clone (no .clone())
+                if (!ref_flag && field->type.decl.explicit_type &&
+                    type_from_name_init(field->type.decl.explicit_type, scope) == TIL_TYPE_FUNC_PTR)
+                    ref_flag = 1;
                 { I32 *_p = malloc(sizeof(I32)); *_p = ref_flag; Vec_push(&field_refs, _p); }
             }
         }
@@ -410,13 +430,17 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         }
         if (has_delete) continue;
 
-        // Collect instance field names and own flags
+        // Collect instance field names and own flags (skip ref and func ptr fields)
         Vec field_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
         Vec field_owns; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(I32)}); field_owns = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = expr_child(body, j);
             if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace &&
                 !field->type.decl.is_ref) {
+                // Skip FuncSig-typed fields — func ptrs don't need delete
+                if (field->type.decl.explicit_type &&
+                    type_from_name_init(field->type.decl.explicit_type, scope) == TIL_TYPE_FUNC_PTR)
+                    continue;
                 { Str **_p = malloc(sizeof(Str *)); *_p = field->type.decl.name; Vec_push(&field_names, _p); }
                 { I32 *_p = malloc(sizeof(I32)); *_p = field->type.decl.is_own; Vec_push(&field_owns, _p); }
             }

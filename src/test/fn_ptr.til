@@ -168,3 +168,47 @@ test_named_funcsig_form_as_value := test() {
     f : BinaryOp = sum_named
     assert_eq(__LOC__, f(10, 20), 30)
 }
+
+// --- Returning FuncSig-typed values ---
+
+get_binop := func(which: Str) returns BinaryOp {
+    if which.eq("add") {
+        return fn_add
+    }
+    return fn_mul
+}
+
+test_return_funcsig := test() {
+    op := get_binop("add")
+    assert_eq(__LOC__, op(3, 5), 8)
+    op2 := get_binop("mul")
+    assert_eq(__LOC__, op2(3, 5), 15)
+}
+
+test_return_funcsig_pass := test() {
+    op := get_binop("add")
+    assert_eq(__LOC__, apply_binop(op, 10, 20), 30)
+}
+
+// --- Struct fields with FuncSig type ---
+
+Handler := struct {
+    mut on_click : BinaryOp = fn_add
+}
+
+test_struct_field_funcsig := test() {
+    h := Handler(on_click = fn_add)
+    assert_eq(__LOC__, h.on_click(3, 5), 8)
+}
+
+test_struct_field_reassign := test() {
+    mut h := Handler(on_click = fn_add)
+    assert_eq(__LOC__, h.on_click(3, 5), 8)
+    h.on_click = fn_mul
+    assert_eq(__LOC__, h.on_click(3, 5), 15)
+}
+
+test_struct_field_default := test() {
+    h := Handler()
+    assert_eq(__LOC__, h.on_click(3, 5), 8)
+}

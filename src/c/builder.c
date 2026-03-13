@@ -350,6 +350,52 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         }
         break;
     case NODE_FCALL: {
+        // Indirect call through FuncSig-typed struct field: h.on_click(3, 5)
+        if (expr_child(e, 0)->type.tag == NODE_FIELD_ACCESS &&
+            expr_child(e, 0)->til_type == TIL_TYPE_FUNC_PTR && e->fn_sig) {
+            // Same pattern as regular func ptr indirect call (line ~440)
+            const char *ret_c = "void *";
+            if (e->til_type != TIL_TYPE_NONE && e->til_type != TIL_TYPE_UNKNOWN &&
+                e->til_type != TIL_TYPE_DYNAMIC) {
+                ret_c = til_type_to_c(e->til_type);
+                if ((e->til_type == TIL_TYPE_STRUCT || e->til_type == TIL_TYPE_ENUM) && e->struct_name) {
+                    static char ret_buf2[128];
+                    snprintf(ret_buf2, sizeof(ret_buf2), "%s", e->struct_name->c_str);
+                    ret_c = ret_buf2;
+                }
+                static char ret_ptr_buf2[256];
+                snprintf(ret_ptr_buf2, sizeof(ret_ptr_buf2), "%s *", ret_c);
+                ret_c = ret_ptr_buf2;
+            }
+            fprintf(f, "((%s (*)(", ret_c);
+            for (U32 i = 1; i < e->children.count; i++) {
+                if (i > 1) fprintf(f, ", ");
+                Expr *arg = expr_child(e, i);
+                const char *arg_c = "void *";
+                if (arg->til_type != TIL_TYPE_UNKNOWN && arg->til_type != TIL_TYPE_DYNAMIC) {
+                    arg_c = til_type_to_c(arg->til_type);
+                    if ((arg->til_type == TIL_TYPE_STRUCT || arg->til_type == TIL_TYPE_ENUM) && arg->struct_name) {
+                        static char arg_buf2[128];
+                        snprintf(arg_buf2, sizeof(arg_buf2), "%s", arg->struct_name->c_str);
+                        arg_c = arg_buf2;
+                    }
+                    static char arg_ptr_buf2[256];
+                    snprintf(arg_ptr_buf2, sizeof(arg_ptr_buf2), "%s *", arg_c);
+                    arg_c = arg_ptr_buf2;
+                }
+                fprintf(f, "%s", arg_c);
+            }
+            if (e->children.count == 1) fprintf(f, "void");
+            fprintf(f, "))(");
+            emit_expr(f, expr_child(e, 0), depth);
+            fprintf(f, "))(");
+            for (U32 i = 1; i < e->children.count; i++) {
+                if (i > 1) fprintf(f, ", ");
+                emit_as_ptr(f, expr_child(e, i), depth);
+            }
+            fprintf(f, ")");
+            break;
+        }
         // Namespace method call: Struct.method(args)
         if (expr_child(e, 0)->type.tag == NODE_FIELD_ACCESS) {
             Str *sname = expr_child(expr_child(e, 0), 0)->struct_name;
@@ -596,6 +642,10 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
 static void emit_deref(FILE *f, Expr *e, I32 depth) {
     if (e->til_type == TIL_TYPE_DYNAMIC) {
         // Dynamic (void *) IS the value — no dereference needed
+        emit_expr(f, e, depth);
+    } else if (e->til_type == TIL_TYPE_FUNC_PTR) {
+        // Function pointer: cast to void *, no dereference
+        fprintf(f, "(void *)");
         emit_expr(f, e, depth);
     } else if (e->type.tag == NODE_IDENT) {
         if (is_shallow_param((const char *)e->type.str_val->c_str) ||
