@@ -1,5 +1,16 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #60 Trailing commas anywhere they make sense
+  The parser already supported trailing commas in all comma-separated contexts
+  due to the ~if (check(Comma)) advance(p)~ pattern inside
+  ~while (!check(closing_delim))~ loops. No parser changes needed.
+
+  Contexts supported: function call args, func/proc parameter declarations,
+  enum variant declarations, struct constructors, method call args, map/set
+  literals, FuncSig type params.
+
+  Regression test: src/test/trailing.til
+
 * FIXED #17 Global variable access
   :DEPENDENCIES_OF: #12 #13
   Variables declared in script-mode root scope (or any outer scope) were
