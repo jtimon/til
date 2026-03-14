@@ -36,7 +36,7 @@ Expr *til_parse(Token *tokens, U32 count, Str *path) {
     // Clone path: parser stores Str* in Parser struct and propagates to AST nodes.
     return parse(tokens, count, Str_clone(path), &_parse_mode);
 }
-Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_new(""); }
+Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}); }
 
 // --- Expr field accessors ---
 
@@ -46,26 +46,26 @@ Bool Expr_eq(Expr *a, Expr *b) { return a == b; }
 // NULL-safe: .and() chains in compiled til evaluate all operands eagerly
 // (unlike C's && which short-circuits), so these may be called on NULL exprs
 // or out-of-bounds indices when a prior condition would have been false.
-I32 expr_get_tag(Expr *e) { return e ? (I32)e->type.tag : (I32)-1; }
+I32 expr_get_tag(Expr *e) { return e ? (I32)e->data.tag : (I32)-1; }
 Str *expr_get_str_val(Expr *e) {
-    if (!e) return Str_new("");
+    if (!e) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
     // str_val shares a union with decl/func_def — only valid for these node types
-    switch (e->type.tag) {
-    case NODE_IDENT: case NODE_LITERAL_STR: case NODE_LITERAL_NUM:
-    case NODE_LITERAL_BOOL: case NODE_ASSIGN: case NODE_FOR_IN:
-    case NODE_FIELD_ACCESS: case NODE_FIELD_ASSIGN: case NODE_NAMED_ARG:
-        return e->type.str_val ? e->type.str_val : Str_new("");
+    switch (e->data.tag) {
+    case ExprData_TAG_Ident: case ExprData_TAG_LiteralStr: case ExprData_TAG_LiteralNum:
+    case ExprData_TAG_LiteralBool: case ExprData_TAG_Assign: case ExprData_TAG_ForIn:
+    case ExprData_TAG_FieldAccess: case ExprData_TAG_FieldAssign: case ExprData_TAG_NamedArg:
+        return e->data.data.Ident.count > 0 ? &e->data.data.Ident : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     default:
-        return Str_new("");
+        return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
     }
 }
 Expr *expr_get_child(Expr *e, U32 i) {
     if (!e || i >= e->children.count) return NULL;
-    return expr_child(e, i);
+    return Expr_child(e, &(I64){(I64)(i)});
 }
 U32 expr_nchildren(Expr *e) { return e ? e->children.count : 0; }
 void expr_set_core(Expr *e) { e->is_core = true; }
-void expr_push_child(Expr *e, Expr *child) { expr_add_child(e, child); }
+void expr_push_child(Expr *e, Expr *child) { Expr_add_child(e, child); }
 
 // Replace children: old children are freed, new_children is moved in
 void expr_swap_children(Expr *e, Vec *new_children) {
@@ -79,7 +79,7 @@ void expr_swap_children(Expr *e, Vec *new_children) {
 // Create new Vec for collecting Expr* (elem_size = sizeof(Expr*))
 Vec *expr_vec_new(void) {
     Vec *v = malloc(sizeof(Vec));
-    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); *v = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); *v = *_vp; free(_vp); }
     return v;
 }
 
@@ -106,14 +106,14 @@ void expr_vec_free(Vec *v) {
 
 const Mode *til_mode_resolve(Str *name) {
     if (!name) return NULL;
-    if (Str_eq_c(name, "script")) return &MODE_SCRIPT;
-    if (Str_eq_c(name, "cli"))    return &MODE_CLI;
-    if (Str_eq_c(name, "gui"))    return &MODE_GUI;
-    if (Str_eq_c(name, "test"))   return &MODE_TEST;
-    if (Str_eq_c(name, "pure"))   return &MODE_PURE;
-    if (Str_eq_c(name, "pura"))   return &MODE_PURA;
-    if (Str_eq_c(name, "lib"))    return &MODE_LIB;
-    if (Str_eq_c(name, "liba"))   return &MODE_LIBA;
+    if ((name->count == 6 && memcmp(name->c_str, "script", 6) == 0)) return &MODE_SCRIPT;
+    if ((name->count == 3 && memcmp(name->c_str, "cli", 3) == 0))    return &MODE_CLI;
+    if ((name->count == 3 && memcmp(name->c_str, "gui", 3) == 0))    return &MODE_GUI;
+    if ((name->count == 4 && memcmp(name->c_str, "test", 4) == 0))   return &MODE_TEST;
+    if ((name->count == 4 && memcmp(name->c_str, "pure", 4) == 0))   return &MODE_PURE;
+    if ((name->count == 4 && memcmp(name->c_str, "pura", 4) == 0))   return &MODE_PURA;
+    if ((name->count == 3 && memcmp(name->c_str, "lib", 3) == 0))    return &MODE_LIB;
+    if ((name->count == 4 && memcmp(name->c_str, "liba", 4) == 0))   return &MODE_LIBA;
     return NULL;
 }
 
@@ -130,9 +130,9 @@ const Mode *til_mode_pura(void)   { return &MODE_PURA; }
 const Mode *til_mode_lib(void)    { return &MODE_LIB; }
 const Mode *til_mode_liba(void)   { return &MODE_LIBA; }
 
-Str *til_mode_name(const Mode *m) { return Str_new(m ? m->name : ""); }
+Str *til_mode_name(const Mode *m) { return Str_clone(&(Str){.c_str = (U8*)(m ? m->name : ""), .count = (U64)strlen((const char*)(m ? m->name : "")), .cap = CAP_VIEW}); }
 Str *til_mode_auto_import(const Mode *m) {
-    return Str_new(m && m->auto_import ? m->auto_import : "");
+    return Str_clone(&(Str){.c_str = (U8*)(m && m->auto_import ? m->auto_import : ""), .count = (U64)strlen((const char*)(m && m->auto_import ? m->auto_import : "")), .cap = CAP_VIEW});
 }
 
 Bool til_mode_is_lib(const Mode *m) {
@@ -204,27 +204,27 @@ I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lf
 }
 
 void til_ast_print(Expr *ast, U32 indent) { ast_print(ast, indent); }
-void til_expr_free(Expr *ast) { expr_free(ast); }
+void til_Expr_delete(Expr *ast) { Expr_delete(ast, &(Bool){1}); }
 
 // --- Utility wrappers ---
 
 // Return owned copy of first n bytes of s (avoids CAP_VIEW + scavenger ordering issues)
 Str *til_str_left(Str *s, U64 n) {
-    if (!s || n == 0) return Str_new("");
+    if (!s || n == 0) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
     U64 len = (U64)s->count;
     if (n > len) n = len;
     char *buf = malloc(n + 1);
     memcpy(buf, s->c_str, n);
     buf[n] = '\0';
-    Str *result = Str_new(buf);
+    Str *result = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
     free(buf);
     return result;
 }
 
 Str *til_realpath(Str *path) {
     char *abs = realpath((const char *)path->c_str, NULL);
-    if (!abs) return Str_new("");
-    Str *s = Str_new(abs);
+    if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(abs), .count = (U64)strlen((const char*)(abs)), .cap = CAP_VIEW});
     free(abs);
     return s;
 }
@@ -239,7 +239,7 @@ I32 til_system(Str *cmd) {
 
 Set *til_set_new(void) {
     Set *s = malloc(sizeof(Set));
-    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); *s = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); *s = *_sp; free(_sp); }
     return s;
 }
 
@@ -261,7 +261,7 @@ void til_set_free(Set *s) {
 Str *til_bin_dir(void) {
     char buf[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len <= 0) return Str_new(".");
+    if (len <= 0) return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
     buf[len] = '\0';
     // Strip binary name
     char *slash = strrchr(buf, '/');
@@ -270,12 +270,12 @@ Str *til_bin_dir(void) {
     for (int i = 0; i < 5; i++) {
         char test[PATH_MAX + 32];
         snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
-        if (access(test, F_OK) == 0) return Str_new(buf);
+        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         slash = strrchr(buf, '/');
         if (!slash) break;
         *slash = '\0';
     }
-    return Str_new(".");
+    return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
 }
 
 // til_prepare: exposed for self-hosting (til.til can call the C version)

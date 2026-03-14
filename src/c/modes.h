@@ -2,6 +2,7 @@
 #define MODES_H
 
 #include "aliases.h"
+#include <stddef.h>
 
 typedef struct {
     const char *name;

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "scavenger.h"
+#include "ast.h"
 
 // Name-to-Expr map (for top-level decls and namespace methods)
 static Expr *map_get_expr(Map *m, Str *key) {
@@ -28,7 +29,7 @@ static Str *qualified_name(Str *type_name, Str *method_name) {
     U64 len = type_name->count + 1 + method_name->count;
     char *buf = malloc(len + 1);
     snprintf(buf, len + 1, "%s.%s", type_name->c_str, method_name->c_str);
-    Str *s = Str_new(buf);
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
     free(buf);
     return gc_str(s);
 }
@@ -41,85 +42,85 @@ static void vec_push_str(Vec *v, Str *s) {
 static void collect_refs(Expr *e, Vec *refs) {
     if (!e) return;
 
-    switch (e->type.tag) {
-    case NODE_IDENT:
-        vec_push_str(refs, e->type.str_val);
+    switch (e->data.tag) {
+    case ExprData_TAG_Ident:
+        vec_push_str(refs, &e->data.data.Ident);
         break;
 
-    case NODE_FCALL:
+    case ExprData_TAG_FCall:
         // Check for namespace method call: Type.method(args...)
-        if (e->children.count > 0 && expr_child(e, 0)->type.tag == NODE_FIELD_ACCESS &&
-            expr_child(e, 0)->is_ns_field) {
-            Expr *fa = expr_child(e, 0);
-            Str *type_name = expr_child(fa, 0)->type.str_val;
-            Str *method = fa->type.str_val;
+        if (e->children.count > 0 && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+            Expr_child(e, &(I64){(I64)(0)})->is_ns_field) {
+            Expr *fa = Expr_child(e, &(I64){(I64)(0)});
+            Str *type_name = &Expr_child(fa, &(I64){(I64)(0)})->data.data.Ident;
+            Str *method = &fa->data.data.FieldAccess;
             vec_push_str(refs, type_name);
             vec_push_str(refs, qualified_name(type_name, method));
             // Recurse into args (skip callee — already handled)
             for (U32 i = 1; i < e->children.count; i++)
-                collect_refs(expr_child(e, i), refs);
+                collect_refs(Expr_child(e, &(I64){(I64)(i)}), refs);
             return;
         }
         // array()/vec() builtins need Array/Vec constructor methods
-        if (e->children.count >= 2 && expr_child(e, 0)->type.tag == NODE_IDENT) {
-            Str *cn = expr_child(e, 0)->type.str_val;
+        if (e->children.count >= 2 && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
+            Str *cn = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
             // array()/vec() builtins: their namespace methods are called from
             // C code (ext.c/dispatch.c) which the scavenger can't see
             if (strcmp((const char *)cn->c_str, "array") == 0) {
-                Str *arr = gc_str(Str_new("Array"));
-                vec_push_str(refs, qualified_name(arr, gc_str(Str_new("new"))));
-                vec_push_str(refs, qualified_name(arr, gc_str(Str_new("set"))));
-                vec_push_str(refs, qualified_name(arr, gc_str(Str_new("delete"))));
+                Str *arr = gc_str(Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}));
+                vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}))));
+                vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}))));
+                vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
             } else if (strcmp((const char *)cn->c_str, "vec") == 0) {
-                Str *vec = gc_str(Str_new("Vec"));
-                vec_push_str(refs, qualified_name(vec, gc_str(Str_new("new"))));
-                vec_push_str(refs, qualified_name(vec, gc_str(Str_new("push"))));
-                vec_push_str(refs, qualified_name(vec, gc_str(Str_new("delete"))));
+                Str *vec = gc_str(Str_clone(&(Str){.c_str = (U8*)"Vec", .count = 3, .cap = CAP_LIT}));
+                vec_push_str(refs, qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}))));
+                vec_push_str(refs, qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"push", .count = 4, .cap = CAP_LIT}))));
+                vec_push_str(refs, qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
             }
         }
         break;
 
-    case NODE_FUNC_DEF: {
-        U32 np = e->type.func_def.nparam;
-        I32 fvi = e->type.func_def.variadic_index;
+    case ExprData_TAG_FuncDef: {
+        U32 np = e->data.data.FuncDef.nparam;
+        I32 fvi = e->data.data.FuncDef.variadic_index;
         for (U32 i = 0; i < np; i++) {
-            if (e->type.func_def.param_types[i])
-                vec_push_str(refs, e->type.func_def.param_types[i]);
+            if (((Str*)Vec_get(&e->data.data.FuncDef.param_types, &(U64){(U64)(i)})))
+                vec_push_str(refs, ((Str*)Vec_get(&e->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
         }
         if (fvi >= 0) {
             // Variadic param uses Array internally
-            Str *arr = gc_str(Str_new("Array"));
+            Str *arr = gc_str(Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}));
             vec_push_str(refs, arr);
-            vec_push_str(refs, qualified_name(arr, gc_str(Str_new("new"))));
-            vec_push_str(refs, qualified_name(arr, gc_str(Str_new("set"))));
-            vec_push_str(refs, qualified_name(arr, gc_str(Str_new("delete"))));
+            vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}))));
+            vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}))));
+            vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
         }
-        if (e->type.func_def.return_type)
-            vec_push_str(refs, e->type.func_def.return_type);
+        if (e->data.data.FuncDef.return_type.count > 0)
+            vec_push_str(refs, &e->data.data.FuncDef.return_type);
         break;
     }
 
-    case NODE_FIELD_ACCESS:
+    case ExprData_TAG_FieldAccess:
         // Namespace field access: Type.field
-        if (e->is_ns_field && expr_child(e, 0)->type.tag == NODE_IDENT) {
-            Str *type_name = expr_child(e, 0)->type.str_val;
+        if (e->is_ns_field && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
+            Str *type_name = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
             vec_push_str(refs, type_name);
-            vec_push_str(refs, qualified_name(type_name, e->type.str_val));
+            vec_push_str(refs, qualified_name(type_name, &e->data.data.FieldAccess));
         }
         break;
 
-    case NODE_FIELD_ASSIGN:
+    case ExprData_TAG_FieldAssign:
         // Namespace field assignment: Type.field = value
-        if (e->is_ns_field && expr_child(e, 0)->type.tag == NODE_IDENT) {
-            Str *type_name = expr_child(e, 0)->type.str_val;
+        if (e->is_ns_field && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
+            Str *type_name = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
             vec_push_str(refs, type_name);
-            vec_push_str(refs, qualified_name(type_name, e->type.str_val));
+            vec_push_str(refs, qualified_name(type_name, &e->data.data.FieldAssign));
         }
         break;
 
-    case NODE_DECL:
-        if (e->type.decl.explicit_type)
-            vec_push_str(refs, e->type.decl.explicit_type);
+    case ExprData_TAG_Decl:
+        if (e->data.data.Decl.explicit_type.count > 0)
+            vec_push_str(refs, &e->data.data.Decl.explicit_type);
         break;
 
     default:
@@ -128,78 +129,78 @@ static void collect_refs(Expr *e, Vec *refs) {
 
     // Recurse into children
     for (U32 i = 0; i < e->children.count; i++)
-        collect_refs(expr_child(e, i), refs);
+        collect_refs(Expr_child(e, &(I64){(I64)(i)}), refs);
 }
 
 void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
     Bool is_cli = mode && mode->needs_main && !run_tests;
 
-    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
 
     // 1. Build top-level declaration map
-    Map top; { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); top = *_mp; free(_mp); }
+    Map top; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); top = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL) {
-            Str *name = stmt->type.decl.name;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl) {
+            Str *name = &stmt->data.data.Decl.name;
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(stmt)); memcpy(_v, &stmt, sizeof(stmt)); Map_set(&top, _k, _v); }
         }
     }
 
     // 2. Build namespace method map: "Type.method" → method decl node
-    Map methods; { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); methods = *_mp; free(_mp); }
+    Map methods; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); methods = *_mp; free(_mp); }
     for (U32 i = 0; i < top.count; i++) {
         Expr *decl = *(Expr **)(top.val_data + i * top.val_size);
-        if (expr_child(decl, 0)->type.tag != NODE_STRUCT_DEF &&
-            expr_child(decl, 0)->type.tag != NODE_ENUM_DEF) continue;
+        if (Expr_child(decl, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef &&
+            Expr_child(decl, &(I64){(I64)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
         Str *sname = (Str *)(top.key_data + i * top.key_size);
-        Expr *body = expr_child(expr_child(decl, 0), 0);
+        Expr *body = Expr_child(Expr_child(decl, &(I64){(I64)(0)}), &(I64){(I64)(0)});
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (!field->type.decl.is_namespace) continue;
-            Str *qn = qualified_name(sname, field->type.decl.name);
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (!field->data.data.Decl.is_namespace) continue;
+            Str *qn = qualified_name(sname, &field->data.data.Decl.name);
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(field)); memcpy(_v, &field, sizeof(field)); Map_set(&methods, _k, _v); }
         }
     }
 
     // 3. Seed worklist
-    Vec worklist; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); worklist = *_vp; free(_vp); }
+    Vec worklist; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); worklist = *_vp; free(_vp); }
     if (is_cli) {
-        vec_push_str(&worklist, gc_str(Str_new("main")));
+        vec_push_str(&worklist, gc_str(Str_clone(&(Str){.c_str = (U8*)"main", .count = 4, .cap = CAP_LIT})));
         // Also seed from top-level variable declarations (e.g. mode auto-imports)
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag == NODE_DECL &&
-                (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF ||
-                 expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-                 expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF))
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl &&
+                (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef))
                 continue;
             collect_refs(stmt, &worklist);
         }
     } else if (run_tests) {
         // Test execution: seed with all test function names
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
-                expr_child(stmt, 0)->type.func_def.func_type == FUNC_TEST) {
-                vec_push_str(&worklist, stmt->type.decl.name);
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef &&
+                Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type.tag == FuncType_TAG_Test) {
+                vec_push_str(&worklist, &stmt->data.data.Decl.name);
             }
         }
     } else {
         // Script mode: collect refs from all top-level executable statements
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag == NODE_DECL &&
-                (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF ||
-                 expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-                 expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF))
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl &&
+                (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef))
                 continue;
             collect_refs(stmt, &worklist);
         }
     }
 
     // 4. BFS
-    Set visited; { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); visited = *_sp; free(_sp); }
+    Set visited; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); visited = *_sp; free(_sp); }
     U32 cursor = 0;
     while (cursor < worklist.count) {
         Str *name = *(Str **)Vec_get(&worklist, &(U64){(U64)(cursor++)});
@@ -209,64 +210,64 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
         // Top-level declaration?
         Expr *decl = map_get_expr(&top, name);
         if (decl) {
-            if (expr_child(decl, 0)->type.tag == NODE_STRUCT_DEF ||
-                expr_child(decl, 0)->type.tag == NODE_ENUM_DEF) {
+            if (Expr_child(decl, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                Expr_child(decl, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
                 // For structs/enums: only walk instance fields, not namespace methods.
                 // Namespace methods are walked individually via qualified names.
-                Expr *body = expr_child(expr_child(decl, 0), 0);
+                Expr *body = Expr_child(Expr_child(decl, &(I64){(I64)(0)}), &(I64){0});
                 for (U32 i = 0; i < body->children.count; i++) {
-                    if (!expr_child(body, i)->type.decl.is_namespace)
-                        collect_refs(expr_child(body, i), &worklist);
+                    if (!Expr_child(body, &(I64){(I64)(i)})->data.data.Decl.is_namespace)
+                        collect_refs(Expr_child(body, &(I64){(I64)(i)}), &worklist);
                 }
                 // Always keep infrastructure methods — collections use dyn_call
                 // which scavenger can't trace (delete, clone, size, cmp)
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_new("delete"))));
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_new("clone"))));
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_new("size"))));
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_new("cmp"))));
+                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
+                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT}))));
+                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}))));
+                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"cmp", .count = 3, .cap = CAP_LIT}))));
             } else {
-                collect_refs(expr_child(decl, 0), &worklist);
+                collect_refs(Expr_child(decl, &(I64){(I64)(0)}), &worklist);
             }
         }
 
         // Namespace method?
         Expr *method = map_get_expr(&methods, name);
-        if (method && expr_child(method, 0)->type.tag == NODE_FUNC_DEF) {
-            collect_refs(expr_child(method, 0), &worklist);
+        if (method && Expr_child(method, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            collect_refs(Expr_child(method, &(I64){(I64)(0)}), &worklist);
         }
     }
 
     // 5. Filter top-level declarations
     I32 w = 0;
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL &&
-            (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF ||
-             expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-             expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
-            Str *dname = stmt->type.decl.name;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl &&
+            (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef ||
+             Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+             Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            Str *dname = &stmt->data.data.Decl.name;
             if (!*Set_has(&visited, dname)) continue;
         }
-        expr_child(program, w++) = stmt;
+        *(Expr**)Vec_get(&program->children, &(U64){(U64)(w++)}) = stmt;
     }
     program->children.count = w;
 
     // 6. Filter namespace methods in kept structs
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL || (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF &&
-                                        expr_child(stmt, 0)->type.tag != NODE_ENUM_DEF))
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl || (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef &&
+                                        Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_EnumDef))
             continue;
-        Str *sname = stmt->type.decl.name;
-        Expr *body = expr_child(expr_child(stmt, 0), 0);
+        Str *sname = &stmt->data.data.Decl.name;
+        Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)});
         I32 bw = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (field->type.decl.is_namespace) {
-                Str *qn = qualified_name(sname, field->type.decl.name);
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (field->data.data.Decl.is_namespace) {
+                Str *qn = qualified_name(sname, &field->data.data.Decl.name);
                 if (!*Set_has(&visited, qn)) continue;
             }
-            expr_child(body, bw++) = field;
+            *(Expr**)Vec_get(&body->children, &(U64){(U64)(bw++)}) = field;
         }
         body->children.count = bw;
     }

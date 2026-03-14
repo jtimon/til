@@ -1,11 +1,12 @@
 #include "builder.h"
+#include "ast.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static Expr *codegen_program; // set during codegen for ns_init lookups
-static Map struct_bodies; // Str* name → Expr* body (NODE_BODY)
-static Map func_defs;     // Str* name → Expr* func_def (NODE_FUNC_DEF)
+static Map struct_bodies; // Str* name → Expr* body (ExprData_TAG_Body)
+static Map func_defs;     // Str* name → Expr* func_def (ExprData_TAG_FuncDef)
 static Set script_globals; // names of top-level vars emitted as file-scope globals
 static Bool has_script_globals; // whether script_globals is initialized
 static Bool in_func_def; // true while emitting a function/proc body
@@ -18,14 +19,14 @@ typedef struct { Str *type_name; I32 is_vec; } CollectionInfo;
 
 static void collect_collection_builtins(Expr *e, Vec *infos) {
     if (!e) return;
-    if (e->type.tag == NODE_FCALL && expr_child(e, 0)->type.tag == NODE_IDENT &&
-        e->children.count >= 2 && expr_child(e, 1)->type.tag == NODE_LITERAL_STR) {
-        Str *name = expr_child(e, 0)->type.str_val;
+    if (e->data.tag == ExprData_TAG_FCall && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
+        e->children.count >= 2 && Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralStr) {
+        Str *name = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
         I32 is_vec = -1;
-        if (Str_eq_c(name, "array")) is_vec = 0;
-        else if (Str_eq_c(name, "vec")) is_vec = 1;
+        if ((name->count == 5 && memcmp(name->c_str, "array", 5) == 0)) is_vec = 0;
+        else if ((name->count == 3 && memcmp(name->c_str, "vec", 3) == 0)) is_vec = 1;
         if (is_vec >= 0) {
-            Str *type_name = expr_child(e, 1)->type.str_val;
+            Str *type_name = &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident;
             for (U32 i = 0; i < infos->count; i++) {
                 CollectionInfo *existing = Vec_get(infos, &(U64){(U64)(i)});
                 if (*Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
@@ -35,7 +36,7 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        collect_collection_builtins(expr_child(e, i), infos);
+        collect_collection_builtins(Expr_child(e, &(I64){(I64)(i)}), infos);
     }
 }
 
@@ -43,22 +44,22 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
 typedef struct { Str *method; I32 nargs; Bool returns; } DynCallInfo;
 
 static Bool is_dyn_call_name(Str *name, Bool *returns) {
-    if (Str_eq_c(name, "dyn_call"))     { *returns = 0; return 1; }
-    if (Str_eq_c(name, "dyn_call_ret")) { *returns = 1; return 1; }
+    if ((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0))     { *returns = 0; return 1; }
+    if ((name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0)) { *returns = 1; return 1; }
     return 0;
 }
 
 static void collect_dyn_methods(Expr *e, Vec *methods) {
     if (!e) return;
-    if (e->type.tag == NODE_FCALL && expr_child(e, 0)->type.tag == NODE_IDENT &&
-        e->children.count >= 3 && expr_child(e, 2)->type.tag == NODE_LITERAL_STR) {
+    if (e->data.tag == ExprData_TAG_FCall && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
+        e->children.count >= 3 && Expr_child(e, &(I64){(I64)(2)})->data.tag == ExprData_TAG_LiteralStr) {
         Bool returns;
-        if (is_dyn_call_name(expr_child(e, 0)->type.str_val, &returns)) {
-            Str *method = expr_child(e, 2)->type.str_val;
+        if (is_dyn_call_name(&Expr_child(e, &(I64){(I64)(0)})->data.data.Ident, &returns)) {
+            Str *method = &Expr_child(e, &(I64){(I64)(2)})->data.data.Ident;
             // Read arity from 3rd arg (child 3) — a literal number
             I32 nargs = 1;
-            if (e->children.count >= 4 && expr_child(e, 3)->type.tag == NODE_LITERAL_NUM) {
-                nargs = (I32)atol((char *)expr_child(e, 3)->type.str_val->c_str);
+            if (e->children.count >= 4 && Expr_child(e, &(I64){(I64)(3)})->data.tag == ExprData_TAG_LiteralNum) {
+                nargs = (I32)atol((char *)Expr_child(e, &(I64){(I64)(3)})->data.data.Ident.c_str);
             }
             for (U32 i = 0; i < methods->count; i++) {
                 DynCallInfo *existing = Vec_get(methods, &(U64){(U64)(i)});
@@ -69,17 +70,17 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        collect_dyn_methods(expr_child(e, i), methods);
+        collect_dyn_methods(Expr_child(e, &(I64){(I64)(i)}), methods);
     }
 }
 
 // Collect unique method names from dyn_has_method calls
 static void collect_dyn_has_methods(Expr *e, Vec *methods) {
     if (!e) return;
-    if (e->type.tag == NODE_FCALL && expr_child(e, 0)->type.tag == NODE_IDENT &&
-        Str_eq_c(expr_child(e, 0)->type.str_val, "dyn_has_method") &&
-        e->children.count >= 3 && expr_child(e, 2)->type.tag == NODE_LITERAL_STR) {
-        Str *method = expr_child(e, 2)->type.str_val;
+    if (e->data.tag == ExprData_TAG_FCall && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
+        (Expr_child(e, &(I64){(I64)(0)})->data.data.Ident.count == 14 && memcmp(Expr_child(e, &(I64){(I64)(0)})->data.data.Ident.c_str, "dyn_has_method", 14) == 0) &&
+        e->children.count >= 3 && Expr_child(e, &(I64){(I64)(2)})->data.tag == ExprData_TAG_LiteralStr) {
+        Str *method = &Expr_child(e, &(I64){(I64)(2)})->data.data.Ident;
         for (U32 i = 0; i < methods->count; i++) {
             Str **existing = Vec_get(methods, &(U64){(U64)(i)});
             if (*Str_eq(*existing, method)) return;
@@ -87,7 +88,7 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
         { Str **_p = malloc(sizeof(Str *)); *_p = method; Vec_push(methods, _p); }
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        collect_dyn_has_methods(expr_child(e, i), methods);
+        collect_dyn_has_methods(Expr_child(e, &(I64){(I64)(i)}), methods);
     }
 }
 
@@ -129,14 +130,14 @@ static Map shallow_local_types; // name → C type string (for pointer-sign corr
 static Set unsafe_to_hoist;
 
 static Bool is_shallow_local(const char *name) {
-    Str *s = Str_new(name);
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
     Bool r = *Set_has(&shallow_locals, s);
     Str_delete(s, &(Bool){1});
     return r;
 }
 
 static const char *get_shallow_ctype(const char *name) {
-    Str *s = Str_new(name);
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
     if (*Map_has(&shallow_local_types, s)) {
         Str **p = Map_get(&shallow_local_types, s);
         Str_delete(s, &(Bool){1});
@@ -153,17 +154,17 @@ static const char *get_shallow_ctype(const char *name) {
 // Resolve the callee name from an fcall's first child
 static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
     *allocated = 0;
-    Expr *callee_node = expr_child(fcall, 0);
-    if (callee_node->type.tag == NODE_FIELD_ACCESS) {
-        Str *sname = expr_child(callee_node, 0)->struct_name;
-        Str *mname = callee_node->type.str_val;
-        if (!sname) return NULL;
+    Expr *callee_node = Expr_child(fcall, &(I64){(I64)(0)});
+    if (callee_node->data.tag == ExprData_TAG_FieldAccess) {
+        Str *sname = &Expr_child(callee_node, &(I64){(I64)(0)})->struct_name;
+        Str *mname = &callee_node->data.data.FieldAccess;
+        if (sname->count == 0) return NULL;
         char buf[256];
         snprintf(buf, sizeof(buf), "%s_%s", sname->c_str, mname->c_str);
         *allocated = 1;
-        return Str_new(buf);
-    } else if (callee_node->type.tag == NODE_IDENT) {
-        return callee_node->type.str_val;
+        return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+    } else if (callee_node->data.tag == ExprData_TAG_Ident) {
+        return &callee_node->data.data.Ident;
     }
     return NULL;
 }
@@ -171,7 +172,7 @@ static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
 // Check all fcalls in an expression tree and mark idents passed to mut params as unsafe
 static void check_fcall_mut_args(Expr *e) {
     if (!e) return;
-    if (e->type.tag == NODE_FCALL) {
+    if (e->data.tag == ExprData_TAG_FCall) {
         // Check fn_sig for function pointer calls
         Expr *fdef = e->fn_sig;
         if (!fdef) {
@@ -182,45 +183,45 @@ static void check_fcall_mut_args(Expr *e) {
                 if (allocated) Str_delete(callee, &(Bool){1});
             }
         }
-        if (fdef && fdef->type.func_def.param_muts) {
+        if (fdef && fdef->data.data.FuncDef.param_muts.count > 0) {
             for (U32 a = 1; a < e->children.count; a++) {
                 U32 pi = a - 1;
-                if (pi < fdef->type.func_def.nparam && fdef->type.func_def.param_muts[pi]) {
-                    Expr *arg = expr_child(e, a);
-                    if (arg->type.tag == NODE_IDENT) {
-                        Set_add(&unsafe_to_hoist, Str_new((const char *)arg->type.str_val->c_str));
+                if (pi < fdef->data.data.FuncDef.nparam && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_muts, &(U64){(U64)(pi)}))) {
+                    Expr *arg = Expr_child(e, &(I64){(I64)(a)});
+                    if (arg->data.tag == ExprData_TAG_Ident) {
+                        Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
                     }
                 }
             }
         }
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        check_fcall_mut_args(expr_child(e, i));
+        check_fcall_mut_args(Expr_child(e, &(I64){(I64)(i)}));
     }
 }
 
 static void collect_unsafe_to_hoist(Expr *body) {
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = expr_child(body, i);
+        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
 
         // Check all fcalls for mut param args
         check_fcall_mut_args(stmt);
 
-        if (stmt->type.tag == NODE_DECL && stmt->type.decl.is_ref) {
-            Expr *rhs = expr_child(stmt, 0);
-            if (rhs->type.tag == NODE_IDENT) {
-                Set_add(&unsafe_to_hoist, Str_new((const char *)rhs->type.str_val->c_str));
+        if (stmt->data.tag == ExprData_TAG_Decl && stmt->data.data.Decl.is_ref) {
+            Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+            if (rhs->data.tag == ExprData_TAG_Ident) {
+                Set_add(&unsafe_to_hoist, Str_clone(&rhs->data.data.Ident));
             }
-            if (rhs->type.tag == NODE_FCALL) {
+            if (rhs->data.tag == ExprData_TAG_FCall) {
                 Bool allocated = 0;
                 Str *callee = resolve_callee_name(rhs, &allocated);
                 if (callee) {
                     Expr *fdef = find_callee_fdef(callee);
-                    if (fdef && fdef->type.func_def.return_is_ref) {
+                    if (fdef && fdef->data.data.FuncDef.return_is_ref) {
                         for (U32 a = 1; a < rhs->children.count; a++) {
-                            Expr *arg = expr_child(rhs, a);
-                            if (arg->type.tag == NODE_IDENT) {
-                                Set_add(&unsafe_to_hoist, Str_new((const char *)arg->type.str_val->c_str));
+                            Expr *arg = Expr_child(rhs, &(I64){(I64)(a)});
+                            if (arg->data.tag == ExprData_TAG_Ident) {
+                                Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
                             }
                         }
                     }
@@ -228,31 +229,31 @@ static void collect_unsafe_to_hoist(Expr *body) {
                 }
             }
         }
-        if (stmt->type.tag == NODE_IF) {
+        if (stmt->data.tag == ExprData_TAG_If) {
             for (U32 c = 1; c < stmt->children.count; c++)
-                collect_unsafe_to_hoist(expr_child(stmt, c));
+                collect_unsafe_to_hoist(Expr_child(stmt, &(I64){(I64)(c)}));
         }
-        if (stmt->type.tag == NODE_WHILE && stmt->children.count > 1) {
-            collect_unsafe_to_hoist(expr_child(stmt, 1));
+        if (stmt->data.tag == ExprData_TAG_While && stmt->children.count > 1) {
+            collect_unsafe_to_hoist(Expr_child(stmt, &(I64){(I64)(1)}));
         }
-        if (stmt->type.tag == NODE_BODY) {
+        if (stmt->data.tag == ExprData_TAG_Body) {
             collect_unsafe_to_hoist(stmt);
         }
     }
 }
 
 static Bool is_scalar_type(TilType t) {
-    return t == TIL_TYPE_I64 || t == TIL_TYPE_U8  || t == TIL_TYPE_I16 ||
-           t == TIL_TYPE_I32 || t == TIL_TYPE_U32 || t == TIL_TYPE_U64 ||
-           t == TIL_TYPE_F32 || t == TIL_TYPE_BOOL;
+    return t.tag == TilType_TAG_I64 || t.tag == TilType_TAG_U8  || t.tag == TilType_TAG_I16 ||
+           t.tag == TilType_TAG_I32 || t.tag == TilType_TAG_U32 || t.tag == TilType_TAG_U64 ||
+           t.tag == TilType_TAG_F32 || t.tag == TilType_TAG_Bool;
 }
 
 static Bool is_shallow_param(const char *name) {
     if (!current_fdef) return 0;
-    for (U32 i = 0; i < current_fdef->type.func_def.nparam; i++) {
-        if (current_fdef->type.func_def.param_shallows &&
-            current_fdef->type.func_def.param_shallows[i] &&
-            strcmp((const char *)current_fdef->type.func_def.param_names[i]->c_str, name) == 0)
+    for (U32 i = 0; i < current_fdef->data.data.FuncDef.nparam; i++) {
+        if (current_fdef->data.data.FuncDef.param_shallows.count > 0 &&
+            (*(Bool*)Vec_get(&current_fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(i)})) &&
+            strcmp((const char *)((Str*)Vec_get(&current_fdef->data.data.FuncDef.param_names, &(U64){(U64)(i)}))->c_str, name) == 0)
             return 1;
     }
     return 0;
@@ -268,13 +269,13 @@ static Expr *find_callee_fdef(Str *name) {
 // Get the C value type name for a callee's return type (e.g. "U64" for I64_size)
 static const char *callee_return_ctype(Str *callee_name) {
     Expr *fdef = find_callee_fdef(callee_name);
-    if (!fdef || !fdef->type.func_def.return_type) return NULL;
-    return type_name_to_c_value(fdef->type.func_def.return_type);
+    if (!fdef || fdef->data.data.FuncDef.return_type.count == 0) return NULL;
+    return type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
 }
 
 // Get the C value type for an fcall's return value
 static const char *fcall_return_ctype(Expr *fcall) {
-    if (fcall->type.tag != NODE_FCALL) return NULL;
+    if (fcall->data.tag != ExprData_TAG_FCall) return NULL;
     Bool allocated = 0;
     Str *callee = resolve_callee_name(fcall, &allocated);
     if (!callee) return NULL;
@@ -286,22 +287,22 @@ static const char *fcall_return_ctype(Expr *fcall) {
 static Bool callee_returns_shallow(Str *callee_name) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
-    return fdef->type.func_def.return_is_shallow;
+    return fdef->data.data.FuncDef.return_is_shallow;
 }
 
 // Check if an FCALL node's callee returns shallow
 static Bool fcall_is_shallow_return(Expr *fcall) {
-    if (fcall->type.tag != NODE_FCALL) return 0;
-    Expr *callee = expr_child(fcall, 0);
-    if (callee->type.tag == NODE_IDENT) {
-        return callee_returns_shallow(callee->type.str_val);
-    } else if (callee->type.tag == NODE_FIELD_ACCESS) {
-        Str *sname = expr_child(callee, 0)->struct_name;
-        Str *mname = callee->type.str_val;
+    if (fcall->data.tag != ExprData_TAG_FCall) return 0;
+    Expr *callee = Expr_child(fcall, &(I64){(I64)(0)});
+    if (callee->data.tag == ExprData_TAG_Ident) {
+        return callee_returns_shallow(&callee->data.data.Ident);
+    } else if (callee->data.tag == ExprData_TAG_FieldAccess) {
+        Str *sname = &Expr_child(callee, &(I64){(I64)(0)})->struct_name;
+        Str *mname = &callee->data.data.FieldAccess;
         if (!sname) return 0;
         char buf[256];
         snprintf(buf, sizeof(buf), "%s_%s", sname->c_str, mname->c_str);
-        Str *flat = Str_new(buf);
+        Str *flat = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         Bool r = callee_returns_shallow(flat);
         Str_delete(flat, &(Bool){1});
         return r;
@@ -312,18 +313,18 @@ static Bool fcall_is_shallow_return(Expr *fcall) {
 static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
-    if (arg_index >= fdef->type.func_def.nparam) return 0;
-    return fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[arg_index];
+    if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
+    return fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(arg_index)}));
 }
 
 // Map til function names to C symbol names (handles stdlib collisions)
 static const char *func_to_c(Str *name) {
-    if (Str_eq_c(name, "sleep")) return "sleep_ms";
-    if (Str_eq_c(name, "and")) return "Bool_and";
-    if (Str_eq_c(name, "or")) return "Bool_or";
-    if (Str_eq_c(name, "not")) return "Bool_not";
+    if ((name->count == 5 && memcmp(name->c_str, "sleep", 5) == 0)) return "sleep_ms";
+    if ((name->count == 3 && memcmp(name->c_str, "and", 3) == 0)) return "Bool_and";
+    if ((name->count == 2 && memcmp(name->c_str, "or", 2) == 0)) return "Bool_or";
+    if ((name->count == 3 && memcmp(name->c_str, "not", 3) == 0)) return "Bool_not";
     // C keyword collision
-    if (Str_eq_c(name, "double")) return "double_";
+    if ((name->count == 6 && memcmp(name->c_str, "double", 6) == 0)) return "double_";
     return (const char *)name->c_str;
 }
 
@@ -331,39 +332,39 @@ static const char *func_to_c(Str *name) {
 
 static void emit_expr(FILE *f, Expr *e, I32 depth) {
     (void)depth;
-    switch (e->type.tag) {
-    case NODE_LITERAL_STR:
-        fprintf(f, "Str_lit(\"%s\", %lluULL)", e->type.str_val->c_str, (unsigned long long)e->type.str_val->count);
+    switch (e->data.tag) {
+    case ExprData_TAG_LiteralStr:
+        fprintf(f, "Str_lit(\"%s\", %lluULL)", e->data.data.LiteralStr.c_str, (unsigned long long)e->data.data.LiteralStr.count);
         break;
-    case NODE_LITERAL_NUM:
-        fprintf(f, "%s", e->type.str_val->c_str);
+    case ExprData_TAG_LiteralNum:
+        fprintf(f, "%s", e->data.data.LiteralNum.c_str);
         break;
-    case NODE_LITERAL_BOOL:
-        fprintf(f, "%d", Str_eq_c(e->type.str_val, "true") ? 1 : 0);
+    case ExprData_TAG_LiteralBool:
+        fprintf(f, "%d", (e->data.data.LiteralBool.count == 4 && memcmp(e->data.data.LiteralBool.c_str, "true", 4) == 0) ? 1 : 0);
         break;
-    case NODE_LITERAL_NULL:
+    case ExprData_TAG_LiteralNull:
         fprintf(f, "NULL");
         break;
-    case NODE_IDENT:
-        if (e->til_type == TIL_TYPE_FUNC_PTR) {
+    case ExprData_TAG_Ident:
+        if (e->til_type.tag == TilType_TAG_FuncPtr) {
             // Function name used as value — cast to void* for function pointer storage
-            fprintf(f, "(void *)%s", func_to_c(e->type.str_val));
+            fprintf(f, "(void *)%s", func_to_c(&e->data.data.Ident));
         } else {
-            fprintf(f, "%s", e->type.str_val->c_str);
+            fprintf(f, "%s", e->data.data.Ident.c_str);
         }
         break;
-    case NODE_FCALL: {
+    case ExprData_TAG_FCall: {
         // Indirect call through FuncSig-typed struct field: h.on_click(3, 5)
-        if (expr_child(e, 0)->type.tag == NODE_FIELD_ACCESS &&
-            expr_child(e, 0)->til_type == TIL_TYPE_FUNC_PTR && e->fn_sig) {
+        if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+            Expr_child(e, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_FuncPtr && e->fn_sig) {
             // Same pattern as regular func ptr indirect call (line ~440)
             const char *ret_c = "void *";
-            if (e->til_type != TIL_TYPE_NONE && e->til_type != TIL_TYPE_UNKNOWN &&
-                e->til_type != TIL_TYPE_DYNAMIC) {
+            if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
+                e->til_type.tag != TilType_TAG_Dynamic) {
                 ret_c = til_type_to_c(e->til_type);
-                if ((e->til_type == TIL_TYPE_STRUCT || e->til_type == TIL_TYPE_ENUM) && e->struct_name) {
+                if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum) && e->struct_name.count > 0) {
                     static char ret_buf2[128];
-                    snprintf(ret_buf2, sizeof(ret_buf2), "%s", e->struct_name->c_str);
+                    snprintf(ret_buf2, sizeof(ret_buf2), "%s", e->struct_name.c_str);
                     ret_c = ret_buf2;
                 }
                 static char ret_ptr_buf2[256];
@@ -373,13 +374,13 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "((%s (*)(", ret_c);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                Expr *arg = expr_child(e, i);
+                Expr *arg = Expr_child(e, &(I64){(I64)(i)});
                 const char *arg_c = "void *";
-                if (arg->til_type != TIL_TYPE_UNKNOWN && arg->til_type != TIL_TYPE_DYNAMIC) {
+                if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
                     arg_c = til_type_to_c(arg->til_type);
-                    if ((arg->til_type == TIL_TYPE_STRUCT || arg->til_type == TIL_TYPE_ENUM) && arg->struct_name) {
+                    if ((arg->til_type.tag == TilType_TAG_Struct || arg->til_type.tag == TilType_TAG_Enum) && arg->struct_name.count > 0) {
                         static char arg_buf2[128];
-                        snprintf(arg_buf2, sizeof(arg_buf2), "%s", arg->struct_name->c_str);
+                        snprintf(arg_buf2, sizeof(arg_buf2), "%s", arg->struct_name.c_str);
                         arg_c = arg_buf2;
                     }
                     static char arg_ptr_buf2[256];
@@ -390,83 +391,83 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             }
             if (e->children.count == 1) fprintf(f, "void");
             fprintf(f, "))(");
-            emit_expr(f, expr_child(e, 0), depth);
+            emit_expr(f, Expr_child(e, &(I64){(I64)(0)}), depth);
             fprintf(f, "))(");
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
+                emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
             break;
         }
         // Namespace method call: Struct.method(args)
-        if (expr_child(e, 0)->type.tag == NODE_FIELD_ACCESS) {
-            Str *sname = expr_child(expr_child(e, 0), 0)->struct_name;
-            Str *mname = expr_child(e, 0)->type.str_val;
+        if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess) {
+            Str *sname = &Expr_child(Expr_child(e, &(I64){(I64)(0)}), &(I64){0})->struct_name;
+            Str *mname = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
             char flat_key[256];
             snprintf(flat_key, sizeof(flat_key), "%s_%s", sname->c_str, mname->c_str);
-            Str *flat_str = Str_new(flat_key);
+            Str *flat_str = Str_clone(&(Str){.c_str = (U8*)(flat_key), .count = (U64)strlen((const char*)(flat_key)), .cap = CAP_VIEW});
             fprintf(f, "%s_%s(", sname->c_str, mname->c_str);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 if (callee_param_is_shallow(flat_str, i - 1))
-                    emit_deref(f, expr_child(e, i), depth);
+                    emit_deref(f, Expr_child(e, &(I64){(I64)(i)}), depth);
                 else
-                    emit_as_ptr(f, expr_child(e, i), depth);
+                    emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
             break;
         }
-        Str *name = expr_child(e, 0)->type.str_val;
-        if (Str_eq_c(name, "dyn_call") || Str_eq_c(name, "dyn_call_ret")) {
+        Str *name = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
+        if ((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0) || (name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0)) {
             // dyn_call(type_name, "method", arity, val, ...) → dyn_call_method(type_name, val, ...)
-            Str *method = expr_child(e, 2)->type.str_val;
+            Str *method = &Expr_child(e, &(I64){(I64)(2)})->data.data.Ident;
             fprintf(f, "dyn_call_%s(", method->c_str);
             // Emit type_name as first arg
-            emit_as_ptr(f, expr_child(e, 1), depth);
+            emit_as_ptr(f, Expr_child(e, &(I64){(I64)(1)}), depth);
             // Emit remaining args (skip arity at child 3, emit from child 4)
             for (U32 i = 4; i < e->children.count; i++) {
                 fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
+                emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
-        } else if (Str_eq_c(name, "array") || Str_eq_c(name, "vec")) {
+        } else if ((name->count == 5 && memcmp(name->c_str, "array", 5) == 0) || (name->count == 3 && memcmp(name->c_str, "vec", 3) == 0)) {
             // array("I64", 1, 2, 3) → array_of_I64(3, v1, v2, v3)
             // vec("I64", 1, 2, 3)   → vec_of_I64(3, v1, v2, v3)
-            Str *elem_type = expr_child(e, 1)->type.str_val;
+            Str *elem_type = &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident;
             I32 count = e->children.count - 2;
-            const char *prefix = Str_eq_c(name, "array") ? "array" : "vec";
+            const char *prefix = (name->count == 5 && memcmp(name->c_str, "array", 5) == 0) ? "array" : "vec";
             fprintf(f, "%s_of_%s(%d", prefix, elem_type->c_str, count);
             for (U32 i = 2; i < e->children.count; i++) {
                 fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
+                emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
-        } else if (Str_eq_c(name, "dyn_has_method")) {
+        } else if ((name->count == 14 && memcmp(name->c_str, "dyn_has_method", 14) == 0)) {
             // dyn_has_method(type_name, "method") → dyn_has_method(type_name)
-            Str *method = expr_child(e, 2)->type.str_val;
+            Str *method = &Expr_child(e, &(I64){(I64)(2)})->data.data.Ident;
             fprintf(f, "dyn_has_%s(", method->c_str);
-            emit_as_ptr(f, expr_child(e, 1), depth);
+            emit_as_ptr(f, Expr_child(e, &(I64){(I64)(1)}), depth);
             fprintf(f, ")");
-        } else if (e->struct_name && *Str_eq(name, e->struct_name)) {
+        } else if ((e->struct_name).count > 0 && *Str_eq(name, &e->struct_name)) {
             // Struct constructor in expression context: hoist to temp via statement-expr
-            const char *ctype = c_type_name(e->til_type, e->struct_name);
+            const char *ctype = c_type_name(e->til_type, &e->struct_name);
             I32 id = _ctor_seq++;
             fprintf(f, "({ %s *_sc%d = malloc(sizeof(%s)); ", ctype, id, ctype);
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_sc%d", id);
             emit_ctor_fields(f, tmp, e, depth);
             fprintf(f, " _sc%d; })", id);
-        } else if (expr_child(e, 0)->til_type == TIL_TYPE_FUNC_PTR) {
+        } else if (Expr_child(e, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_FuncPtr) {
             // Indirect call through function pointer variable
             // Emit: ((ret_type (*)(param_types))fn_ptr)(args)
             const char *ret_c = "void *";
-            if (e->til_type != TIL_TYPE_NONE && e->til_type != TIL_TYPE_UNKNOWN &&
-                e->til_type != TIL_TYPE_DYNAMIC) {
+            if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
+                e->til_type.tag != TilType_TAG_Dynamic) {
                 ret_c = til_type_to_c(e->til_type);
-                if ((e->til_type == TIL_TYPE_STRUCT || e->til_type == TIL_TYPE_ENUM) && e->struct_name) {
+                if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum) && e->struct_name.count > 0) {
                     static char ret_buf[128];
-                    snprintf(ret_buf, sizeof(ret_buf), "%s", e->struct_name->c_str);
+                    snprintf(ret_buf, sizeof(ret_buf), "%s", e->struct_name.c_str);
                     ret_c = ret_buf;
                 }
                 // Return is a pointer (all til functions return pointers)
@@ -477,13 +478,13 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "((%s (*)(", ret_c);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                Expr *arg = expr_child(e, i);
+                Expr *arg = Expr_child(e, &(I64){(I64)(i)});
                 const char *arg_c = "void *";
-                if (arg->til_type != TIL_TYPE_UNKNOWN && arg->til_type != TIL_TYPE_DYNAMIC) {
+                if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
                     arg_c = til_type_to_c(arg->til_type);
-                    if ((arg->til_type == TIL_TYPE_STRUCT || arg->til_type == TIL_TYPE_ENUM) && arg->struct_name) {
+                    if ((arg->til_type.tag == TilType_TAG_Struct || arg->til_type.tag == TilType_TAG_Enum) && arg->struct_name.count > 0) {
                         static char arg_buf[128];
-                        snprintf(arg_buf, sizeof(arg_buf), "%s", arg->struct_name->c_str);
+                        snprintf(arg_buf, sizeof(arg_buf), "%s", arg->struct_name.c_str);
                         arg_c = arg_buf;
                     }
                     static char arg_ptr_buf[256];
@@ -496,7 +497,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "))%s)(", name->c_str);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_as_ptr(f, expr_child(e, i), depth);
+                emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
         } else {
@@ -505,30 +506,30 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 if (callee_param_is_shallow(name, i - 1))
-                    emit_deref(f, expr_child(e, i), depth);
+                    emit_deref(f, Expr_child(e, &(I64){(I64)(i)}), depth);
                 else
-                    emit_as_ptr(f, expr_child(e, i), depth);
+                    emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
         }
         break;
     }
-    case NODE_FIELD_ACCESS: {
-        Expr *obj = expr_child(e, 0);
-        Str *fname = e->type.str_val;
+    case ExprData_TAG_FieldAccess: {
+        Expr *obj = Expr_child(e, &(I64){(I64)(0)});
+        Str *fname = &e->data.data.FieldAccess;
         if (e->is_ns_field) {
-            fprintf(f, "%s_%s", obj->struct_name->c_str, fname->c_str);
+            fprintf(f, "%s_%s", obj->struct_name.c_str, fname->c_str);
             // Auto-call enum variant constructors (Color.Red → Color_Red())
-            if (e->til_type == TIL_TYPE_ENUM) fprintf(f, "()");
+            if (e->til_type.tag == TilType_TAG_Enum) fprintf(f, "()");
         } else {
             emit_expr(f, obj, depth);
-            Bool use_dot = (obj->type.tag == NODE_FIELD_ACCESS && !obj->is_own_field);
+            Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
             fprintf(f, "%s%s", use_dot ? "." : "->", fname->c_str);
         }
         break;
     }
     default:
-        fprintf(f, "/* TODO: expr type %d */", e->type.tag);
+        fprintf(f, "/* TODO: expr type %d */", e->data.tag);
         break;
     }
 }
@@ -536,45 +537,45 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
 // --- Type to C type string ---
 
 static const char *til_type_to_c(TilType t) {
-    switch (t) {
-    case TIL_TYPE_I64:  return "I64";
-    case TIL_TYPE_U8:   return "U8";
-    case TIL_TYPE_I16:  return "I16";
-    case TIL_TYPE_I32:  return "I32";
-    case TIL_TYPE_U32:  return "U32";
-    case TIL_TYPE_U64:  return "U64";
-    case TIL_TYPE_F32:  return "F32";
-    case TIL_TYPE_BOOL: return "Bool";
-    case TIL_TYPE_NONE:     return "void";
-    case TIL_TYPE_DYNAMIC:  return "void *";
-    case TIL_TYPE_FUNC_PTR: return "void *"; // function pointer (opaque)
+    switch (t.tag) {
+    case TilType_TAG_I64:  return "I64";
+    case TilType_TAG_U8:   return "U8";
+    case TilType_TAG_I16:  return "I16";
+    case TilType_TAG_I32:  return "I32";
+    case TilType_TAG_U32:  return "U32";
+    case TilType_TAG_U64:  return "U64";
+    case TilType_TAG_F32:  return "F32";
+    case TilType_TAG_Bool: return "Bool";
+    case TilType_TAG_None:     return "void";
+    case TilType_TAG_Dynamic:  return "void *";
+    case TilType_TAG_FuncPtr: return "void *"; // function pointer (opaque)
     default:                return "I64"; // fallback
     }
 }
 
 // C type name without pointer — "Point" for structs, "I64" for I64, etc.
 static const char *c_type_name(TilType t, Str *struct_name) {
-    if ((t == TIL_TYPE_STRUCT || t == TIL_TYPE_ENUM) && struct_name) {
+    if ((t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) && struct_name) {
         static char buf[128];
         snprintf(buf, sizeof(buf), "%s", struct_name->c_str);
         return buf;
     }
-    if (t == TIL_TYPE_DYNAMIC) return "void";
+    if (t.tag == TilType_TAG_Dynamic) return "void";
     return til_type_to_c(t);
 }
 
 // Convert a type name string to C type string (handles struct types)
 static const char *type_name_to_c(Str *name) {
-    if (Str_eq_c(name, "I64"))  return "I64 *";
-    if (Str_eq_c(name, "U8"))   return "U8 *";
-    if (Str_eq_c(name, "I16"))  return "I16 *";
-    if (Str_eq_c(name, "I32"))  return "I32 *";
-    if (Str_eq_c(name, "U32"))  return "U32 *";
-    if (Str_eq_c(name, "U64"))  return "U64 *";
-    if (Str_eq_c(name, "F32"))  return "F32 *";
-    if (Str_eq_c(name, "Bool")) return "Bool *";
-    if (Str_eq_c(name, "Dynamic")) return "void *";
-    if (Str_eq_c(name, "Fn"))      return "void *"; // function pointer (opaque)
+    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return "I64 *";
+    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return "U8 *";
+    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return "I16 *";
+    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return "I32 *";
+    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return "U32 *";
+    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return "U64 *";
+    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "F32 *";
+    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "Bool *";
+    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return "void *";
+    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))      return "void *"; // function pointer (opaque)
     // Named FuncSig type → void * (opaque function pointer)
     if (has_funcsig_names) {
         Str key = {name->c_str, name->count, CAP_VIEW};
@@ -590,15 +591,15 @@ static const char *type_name_to_c(Str *name) {
 
 // Like type_name_to_c but without pointer — for inline union fields
 static const char *type_name_to_c_value(Str *name) {
-    if (Str_eq_c(name, "I64"))  return "I64";
-    if (Str_eq_c(name, "U8"))   return "U8";
-    if (Str_eq_c(name, "I16"))  return "I16";
-    if (Str_eq_c(name, "I32"))  return "I32";
-    if (Str_eq_c(name, "U32"))  return "U32";
-    if (Str_eq_c(name, "U64"))  return "U64";
-    if (Str_eq_c(name, "F32"))  return "F32";
-    if (Str_eq_c(name, "Bool")) return "Bool";
-    if (Str_eq_c(name, "Fn"))   return "void *"; // function pointer (opaque)
+    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return "I64";
+    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return "U8";
+    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return "I16";
+    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return "I32";
+    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return "U32";
+    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return "U64";
+    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "F32";
+    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "Bool";
+    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))   return "void *"; // function pointer (opaque)
     // Named FuncSig type → void * (opaque function pointer)
     if (has_funcsig_names) {
         Str key = {name->c_str, name->count, CAP_VIEW};
@@ -612,8 +613,8 @@ static const char *type_name_to_c_value(Str *name) {
 }
 
 static Bool is_primitive_type(Str *name) {
-    return Str_eq_c(name, "I64") || Str_eq_c(name, "U8") || Str_eq_c(name, "I16") ||
-           Str_eq_c(name, "I32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") || Str_eq_c(name, "F32") || Str_eq_c(name, "Bool");
+    return (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) ||
+           (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
 }
 
 static Bool is_funcsig_type(Str *name) {
@@ -626,26 +627,26 @@ static Bool is_funcsig_type(Str *name) {
 
 // Emit a function parameter list (with variadic support)
 static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
-    U32 np = fdef->type.func_def.nparam;
-    I32 fvi = fdef->type.func_def.variadic_index;
+    U32 np = fdef->data.data.FuncDef.nparam;
+    I32 fvi = fdef->data.data.FuncDef.variadic_index;
     if (np == 0) {
         fprintf(f, "void");
     } else {
         for (U32 i = 0; i < np; i++) {
             if (i > 0) fprintf(f, ", ");
             const char *ptype;
-            I32 fkwi = fdef->type.func_def.kwargs_index;
+            I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
             if ((I32)i == fvi) {
                 ptype = "Array *";
             } else if ((I32)i == fkwi) {
                 ptype = "Map *";
-            } else if (fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[i]) {
-                ptype = type_name_to_c_value(fdef->type.func_def.param_types[i]);
+            } else if (fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(i)}))) {
+                ptype = type_name_to_c_value(((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
             } else {
-                ptype = type_name_to_c(fdef->type.func_def.param_types[i]);
+                ptype = type_name_to_c(((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
             }
             if (with_names)
-                fprintf(f, "%s %s", ptype, fdef->type.func_def.param_names[i]->c_str);
+                fprintf(f, "%s %s", ptype, ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(i)}))->c_str);
             else
                 fprintf(f, "%s", ptype);
         }
@@ -653,26 +654,26 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
 }
 
 static void emit_deref(FILE *f, Expr *e, I32 depth) {
-    if (e->til_type == TIL_TYPE_DYNAMIC) {
+    if (e->til_type.tag == TilType_TAG_Dynamic) {
         // Dynamic (void *) IS the value — no dereference needed
         emit_expr(f, e, depth);
-    } else if (e->til_type == TIL_TYPE_FUNC_PTR) {
+    } else if (e->til_type.tag == TilType_TAG_FuncPtr) {
         // Function pointer: cast to void *, no dereference
         fprintf(f, "(void *)");
         emit_expr(f, e, depth);
-    } else if (e->type.tag == NODE_IDENT) {
-        if (is_shallow_param((const char *)e->type.str_val->c_str) ||
-            is_shallow_local((const char *)e->type.str_val->c_str)) {
+    } else if (e->data.tag == ExprData_TAG_Ident) {
+        if (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
+            is_shallow_local((const char *)e->data.data.Ident.c_str)) {
             emit_expr(f, e, depth); // shallow param/local is already a value
         } else {
             fprintf(f, "DEREF(");
             emit_expr(f, e, depth);
             fprintf(f, ")");
         }
-    } else if (e->type.tag == NODE_LITERAL_STR) {
+    } else if (e->data.tag == ExprData_TAG_LiteralStr) {
         fprintf(f, "(Str){.c_str=(U8*)\"%s\", .count=%lluULL, .cap=TIL_CAP_LIT}",
-                e->type.str_val->c_str, (unsigned long long)e->type.str_val->count);
-    } else if (e->type.tag == NODE_FIELD_ACCESS && e->is_ns_field && e->til_type == TIL_TYPE_ENUM) {
+                e->data.data.Ident.c_str, (unsigned long long)e->data.data.Ident.count);
+    } else if (e->data.tag == ExprData_TAG_FieldAccess && e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) {
         // Auto-called constructor returns pointer; dereference it
         fprintf(f, "(*");
         emit_expr(f, e, depth);
@@ -682,55 +683,55 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
     }
 }
 
-// Emit expression as a pointer — after hoisting, args are NODE_IDENT (already pointer)
-// or NODE_FIELD_ACCESS (value needing compound literal wrapping).
+// Emit expression as a pointer — after hoisting, args are ExprData_TAG_Ident (already pointer)
+// or ExprData_TAG_FieldAccess (value needing compound literal wrapping).
 static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
-    if (e->type.tag == NODE_IDENT &&
-        (is_shallow_param((const char *)e->type.str_val->c_str) ||
-         is_shallow_local((const char *)e->type.str_val->c_str))) {
+    if (e->data.tag == ExprData_TAG_Ident &&
+        (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
+         is_shallow_local((const char *)e->data.data.Ident.c_str))) {
         // Shallow param/local is a value — need a pointer
         if (e->is_own_arg) {
             // Callee will free() this pointer — must malloc a copy
-            const char *ctype = get_shallow_ctype((const char *)e->type.str_val->c_str);
-            if (!ctype) ctype = c_type_name(e->til_type, e->struct_name);
+            const char *ctype = get_shallow_ctype((const char *)e->data.data.Ident.c_str);
+            if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
             fprintf(f, "({ %s *_oa = malloc(sizeof(%s)); *_oa = ", ctype, ctype);
             emit_expr(f, e, depth);
             fprintf(f, "; _oa; })");
         } else {
             // Read-only use — compound literal is fine
-            const char *ctype = get_shallow_ctype((const char *)e->type.str_val->c_str);
-            if (!ctype) ctype = c_type_name(e->til_type, e->struct_name);
+            const char *ctype = get_shallow_ctype((const char *)e->data.data.Ident.c_str);
+            if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
             fprintf(f, "&(%s){", ctype);
             emit_expr(f, e, depth);
             fprintf(f, "}");
         }
-    } else if (e->type.tag == NODE_FCALL && e->struct_name && e->children.count > 0 &&
-               expr_child(e, 0)->type.tag == NODE_IDENT &&
-               *Str_eq(expr_child(e, 0)->type.str_val, e->struct_name)) {
+    } else if (e->data.tag == ExprData_TAG_FCall && e->struct_name.count > 0 && e->children.count > 0 &&
+               Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
+               *Str_eq(&Expr_child(e, &(I64){(I64)(0)})->data.data.Ident, &e->struct_name)) {
         // Struct constructor in expression context: hoist to temp via statement-expr
-        const char *ctype = c_type_name(e->til_type, e->struct_name);
+        const char *ctype = c_type_name(e->til_type, &e->struct_name);
         I32 id = _ctor_seq++;
         fprintf(f, "({ %s *_sc%d = malloc(sizeof(%s)); ", ctype, id, ctype);
         char tmp[32];
         snprintf(tmp, sizeof(tmp), "_sc%d", id);
         emit_ctor_fields(f, tmp, e, depth);
         fprintf(f, " _sc%d; })", id);
-    } else if (e->type.tag == NODE_IDENT || e->type.tag == NODE_FCALL || e->type.tag == NODE_LITERAL_STR) {
+    } else if (e->data.tag == ExprData_TAG_Ident || e->data.tag == ExprData_TAG_FCall || e->data.tag == ExprData_TAG_LiteralStr) {
         emit_expr(f, e, depth);
-    } else if (e->type.tag == NODE_FIELD_ACCESS) {
+    } else if (e->data.tag == ExprData_TAG_FieldAccess) {
         // Own field is already a pointer; enum ns_field constructor returns pointer;
         // Dynamic field is void* (already a pointer); inline field needs address-of
-        if (e->is_own_field || (e->is_ns_field && e->til_type == TIL_TYPE_ENUM) ||
-            e->til_type == TIL_TYPE_DYNAMIC) {
+        if (e->is_own_field || (e->is_ns_field && e->til_type.tag == TilType_TAG_Enum) ||
+            e->til_type.tag == TilType_TAG_Dynamic) {
             emit_expr(f, e, depth);
         } else {
             fprintf(f, "&");
             emit_expr(f, e, depth);
         }
-    } else if (e->type.tag == NODE_LITERAL_NULL) {
+    } else if (e->data.tag == ExprData_TAG_LiteralNull) {
         fprintf(f, "NULL");
     } else {
-        const char *ctype = c_type_name(e->til_type, e->struct_name);
+        const char *ctype = c_type_name(e->til_type, &e->struct_name);
         fprintf(f, "&(%s){", ctype);
         emit_expr(f, e, depth);
         fprintf(f, "}");
@@ -740,7 +741,7 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
 // Emit struct constructor field assignments into 'var' (already malloc'd).
 static I32 _ctor_seq = 0;
 static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
-    Expr *sbody = find_struct_body(ctor->struct_name);
+    Expr *sbody = find_struct_body(&ctor->struct_name);
     U32 fi = 0;
     for (U32 i = 1; i < ctor->children.count; i++) {
         Bool is_own = 0;
@@ -748,26 +749,26 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
         const char *fname = NULL;
         if (sbody) {
             for (; fi < sbody->children.count; fi++) {
-                if (!expr_child(sbody, fi)->type.decl.is_namespace) {
-                    is_own = expr_child(sbody, fi)->type.decl.is_own;
-                    is_ref = expr_child(sbody, fi)->type.decl.is_ref;
-                    fname = (const char *)expr_child(sbody, fi)->type.decl.name->c_str;
+                if (!Expr_child(sbody, &(I64){(I64)(fi)})->data.data.Decl.is_namespace) {
+                    is_own = Expr_child(sbody, &(I64){(I64)(fi)})->data.data.Decl.is_own;
+                    is_ref = Expr_child(sbody, &(I64){(I64)(fi)})->data.data.Decl.is_ref;
+                    fname = (const char *)Expr_child(sbody, &(I64){(I64)(fi)})->data.data.Decl.name.c_str;
                     fi++;
                     break;
                 }
             }
         }
-        Expr *arg = expr_child(ctor, i);
+        Expr *arg = Expr_child(ctor, &(I64){(I64)(i)});
         emit_indent(f, depth);
         if (is_ref) {
             // Ref field: store pointer directly (no deref)
             fprintf(f, "%s->%s = ", var, fname);
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
-        } else if (is_own && arg->type.tag == NODE_FCALL && arg->struct_name &&
-            *Str_eq(expr_child(arg, 0)->type.str_val, arg->struct_name)) {
+        } else if (is_own && arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
+            *Str_eq(&Expr_child(arg, &(I64){(I64)(0)})->data.data.Ident, &arg->struct_name)) {
             // Nested struct constructor for own field: emit as temp, assign pointer
-            const char *ct = c_type_name(arg->til_type, arg->struct_name);
+            const char *ct = c_type_name(arg->til_type, &arg->struct_name);
             I32 id = _ctor_seq++;
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_cs%d", id);
@@ -779,10 +780,10 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             fprintf(f, "%s->%s = ", var, fname);
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
-        } else if (arg->type.tag == NODE_FCALL && arg->struct_name &&
-                   *Str_eq(expr_child(arg, 0)->type.str_val, arg->struct_name)) {
+        } else if (arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
+                   *Str_eq(&Expr_child(arg, &(I64){(I64)(0)})->data.data.Ident, &arg->struct_name)) {
             // Inline struct field: nested constructor — build in-place
-            const char *ct = c_type_name(arg->til_type, arg->struct_name);
+            const char *ct = c_type_name(arg->til_type, &arg->struct_name);
             I32 id = _ctor_seq++;
             char tmp[32];
             snprintf(tmp, sizeof(tmp), "_cs%d", id);
@@ -790,32 +791,32 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_ctor_fields(f, tmp, arg, depth);
             emit_indent(f, depth);
             fprintf(f, "%s->%s = *%s; free(%s);\n", var, fname, tmp, tmp);
-        } else if (arg->type.tag == NODE_FCALL) {
+        } else if (arg->data.tag == ExprData_TAG_FCall) {
             // Unhoisted fcall for inline compound field: deref + free wrapper
             if (fcall_is_shallow_return(arg)) {
                 fprintf(f, "%s->%s = ", var, fname);
                 emit_expr(f, arg, depth);
                 fprintf(f, ";\n");
             } else {
-                const char *ftype = c_type_name(arg->til_type, arg->struct_name);
+                const char *ftype = c_type_name(arg->til_type, &arg->struct_name);
                 fprintf(f, "{ %s *_ca = ", ftype);
                 emit_expr(f, arg, depth);
                 fprintf(f, "; %s->%s = *_ca; free(_ca); }\n", var, fname);
             }
-        } else if (arg->til_type == TIL_TYPE_STRUCT || arg->til_type == TIL_TYPE_ENUM) {
+        } else if (arg->til_type.tag == TilType_TAG_Struct || arg->til_type.tag == TilType_TAG_Enum) {
             // Inline compound field: clone to avoid shallow copy
-            const char *ftype = c_type_name(arg->til_type, arg->struct_name);
+            const char *ftype = c_type_name(arg->til_type, &arg->struct_name);
             char clone_name[256];
-            snprintf(clone_name, sizeof(clone_name), "%s_clone", arg->struct_name->c_str);
-            Str *cn = Str_new(clone_name);
+            snprintf(clone_name, sizeof(clone_name), "%s_clone", arg->struct_name.c_str);
+            Str *cn = Str_clone(&(Str){.c_str = (U8*)(clone_name), .count = (U64)strlen((const char*)(clone_name)), .cap = CAP_VIEW});
             Bool shallow_clone = callee_returns_shallow(cn);
             Str_delete(cn, &(Bool){1});
             if (shallow_clone) {
-                fprintf(f, "%s->%s = %s_clone(", var, fname, arg->struct_name->c_str);
+                fprintf(f, "%s->%s = %s_clone(", var, fname, arg->struct_name.c_str);
                 emit_as_ptr(f, arg, depth);
                 fprintf(f, ");\n");
             } else {
-                fprintf(f, "{ %s *_ca = %s_clone(", ftype, arg->struct_name->c_str);
+                fprintf(f, "{ %s *_ca = %s_clone(", ftype, arg->struct_name.c_str);
                 emit_as_ptr(f, arg, depth);
                 fprintf(f, "); %s->%s = *_ca; free(_ca); }\n", var, fname);
             }
@@ -831,62 +832,62 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
 
 static void emit_stmt(FILE *f, Expr *e, I32 depth) {
     emit_indent(f, depth);
-    switch (e->type.tag) {
-    case NODE_DECL:
-        if (e->til_type == TIL_TYPE_FUNC_PTR && expr_child(e, 0)->type.tag != NODE_FUNC_DEF) {
+    switch (e->data.tag) {
+    case ExprData_TAG_Decl:
+        if (e->til_type.tag == TilType_TAG_FuncPtr && Expr_child(e, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) {
             // Function pointer variable: void *f = (void *)func_name;
-            fprintf(f, "void *%s = ", e->type.decl.name->c_str);
-            emit_expr(f, expr_child(e, 0), depth);
+            fprintf(f, "void *%s = ", e->data.data.Decl.name.c_str);
+            emit_expr(f, Expr_child(e, &(I64){(I64)(0)}), depth);
             fprintf(f, ";\n");
             emit_indent(f, depth);
-            fprintf(f, "(void)%s;\n", e->type.decl.name->c_str);
-        } else if (expr_child(e, 0)->type.tag == NODE_FUNC_DEF) {
-            fprintf(f, "/* TODO: nested func %s */\n", e->type.decl.name->c_str);
-        } else if (expr_child(e, 0)->type.tag == NODE_STRUCT_DEF ||
-                   expr_child(e, 0)->type.tag == NODE_ENUM_DEF) {
+            fprintf(f, "(void)%s;\n", e->data.data.Decl.name.c_str);
+        } else if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            fprintf(f, "/* TODO: nested func %s */\n", e->data.data.Decl.name.c_str);
+        } else if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                   Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
             fprintf(f, "/* %s %s defined above */\n",
-                    expr_child(e, 0)->type.tag == NODE_ENUM_DEF ? "enum" : "struct",
-                    e->type.decl.name->c_str);
+                    Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
+                    e->data.data.Decl.name.c_str);
         } else {
-            if (e->type.decl.is_ref) {
-                const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
-                Expr *rhs = expr_child(e, 0);
-                fprintf(f, "%s *%s = ", ctype, e->type.decl.name->c_str);
+            if (e->data.data.Decl.is_ref) {
+                const char *ctype = c_type_name(e->til_type, &Expr_child(e, &(I64){(I64)(0)})->struct_name);
+                Expr *rhs = Expr_child(e, &(I64){(I64)(0)});
+                fprintf(f, "%s *%s = ", ctype, e->data.data.Decl.name.c_str);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
             } else {
-                const char *ctype = c_type_name(e->til_type, expr_child(e, 0)->struct_name);
-                Expr *rhs = expr_child(e, 0);
-                Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, e->type.decl.name);
-                Str *_uth_key = Str_new((const char *)e->type.decl.name->c_str);
-                Bool can_hoist = !is_global && !e->type.decl.is_own && is_scalar_type(e->til_type) &&
+                const char *ctype = c_type_name(e->til_type, &Expr_child(e, &(I64){(I64)(0)})->struct_name);
+                Expr *rhs = Expr_child(e, &(I64){(I64)(0)});
+                Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, &e->data.data.Decl.name);
+                Str *_uth_key = Str_clone(&e->data.data.Decl.name);
+                Bool can_hoist = !is_global && !e->data.data.Decl.is_own && is_scalar_type(e->til_type) &&
                                  !*Set_has(&unsafe_to_hoist, _uth_key);
                 Str_delete(_uth_key, &(Bool){1});
-                if (rhs->type.tag == NODE_FCALL && rhs->struct_name &&
-                    *Str_eq(expr_child(rhs, 0)->type.str_val, rhs->struct_name)) {
+                if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
+                    *Str_eq(&Expr_child(rhs, &(I64){(I64)(0)})->data.data.Ident, &rhs->struct_name)) {
                     // Struct constructor — malloc + field-by-field assignment (never scalar)
-                    const char *var = (const char *)e->type.decl.name->c_str;
+                    const char *var = (const char *)e->data.data.Decl.name.c_str;
                     if (is_global)
                         fprintf(f, "%s = malloc(sizeof(%s));\n", var, ctype);
                     else
                         fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
                     emit_ctor_fields(f, var, rhs, depth);
-                } else if (rhs->type.tag == NODE_FCALL || rhs->type.tag == NODE_LITERAL_STR ||
-                           (rhs->type.tag == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
-                    if (rhs->type.tag == NODE_FCALL && fcall_is_shallow_return(rhs)) {
+                } else if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
+                           (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
+                    if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
                         if (can_hoist) {
                             // Shallow-return scalar fcall → stack value directly
                             // Use callee's return type to avoid signedness mismatches
                             const char *htype = fcall_return_ctype(rhs);
                             if (!htype) htype = ctype;
-                            fprintf(f, "%s %s = ", htype, e->type.decl.name->c_str);
+                            fprintf(f, "%s %s = ", htype, e->data.data.Decl.name.c_str);
                             emit_expr(f, rhs, depth);
                             fprintf(f, ";\n");
-                            Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
-                            { Str *_k = Str_new((const char *)e->type.decl.name->c_str); Str *_v = Str_new(htype); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
+                            Set_add(&shallow_locals, Str_clone(&e->data.data.Decl.name));
+                            { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(htype), .count = (U64)strlen((const char*)(htype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
                         } else {
                             // returns shallow: C function returns value, box into pointer
-                            const char *var = (const char *)e->type.decl.name->c_str;
+                            const char *var = (const char *)e->data.data.Decl.name.c_str;
                             if (is_global)
                                 fprintf(f, "%s = malloc(sizeof(%s)); *%s = ", var, ctype, var);
                             else
@@ -894,39 +895,39 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                             emit_expr(f, rhs, depth);
                             fprintf(f, ";\n");
                         }
-                    } else if (can_hoist && rhs->type.tag == NODE_FCALL) {
+                    } else if (can_hoist && rhs->data.tag == ExprData_TAG_FCall) {
                         // Non-shallow fcall returning scalar → unbox heap pointer to stack
                         // Use callee's return type to avoid signedness mismatches
                         const char *htype = fcall_return_ctype(rhs);
                         if (!htype) htype = ctype;
-                        fprintf(f, "%s %s; { %s *_hp = (%s *)", htype, e->type.decl.name->c_str, htype, htype);
+                        fprintf(f, "%s %s; { %s *_hp = (%s *)", htype, e->data.data.Decl.name.c_str, htype, htype);
                         emit_expr(f, rhs, depth);
-                        fprintf(f, "; %s = *_hp; free(_hp); }\n", e->type.decl.name->c_str);
-                        Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
-                        { Str *_k = Str_new((const char *)e->type.decl.name->c_str); Str *_v = Str_new(htype); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
+                        fprintf(f, "; %s = *_hp; free(_hp); }\n", e->data.data.Decl.name.c_str);
+                        Set_add(&shallow_locals, Str_clone(&e->data.data.Decl.name));
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(htype), .count = (U64)strlen((const char*)(htype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
                     } else {
                         if (is_global)
-                            fprintf(f, "%s = ", e->type.decl.name->c_str);
+                            fprintf(f, "%s = ", e->data.data.Decl.name.c_str);
                         else
-                            fprintf(f, "%s *%s = ", ctype, e->type.decl.name->c_str);
+                            fprintf(f, "%s *%s = ", ctype, e->data.data.Decl.name.c_str);
                         emit_expr(f, rhs, depth);
                         fprintf(f, ";\n");
                     }
                 } else {
                     if (can_hoist) {
                         // Scalar literal/ident → stack value
-                        fprintf(f, "%s %s = ", ctype, e->type.decl.name->c_str);
+                        fprintf(f, "%s %s = ", ctype, e->data.data.Decl.name.c_str);
                         emit_deref(f, rhs, depth);
                         fprintf(f, ";\n");
-                        Set_add(&shallow_locals, Str_new((const char *)e->type.decl.name->c_str));
-                        { Str *_k = Str_new((const char *)e->type.decl.name->c_str); Str *_v = Str_new(ctype); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
+                        Set_add(&shallow_locals, Str_clone(&e->data.data.Decl.name));
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(ctype), .count = (U64)strlen((const char*)(ctype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
                     } else {
                         if (is_global)
-                            fprintf(f, "%s = malloc(sizeof(%s));\n", e->type.decl.name->c_str, ctype);
+                            fprintf(f, "%s = malloc(sizeof(%s));\n", e->data.data.Decl.name.c_str, ctype);
                         else
-                            fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->type.decl.name->c_str, ctype);
+                            fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.data.Decl.name.c_str, ctype);
                         emit_indent(f, depth);
-                        fprintf(f, "*%s = ", e->type.decl.name->c_str);
+                        fprintf(f, "*%s = ", e->data.data.Decl.name.c_str);
                         emit_deref(f, rhs, depth);
                         fprintf(f, ";\n");
                     }
@@ -934,107 +935,107 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             }
             // Suppress unused-variable warnings for all declarations
             emit_indent(f, depth);
-            fprintf(f, "(void)%s;\n", e->type.decl.name->c_str);
+            fprintf(f, "(void)%s;\n", e->data.data.Decl.name.c_str);
         }
         break;
-    case NODE_ASSIGN: {
-        Expr *rhs = expr_child(e, 0);
+    case ExprData_TAG_Assign: {
+        Expr *rhs = Expr_child(e, &(I64){(I64)(0)});
         if (e->save_old_delete) {
             // RHS references the variable being assigned — save old, assign new, delete old
             // (only for struct/enum, never scalars)
-            const char *ctype = c_type_name(e->til_type, e->struct_name);
-            fprintf(f, "{ %s *_old = %s; %s = ", ctype, e->type.str_val->c_str, e->type.str_val->c_str);
+            const char *ctype = c_type_name(e->til_type, &e->struct_name);
+            fprintf(f, "{ %s *_old = %s; %s = ", ctype, e->data.data.Assign.c_str, e->data.data.Assign.c_str);
             emit_expr(f, rhs, depth);
             fprintf(f, "; %s_delete(_old, &(Bool){1}); }\n", ctype);
             break;
         }
-        Bool is_hoisted = is_shallow_local((const char *)e->type.str_val->c_str);
+        Bool is_hoisted = is_shallow_local((const char *)e->data.data.Assign.c_str);
         if (is_hoisted) {
-            if (rhs->type.tag == NODE_FCALL && fcall_is_shallow_return(rhs)) {
-                fprintf(f, "%s = ", e->type.str_val->c_str);
+            if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+                fprintf(f, "%s = ", e->data.data.Assign.c_str);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
-            } else if (rhs->type.tag == NODE_FCALL) {
+            } else if (rhs->data.tag == ExprData_TAG_FCall) {
                 // Non-shallow fcall: unbox heap pointer
-                const char *ctype = c_type_name(e->til_type, e->struct_name);
+                const char *ctype = c_type_name(e->til_type, &e->struct_name);
                 fprintf(f, "{ %s *_hp = (%s *)", ctype, ctype);
                 emit_expr(f, rhs, depth);
-                fprintf(f, "; %s = *_hp; free(_hp); }\n", e->type.str_val->c_str);
+                fprintf(f, "; %s = *_hp; free(_hp); }\n", e->data.data.Assign.c_str);
             } else {
-                fprintf(f, "%s = ", e->type.str_val->c_str);
+                fprintf(f, "%s = ", e->data.data.Assign.c_str);
                 emit_deref(f, rhs, depth);
                 fprintf(f, ";\n");
             }
         } else {
-            if (rhs->type.tag == NODE_FCALL || rhs->type.tag == NODE_LITERAL_STR ||
-                (rhs->type.tag == NODE_FIELD_ACCESS && rhs->is_ns_field && rhs->til_type == TIL_TYPE_ENUM)) {
-                if (rhs->type.tag == NODE_FCALL && fcall_is_shallow_return(rhs)) {
-                    fprintf(f, "*%s = ", e->type.str_val->c_str);
+            if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
+                (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
+                if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+                    fprintf(f, "*%s = ", e->data.data.Assign.c_str);
                 } else {
-                    fprintf(f, "%s = ", e->type.str_val->c_str);
+                    fprintf(f, "%s = ", e->data.data.Assign.c_str);
                 }
                 emit_expr(f, rhs, depth);
-            } else if (e->til_type == TIL_TYPE_FUNC_PTR) {
+            } else if (e->til_type.tag == TilType_TAG_FuncPtr) {
                 // Function pointer: assign opaque pointer directly (no deref)
-                fprintf(f, "%s = ", e->type.str_val->c_str);
+                fprintf(f, "%s = ", e->data.data.Assign.c_str);
                 emit_expr(f, rhs, depth);
             } else {
-                fprintf(f, "*%s = ", e->type.str_val->c_str);
+                fprintf(f, "*%s = ", e->data.data.Assign.c_str);
                 emit_deref(f, rhs, depth);
             }
             fprintf(f, ";\n");
         }
         break;
     }
-    case NODE_FIELD_ASSIGN: {
-        Expr *obj = expr_child(e, 0);
-        Str *fname = e->type.str_val;
-        if (expr_child(e, 1)->type.tag == NODE_FCALL && !e->is_own_field && !e->is_ns_field) {
-            if (fcall_is_shallow_return(expr_child(e, 1))) {
+    case ExprData_TAG_FieldAssign: {
+        Expr *obj = Expr_child(e, &(I64){(I64)(0)});
+        Str *fname = &e->data.data.FieldAssign;
+        if (Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_FCall && !e->is_own_field && !e->is_ns_field) {
+            if (fcall_is_shallow_return(Expr_child(e, &(I64){(I64)(1)}))) {
                 // Shallow-return fcall: value directly assigned to inline field
                 emit_expr(f, obj, depth);
-                Bool use_dot = (obj->type.tag == NODE_FIELD_ACCESS && !obj->is_own_field);
+                Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
                 fprintf(f, "%s%s = ", use_dot ? "." : "->", fname->c_str);
-                emit_expr(f, expr_child(e, 1), depth);
+                emit_expr(f, Expr_child(e, &(I64){(I64)(1)}), depth);
                 fprintf(f, ";\n");
             } else {
                 // Non-shallow fcall for inline compound field: deref + free wrapper
-                const char *ftype = c_type_name(expr_child(e, 1)->til_type, expr_child(e, 1)->struct_name);
+                const char *ftype = c_type_name(Expr_child(e, &(I64){(I64)(1)})->til_type, &Expr_child(e, &(I64){(I64)(1)})->struct_name);
                 fprintf(f, "{ %s *_fa = ", ftype);
-                emit_expr(f, expr_child(e, 1), depth);
+                emit_expr(f, Expr_child(e, &(I64){(I64)(1)}), depth);
                 fprintf(f, "; ");
                 emit_expr(f, obj, depth);
-                Bool use_dot = (obj->type.tag == NODE_FIELD_ACCESS && !obj->is_own_field);
+                Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
                 fprintf(f, "%s%s = *_fa; free(_fa); }\n", use_dot ? "." : "->", fname->c_str);
             }
         } else {
             if (e->is_ns_field) {
-                fprintf(f, "%s_%s = ", obj->struct_name->c_str, fname->c_str);
+                fprintf(f, "%s_%s = ", obj->struct_name.c_str, fname->c_str);
             } else {
                 emit_expr(f, obj, depth);
-                Bool use_dot = (obj->type.tag == NODE_FIELD_ACCESS && !obj->is_own_field);
+                Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
                 fprintf(f, "%s%s = ", use_dot ? "." : "->", fname->c_str);
             }
             if (e->is_own_field) {
-                emit_expr(f, expr_child(e, 1), depth);
+                emit_expr(f, Expr_child(e, &(I64){(I64)(1)}), depth);
             } else {
-                emit_deref(f, expr_child(e, 1), depth);
+                emit_deref(f, Expr_child(e, &(I64){(I64)(1)}), depth);
             }
             fprintf(f, ";\n");
         }
         break;
     }
-    case NODE_FCALL:
+    case ExprData_TAG_FCall:
         // Suppress delete calls for hoisted scalar locals
-        if (expr_child(e, 0)->type.tag == NODE_FIELD_ACCESS &&
-            Str_eq_c(expr_child(e, 0)->type.str_val, "delete") &&
+        if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+            (Expr_child(e, &(I64){(I64)(0)})->data.data.Ident.count == 6 && memcmp(Expr_child(e, &(I64){(I64)(0)})->data.data.Ident.c_str, "delete", 6) == 0) &&
             e->children.count >= 2 &&
-            expr_child(e, 1)->type.tag == NODE_IDENT &&
-            is_shallow_local((const char *)expr_child(e, 1)->type.str_val->c_str)) {
+            Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident &&
+            is_shallow_local((const char *)Expr_child(e, &(I64){(I64)(1)})->data.data.Ident.c_str)) {
             fprintf(f, ";\n");
             break;
         }
-        if (e->struct_name && *Str_eq(expr_child(e, 0)->type.str_val, e->struct_name)) {
+        if ((e->struct_name).count > 0 && *Str_eq(&Expr_child(e, &(I64){(I64)(0)})->data.data.Ident, &e->struct_name)) {
             // Bare struct constructor statement — discard result
             fprintf(f, "/* discarded struct constructor */;\n");
         } else {
@@ -1042,34 +1043,34 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             fprintf(f, ";\n");
         }
         break;
-    case NODE_RETURN:
+    case ExprData_TAG_Return:
         if (e->children.count == 0) {
             if (in_main_func)
                 fprintf(f, "return 0;\n");
             else
                 fprintf(f, "return;\n");
         } else {
-            Expr *rv = expr_child(e, 0);
-            if (rv->type.tag == NODE_FCALL && rv->struct_name &&
-                *Str_eq(expr_child(rv, 0)->type.str_val, rv->struct_name)) {
+            Expr *rv = Expr_child(e, &(I64){(I64)(0)});
+            if (rv->data.tag == ExprData_TAG_FCall && rv->struct_name.count > 0 &&
+                *Str_eq(&Expr_child(rv, &(I64){(I64)(0)})->data.data.Ident, &rv->struct_name)) {
                 // Struct constructor return — malloc + field-by-field
-                const char *ctype = c_type_name(rv->til_type, rv->struct_name);
+                const char *ctype = c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s));\n", ctype, ctype);
                 emit_ctor_fields(f, "_r", rv, depth);
                 emit_indent(f, depth);
                 fprintf(f, "return _r; }\n");
-            } else if (rv->type.tag == NODE_FIELD_ACCESS && !rv->is_own_field &&
-                       !rv->is_ns_field && rv->til_type != TIL_TYPE_DYNAMIC) {
+            } else if (rv->data.tag == ExprData_TAG_FieldAccess && !rv->is_own_field &&
+                       !rv->is_ns_field && rv->til_type.tag != TilType_TAG_Dynamic) {
                 // Inline field value — must clone to heap pointer for return
-                const char *ctype = (current_fdef && current_fdef->type.func_def.return_type)
-                    ? type_name_to_c_value(current_fdef->type.func_def.return_type)
-                    : c_type_name(rv->til_type, rv->struct_name);
+                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                    ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
+                    : c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
                 fprintf(f, "; return _r; }\n");
-            } else if (current_fdef && current_fdef->type.func_def.return_is_shallow) {
+            } else if (current_fdef && current_fdef->data.data.FuncDef.return_is_shallow) {
                 // Shallow-return function — return value directly
-                if (rv->type.tag == NODE_FCALL && fcall_is_shallow_return(rv)) {
+                if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {
                     fprintf(f, "return ");
                     emit_expr(f, rv, depth);
                     fprintf(f, ";\n");
@@ -1078,23 +1079,23 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     emit_deref(f, rv, depth);
                     fprintf(f, ";\n");
                 }
-            } else if (rv->type.tag == NODE_FCALL && fcall_is_shallow_return(rv)) {
+            } else if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {
                 // returns shallow: box value return into heap pointer
-                const char *ctype = (current_fdef && current_fdef->type.func_def.return_type)
-                    ? type_name_to_c_value(current_fdef->type.func_def.return_type)
-                    : c_type_name(rv->til_type, rv->struct_name);
+                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                    ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
+                    : c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
                 emit_expr(f, rv, depth);
                 fprintf(f, "; return _r; }\n");
-            } else if (rv->type.tag == NODE_IDENT &&
-                       is_shallow_local((const char *)rv->type.str_val->c_str) &&
-                       !(current_fdef && current_fdef->type.func_def.return_is_shallow)) {
+            } else if (rv->data.tag == ExprData_TAG_Ident &&
+                       is_shallow_local((const char *)rv->data.data.Ident.c_str) &&
+                       !(current_fdef && current_fdef->data.data.FuncDef.return_is_shallow)) {
                 // Hoisted local returned from non-shallow function: box to heap
-                const char *ctype = (current_fdef && current_fdef->type.func_def.return_type)
-                    ? type_name_to_c_value(current_fdef->type.func_def.return_type)
-                    : c_type_name(rv->til_type, rv->struct_name);
+                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                    ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
+                    : c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = %s; return _r; }\n",
-                        ctype, ctype, rv->type.str_val->c_str);
+                        ctype, ctype, rv->data.data.Ident.c_str);
             } else {
                 fprintf(f, "return ");
                 emit_expr(f, rv, depth);
@@ -1102,48 +1103,48 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             }
         }
         break;
-    case NODE_BODY:
+    case ExprData_TAG_Body:
         fprintf(f, "{\n");
         emit_body(f, e, depth + 1);
         emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
-    case NODE_IF:
+    case ExprData_TAG_If:
         fprintf(f, "if (");
-        emit_deref(f, expr_child(e, 0), depth);
+        emit_deref(f, Expr_child(e, &(I64){(I64)(0)}), depth);
         fprintf(f, ") {\n");
-        emit_body(f, expr_child(e, 1), depth + 1);
+        emit_body(f, Expr_child(e, &(I64){(I64)(1)}), depth + 1);
         emit_indent(f, depth);
         if (e->children.count > 2) {
             fprintf(f, "} else {\n");
-            emit_body(f, expr_child(e, 2), depth + 1);
+            emit_body(f, Expr_child(e, &(I64){(I64)(2)}), depth + 1);
             emit_indent(f, depth);
         }
         fprintf(f, "}\n");
         break;
-    case NODE_WHILE:
+    case ExprData_TAG_While:
         fprintf(f, "while (");
-        emit_deref(f, expr_child(e, 0), depth);
+        emit_deref(f, Expr_child(e, &(I64){(I64)(0)}), depth);
         fprintf(f, ") {\n");
-        emit_body(f, expr_child(e, 1), depth + 1);
+        emit_body(f, Expr_child(e, &(I64){(I64)(1)}), depth + 1);
         emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
-    case NODE_BREAK:
+    case ExprData_TAG_Break:
         fprintf(f, "break;\n");
         break;
-    case NODE_CONTINUE:
+    case ExprData_TAG_Continue:
         fprintf(f, "continue;\n");
         break;
     default:
-        fprintf(f, "/* TODO: stmt type %d */\n", e->type.tag);
+        fprintf(f, "/* TODO: stmt type %d */\n", e->data.tag);
         break;
     }
 }
 
 static void emit_body(FILE *f, Expr *body, I32 depth) {
     for (U32 i = 0; i < body->children.count; i++) {
-        emit_stmt(f, expr_child(body, i), depth);
+        emit_stmt(f, Expr_child(body, &(I64){(I64)(i)}), depth);
     }
 }
 
@@ -1152,21 +1153,21 @@ static void emit_body(FILE *f, Expr *body, I32 depth) {
 // Emit namespace field initializations for all structs in the program
 static void emit_ns_inits(FILE *f, I32 depth) {
     for (U32 i = 0; i < codegen_program->children.count; i++) {
-        Expr *stmt = expr_child(codegen_program, i);
-        if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-                                        expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
-            Str *sname = stmt->type.decl.name;
-            Expr *edef = expr_child(stmt, 0);
-            Expr *body = expr_child(edef, 0);
+        Expr *stmt = Expr_child(codegen_program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                                        Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            Str *sname = &stmt->data.data.Decl.name;
+            Expr *edef = Expr_child(stmt, &(I64){(I64)(0)});
+            Expr *body = Expr_child(edef, &(I64){(I64)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (!field->type.decl.is_namespace) continue;
-                if (expr_child(field, 0)->type.tag == NODE_FUNC_DEF) continue;
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
+                if (Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) continue;
                 // Skip enum variant literals — handled by constructor functions
-                if (edef->type.tag == NODE_ENUM_DEF) continue;
+                if (edef->data.tag == ExprData_TAG_EnumDef) continue;
                 emit_indent(f, depth);
-                fprintf(f, "%s_%s = ", sname->c_str, field->type.decl.name->c_str);
-                emit_deref(f, expr_child(field, 0), depth);
+                fprintf(f, "%s_%s = ", sname->c_str, field->data.data.Decl.name.c_str);
+                emit_deref(f, Expr_child(field, &(I64){(I64)(0)}), depth);
                 fprintf(f, ";\n");
             }
         }
@@ -1174,15 +1175,15 @@ static void emit_ns_inits(FILE *f, I32 depth) {
 }
 
 static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, Bool is_static) {
-    (void)func_def->type.func_def.func_type;
-    Expr *body = expr_child(func_def, 0);
+    (void)func_def->data.data.FuncDef.func_type;
+    Expr *body = Expr_child(func_def, &(I64){(I64)(0)});
 
     // In needs_main mode, main proc becomes C main()
-    Bool is_main = mode && mode->needs_main && Str_eq_c(name, "main");
+    Bool is_main = mode && mode->needs_main && (name->count == 4 && memcmp(name->c_str, "main", 4) == 0);
 
     if (is_main) {
-        U32 nparam = func_def->type.func_def.nparam;
-        I32 vi = func_def->type.func_def.variadic_index;
+        U32 nparam = func_def->data.data.FuncDef.nparam;
+        I32 vi = func_def->data.data.FuncDef.variadic_index;
         if (nparam == 0) {
             fprintf(f, "int main(int argc, char **argv) {\n");
             fprintf(f, "    (void)argv;\n");
@@ -1202,11 +1203,11 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
         emit_ns_inits(f, 1);
         if (has_script_globals) {
             for (U32 i = 0; i < codegen_program->children.count; i++) {
-                Expr *gs = expr_child(codegen_program, i);
-                if (gs->type.tag != NODE_DECL) continue;
-                Expr *rhs = expr_child(gs, 0);
-                if (rhs->type.tag == NODE_FUNC_DEF || rhs->type.tag == NODE_STRUCT_DEF ||
-                    rhs->type.tag == NODE_ENUM_DEF) continue;
+                Expr *gs = Expr_child(codegen_program, &(I64){(I64)(i)});
+                if (gs->data.tag != ExprData_TAG_Decl) continue;
+                Expr *rhs = Expr_child(gs, &(I64){(I64)(0)});
+                if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
+                    rhs->data.tag == ExprData_TAG_EnumDef) continue;
                 emit_stmt(f, gs, 1);
             }
         }
@@ -1214,59 +1215,57 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
             // Parse and bind each param
             I32 argi = 1; // argv[0] is program name, skip it
             for (U32 i = 0; i < nparam; i++) {
-                Str *pname = func_def->type.func_def.param_names[i];
-                Str *ptype = func_def->type.func_def.param_types[i];
+                Str *pname = ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)}));
+                Str *ptype = ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)}));
                 if ((I32)i == vi) {
                     // Build Array[T] from remaining args
                     const char *et = (const char *)ptype->c_str;
                     fprintf(f, "    int _va_argc = argc - %d;\n", argi);
-                    fprintf(f, "    Str *_va_et = Str_lit(\"%s\", %lluULL);\n", et, (unsigned long long)ptype->count);
                     fprintf(f, "    U64 _va_esz = sizeof(%s);\n", et);
                     fprintf(f, "    U64 _va_cap = _va_argc;\n");
-                    fprintf(f, "    Array *%s = Array_new(_va_et, &(U64){_va_esz}, &(U64){_va_cap});\n", pname->c_str);
-                    fprintf(f, "    Str_delete(_va_et, &(Bool){1});\n");
+                    fprintf(f, "    Array *%s = Array_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(U64){_va_esz}, &(U64){_va_cap});\n", pname->c_str, et, (unsigned long long)ptype->count);
                     fprintf(f, "    for (int _i = 0; _i < _va_argc; _i++) {\n");
                     fprintf(f, "        U64 _idx = _i;\n");
-                    if (Str_eq_c(ptype, "Str"))
-                        fprintf(f, "        Str *_val = Str_lit(argv[%d + _i], strlen(argv[%d + _i]));\n", argi, argi);
-                    else if (Str_eq_c(ptype, "I64"))
+                    if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0))
+                        fprintf(f, "        Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv[%d + _i], .count = strlen(argv[%d + _i]), .cap = TIL_CAP_LIT});\n", argi, argi);
+                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0))
                         fprintf(f, "        I64 *_val = cli_parse_i64(argv[%d + _i]);\n", argi);
-                    else if (Str_eq_c(ptype, "U8"))
+                    else if ((ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0))
                         fprintf(f, "        U8 *_val = cli_parse_u8(argv[%d + _i]);\n", argi);
-                    else if (Str_eq_c(ptype, "I16"))
+                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0))
                         fprintf(f, "        I16 *_val = cli_parse_i16(argv[%d + _i]);\n", argi);
-                    else if (Str_eq_c(ptype, "I32"))
+                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0))
                         fprintf(f, "        I32 *_val = cli_parse_i32(argv[%d + _i]);\n", argi);
-                    else if (Str_eq_c(ptype, "U32"))
+                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0))
                         fprintf(f, "        U32 *_val = cli_parse_u32(argv[%d + _i]);\n", argi);
-                    else if (Str_eq_c(ptype, "U64"))
+                    else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
                         fprintf(f, "        U64 *_val = cli_parse_u64(argv[%d + _i]);\n", argi);
-                    else if (Str_eq_c(ptype, "Bool"))
+                    else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         fprintf(f, "        Bool *_val = cli_parse_bool(argv[%d + _i]);\n", argi);
                     fprintf(f, "        Array_set(%s, &(U64){_idx}, _val);\n", pname->c_str);
                     fprintf(f, "    }\n");
-                } else if (Str_eq_c(ptype, "Str")) {
-                    fprintf(f, "    Str *%s = Str_lit(argv[%d], strlen(argv[%d]));\n", pname->c_str, argi, argi);
+                } else if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
+                    fprintf(f, "    Str *%s = Str_clone(&(Str){.c_str = (U8 *)argv[%d], .count = strlen(argv[%d]), .cap = TIL_CAP_LIT});\n", pname->c_str, argi, argi);
                     argi++;
-                } else if (Str_eq_c(ptype, "I64")) {
+                } else if ((ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0)) {
                     fprintf(f, "    I64 *%s = cli_parse_i64(argv[%d]);\n", pname->c_str, argi);
                     argi++;
-                } else if (Str_eq_c(ptype, "U8")) {
+                } else if ((ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0)) {
                     fprintf(f, "    U8 *%s = cli_parse_u8(argv[%d]);\n", pname->c_str, argi);
                     argi++;
-                } else if (Str_eq_c(ptype, "I16")) {
+                } else if ((ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0)) {
                     fprintf(f, "    I16 *%s = cli_parse_i16(argv[%d]);\n", pname->c_str, argi);
                     argi++;
-                } else if (Str_eq_c(ptype, "I32")) {
+                } else if ((ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0)) {
                     fprintf(f, "    I32 *%s = cli_parse_i32(argv[%d]);\n", pname->c_str, argi);
                     argi++;
-                } else if (Str_eq_c(ptype, "U32")) {
+                } else if ((ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0)) {
                     fprintf(f, "    U32 *%s = cli_parse_u32(argv[%d]);\n", pname->c_str, argi);
                     argi++;
-                } else if (Str_eq_c(ptype, "U64")) {
+                } else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0)) {
                     fprintf(f, "    U64 *%s = cli_parse_u64(argv[%d]);\n", pname->c_str, argi);
                     argi++;
-                } else if (Str_eq_c(ptype, "Bool")) {
+                } else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0)) {
                     fprintf(f, "    Bool *%s = cli_parse_bool(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else {
@@ -1280,9 +1279,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
             Set saved_shallow = shallow_locals;
             Map saved_stypes = shallow_local_types;
             Set saved_unsafe = unsafe_to_hoist;
-            { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
-            { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
-            { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+            { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
+            { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
             collect_unsafe_to_hoist(body);
             in_main_func = 1;
             emit_body(f, body, 1);
@@ -1299,26 +1298,26 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
     } else {
         // Return type
         const char *ret = "void";
-        if (func_def->type.func_def.return_type) {
-            ret = func_def->type.func_def.return_is_shallow
-                ? type_name_to_c_value(func_def->type.func_def.return_type)
-                : type_name_to_c(func_def->type.func_def.return_type);
+        if (func_def->data.data.FuncDef.return_type.count > 0) {
+            ret = func_def->data.data.FuncDef.return_is_shallow
+                ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
+                : type_name_to_c(&func_def->data.data.FuncDef.return_type);
         }
         // Signature
         fprintf(f, "%s%s %s(", is_static ? "static __attribute__((unused)) " : "", ret, func_to_c(name));
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
-        for (U32 i = 0; i < func_def->type.func_def.nparam; i++)
-            fprintf(f, "    (void)%s;\n", func_def->type.func_def.param_names[i]->c_str);
+        for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++)
+            fprintf(f, "    (void)%s;\n", ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)}))->c_str);
         in_func_def = 1;
         current_fdef = func_def;
         // Save/restore shallow_locals and unsafe_to_hoist per function
         Set saved_shallow = shallow_locals;
         Map saved_stypes = shallow_local_types;
         Set saved_unsafe = unsafe_to_hoist;
-        { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
-        { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
-        { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
         collect_unsafe_to_hoist(body);
         emit_body(f, body, 1);
         Set_delete(&shallow_locals, &(Bool){0});
@@ -1335,121 +1334,61 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
 
 // Types already defined by ext.h/aliases.h — skip emitting typedefs/forward-decls
 static Bool is_ext_h_type(Str *name) {
-    return Str_eq_c(name, "U8") || Str_eq_c(name, "I16") || Str_eq_c(name, "I32") ||
-           Str_eq_c(name, "F32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") ||
-           Str_eq_c(name, "I64") || Str_eq_c(name, "Bool") || Str_eq_c(name, "Str") ||
-           Str_eq_c(name, "Array");
+    return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
+           (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
+           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0) || (name->count == 3 && memcmp(name->c_str, "Str", 3) == 0) ||
+           (name->count == 5 && memcmp(name->c_str, "Array", 5) == 0);
 }
 
 // ext_func/ext_proc names that conflict with libc or builder-emitted statics
 static Bool is_skip_ext_decl(Str *name) {
-    return Str_eq_c(name, "exit") || Str_eq_c(name, "free") || Str_eq_c(name, "malloc") ||
-           Str_eq_c(name, "calloc") || Str_eq_c(name, "realloc") || Str_eq_c(name, "memcpy") ||
-           Str_eq_c(name, "memmove") || Str_eq_c(name, "print_single") || Str_eq_c(name, "print_flush");
+    return (name->count == 4 && memcmp(name->c_str, "exit", 4) == 0) || (name->count == 4 && memcmp(name->c_str, "free", 4) == 0) || (name->count == 6 && memcmp(name->c_str, "malloc", 6) == 0) ||
+           (name->count == 6 && memcmp(name->c_str, "calloc", 6) == 0) || (name->count == 7 && memcmp(name->c_str, "realloc", 7) == 0) || (name->count == 6 && memcmp(name->c_str, "memcpy", 6) == 0) ||
+           (name->count == 7 && memcmp(name->c_str, "memmove", 7) == 0) || (name->count == 12 && memcmp(name->c_str, "print_single", 12) == 0) || (name->count == 11 && memcmp(name->c_str, "print_flush", 11) == 0);
 }
 
 // Scalar types whose methods should be emitted as static in core.c
 // (avoids duplicate symbol conflicts with ext.c)
 static Bool is_scalar_method_type(Str *name) {
-    return Str_eq_c(name, "U8") || Str_eq_c(name, "I16") || Str_eq_c(name, "I32") ||
-           Str_eq_c(name, "F32") || Str_eq_c(name, "U32") || Str_eq_c(name, "U64") ||
-           Str_eq_c(name, "I64") || Str_eq_c(name, "Bool");
+    return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
+           (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
+           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
 }
 
-// Topological sort for struct/enum definitions: emit types with inline
-// struct fields after their dependencies. Collects indices into sorted_out.
-static void topo_sort_structs(Expr *program, U32 *sorted_out, U32 *nsorted) {
-    // Collect all struct/enum definition indices
-    U32 indices[512];
-    Str *names[512];
-    U32 n = 0;
-    for (U32 i = 0; i < program->children.count && n < 512; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL &&
-            (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-             expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
-            indices[n] = i;
-            names[n] = stmt->type.decl.name;
-            n++;
-        }
-    }
-    // Mark which are emitted
-    Bool emitted[512] = {0};
-    *nsorted = 0;
-    // Repeatedly emit types with no unresolved inline dependencies
-    Bool progress = 1;
-    while (progress) {
-        progress = 0;
-        for (U32 i = 0; i < n; i++) {
-            if (emitted[i]) continue;
-            Expr *stmt = expr_child(program, indices[i]);
-            Expr *def = expr_child(stmt, 0);
-            Bool deps_met = 1;
-            if (def->type.tag == NODE_STRUCT_DEF) {
-                Expr *body = expr_child(def, 0);
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = expr_child(body, j);
-                    if (field->type.decl.is_namespace) continue;
-                    if (field->type.decl.is_own || field->type.decl.is_ref) continue;
-                    // Inline struct field — check if dependency is emitted
-                    if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) &&
-                        expr_child(field, 0)->struct_name) {
-                        Str *dep = expr_child(field, 0)->struct_name;
-                        if (is_ext_h_type(dep)) continue;
-                        Bool found = 0;
-                        for (U32 k = 0; k < n; k++) {
-                            if (emitted[k] && *Str_eq(names[k], dep)) { found = 1; break; }
-                        }
-                        if (!found) { deps_met = 0; break; }
-                    }
-                }
-            }
-            if (deps_met) {
-                sorted_out[(*nsorted)++] = indices[i];
-                emitted[i] = 1;
-                progress = 1;
-            }
-        }
-    }
-    // Emit any remaining (circular deps — shouldn't happen but be safe)
-    for (U32 i = 0; i < n; i++) {
-        if (!emitted[i]) sorted_out[(*nsorted)++] = indices[i];
-    }
-}
 
 static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
-    Expr *body = expr_child(struct_def, 0);
+    Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
     if (is_ext_h_type(name)) return; // defined by ext.h/aliases.h
     Bool has_instance_fields = 0;
     for (U32 i = 0; i < body->children.count; i++)
-        if (!expr_child(body, i)->type.decl.is_namespace) { has_instance_fields = 1; break; }
+        if (!Expr_child(body, &(I64){(I64)(i)})->data.data.Decl.is_namespace) { has_instance_fields = 1; break; }
     fprintf(f, "typedef struct %s {\n", name->c_str);
     if (!has_instance_fields) {
         fprintf(f, "    char _;\n"); // padding for empty structs
     }
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = expr_child(body, i);
-        if (field->type.decl.is_namespace) continue;
-        if ((field->type.decl.is_own || field->type.decl.is_ref) && (field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
-            fprintf(f, "    %s *%s;\n", expr_child(field, 0)->struct_name->c_str, field->type.decl.name->c_str);
-        } else if (field->type.decl.is_own || field->type.decl.is_ref) {
-            fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->type.decl.name->c_str);
-        } else if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
-            fprintf(f, "    %s %s;\n", expr_child(field, 0)->struct_name->c_str, field->type.decl.name->c_str);
+        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+        if (field->data.data.Decl.is_namespace) continue;
+        if ((field->data.data.Decl.is_own || field->data.data.Decl.is_ref) && (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(I64){(I64)(0)})->struct_name.count > 0)) {
+            fprintf(f, "    %s *%s;\n", Expr_child(field, &(I64){(I64)(0)})->struct_name.c_str, field->data.data.Decl.name.c_str);
+        } else if (field->data.data.Decl.is_own || field->data.data.Decl.is_ref) {
+            fprintf(f, "    %s *%s;\n", til_type_to_c(field->til_type), field->data.data.Decl.name.c_str);
+        } else if ((field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(I64){(I64)(0)})->struct_name.count > 0)) {
+            fprintf(f, "    %s %s;\n", Expr_child(field, &(I64){(I64)(0)})->struct_name.c_str, field->data.data.Decl.name.c_str);
         } else {
-            fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->type.decl.name->c_str);
+            fprintf(f, "    %s %s;\n", til_type_to_c(field->til_type), field->data.data.Decl.name.c_str);
         }
     }
     fprintf(f, "} %s;\n\n", name->c_str);
     // Emit namespace fields as globals (skip func defs — emitted separately)
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = expr_child(body, i);
-        if (!field->type.decl.is_namespace) continue;
-        if (expr_child(field, 0)->type.tag == NODE_FUNC_DEF) continue;
-        if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) && expr_child(field, 0)->struct_name) {
-            fprintf(f, "%s %s_%s;\n", expr_child(field, 0)->struct_name->c_str, name->c_str, field->type.decl.name->c_str);
+        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+        if (!field->data.data.Decl.is_namespace) continue;
+        if (Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) continue;
+        if ((field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) && (Expr_child(field, &(I64){(I64)(0)})->struct_name.count > 0)) {
+            fprintf(f, "%s %s_%s;\n", Expr_child(field, &(I64){(I64)(0)})->struct_name.c_str, name->c_str, field->data.data.Decl.name.c_str);
         } else {
-            fprintf(f, "%s %s_%s;\n", til_type_to_c(field->til_type), name->c_str, field->type.decl.name->c_str);
+            fprintf(f, "%s %s_%s;\n", til_type_to_c(field->til_type), name->c_str, field->data.data.Decl.name.c_str);
         }
     }
 }
@@ -1457,8 +1396,8 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
 // Check if a func_def has any shallow parameters (which means its C signature
 // matches ext.h declarations — can't use 'static' or it conflicts)
 static Bool func_has_shallow_params(Expr *fdef) {
-    for (U32 i = 0; i < fdef->type.func_def.nparam; i++) {
-        if (fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[i])
+    for (U32 i = 0; i < fdef->data.data.FuncDef.nparam; i++) {
+        if (fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(i)})))
             return 1;
     }
     return 0;
@@ -1466,21 +1405,21 @@ static Bool func_has_shallow_params(Expr *fdef) {
 
 static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib) {
     Bool is_scalar = is_lib && is_scalar_method_type(name);
-    Expr *body = expr_child(struct_def, 0);
+    Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = expr_child(body, i);
-        if (!field->type.decl.is_namespace) continue;
-        if (expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
-        Expr *fdef = expr_child(field, 0);
-        FuncType fft = fdef->type.func_def.func_type;
-        if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+        if (!field->data.data.Decl.is_namespace) continue;
+        if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+        FuncType fft = fdef->data.data.FuncDef.func_type;
+        if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
         // Emit size() as sizeof — the initer's computed sum doesn't account for
         // C alignment padding or union semantics in tagged enums
-        if (Str_eq_c(field->type.decl.name, "size") &&
-            fdef->type.func_def.nparam == 0 &&
-            fdef->type.func_def.return_type &&
-            Str_eq_c(fdef->type.func_def.return_type, "U64")) {
-            if (fdef->type.func_def.return_is_shallow) {
+        if ((field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0) &&
+            fdef->data.data.FuncDef.nparam == 0 &&
+            (fdef->data.data.FuncDef.return_type).count > 0 &&
+            (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0)) {
+            if (fdef->data.data.FuncDef.return_is_shallow) {
                 fprintf(f, "%sU64 %s_size(void) {\n", is_scalar ? "static " : "", name->c_str);
                 fprintf(f, "    return (U64)sizeof(%s);\n", name->c_str);
             } else {
@@ -1496,8 +1435,8 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib)
         // non-static for shallow-param funcs (match ext.h, linker deduplicates)
         Bool make_static = is_scalar && !func_has_shallow_params(fdef);
         char full_name_buf[256];
-        snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->type.decl.name->c_str);
-        Str *full_name = Str_new(full_name_buf);
+        snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->data.data.Decl.name.c_str);
+        Str *full_name = Str_clone(&(Str){.c_str = (U8*)(full_name_buf), .count = (U64)strlen((const char*)(full_name_buf)), .cap = CAP_VIEW});
         emit_func_def(f, full_name, fdef, NULL, make_static);
         Str_delete(full_name, &(Bool){1});
         fprintf(f, "\n");
@@ -1505,16 +1444,16 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib)
 }
 
 static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
-    Expr *body = expr_child(enum_def, 0);
-    Bool hp = enum_has_payloads(enum_def);
+    Expr *body = Expr_child(enum_def, &(I64){(I64)(0)});
+    Bool hp = *enum_has_payloads(enum_def);
 
     // Find eq fdef to determine if is_Variant should also return shallow Bool
     Bool is_variant_shallow = 0;
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = expr_child(body, i);
-        if (field->type.decl.is_namespace && Str_eq_c(field->type.decl.name, "eq") &&
-            expr_child(field, 0)->type.tag == NODE_FUNC_DEF &&
-            expr_child(field, 0)->type.func_def.return_is_shallow) {
+        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+        if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
+            Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef &&
+            Expr_child(field, &(I64){(I64)(0)})->data.data.FuncDef.return_is_shallow) {
             is_variant_shallow = 1;
             break;
         }
@@ -1525,11 +1464,11 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Collect variant names from non-namespace entries
         Vec vnames;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
-            Expr *v = expr_child(body, i);
-            if (v->type.decl.is_namespace) continue;
-            { Str **_p = malloc(sizeof(Str *)); *_p = v->type.decl.name; Vec_push(&vnames, _p); }
+            Expr *v = Expr_child(body, &(I64){(I64)(i)});
+            if (v->data.data.Decl.is_namespace) continue;
+            { Str **_p = malloc(sizeof(Str *)); *_p = &v->data.data.Decl.name; Vec_push(&vnames, _p); }
         }
 
         // Zero-arg constructors
@@ -1563,21 +1502,21 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Collect variant info from non-namespace entries
         Vec vnames;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
         Vec vtypes;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); vtypes = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); vtypes = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
-            Expr *v = expr_child(body, i);
-            if (v->type.decl.is_namespace) continue;
-            { Str **_p = malloc(sizeof(Str *)); *_p = v->type.decl.name; Vec_push(&vnames, _p); }
-            { Str **_p = malloc(sizeof(Str *)); *_p = v->type.decl.explicit_type; Vec_push(&vtypes, _p); }
+            Expr *v = Expr_child(body, &(I64){(I64)(i)});
+            if (v->data.data.Decl.is_namespace) continue;
+            { Str **_p = malloc(sizeof(Str *)); *_p = &v->data.data.Decl.name; Vec_push(&vnames, _p); }
+            { Str **_p = malloc(sizeof(Str *)); *_p = &v->data.data.Decl.explicit_type; Vec_push(&vtypes, _p); }
         }
 
         // Constructor functions for all variants
         for (U32 i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
             Str *vt = *(Str **)Vec_get(&vtypes, &(U64){(U64)(i)});
-            if (!vt) {
+            if (vt->count == 0) {
                 // Zero-arg constructor for no-payload variant
                 fprintf(f, "%s *%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
                 fprintf(f, "    %s *r = malloc(sizeof(%s));\n", name->c_str, name->c_str);
@@ -1624,7 +1563,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         for (U32 i = 0; i < vnames.count; i++) {
             Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
             Str *vt = *(Str **)Vec_get(&vtypes, &(U64){(U64)(i)});
-            if (!vt) continue;
+            if (vt->count == 0) continue;
             const char *ptype = type_name_to_c(vt);
             fprintf(f, "%s %s_get_%s(%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
             // Read from inline storage
@@ -1647,18 +1586,18 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
     // Emit namespace func/proc methods (to_str, user methods)
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = expr_child(body, i);
-        if (!field->type.decl.is_namespace) continue;
-        if (expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
-        Expr *fdef = expr_child(field, 0);
-        FuncType fft = fdef->type.func_def.func_type;
-        if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+        if (!field->data.data.Decl.is_namespace) continue;
+        if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+        FuncType fft = fdef->data.data.FuncDef.func_type;
+        if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
         // Emit size() as sizeof (same as struct_funcs)
-        if (Str_eq_c(field->type.decl.name, "size") &&
-            fdef->type.func_def.nparam == 0 &&
-            fdef->type.func_def.return_type &&
-            Str_eq_c(fdef->type.func_def.return_type, "U64")) {
-            if (fdef->type.func_def.return_is_shallow) {
+        if ((field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0) &&
+            fdef->data.data.FuncDef.nparam == 0 &&
+            (fdef->data.data.FuncDef.return_type).count > 0 &&
+            (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0)) {
+            if (fdef->data.data.FuncDef.return_is_shallow) {
                 fprintf(f, "U64 %s_size(void) {\n", name->c_str);
                 fprintf(f, "    return (U64)sizeof(%s);\n", name->c_str);
             } else {
@@ -1671,8 +1610,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             continue;
         }
         char full_name_buf[256];
-        snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->type.decl.name->c_str);
-        Str *full_name = Str_new(full_name_buf);
+        snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->data.data.Decl.name.c_str);
+        Str *full_name = Str_clone(&(Str){.c_str = (U8*)(full_name_buf), .count = (U64)strlen((const char*)(full_name_buf)), .cap = CAP_VIEW});
         emit_func_def(f, full_name, fdef, NULL, 0);
         Str_delete(full_name, &(Bool){1});
         fprintf(f, "\n");
@@ -1687,58 +1626,58 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                            strcmp(mode->name, "pure") == 0 || strcmp(mode->name, "pura") == 0);
 
     // Build struct body lookup map
-    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
     // Build func_def lookup map (for shallow param lookup at call sites)
-    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
     // Initialize shallow_locals and unsafe_to_hoist sets for scalar local hoisting
-    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
-    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
-    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            Str *sname = stmt->type.decl.name;
-            Expr *body = expr_child(expr_child(stmt, 0), 0);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
+            Str *sname = &stmt->data.data.Decl.name;
+            Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){sname->c_str, sname->count, CAP_VIEW}; void *_v = malloc(sizeof(body)); memcpy(_v, &body, sizeof(body)); Map_set(&struct_bodies, _k, _v); }
             // Register namespace methods
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (!field->type.decl.is_namespace) continue;
-                if (field->children.count == 0 || expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
-                Expr *fdef = expr_child(field, 0);
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
+                if (field->children.count == 0 || Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
                 char flat[256];
-                snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->type.decl.name->c_str);
-                Str *key = Str_new(flat);
+                snprintf(flat, sizeof(flat), "%s_%s", sname->c_str, field->data.data.Decl.name.c_str);
+                Str *key = Str_clone(&(Str){.c_str = (U8*)(flat), .count = (U64)strlen((const char*)(flat)), .cap = CAP_VIEW});
                 { Str *_k = malloc(sizeof(Str)); *_k = (Str){key->c_str, key->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
                 // Also register nested ext_funcs inside this namespace method
                 // (names are already flattened by precomp, e.g. "U8_from_i64_ext")
                 if (fdef->children.count > 0) {
-                    Expr *fbody = expr_child(fdef, 0);
+                    Expr *fbody = Expr_child(fdef, &(I64){(I64)(0)});
                     for (U32 k = 0; k < fbody->children.count; k++) {
-                        Expr *nested = expr_child(fbody, k);
-                        if (nested->type.tag != NODE_DECL) continue;
-                        if (nested->children.count == 0 || expr_child(nested, 0)->type.tag != NODE_FUNC_DEF) continue;
-                        Expr *nfdef = expr_child(nested, 0);
-                        Str *nkey = Str_new((const char *)nested->type.decl.name->c_str);
+                        Expr *nested = Expr_child(fbody, &(I64){(I64)(k)});
+                        if (nested->data.tag != ExprData_TAG_Decl) continue;
+                        if (nested->children.count == 0 || Expr_child(nested, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                        Expr *nfdef = Expr_child(nested, &(I64){(I64)(0)});
+                        Str *nkey = Str_clone(&nested->data.data.Decl.name);
                         { Str *_k2 = malloc(sizeof(Str)); *_k2 = (Str){nkey->c_str, nkey->count, CAP_VIEW}; void *_v2 = malloc(sizeof(nfdef)); memcpy(_v2, &nfdef, sizeof(nfdef)); Map_set(&func_defs, _k2, _v2); }
                     }
                 }
             }
         }
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
-            Str *fname = stmt->type.decl.name;
-            Expr *fdef = expr_child(stmt, 0);
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            Str *fname = &stmt->data.data.Decl.name;
+            Expr *fdef = Expr_child(stmt, &(I64){(I64)(0)});
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){fname->c_str, fname->count, CAP_VIEW}; void *_v = malloc(sizeof(fdef)); memcpy(_v, &fdef, sizeof(fdef)); Map_set(&func_defs, _k, _v); }
         }
     }
     // Collect FuncSig names (bodyless func/proc definitions)
-    { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
     has_funcsig_names = 1;
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
-            expr_child(stmt, 0)->children.count == 0) {
-            Str *n = stmt->type.decl.name;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef &&
+            Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) {
+            Str *n = &stmt->data.data.Decl.name;
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
         }
     }
@@ -1754,22 +1693,22 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Forward-declare all structs (skip types defined by ext.h)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            if (is_ext_h_type(stmt->type.decl.name)) continue;
-            fprintf(f, "typedef struct %s %s;\n", stmt->type.decl.name->c_str, stmt->type.decl.name->c_str);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
+            if (is_ext_h_type(&stmt->data.data.Decl.name)) continue;
+            fprintf(f, "typedef struct %s %s;\n", stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
         }
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
-            Str *ename = stmt->type.decl.name;
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            Str *ename = &stmt->data.data.Decl.name;
             // Emit tag enum only; struct definition deferred to after struct typedefs
-            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+            Expr *ebody = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
             fprintf(f, "typedef enum {\n");
             I32 tag = 0;
             for (U32 j = 0; j < ebody->children.count; j++) {
-                Expr *v = expr_child(ebody, j);
-                if (v->type.decl.is_namespace) continue;
+                Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                if (v->data.data.Decl.is_namespace) continue;
                 if (tag > 0) fprintf(f, ",\n");
-                fprintf(f, "    %s_TAG_%s", ename->c_str, v->type.decl.name->c_str);
+                fprintf(f, "    %s_TAG_%s", ename->c_str, v->data.data.Decl.name.c_str);
                 tag++;
             }
             fprintf(f, "\n} %s_tag;\n", ename->c_str);
@@ -1781,69 +1720,69 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins + libc conflicts)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->is_core) continue;
-        if (stmt->type.tag != NODE_DECL || expr_child(stmt, 0)->type.tag != NODE_FUNC_DEF) continue;
-        Expr *fdef = expr_child(stmt, 0);
-        FuncType fft = fdef->type.func_def.func_type;
-        if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
-        if (is_skip_ext_decl(stmt->type.decl.name)) continue;
-        if (fdef->type.func_def.return_type) {
-            const char *rt = fdef->type.func_def.return_is_shallow
-                ? type_name_to_c_value(fdef->type.func_def.return_type)
-                : type_name_to_c(fdef->type.func_def.return_type);
-            fprintf(f, "%s %s(", rt, func_to_c(stmt->type.decl.name));
+        if (stmt->data.tag != ExprData_TAG_Decl || Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        Expr *fdef = Expr_child(stmt, &(I64){(I64)(0)});
+        FuncType fft = fdef->data.data.FuncDef.func_type;
+        if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
+        if (is_skip_ext_decl(&stmt->data.data.Decl.name)) continue;
+        if (fdef->data.data.FuncDef.return_type.count > 0) {
+            const char *rt = fdef->data.data.FuncDef.return_is_shallow
+                ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
+                : type_name_to_c(&fdef->data.data.FuncDef.return_type);
+            fprintf(f, "%s %s(", rt, func_to_c(&stmt->data.data.Decl.name));
         }
         else
-            fprintf(f, "void %s(", func_to_c(stmt->type.decl.name));
+            fprintf(f, "void %s(", func_to_c(&stmt->data.data.Decl.name));
         emit_param_list(f, fdef, 0);
         fprintf(f, ");\n");
     }
     fprintf(f, "\n");
 
-    // Forward-declare string/print helper functions (implementations after struct defs)
+    // Forward-declare helper functions (implementations after struct defs)
     fprintf(f, "static Str *Str_lit(const char *s, unsigned long long len);\n");
     fprintf(f, "static void print_single(Str *s);\n");
     fprintf(f, "static void print_flush();\n\n");
 
     // Forward-declare all functions (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-                                         expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
-            Str *sname = stmt->type.decl.name;
-            Expr *body = expr_child(expr_child(stmt, 0), 0);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                                         Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            Str *sname = &stmt->data.data.Decl.name;
+            Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (!field->type.decl.is_namespace) continue;
-                if (expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
-                Expr *fdef = expr_child(field, 0);
-                FuncType fft = fdef->type.func_def.func_type;
-                if ((fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) && stmt->is_core) continue;
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
+                if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                FuncType fft = fdef->data.data.FuncDef.func_type;
+                if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && stmt->is_core) continue;
                 const char *ret = "void";
-                if (fdef->type.func_def.return_type) {
-                    ret = fdef->type.func_def.return_is_shallow
-                        ? type_name_to_c_value(fdef->type.func_def.return_type)
-                        : type_name_to_c(fdef->type.func_def.return_type);
+                if (fdef->data.data.FuncDef.return_type.count > 0) {
+                    ret = fdef->data.data.FuncDef.return_is_shallow
+                        ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
+                        : type_name_to_c(&fdef->data.data.FuncDef.return_type);
                 }
-                Bool is_ext = (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC);
+                Bool is_ext = (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc);
                 Bool fwd_static = is_lib && is_scalar_method_type(sname) && !is_ext && !func_has_shallow_params(fdef);
-                fprintf(f, "%s%s %s_%s(", fwd_static ? "static __attribute__((unused)) " : "", ret, sname->c_str, field->type.decl.name->c_str);
+                fprintf(f, "%s%s %s_%s(", fwd_static ? "static __attribute__((unused)) " : "", ret, sname->c_str, field->data.data.Decl.name.c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
-        } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
-            Expr *func_def = expr_child(stmt, 0);
-            FuncType fft = func_def->type.func_def.func_type;
-            if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
-            Str *name = stmt->type.decl.name;
-            Bool is_main = mode && mode->needs_main && Str_eq_c(name, "main");
+        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            Expr *func_def = Expr_child(stmt, &(I64){(I64)(0)});
+            FuncType fft = func_def->data.data.FuncDef.func_type;
+            if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
+            Str *name = &stmt->data.data.Decl.name;
+            Bool is_main = mode && mode->needs_main && (name->count == 4 && memcmp(name->c_str, "main", 4) == 0);
             if (is_main) continue;
             const char *ret = "void";
-            if (func_def->type.func_def.return_type)
-                ret = func_def->type.func_def.return_is_shallow
-                    ? type_name_to_c_value(func_def->type.func_def.return_type)
-                    : type_name_to_c(func_def->type.func_def.return_type);
+            if (func_def->data.data.FuncDef.return_type.count > 0)
+                ret = func_def->data.data.FuncDef.return_is_shallow
+                    ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
+                    : type_name_to_c(&func_def->data.data.FuncDef.return_type);
             fprintf(f, "%s %s(", ret, func_to_c(name));
             emit_param_list(f, func_def, 1);
             fprintf(f, ");\n");
@@ -1851,43 +1790,43 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     }
     // Forward-declare enum ext methods (eq, constructors + payload methods)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
-            Str *sname = stmt->type.decl.name;
-            Bool hp = enum_has_payloads(expr_child(stmt, 0));
-            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            Str *sname = &stmt->data.data.Decl.name;
+            Bool hp = *enum_has_payloads(Expr_child(stmt, &(I64){(I64)(0)}));
+            Expr *ebody = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
             // Find eq fdef to check return_is_shallow
             Expr *eq_fdef = NULL;
             for (U32 j = 0; j < ebody->children.count; j++) {
-                Expr *field = expr_child(ebody, j);
-                if (field->type.decl.is_namespace && Str_eq_c(field->type.decl.name, "eq") &&
-                    expr_child(field, 0)->type.tag == NODE_FUNC_DEF) {
-                    eq_fdef = expr_child(field, 0);
+                Expr *field = Expr_child(ebody, &(I64){(I64)(j)});
+                if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
+                    Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    eq_fdef = Expr_child(field, &(I64){(I64)(0)});
                     break;
                 }
             }
-            const char *eq_ret = (eq_fdef && eq_fdef->type.func_def.return_is_shallow) ? "Bool" : "Bool *";
+            const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
             fprintf(f, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
             for (U32 j = 0; j < ebody->children.count; j++) {
-                Expr *v = expr_child(ebody, j);
-                if (v->type.decl.is_namespace) continue;
-                const char *is_ret = (eq_fdef && eq_fdef->type.func_def.return_is_shallow) ? "Bool" : "Bool *";
+                Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                if (v->data.data.Decl.is_namespace) continue;
+                const char *is_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
                 if (hp) {
                     // is_Variant
-                    fprintf(f, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->type.decl.name->c_str, sname->c_str);
+                    fprintf(f, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                 }
-                if (v->type.decl.explicit_type) {
+                if (v->data.data.Decl.explicit_type.count > 0) {
                     // Payload constructor
                     fprintf(f, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
-                            v->type.decl.name->c_str, type_name_to_c(v->type.decl.explicit_type));
+                            v->data.data.Decl.name.c_str, type_name_to_c(&v->data.data.Decl.explicit_type));
                     // get_Variant
                     fprintf(f, "%s %s_get_%s(%s *);\n",
-                            type_name_to_c(v->type.decl.explicit_type),
-                            sname->c_str, v->type.decl.name->c_str, sname->c_str);
+                            type_name_to_c(&v->data.data.Decl.explicit_type),
+                            sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                 } else {
                     // Zero-arg constructor
                     fprintf(f, "%s *%s_%s();\n", sname->c_str, sname->c_str,
-                            v->type.decl.name->c_str);
+                            v->data.data.Decl.name.c_str);
                 }
             }
         }
@@ -1897,7 +1836,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     // Forward declarations for dyn_call dispatch functions
     {
         Vec dyn_methods;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
@@ -1922,16 +1861,16 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         // Find dyn_has_method to check return_is_shallow
         Bool dyn_has_shallow = 0;
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
-                Str_eq_c(stmt->type.decl.name, "dyn_has_method")) {
-                dyn_has_shallow = expr_child(stmt, 0)->type.func_def.return_is_shallow;
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef &&
+                (stmt->data.data.Decl.name.count == 14 && memcmp(stmt->data.data.Decl.name.c_str, "dyn_has_method", 14) == 0)) {
+                dyn_has_shallow = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_is_shallow;
                 break;
             }
         }
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method = Vec_get(&has_methods, &(U64){(U64)(m)});
@@ -1944,7 +1883,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     // Forward declarations for array/vec builtin helpers
     {
         Vec coll_infos;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
@@ -1957,44 +1896,158 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         Vec_delete(&coll_infos, &(Bool){0});
     }
 
-    // Emit struct + enum struct typedefs in dependency order (topo sorted)
-    U32 sorted[512]; U32 nsorted = 0;
-    topo_sort_structs(program, sorted, &nsorted);
-    for (U32 si = 0; si < nsorted; si++) {
-        Expr *stmt = expr_child(program, sorted[si]);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0));
-            fprintf(f, "\n");
+    // Emit struct + enum struct typedefs in dependency order.
+    // Inline struct fields need the full definition of the field type.
+    // Pointer (own/ref) fields only need forward declarations.
+    // Algorithm: repeatedly emit structs whose inline deps are all resolved.
+    {
+        // Collect indices of struct/enum decls to emit
+        Vec to_emit; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(U32)}); to_emit = *_vp; free(_vp); }
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl &&
+                (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+                { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit, _p); }
+            }
         }
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
-            Str *ename = stmt->type.decl.name;
-            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
-            Bool hp = enum_has_payloads(expr_child(stmt, 0));
-            fprintf(f, "struct %s {\n", ename->c_str);
-            fprintf(f, "    %s_tag tag;\n", ename->c_str);
-            if (hp) {
-                fprintf(f, "    union {\n");
-                for (U32 j = 0; j < ebody->children.count; j++) {
-                    Expr *v = expr_child(ebody, j);
-                    if (v->type.decl.is_namespace) continue;
-                    if (v->type.decl.explicit_type) {
-                        fprintf(f, "        %s %s;\n",
-                                type_name_to_c_value(v->type.decl.explicit_type),
-                                v->type.decl.name->c_str);
+        // Track which types have been fully defined
+        Set emitted; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); emitted = *_sp; free(_sp); }
+        // ext.h types are already defined
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"F32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}); Set_add(&emitted, _p); }
+
+        U32 remaining = to_emit.count;
+        Bool *done = calloc(to_emit.count, sizeof(Bool));
+        while (remaining > 0) {
+            Bool progress = 0;
+            for (U32 ei = 0; ei < to_emit.count; ei++) {
+                if (done[ei]) continue;
+                U32 idx = *(U32 *)Vec_get(&to_emit, &(U64){(U64)(ei)});
+                Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
+                Str *name = &stmt->data.data.Decl.name;
+                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+
+                // Check inline struct dependencies
+                Bool deps_ok = 1;
+                if (def->data.tag == ExprData_TAG_StructDef) {
+                    Expr *body = Expr_child(def, &(I64){(I64)(0)});
+                    for (U32 fi = 0; fi < body->children.count; fi++) {
+                        Expr *field = Expr_child(body, &(I64){(I64)(fi)});
+                        if (field->data.data.Decl.is_namespace) continue;
+                        // Inline struct field (not own/ref = not pointer)
+                        if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
+                            (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
+                            (Expr_child(field, &(I64){(I64)(0)})->struct_name.count > 0)) {
+                            if (!*Set_has(&emitted, &Expr_child(field, &(I64){(I64)(0)})->struct_name)) {
+                                deps_ok = 0;
+                                break;
+                            }
+                        }
+                    }
+                } else if (def->data.tag == ExprData_TAG_EnumDef) {
+                    // Enum payload types that are inline (non-primitive)
+                    Expr *body = Expr_child(def, &(I64){(I64)(0)});
+                    for (U32 fi = 0; fi < body->children.count; fi++) {
+                        Expr *v = Expr_child(body, &(I64){(I64)(fi)});
+                        if (v->data.data.Decl.is_namespace) continue;
+                        if ((v->data.data.Decl.explicit_type).count > 0 &&
+                            !is_primitive_type(&v->data.data.Decl.explicit_type) &&
+                            !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
+                            if (!*Set_has(&emitted, &v->data.data.Decl.explicit_type)) {
+                                deps_ok = 0;
+                                break;
+                            }
+                        }
                     }
                 }
-                fprintf(f, "    } data;\n");
+
+                if (!deps_ok) continue;
+
+                // Emit this struct/enum
+                if (def->data.tag == ExprData_TAG_StructDef) {
+                    emit_struct_typedef(f, name, def);
+                    fprintf(f, "\n");
+                } else {
+                    Str *ename = name;
+                    Expr *ebody = Expr_child(def, &(I64){(I64)(0)});
+                    Bool hp = *enum_has_payloads(def);
+                    fprintf(f, "struct %s {\n", ename->c_str);
+                    fprintf(f, "    %s_tag tag;\n", ename->c_str);
+                    if (hp) {
+                        fprintf(f, "    union {\n");
+                        for (U32 j = 0; j < ebody->children.count; j++) {
+                            Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                            if (v->data.data.Decl.is_namespace) continue;
+                            if (v->data.data.Decl.explicit_type.count > 0) {
+                                fprintf(f, "        %s %s;\n",
+                                        type_name_to_c_value(&v->data.data.Decl.explicit_type),
+                                        v->data.data.Decl.name.c_str);
+                            }
+                        }
+                        fprintf(f, "    } data;\n");
+                    }
+                    fprintf(f, "};\n\n");
+                }
+                { Str *_p = Str_clone(name); Set_add(&emitted, _p); }
+                done[ei] = 1;
+                remaining--;
+                progress = 1;
             }
-            fprintf(f, "};\n\n");
+            if (!progress) {
+                // Circular dependency or missing type — emit remaining in order
+                for (U32 ei = 0; ei < to_emit.count; ei++) {
+                    if (done[ei]) continue;
+                    U32 idx = *(U32 *)Vec_get(&to_emit, &(U64){(U64)(ei)});
+                    Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
+                    Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+                    if (def->data.tag == ExprData_TAG_StructDef) {
+                        emit_struct_typedef(f, &stmt->data.data.Decl.name, def);
+                        fprintf(f, "\n");
+                    } else {
+                        Str *ename = &stmt->data.data.Decl.name;
+                        Expr *ebody = Expr_child(def, &(I64){(I64)(0)});
+                        Bool hp = *enum_has_payloads(def);
+                        fprintf(f, "struct %s {\n", ename->c_str);
+                        fprintf(f, "    %s_tag tag;\n", ename->c_str);
+                        if (hp) {
+                            fprintf(f, "    union {\n");
+                            for (U32 j = 0; j < ebody->children.count; j++) {
+                                Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                                if (v->data.data.Decl.is_namespace) continue;
+                                if (v->data.data.Decl.explicit_type.count > 0) {
+                                    fprintf(f, "        %s %s;\n",
+                                            type_name_to_c_value(&v->data.data.Decl.explicit_type),
+                                            v->data.data.Decl.name.c_str);
+                                }
+                            }
+                            fprintf(f, "    } data;\n");
+                        }
+                        fprintf(f, "};\n\n");
+                    }
+                }
+                break;
+            }
         }
+        free(done);
+        Vec_delete(&to_emit, &(Bool){0});
+        Set_delete(&emitted, &(Bool){0});
     }
 
     // Runtime NULL check for shallow deref
     fprintf(f, "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n");
 
     // String helper functions (after all struct typedefs so Str is complete)
-    fprintf(f, "__attribute__((unused))\n");
     fprintf(f, "#define TIL_CAP_LIT ULLONG_MAX\n");
+    fprintf(f, "__attribute__((unused))\n");
     fprintf(f, "static Str *Str_lit(const char *s, unsigned long long len) {\n");
     fprintf(f, "    Str *r = malloc(sizeof(Str));\n");
     fprintf(f, "    r->c_str = (U8 *)s;\n");
@@ -2014,35 +2067,35 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     // Emit top-level variable declarations as file-scope globals
     // so they're accessible from functions/procs defined at the same level
     {
-        { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); script_globals = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); script_globals = *_sp; free(_sp); }
         has_script_globals = 1;
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag != NODE_DECL) continue;
-            Expr *rhs = expr_child(stmt, 0);
-            if (rhs->type.tag == NODE_FUNC_DEF || rhs->type.tag == NODE_STRUCT_DEF ||
-                rhs->type.tag == NODE_ENUM_DEF) continue;
-            if (stmt->type.decl.is_ref) continue;
-            const char *ctype = c_type_name(stmt->til_type, rhs->struct_name);
-            fprintf(f, "static %s *%s;\n", ctype, stmt->type.decl.name->c_str);
-            { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->type.decl.name->c_str, stmt->type.decl.name->count, CAP_VIEW}; Set_add(&script_globals, _p); }
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+            if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
+                rhs->data.tag == ExprData_TAG_EnumDef) continue;
+            if (stmt->data.data.Decl.is_ref) continue;
+            const char *ctype = c_type_name(stmt->til_type, &rhs->struct_name);
+            fprintf(f, "static %s *%s;\n", ctype, stmt->data.data.Decl.name.c_str);
+            { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         fprintf(f, "\n");
     }
 
     // Emit all function bodies: struct namespace, enum, top-level
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            emit_struct_funcs(f, stmt->type.decl.name, expr_child(stmt, 0), is_lib);
-        } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
-            emit_enum_def(f, stmt->type.decl.name, expr_child(stmt, 0));
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
+            emit_struct_funcs(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), is_lib);
+        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            emit_enum_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}));
             fprintf(f, "\n");
-        } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
-            FuncType fft2 = expr_child(stmt, 0)->type.func_def.func_type;
-            if (fft2 == FUNC_EXT_FUNC || fft2 == FUNC_EXT_PROC) continue;
-            if (expr_child(stmt, 0)->children.count == 0) continue;  // FuncSig: skip
-            emit_func_def(f, stmt->type.decl.name, expr_child(stmt, 0), mode, 0);
+        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            FuncType fft2 = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+            if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
+            if (Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) continue;  // FuncSig: skip
+            emit_func_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), mode, 0);
             fprintf(f, "\n");
         }
     }
@@ -2050,7 +2103,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     // Emit dyn_call dispatch function bodies
     {
         Vec dyn_methods;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
@@ -2062,41 +2115,41 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 fprintf(f, "%sdyn_call_%s(Str *type_name, void *val, void *arg2) {\n", ret_type, method->c_str);
             // Iterate all struct/type defs in AST
             for (U32 i = 0; i < program->children.count; i++) {
-                Expr *stmt = expr_child(program, i);
-                if (stmt->type.tag != NODE_DECL) continue;
-                Expr *def = expr_child(stmt, 0);
-                if (def->type.tag != NODE_STRUCT_DEF && def->type.tag != NODE_ENUM_DEF) continue;
-                Str *tname = stmt->type.decl.name;
+                Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+                if (stmt->data.tag != ExprData_TAG_Decl) continue;
+                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+                if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+                Str *tname = &stmt->data.data.Decl.name;
                 // Check if this type has the method in its namespace
-                Expr *body = expr_child(def, 0);
+                Expr *body = Expr_child(def, &(I64){(I64)(0)});
                 Expr *method_fdef = NULL;
                 for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = expr_child(body, j);
-                    if (field->type.decl.is_namespace &&
-                        *Str_eq(field->type.decl.name, method) &&
+                    Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                    if (field->data.data.Decl.is_namespace &&
+                        *Str_eq(&field->data.data.Decl.name, method) &&
                         field->children.count > 0 &&
-                        expr_child(field, 0)->type.tag == NODE_FUNC_DEF) {
-                        method_fdef = expr_child(field, 0);
+                        Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                        method_fdef = Expr_child(field, &(I64){(I64)(0)});
                         break;
                     }
                 }
                 if (!method_fdef) continue;
                 // Build arg expressions with shallow dereference where needed
                 char arg1[64], arg2_str[64];
-                bool *ps = method_fdef->type.func_def.param_shallows;
-                if (ps && ps[0])
+                Vec *ps = &method_fdef->data.data.FuncDef.param_shallows;
+                if (ps->count > 0 && (*(Bool*)Vec_get(ps, &(U64){(U64)(0)})))
                     snprintf(arg1, sizeof(arg1), "*(%s *)val", tname->c_str);
                 else
                     snprintf(arg1, sizeof(arg1), "val");
                 if (info->nargs == 2) {
-                    if (ps && method_fdef->type.func_def.nparam > 1 && ps[1])
+                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && (*(Bool*)Vec_get(ps, &(U64){(U64)(1)})))
                         snprintf(arg2_str, sizeof(arg2_str), "*(%s *)arg2", tname->c_str);
                     else
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
                 }
-                bool ret_shallow = method_fdef->type.func_def.return_is_shallow;
-                const char *ret_ctype = (info->returns && ret_shallow && method_fdef->type.func_def.return_type)
-                    ? type_name_to_c_value(method_fdef->type.func_def.return_type) : NULL;
+                Bool ret_shallow = method_fdef->data.data.FuncDef.return_is_shallow;
+                const char *ret_ctype = (info->returns && ret_shallow && method_fdef->data.data.FuncDef.return_type.count > 0)
+                    ? type_name_to_c_value(&method_fdef->data.data.FuncDef.return_type) : NULL;
                 if (info->nargs == 2) {
                     if (info->returns && ret_shallow)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s, %s); return _r; }\n",
@@ -2131,33 +2184,33 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         // Find dyn_has_method to check return_is_shallow
         Bool dyn_has_shallow = 0;
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
-                Str_eq_c(stmt->type.decl.name, "dyn_has_method")) {
-                dyn_has_shallow = expr_child(stmt, 0)->type.func_def.return_is_shallow;
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef &&
+                (stmt->data.data.Decl.name.count == 14 && memcmp(stmt->data.data.Decl.name.c_str, "dyn_has_method", 14) == 0)) {
+                dyn_has_shallow = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_is_shallow;
                 break;
             }
         }
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method_ptr = Vec_get(&has_methods, &(U64){(U64)(m)});
             Str *method = *method_ptr;
             fprintf(f, "%s dyn_has_%s(Str *type_name) {\n    (void)type_name;\n", dyn_has_ret, method->c_str);
             for (U32 i = 0; i < program->children.count; i++) {
-                Expr *stmt = expr_child(program, i);
-                if (stmt->type.tag != NODE_DECL) continue;
-                Expr *def = expr_child(stmt, 0);
-                if (def->type.tag != NODE_STRUCT_DEF && def->type.tag != NODE_ENUM_DEF) continue;
-                Str *tname = stmt->type.decl.name;
-                Expr *body = expr_child(def, 0);
+                Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+                if (stmt->data.tag != ExprData_TAG_Decl) continue;
+                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+                if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+                Str *tname = &stmt->data.data.Decl.name;
+                Expr *body = Expr_child(def, &(I64){(I64)(0)});
                 Bool found = 0;
                 for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = expr_child(body, j);
-                    if (field->type.decl.is_namespace &&
-                        *Str_eq(field->type.decl.name, method)) {
+                    Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                    if (field->data.data.Decl.is_namespace &&
+                        *Str_eq(&field->data.data.Decl.name, method)) {
                         found = 1;
                         break;
                     }
@@ -2182,7 +2235,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     // Emit array/vec builtin helper function bodies
     {
         Vec coll_infos;
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
@@ -2190,16 +2243,14 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             U64 et_len = ci->type_name->count;
             if (ci->is_vec) {
                 fprintf(f, "Vec *vec_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lluULL);\n", et, (unsigned long long)et_len);
                 fprintf(f, "    U64 _esz = sizeof(%s);\n", et);
-                fprintf(f, "    Vec *_v = Vec_new(_et, &(U64){_esz});\n");
-                fprintf(f, "    Str_delete(_et, &(Bool){1});\n");
+                fprintf(f, "    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(U64){_esz});\n", et, (unsigned long long)et_len);
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
                 {
                     char clone_name[256];
                     snprintf(clone_name, sizeof(clone_name), "%s_clone", et);
-                    Str *cn = Str_new(clone_name);
+                    Str *cn = Str_clone(&(Str){.c_str = (U8*)(clone_name), .count = (U64)strlen((const char*)(clone_name)), .cap = CAP_VIEW});
                     Bool shallow = callee_returns_shallow(cn);
                     Str_delete(cn, &(Bool){1});
                     if (shallow) {
@@ -2215,18 +2266,16 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                 fprintf(f, "}\n\n");
             } else {
                 fprintf(f, "Array *array_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    Str *_et = Str_lit(\"%s\", %lluULL);\n", et, (unsigned long long)et_len);
                 fprintf(f, "    U64 _esz = sizeof(%s);\n", et);
                 fprintf(f, "    U64 _cap = count;\n");
-                fprintf(f, "    Array *_a = Array_new(_et, &(U64){_esz}, &(U64){_cap});\n");
-                fprintf(f, "    Str_delete(_et, &(Bool){1});\n");
+                fprintf(f, "    Array *_a = Array_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(U64){_esz}, &(U64){_cap});\n", et, (unsigned long long)et_len);
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
                 fprintf(f, "        U64 _idx = _i;\n");
                 {
                     char clone_name[256];
                     snprintf(clone_name, sizeof(clone_name), "%s_clone", et);
-                    Str *cn = Str_new(clone_name);
+                    Str *cn = Str_clone(&(Str){.c_str = (U8*)(clone_name), .count = (U64)strlen((const char*)(clone_name)), .cap = CAP_VIEW});
                     Bool shallow = callee_returns_shallow(cn);
                     Str_delete(cn, &(Bool){1});
                     if (shallow) {
@@ -2252,22 +2301,22 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         // Initialize top-level core variables (e.g. CAP_VIEW)
         if (has_script_globals) {
             for (U32 i = 0; i < codegen_program->children.count; i++) {
-                Expr *gs = expr_child(codegen_program, i);
-                if (gs->type.tag != NODE_DECL) continue;
-                Expr *rhs = expr_child(gs, 0);
-                if (rhs->type.tag == NODE_FUNC_DEF || rhs->type.tag == NODE_STRUCT_DEF ||
-                    rhs->type.tag == NODE_ENUM_DEF) continue;
+                Expr *gs = Expr_child(codegen_program, &(I64){(I64)(i)});
+                if (gs->data.tag != ExprData_TAG_Decl) continue;
+                Expr *rhs = Expr_child(gs, &(I64){(I64)(0)});
+                if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
+                    rhs->data.tag == ExprData_TAG_EnumDef) continue;
                 emit_stmt(f, gs, 1);
             }
         }
         I32 test_count = 0;
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag != NODE_DECL) continue;
-            Expr *rhs = expr_child(stmt, 0);
-            if (rhs->type.tag != NODE_FUNC_DEF) continue;
-            if (rhs->type.func_def.func_type != FUNC_TEST) continue;
-            Str *tname = stmt->type.decl.name;
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+            if (rhs->data.tag != ExprData_TAG_FuncDef) continue;
+            if (rhs->data.data.FuncDef.func_type.tag != FuncType_TAG_Test) continue;
+            Str *tname = &stmt->data.data.Decl.name;
             fprintf(f, "    %s();\n", tname->c_str);
             fprintf(f, "    fprintf(stderr, \"  pass: %%s\\n\", \"%s\");\n", tname->c_str);
             test_count++;
@@ -2287,11 +2336,11 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         fprintf(f, "__attribute__((constructor))\nstatic void _til_lib_init(void) {\n");
         emit_ns_inits(f, 1);
         for (U32 i = 0; i < codegen_program->children.count; i++) {
-            Expr *gs = expr_child(codegen_program, i);
-            if (gs->type.tag != NODE_DECL) continue;
-            Expr *rhs = expr_child(gs, 0);
-            if (rhs->type.tag == NODE_FUNC_DEF || rhs->type.tag == NODE_STRUCT_DEF ||
-                rhs->type.tag == NODE_ENUM_DEF) continue;
+            Expr *gs = Expr_child(codegen_program, &(I64){(I64)(i)});
+            if (gs->data.tag != ExprData_TAG_Decl) continue;
+            Expr *rhs = Expr_child(gs, &(I64){(I64)(0)});
+            if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
+                rhs->data.tag == ExprData_TAG_EnumDef) continue;
             emit_stmt(f, gs, 1);
         }
         fprintf(f, "}\n\n");
@@ -2303,15 +2352,15 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         emit_ns_inits(f, 1);
         // Collect unsafe-to-hoist for script-level statements
         Set_delete(&unsafe_to_hoist, &(Bool){0});
-        { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
         collect_unsafe_to_hoist(program);
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
             // Skip func/proc/struct defs (already emitted above)
-            if (stmt->type.tag == NODE_DECL &&
-                (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF ||
-                 expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-                 expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF))
+            if (stmt->data.tag == ExprData_TAG_Decl &&
+                (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef))
                 continue;
             emit_stmt(f, stmt, 1);
         }
@@ -2333,13 +2382,13 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 I32 build_header(Expr *program, Str *h_path) {
     // Collect FuncSig names for type_name_to_c
     if (!has_funcsig_names) {
-        { Set *_sp = Set_new(Str_new("Str"), &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
         has_funcsig_names = 1;
         for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = expr_child(program, i);
-            if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF &&
-                expr_child(stmt, 0)->children.count == 0) {
-                Str *n = stmt->type.decl.name;
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef &&
+                Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) {
+                Str *n = &stmt->data.data.Decl.name;
                 { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
             }
         }
@@ -2354,21 +2403,21 @@ I32 build_header(Expr *program, Str *h_path) {
 
     // Forward-declare structs (skip types defined by ext.h)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            if (is_ext_h_type(stmt->type.decl.name)) continue;
-            fprintf(f, "typedef struct %s %s;\n", stmt->type.decl.name->c_str, stmt->type.decl.name->c_str);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
+            if (is_ext_h_type(&stmt->data.data.Decl.name)) continue;
+            fprintf(f, "typedef struct %s %s;\n", stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
         }
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
-            Str *ename = stmt->type.decl.name;
-            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            Str *ename = &stmt->data.data.Decl.name;
+            Expr *ebody = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
             fprintf(f, "typedef enum {\n");
             I32 tag = 0;
             for (U32 j = 0; j < ebody->children.count; j++) {
-                Expr *v = expr_child(ebody, j);
-                if (v->type.decl.is_namespace) continue;
+                Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                if (v->data.data.Decl.is_namespace) continue;
                 if (tag > 0) fprintf(f, ",\n");
-                fprintf(f, "    %s_TAG_%s", ename->c_str, v->type.decl.name->c_str);
+                fprintf(f, "    %s_TAG_%s", ename->c_str, v->data.data.Decl.name.c_str);
                 tag++;
             }
             fprintf(f, "\n} %s_tag;\n", ename->c_str);
@@ -2378,72 +2427,176 @@ I32 build_header(Expr *program, Str *h_path) {
     fprintf(f, "\n");
 
     // Struct definitions with fields in dependency order (topo sorted)
-    { U32 sorted_lib[512]; U32 nsorted_lib = 0;
-    topo_sort_structs(program, sorted_lib, &nsorted_lib);
-    for (U32 si = 0; si < nsorted_lib; si++) {
-        Expr *stmt = expr_child(program, sorted_lib[si]);
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
-            emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0));
-            fprintf(f, "\n");
+    // Same algorithm as .c emission: repeatedly emit types whose inline deps are resolved.
+    {
+        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl &&
+                (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+                { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit_h, _p); }
+            }
         }
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
-            Str *ename = stmt->type.decl.name;
-            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
-            Bool hp = enum_has_payloads(expr_child(stmt, 0));
-            fprintf(f, "struct %s {\n", ename->c_str);
-            fprintf(f, "    %s_tag tag;\n", ename->c_str);
-            if (hp) {
-                fprintf(f, "    union {\n");
-                for (U32 j = 0; j < ebody->children.count; j++) {
-                    Expr *v = expr_child(ebody, j);
-                    if (v->type.decl.is_namespace) continue;
-                    if (v->type.decl.explicit_type) {
-                        fprintf(f, "        %s %s;\n",
-                                type_name_to_c_value(v->type.decl.explicit_type),
-                                v->type.decl.name->c_str);
+        Set emitted_h; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); emitted_h = *_sp; free(_sp); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"F32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
+
+        U32 remaining_h = to_emit_h.count;
+        Bool *done_h = calloc(to_emit_h.count, sizeof(Bool));
+        while (remaining_h > 0) {
+            Bool progress_h = 0;
+            for (U32 ei = 0; ei < to_emit_h.count; ei++) {
+                if (done_h[ei]) continue;
+                U32 idx = *(U32 *)Vec_get(&to_emit_h, &(U64){(U64)(ei)});
+                Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
+                Str *name = &stmt->data.data.Decl.name;
+                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+
+                Bool deps_ok = 1;
+                if (def->data.tag == ExprData_TAG_StructDef) {
+                    Expr *body = Expr_child(def, &(I64){(I64)(0)});
+                    for (U32 fi = 0; fi < body->children.count; fi++) {
+                        Expr *field = Expr_child(body, &(I64){(I64)(fi)});
+                        if (field->data.data.Decl.is_namespace) continue;
+                        if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
+                            (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
+                            (Expr_child(field, &(I64){(I64)(0)})->struct_name.count > 0)) {
+                            if (!*Set_has(&emitted_h, &Expr_child(field, &(I64){(I64)(0)})->struct_name)) {
+                                deps_ok = 0;
+                                break;
+                            }
+                        }
+                    }
+                } else if (def->data.tag == ExprData_TAG_EnumDef) {
+                    Expr *body = Expr_child(def, &(I64){(I64)(0)});
+                    for (U32 fi = 0; fi < body->children.count; fi++) {
+                        Expr *v = Expr_child(body, &(I64){(I64)(fi)});
+                        if (v->data.data.Decl.is_namespace) continue;
+                        if ((v->data.data.Decl.explicit_type).count > 0 &&
+                            !is_primitive_type(&v->data.data.Decl.explicit_type) &&
+                            !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
+                            if (!*Set_has(&emitted_h, &v->data.data.Decl.explicit_type)) {
+                                deps_ok = 0;
+                                break;
+                            }
+                        }
                     }
                 }
-                fprintf(f, "    } data;\n");
+
+                if (!deps_ok) continue;
+
+                if (def->data.tag == ExprData_TAG_StructDef) {
+                    emit_struct_typedef(f, name, def);
+                    fprintf(f, "\n");
+                } else {
+                    Str *ename = name;
+                    Expr *ebody = Expr_child(def, &(I64){(I64)(0)});
+                    Bool hp = *enum_has_payloads(def);
+                    fprintf(f, "struct %s {\n", ename->c_str);
+                    fprintf(f, "    %s_tag tag;\n", ename->c_str);
+                    if (hp) {
+                        fprintf(f, "    union {\n");
+                        for (U32 j = 0; j < ebody->children.count; j++) {
+                            Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                            if (v->data.data.Decl.is_namespace) continue;
+                            if (v->data.data.Decl.explicit_type.count > 0) {
+                                fprintf(f, "        %s %s;\n",
+                                        type_name_to_c_value(&v->data.data.Decl.explicit_type),
+                                        v->data.data.Decl.name.c_str);
+                            }
+                        }
+                        fprintf(f, "    } data;\n");
+                    }
+                    fprintf(f, "};\n\n");
+                }
+                { Str *_p = Str_clone(name); Set_add(&emitted_h, _p); }
+                done_h[ei] = 1;
+                remaining_h--;
+                progress_h = 1;
             }
-            fprintf(f, "};\n\n");
+            if (!progress_h) {
+                for (U32 ei = 0; ei < to_emit_h.count; ei++) {
+                    if (done_h[ei]) continue;
+                    U32 idx = *(U32 *)Vec_get(&to_emit_h, &(U64){(U64)(ei)});
+                    Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
+                    Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+                    if (def->data.tag == ExprData_TAG_StructDef) {
+                        emit_struct_typedef(f, &stmt->data.data.Decl.name, def);
+                        fprintf(f, "\n");
+                    } else {
+                        Str *ename = &stmt->data.data.Decl.name;
+                        Expr *ebody = Expr_child(def, &(I64){(I64)(0)});
+                        Bool hp = *enum_has_payloads(def);
+                        fprintf(f, "struct %s {\n", ename->c_str);
+                        fprintf(f, "    %s_tag tag;\n", ename->c_str);
+                        if (hp) {
+                            fprintf(f, "    union {\n");
+                            for (U32 j = 0; j < ebody->children.count; j++) {
+                                Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                                if (v->data.data.Decl.is_namespace) continue;
+                                if (v->data.data.Decl.explicit_type.count > 0) {
+                                    fprintf(f, "        %s %s;\n",
+                                            type_name_to_c_value(&v->data.data.Decl.explicit_type),
+                                            v->data.data.Decl.name.c_str);
+                                }
+                            }
+                            fprintf(f, "    } data;\n");
+                        }
+                        fprintf(f, "};\n\n");
+                    }
+                }
+                break;
+            }
         }
-    } }
+        free(done_h);
+        Vec_delete(&to_emit_h, &(Bool){0});
+        Set_delete(&emitted_h, &(Bool){0});
+    }
 
     // Function forward declarations (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag == NODE_DECL && (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
-                                         expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
-            Str *sname = stmt->type.decl.name;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+                                         Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            Str *sname = &stmt->data.data.Decl.name;
             if (is_scalar_method_type(sname)) continue;
-            Expr *body = expr_child(expr_child(stmt, 0), 0);
+            Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (!field->type.decl.is_namespace) continue;
-                if (expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
-                Expr *fdef = expr_child(field, 0);
-                FuncType fft = fdef->type.func_def.func_type;
-                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
+                if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                FuncType fft = fdef->data.data.FuncDef.func_type;
+                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
                 const char *ret = "void";
-                if (fdef->type.func_def.return_type)
-                    ret = fdef->type.func_def.return_is_shallow
-                        ? type_name_to_c_value(fdef->type.func_def.return_type)
-                        : type_name_to_c(fdef->type.func_def.return_type);
-                fprintf(f, "%s %s_%s(", ret, sname->c_str, field->type.decl.name->c_str);
+                if (fdef->data.data.FuncDef.return_type.count > 0)
+                    ret = fdef->data.data.FuncDef.return_is_shallow
+                        ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
+                        : type_name_to_c(&fdef->data.data.FuncDef.return_type);
+                fprintf(f, "%s %s_%s(", ret, sname->c_str, field->data.data.Decl.name.c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
-        } else if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
-            Expr *func_def = expr_child(stmt, 0);
+        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            Expr *func_def = Expr_child(stmt, &(I64){(I64)(0)});
             if (func_def->children.count == 0) continue;  // FuncSig: skip
-            FuncType fft = func_def->type.func_def.func_type;
-            if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+            FuncType fft = func_def->data.data.FuncDef.func_type;
+            if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
             const char *ret = "void";
-            if (func_def->type.func_def.return_type)
-                ret = func_def->type.func_def.return_is_shallow
-                    ? type_name_to_c_value(func_def->type.func_def.return_type)
-                    : type_name_to_c(func_def->type.func_def.return_type);
-            fprintf(f, "%s %s(", ret, func_to_c(stmt->type.decl.name));
+            if (func_def->data.data.FuncDef.return_type.count > 0)
+                ret = func_def->data.data.FuncDef.return_is_shallow
+                    ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
+                    : type_name_to_c(&func_def->data.data.FuncDef.return_type);
+            fprintf(f, "%s %s(", ret, func_to_c(&stmt->data.data.Decl.name));
             emit_param_list(f, func_def, 1);
             fprintf(f, ");\n");
         }
@@ -2451,40 +2604,40 @@ I32 build_header(Expr *program, Str *h_path) {
 
     // Enum auto-helper forward declarations (eq, constructors, is_Variant, get_Variant)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->is_core) continue;
-        if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF) {
-            Str *sname = stmt->type.decl.name;
-            Bool hp = enum_has_payloads(expr_child(stmt, 0));
-            Expr *ebody = expr_child(expr_child(stmt, 0), 0);
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            Str *sname = &stmt->data.data.Decl.name;
+            Bool hp = *enum_has_payloads(Expr_child(stmt, &(I64){(I64)(0)}));
+            Expr *ebody = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
             // Find eq fdef to check return_is_shallow
             Expr *eq_fdef = NULL;
             for (U32 j = 0; j < ebody->children.count; j++) {
-                Expr *field = expr_child(ebody, j);
-                if (field->type.decl.is_namespace && Str_eq_c(field->type.decl.name, "eq") &&
-                    expr_child(field, 0)->type.tag == NODE_FUNC_DEF) {
-                    eq_fdef = expr_child(field, 0);
+                Expr *field = Expr_child(ebody, &(I64){(I64)(j)});
+                if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
+                    Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    eq_fdef = Expr_child(field, &(I64){(I64)(0)});
                     break;
                 }
             }
-            const char *eq_ret = (eq_fdef && eq_fdef->type.func_def.return_is_shallow) ? "Bool" : "Bool *";
+            const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
             fprintf(f, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
-            const char *is_ret = (eq_fdef && eq_fdef->type.func_def.return_is_shallow) ? "Bool" : "Bool *";
+            const char *is_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
             for (U32 j = 0; j < ebody->children.count; j++) {
-                Expr *v = expr_child(ebody, j);
-                if (v->type.decl.is_namespace) continue;
+                Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
+                if (v->data.data.Decl.is_namespace) continue;
                 if (hp) {
-                    fprintf(f, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->type.decl.name->c_str, sname->c_str);
+                    fprintf(f, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                 }
-                if (v->type.decl.explicit_type) {
+                if (v->data.data.Decl.explicit_type.count > 0) {
                     fprintf(f, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
-                            v->type.decl.name->c_str, type_name_to_c(v->type.decl.explicit_type));
+                            v->data.data.Decl.name.c_str, type_name_to_c(&v->data.data.Decl.explicit_type));
                     fprintf(f, "%s %s_get_%s(%s *);\n",
-                            type_name_to_c(v->type.decl.explicit_type),
-                            sname->c_str, v->type.decl.name->c_str, sname->c_str);
+                            type_name_to_c(&v->data.data.Decl.explicit_type),
+                            sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                 } else {
                     fprintf(f, "%s *%s_%s();\n", sname->c_str, sname->c_str,
-                            v->type.decl.name->c_str);
+                            v->data.data.Decl.name.c_str);
                 }
             }
         }
@@ -2497,13 +2650,13 @@ I32 build_header(Expr *program, Str *h_path) {
 
 // Emit a til type default value for binding generation
 static void emit_til_default(FILE *f, TilType t, Str *struct_name) {
-    switch (t) {
-    case TIL_TYPE_I64: case TIL_TYPE_I16: case TIL_TYPE_I32:
-    case TIL_TYPE_U32: case TIL_TYPE_U64: case TIL_TYPE_F32: fprintf(f, "0"); break;
-    case TIL_TYPE_U8:   fprintf(f, "0"); break;
-    case TIL_TYPE_BOOL: fprintf(f, "false"); break;
-    case TIL_TYPE_STRUCT:
-    case TIL_TYPE_ENUM:
+    switch (t.tag) {
+    case TilType_TAG_I64: case TilType_TAG_I16: case TilType_TAG_I32:
+    case TilType_TAG_U32: case TilType_TAG_U64: case TilType_TAG_F32: fprintf(f, "0"); break;
+    case TilType_TAG_U8:   fprintf(f, "0"); break;
+    case TilType_TAG_Bool: fprintf(f, "false"); break;
+    case TilType_TAG_Struct:
+    case TilType_TAG_Enum:
         if (struct_name && strcmp((const char *)struct_name->c_str, "Str") == 0)
             fprintf(f, "\"\"");
         else if (struct_name)
@@ -2526,128 +2679,128 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
     fprintf(f, "link(\"%s\")\n\n", lib_name->c_str);
 
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->is_core) continue;
-        if (stmt->type.tag != NODE_DECL) continue;
-        Expr *rhs = expr_child(stmt, 0);
-        Str *name = stmt->type.decl.name;
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+        Str *name = &stmt->data.data.Decl.name;
 
-        if (rhs->type.tag == NODE_STRUCT_DEF) {
-            Expr *body = expr_child(rhs, 0);
+        if (rhs->data.tag == ExprData_TAG_StructDef) {
+            Expr *body = Expr_child(rhs, &(I64){(I64)(0)});
             fprintf(f, "%s := ext_struct {\n", name->c_str);
             // Instance fields
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (field->type.decl.is_namespace) continue;
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (field->data.data.Decl.is_namespace) continue;
                 fprintf(f, "    ");
-                if (field->type.decl.is_mut) fprintf(f, "mut ");
-                if (field->type.decl.is_own) fprintf(f, "own ");
-                fprintf(f, "%s", field->type.decl.name->c_str);
-                if (field->type.decl.explicit_type) {
-                    fprintf(f, " : %s", field->type.decl.explicit_type->c_str);
+                if (field->data.data.Decl.is_mut) fprintf(f, "mut ");
+                if (field->data.data.Decl.is_own) fprintf(f, "own ");
+                fprintf(f, "%s", field->data.data.Decl.name.c_str);
+                if (field->data.data.Decl.explicit_type.count > 0) {
+                    fprintf(f, " : %s", field->data.data.Decl.explicit_type.c_str);
                 }
                 fprintf(f, " := ");
-                emit_til_default(f, field->til_type, expr_child(field, 0)->struct_name);
+                emit_til_default(f, field->til_type, &Expr_child(field, &(I64){(I64)(0)})->struct_name);
                 fprintf(f, "\n");
             }
             // Namespace methods
             Bool has_ns = 0;
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (!field->type.decl.is_namespace) continue;
-                if (expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
-                Expr *fdef = expr_child(field, 0);
-                FuncType fft = fdef->type.func_def.func_type;
-                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
+                if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                FuncType fft = fdef->data.data.FuncDef.func_type;
+                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
                 if (!has_ns) { fprintf(f, "    namespace:\n"); has_ns = 1; }
-                const char *kw = (fft == FUNC_PROC || fft == FUNC_TEST) ? "ext_proc" : "ext_func";
-                fprintf(f, "    %s := %s(", field->type.decl.name->c_str, kw);
-                for (U32 p = 0; p < fdef->type.func_def.nparam; p++) {
+                const char *kw = (fft.tag == FuncType_TAG_Proc || fft.tag == FuncType_TAG_Test) ? "ext_proc" : "ext_func";
+                fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
+                for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    if (fdef->type.func_def.param_owns && fdef->type.func_def.param_owns[p])
+                    if (VEC_SET(fdef->data.data.FuncDef.param_owns) && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
                         fprintf(f, "own ");
-                    fprintf(f, "%s: %s", fdef->type.func_def.param_names[p]->c_str,
-                            fdef->type.func_def.param_types[p]->c_str);
+                    fprintf(f, "%s: %s", ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
+                            ((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
                 }
                 fprintf(f, ")");
-                if (fdef->type.func_def.return_type) {
+                if (fdef->data.data.FuncDef.return_type.count > 0) {
                     fprintf(f, " returns ");
-                    if (fdef->type.func_def.return_is_ref) fprintf(f, "ref ");
-                    if (fdef->type.func_def.return_is_shallow) fprintf(f, "shallow ");
-                    fprintf(f, "%s", fdef->type.func_def.return_type->c_str);
+                    if (fdef->data.data.FuncDef.return_is_ref) fprintf(f, "ref ");
+                    if (fdef->data.data.FuncDef.return_is_shallow) fprintf(f, "shallow ");
+                    fprintf(f, "%s", fdef->data.data.FuncDef.return_type.c_str);
                 }
                 fprintf(f, " {}\n");
             }
             fprintf(f, "}\n\n");
 
-        } else if (rhs->type.tag == NODE_ENUM_DEF) {
-            Expr *body = expr_child(rhs, 0);
+        } else if (rhs->data.tag == ExprData_TAG_EnumDef) {
+            Expr *body = Expr_child(rhs, &(I64){(I64)(0)});
             fprintf(f, "%s := enum {\n", name->c_str);
             // Variants
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *v = expr_child(body, j);
-                if (v->type.decl.is_namespace) continue;
-                fprintf(f, "    %s", v->type.decl.name->c_str);
-                if (v->type.decl.explicit_type)
-                    fprintf(f, ": %s", v->type.decl.explicit_type->c_str);
+                Expr *v = Expr_child(body, &(I64){(I64)(j)});
+                if (v->data.data.Decl.is_namespace) continue;
+                fprintf(f, "    %s", v->data.data.Decl.name.c_str);
+                if (v->data.data.Decl.explicit_type.count > 0)
+                    fprintf(f, ": %s", v->data.data.Decl.explicit_type.c_str);
                 fprintf(f, ",\n");
             }
             // Namespace methods (user-defined, not auto-generated)
             Bool has_ns = 0;
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (!field->type.decl.is_namespace) continue;
-                if (expr_child(field, 0)->type.tag != NODE_FUNC_DEF) continue;
-                Expr *fdef = expr_child(field, 0);
-                FuncType fft = fdef->type.func_def.func_type;
-                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
+                if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                FuncType fft = fdef->data.data.FuncDef.func_type;
+                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
                 if (!has_ns) { fprintf(f, "    namespace:\n"); has_ns = 1; }
-                const char *kw = (fft == FUNC_PROC || fft == FUNC_TEST) ? "ext_proc" : "ext_func";
-                fprintf(f, "    %s := %s(", field->type.decl.name->c_str, kw);
-                for (U32 p = 0; p < fdef->type.func_def.nparam; p++) {
+                const char *kw = (fft.tag == FuncType_TAG_Proc || fft.tag == FuncType_TAG_Test) ? "ext_proc" : "ext_func";
+                fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
+                for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    if (fdef->type.func_def.param_owns && fdef->type.func_def.param_owns[p])
+                    if (VEC_SET(fdef->data.data.FuncDef.param_owns) && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
                         fprintf(f, "own ");
-                    fprintf(f, "%s: %s", fdef->type.func_def.param_names[p]->c_str,
-                            fdef->type.func_def.param_types[p]->c_str);
+                    fprintf(f, "%s: %s", ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
+                            ((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
                 }
                 fprintf(f, ")");
-                if (fdef->type.func_def.return_type) {
+                if (fdef->data.data.FuncDef.return_type.count > 0) {
                     fprintf(f, " returns ");
-                    if (fdef->type.func_def.return_is_ref) fprintf(f, "ref ");
-                    if (fdef->type.func_def.return_is_shallow) fprintf(f, "shallow ");
-                    fprintf(f, "%s", fdef->type.func_def.return_type->c_str);
+                    if (fdef->data.data.FuncDef.return_is_ref) fprintf(f, "ref ");
+                    if (fdef->data.data.FuncDef.return_is_shallow) fprintf(f, "shallow ");
+                    fprintf(f, "%s", fdef->data.data.FuncDef.return_type.c_str);
                 }
                 fprintf(f, " {}\n");
             }
             fprintf(f, "}\n\n");
 
-        } else if (rhs->type.tag == NODE_FUNC_DEF) {
-            FuncType fft = rhs->type.func_def.func_type;
-            if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) continue;
-            if (fft == FUNC_TEST) continue;
-            const char *kw = (fft == FUNC_PROC) ? "ext_proc" : "ext_func";
+        } else if (rhs->data.tag == ExprData_TAG_FuncDef) {
+            FuncType fft = rhs->data.data.FuncDef.func_type;
+            if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
+            if (fft.tag == FuncType_TAG_Test) continue;
+            const char *kw = (fft.tag == FuncType_TAG_Proc) ? "ext_proc" : "ext_func";
             fprintf(f, "%s := %s(", name->c_str, kw);
-            for (U32 p = 0; p < rhs->type.func_def.nparam; p++) {
+            for (U32 p = 0; p < rhs->data.data.FuncDef.nparam; p++) {
                 if (p > 0) fprintf(f, ", ");
-                if (rhs->type.func_def.param_owns && rhs->type.func_def.param_owns[p])
+                if (VEC_SET(rhs->data.data.FuncDef.param_owns) && (*(Bool*)Vec_get(&rhs->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
                     fprintf(f, "own ");
-                I32 vi = rhs->type.func_def.variadic_index;
-                I32 kwi = rhs->type.func_def.kwargs_index;
+                I32 vi = rhs->data.data.FuncDef.variadic_index;
+                I32 kwi = rhs->data.data.FuncDef.kwargs_index;
                 if ((I32)p == vi) fprintf(f, "..");
                 if ((I32)p == kwi) {
-                    fprintf(f, "%s: ...", rhs->type.func_def.param_names[p]->c_str);
+                    fprintf(f, "%s: ...", ((Str*)Vec_get(&rhs->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str);
                 } else {
-                    fprintf(f, "%s: %s", rhs->type.func_def.param_names[p]->c_str,
-                            rhs->type.func_def.param_types[p]->c_str);
+                    fprintf(f, "%s: %s", ((Str*)Vec_get(&rhs->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
+                            ((Str*)Vec_get(&rhs->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
                 }
             }
             fprintf(f, ")");
-            if (rhs->type.func_def.return_type) {
+            if (rhs->data.data.FuncDef.return_type.count > 0) {
                 fprintf(f, " returns ");
-                if (rhs->type.func_def.return_is_ref) fprintf(f, "ref ");
-                if (rhs->type.func_def.return_is_shallow) fprintf(f, "shallow ");
-                fprintf(f, "%s", rhs->type.func_def.return_type->c_str);
+                if (rhs->data.data.FuncDef.return_is_ref) fprintf(f, "ref ");
+                if (rhs->data.data.FuncDef.return_is_shallow) fprintf(f, "shallow ");
+                fprintf(f, "%s", rhs->data.data.FuncDef.return_type.c_str);
             }
             fprintf(f, " {}\n\n");
         }
@@ -2662,20 +2815,21 @@ I32 compile_lib(Str *c_path, Str *lib_name,
                 Str *link_flags) {
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
+    Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
     {
-        I64 slash = *Str_rfind(ext_c_path, Str_new("/"));
-        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
+        I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : &_dot_str;
     }
 
     // Raylib library path (ext_dir is <root>/src/c)
-    Str *raylib_flags = Str_concat(Str_concat(Str_new(" -L"), ext_dir), Str_new("/../../lib/raylib/src"));
-    Str *lf = Str_concat(raylib_flags, link_flags ? link_flags : Str_new(""));
+    Str *raylib_flags = Str_concat(Str_concat(&(Str){.c_str = (U8*)" -L", .count = 3, .cap = CAP_LIT}, ext_dir), &(Str){.c_str = (U8*)"/../../lib/raylib/src", .count = 21, .cap = CAP_LIT});
+    Str *lf = Str_concat(raylib_flags, link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
 
     // Compile library .c to object
-    Str *obj_path = Str_concat(Str_concat(Str_new("gen/lib/"), lib_name), Str_new(".o"));
+    Str *obj_path = Str_concat(Str_concat(&(Str){.c_str = (U8*)"gen/lib/", .count = 8, .cap = CAP_LIT}, lib_name), &(Str){.c_str = (U8*)".o", .count = 2, .cap = CAP_LIT});
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -Werror -fPIC -I"), ext_dir),
-        Str_new(" -c ")), c_path), Str_new(" -o ")), obj_path);
+        &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
+        &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), c_path), &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), obj_path);
     int result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: library compilation failed\n");
@@ -2683,10 +2837,10 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     }
 
     // Compile ext.c to object
-    Str *ext_obj = Str_new("gen/lib/ext.o");
+    Str *ext_obj = &(Str){.c_str = (U8*)"gen/lib/ext.o", .count = 13, .cap = CAP_LIT};
     cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -Werror -fPIC -I"), ext_dir),
-        Str_new(" -c ")), ext_c_path), Str_new(" -o ")), ext_obj);
+        &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
+        &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), ext_c_path), &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), ext_obj);
     result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: ext.c compilation failed\n");
@@ -2694,12 +2848,12 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     }
 
     // Compile user .c to object if present
-    Str *user_obj = Str_new("");
+    Str *user_obj = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     if (user_c_path) {
-        user_obj = Str_new("gen/lib/user.o");
+        user_obj = &(Str){.c_str = (U8*)"gen/lib/user.o", .count = 14, .cap = CAP_LIT};
         cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-            Str_new("cc -Wall -Wextra -Werror -fPIC -I"), ext_dir),
-            Str_new(" -c ")), user_c_path), Str_new(" -o ")), user_obj);
+            &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
+            &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), user_c_path), &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), user_obj);
         result = system((const char *)cmd->c_str);
         if (result != 0) {
             fprintf(stderr, "error: user .c compilation failed\n");
@@ -2708,11 +2862,11 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     }
 
     // Create shared library
-    Str *so_path = Str_concat(Str_concat(Str_new("gen/lib/lib"), lib_name), Str_new(".so"));
+    Str *so_path = Str_concat(Str_concat(&(Str){.c_str = (U8*)"gen/lib/lib", .count = 11, .cap = CAP_LIT}, lib_name), &(Str){.c_str = (U8*)".so", .count = 3, .cap = CAP_LIT});
     cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -shared -o "), so_path),
-        Str_new(" ")), obj_path), Str_new(" ")), ext_obj),
-        Str_concat(Str_concat(Str_new(" "), user_obj), lf));
+        &(Str){.c_str = (U8*)"cc -shared -o ", .count = 14, .cap = CAP_LIT}, so_path),
+        &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), obj_path), &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), ext_obj),
+        Str_concat(Str_concat(&(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}, user_obj), lf));
     result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: shared library creation failed\n");
@@ -2720,11 +2874,11 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     }
 
     // Create static library
-    Str *a_path = Str_concat(Str_concat(Str_new("gen/lib/lib"), lib_name), Str_new(".a"));
+    Str *a_path = Str_concat(Str_concat(&(Str){.c_str = (U8*)"gen/lib/lib", .count = 11, .cap = CAP_LIT}, lib_name), &(Str){.c_str = (U8*)".a", .count = 2, .cap = CAP_LIT});
     cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("ar rcs "), a_path),
-        Str_new(" ")), obj_path), Str_new(" ")), ext_obj),
-        Str_concat(Str_new(" "), user_obj));
+        &(Str){.c_str = (U8*)"ar rcs ", .count = 7, .cap = CAP_LIT}, a_path),
+        &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), obj_path), &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), ext_obj),
+        Str_concat(&(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}, user_obj));
     result = system((const char *)cmd->c_str);
     if (result != 0) {
         fprintf(stderr, "error: static library creation failed\n");
@@ -2737,22 +2891,23 @@ I32 compile_lib(Str *c_path, Str *lib_name,
 I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str *link_flags) {
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
+    Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
     {
-        I64 slash = *Str_rfind(ext_c_path, Str_new("/"));
-        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
+        I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : &_dot_str;
     }
 
     // Raylib library path (ext_dir is <root>/src/c)
-    Str *raylib_flags = Str_concat(Str_concat(Str_new(" -L"), ext_dir), Str_new("/../../lib/raylib/src"));
+    Str *raylib_flags = Str_concat(Str_concat(&(Str){.c_str = (U8*)" -L", .count = 3, .cap = CAP_LIT}, ext_dir), &(Str){.c_str = (U8*)"/../../lib/raylib/src", .count = 21, .cap = CAP_LIT});
 
-    Str *user_part = user_c_path ? Str_concat(Str_new(" "), user_c_path) : Str_new("");
-    Str *lf = Str_concat(raylib_flags, link_flags ? link_flags : Str_new(""));
+    Str *user_part = user_c_path ? Str_concat(&(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}, user_c_path) : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
+    Str *lf = Str_concat(raylib_flags, link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
 
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        Str_new("cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I"), ext_dir),
-        Str_new(" -o ")), bin_path),
-        Str_new(" ")), c_path),
-        Str_new(" ")), Str_concat(Str_concat(ext_c_path, user_part), lf));
+        &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I", .count = 59, .cap = CAP_LIT}, ext_dir),
+        &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), bin_path),
+        &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), c_path),
+        &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), Str_concat(Str_concat(ext_c_path, user_part), lf));
 
     int result = system((const char *)cmd->c_str);
 
