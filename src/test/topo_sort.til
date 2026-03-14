@@ -1,0 +1,29 @@
+mode test
+
+// Test: topological ordering of struct definitions
+// B has an inline A field, so A must be defined before B in generated C.
+// If the topo sort is broken, this won't compile.
+
+A := struct {
+    mut x : I64 = 0
+}
+
+B := struct {
+    mut a := A()
+    mut y : I64 = 0
+}
+
+C := struct {
+    mut b := B()
+    mut z : I64 = 0
+}
+
+test_topo_inline_struct := test() {
+    mut c := C()
+    c.b.a.x = 42
+    c.b.y = 10
+    c.z = 5
+    assert(__LOC__, c.b.a.x.eq(42))
+    assert(__LOC__, c.b.y.eq(10))
+    assert(__LOC__, c.z.eq(5))
+}

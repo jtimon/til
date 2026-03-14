@@ -1356,6 +1356,67 @@ static Bool is_scalar_method_type(Str *name) {
            Str_eq_c(name, "I64") || Str_eq_c(name, "Bool");
 }
 
+// Topological sort for struct/enum definitions: emit types with inline
+// struct fields after their dependencies. Collects indices into sorted_out.
+static void topo_sort_structs(Expr *program, U32 *sorted_out, U32 *nsorted) {
+    // Collect all struct/enum definition indices
+    U32 indices[512];
+    Str *names[512];
+    U32 n = 0;
+    for (U32 i = 0; i < program->children.count && n < 512; i++) {
+        Expr *stmt = expr_child(program, i);
+        if (stmt->type.tag == NODE_DECL &&
+            (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF ||
+             expr_child(stmt, 0)->type.tag == NODE_ENUM_DEF)) {
+            indices[n] = i;
+            names[n] = stmt->type.decl.name;
+            n++;
+        }
+    }
+    // Mark which are emitted
+    Bool emitted[512] = {0};
+    *nsorted = 0;
+    // Repeatedly emit types with no unresolved inline dependencies
+    Bool progress = 1;
+    while (progress) {
+        progress = 0;
+        for (U32 i = 0; i < n; i++) {
+            if (emitted[i]) continue;
+            Expr *stmt = expr_child(program, indices[i]);
+            Expr *def = expr_child(stmt, 0);
+            Bool deps_met = 1;
+            if (def->type.tag == NODE_STRUCT_DEF) {
+                Expr *body = expr_child(def, 0);
+                for (U32 j = 0; j < body->children.count; j++) {
+                    Expr *field = expr_child(body, j);
+                    if (field->type.decl.is_namespace) continue;
+                    if (field->type.decl.is_own || field->type.decl.is_ref) continue;
+                    // Inline struct field — check if dependency is emitted
+                    if ((field->til_type == TIL_TYPE_STRUCT || field->til_type == TIL_TYPE_ENUM) &&
+                        expr_child(field, 0)->struct_name) {
+                        Str *dep = expr_child(field, 0)->struct_name;
+                        if (is_ext_h_type(dep)) continue;
+                        Bool found = 0;
+                        for (U32 k = 0; k < n; k++) {
+                            if (emitted[k] && *Str_eq(names[k], dep)) { found = 1; break; }
+                        }
+                        if (!found) { deps_met = 0; break; }
+                    }
+                }
+            }
+            if (deps_met) {
+                sorted_out[(*nsorted)++] = indices[i];
+                emitted[i] = 1;
+                progress = 1;
+            }
+        }
+    }
+    // Emit any remaining (circular deps — shouldn't happen but be safe)
+    for (U32 i = 0; i < n; i++) {
+        if (!emitted[i]) sorted_out[(*nsorted)++] = indices[i];
+    }
+}
+
 static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
     Expr *body = expr_child(struct_def, 0);
     if (is_ext_h_type(name)) return; // defined by ext.h/aliases.h
@@ -1896,9 +1957,11 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         Vec_delete(&coll_infos, &(Bool){0});
     }
 
-    // Emit struct + enum struct typedefs in source order (so payload types are defined first)
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
+    // Emit struct + enum struct typedefs in dependency order (topo sorted)
+    U32 sorted[512]; U32 nsorted = 0;
+    topo_sort_structs(program, sorted, &nsorted);
+    for (U32 si = 0; si < nsorted; si++) {
+        Expr *stmt = expr_child(program, sorted[si]);
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
             emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0));
             fprintf(f, "\n");
@@ -2314,9 +2377,11 @@ I32 build_header(Expr *program, Str *h_path) {
     }
     fprintf(f, "\n");
 
-    // Struct definitions with fields (emit_struct_typedef skips ext.h types)
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
+    // Struct definitions with fields in dependency order (topo sorted)
+    { U32 sorted_lib[512]; U32 nsorted_lib = 0;
+    topo_sort_structs(program, sorted_lib, &nsorted_lib);
+    for (U32 si = 0; si < nsorted_lib; si++) {
+        Expr *stmt = expr_child(program, sorted_lib[si]);
         if (stmt->type.tag == NODE_DECL && expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF) {
             emit_struct_typedef(f, stmt->type.decl.name, expr_child(stmt, 0));
             fprintf(f, "\n");
@@ -2342,7 +2407,7 @@ I32 build_header(Expr *program, Str *h_path) {
             }
             fprintf(f, "};\n\n");
         }
-    }
+    } }
 
     // Function forward declarations (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
