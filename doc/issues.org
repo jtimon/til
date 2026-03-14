@@ -1,10 +1,16 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 67
+# NEXT_ISSUE: 68
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #67 For-in range should coerce literal 0 to match the end type
+  ~for i in 0..count~ where ~count~ is U32 fails with type mismatch
+  because ~0~ is I64 and the range expects matching types. Should either
+  coerce the literal ~0~ to U32, or accept mixed integer types in ranges.
+  Workaround: ~for i in 0..count.to_i64().to_u64()~ (ugly).
 
 ** OPEN #64 Builder: pure/lib/pura/liba modes emit I64* instead of I64
   The ~is_lib~ codepath in builder.c causes scalar types to be emitted as

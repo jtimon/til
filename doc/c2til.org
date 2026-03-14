@@ -358,6 +358,13 @@ for (int i = 0; i < n; i++) { ... }
 for i in 0..n { ... }
 #+end_src
 
+When the range end is a different type (e.g. U32), add a type annotation
+to avoid unnecessary conversions:
+
+#+begin_src til
+for i : U64 in 0..count { ... }
+#+end_src
+
 When you need both the index and an element from a collection:
 
 #+begin_src til
