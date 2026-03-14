@@ -1,5 +1,17 @@
 # Agent Instructions
 
+## Decision Making
+
+NEVER take decisions without the user's explicit approval. When you encounter a choice — architecture, naming, file structure, approach, workaround, anything — STOP and present the options to the user. Do not pick one and run with it. Do not "just try something". Do not rationalize a choice after the fact. ASK FIRST, ACT SECOND. Every single time.
+
+## Following Orders
+
+When the user tells you to do something, DO IT. Do not analyze the order. Do not try to understand why. Do not add extra steps. Do not ls before rm. Do not check before writing. Do not investigate before acting. Just execute the exact command or action the user specified. Nothing more, nothing less. You are not paid to think about orders — you are paid to follow them.
+
+## File Editing
+
+ALWAYS read a file before writing or editing it. No exceptions. If you haven't read it in this conversation, read it first. The Edit tool will error if you don't, but don't rely on that — make it a habit.
+
 ## Testing
 
 Always run `make test` and verify all tests pass before committing.
