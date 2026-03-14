@@ -1,10 +1,24 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 68
+# NEXT_ISSUE: 69
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #68 Negative literal support
+  Two phases:
+
+*** Phase 1: Type-directed literal coercion
+    ~a : I32 = 0.sub(1)~ should work without explicit ~.to_i32()~.
+    The typer sees the target type is I32, so literal ~0~ and ~.sub()~
+    resolve to I32 operations. No manual conversion needed.
+    Related to #67 (literal coercion in for-in ranges).
+
+*** Phase 2: Negative literal syntax
+    Support ~-111~ as syntax for negative numbers. Parser produces it.
+    Simplest implementation: desugar ~-N~ to ~0.sub(N)~.
+    Later: optimize to direct negative literal in codegen.
 
 ** OPEN #67 For-in range should coerce literal 0 to match the end type
   ~for i in 0..count~ where ~count~ is U32 fails with type mismatch
