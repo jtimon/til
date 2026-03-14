@@ -1,7 +1,7 @@
 bin/
 gen/
 tmp/
-src/bootstrap/til.c
+bootstrap/til.c
 lib/raylib/src/libraylib.a
 lib/libffi/.built
 lib/libffi/*-*-*/

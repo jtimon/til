@@ -1,4 +1,6 @@
 #include "initer.h"
+#include "ast.h"
+#include "modes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +9,7 @@
 
 TypeScope *tscope_new(TypeScope *parent) {
     TypeScope *s = malloc(sizeof(TypeScope));
-    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(TypeBinding)}); s->bindings = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(TypeBinding)}); s->bindings = *_mp; free(_mp); }
     s->parent = parent;
     return s;
 }
@@ -15,6 +17,23 @@ TypeScope *tscope_new(TypeScope *parent) {
 void tscope_free(TypeScope *s) {
     Map_delete(&s->bindings, &(Bool){0});
     free(s);
+}
+
+// --- FFI clone/delete for TypeScope and Mode ---
+
+TypeScope *TypeScope_clone(TypeScope *s) { return s; }
+void TypeScope_delete(TypeScope *s, Bool *call_free) { (void)s; (void)call_free; }
+Mode *Mode_clone(Mode *m) { return m; }
+void Mode_delete(Mode *m, Bool *call_free) { (void)m; (void)call_free; }
+
+// --- Vec helper used by typer ---
+
+void *Vec_take(Vec *v) {
+    void *ptr = v->data;
+    v->data = NULL;
+    v->count = 0;
+    v->cap = 0;
+    return ptr;
 }
 
 void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own) {
@@ -42,7 +61,7 @@ TypeBinding *tscope_find(TypeScope *s, Str *name) {
 
 TilType tscope_get(TypeScope *s, Str *name) {
     TypeBinding *b = tscope_find(s, name);
-    return b ? b->type : TIL_TYPE_UNKNOWN;
+    return b ? b->type : (TilType){TilType_TAG_Unknown};
 }
 
 I32 tscope_is_proc(TypeScope *s, Str *name) {
@@ -63,26 +82,26 @@ Bool tscope_is_mut(TypeScope *s, Str *name) {
 // --- Resolve type name (simplified, for init phase) ---
 
 static TilType type_from_name_init(Str *name, TypeScope *scope) {
-    if (Str_eq_c(name, "I64"))  return TIL_TYPE_I64;
-    if (Str_eq_c(name, "U8"))   return TIL_TYPE_U8;
-    if (Str_eq_c(name, "I16"))  return TIL_TYPE_I16;
-    if (Str_eq_c(name, "I32"))  return TIL_TYPE_I32;
-    if (Str_eq_c(name, "U32"))  return TIL_TYPE_U32;
-    if (Str_eq_c(name, "U64"))  return TIL_TYPE_U64;
-    if (Str_eq_c(name, "Str"))  return TIL_TYPE_STRUCT;
-    if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
-    if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
+    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return (TilType){TilType_TAG_I64};
+    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return (TilType){TilType_TAG_U8};
+    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return (TilType){TilType_TAG_I16};
+    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return (TilType){TilType_TAG_I32};
+    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return (TilType){TilType_TAG_U32};
+    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return (TilType){TilType_TAG_U64};
+    if ((name->count == 3 && memcmp(name->c_str, "Str", 3) == 0))  return (TilType){TilType_TAG_Struct};
+    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return (TilType){TilType_TAG_Bool};
+    if ((name->count == 9 && memcmp(name->c_str, "StructDef", 9) == 0))    return (TilType){TilType_TAG_StructDef};
     // FunctionDef: regular struct (like Str), not builtin
-    if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
+    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0))     return (TilType){TilType_TAG_Dynamic};
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
-        if (sdef) return (sdef->type.tag == NODE_ENUM_DEF) ? TIL_TYPE_ENUM : TIL_TYPE_STRUCT;
+        if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
         // Named FuncSig type (bodyless func/proc)
         TypeBinding *b = tscope_find(scope, name);
         if (b && b->func_def && b->func_def->children.count == 0)
-            return TIL_TYPE_FUNC_PTR;
+            return (TilType){TilType_TAG_FuncPtr};
     }
-    return TIL_TYPE_UNKNOWN;
+    return (TilType){TilType_TAG_Unknown};
 }
 
 // --- Flat struct layout computation ---
@@ -96,87 +115,90 @@ static I32 align_up(I32 offset, I32 align) {
 static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
     if (struct_def->total_struct_size > 0) return; // already computed
 
-    Expr *body = expr_child(struct_def, 0);
+    Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
     I32 offset = 0;
     I32 max_align = 1;
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = expr_child(body, i);
-        if (field->type.tag != NODE_DECL || field->type.decl.is_namespace) continue;
+        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+        if (field->data.tag != ExprData_TAG_Decl || field->data.data.Decl.is_namespace) continue;
 
         I32 fsz, falign;
 
-        if (field->type.decl.is_own || field->type.decl.is_ref) {
+        if (field->data.data.Decl.is_own || field->data.data.Decl.is_ref) {
             // own/ref fields are pointers
             fsz = 8; falign = 8;
             // Resolve the pointed-to struct for field access
-            Str *ftype = field->type.decl.explicit_type;
-            if (!ftype && field->children.count > 0) {
-                Expr *def_val = expr_child(field, 0);
-                if (def_val->type.tag == NODE_FCALL && def_val->children.count > 0 &&
-                    expr_child(def_val, 0)->type.tag == NODE_IDENT)
-                    ftype = expr_child(def_val, 0)->type.str_val;
-                if (ftype) field->type.decl.explicit_type = ftype;
+            Str *ftype = &field->data.data.Decl.explicit_type;
+            if (ftype->count == 0 && field->children.count > 0) {
+                Expr *def_val = Expr_child(field, &(I64){(I64)(0)});
+                if (def_val->data.tag == ExprData_TAG_FCall && def_val->children.count > 0 &&
+                    Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(def_val, &(I64){(I64)(0)})->data.data.Ident;
+                if (ftype->count > 0) field->data.data.Decl.explicit_type = *ftype;
             }
-            if (ftype && !Str_eq_c(ftype, "I64") && !Str_eq_c(ftype, "U8") && !Str_eq_c(ftype, "I16") && !Str_eq_c(ftype, "I32") && !Str_eq_c(ftype, "U32") && !Str_eq_c(ftype, "Bool")) {
+            if (ftype->count > 0 && !(ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0) && !(ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0) && !(ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) {
                 Expr *nested_def = tscope_get_struct(scope, ftype);
                 if (nested_def && !nested_def->is_ext) {
                     // Skip recursive layout for self-referential own/ref fields
                     if (nested_def != struct_def)
                         compute_struct_layout(nested_def, scope);
-                    field->type.decl.field_struct_def = nested_def;
+                    field->data.data.Decl.field_struct_def = nested_def;
                 }
             }
         } else {
             // Determine type name
-            Str *ftype = field->type.decl.explicit_type;
-            if (!ftype && field->children.count > 0) {
-                Expr *def_val = expr_child(field, 0);
-                if (def_val->type.tag == NODE_LITERAL_NUM) ftype = Str_new("I64");
-                else if (def_val->type.tag == NODE_LITERAL_STR) ftype = Str_new("Str");
-                else if (def_val->type.tag == NODE_LITERAL_BOOL) ftype = Str_new("Bool");
-                else if (def_val->struct_name) ftype = def_val->struct_name;
+            Str _I64_s = {.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT};
+            Str _Str_s = {.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+            Str _Bool_s = {.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+            Str *ftype = &field->data.data.Decl.explicit_type;
+            if (ftype->count == 0 && field->children.count > 0) {
+                Expr *def_val = Expr_child(field, &(I64){(I64)(0)});
+                if (def_val->data.tag == ExprData_TAG_LiteralNum) ftype = &_I64_s;
+                else if (def_val->data.tag == ExprData_TAG_LiteralStr) ftype = &_Str_s;
+                else if (def_val->data.tag == ExprData_TAG_LiteralBool) ftype = &_Bool_s;
+                else if (def_val->struct_name.count > 0) ftype = &def_val->struct_name;
                 // FCALL default (e.g. Point()): callee ident is the struct name
-                else if (def_val->type.tag == NODE_FCALL && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type.tag == NODE_IDENT)
-                    ftype = expr_child(def_val, 0)->type.str_val;
+                else if (def_val->data.tag == ExprData_TAG_FCall && def_val->children.count > 0 &&
+                         Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(def_val, &(I64){(I64)(0)})->data.data.Ident;
                 // Namespace FCALL default (e.g. Vec.new(...)): struct name is in field access child
-                else if (def_val->type.tag == NODE_FCALL && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type.tag == NODE_FIELD_ACCESS &&
-                         expr_child(expr_child(def_val, 0), 0)->type.tag == NODE_IDENT)
-                    ftype = expr_child(expr_child(def_val, 0), 0)->type.str_val;
+                else if (def_val->data.tag == ExprData_TAG_FCall && def_val->children.count > 0 &&
+                         Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                         Expr_child(Expr_child(def_val, &(I64){(I64)(0)}), &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(Expr_child(def_val, &(I64){(I64)(0)}), &(I64){(I64)(0)})->data.data.Ident;
                 // Namespace field access default (e.g. MyEnum.C): type is the parent ident
-                else if (def_val->type.tag == NODE_FIELD_ACCESS && def_val->children.count > 0 &&
-                         expr_child(def_val, 0)->type.tag == NODE_IDENT)
-                    ftype = expr_child(def_val, 0)->type.str_val;
+                else if (def_val->data.tag == ExprData_TAG_FieldAccess && def_val->children.count > 0 &&
+                         Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(def_val, &(I64){(I64)(0)})->data.data.Ident;
                 // Store resolved type for interpreter's read_field
-                if (ftype) field->type.decl.explicit_type = ftype;
+                if (ftype->count > 0) field->data.data.Decl.explicit_type = *ftype;
             }
-            if (!ftype) { fsz = 8; falign = 8; } // fallback
-            else if (Str_eq_c(ftype, "I64"))  { fsz = 8; falign = 8; }
-            else if (Str_eq_c(ftype, "U8"))   { fsz = 1; falign = 1; }
-            else if (Str_eq_c(ftype, "I16"))  { fsz = 2; falign = 2; }
-            else if (Str_eq_c(ftype, "I32"))  { fsz = 4; falign = 4; }
-            else if (Str_eq_c(ftype, "U32"))  { fsz = 4; falign = 4; }
-            else if (Str_eq_c(ftype, "Bool")) { fsz = 1; falign = 1; }
-            else if (type_from_name_init(ftype, scope) == TIL_TYPE_FUNC_PTR) {
+            if (ftype->count == 0) { fsz = 8; falign = 8; } // fallback
+            else if ((ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0))  { fsz = 8; falign = 8; }
+            else if ((ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0))   { fsz = 1; falign = 1; }
+            else if ((ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0))  { fsz = 2; falign = 2; }
+            else if ((ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  { fsz = 4; falign = 4; }
+            else if ((ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  { fsz = 4; falign = 4; }
+            else if ((ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) { fsz = 1; falign = 1; }
+            else if (type_from_name_init(ftype, scope).tag == TilType_TAG_FuncPtr) {
                 // FuncSig-typed field: function pointer (void *)
                 fsz = 8; falign = 8;
             } else {
                 // Inline struct/enum field
                 Expr *nested_def = tscope_get_struct(scope, ftype);
-                if (nested_def && nested_def->type.tag == NODE_ENUM_DEF) {
-                    if (enum_has_payloads(nested_def)) {
+                if (nested_def && nested_def->data.tag == ExprData_TAG_EnumDef) {
+                    if (*enum_has_payloads(nested_def)) {
                         fsz = 8; falign = 8; // tagged enum: pointer to EnumInstance
                     } else {
                         fsz = 4; falign = 4; // simple enum: I32 tag (matches C enum)
                     }
-                    field->type.decl.field_struct_def = nested_def;
+                    field->data.data.Decl.field_struct_def = nested_def;
                 } else if (nested_def) {
                     compute_struct_layout(nested_def, scope);
                     fsz = nested_def->total_struct_size;
                     falign = 8; // structs are 8-aligned
-                    field->type.decl.field_struct_def = nested_def;
+                    field->data.data.Decl.field_struct_def = nested_def;
                 } else {
                     fsz = 8; falign = 8; // unknown — treat as pointer
                 }
@@ -184,8 +206,8 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
         }
 
         offset = align_up(offset, falign);
-        field->type.decl.field_offset = offset;
-        field->type.decl.field_size = fsz;
+        field->data.data.Decl.field_offset = offset;
+        field->data.data.Decl.field_size = fsz;
         if (falign > max_align) max_align = falign;
         offset += fsz;
     }
@@ -197,16 +219,15 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
 
 static void compute_all_struct_layouts(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
-        Str *sname = stmt->type.decl.name;
-        if (Str_eq_c(sname, "StructDef") ||
-            Str_eq_c(sname, "FunctionDef") ||
-            Str_eq_c(sname, "Dynamic")) continue;
+        Str *sname = &stmt->data.data.Decl.name;
+        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
+            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        compute_struct_layout(expr_child(stmt, 0), scope);
+        compute_struct_layout(Expr_child(stmt, &(I64){(I64)(0)}), scope);
     }
 }
 
@@ -217,80 +238,79 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
     // Pass 1: register all struct definitions
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
-        Str *sname = stmt->type.decl.name;
+        Str *sname = &stmt->data.data.Decl.name;
 
         // Check for redeclaration: if a struct/ext_struct with this name already exists, error
         TypeBinding *existing = tscope_find(scope, sname);
         if (existing && existing->struct_def) {
             fprintf(stderr, "%s:%u:%u: error: struct '%s' already declared at %s:%u:%u\n",
-                    stmt->path->c_str, stmt->line, stmt->col, sname->c_str,
-                    existing->struct_def->path->c_str, existing->line, existing->col);
+                    stmt->path.c_str, stmt->line, stmt->col, sname->c_str,
+                    existing->struct_def->path.c_str, existing->line, existing->col);
             errors++;
             continue;
         }
 
-        TilType builtin_type = TIL_TYPE_STRUCT;
+        TilType builtin_type = (TilType){TilType_TAG_Struct};
         Bool is_builtin = 0;
-        if (Str_eq_c(sname, "I64"))             { builtin_type = TIL_TYPE_I64;        is_builtin = 1; }
-        else if (Str_eq_c(sname, "U8"))         { builtin_type = TIL_TYPE_U8;         is_builtin = 1; }
-        else if (Str_eq_c(sname, "I16"))        { builtin_type = TIL_TYPE_I16;        is_builtin = 1; }
-        else if (Str_eq_c(sname, "I32"))        { builtin_type = TIL_TYPE_I32;        is_builtin = 1; }
-        else if (Str_eq_c(sname, "U32"))        { builtin_type = TIL_TYPE_U32;        is_builtin = 1; }
-        else if (Str_eq_c(sname, "U64"))        { builtin_type = TIL_TYPE_U64;        is_builtin = 1; }
-        else if (Str_eq_c(sname, "Str"))        { is_builtin = 0; } // Str is a regular struct
-        else if (Str_eq_c(sname, "Bool"))       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }
-        else if (Str_eq_c(sname, "StructDef"))  { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
-        else if (Str_eq_c(sname, "FunctionDef")){ is_builtin = 0; } // regular struct like Str
-        else if (Str_eq_c(sname, "Dynamic"))   { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
+        if ((sname->count == 3 && memcmp(sname->c_str, "I64", 3) == 0))             { builtin_type = (TilType){TilType_TAG_I64};        is_builtin = 1; }
+        else if ((sname->count == 2 && memcmp(sname->c_str, "U8", 2) == 0))         { builtin_type = (TilType){TilType_TAG_U8};         is_builtin = 1; }
+        else if ((sname->count == 3 && memcmp(sname->c_str, "I16", 3) == 0))        { builtin_type = (TilType){TilType_TAG_I16};        is_builtin = 1; }
+        else if ((sname->count == 3 && memcmp(sname->c_str, "I32", 3) == 0))        { builtin_type = (TilType){TilType_TAG_I32};        is_builtin = 1; }
+        else if ((sname->count == 3 && memcmp(sname->c_str, "U32", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U32};        is_builtin = 1; }
+        else if ((sname->count == 3 && memcmp(sname->c_str, "U64", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U64};        is_builtin = 1; }
+        else if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))        { is_builtin = 0; } // Str is a regular struct
+        else if ((sname->count == 4 && memcmp(sname->c_str, "Bool", 4) == 0))       { builtin_type = (TilType){TilType_TAG_Bool};       is_builtin = 1; }
+        else if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0))  { builtin_type = (TilType){TilType_TAG_StructDef}; is_builtin = 1; }
+        else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0)){ is_builtin = 0; } // regular struct like Str
+        else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))   { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
 
         tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *b = tscope_find(scope, sname);
-        b->struct_def = expr_child(stmt, 0);
+        b->struct_def = Expr_child(stmt, &(I64){(I64)(0)});
         b->is_builtin = is_builtin;
-        b->is_ext = expr_child(stmt, 0)->is_ext;
+        b->is_ext = Expr_child(stmt, &(I64){(I64)(0)})->is_ext;
     }
 
     // Pass 1.1: pre-register FuncSig type aliases (bodyless func/proc defs)
     // Needed before struct layout/clone/delete so FuncSig-typed struct fields are recognized
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_FUNC_DEF) continue;
-        if (expr_child(stmt, 0)->children.count != 0) continue; // bodyless = FuncSig
-        tscope_set(scope, stmt->type.decl.name, TIL_TYPE_FUNC_PTR, -1, 0,
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->children.count != 0) continue; // bodyless = FuncSig
+        tscope_set(scope, &stmt->data.data.Decl.name, (TilType){TilType_TAG_FuncPtr}, -1, 0,
                    stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = tscope_find(scope, stmt->type.decl.name);
-        if (fb) fb->func_def = expr_child(stmt, 0);
+        TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
+        if (fb) fb->func_def = Expr_child(stmt, &(I64){(I64)(0)});
     }
 
     // Pass 1.5: auto-generate clone methods for all structs
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
-        Str *sname = stmt->type.decl.name;
+        Str *sname = &stmt->data.data.Decl.name;
 
         // Skip meta-types and core ext_structs (C side provides clone)
-        if (Str_eq_c(sname, "StructDef") ||
-            Str_eq_c(sname, "FunctionDef") ||
-            Str_eq_c(sname, "Dynamic")) continue;
+        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
+            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        Expr *sdef = expr_child(stmt, 0);
+        Expr *sdef = Expr_child(stmt, &(I64){(I64)(0)});
         if (sdef->is_ext && stmt->is_core) continue;
 
-        Expr *body = expr_child(sdef, 0); // NODE_BODY
+        Expr *body = Expr_child(sdef, &(I64){(I64)(0)}); // ExprData_TAG_Body
 
         // Check if clone already exists in namespace
         Bool has_clone = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (field->type.tag == NODE_DECL && field->type.decl.is_namespace &&
-                Str_eq_c(field->type.decl.name, "clone")) {
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
+                (field->data.data.Decl.name.count == 5 && memcmp(field->data.data.Decl.name.c_str, "clone", 5) == 0)) {
                 has_clone = 1;
                 break;
             }
@@ -298,16 +318,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_clone) continue;
 
         // Collect instance field names and ref/funcptr flags
-        Vec field_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
-        Vec field_refs; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(I32)}); field_refs = *_vp; free(_vp); }
+        Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
+        Vec field_refs; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(I32)}); field_refs = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace) {
-                { Str **_p = malloc(sizeof(Str *)); *_p = field->type.decl.name; Vec_push(&field_names, _p); }
-                I32 ref_flag = field->type.decl.is_ref ? 1 : 0;
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (field->data.tag == ExprData_TAG_Decl && !field->data.data.Decl.is_namespace) {
+                { Str **_p = malloc(sizeof(Str *)); *_p = &field->data.data.Decl.name; Vec_push(&field_names, _p); }
+                I32 ref_flag = field->data.data.Decl.is_ref ? 1 : 0;
                 // FuncSig-typed fields are just pointers — treat like ref for clone (no .clone())
-                if (!ref_flag && field->type.decl.explicit_type &&
-                    type_from_name_init(field->type.decl.explicit_type, scope) == TIL_TYPE_FUNC_PTR)
+                if (!ref_flag && field->data.data.Decl.explicit_type.count > 0 &&
+                    type_from_name_init(&field->data.data.Decl.explicit_type, scope).tag == TilType_TAG_FuncPtr)
                     ref_flag = 1;
                 { I32 *_p = malloc(sizeof(I32)); *_p = ref_flag; Vec_push(&field_refs, _p); }
             }
@@ -315,35 +335,35 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         I32 line = stmt->line;
         I32 col = stmt->col;
-        Str *path = stmt->path;
-        Expr *func_body = expr_new(NODE_BODY, line, col, path);
+        Str *path = &stmt->path;
+        Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
 
         if (field_names.count == 0) {
             // No instance fields: return Type()
-            Expr *ctor = expr_new(NODE_FCALL, line, col, path);
-            Expr *ctor_name = expr_new(NODE_IDENT, line, col, path);
-            ctor_name->type.str_val = sname;
-            expr_add_child(ctor, ctor_name);
+            Expr *ctor = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr *ctor_name = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            ctor_name->data.data.Ident = *sname;
+            Expr_add_child(ctor, ctor_name);
 
-            Expr *ret = expr_new(NODE_RETURN, line, col, path);
-            expr_add_child(ret, ctor);
-            expr_add_child(func_body, ret);
+            Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+            Expr_add_child(ret, ctor);
+            Expr_add_child(func_body, ret);
         } else {
             // With fields: return StructName(f1=self.f1.clone(), ...)
-            Expr *ctor = expr_new(NODE_FCALL, line, col, path);
-            Expr *ctor_name = expr_new(NODE_IDENT, line, col, path);
-            ctor_name->type.str_val = sname;
-            expr_add_child(ctor, ctor_name);
+            Expr *ctor = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr *ctor_name = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            ctor_name->data.data.Ident = *sname;
+            Expr_add_child(ctor, ctor_name);
 
             for (U32 j = 0; j < field_names.count; j++) {
                 Str *fname = *(Str **)Vec_get(&field_names, &(U64){(U64)(j)});
                 I32 fref = *(I32 *)Vec_get(&field_refs, &(U64){(U64)(j)});
                 // self.field_name
-                Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                self_id->type.str_val = Str_new("self");
-                Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                field_acc->type.str_val = fname;
-                expr_add_child(field_acc, self_id);
+                Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                Expr *field_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                field_acc->data.data.FieldAccess = *fname;
+                Expr_add_child(field_acc, self_id);
 
                 Expr *val_expr;
                 if (fref) {
@@ -351,80 +371,79 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     val_expr = field_acc;
                 } else {
                     // self.field_name.clone()
-                    Expr *clone_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    clone_acc->type.str_val = Str_new("clone");
-                    expr_add_child(clone_acc, field_acc);
-                    Expr *clone_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(clone_call, clone_acc);
+                    Expr *clone_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    clone_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT};
+                    Expr_add_child(clone_acc, field_acc);
+                    Expr *clone_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(clone_call, clone_acc);
                     val_expr = clone_call;
                 }
 
                 // Named arg: field_name=value
-                Expr *named = expr_new(NODE_NAMED_ARG, line, col, path);
-                named->type.str_val = fname;
-                expr_add_child(named, val_expr);
-                expr_add_child(ctor, named);
+                Expr *named = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, line, col, path);
+                named->data.data.NamedArg = *fname;
+                Expr_add_child(named, val_expr);
+                Expr_add_child(ctor, named);
             }
 
-            Expr *ret = expr_new(NODE_RETURN, line, col, path);
-            expr_add_child(ret, ctor);
-            expr_add_child(func_body, ret);
+            Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+            Expr_add_child(ret, ctor);
+            Expr_add_child(func_body, ret);
         }
 
         // func def
-        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col, path);
-        func_def->type.func_def.func_type = FUNC_FUNC;
-        func_def->type.func_def.nparam = 1;
-        func_def->type.func_def.param_names = malloc(sizeof(Str *));
-        func_def->type.func_def.param_names[0] = Str_new("self");
-        func_def->type.func_def.param_types = malloc(sizeof(Str *));
-        func_def->type.func_def.param_types[0] = sname;
-        func_def->type.func_def.param_muts = calloc(1, sizeof(bool));
-        func_def->type.func_def.param_owns = calloc(1, sizeof(bool));
-        func_def->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
-        func_def->type.func_def.return_type = sname;
-        func_def->type.func_def.variadic_index = -1;
-        func_def->type.func_def.kwargs_index = -1;
-        expr_add_child(func_def, func_body);
+        Expr *func_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+        func_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+        func_def->data.data.FuncDef.nparam = 1;
+        func_def->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        *((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+        func_def->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        *((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *sname;
+        func_def->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        func_def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        func_def->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        func_def->data.data.FuncDef.return_type = *sname;
+        func_def->data.data.FuncDef.variadic_index = -1;
+        func_def->data.data.FuncDef.kwargs_index = -1;
+        Expr_add_child(func_def, func_body);
 
         // clone := func(...)  (namespace decl)
-        Expr *decl = expr_new(NODE_DECL, line, col, path);
-        decl->type.decl.name = Str_new("clone");
-        decl->type.decl.is_namespace = true;
-        decl->type.decl.is_mut = false;
-        decl->type.decl.explicit_type = NULL;
-        expr_add_child(decl, func_def);
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+        decl->data.data.Decl.name = (Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT};
+        decl->data.data.Decl.is_namespace = true;
+        decl->data.data.Decl.is_mut = false;
+        decl->data.data.Decl.explicit_type = (Str){0};
+        Expr_add_child(decl, func_def);
 
         // Add to struct body
-        expr_add_child(body, decl);
+        Expr_add_child(body, decl);
         Vec_delete(&field_names, &(Bool){0});
         Vec_delete(&field_refs, &(Bool){0});
     }
 
     // Pass 1.7: auto-generate delete methods for all structs
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
-        Str *sname = stmt->type.decl.name;
+        Str *sname = &stmt->data.data.Decl.name;
 
         // Skip meta-types and core ext_structs (C side provides delete)
-        if (Str_eq_c(sname, "StructDef") ||
-            Str_eq_c(sname, "FunctionDef") ||
-            Str_eq_c(sname, "Dynamic")) continue;
+        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
+            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        Expr *sdef = expr_child(stmt, 0);
+        Expr *sdef = Expr_child(stmt, &(I64){(I64)(0)});
         if (sdef->is_ext && stmt->is_core) continue;
 
-        Expr *body = expr_child(sdef, 0); // NODE_BODY
+        Expr *body = Expr_child(sdef, &(I64){(I64)(0)}); // ExprData_TAG_Body
 
         // Check if delete already exists in namespace
         Bool has_delete = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (field->type.tag == NODE_DECL && field->type.decl.is_namespace &&
-                Str_eq_c(field->type.decl.name, "delete")) {
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
+                (field->data.data.Decl.name.count == 6 && memcmp(field->data.data.Decl.name.c_str, "delete", 6) == 0)) {
                 has_delete = 1;
                 break;
             }
@@ -432,143 +451,143 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_delete) continue;
 
         // Collect instance field names and own flags (skip ref and func ptr fields)
-        Vec field_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
-        Vec field_owns; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(I32)}); field_owns = *_vp; free(_vp); }
+        Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
+        Vec field_owns; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(I32)}); field_owns = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (field->type.tag == NODE_DECL && !field->type.decl.is_namespace &&
-                !field->type.decl.is_ref) {
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (field->data.tag == ExprData_TAG_Decl && !field->data.data.Decl.is_namespace &&
+                !field->data.data.Decl.is_ref) {
                 // Skip FuncSig-typed fields — func ptrs don't need delete
-                if (field->type.decl.explicit_type &&
-                    type_from_name_init(field->type.decl.explicit_type, scope) == TIL_TYPE_FUNC_PTR)
+                if ((field->data.data.Decl.explicit_type).count > 0 &&
+                    type_from_name_init(&field->data.data.Decl.explicit_type, scope).tag == TilType_TAG_FuncPtr)
                     continue;
-                { Str **_p = malloc(sizeof(Str *)); *_p = field->type.decl.name; Vec_push(&field_names, _p); }
-                { I32 *_p = malloc(sizeof(I32)); *_p = field->type.decl.is_own; Vec_push(&field_owns, _p); }
+                { Str **_p = malloc(sizeof(Str *)); *_p = &field->data.data.Decl.name; Vec_push(&field_names, _p); }
+                { I32 *_p = malloc(sizeof(I32)); *_p = field->data.data.Decl.is_own; Vec_push(&field_owns, _p); }
             }
         }
 
         I32 line = stmt->line;
         I32 col = stmt->col;
-        Str *path = stmt->path;
-        Expr *proc_body = expr_new(NODE_BODY, line, col, path);
+        Str *path = &stmt->path;
+        Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
 
         // For each field: self.field.delete(call_free=<true for own, false for inline>)
         for (U32 j = 0; j < field_names.count; j++) {
             Str *fname = *(Str **)Vec_get(&field_names, &(U64){(U64)(j)});
             I32 fown = *(I32 *)Vec_get(&field_owns, &(U64){(U64)(j)});
-            Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-            self_id->type.str_val = Str_new("self");
-            Expr *field_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            field_acc->type.str_val = fname;
+            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            Expr *field_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+            field_acc->data.data.FieldAccess = *fname;
             field_acc->is_own_arg = true; // delete takes own self
-            expr_add_child(field_acc, self_id);
+            Expr_add_child(field_acc, self_id);
 
-            Expr *del_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-            del_acc->type.str_val = Str_new("delete");
-            expr_add_child(del_acc, field_acc);
-            Expr *del_call = expr_new(NODE_FCALL, line, col, path);
-            expr_add_child(del_call, del_acc);
+            Expr *del_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+            del_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
+            Expr_add_child(del_acc, field_acc);
+            Expr *del_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr_add_child(del_call, del_acc);
 
             // call_free=true for own fields (separate allocation), false for inline
-            Expr *cf_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-            cf_lit->type.str_val = Str_new(fown ? "true" : "false");
-            expr_add_child(del_call, cf_lit);
+            Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+            cf_lit->data.data.LiteralBool = (fown  ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT} : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
+            Expr_add_child(del_call, cf_lit);
 
-            expr_add_child(proc_body, del_call);
+            Expr_add_child(proc_body, del_call);
         }
 
         // if call_free { free(own self) }
-        Expr *cond = expr_new(NODE_IDENT, line, col, path);
-        cond->type.str_val = Str_new("call_free");
-        Expr *then_body = expr_new(NODE_BODY, line, col, path);
-        Expr *free_call = expr_new(NODE_FCALL, line, col, path);
-        Expr *free_id = expr_new(NODE_IDENT, line, col, path);
-        free_id->type.str_val = Str_new("free");
-        expr_add_child(free_call, free_id);
-        Expr *self_arg = expr_new(NODE_IDENT, line, col, path);
-        self_arg->type.str_val = Str_new("self");
+        Expr *cond = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        cond->data.data.Ident = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
+        Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+        Expr *free_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+        Expr *free_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        free_id->data.data.Ident = (Str){.c_str = (U8*)"free", .count = 4, .cap = CAP_LIT};
+        Expr_add_child(free_call, free_id);
+        Expr *self_arg = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        self_arg->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
         self_arg->is_own_arg = true;
-        expr_add_child(free_call, self_arg);
-        expr_add_child(then_body, free_call);
-        Expr *if_node = expr_new(NODE_IF, line, col, path);
-        expr_add_child(if_node, cond);
-        expr_add_child(if_node, then_body);
-        expr_add_child(proc_body, if_node);
+        Expr_add_child(free_call, self_arg);
+        Expr_add_child(then_body, free_call);
+        Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+        Expr_add_child(if_node, cond);
+        Expr_add_child(if_node, then_body);
+        Expr_add_child(proc_body, if_node);
 
         // proc def: delete(own self: Type, call_free: Bool = true)
-        Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col, path);
-        default_true->type.str_val = Str_new("true");
+        Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+        default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
 
-        Expr *proc_def = expr_new(NODE_FUNC_DEF, line, col, path);
+        Expr *proc_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
         proc_def->is_core = true; // auto-generated, not user code
-        proc_def->type.func_def.func_type = FUNC_PROC;
-        proc_def->type.func_def.nparam = 2;
-        proc_def->type.func_def.param_names = malloc(2 * sizeof(Str *));
-        proc_def->type.func_def.param_names[0] = Str_new("self");
-        proc_def->type.func_def.param_names[1] = Str_new("call_free");
-        proc_def->type.func_def.param_types = malloc(2 * sizeof(Str *));
-        proc_def->type.func_def.param_types[0] = sname;
-        proc_def->type.func_def.param_types[1] = Str_new("Bool");
-        proc_def->type.func_def.param_muts = calloc(2, sizeof(bool));
-        proc_def->type.func_def.param_owns = calloc(2, sizeof(bool));
-        proc_def->type.func_def.param_owns[0] = true;
-        proc_def->type.func_def.param_defaults = calloc(2, sizeof(Expr *));
-        proc_def->type.func_def.param_defaults[1] = default_true;
-        proc_def->type.func_def.return_type = NULL;
-        proc_def->type.func_def.variadic_index = -1;
-        proc_def->type.func_def.kwargs_index = -1;
-        expr_add_child(proc_def, proc_body);
+        proc_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
+        proc_def->data.data.FuncDef.nparam = 2;
+        proc_def->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        *((Str*)Vec_get(&proc_def->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+        *((Str*)Vec_get(&proc_def->data.data.FuncDef.param_names, &(U64){(U64)(1)})) = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
+        proc_def->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        *((Str*)Vec_get(&proc_def->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *sname;
+        *((Str*)Vec_get(&proc_def->data.data.FuncDef.param_types, &(U64){(U64)(1)})) = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+        proc_def->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        proc_def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        (*(Bool*)Vec_get(&proc_def->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) = true;
+        proc_def->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        (*(Expr**)Vec_get(&proc_def->data.data.FuncDef.param_defaults, &(U64){(U64)(1)})) = default_true;
+        proc_def->data.data.FuncDef.return_type = (Str){0};
+        proc_def->data.data.FuncDef.variadic_index = -1;
+        proc_def->data.data.FuncDef.kwargs_index = -1;
+        Expr_add_child(proc_def, proc_body);
 
         // delete := proc(...)  (namespace decl)
-        Expr *decl = expr_new(NODE_DECL, line, col, path);
-        decl->type.decl.name = Str_new("delete");
-        decl->type.decl.is_namespace = true;
-        decl->type.decl.is_mut = false;
-        decl->type.decl.explicit_type = NULL;
-        expr_add_child(decl, proc_def);
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+        decl->data.data.Decl.name = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
+        decl->data.data.Decl.is_namespace = true;
+        decl->data.data.Decl.is_mut = false;
+        decl->data.data.Decl.explicit_type = (Str){0};
+        Expr_add_child(decl, proc_def);
 
         // Add to struct body
-        expr_add_child(body, decl);
+        Expr_add_child(body, decl);
         Vec_delete(&field_names, &(Bool){0});
         Vec_delete(&field_owns, &(Bool){0});
     }
 
     // Pass 1.8: register enum definitions, generate variants + methods
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_ENUM_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
 
-        Str *ename = stmt->type.decl.name;
+        Str *ename = &stmt->data.data.Decl.name;
         I32 line = stmt->line, col = stmt->col;
-        Str *path = stmt->path;
+        Str *path = &stmt->path;
 
         // Check for redeclaration
         TypeBinding *existing = tscope_find(scope, ename);
         if (existing && existing->struct_def) {
             fprintf(stderr, "%s:%u:%u: error: enum '%s' already declared at %s:%u:%u\n",
                     path->c_str, line, col, ename->c_str,
-                    existing->struct_def->path->c_str, existing->line, existing->col);
+                    existing->struct_def->path.c_str, existing->line, existing->col);
             errors++;
             continue;
         }
 
         // Register in type scope
-        tscope_set(scope, ename, TIL_TYPE_ENUM, -1, 0, line, col, 0, 0);
+        tscope_set(scope, ename, (TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
         TypeBinding *b = tscope_find(scope, ename);
-        b->struct_def = expr_child(stmt, 0);
+        b->struct_def = Expr_child(stmt, &(I64){(I64)(0)});
 
-        Expr *body = expr_child(expr_child(stmt, 0), 0); // NODE_BODY
+        Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)}); // ExprData_TAG_Body
 
         // Collect variant info (names + optional payload types)
-        Vec variant_names; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); variant_names = *_vp; free(_vp); }
-        Vec variant_types; { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Str *)}); variant_types = *_vp; free(_vp); } // NULL entries for no-payload
+        Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); variant_names = *_vp; free(_vp); }
+        Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); variant_types = *_vp; free(_vp); } // NULL entries for no-payload
         Bool has_payloads = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            if (expr_child(body, j)->type.decl.is_namespace) continue;
-            { Str **_p = malloc(sizeof(Str *)); *_p = expr_child(body, j)->type.decl.name; Vec_push(&variant_names, _p); }
-            { Str **_p = malloc(sizeof(Str *)); *_p = expr_child(body, j)->type.decl.explicit_type; Vec_push(&variant_types, _p); }
-            if (expr_child(body, j)->type.decl.explicit_type) has_payloads = 1;
+            if (Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.is_namespace) continue;
+            { Str **_p = malloc(sizeof(Str *)); *_p = &Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.name; Vec_push(&variant_names, _p); }
+            { Str **_p = malloc(sizeof(Str *)); *_p = &Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.explicit_type; Vec_push(&variant_types, _p); }
+            if ((Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.explicit_type.count > 0)) has_payloads = 1;
         }
 
         if (!has_payloads) {
@@ -577,95 +596,90 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
             // Add I64 namespace fields for each variant
             for (U32 j = 0; j < variant_names.count; j++) {
-                Expr *lit = expr_new(NODE_LITERAL_NUM, line, col, path);
+                Expr *lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
                 char buf[16];
                 snprintf(buf, sizeof(buf), "%d", j);
-                lit->type.str_val = Str_new(buf);
-                Expr *decl = expr_new(NODE_DECL, line, col, path);
-                decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                decl->type.decl.is_namespace = true;
-                expr_add_child(decl, lit);
-                expr_add_child(body, decl);
+                lit->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+                Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                decl->data.data.Decl.name = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                decl->data.data.Decl.is_namespace = true;
+                Expr_add_child(decl, lit);
+                Expr_add_child(body, decl);
             }
         } else {
             // === PAYLOAD ENUM (Phase 2 path) ===
             // Keep original variant markers as registry (don't compact)
 
             for (U32 j = 0; j < variant_names.count; j++) {
-                if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
+                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
                     // Payload variant: ext_func constructor
                     // e.g. Num := ext_func(val: I64) returns Token {}
-                    Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-                    fdef->type.func_def.func_type = FUNC_EXT_FUNC;
-                    fdef->type.func_def.nparam = 1;
-                    fdef->type.func_def.param_names = malloc(sizeof(Str *));
-                    fdef->type.func_def.param_names[0] = Str_new("val");
-                    fdef->type.func_def.param_types = malloc(sizeof(Str *));
-                    fdef->type.func_def.param_types[0] = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
-                    fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
-                    fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
-                    fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
-                    fdef->type.func_def.return_type = ename;
-                    fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-                fdef->type.func_def.kwargs_index = -1;
-                    fdef->type.func_def.kwargs_index = -1;
-                    expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
-                    Expr *decl = expr_new(NODE_DECL, line, col, path);
-                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                    decl->type.decl.is_namespace = true;
-                    expr_add_child(decl, fdef);
-                    expr_add_child(body, decl);
+                    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+                    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
+                    fdef->data.data.FuncDef.nparam = 1;
+                    fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                    *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"val", .count = 3, .cap = CAP_LIT};
+                    fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                    *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = **(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                    fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                    fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                    fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                    fdef->data.data.FuncDef.return_type = *ename;
+                    fdef->data.data.FuncDef.variadic_index = -1;
+                    fdef->data.data.FuncDef.kwargs_index = -1;
+                    Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
+                    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                    decl->data.data.Decl.name = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    decl->data.data.Decl.is_namespace = true;
+                    Expr_add_child(decl, fdef);
+                    Expr_add_child(body, decl);
                 } else {
                     // No-payload variant: zero-arg ext_func constructor
                     // e.g. Eof := ext_func() returns Token {}
-                    Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-                    fdef->type.func_def.func_type = FUNC_EXT_FUNC;
-                    fdef->type.func_def.nparam = 0;
-                    fdef->type.func_def.param_names = NULL;
-                    fdef->type.func_def.param_types = NULL;
-                    fdef->type.func_def.param_muts = NULL;
-                    fdef->type.func_def.param_owns = NULL;
-                    fdef->type.func_def.param_defaults = NULL;
-                    fdef->type.func_def.return_type = ename;
-                    fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-                fdef->type.func_def.kwargs_index = -1;
-                    fdef->type.func_def.kwargs_index = -1;
-                    expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
-                    Expr *decl = expr_new(NODE_DECL, line, col, path);
-                    decl->type.decl.name = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                    decl->type.decl.is_namespace = true;
-                    expr_add_child(decl, fdef);
-                    expr_add_child(body, decl);
+                    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+                    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
+                    fdef->data.data.FuncDef.nparam = 0;
+                    fdef->data.data.FuncDef.param_names = (Vec){0};
+                    fdef->data.data.FuncDef.param_types = (Vec){0};
+                    fdef->data.data.FuncDef.param_muts = (Vec){0};
+                    fdef->data.data.FuncDef.param_owns = (Vec){0};
+                    fdef->data.data.FuncDef.param_defaults = (Vec){0};
+                    fdef->data.data.FuncDef.return_type = *ename;
+                    fdef->data.data.FuncDef.variadic_index = -1;
+                    fdef->data.data.FuncDef.kwargs_index = -1;
+                    Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
+                    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                    decl->data.data.Decl.name = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    decl->data.data.Decl.is_namespace = true;
+                    Expr_add_child(decl, fdef);
+                    Expr_add_child(body, decl);
                 }
             }
 
             // Generate get_Variant ext_func for payload variants
             for (U32 j = 0; j < variant_names.count; j++) {
-                if (!*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) continue;
+                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count == 0) continue;
                 char name_buf[256];
                 snprintf(name_buf, sizeof(name_buf), "get_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-                fdef->type.func_def.func_type = FUNC_EXT_FUNC;
-                fdef->type.func_def.nparam = 1;
-                fdef->type.func_def.param_names = malloc(sizeof(Str *));
-                fdef->type.func_def.param_names[0] = Str_new("self");
-                fdef->type.func_def.param_types = malloc(sizeof(Str *));
-                fdef->type.func_def.param_types[0] = ename;
-                fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
-                fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
-                fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
-                fdef->type.func_def.return_type = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
-                fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-                fdef->type.func_def.kwargs_index = -1;
-                expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
-                Expr *decl = expr_new(NODE_DECL, line, col, path);
-                decl->type.decl.name = Str_new(name_buf);
-                decl->type.decl.is_namespace = true;
-                expr_add_child(decl, fdef);
-                expr_add_child(body, decl);
+                Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+                fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
+                fdef->data.data.FuncDef.nparam = 1;
+                fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
+                fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                fdef->data.data.FuncDef.return_type = **(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                fdef->data.data.FuncDef.variadic_index = -1;
+                fdef->data.data.FuncDef.kwargs_index = -1;
+                Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
+                Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                decl->data.data.Decl.name = *Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
+                decl->data.data.Decl.is_namespace = true;
+                Expr_add_child(decl, fdef);
+                Expr_add_child(body, decl);
             }
         }
 
@@ -673,284 +687,284 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         for (U32 j = 0; j < variant_names.count; j++) {
             char name_buf[256];
             snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->type.func_def.func_type = FUNC_EXT_FUNC;
-            fdef->type.func_def.nparam = 1;
-            fdef->type.func_def.param_names = malloc(sizeof(Str *));
-            fdef->type.func_def.param_names[0] = Str_new("self");
-            fdef->type.func_def.param_types = malloc(sizeof(Str *));
-            fdef->type.func_def.param_types[0] = ename;
-            fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
-            fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
-            fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
-            fdef->type.func_def.return_type = Str_new("Bool");
-            fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-            expr_add_child(fdef, expr_new(NODE_BODY, line, col, path));
-            Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->type.decl.name = Str_new(name_buf);
-            decl->type.decl.is_namespace = true;
-            expr_add_child(decl, fdef);
-            expr_add_child(body, decl);
+            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
+            fdef->data.data.FuncDef.nparam = 1;
+            fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
+            fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.variadic_index = -1;
+            fdef->data.data.FuncDef.kwargs_index = -1;
+            Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            decl->data.data.Decl.name = *Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
+            decl->data.data.Decl.is_namespace = true;
+            Expr_add_child(decl, fdef);
+            Expr_add_child(body, decl);
         }
 
         // Check existing methods
         Bool has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = expr_child(body, j);
-            if (f->type.tag != NODE_DECL || !f->type.decl.is_namespace) continue;
-            if (f->children.count == 0 || expr_child(f, 0)->type.tag != NODE_FUNC_DEF) continue;
-            if (Str_eq_c(f->type.decl.name, "eq")) has_eq = 1;
-            if (Str_eq_c(f->type.decl.name, "clone")) has_clone = 1;
-            if (Str_eq_c(f->type.decl.name, "delete")) has_delete = 1;
-            if (Str_eq_c(f->type.decl.name, "to_str")) has_to_str = 1;
+            Expr *f = Expr_child(body, &(I64){(I64)(j)});
+            if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
+            if (f->children.count == 0 || Expr_child(f, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "eq", 2) == 0)) has_eq = 1;
+            if ((f->data.data.Decl.name.count == 5 && memcmp(f->data.data.Decl.name.c_str, "clone", 5) == 0)) has_clone = 1;
+            if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "delete", 6) == 0)) has_delete = 1;
+            if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "to_str", 6) == 0)) has_to_str = 1;
         }
 
         // Auto-generate eq := func(self: E, other: E) returns Bool { if-chain }
         // Uses is_Variant() for all variants, get_Variant().eq() for payloads
         if (!has_eq) {
-            Expr *func_body = expr_new(NODE_BODY, line, col, path);
+            Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
             for (U32 j = 0; j < variant_names.count; j++) {
                 // Build self.is_Vj() call
-                Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                self_id->type.str_val = Str_new("self");
+                Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                 char is_buf[256];
                 snprintf(is_buf, sizeof(is_buf), "is_%s",
                          (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                is_acc->type.str_val = Str_new(is_buf);
-                expr_add_child(is_acc, self_id);
-                Expr *is_call = expr_new(NODE_FCALL, line, col, path);
-                expr_add_child(is_call, is_acc);
+                Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
+                Expr_add_child(is_acc, self_id);
+                Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                Expr_add_child(is_call, is_acc);
 
-                Expr *then_body = expr_new(NODE_BODY, line, col, path);
+                Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
 
-                if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
+                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
                     Str *vtype = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
-                    Bool is_funcsig = type_from_name_init(vtype, scope) == TIL_TYPE_FUNC_PTR;
+                    Bool is_funcsig = type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr;
 
                     // Payload variant:
                     //   if other.is_Vj().not() { return false }
                     //   FuncSig: return true (tag-only eq)
                     //   Other:   return self.get_Vj().eq(other.get_Vj())
-                    Expr *other_id = expr_new(NODE_IDENT, line, col, path);
-                    other_id->type.str_val = Str_new("other");
-                    Expr *is_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    is_acc2->type.str_val = Str_new(is_buf);
-                    expr_add_child(is_acc2, other_id);
-                    Expr *is_call2 = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(is_call2, is_acc2);
-                    Expr *not_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    not_acc->type.str_val = Str_new("not");
-                    expr_add_child(not_acc, is_call2);
-                    Expr *not_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(not_call, not_acc);
+                    Expr *other_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    other_id->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
+                    Expr *is_acc2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    is_acc2->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
+                    Expr_add_child(is_acc2, other_id);
+                    Expr *is_call2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(is_call2, is_acc2);
+                    Expr *not_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    not_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"not", .count = 3, .cap = CAP_LIT};
+                    Expr_add_child(not_acc, is_call2);
+                    Expr *not_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(not_call, not_acc);
 
-                    Expr *ret_false = expr_new(NODE_RETURN, line, col, path);
-                    Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-                    false_lit->type.str_val = Str_new("false");
-                    expr_add_child(ret_false, false_lit);
-                    Expr *guard_body = expr_new(NODE_BODY, line, col, path);
-                    expr_add_child(guard_body, ret_false);
-                    Expr *guard_if = expr_new(NODE_IF, line, col, path);
-                    expr_add_child(guard_if, not_call);
-                    expr_add_child(guard_if, guard_body);
-                    expr_add_child(then_body, guard_if);
+                    Expr *ret_false = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                    Expr *false_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+                    false_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT};
+                    Expr_add_child(ret_false, false_lit);
+                    Expr *guard_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+                    Expr_add_child(guard_body, ret_false);
+                    Expr *guard_if = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+                    Expr_add_child(guard_if, not_call);
+                    Expr_add_child(guard_if, guard_body);
+                    Expr_add_child(then_body, guard_if);
 
                     if (is_funcsig) {
                         // FuncSig payload: tag-only equality (return true)
-                        Expr *ret_true = expr_new(NODE_RETURN, line, col, path);
-                        Expr *true_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-                        true_lit->type.str_val = Str_new("true");
-                        expr_add_child(ret_true, true_lit);
-                        expr_add_child(then_body, ret_true);
+                        Expr *ret_true = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                        Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+                        true_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
+                        Expr_add_child(ret_true, true_lit);
+                        Expr_add_child(then_body, ret_true);
                     } else {
                         // return self.get_Vj().eq(other.get_Vj())
                         char get_buf[256];
                         snprintf(get_buf, sizeof(get_buf), "get_%s",
                                  (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                        Expr *self2 = expr_new(NODE_IDENT, line, col, path);
-                        self2->type.str_val = Str_new("self");
-                        Expr *get_acc1 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        get_acc1->type.str_val = Str_new(get_buf);
-                        expr_add_child(get_acc1, self2);
-                        Expr *get_call1 = expr_new(NODE_FCALL, line, col, path);
-                        expr_add_child(get_call1, get_acc1);
+                        Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                        Expr *get_acc1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        get_acc1->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
+                        Expr_add_child(get_acc1, self2);
+                        Expr *get_call1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(get_call1, get_acc1);
 
-                        Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        eq_acc->type.str_val = Str_new("eq");
-                        expr_add_child(eq_acc, get_call1);
+                        Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+                        Expr_add_child(eq_acc, get_call1);
 
-                        Expr *other2 = expr_new(NODE_IDENT, line, col, path);
-                        other2->type.str_val = Str_new("other");
-                        Expr *get_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        get_acc2->type.str_val = Str_new(get_buf);
-                        expr_add_child(get_acc2, other2);
-                        Expr *get_call2 = expr_new(NODE_FCALL, line, col, path);
-                        expr_add_child(get_call2, get_acc2);
+                        Expr *other2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        other2->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
+                        Expr *get_acc2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        get_acc2->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
+                        Expr_add_child(get_acc2, other2);
+                        Expr *get_call2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(get_call2, get_acc2);
 
-                        Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
-                        expr_add_child(eq_call, eq_acc);
-                        expr_add_child(eq_call, get_call2);
+                        Expr *eq_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(eq_call, eq_acc);
+                        Expr_add_child(eq_call, get_call2);
 
-                        Expr *ret_eq = expr_new(NODE_RETURN, line, col, path);
-                        expr_add_child(ret_eq, eq_call);
-                        expr_add_child(then_body, ret_eq);
+                        Expr *ret_eq = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                        Expr_add_child(ret_eq, eq_call);
+                        Expr_add_child(then_body, ret_eq);
                     }
                 } else {
                     // No-payload variant: return other.is_Vj()
-                    Expr *other_id = expr_new(NODE_IDENT, line, col, path);
-                    other_id->type.str_val = Str_new("other");
-                    Expr *is_acc2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    is_acc2->type.str_val = Str_new(is_buf);
-                    expr_add_child(is_acc2, other_id);
-                    Expr *is_call2 = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(is_call2, is_acc2);
-                    Expr *ret = expr_new(NODE_RETURN, line, col, path);
-                    expr_add_child(ret, is_call2);
-                    expr_add_child(then_body, ret);
+                    Expr *other_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    other_id->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
+                    Expr *is_acc2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    is_acc2->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
+                    Expr_add_child(is_acc2, other_id);
+                    Expr *is_call2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(is_call2, is_acc2);
+                    Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                    Expr_add_child(ret, is_call2);
+                    Expr_add_child(then_body, ret);
                 }
 
-                Expr *if_node = expr_new(NODE_IF, line, col, path);
-                expr_add_child(if_node, is_call);
-                expr_add_child(if_node, then_body);
-                expr_add_child(func_body, if_node);
+                Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+                Expr_add_child(if_node, is_call);
+                Expr_add_child(if_node, then_body);
+                Expr_add_child(func_body, if_node);
             }
             // return false
-            Expr *ret_false = expr_new(NODE_RETURN, line, col, path);
-            Expr *false_lit = expr_new(NODE_LITERAL_BOOL, line, col, path);
-            false_lit->type.str_val = Str_new("false");
-            expr_add_child(ret_false, false_lit);
-            expr_add_child(func_body, ret_false);
+            Expr *ret_false = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+            Expr *false_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+            false_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT};
+            Expr_add_child(ret_false, false_lit);
+            Expr_add_child(func_body, ret_false);
 
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->type.func_def.func_type = FUNC_FUNC;
-            fdef->type.func_def.nparam = 2;
-            fdef->type.func_def.param_names = malloc(2 * sizeof(Str *));
-            fdef->type.func_def.param_names[0] = Str_new("self");
-            fdef->type.func_def.param_names[1] = Str_new("other");
-            fdef->type.func_def.param_types = malloc(2 * sizeof(Str *));
-            fdef->type.func_def.param_types[0] = ename;
-            fdef->type.func_def.param_types[1] = ename;
-            fdef->type.func_def.param_muts = calloc(2, sizeof(bool));
-            fdef->type.func_def.param_owns = calloc(2, sizeof(bool));
-            fdef->type.func_def.param_defaults = calloc(2, sizeof(Expr *));
-            fdef->type.func_def.return_type = Str_new("Bool");
-            fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-            expr_add_child(fdef, func_body);
+            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+            fdef->data.data.FuncDef.nparam = 2;
+            fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(1)})) = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(1)})) = *ename;
+            fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.variadic_index = -1;
+            fdef->data.data.FuncDef.kwargs_index = -1;
+            Expr_add_child(fdef, func_body);
 
-            Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->type.decl.name = Str_new("eq");
-            decl->type.decl.is_namespace = true;
-            expr_add_child(decl, fdef);
-            expr_add_child(body, decl);
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            decl->data.data.Decl.name = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+            decl->data.data.Decl.is_namespace = true;
+            Expr_add_child(decl, fdef);
+            Expr_add_child(body, decl);
         }
 
         // Auto-generate clone := func(self: E) returns E { if-chain }
         // Payload: if self.is_V() { return E.V(self.get_V()) } ... return E.Vn()
         // Simple:  if self.eq(E.V()) { return E.V() } ... return E.Vn()
         if (!has_clone) {
-            Expr *func_body = expr_new(NODE_BODY, line, col, path);
+            Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
             for (U32 j = 0; j < variant_names.count; j++) {
                 // Build variant expression: E.V(self.get_V()) for payload, E.V for no-payload
-                Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
-                ename_id->type.str_val = ename;
-                Expr *ctor_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                ctor_acc->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                expr_add_child(ctor_acc, ename_id);
+                Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                ename_id->data.data.Ident = *ename;
+                Expr *ctor_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                ctor_acc->data.data.FieldAccess = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                Expr_add_child(ctor_acc, ename_id);
 
                 Expr *ctor_expr;
-                if (*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)})) {
+                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
                     // Payload variant: E.V(self.get_V())
-                    Expr *ctor_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(ctor_call, ctor_acc);
-                    Expr *self_g = expr_new(NODE_IDENT, line, col, path);
-                    self_g->type.str_val = Str_new("self");
+                    Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(ctor_call, ctor_acc);
+                    Expr *self_g = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    self_g->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                     char get_buf[256];
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
                              (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                    Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    get_acc->type.str_val = Str_new(get_buf);
-                    expr_add_child(get_acc, self_g);
-                    Expr *get_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(get_call, get_acc);
-                    expr_add_child(ctor_call, get_call);
+                    Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
+                    Expr_add_child(get_acc, self_g);
+                    Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(get_call, get_acc);
+                    Expr_add_child(ctor_call, get_call);
                     ctor_expr = ctor_call;
                 } else {
                     // No-payload variant: bare E.V (auto-called at runtime)
                     ctor_expr = ctor_acc;
                 }
 
-                Expr *ret = expr_new(NODE_RETURN, line, col, path);
-                expr_add_child(ret, ctor_expr);
+                Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                Expr_add_child(ret, ctor_expr);
 
                 if (j < variant_names.count - 1) {
                     // Condition: payload uses is_V(), simple uses eq(E.V())
                     Expr *cond;
                     if (has_payloads) {
-                        Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                        self_id->type.str_val = Str_new("self");
+                        Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         char is_buf[256];
                         snprintf(is_buf, sizeof(is_buf), "is_%s",
                                  (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                        Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        is_acc->type.str_val = Str_new(is_buf);
-                        expr_add_child(is_acc, self_id);
-                        cond = expr_new(NODE_FCALL, line, col, path);
-                        expr_add_child(cond, is_acc);
+                        Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
+                        Expr_add_child(is_acc, self_id);
+                        cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(cond, is_acc);
                     } else {
                         // self.eq(E.V) — bare field access as eq arg
-                        Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                        self_id->type.str_val = Str_new("self");
-                        Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        eq_acc->type.str_val = Str_new("eq");
-                        expr_add_child(eq_acc, self_id);
+                        Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                        Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+                        Expr_add_child(eq_acc, self_id);
 
-                        Expr *en2 = expr_new(NODE_IDENT, line, col, path);
-                        en2->type.str_val = ename;
-                        Expr *va2 = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        va2->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                        expr_add_child(va2, en2);
+                        Expr *en2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        en2->data.data.Ident = *ename;
+                        Expr *va2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        va2->data.data.FieldAccess = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                        Expr_add_child(va2, en2);
 
-                        cond = expr_new(NODE_FCALL, line, col, path);
-                        expr_add_child(cond, eq_acc);
-                        expr_add_child(cond, va2);
+                        cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(cond, eq_acc);
+                        Expr_add_child(cond, va2);
                     }
 
-                    Expr *then_body = expr_new(NODE_BODY, line, col, path);
-                    expr_add_child(then_body, ret);
+                    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+                    Expr_add_child(then_body, ret);
 
-                    Expr *if_node = expr_new(NODE_IF, line, col, path);
-                    expr_add_child(if_node, cond);
-                    expr_add_child(if_node, then_body);
-                    expr_add_child(func_body, if_node);
+                    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+                    Expr_add_child(if_node, cond);
+                    Expr_add_child(if_node, then_body);
+                    Expr_add_child(func_body, if_node);
                 } else {
                     // Last variant: bare return
-                    expr_add_child(func_body, ret);
+                    Expr_add_child(func_body, ret);
                 }
             }
 
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->type.func_def.func_type = FUNC_FUNC;
-            fdef->type.func_def.nparam = 1;
-            fdef->type.func_def.param_names = malloc(sizeof(Str *));
-            fdef->type.func_def.param_names[0] = Str_new("self");
-            fdef->type.func_def.param_types = malloc(sizeof(Str *));
-            fdef->type.func_def.param_types[0] = ename;
-            fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
-            fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
-            fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
-            fdef->type.func_def.return_type = ename;
-            fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-            expr_add_child(fdef, func_body);
+            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+            fdef->data.data.FuncDef.nparam = 1;
+            fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
+            fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.return_type = *ename;
+            fdef->data.data.FuncDef.variadic_index = -1;
+            fdef->data.data.FuncDef.kwargs_index = -1;
+            Expr_add_child(fdef, func_body);
 
-            Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->type.decl.name = Str_new("clone");
-            decl->type.decl.is_namespace = true;
-            expr_add_child(decl, fdef);
-            expr_add_child(body, decl);
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            decl->data.data.Decl.name = (Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT};
+            decl->data.data.Decl.is_namespace = true;
+            Expr_add_child(decl, fdef);
+            Expr_add_child(body, decl);
         }
 
         // Auto-generate delete for all enums (same pattern):
@@ -959,189 +973,189 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // }
         // free() builtin handles payload cleanup for VAL_ENUM
         if (!has_delete) {
-            Expr *proc_body = expr_new(NODE_BODY, line, col, path);
-            Expr *cond = expr_new(NODE_IDENT, line, col, path);
-            cond->type.str_val = Str_new("call_free");
-            Expr *then_body = expr_new(NODE_BODY, line, col, path);
-            Expr *free_call = expr_new(NODE_FCALL, line, col, path);
-            Expr *free_id = expr_new(NODE_IDENT, line, col, path);
-            free_id->type.str_val = Str_new("free");
-            expr_add_child(free_call, free_id);
-            Expr *self_arg = expr_new(NODE_IDENT, line, col, path);
-            self_arg->type.str_val = Str_new("self");
+            Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+            Expr *cond = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            cond->data.data.Ident = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
+            Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+            Expr *free_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr *free_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            free_id->data.data.Ident = (Str){.c_str = (U8*)"free", .count = 4, .cap = CAP_LIT};
+            Expr_add_child(free_call, free_id);
+            Expr *self_arg = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self_arg->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
             self_arg->is_own_arg = true;
-            expr_add_child(free_call, self_arg);
-            expr_add_child(then_body, free_call);
-            Expr *if_node = expr_new(NODE_IF, line, col, path);
-            expr_add_child(if_node, cond);
-            expr_add_child(if_node, then_body);
-            expr_add_child(proc_body, if_node);
+            Expr_add_child(free_call, self_arg);
+            Expr_add_child(then_body, free_call);
+            Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+            Expr_add_child(if_node, cond);
+            Expr_add_child(if_node, then_body);
+            Expr_add_child(proc_body, if_node);
 
-            Expr *default_true = expr_new(NODE_LITERAL_BOOL, line, col, path);
-            default_true->type.str_val = Str_new("true");
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
+            Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+            default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
+            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fdef->is_core = true; // auto-generated, not user code
-            fdef->type.func_def.func_type = FUNC_PROC;
-            fdef->type.func_def.nparam = 2;
-            fdef->type.func_def.param_names = malloc(2 * sizeof(Str *));
-            fdef->type.func_def.param_names[0] = Str_new("self");
-            fdef->type.func_def.param_names[1] = Str_new("call_free");
-            fdef->type.func_def.param_types = malloc(2 * sizeof(Str *));
-            fdef->type.func_def.param_types[0] = ename;
-            fdef->type.func_def.param_types[1] = Str_new("Bool");
-            fdef->type.func_def.param_muts = calloc(2, sizeof(bool));
-            fdef->type.func_def.param_owns = calloc(2, sizeof(bool));
-            fdef->type.func_def.param_owns[0] = true;
-            fdef->type.func_def.param_defaults = calloc(2, sizeof(Expr *));
-            fdef->type.func_def.param_defaults[1] = default_true;
-            fdef->type.func_def.return_type = NULL;
-            fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-            expr_add_child(fdef, proc_body);
-            Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->type.decl.name = Str_new("delete");
-            decl->type.decl.is_namespace = true;
-            expr_add_child(decl, fdef);
-            expr_add_child(body, decl);
+            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
+            fdef->data.data.FuncDef.nparam = 2;
+            fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(1)})) = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(1)})) = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) = true;
+            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(1)})) = default_true;
+            fdef->data.data.FuncDef.return_type = (Str){0};
+            fdef->data.data.FuncDef.variadic_index = -1;
+            fdef->data.data.FuncDef.kwargs_index = -1;
+            Expr_add_child(fdef, proc_body);
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            decl->data.data.Decl.name = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
+            decl->data.data.Decl.is_namespace = true;
+            Expr_add_child(decl, fdef);
+            Expr_add_child(body, decl);
         }
 
         // Auto-generate to_str := func(self: E) returns Str { if-chain }
         if (!has_to_str) {
-            Expr *func_body = expr_new(NODE_BODY, line, col, path);
+            Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
             for (U32 j = 0; j < variant_names.count; j++) {
                 if (has_payloads) {
                     // Payload enum to_str uses is_/get_ methods
                     // if self.is_Variant() { ... }
-                    Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                    self_id->type.str_val = Str_new("self");
+                    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                     char is_buf[256];
                     snprintf(is_buf, sizeof(is_buf), "is_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                    Expr *is_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    is_acc->type.str_val = Str_new(is_buf);
-                    expr_add_child(is_acc, self_id);
-                    Expr *is_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(is_call, is_acc);
+                    Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
+                    Expr_add_child(is_acc, self_id);
+                    Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(is_call, is_acc);
 
-                    Expr *then_body = expr_new(NODE_BODY, line, col, path);
+                    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
                     Str *vtype = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
-                    if (vtype && type_from_name_init(vtype, scope) == TIL_TYPE_FUNC_PTR) {
+                    if (vtype && (*vtype).count > 0 && type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr) {
                         // FuncSig payload: return "Variant(func)"
                         char buf[256];
                         snprintf(buf, sizeof(buf), "%s(func)", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                        Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
-                        ret_str->type.str_val = Str_new(buf);
-                        Expr *ret = expr_new(NODE_RETURN, line, col, path);
-                        expr_add_child(ret, ret_str);
-                        expr_add_child(then_body, ret);
-                    } else if (vtype) {
+                        Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                        ret_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+                        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                        Expr_add_child(ret, ret_str);
+                        Expr_add_child(then_body, ret);
+                    } else if (vtype->count > 0) {
                         // return format("Variant(", self.get_Variant().to_str(), ")")
-                        Expr *fmt_call = expr_new(NODE_FCALL, line, col, path);
-                        Expr *fmt_id = expr_new(NODE_IDENT, line, col, path);
-                        fmt_id->type.str_val = Str_new("format");
-                        expr_add_child(fmt_call, fmt_id);
+                        Expr *fmt_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr *fmt_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        fmt_id->data.data.Ident = (Str){.c_str = (U8*)"format", .count = 6, .cap = CAP_LIT};
+                        Expr_add_child(fmt_call, fmt_id);
 
                         char prefix_buf[256];
                         snprintf(prefix_buf, sizeof(prefix_buf), "%s(", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                        Expr *prefix = expr_new(NODE_LITERAL_STR, line, col, path);
-                        prefix->type.str_val = Str_new(prefix_buf);
-                        expr_add_child(fmt_call, prefix);
+                        Expr *prefix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                        prefix->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(prefix_buf), .count = (U64)strlen((const char*)(prefix_buf)), .cap = CAP_VIEW});
+                        Expr_add_child(fmt_call, prefix);
 
                         // self.get_Variant().to_str()
-                        Expr *self2 = expr_new(NODE_IDENT, line, col, path);
-                        self2->type.str_val = Str_new("self");
+                        Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         char get_buf[256];
                         snprintf(get_buf, sizeof(get_buf), "get_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
-                        Expr *get_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        get_acc->type.str_val = Str_new(get_buf);
-                        expr_add_child(get_acc, self2);
-                        Expr *get_call = expr_new(NODE_FCALL, line, col, path);
-                        expr_add_child(get_call, get_acc);
-                        Expr *tostr_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                        tostr_acc->type.str_val = Str_new("to_str");
-                        expr_add_child(tostr_acc, get_call);
-                        Expr *tostr_call = expr_new(NODE_FCALL, line, col, path);
-                        expr_add_child(tostr_call, tostr_acc);
-                        expr_add_child(fmt_call, tostr_call);
+                        Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
+                        Expr_add_child(get_acc, self2);
+                        Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(get_call, get_acc);
+                        Expr *tostr_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        tostr_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"to_str", .count = 6, .cap = CAP_LIT};
+                        Expr_add_child(tostr_acc, get_call);
+                        Expr *tostr_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(tostr_call, tostr_acc);
+                        Expr_add_child(fmt_call, tostr_call);
 
-                        Expr *suffix = expr_new(NODE_LITERAL_STR, line, col, path);
-                        suffix->type.str_val = Str_new(")");
-                        expr_add_child(fmt_call, suffix);
+                        Expr *suffix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                        suffix->data.data.LiteralStr = (Str){.c_str = (U8*)")", .count = 1, .cap = CAP_LIT};
+                        Expr_add_child(fmt_call, suffix);
 
-                        Expr *ret = expr_new(NODE_RETURN, line, col, path);
-                        expr_add_child(ret, fmt_call);
-                        expr_add_child(then_body, ret);
+                        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                        Expr_add_child(ret, fmt_call);
+                        Expr_add_child(then_body, ret);
                     } else {
                         // return "VariantName"
-                        Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
-                        ret_str->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                        Expr *ret = expr_new(NODE_RETURN, line, col, path);
-                        expr_add_child(ret, ret_str);
-                        expr_add_child(then_body, ret);
+                        Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                        ret_str->data.data.LiteralStr = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                        Expr_add_child(ret, ret_str);
+                        Expr_add_child(then_body, ret);
                     }
 
-                    Expr *if_node = expr_new(NODE_IF, line, col, path);
-                    expr_add_child(if_node, is_call);
-                    expr_add_child(if_node, then_body);
-                    expr_add_child(func_body, if_node);
+                    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+                    Expr_add_child(if_node, is_call);
+                    Expr_add_child(if_node, then_body);
+                    Expr_add_child(func_body, if_node);
                 } else {
                     // Simple enum: if self.eq(EnumName.VariantName) { return "VariantName" }
-                    Expr *self_id = expr_new(NODE_IDENT, line, col, path);
-                    self_id->type.str_val = Str_new("self");
-                    Expr *eq_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    eq_acc->type.str_val = Str_new("eq");
-                    expr_add_child(eq_acc, self_id);
+                    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                    Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+                    Expr_add_child(eq_acc, self_id);
 
                     // EnumName.VariantName (bare field access)
-                    Expr *ename_id = expr_new(NODE_IDENT, line, col, path);
-                    ename_id->type.str_val = ename;
-                    Expr *var_acc = expr_new(NODE_FIELD_ACCESS, line, col, path);
-                    var_acc->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                    expr_add_child(var_acc, ename_id);
+                    Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    ename_id->data.data.Ident = *ename;
+                    Expr *var_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    var_acc->data.data.FieldAccess = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    Expr_add_child(var_acc, ename_id);
 
-                    Expr *eq_call = expr_new(NODE_FCALL, line, col, path);
-                    expr_add_child(eq_call, eq_acc);
-                    expr_add_child(eq_call, var_acc);
+                    Expr *eq_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(eq_call, eq_acc);
+                    Expr_add_child(eq_call, var_acc);
 
-                    Expr *ret_str = expr_new(NODE_LITERAL_STR, line, col, path);
-                    ret_str->type.str_val = *(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
-                    Expr *ret = expr_new(NODE_RETURN, line, col, path);
-                    expr_add_child(ret, ret_str);
-                    Expr *then_body = expr_new(NODE_BODY, line, col, path);
-                    expr_add_child(then_body, ret);
+                    Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                    ret_str->data.data.LiteralStr = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                    Expr_add_child(ret, ret_str);
+                    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+                    Expr_add_child(then_body, ret);
 
-                    Expr *if_node = expr_new(NODE_IF, line, col, path);
-                    expr_add_child(if_node, eq_call);
-                    expr_add_child(if_node, then_body);
-                    expr_add_child(func_body, if_node);
+                    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+                    Expr_add_child(if_node, eq_call);
+                    Expr_add_child(if_node, then_body);
+                    Expr_add_child(func_body, if_node);
                 }
             }
             // return "unknown"
-            Expr *unk = expr_new(NODE_LITERAL_STR, line, col, path);
-            unk->type.str_val = Str_new("unknown");
-            Expr *ret_unk = expr_new(NODE_RETURN, line, col, path);
-            expr_add_child(ret_unk, unk);
-            expr_add_child(func_body, ret_unk);
+            Expr *unk = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+            unk->data.data.LiteralStr = (Str){.c_str = (U8*)"unknown", .count = 7, .cap = CAP_LIT};
+            Expr *ret_unk = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+            Expr_add_child(ret_unk, unk);
+            Expr_add_child(func_body, ret_unk);
 
-            Expr *fdef = expr_new(NODE_FUNC_DEF, line, col, path);
-            fdef->type.func_def.func_type = FUNC_FUNC;
-            fdef->type.func_def.nparam = 1;
-            fdef->type.func_def.param_names = malloc(sizeof(Str *));
-            fdef->type.func_def.param_names[0] = Str_new("self");
-            fdef->type.func_def.param_types = malloc(sizeof(Str *));
-            fdef->type.func_def.param_types[0] = ename;
-            fdef->type.func_def.param_muts = calloc(1, sizeof(bool));
-            fdef->type.func_def.param_owns = calloc(1, sizeof(bool));
-            fdef->type.func_def.param_defaults = calloc(1, sizeof(Expr *));
-            fdef->type.func_def.return_type = Str_new("Str");
-            fdef->type.func_def.variadic_index = -1;
-            fdef->type.func_def.kwargs_index = -1;
-            expr_add_child(fdef, func_body);
+            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+            fdef->data.data.FuncDef.nparam = 1;
+            fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
+            fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+            fdef->data.data.FuncDef.variadic_index = -1;
+            fdef->data.data.FuncDef.kwargs_index = -1;
+            Expr_add_child(fdef, func_body);
 
-            Expr *decl = expr_new(NODE_DECL, line, col, path);
-            decl->type.decl.name = Str_new("to_str");
-            decl->type.decl.is_namespace = true;
-            expr_add_child(decl, fdef);
-            expr_add_child(body, decl);
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            decl->data.data.Decl.name = (Str){.c_str = (U8*)"to_str", .count = 6, .cap = CAP_LIT};
+            decl->data.data.Decl.is_namespace = true;
+            Expr_add_child(decl, fdef);
+            Expr_add_child(body, decl);
         }
 
         Vec_delete(&variant_names, &(Bool){0});
@@ -1155,29 +1169,28 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1.92: auto-generate size methods for structs and enums
     // Uses total_struct_size computed above for correct values (includes alignment padding)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        Expr *def = expr_child(stmt, 0);
-        if (def->type.tag != NODE_STRUCT_DEF && def->type.tag != NODE_ENUM_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+        if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
 
-        Str *sname = stmt->type.decl.name;
+        Str *sname = &stmt->data.data.Decl.name;
 
         // Skip meta-types
-        if (Str_eq_c(sname, "StructDef") ||
-            Str_eq_c(sname, "FunctionDef") ||
-            Str_eq_c(sname, "Dynamic")) continue;
+        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
+            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
         // Skip core ext_structs (they define size in core.til)
         if (def->is_ext && stmt->is_core) continue;
 
-        Expr *body = expr_child(def, 0); // NODE_BODY
+        Expr *body = Expr_child(def, &(I64){(I64)(0)}); // ExprData_TAG_Body
 
         // Check if size already exists in namespace
         Bool has_size = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = expr_child(body, j);
-            if (field->type.tag == NODE_DECL && field->type.decl.is_namespace &&
-                Str_eq_c(field->type.decl.name, "size")) {
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
+                (field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0)) {
                 has_size = 1;
                 break;
             }
@@ -1186,87 +1199,87 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         I32 line = stmt->line;
         I32 col = stmt->col;
-        Str *path = stmt->path;
+        Str *path = &stmt->path;
 
         // Use computed total_struct_size for structs, 8 for enums (I64 or pointer)
-        I32 sz = def->type.tag == NODE_ENUM_DEF
-            ? (enum_has_payloads(def) ? 8 : 4)
+        I32 sz = def->data.tag == ExprData_TAG_EnumDef
+            ? (*enum_has_payloads(def) ? 8 : 4)
             : def->total_struct_size;
         char sz_buf[16];
         snprintf(sz_buf, sizeof(sz_buf), "%d", sz);
 
         // size := func() returns U64 { return <literal> }
-        Expr *func_body = expr_new(NODE_BODY, line, col, path);
-        Expr *size_expr = expr_new(NODE_LITERAL_NUM, line, col, path);
-        size_expr->type.str_val = Str_new(sz_buf);
-        Expr *ret = expr_new(NODE_RETURN, line, col, path);
-        expr_add_child(ret, size_expr);
-        expr_add_child(func_body, ret);
+        Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+        Expr *size_expr = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
+        size_expr->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(sz_buf), .count = (U64)strlen((const char*)(sz_buf)), .cap = CAP_VIEW});
+        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+        Expr_add_child(ret, size_expr);
+        Expr_add_child(func_body, ret);
 
-        Expr *func_def = expr_new(NODE_FUNC_DEF, line, col, path);
-        func_def->type.func_def.func_type = FUNC_FUNC;
-        func_def->type.func_def.nparam = 0;
-        func_def->type.func_def.param_names = NULL;
-        func_def->type.func_def.param_types = NULL;
-        func_def->type.func_def.param_muts = NULL;
-        func_def->type.func_def.param_owns = NULL;
-        func_def->type.func_def.param_defaults = NULL;
-        func_def->type.func_def.return_type = Str_new("U64");
-        func_def->type.func_def.variadic_index = -1;
-        func_def->type.func_def.kwargs_index = -1;
-        expr_add_child(func_def, func_body);
+        Expr *func_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+        func_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+        func_def->data.data.FuncDef.nparam = 0;
+        func_def->data.data.FuncDef.param_names = (Vec){0};
+        func_def->data.data.FuncDef.param_types = (Vec){0};
+        func_def->data.data.FuncDef.param_muts = (Vec){0};
+        func_def->data.data.FuncDef.param_owns = (Vec){0};
+        func_def->data.data.FuncDef.param_defaults = (Vec){0};
+        func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT};
+        func_def->data.data.FuncDef.variadic_index = -1;
+        func_def->data.data.FuncDef.kwargs_index = -1;
+        Expr_add_child(func_def, func_body);
 
-        Expr *decl = expr_new(NODE_DECL, line, col, path);
-        decl->type.decl.name = Str_new("size");
-        decl->type.decl.is_namespace = true;
-        decl->type.decl.is_mut = false;
-        decl->type.decl.explicit_type = NULL;
-        expr_add_child(decl, func_def);
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+        decl->data.data.Decl.name = (Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT};
+        decl->data.data.Decl.is_namespace = true;
+        decl->data.data.Decl.is_mut = false;
+        decl->data.data.Decl.explicit_type = (Str){0};
+        Expr_add_child(decl, func_def);
 
-        expr_add_child(body, decl);
+        Expr_add_child(body, decl);
     }
 
     // Pass 1.95: auto-generate comparison methods from cmp
     // Any struct/enum with cmp gets: eq, neq, lt, gt, lte, gte (if missing)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        Expr *def = expr_child(stmt, 0);
-        if (def->type.tag != NODE_STRUCT_DEF && def->type.tag != NODE_ENUM_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+        if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
 
-        Str *sname = stmt->type.decl.name;
-        if (Str_eq_c(sname, "StructDef") || Str_eq_c(sname, "FunctionDef") ||
-            Str_eq_c(sname, "Dynamic")) continue;
+        Str *sname = &stmt->data.data.Decl.name;
+        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
+            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        Expr *body = expr_child(def, 0);
+        Expr *body = Expr_child(def, &(I64){(I64)(0)});
         Bool has_cmp = 0, has_eq = 0, has_neq = 0;
         Bool has_lt = 0, has_gt = 0, has_lte = 0, has_gte = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = expr_child(body, j);
-            if (f->type.tag != NODE_DECL || !f->type.decl.is_namespace) continue;
-            if (f->children.count == 0 || expr_child(f, 0)->type.tag != NODE_FUNC_DEF) continue;
-            if (Str_eq_c(f->type.decl.name, "cmp")) has_cmp = 1;
-            if (Str_eq_c(f->type.decl.name, "eq")) has_eq = 1;
-            if (Str_eq_c(f->type.decl.name, "neq")) has_neq = 1;
-            if (Str_eq_c(f->type.decl.name, "lt")) has_lt = 1;
-            if (Str_eq_c(f->type.decl.name, "gt")) has_gt = 1;
-            if (Str_eq_c(f->type.decl.name, "lte")) has_lte = 1;
-            if (Str_eq_c(f->type.decl.name, "gte")) has_gte = 1;
+            Expr *f = Expr_child(body, &(I64){(I64)(j)});
+            if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
+            if (f->children.count == 0 || Expr_child(f, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "cmp", 3) == 0)) has_cmp = 1;
+            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "eq", 2) == 0)) has_eq = 1;
+            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "neq", 3) == 0)) has_neq = 1;
+            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "lt", 2) == 0)) has_lt = 1;
+            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "gt", 2) == 0)) has_gt = 1;
+            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "lte", 3) == 0)) has_lte = 1;
+            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "gte", 3) == 0)) has_gte = 1;
         }
         if (!has_cmp) continue;
 
         I32 line = stmt->line;
         I32 col = stmt->col;
-        Str *path = stmt->path;
+        Str *path = &stmt->path;
 
         // Helper macros for building AST nodes inline
-        #define MK(type) expr_new(type, line, col, path)
-        #define ID(s) ({ Expr *_e = MK(NODE_IDENT); _e->type.str_val = Str_new(s); _e; })
-        #define NUM(s) ({ Expr *_e = MK(NODE_LITERAL_NUM); _e->type.str_val = Str_new(s); _e; })
-        #define ACC(obj, field) ({ Expr *_e = MK(NODE_FIELD_ACCESS); _e->type.str_val = Str_new(field); expr_add_child(_e, obj); _e; })
-        #define CALL0(callee) ({ Expr *_e = MK(NODE_FCALL); expr_add_child(_e, callee); _e; })
-        #define CALL1(callee, arg1) ({ Expr *_e = MK(NODE_FCALL); expr_add_child(_e, callee); expr_add_child(_e, arg1); _e; })
-        #define RET(val) ({ Expr *_e = MK(NODE_RETURN); expr_add_child(_e, val); _e; })
+        #define MK(type) Expr_new(&(ExprData){.tag = type}, line, col, path)
+        #define ID(s) ({ Expr *_e = MK(ExprData_TAG_Ident); _e->data.data.Ident = *Str_clone(&(Str){.c_str = (U8*)(s), .count = (U64)strlen((const char*)(s)), .cap = CAP_VIEW}); _e; })
+        #define NUM(s) ({ Expr *_e = MK(ExprData_TAG_LiteralNum); _e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(s), .count = (U64)strlen((const char*)(s)), .cap = CAP_VIEW}); _e; })
+        #define ACC(obj, field) ({ Expr *_e = MK(ExprData_TAG_FieldAccess); _e->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(field), .count = (U64)strlen((const char*)(field)), .cap = CAP_VIEW}); Expr_add_child(_e, obj); _e; })
+        #define CALL0(callee) ({ Expr *_e = MK(ExprData_TAG_FCall); Expr_add_child(_e, callee); _e; })
+        #define CALL1(callee, arg1) ({ Expr *_e = MK(ExprData_TAG_FCall); Expr_add_child(_e, callee); Expr_add_child(_e, arg1); _e; })
+        #define RET(val) ({ Expr *_e = MK(ExprData_TAG_Return); Expr_add_child(_e, val); _e; })
 
         // a.cmp(b).eq(N) — build: call(acc(call(acc(id("a"), "cmp"), id("b")), "eq"), N)
         #define CMP_EQ(n) RET(CALL1(ACC(CALL1(ACC(ID("a"), "cmp"), ID("b")), "eq"), n))
@@ -1275,29 +1288,29 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Generate a 2-param func decl in namespace
         #define GEN_CMP_FUNC(method_name, body_expr) do { \
-            Expr *fb = MK(NODE_BODY); \
-            expr_add_child(fb, body_expr); \
-            Expr *fd = MK(NODE_FUNC_DEF); \
-            fd->type.func_def.func_type = FUNC_FUNC; \
-            fd->type.func_def.nparam = 2; \
-            fd->type.func_def.param_names = malloc(2 * sizeof(Str *)); \
-            fd->type.func_def.param_names[0] = Str_new("a"); \
-            fd->type.func_def.param_names[1] = Str_new("b"); \
-            fd->type.func_def.param_types = malloc(2 * sizeof(Str *)); \
-            fd->type.func_def.param_types[0] = sname; \
-            fd->type.func_def.param_types[1] = sname; \
-            fd->type.func_def.param_muts = calloc(2, sizeof(bool)); \
-            fd->type.func_def.param_owns = calloc(2, sizeof(bool)); \
-            fd->type.func_def.param_defaults = calloc(2, sizeof(Expr *)); \
-            fd->type.func_def.return_type = Str_new("Bool"); \
-            fd->type.func_def.variadic_index = -1; \
-            fd->type.func_def.kwargs_index = -1; \
-            expr_add_child(fd, fb); \
-            Expr *dc = MK(NODE_DECL); \
-            dc->type.decl.name = Str_new(method_name); \
-            dc->type.decl.is_namespace = true; \
-            expr_add_child(dc, fd); \
-            expr_add_child(body, dc); \
+            Expr *fb = MK(ExprData_TAG_Body); \
+            Expr_add_child(fb, body_expr); \
+            Expr *fd = MK(ExprData_TAG_FuncDef); \
+            fd->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func}; \
+            fd->data.data.FuncDef.nparam = 2; \
+            fd->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
+            *((Str*)Vec_get(&fd->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"a", .count = 1, .cap = CAP_LIT}; \
+            *((Str*)Vec_get(&fd->data.data.FuncDef.param_names, &(U64){(U64)(1)})) = (Str){.c_str = (U8*)"b", .count = 1, .cap = CAP_LIT}; \
+            fd->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
+            *((Str*)Vec_get(&fd->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *sname; \
+            *((Str*)Vec_get(&fd->data.data.FuncDef.param_types, &(U64){(U64)(1)})) = *sname; \
+            fd->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
+            fd->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
+            fd->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
+            fd->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}; \
+            fd->data.data.FuncDef.variadic_index = -1; \
+            fd->data.data.FuncDef.kwargs_index = -1; \
+            Expr_add_child(fd, fb); \
+            Expr *dc = MK(ExprData_TAG_Decl); \
+            dc->data.data.Decl.name = *Str_clone(&(Str){.c_str = (U8*)(method_name), .count = (U64)strlen((const char*)(method_name)), .cap = CAP_VIEW}); \
+            dc->data.data.Decl.is_namespace = true; \
+            Expr_add_child(dc, fd); \
+            Expr_add_child(body, dc); \
         } while(0)
 
         // eq(a, b) → a.cmp(b).eq(0)
@@ -1344,59 +1357,59 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
     // Pass 2: register all func/proc definitions
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_FUNC_DEF) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
 
         // Bodyless func/proc = FuncSig type definition
-        if (expr_child(stmt, 0)->children.count == 0) {
-            tscope_set(scope, stmt->type.decl.name, TIL_TYPE_FUNC_PTR, -1, 0,
+        if (Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) {
+            tscope_set(scope, &stmt->data.data.Decl.name, (TilType){TilType_TAG_FuncPtr}, -1, 0,
                        stmt->line, stmt->col, 0, 0);
-            TypeBinding *fb = tscope_find(scope, stmt->type.decl.name);
-            if (fb) fb->func_def = expr_child(stmt, 0);
+            TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
+            if (fb) fb->func_def = Expr_child(stmt, &(I64){(I64)(0)});
             continue;
         }
 
         // Named FuncSig form: name : Type = (names) { body }
         // Fill types from the named FuncSig before normal processing
-        if (stmt->type.decl.explicit_type) {
-            TypeBinding *fsb = tscope_find(scope, stmt->type.decl.explicit_type);
+        if (stmt->data.data.Decl.explicit_type.count > 0) {
+            TypeBinding *fsb = tscope_find(scope, &stmt->data.data.Decl.explicit_type);
             if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
-                Expr *def = expr_child(stmt, 0);
+                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
                 Expr *sig = fsb->func_def;
-                if (def->type.func_def.nparam != sig->type.func_def.nparam) {
+                if (def->data.data.FuncDef.nparam != sig->data.data.FuncDef.nparam) {
                     fprintf(stderr, "%s:%u:%u: error: '%s' expects %u params but FuncSig '%s' has %u\n",
-                            stmt->path->c_str, stmt->line, stmt->col,
-                            stmt->type.decl.name->c_str, def->type.func_def.nparam,
-                            stmt->type.decl.explicit_type->c_str, sig->type.func_def.nparam);
+                            stmt->path.c_str, stmt->line, stmt->col,
+                            stmt->data.data.Decl.name.c_str, def->data.data.FuncDef.nparam,
+                            stmt->data.data.Decl.explicit_type.c_str, sig->data.data.FuncDef.nparam);
                     exit(1);
                 }
-                def->type.func_def.func_type = sig->type.func_def.func_type;
-                for (U32 j = 0; j < sig->type.func_def.nparam; j++) {
-                    def->type.func_def.param_types[j] = sig->type.func_def.param_types[j];
-                    def->type.func_def.param_muts[j] = sig->type.func_def.param_muts[j];
-                    def->type.func_def.param_owns[j] = sig->type.func_def.param_owns[j];
-                    def->type.func_def.param_shallows[j] = sig->type.func_def.param_shallows[j];
+                def->data.data.FuncDef.func_type = sig->data.data.FuncDef.func_type;
+                for (U32 j = 0; j < sig->data.data.FuncDef.nparam; j++) {
+                    *((Str*)Vec_get(&def->data.data.FuncDef.param_types, &(U64){(U64)(j)})) = *((Str*)Vec_get(&sig->data.data.FuncDef.param_types, &(U64){(U64)(j)}));
+                    (*(Bool*)Vec_get(&def->data.data.FuncDef.param_muts, &(U64){(U64)(j)})) = (*(Bool*)Vec_get(&sig->data.data.FuncDef.param_muts, &(U64){(U64)(j)}));
+                    (*(Bool*)Vec_get(&def->data.data.FuncDef.param_owns, &(U64){(U64)(j)})) = (*(Bool*)Vec_get(&sig->data.data.FuncDef.param_owns, &(U64){(U64)(j)}));
+                    (*(Bool*)Vec_get(&def->data.data.FuncDef.param_shallows, &(U64){(U64)(j)})) = (*(Bool*)Vec_get(&sig->data.data.FuncDef.param_shallows, &(U64){(U64)(j)}));
                 }
-                def->type.func_def.param_fn_sigs = sig->type.func_def.param_fn_sigs;
-                def->type.func_def.return_type = sig->type.func_def.return_type;
-                def->type.func_def.return_is_ref = sig->type.func_def.return_is_ref;
-                def->type.func_def.return_is_shallow = sig->type.func_def.return_is_shallow;
-                stmt->type.decl.explicit_type = NULL; // now a normal FuncDef
+                def->data.data.FuncDef.param_fn_sigs = sig->data.data.FuncDef.param_fn_sigs;
+                def->data.data.FuncDef.return_type = sig->data.data.FuncDef.return_type;
+                def->data.data.FuncDef.return_is_ref = sig->data.data.FuncDef.return_is_ref;
+                def->data.data.FuncDef.return_is_shallow = sig->data.data.FuncDef.return_is_shallow;
+                stmt->data.data.Decl.explicit_type = (Str){0}; // now a normal FuncDef
             }
         }
 
-        FuncType ft = expr_child(stmt, 0)->type.func_def.func_type;
-        I32 callee_is_proc = (ft == FUNC_TEST) ? 2 : (ft == FUNC_PROC || ft == FUNC_EXT_PROC) ? 1 : 0;
-        TilType rt = TIL_TYPE_NONE;
-        if (expr_child(stmt, 0)->type.func_def.return_type) {
-            rt = type_from_name_init(expr_child(stmt, 0)->type.func_def.return_type, scope);
+        FuncType ft = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+        I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
+        TilType rt = (TilType){TilType_TAG_None};
+        if ((Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_type.count > 0)) {
+            rt = type_from_name_init(&Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_type, scope);
         }
-        tscope_set(scope, stmt->type.decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = tscope_find(scope, stmt->type.decl.name);
+        tscope_set(scope, &stmt->data.data.Decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
+        TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
         if (fb) {
-            fb->func_def = expr_child(stmt, 0);
-            if (ft == FUNC_EXT_FUNC || ft == FUNC_EXT_PROC)
+            fb->func_def = Expr_child(stmt, &(I64){(I64)(0)});
+            if (ft.tag == FuncType_TAG_ExtFunc || ft.tag == FuncType_TAG_ExtProc)
                 fb->is_builtin = 1;
         }
     }

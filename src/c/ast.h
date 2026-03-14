@@ -1,194 +1,184 @@
 #ifndef TIL_AST_H
 #define TIL_AST_H
 
+#include "../../bootstrap/lexer.h"
+#include <limits.h>
 #include <stddef.h>
-#include "ext.h"
-#include "compat.h"
+
+#define CAP_LIT  ULLONG_MAX
+#define CAP_VIEW (ULLONG_MAX - 1)
+
+// --- TilType (struct wrapping tag, matches til codegen) ---
 
 typedef enum {
-    NODE_BODY,          // list of statements (children = statements)
-    NODE_LITERAL_STR,   // string literal (str_val)
-    NODE_LITERAL_NUM,   // number literal (str_val)
-    NODE_LITERAL_BOOL,  // bool literal (str_val = "true"/"false")
-    NODE_LITERAL_NULL,  // null literal
-    NODE_IDENT,         // identifier (str_val)
-    NODE_DECL,          // declaration :=  (decl, children[0] = value)
-    NODE_ASSIGN,        // assignment =    (str_val = name, children[0] = value)
-    NODE_FCALL,         // function call   (children[0] = callee ident, children[1..] = args)
-    NODE_FUNC_DEF,      // func/proc def   (func_def, children[0] = body)
-    NODE_STRUCT_DEF,    // struct def       (children[0] = body of NODE_DECL fields)
-    NODE_ENUM_DEF,      // enum def        (children[0] = body of variant + namespace decls)
-    NODE_FIELD_ACCESS,  // field access     (children[0] = object expr, str_val = field name)
-    NODE_FIELD_ASSIGN,  // field assign     (children[0] = object expr, children[1] = value, str_val = field name)
-    NODE_RETURN,        // return           (children[0] = value, if any)
-    NODE_IF,            // if               (children[0] = cond, [1] = then body, [2] = else body)
-    NODE_WHILE,         // while            (children[0] = cond, [1] = body)
-    NODE_FOR_IN,        // for x in ...     (str_val = var name, children[0] = iter, [1] = body)
-    NODE_NAMED_ARG,     // named argument   (str_val = param name, children[0] = value)
-    NODE_BREAK,
-    NODE_CONTINUE,
-    NODE_MAP_LIT,         // map literal {k:v, ...} (children = [k0, v0, k1, v1, ...])
-    NODE_SET_LIT,         // set literal {v, ...} (children = [v0, v1, v2, ...])
-    NODE_SWITCH,          // switch (children[0] = expr, children[1..] = NODE_CASE nodes)
-    NODE_CASE,            // case   (count==1: default [body], count==2: [match_expr, body])
-} NodeTypeTag;
+    TilType_TAG_Unknown,
+    TilType_TAG_None,
+    TilType_TAG_I64,
+    TilType_TAG_U8,
+    TilType_TAG_I16,
+    TilType_TAG_I32,
+    TilType_TAG_U32,
+    TilType_TAG_U64,
+    TilType_TAG_F32,
+    TilType_TAG_Bool,
+    TilType_TAG_Struct,
+    TilType_TAG_StructDef,
+    TilType_TAG_Enum,
+    TilType_TAG_EnumDef,
+    TilType_TAG_FuncDef,
+    TilType_TAG_FuncPtr,
+    TilType_TAG_Dynamic,
+} TilType_tag;
 
-typedef enum {
-    FUNC_FUNC,
-    FUNC_PROC,
-    FUNC_TEST,
-    FUNC_MACRO,
-    FUNC_EXT_FUNC,
-    FUNC_EXT_PROC,
-} FuncType;
-
-// Resolved type annotation (filled in by typer pass)
-typedef enum {
-    TIL_TYPE_UNKNOWN,   // not yet resolved
-    TIL_TYPE_NONE,      // void / no value
-    TIL_TYPE_I64,
-    TIL_TYPE_U8,
-    TIL_TYPE_I16,
-    TIL_TYPE_I32,
-    TIL_TYPE_U32,
-    TIL_TYPE_U64,
-    TIL_TYPE_F32,
-    TIL_TYPE_BOOL,
-    TIL_TYPE_STRUCT,
-    TIL_TYPE_STRUCT_DEF,
-    TIL_TYPE_ENUM,
-    TIL_TYPE_ENUM_DEF,
-    TIL_TYPE_FUNC_DEF,
-    TIL_TYPE_FUNC_PTR,  // function pointer (first-class function value)
-    TIL_TYPE_DYNAMIC,
+typedef struct {
+    TilType_tag tag;
 } TilType;
 
-const char *til_type_name_c(TilType t);
+// --- ExprData tag enum ---
+
+typedef enum {
+    ExprData_TAG_Body,
+    ExprData_TAG_LiteralStr,
+    ExprData_TAG_LiteralNum,
+    ExprData_TAG_LiteralBool,
+    ExprData_TAG_LiteralNull,
+    ExprData_TAG_Ident,
+    ExprData_TAG_Decl,
+    ExprData_TAG_Assign,
+    ExprData_TAG_FCall,
+    ExprData_TAG_FuncDef,
+    ExprData_TAG_StructDef,
+    ExprData_TAG_EnumDef,
+    ExprData_TAG_FieldAccess,
+    ExprData_TAG_FieldAssign,
+    ExprData_TAG_Return,
+    ExprData_TAG_If,
+    ExprData_TAG_While,
+    ExprData_TAG_ForIn,
+    ExprData_TAG_NamedArg,
+    ExprData_TAG_Break,
+    ExprData_TAG_Continue,
+    ExprData_TAG_MapLit,
+    ExprData_TAG_SetLit,
+    ExprData_TAG_Switch,
+    ExprData_TAG_Case,
+} ExprData_tag;
+
+// --- Declaration ---
 
 typedef struct Expr Expr;
 
-// Tagged node type: tag enum + union payload (mirrors til's tagged enum)
 typedef struct {
-    NodeTypeTag tag;
+    Str name;
+    Str explicit_type;
+    Bool is_mut;
+    Bool is_namespace;
+    Bool is_ref;
+    Bool is_own;
+    I32 field_offset;
+    I32 field_size;
+    Expr *field_struct_def;
+    Expr *fn_sig;
+} Declaration;
+
+// --- ExprData (tagged union) ---
+
+typedef struct {
+    ExprData_tag tag;
     union {
-        Str *str_val;               // for IDENT, LITERAL_STR, LITERAL_NUM, ASSIGN, FOR_IN
-        struct {                    // for DECL
-            Str *name;
-            Str *explicit_type;    // NULL if inferred (:=), e.g. "I64", "Str"
-            bool is_mut;
-            bool is_namespace;     // true for fields after namespace: in a struct
-            bool is_ref;           // true for ref declarations (borrowed, no delete)
-            bool is_own;           // true for own field declarations (heap pointer)
-            I32 field_offset;      // byte offset in flat struct layout (set by initer)
-            I32 field_size;        // byte size of this field in flat layout
-            Expr *field_struct_def; // for inline struct fields: nested struct's NODE_STRUCT_DEF
-            Expr *fn_sig;          // for Fn(T1,T2) returns T: synthetic func_def
-        } decl;
-        struct {                    // for FUNC_DEF
-            FuncType func_type;
-            Str **param_names;
-            Str **param_types;     // type name strings: "I64", "Str", etc.
-            bool *param_muts;        // true for mut params
-            bool *param_owns;        // true for own params
-            bool *param_shallows;    // true for shallow params (pass by value)
-            Expr **param_fn_sigs;    // for Fn-typed params: synthetic func_def, NULL otherwise
-            U32 nparam;
-            Expr **param_defaults;    // array[nparam], NULL entries for required params
-            Str *return_type;      // NULL if none (proc)
-            I32 variadic_index;       // index of variadic param, or -1 if none
-            I32 kwargs_index;         // index of kwargs param, or -1 if none
-            bool return_is_ref;       // true for `returns ref Type`
-            bool return_is_shallow;   // true for `returns shallow Type`
-        } func_def;
-    };
-} NodeType;
+        Str LiteralStr;
+        Str LiteralNum;
+        Str LiteralBool;
+        Str Ident;
+        Declaration Decl;
+        Str Assign;
+        FunctionDef FuncDef;
+        Str FieldAccess;
+        Str FieldAssign;
+        Str ForIn;
+        Str NamedArg;
+    } data;
+} ExprData;
+
+// --- Expr ---
 
 struct Expr {
-    NodeType type;                  // tagged union: tag + payload
-    TilType til_type;               // resolved type (set by typer)
-    Str *struct_name;               // for TIL_TYPE_STRUCT: which struct type
-    bool is_own_arg;                // true if this arg was marked 'own' at call site
-    bool is_splat;                  // true if this arg was marked '..' (splat) at call site
-    bool is_own_field;              // NODE_FIELD_ACCESS/ASSIGN: field is 'own' or 'ref' (pointer)
-    bool is_ref_field;              // NODE_FIELD_ACCESS/ASSIGN: field is 'ref' (non-owning pointer)
-    bool is_ns_field;               // NODE_FIELD_ACCESS/ASSIGN: namespace field (not instance)
-    bool is_ext;                    // NODE_STRUCT_DEF: externally-implemented struct
-    bool is_core;                   // declaration came from core.til
-    bool save_old_delete;           // NODE_ASSIGN: save old value before assigning (RHS uses same var)
-    I32 total_struct_size;          // NODE_STRUCT_DEF: total byte size of flat buffer
-    I32 variadic_index;             // NODE_FCALL: index of first variadic arg in children (-1 if none)
-    U32 variadic_count;             // NODE_FCALL: number of variadic args
-    I32 kwargs_index;               // NODE_FCALL: index of first kwargs named arg in children (-1 if none)
-    U32 kwargs_count;               // NODE_FCALL: number of kwargs named args
-    Expr *fn_sig;                   // NODE_FCALL: function pointer signature (for indirect calls)
-    Vec children;                   // Vec of Expr* child pointers
+    ExprData data;
+    TilType til_type;
+    Str struct_name;
+    Bool is_own_arg;
+    Bool is_splat;
+    Bool is_own_field;
+    Bool is_ref_field;
+    Bool is_ns_field;
+    Bool is_ext;
+    Bool is_core;
+    Bool save_old_delete;
+    I32 total_struct_size;
+    I32 variadic_index;
+    U32 variadic_count;
+    I32 kwargs_index;
+    U32 kwargs_count;
+    Expr *fn_sig;
+    Vec children;
     U32 line;
     U32 col;
-    Str *path;                      // source file path
+    Str path;
 };
 
-// Allocate a new Expr node
-Expr *expr_new(NodeTypeTag tag, U32 line, U32 col, Str *path);
+// --- Inline-Str convenience macros ---
 
-// Error reporting helpers (print to stderr)
-void expr_error(Expr *e, const char *msg);
-void expr_todo_error(Expr *e, const char *msg);
-void expr_lang_error(Expr *e, const char *msg);
+#define STR_FIELD(expr, field) (&(expr)->data.data.field)
+#define STR_SNAME(expr)       (&(expr)->struct_name)
+#define STR_PATH(expr)        (&(expr)->path)
+#define DECL_NAME(expr)       (&(expr)->data.data.Decl.name)
+#define DECL_ETYPE(expr)      (&(expr)->data.data.Decl.explicit_type)
+#define FDEF_RTYPE(expr)      (&(expr)->data.data.FuncDef.return_type)
 
-// Add a child to an Expr
-void expr_add_child(Expr *parent, Expr *child);
+#define VEC_SET(v)   ((v).count > 0)
 
-// Deep-clone an Expr tree
-Expr *expr_clone(Expr *e);
+// --- Functions matching ast.til generated signatures ---
 
-// Free an Expr tree recursively
-void expr_free(Expr *e);
-
-// Print an AST tree (for debugging)
+Str *til_type_name_c(TilType *t);
+Str *node_name(ExprData *data);
+Str *func_type_name(FuncType *ft);
 void ast_print(Expr *e, U32 indent);
+Bool *enum_has_payloads(Expr *enum_def);
+I32 *enum_variant_tag(Expr *enum_def, Str *variant_name);
+Str *enum_variant_type(Expr *enum_def, I32 tag);
 
-// Access child i of expr e (works as lvalue and rvalue)
+// --- Auto-generated clone/delete (matching what builder generates from initer) ---
+
+TilType *TilType_clone(TilType *self);
+void TilType_delete(TilType *self, Bool *call_free);
+Declaration *Declaration_clone(Declaration *self);
+void Declaration_delete(Declaration *self, Bool *call_free);
+ExprData *ExprData_clone(ExprData *self);
+void ExprData_delete(ExprData *self, Bool *call_free);
+Expr *Expr_clone(Expr *self);
+void Expr_delete(Expr *self, Bool *call_free);
+
+// --- Expr namespace methods (matching ast.til) ---
+
+Expr *Expr_new(ExprData *data, U32 line, U32 col, Str *path);
+void Expr_add_child(Expr *self, Expr *child);
+void Expr_error(Expr *self, Str *msg);
+void Expr_todo_error(Expr *self, Str *msg);
+void Expr_lang_error(Expr *self, Str *msg);
+
+static inline Expr *Expr_child(Expr *parent, I64 *i) {
+    return *(Expr **)Vec_get(&parent->children, &(U64){(U64)(*i)});
+}
+
+static inline I64 Expr_child_count(Expr *parent) {
+    return (I64)parent->children.count;
+}
+
+// Old-style macro (used by ast.c internals)
 #define expr_child(e, i) (*(Expr **)Vec_get(&(e)->children, &(U64){(U64)(i)}))
 
-// --- Enum helpers (shared by interpreter, builder, precomp) ---
+// --- Vec helper (in initer.c) ---
 
-// Check if an enum def has payload variants (any non-namespace decl with explicit_type)
-static inline Bool enum_has_payloads(Expr *enum_def) {
-    Expr *body = expr_child(enum_def, 0);
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = expr_child(body, i);
-        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace && f->type.decl.explicit_type)
-            return 1;
-    }
-    return 0;
-}
-
-// Find tag index for a variant name in an enum def (scan non-namespace entries)
-static inline I32 enum_variant_tag(Expr *enum_def, Str *variant_name) {
-    Expr *body = expr_child(enum_def, 0);
-    I32 tag = 0;
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = expr_child(body, i);
-        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace) {
-            if (*Str_eq(f->type.decl.name, variant_name)) return tag;
-            tag++;
-        }
-    }
-    return -1;
-}
-
-// Find payload type string for a variant (NULL if no payload)
-static inline Str *enum_variant_type(Expr *enum_def, I32 tag) {
-    Expr *body = expr_child(enum_def, 0);
-    I32 idx = 0;
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = expr_child(body, i);
-        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace) {
-            if (idx == tag) return f->type.decl.explicit_type;
-            idx++;
-        }
-    }
-    return NULL;
-}
+void *Vec_take(Vec *v);
 
 #endif

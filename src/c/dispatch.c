@@ -1,4 +1,5 @@
 #include "dispatch.h"
+#include "ast.h"
 #include "ext.h"
 #include <stdio.h>
 
@@ -55,14 +56,14 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def);
 
 // Map a til type name to the appropriate ffi_type for shallow params
 static ffi_type *shallow_ffi_type(Str *type_name) {
-    if (Str_eq_c(type_name, "I64"))  return &ffi_type_sint64;
-    if (Str_eq_c(type_name, "U8"))   return &ffi_type_uint8;
-    if (Str_eq_c(type_name, "I16"))  return &ffi_type_sint16;
-    if (Str_eq_c(type_name, "I32"))  return &ffi_type_sint32;
-    if (Str_eq_c(type_name, "U32"))  return &ffi_type_uint32;
-    if (Str_eq_c(type_name, "U64"))  return &ffi_type_uint64;
-    if (Str_eq_c(type_name, "F32"))  return &ffi_type_float;
-    if (Str_eq_c(type_name, "Bool")) return &ffi_type_uint8;
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))  return &ffi_type_sint64;
+    if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0))   return &ffi_type_uint8;
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0))  return &ffi_type_sint16;
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "F32", 3) == 0))  return &ffi_type_float;
+    if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
     // Struct type: look up def and build ffi_type
     if (*Map_has(&ffi_struct_defs, type_name)) {
         Expr **sdef = Map_get(&ffi_struct_defs, type_name);
@@ -73,43 +74,43 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
 
 // Map a field to its ffi_type (for building struct ffi_types)
 static ffi_type *field_ffi_type(Expr *field) {
-    if (field->type.decl.is_own || field->type.decl.is_ref)
+    if (field->data.data.Decl.is_own || field->data.data.Decl.is_ref)
         return &ffi_type_pointer;
-    Str *ftype = field->type.decl.explicit_type;
-    if (!ftype) return &ffi_type_sint64; // fallback (I64-sized)
-    if (Str_eq_c(ftype, "I64"))  return &ffi_type_sint64;
-    if (Str_eq_c(ftype, "U8"))   return &ffi_type_uint8;
-    if (Str_eq_c(ftype, "I16"))  return &ffi_type_sint16;
-    if (Str_eq_c(ftype, "I32"))  return &ffi_type_sint32;
-    if (Str_eq_c(ftype, "U32"))  return &ffi_type_uint32;
-    if (Str_eq_c(ftype, "U64"))  return &ffi_type_uint64;
-    if (Str_eq_c(ftype, "F32"))  return &ffi_type_float;
-    if (Str_eq_c(ftype, "Bool")) return &ffi_type_uint8;
+    Str *ftype = &field->data.data.Decl.explicit_type;
+    if (ftype->count == 0) return &ffi_type_sint64; // fallback (I64-sized)
+    if ((ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0))  return &ffi_type_sint64;
+    if ((ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0))   return &ffi_type_uint8;
+    if ((ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0))  return &ffi_type_sint16;
+    if ((ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
+    if ((ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
+    if ((ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
+    if ((ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return &ffi_type_float;
+    if ((ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
     // Inline struct field
-    if (field->type.decl.field_struct_def)
-        return build_struct_ffi_type(field->type.decl.field_struct_def);
+    if (field->data.data.Decl.field_struct_def)
+        return build_struct_ffi_type(field->data.data.Decl.field_struct_def);
     return &ffi_type_sint64; // fallback
 }
 
 // Build an ffi_type descriptor for a struct (heap-allocated, cached)
 static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     if (!ffi_type_cache_inited) {
-        { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
         ffi_type_cache_inited = 1;
     }
     // Count instance fields
-    Expr *body = expr_child(struct_def, 0);
+    Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
     U32 nfields = 0;
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = expr_child(body, i);
-        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace) nfields++;
+        Expr *f = Expr_child(body, &(I64){(I64)(i)});
+        if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace) nfields++;
     }
     // Build elements array (NULL-terminated)
     ffi_type **elements = malloc(sizeof(ffi_type *) * (nfields + 1));
     U32 idx = 0;
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = expr_child(body, i);
-        if (f->type.tag == NODE_DECL && !f->type.decl.is_namespace)
+        Expr *f = Expr_child(body, &(I64){(I64)(i)});
+        if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace)
             elements[idx++] = field_ffi_type(f);
     }
     elements[nfields] = NULL;
@@ -130,18 +131,18 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
 // reinterpret it as the narrowed type so dispatch handlers see the right union field.
 static Value eval_arg(Scope *s, Expr *e) {
     Value v = eval_expr(s, e);
-    if (v.type == VAL_PTR && e->til_type != TIL_TYPE_DYNAMIC) {
-        switch (e->til_type) {
-            case TIL_TYPE_I64:    return (Value){.type = VAL_I64, .i64 = (I64 *)v.ptr};
-            case TIL_TYPE_U8:    return (Value){.type = VAL_U8, .u8 = (U8 *)v.ptr};
-            case TIL_TYPE_I16:   return (Value){.type = VAL_I16, .i16 = (I16 *)v.ptr};
-            case TIL_TYPE_I32:   return (Value){.type = VAL_I32, .i32 = (I32 *)v.ptr};
-            case TIL_TYPE_U32:   return (Value){.type = VAL_U32, .u32 = (U32 *)v.ptr};
-            case TIL_TYPE_U64:   return (Value){.type = VAL_U64, .u64 = (U64 *)v.ptr};
-            case TIL_TYPE_F32:   return (Value){.type = VAL_F32, .f32 = (F32 *)v.ptr};
-            case TIL_TYPE_BOOL:  return (Value){.type = VAL_BOOL, .boolean = (Bool *)v.ptr};
-            case TIL_TYPE_STRUCT:
-                if (e->struct_name && Str_eq_c(e->struct_name, "Str")) {
+    if (v.type == VAL_PTR && e->til_type.tag != TilType_TAG_Dynamic) {
+        switch (e->til_type.tag) {
+            case TilType_TAG_I64:    return (Value){.type = VAL_I64, .i64 = (I64 *)v.ptr};
+            case TilType_TAG_U8:    return (Value){.type = VAL_U8, .u8 = (U8 *)v.ptr};
+            case TilType_TAG_I16:   return (Value){.type = VAL_I16, .i16 = (I16 *)v.ptr};
+            case TilType_TAG_I32:   return (Value){.type = VAL_I32, .i32 = (I32 *)v.ptr};
+            case TilType_TAG_U32:   return (Value){.type = VAL_U32, .u32 = (U32 *)v.ptr};
+            case TilType_TAG_U64:   return (Value){.type = VAL_U64, .u64 = (U64 *)v.ptr};
+            case TilType_TAG_F32:   return (Value){.type = VAL_F32, .f32 = (F32 *)v.ptr};
+            case TilType_TAG_Bool:  return (Value){.type = VAL_BOOL, .boolean = (Bool *)v.ptr};
+            case TilType_TAG_Struct:
+                if ((e->struct_name).count > 0 && (e->struct_name.count == 3 && memcmp(e->struct_name.c_str, "Str", 3) == 0)) {
                     ExtStr *sp = (ExtStr *)v.ptr;
                     return make_str_value_own((char *)sp->data, sp->count);
                 }
@@ -157,38 +158,38 @@ static Value eval_arg(Scope *s, Expr *e) {
 // === Remaining handlers (name mismatch or local ext_func — can't use auto-FFI) ===
 
 static Bool h_Bool_and(Scope *s, Expr *e, Value *r) {
-    Value a = eval_arg(s, expr_child(e,1));
-    Value b = eval_arg(s, expr_child(e,2));
+    Value a = eval_arg(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value b = eval_arg(s, Expr_child(e, &(I64){(I64)(2)}));
     *r = val_bool(Bool_and(*a.boolean, *b.boolean)); return 1;
 }
 static Bool h_Bool_or(Scope *s, Expr *e, Value *r) {
-    Value a = eval_arg(s, expr_child(e,1));
-    Value b = eval_arg(s, expr_child(e,2));
+    Value a = eval_arg(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value b = eval_arg(s, Expr_child(e, &(I64){(I64)(2)}));
     *r = val_bool(Bool_or(*a.boolean, *b.boolean)); return 1;
 }
 static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
-    Value v = eval_arg(s, expr_child(e,1));
+    Value v = eval_arg(s, Expr_child(e, &(I64){(I64)(1)}));
     *r = val_bool(Bool_not(*v.boolean)); return 1;
 }
 
 static Bool h_U8_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, expr_child(e,1));
+    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     *r = val_u8(U8_from_i64(*v.i64)); return 1;
 }
 static Bool h_I16_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, expr_child(e,1));
+    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     *r = val_i16(I16_from_i64(*v.i64)); return 1;
 }
 static Bool h_I32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, expr_child(e,1));
+    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     *r = val_i32(I32_from_i64(*v.i64)); return 1;
 }
 static Bool h_F32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, expr_child(e,1));
+    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     *r = val_f32(F32_from_i64(*v.i64)); return 1;
 }
 static Bool h_U32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, expr_child(e,1));
+    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     *r = val_u32(U32_from_i64(*v.i64)); return 1;
 }
 
@@ -197,7 +198,7 @@ static void *val_to_ptr(Value v);
 // === Print handlers ===
 
 static Bool h_print_single(Scope *s, Expr *e, Value *r) {
-    Value arg = eval_expr(s, expr_child(e, 1));
+    Value arg = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     Str sv = str_view(arg);
     fwrite(sv.c_str, 1, sv.count, stdout);
     *r = val_none(); return 1;
@@ -212,20 +213,20 @@ static Bool h_print_flush(Scope *s, Expr *e, Value *r) {
 // === Misc handlers ===
 
 static Bool h_exit(Scope *s, Expr *e, Value *r) {
-    Value a = eval_expr(s, expr_child(e,1));
+    Value a = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     exit((int)*a.i64);
     *r = val_none(); return 1;
 }
 
 static Bool h_free(Scope *s, Expr *e, Value *r) {
-    if (expr_child(e, 1)->type.tag != NODE_IDENT) {
-        Value val = eval_expr(s, expr_child(e,1));
+    if (Expr_child(e, &(I64){(I64)(1)})->data.tag != ExprData_TAG_Ident) {
+        Value val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
         void *ptr = val_to_ptr(val);
         if (ptr) free(ptr);
         *r = val_none();
         return 1;
     }
-    Cell *cell = scope_get(s, expr_child(e, 1)->type.str_val);
+    Cell *cell = scope_get(s, &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident);
     if (cell->val.type == VAL_STRUCT && cell->val.instance) {
         if (!cell->val.instance->borrowed)
             free(cell->val.instance->data);
@@ -266,52 +267,52 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
 
 // Shared helper for all dyn_call variants
 static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, expr_child(e,1));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
-    Value method_val = eval_expr(s, expr_child(e,2));
+    Value method_val = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
     Str _mn = str_view(method_val);
     Str *method = &_mn;
 
     Expr type_ident = {0};
-    type_ident.type.tag = NODE_IDENT;
-    type_ident.type.str_val = type_name;
-    type_ident.struct_name = type_name;
+    type_ident.data.tag = ExprData_TAG_Ident;
+    type_ident.data.data.Ident = *type_name;
+    type_ident.struct_name = *type_name;
     type_ident.line = e->line;
     type_ident.col = e->col;
 
     Expr field_access = {0};
-    field_access.type.tag = NODE_FIELD_ACCESS;
-    field_access.type.str_val = method;
+    field_access.data.tag = ExprData_TAG_FieldAccess;
+    field_access.data.data.FieldAccess = *method;
     field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
-    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
     Expr *ti_ptr = &type_ident;
     { Expr **_p = malloc(sizeof(Expr *)); *_p = ti_ptr; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
-    fake_call.type.tag = NODE_FCALL;
+    fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = e->line;
     fake_call.col = e->col;
-    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
     Expr *fa_ptr = &field_access;
     { Expr **_p = malloc(sizeof(Expr *)); *_p = fa_ptr; Vec_push(&fake_call.children, _p); }
     // Skip child 3 (arity literal), actual args start at child 4
     for (U32 i = 4; i < e->children.count; i++) {
-        Expr *arg = expr_child(e, i);
+        Expr *arg = Expr_child(e, &(I64){(I64)(i)});
         { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&fake_call.children, _p); }
     }
 
     Value fn_val = eval_expr(s, &field_access);
-    if (fn_val.type == VAL_FUNC && fn_val.func->type.tag == NODE_FUNC_DEF) {
+    if (fn_val.type == VAL_FUNC && fn_val.func->data.tag == ExprData_TAG_FuncDef) {
         Expr *fdef = fn_val.func;
-        U32 nparam = fdef->type.func_def.nparam;
+        U32 nparam = fdef->data.data.FuncDef.nparam;
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
-            if (fdef->type.func_def.param_defaults &&
-                fdef->type.func_def.param_defaults[i]) {
-                Expr *def_arg = fdef->type.func_def.param_defaults[i];
+            if (VEC_SET(fdef->data.data.FuncDef.param_defaults) &&
+                (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
+                Expr *def_arg = (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}));
                 { Expr **_p = malloc(sizeof(Expr *)); *_p = def_arg; Vec_push(&fake_call.children, _p); }
             }
         }
@@ -326,8 +327,8 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
 
 // dyn_has_method(type_name, "method") → Bool
 static Bool h_dyn_has_method(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, expr_child(e,1));
-    Value method_val = eval_expr(s, expr_child(e,2));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value method_val = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
     Str _mn = str_view(method_val);
@@ -359,36 +360,36 @@ static void *val_raw_ptr(Value v) {
 // Workaround: the scavenger may remove Type.size() if not directly referenced
 // in user code (see issue #15). Users must reference Type.size() explicitly.
 static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
-    Value *size_fn = ns_get(type_name, Str_new("size"));
+    Value *size_fn = ns_get(type_name, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT});
     if (!size_fn) {
         fprintf(stderr, "%s:%u:%u: error: array/vec: type '%s' has no size() method "
                 "(hint: add %s.size() somewhere to prevent scavenger removal, see #15)\n",
-                src->path->c_str, src->line, src->col, type_name->c_str, type_name->c_str);
+                src->path.c_str, src->line, src->col, type_name->c_str, type_name->c_str);
         exit(1);
     }
     // Build fake call: Type.size()
     Expr type_ident = {0};
-    type_ident.type.tag = NODE_IDENT;
-    type_ident.type.str_val = type_name;
-    type_ident.struct_name = type_name;
+    type_ident.data.tag = ExprData_TAG_Ident;
+    type_ident.data.data.Ident = *type_name;
+    type_ident.struct_name = *type_name;
     type_ident.line = src->line; type_ident.col = src->col;
     type_ident.path = src->path;
 
     Expr field_access = {0};
-    field_access.type.tag = NODE_FIELD_ACCESS;
-    field_access.type.str_val = Str_new("size");
+    field_access.data.tag = ExprData_TAG_FieldAccess;
+    field_access.data.data.FieldAccess = (Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT};
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
-    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
     Expr *ti = &type_ident;
     { Expr **_p = malloc(sizeof(Expr *)); *_p = ti; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
-    fake_call.type.tag = NODE_FCALL;
+    fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
-    { Vec *_vp = Vec_new(Str_new(""), &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
     Expr *fa = &field_access;
     { Expr **_p = malloc(sizeof(Expr *)); *_p = fa; Vec_push(&fake_call.children, _p); }
 
@@ -400,7 +401,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
 
 // array("I64", 1, 2, 3)
 static Bool h_array(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, expr_child(e, 1));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
     U32 count = e->children.count - 2;
@@ -412,10 +413,10 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
 
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
-        Value elem = eval_expr(s, expr_child(e, i + 2));
+        Value elem = eval_expr(s, Expr_child(e, &(I64){(I64)(i + 2)}));
         void *src = val_raw_ptr(elem);
         if (src) {
-            if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
+            if (elem.type == VAL_STRUCT && (elem.instance->struct_name->count == 3 && memcmp(elem.instance->struct_name->c_str, "Str", 3) == 0)) {
                 // Deep-copy Str: copy flat bytes then strndup the data pointer
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
@@ -449,7 +450,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
 
 // vec("I64", 1, 2, 3)
 static Bool h_vec(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, expr_child(e, 1));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
     U32 count = e->children.count - 2;
@@ -462,10 +463,10 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
 
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
-        Value elem = eval_expr(s, expr_child(e, i + 2));
+        Value elem = eval_expr(s, Expr_child(e, &(I64){(I64)(i + 2)}));
         void *src = val_raw_ptr(elem);
         if (src) {
-            if (elem.type == VAL_STRUCT && Str_eq_c(elem.instance->struct_name, "Str")) {
+            if (elem.type == VAL_STRUCT && (elem.instance->struct_name->count == 3 && memcmp(elem.instance->struct_name->c_str, "Str", 3) == 0)) {
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
                 U64 slen = *(U64 *)((char *)data + i * elem_size + 8);
@@ -518,8 +519,8 @@ static void *val_to_ptr(Value v) {
 
 
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
-    Value buf = eval_expr(s, expr_child(e,1));
-    Value offset = eval_expr(s, expr_child(e,2));
+    Value buf = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value offset = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
     *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + *offset.u64};
     return 1;
 }
@@ -528,7 +529,7 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
 // === System primitive handlers ===
 
 static Bool h_readfile(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, expr_child(e,1));
+    Value path = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     Str sv = str_view(path);
     char *p = strndup((const char *)sv.c_str, sv.count);
     FILE *f = fopen(p, "rb");
@@ -549,8 +550,8 @@ static Bool h_readfile(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_writefile(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, expr_child(e,1));
-    Value content = eval_expr(s, expr_child(e,2));
+    Value path = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value content = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
     Str pv = str_view(path);
     Str cv = str_view(content);
     char *p = strndup((const char *)pv.c_str, pv.count);
@@ -568,7 +569,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
-    Value cmd = eval_expr(s, expr_child(e,1));
+    Value cmd = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     Str sv = str_view(cmd);
     char *c = strndup((const char *)sv.c_str, sv.count);
     pid_t pid = fork();
@@ -586,7 +587,7 @@ static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
-    Value pidv = eval_expr(s, expr_child(e,1));
+    Value pidv = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     int status;
     pid_t result = waitpid((pid_t)*pidv.i64, &status, WNOHANG);
     if (result == 0) { *r = val_i64(-1); return 1; }
@@ -596,14 +597,14 @@ static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_sleep(Scope *s, Expr *e, Value *r) {
-    Value ms = eval_expr(s, expr_child(e,1));
+    Value ms = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     usleep((useconds_t)(*ms.i64 * 1000));
     *r = val_none();
     return 1;
 }
 
 static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, expr_child(e,1));
+    Value path = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
     Str sv = str_view(path);
     char *p = strndup((const char *)sv.c_str, sv.count);
     struct stat st;
@@ -632,9 +633,9 @@ static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
 // === Dispatch init ===
 
 static void dispatch_init(void) {
-    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
 
-    #define REG(n, fn) do { Str *k = Str_new(n); DispatchFn f = fn; \
+    #define REG(n, fn) do { Str *k = Str_clone(&(Str){.c_str = (U8*)(n), .count = (U64)strlen((const char*)(n)), .cap = CAP_VIEW}); DispatchFn f = fn; \
         Str *_k = malloc(sizeof(Str)); *_k = (Str){k->c_str, k->count, CAP_VIEW}; \
         DispatchFn *_v = malloc(sizeof(DispatchFn)); *_v = f; \
         Map_set(&dispatch_map, _k, _v); } while(0)
@@ -707,7 +708,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             void *args[nargs > 0 ? nargs : 1];
             void *arg_ptrs[nargs > 0 ? nargs : 1];
             for (U32 i = 0; i < nargs; i++) {
-                Value v = eval_expr(scope, expr_child(e, i + 1));
+                Value v = eval_expr(scope, Expr_child(e, &(I64){(I64)(i + 1)}));
                 if (fe->param_shallows && i < (U32)fe->nparam && fe->param_shallows[i]) {
                     // Shallow: store dereferenced value directly for ffi
                     if (v.type == VAL_STRUCT) {
@@ -811,52 +812,52 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             } else if (fe->return_is_shallow) {
                 // Shallow return: C function returned a primitive by value.
                 // 'raw' contains the value in its low bits — box it.
-                if (Str_eq_c(fe->return_type, "I64")) {
+                if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
                     *result = (Value){.type = VAL_I64, .i64 = I64_new((I64)(intptr_t)raw)};
-                } else if (Str_eq_c(fe->return_type, "U8")) {
+                } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
                     U8 *p = malloc(sizeof(U8)); *p = (U8)(intptr_t)raw;
                     *result = (Value){.type = VAL_U8, .u8 = p};
-                } else if (Str_eq_c(fe->return_type, "I16")) {
+                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
                     I16 *p = malloc(sizeof(I16)); *p = (I16)(intptr_t)raw;
                     *result = (Value){.type = VAL_I16, .i16 = p};
-                } else if (Str_eq_c(fe->return_type, "I32")) {
+                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
                     I32 *p = malloc(sizeof(I32)); *p = (I32)(intptr_t)raw;
                     *result = (Value){.type = VAL_I32, .i32 = p};
-                } else if (Str_eq_c(fe->return_type, "U32")) {
+                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
                     U32 *p = malloc(sizeof(U32)); *p = (U32)(intptr_t)raw;
                     *result = (Value){.type = VAL_U32, .u32 = p};
-                } else if (Str_eq_c(fe->return_type, "U64")) {
+                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
                     U64 *p = malloc(sizeof(U64)); *p = (U64)(intptr_t)raw;
                     *result = (Value){.type = VAL_U64, .u64 = p};
-                } else if (Str_eq_c(fe->return_type, "F32")) {
+                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
                     F32 *p = malloc(sizeof(F32)); *p = *(F32 *)&raw;
                     *result = (Value){.type = VAL_F32, .f32 = p};
-                } else if (Str_eq_c(fe->return_type, "Bool")) {
+                } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
                     Bool *p = malloc(sizeof(Bool)); *p = (Bool)(intptr_t)raw;
                     *result = (Value){.type = VAL_BOOL, .boolean = p};
                 } else {
                     *result = val_none();
                 }
-            } else if (Str_eq_c(fe->return_type, "Str")) {
+            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "Str", 3) == 0)) {
                 ExtStr *sp = (ExtStr *)raw;
                 *result = make_str_value_own((char *)sp->data, sp->count);
-            } else if (Str_eq_c(fe->return_type, "I64")) {
+            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
                 *result = (Value){.type = VAL_I64, .i64 = (I64 *)raw};
-            } else if (Str_eq_c(fe->return_type, "U8")) {
+            } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
                 *result = (Value){.type = VAL_U8, .u8 = (U8 *)raw};
-            } else if (Str_eq_c(fe->return_type, "I16")) {
+            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
                 *result = (Value){.type = VAL_I16, .i16 = (I16 *)raw};
-            } else if (Str_eq_c(fe->return_type, "I32")) {
+            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
                 *result = (Value){.type = VAL_I32, .i32 = (I32 *)raw};
-            } else if (Str_eq_c(fe->return_type, "U32")) {
+            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
                 *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw};
-            } else if (Str_eq_c(fe->return_type, "U64")) {
+            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
                 *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw};
-            } else if (Str_eq_c(fe->return_type, "F32")) {
+            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
                 *result = (Value){.type = VAL_F32, .f32 = (F32 *)raw};
-            } else if (Str_eq_c(fe->return_type, "Bool")) {
+            } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
                 *result = (Value){.type = VAL_BOOL, .boolean = (Bool *)raw};
-            } else if (Str_eq_c(fe->return_type, "Dynamic")) {
+            } else if ((fe->return_type->count == 7 && memcmp(fe->return_type->c_str, "Dynamic", 7) == 0)) {
                 *result = (Value){.type = VAL_PTR, .ptr = raw};
             } else {
                 // Struct return — look up struct def by return type name
@@ -882,14 +883,14 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
 Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Str *enum_name, Expr *e,
                          Value *result) {
-    Bool hp = enum_has_payloads(enum_def);
+    Bool hp = *enum_has_payloads(enum_def);
 
     if (hp) {
         // Payload enum: constructor, get_Variant
-        I32 ctor_tag = enum_variant_tag(enum_def, method);
+        I32 ctor_tag = *enum_variant_tag(enum_def, method);
         if (ctor_tag >= 0) {
-            if (enum_variant_type(enum_def, ctor_tag)) {
-                Value payload = eval_expr(scope, expr_child(e, 1));
+            if (enum_variant_type(enum_def, ctor_tag)->count > 0) {
+                Value payload = eval_expr(scope, Expr_child(e, &(I64){(I64)(1)}));
                 *result = val_enum(enum_name, ctor_tag, clone_value(payload));
             } else {
                 *result = val_enum(enum_name, ctor_tag, val_none());
@@ -897,7 +898,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             return 1;
         }
         if (method->count > 4 && memcmp(method->c_str, "get_", 4) == 0) {
-            Value v = eval_expr(scope, expr_child(e, 1));
+            Value v = eval_expr(scope, Expr_child(e, &(I64){(I64)(1)}));
             *result = clone_value(v.enum_inst->payload);
             return 1;
         }
@@ -906,8 +907,8 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     // is_Variant: works for both simple and payload enums
     if (method->count > 3 && memcmp(method->c_str, "is_", 3) == 0) {
         Str var_name = {.c_str = method->c_str + 3, .count = method->count - 3};
-        I32 tag = enum_variant_tag(enum_def, &var_name);
-        Value v = eval_expr(scope, expr_child(e, 1));
+        I32 tag = *enum_variant_tag(enum_def, &var_name);
+        Value v = eval_expr(scope, Expr_child(e, &(I64){(I64)(1)}));
         if (v.type == VAL_ENUM)
             *result = val_bool(v.enum_inst->tag == tag);
         else
@@ -930,13 +931,13 @@ static void *ffi_dlsym(const char *name) {
 
 // Register an ext_func/ext_proc in ffi_map
 static void ffi_register(Str *name, void *fn, Expr *fdef) {
-    U32 np = fdef->type.func_def.nparam;
+    U32 np = fdef->data.data.FuncDef.nparam;
     ffi_type **atypes = malloc(sizeof(ffi_type *) * (np > 0 ? np : 1));
     bool *pshallows = NULL;
     bool has_shallow = false;
     for (U32 k = 0; k < np; k++) {
-        if (fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[k]) {
-            atypes[k] = shallow_ffi_type(fdef->type.func_def.param_types[k]);
+        if (fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(k)}))) {
+            atypes[k] = shallow_ffi_type(((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(k)})));
             has_shallow = true;
         } else {
             atypes[k] = &ffi_type_pointer;
@@ -945,12 +946,12 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     if (has_shallow) {
         pshallows = malloc(sizeof(bool) * np);
         for (U32 k = 0; k < np; k++)
-            pshallows[k] = fdef->type.func_def.param_shallows && fdef->type.func_def.param_shallows[k];
+            pshallows[k] = VEC_SET(fdef->data.data.FuncDef.param_shallows) && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(k)}));
     }
-    bool ret_shallow = fdef->type.func_def.return_is_shallow;
+    bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
     FFIEntry entry = {
         .fn = fn,
-        .return_type = fdef->type.func_def.return_type,
+        .return_type = (fdef->data.data.FuncDef.return_type).count > 0 ? FDEF_RTYPE(fdef) : NULL,
         .nparam = np,
         .param_shallows = pshallows,
         .return_is_shallow = ret_shallow,
@@ -973,19 +974,20 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     // Compile user .c to shared library (if provided)
     if (user_c_path) {
         Str *ext_dir;
+        Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
         {
-            I64 slash = *Str_rfind(ext_c_path, Str_new("/"));
-            ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : Str_new(".");
+            I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+            ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : &_dot_str;
         }
         char pid_buf[32];
         snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
-        so_path = Str_new(pid_buf);
+        so_path = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
         system("mkdir -p tmp");
-        Str *lf = link_flags ? link_flags : Str_new("");
+        Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
         Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-            Str_new("cc -Wall -Wextra -shared -fPIC -I"), ext_dir),
-            Str_new(" -o ")), so_path),
-            Str_new(" ")), user_c_path), lf);
+            &(Str){.c_str = (U8*)"cc -Wall -Wextra -shared -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
+            &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), so_path),
+            &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), user_c_path), lf);
         int rc = system((const char *)cmd->c_str);
         if (rc != 0) {
             fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path->c_str);
@@ -1017,65 +1019,65 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     }
 
     // Build struct def map for return type lookup
-    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;
-        if (expr_child(stmt, 0)->type.tag != NODE_STRUCT_DEF) continue;
-        Expr *sdef = expr_child(stmt, 0);
-        { Str *_k = malloc(sizeof(Str)); *_k = (Str){stmt->type.decl.name->c_str, stmt->type.decl.name->count, CAP_VIEW};
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
+        Expr *sdef = Expr_child(stmt, &(I64){(I64)(0)});
+        { Str *_k = malloc(sizeof(Str)); *_k = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW};
           Expr **_v = malloc(sizeof(Expr *)); *_v = sdef;
           Map_set(&ffi_struct_defs, _k, _v); }
     }
 
     // Scan program for ext_func/ext_proc, dlsym each
-    { Map *_mp = Map_new(Str_new("Str"), &(U64){sizeof(Str)}, Str_new(""), &(U64){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = expr_child(program, i);
-        if (stmt->type.tag != NODE_DECL || stmt->children.count == 0) continue;
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
 
         // Top-level ext_func/ext_proc
-        if (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
-            Expr *fdef = expr_child(stmt, 0);
-            FuncType fft = fdef->type.func_def.func_type;
-            if (fft != FUNC_EXT_FUNC && fft != FUNC_EXT_PROC) continue;
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            Expr *fdef = Expr_child(stmt, &(I64){(I64)(0)});
+            FuncType fft = fdef->data.data.FuncDef.func_type;
+            if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
 
-            void *fn = ffi_dlsym((const char *)stmt->type.decl.name->c_str);
+            void *fn = ffi_dlsym((const char *)stmt->data.data.Decl.name.c_str);
             if (!fn) continue;
-            ffi_register(stmt->type.decl.name, fn, fdef);
+            ffi_register(DECL_NAME(stmt), fn, fdef);
         }
 
         // ext_struct namespace methods
-        if (expr_child(stmt, 0)->type.tag == NODE_STRUCT_DEF && expr_child(stmt, 0)->is_ext) {
-            Str *sname = stmt->type.decl.name;
-            Expr *body = expr_child(expr_child(stmt, 0), 0);
+        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef && Expr_child(stmt, &(I64){(I64)(0)})->is_ext) {
+            Str *sname = &stmt->data.data.Decl.name;
+            Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = expr_child(body, j);
-                if (!field->type.decl.is_namespace) continue;
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace) continue;
                 if (field->children.count == 0) continue;
-                Expr *fdef = expr_child(field, 0);
-                if (fdef->type.tag != NODE_FUNC_DEF) continue;
-                FuncType fft = fdef->type.func_def.func_type;
-                if (fft == FUNC_EXT_FUNC || fft == FUNC_EXT_PROC) {
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                if (fdef->data.tag != ExprData_TAG_FuncDef) continue;
+                FuncType fft = fdef->data.data.FuncDef.func_type;
+                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
                     char flat_name[256];
-                    snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->type.decl.name->c_str);
+                    snprintf(flat_name, sizeof(flat_name), "%s_%s", sname->c_str, field->data.data.Decl.name.c_str);
                     void *fn = ffi_dlsym(flat_name);
                     if (fn) {
-                        Str *key = Str_new(flat_name);
+                        Str *key = Str_clone(&(Str){.c_str = (U8*)(flat_name), .count = (U64)strlen((const char*)(flat_name)), .cap = CAP_VIEW});
                         ffi_register(key, fn, fdef);
                     }
-                } else if (fft == FUNC_FUNC || fft == FUNC_PROC) {
+                } else if (fft.tag == FuncType_TAG_Func || fft.tag == FuncType_TAG_Proc) {
                     // Scan function body for nested ext_func/ext_proc declarations
-                    Expr *fbody = expr_child(fdef, 0);
+                    Expr *fbody = Expr_child(fdef, &(I64){(I64)(0)});
                     for (U32 k = 0; k < fbody->children.count; k++) {
-                        Expr *inner = expr_child(fbody, k);
-                        if (inner->type.tag != NODE_DECL || inner->children.count == 0) continue;
-                        Expr *idef = expr_child(inner, 0);
-                        if (idef->type.tag != NODE_FUNC_DEF) continue;
-                        FuncType ift = idef->type.func_def.func_type;
-                        if (ift != FUNC_EXT_FUNC && ift != FUNC_EXT_PROC) continue;
-                        void *fn = ffi_dlsym((const char *)inner->type.decl.name->c_str);
-                        if (fn) ffi_register(inner->type.decl.name, fn, idef);
+                        Expr *inner = Expr_child(fbody, &(I64){(I64)(k)});
+                        if (inner->data.tag != ExprData_TAG_Decl || inner->children.count == 0) continue;
+                        Expr *idef = Expr_child(inner, &(I64){(I64)(0)});
+                        if (idef->data.tag != ExprData_TAG_FuncDef) continue;
+                        FuncType ift = idef->data.data.FuncDef.func_type;
+                        if (ift.tag != FuncType_TAG_ExtFunc && ift.tag != FuncType_TAG_ExtProc) continue;
+                        void *fn = ffi_dlsym((const char *)inner->data.data.Decl.name.c_str);
+                        if (fn) ffi_register(DECL_NAME(inner), fn, idef);
                     }
                 }
             }

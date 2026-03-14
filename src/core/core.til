@@ -10,8 +10,33 @@ import("tuple.til")
 // builtin types (empty structs for future namespace support)
 StructDef : StructDef = struct {}
 EnumDef : StructDef = struct {}
-FunctionDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
+
+// --- FuncType enum (after imports so Vec is available for FunctionDef) ---
+FuncType := enum {
+    Func, Proc, Test, Macro, ExtFunc, ExtProc,
+}
+
+// --- FunctionDef struct (uses Vec, must come after vec.til import) ---
+FunctionDef := struct {
+    mut func_type := FuncType.Func
+    mut param_names := Vec.new("Str", Str.size())
+    mut param_types := Vec.new("Str", Str.size())
+    mut param_muts := Vec.new("Bool", Bool.size())
+    mut param_owns := Vec.new("Bool", Bool.size())
+    mut param_shallows := Vec.new("Bool", Bool.size())
+    mut param_fn_sigs := Vec.new("I64", I64.size())
+    mut nparam : U32 = 0
+    mut param_defaults := Vec.new("I64", I64.size())
+    mut return_type := ""
+    mut variadic_index : I32 = 0.sub(1).to_i32()
+    mut kwargs_index : I32 = 0.sub(1).to_i32()
+    mut return_is_ref := false
+    mut return_is_shallow := false
+    namespace:
+    eq := func(a: FunctionDef, b: FunctionDef) returns Bool { return a.return_type.eq(b.return_type) }
+    to_str := func(self: FunctionDef) returns Str { return self.return_type }
+}
 
 U8 := ext_struct {
 namespace:

@@ -298,16 +298,50 @@
    need adapting (*Str_eq(...) style dereferences). Compiler-only helpers
    (Str_val, Str_new, Str_new_len, Str_eq_c) stay in a compiler-only file.
 
+*** Two-commit pattern for each step
+
+   For each C module X replaced by til-compiled equivalent:
+
+   Commit 1 — Unify translation (prove equivalence):
+   1. Write src/self/X.til as exact c2til.org translation of src/c/X.c+h
+   2. Update src/c/X.c+h to define types with the naming/layout that
+      til generates (e.g. ExprData_TAG_*, inline Str, Vec for arrays)
+   3. Update ALL C consumers to use the new naming/layout
+   4. Makefile: add ~ctil translate src/self/X.til~ step
+   5. Verify: generated gen/c/X.c is equivalent to updated src/c/X.c
+   6. ~make test~ passes
+   7. Commit
+
+   Commit 2 — Clean swap:
+   1. Makefile: SRCS/HDRS use bootstrap/X.c+h instead of src/c/X.c+h
+   2. ctil_core copies generated code to bootstrap/
+   3. Delete src/c/X.c, src/c/X.h
+   4. ~make test~ passes
+   5. Commit
+
+   Commit 2 is trivial because equivalence is already proven in commit 1.
+
+*** WIP Step 4: Replace C ast with til-compiled ast
+   Replace src/c/ast.c+h with bootstrap/ast.c+h (generated from
+   src/self/ast.til). Since ast.til imports lexer.til which imports
+   core.til, bootstrap/ast subsumes bootstrap/lexer.
+
+   Also in this step:
+   - Move src/bootstrap/ → bootstrap/ (root level)
+   - .gitattributes: ~bootstrap/** linguist-generated~ (generic glob)
+   - Eliminate compat.c/h — merge into ast.c/h
+
 *** Order
    1. Builder: link_c emits #include in generated .c (not separate compile)
    2. Rename compiler Vec/Map/Set → CVec/CMap/CSet (avoid conflicts)
    3. Build core.til with link_c("ext.c"), copy to src/bootstrap/
    4. Wire ctil to use src/bootstrap/core.c, adapt Str callers, delete str.c
    5. Replace src/c/lexer.c with til-compiled liblexer
-   6. Replace src/c/parser.c + ast.c with til-compiled libparser
-   7. Continue upward: initer, typer, interpreter, builder
-   8. ctil.c becomes a thin CLI linking only til libs
-   9. ctil.c itself replaced by til.til binary → C code fully eliminated
+   6. Replace src/c/ast.c with til-compiled ast (two-commit pattern)
+   7. Replace src/c/parser.c with til-compiled parser (two-commit pattern)
+   8. Continue upward: initer, typer, interpreter, builder
+   9. ctil.c becomes a thin CLI linking only til libs
+   10. ctil.c itself replaced by til.til binary → C code fully eliminated
 
   At each step, run benchmarks to verify no significant performance
   regressions from the til versions vs the C originals. The test suite

@@ -51,17 +51,17 @@ expect_text := proc(mut p: Parser, type: TokenType) returns Str {
 }
 
 // Save line/col before advancing
-peek_line := func(p: Parser) returns I64 { return peek(p).line }
-peek_col := func(p: Parser) returns I64 { return peek(p).col }
+peek_line := func(p: Parser) returns U32 { return peek(p).line.to_u32() }
+peek_col := func(p: Parser) returns U32 { return peek(p).col.to_u32() }
 
 // --- Parsing functions ---
 
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
 // Returns a synthetic FuncDef Expr with param_types and return_type,
 // or null Expr if not followed by '(' (bare "Fn" type).
-parse_fn_signature := proc(mut p: Parser, line: I64, col: I64) returns Expr {
+parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Expr {
     if check(p, TokenType.LParen).not() {
-        return expr_new(NodeType.Body, 0, 0, "") // null sentinel
+        return Expr.new(ExprData.Body, 0, 0, "") // null sentinel
     }
     advance(p) // consume '('
 
@@ -86,14 +86,14 @@ parse_fn_signature := proc(mut p: Parser, line: I64, col: I64) returns Expr {
     }
 
     // Build synthetic func_def
-    mut fd := FuncDefData()
+    mut fd := FunctionDef()
     if return_type.len().gt(0) { fd.func_type = FuncType.Func }
     else { fd.func_type = FuncType.Proc }
     fd.return_type = return_type
     fd.return_is_ref = false
     fd.return_is_shallow = false
-    fd.variadic_index = 0.sub(1)
-    fd.kwargs_index = 0.sub(1)
+    fd.variadic_index = 0.sub(1).to_i32()
+    fd.kwargs_index = 0.sub(1).to_i32()
     // Fill param_names with empty strings (no names in signatures)
     for _ in 0..ptypes.len() {
         fd.param_names.push(own "")
@@ -105,17 +105,16 @@ parse_fn_signature := proc(mut p: Parser, line: I64, col: I64) returns Expr {
     fd.param_types = ptypes
     fd.param_muts = pmuts
 
-    mut sig := expr_new(NodeType.FuncDef, line, col, p.path)
-    sig.data = ExprData.FuncDef(fd)
+    mut sig := Expr.new(ExprData.FuncDef(fd), line, col, p.path)
     // No body — this is just a type signature
     return sig
 }
 
 // parse_block: expects '{' already consumed, reads statements until '}'
 parse_block := proc(mut p: Parser) returns Expr {
-    mut body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+    mut body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-        expr_add_child(body, own parse_statement(p))
+        Expr.add_child(body, own parse_statement(p))
     }
     expect(p, TokenType.RBrace)
     return body
@@ -139,7 +138,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
 
     expect(p, TokenType.LParen)
 
-    mut fd := FuncDefData()
+    mut fd := FunctionDef()
     fd.func_type = ft
     mut def_exprs := Vec.new("Expr", Expr.size())
 
@@ -168,13 +167,13 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                     panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": kwargs parameter cannot be own/mut/shallow")
                 }
-                if fd.kwargs_index.neq(0.sub(1)) {
+                if fd.kwargs_index.neq(0.sub(1).to_i32()) {
                     panic(__LOC__, "only one kwargs parameter is allowed")
                 }
-                if fd.variadic_index.neq(0.sub(1)) {
+                if fd.variadic_index.neq(0.sub(1).to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
-                fd.kwargs_index = fd.param_names.len().to_i64()
+                fd.kwargs_index = fd.param_names.len().to_i64().to_i32()
                 is_own = true // kwargs Map is owned by callee
                 nm = pname.clone()
                 tp = "Map"
@@ -183,11 +182,11 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if is_own { panic(__LOC__, "variadic param cannot be 'own'") }
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
                 if is_shallow { panic(__LOC__, "variadic param cannot be 'shallow'") }
-                if fd.variadic_index.neq(0.sub(1)) { panic(__LOC__, "only one variadic param allowed") }
-                if fd.kwargs_index.neq(0.sub(1)) {
+                if fd.variadic_index.neq(0.sub(1).to_i32()) { panic(__LOC__, "only one variadic param allowed") }
+                if fd.kwargs_index.neq(0.sub(1).to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
-                fd.variadic_index = fd.param_names.len().to_i64()
+                fd.variadic_index = fd.param_names.len().to_i64().to_i32()
                 is_variadic = true
                 tp = expect_text(p, TokenType.Ident)
                 nm = pname.clone()
@@ -223,7 +222,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             def_expr := parse_expression(p)
             def_exprs.push(own def_expr)
         }
-        if fd.variadic_index.neq(0.sub(1)).and(is_variadic.not()).and(has_default.eq(0.sub(1))) {
+        if fd.variadic_index.neq(0.sub(1).to_i32()).and(is_variadic.not()).and(has_default.eq(0.sub(1))) {
             panic(__LOC__, "positional param not allowed after variadic")
         }
         fd.param_defaults.push(own has_default)
@@ -244,12 +243,11 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         fd.return_type = expect_text(p, TokenType.Ident)
     }
 
-    mut def := expr_new(NodeType.FuncDef, kw_line, kw_col, p.path)
-    def.data = ExprData.FuncDef(fd)
+    mut def := Expr.new(ExprData.FuncDef(fd), kw_line, kw_col, p.path)
 
     if check(p, TokenType.LBrace) {
         expect(p, TokenType.LBrace)
-        expr_add_child(def, own parse_block(p))
+        Expr.add_child(def, own parse_block(p))
     } else {
         // Bodyless = FuncSig type definition (only for func/proc)
         if ft.eq(FuncType.Func).not().and(ft.eq(FuncType.Proc).not()) {
@@ -261,7 +259,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     // Append default value expressions as additional children
     for i in 0..def_exprs.len() {
         ref de : Expr = def_exprs.get(i)
-        expr_add_child(def, own de.clone())
+        Expr.add_child(def, own de.clone())
     }
 
     return def
@@ -274,11 +272,11 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
     is_ext := check(p, TokenType.KwExtStruct)
     advance(p)
 
-    mut def := expr_new(NodeType.StructDef, kw_line, kw_col, p.path)
+    mut def := Expr.new(ExprData.StructDef, kw_line, kw_col, p.path)
     def.is_ext = is_ext
     expect(p, TokenType.LBrace)
 
-    mut body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+    mut body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
     mut in_namespace := false
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         if check(p, TokenType.KwNamespace) {
@@ -288,17 +286,17 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
             continue
         }
         mut stmt := parse_statement(p)
-        if in_namespace.and(stmt.type.eq(NodeType.Decl)) {
+        if in_namespace.and(stmt.data.is_Decl()) {
             if stmt.data.is_Decl() {
                 mut dd := stmt.data.get_Decl()
                 dd.is_namespace = true
                 stmt.data = ExprData.Decl(dd)
             }
         }
-        expr_add_child(body, own stmt)
+        Expr.add_child(body, own stmt)
     }
     expect(p, TokenType.RBrace)
-    expr_add_child(def, own body)
+    Expr.add_child(def, own body)
     return def
 }
 
@@ -308,10 +306,10 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     kw_col := peek_col(p)
     advance(p)
 
-    mut def := expr_new(NodeType.EnumDef, kw_line, kw_col, p.path)
+    mut def := Expr.new(ExprData.EnumDef, kw_line, kw_col, p.path)
     expect(p, TokenType.LBrace)
 
-    mut body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+    mut body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
     mut in_namespace := false
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         if check(p, TokenType.KwNamespace) {
@@ -322,45 +320,43 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
         }
         if in_namespace {
             mut stmt := parse_statement(p)
-            if stmt.type.eq(NodeType.Decl) {
+            if stmt.data.is_Decl() {
                 if stmt.data.is_Decl() {
                     mut dd := stmt.data.get_Decl()
                     dd.is_namespace = true
                     stmt.data = ExprData.Decl(dd)
                 }
             }
-            expr_add_child(body, own stmt)
+            Expr.add_child(body, own stmt)
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
             v_line := peek_line(p)
             v_col := peek_col(p)
             vname := expect_text(p, TokenType.Ident)
-            mut dd := DeclData(name = vname)
+            mut dd := Declaration(name = vname)
             if check(p, TokenType.Colon) {
                 advance(p)
                 dd.explicit_type = expect_text(p, TokenType.Ident)
             }
-            mut variant := expr_new(NodeType.Decl, v_line, v_col, p.path)
-            variant.data = ExprData.Decl(dd)
-            expr_add_child(body, own variant)
+            mut variant := Expr.new(ExprData.Decl(dd), v_line, v_col, p.path)
+            Expr.add_child(body, own variant)
             if check(p, TokenType.Comma) { advance(p) }
         }
     }
     expect(p, TokenType.RBrace)
-    expr_add_child(def, own body)
+    Expr.add_child(def, own body)
     return def
 }
 
 // parse_call: identifier name already consumed, current token is '('
-parse_call := proc(mut p: Parser, name: Str, call_line: I64, call_col: I64) returns Expr {
+parse_call := proc(mut p: Parser, name: Str, call_line: U32, call_col: U32) returns Expr {
     advance(p) // consume '('
 
-    mut call := expr_new(NodeType.FCall, call_line, call_col, p.path)
+    mut call := Expr.new(ExprData.FCall, call_line, call_col, p.path)
 
     // first child is the callee identifier
-    mut callee := expr_new(NodeType.Ident, call_line, call_col, p.path)
-    callee.data = ExprData.StrVal(name.clone())
-    expr_add_child(call, own callee)
+    mut callee := Expr.new(ExprData.Ident(name.clone()), call_line, call_col, p.path)
+    Expr.add_child(call, own callee)
 
     // parse arguments
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
@@ -373,10 +369,9 @@ parse_call := proc(mut p: Parser, name: Str, call_line: I64, call_col: I64) retu
                     na_col := peek_col(p)
                     aname := expect_text(p, TokenType.Ident)
                     advance(p) // consume '='
-                    mut na := expr_new(NodeType.NamedArg, na_line, na_col, p.path)
-                    na.data = ExprData.StrVal(aname)
-                    expr_add_child(na, own parse_expression(p))
-                    expr_add_child(call, own na)
+                    mut na := Expr.new(ExprData.NamedArg(aname), na_line, na_col, p.path)
+                    Expr.add_child(na, own parse_expression(p))
+                    Expr.add_child(call, own na)
                     if check(p, TokenType.Comma) { advance(p) }
                     continue
                 }
@@ -397,7 +392,7 @@ parse_call := proc(mut p: Parser, name: Str, call_line: I64, call_col: I64) retu
         mut arg := parse_expression(p)
         arg.is_own_arg = is_own_arg
         arg.is_splat = is_splat
-        expr_add_child(call, own arg)
+        Expr.add_child(call, own arg)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect(p, TokenType.RParen)
@@ -409,19 +404,17 @@ parse_expression := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     ref t : Token = peek(p)
-    mut e := expr_new(NodeType.Body, 0, 0, p.path) // placeholder
+    mut e := Expr.new(ExprData.Body, 0, 0, p.path) // placeholder
     mut e_set := false
 
     if t.type.eq(TokenType.StringTok) {
         advance(p)
-        e = expr_new(NodeType.LiteralStr, t_line, t_col, p.path)
-        e.data = ExprData.StrVal(t.text.clone())
+        e = Expr.new(ExprData.LiteralStr(t.text.clone()), t_line, t_col, p.path)
         e_set = true
     }
     if e_set.not().and(t.type.eq(TokenType.Number)) {
         advance(p)
-        e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
-        e.data = ExprData.StrVal(t.text.clone())
+        e = Expr.new(ExprData.LiteralNum(t.text.clone()), t_line, t_col, p.path)
         e_set = true
     }
     if e_set.not().and(t.type.eq(TokenType.Char)) {
@@ -443,15 +436,13 @@ parse_expression := proc(mut p: Parser) returns Expr {
         } else {
             if ch.len().gt(0) { byte_val = ch.get(0).to_i64() }
         }
-        e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
-        e.data = ExprData.StrVal(byte_val.to_str())
-        e.til_type = TilType.TypeU8
+        e = Expr.new(ExprData.LiteralNum(byte_val.to_str()), t_line, t_col, p.path)
+        e.til_type = TilType.U8
         e_set = true
     }
     if e_set.not().and(t.type.eq(TokenType.KwTrue).or(t.type.eq(TokenType.KwFalse))) {
         advance(p)
-        e = expr_new(NodeType.LiteralBool, t_line, t_col, p.path)
-        e.data = ExprData.StrVal(t.text.clone())
+        e = Expr.new(ExprData.LiteralBool(t.text.clone()), t_line, t_col, p.path)
         e_set = true
     }
     if e_set.not().and(t.type.eq(TokenType.Ident)) {
@@ -459,27 +450,22 @@ parse_expression := proc(mut p: Parser) returns Expr {
         name := t.text.clone()
         // Compile-time directives
         if name.eq("__LOC__") {
-            e = expr_new(NodeType.LiteralStr, t_line, t_col, p.path)
-            e.data = ExprData.StrVal(format(p.path, ":", t_line.to_str(), ":", t_col.to_str()))
+            e = Expr.new(ExprData.LiteralStr(format(p.path, ":", t_line.to_str(), ":", t_col.to_str())), t_line, t_col, p.path)
             e_set = true
         } else if name.eq("__FILE__") {
-            e = expr_new(NodeType.LiteralStr, t_line, t_col, p.path)
-            e.data = ExprData.StrVal(p.path.clone())
+            e = Expr.new(ExprData.LiteralStr(p.path.clone()), t_line, t_col, p.path)
             e_set = true
         } else if name.eq("__LINE__") {
-            e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
-            e.data = ExprData.StrVal(t_line.to_str())
+            e = Expr.new(ExprData.LiteralNum(t_line.to_str()), t_line, t_col, p.path)
             e_set = true
         } else if name.eq("__COL__") {
-            e = expr_new(NodeType.LiteralNum, t_line, t_col, p.path)
-            e.data = ExprData.StrVal(t_col.to_str())
+            e = Expr.new(ExprData.LiteralNum(t_col.to_str()), t_line, t_col, p.path)
             e_set = true
         } else if check(p, TokenType.LParen) {
             e = parse_call(p, name, t_line, t_col)
             e_set = true
         } else {
-            e = expr_new(NodeType.Ident, t_line, t_col, p.path)
-            e.data = ExprData.StrVal(name)
+            e = Expr.new(ExprData.Ident(name), t_line, t_col, p.path)
             e_set = true
         }
     }
@@ -499,24 +485,24 @@ parse_expression := proc(mut p: Parser) returns Expr {
         mut first := parse_expression(p)
         if check(p, TokenType.Colon) {
             // Map literal
-            e = expr_new(NodeType.MapLit, t_line, t_col, p.path)
-            expr_add_child(e, own first)
+            e = Expr.new(ExprData.MapLit, t_line, t_col, p.path)
+            Expr.add_child(e, own first)
             advance(p) // consume ':'
-            expr_add_child(e, own parse_expression(p))
+            Expr.add_child(e, own parse_expression(p))
             if check(p, TokenType.Comma) { advance(p) }
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-                expr_add_child(e, own parse_expression(p))
+                Expr.add_child(e, own parse_expression(p))
                 expect(p, TokenType.Colon)
-                expr_add_child(e, own parse_expression(p))
+                Expr.add_child(e, own parse_expression(p))
                 if check(p, TokenType.Comma) { advance(p) }
             }
         } else {
             // Set literal
-            e = expr_new(NodeType.SetLit, t_line, t_col, p.path)
-            expr_add_child(e, own first)
+            e = Expr.new(ExprData.SetLit, t_line, t_col, p.path)
+            Expr.add_child(e, own first)
             if check(p, TokenType.Comma) { advance(p) }
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-                expr_add_child(e, own parse_expression(p))
+                Expr.add_child(e, own parse_expression(p))
                 if check(p, TokenType.Comma) { advance(p) }
             }
         }
@@ -538,11 +524,10 @@ parse_expression := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.LParen) {
             // Method call: e.method(args)
             advance(p) // consume '('
-            mut callee := expr_new(NodeType.FieldAccess, f_line, f_col, p.path)
-            callee.data = ExprData.StrVal(fname)
-            expr_add_child(callee, own e.clone())
-            mut mcall := expr_new(NodeType.FCall, f_line, f_col, p.path)
-            expr_add_child(mcall, own callee)
+            mut callee := Expr.new(ExprData.FieldAccess(fname), f_line, f_col, p.path)
+            Expr.add_child(callee, own e.clone())
+            mut mcall := Expr.new(ExprData.FCall, f_line, f_col, p.path)
+            Expr.add_child(mcall, own callee)
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 // Named arg check
                 if check(p, TokenType.Ident) {
@@ -553,10 +538,9 @@ parse_expression := proc(mut p: Parser) returns Expr {
                             na_col := peek_col(p)
                             aname := expect_text(p, TokenType.Ident)
                             advance(p) // consume '='
-                            mut na := expr_new(NodeType.NamedArg, na_line, na_col, p.path)
-                            na.data = ExprData.StrVal(aname)
-                            expr_add_child(na, own parse_expression(p))
-                            expr_add_child(mcall, own na)
+                            mut na := Expr.new(ExprData.NamedArg(aname), na_line, na_col, p.path)
+                            Expr.add_child(na, own parse_expression(p))
+                            Expr.add_child(mcall, own na)
                             if check(p, TokenType.Comma) { advance(p) }
                             continue
                         }
@@ -566,15 +550,14 @@ parse_expression := proc(mut p: Parser) returns Expr {
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
                 mut marg := parse_expression(p)
                 marg.is_own_arg = is_own_arg
-                expr_add_child(mcall, own marg)
+                Expr.add_child(mcall, own marg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect(p, TokenType.RParen)
             e = mcall
         } else {
-            mut access := expr_new(NodeType.FieldAccess, f_line, f_col, p.path)
-            access.data = ExprData.StrVal(fname)
-            expr_add_child(access, own e.clone())
+            mut access := Expr.new(ExprData.FieldAccess(fname), f_line, f_col, p.path)
+            Expr.add_child(access, own e.clone())
             e = access
         }
     }
@@ -585,15 +568,13 @@ parse_expression := proc(mut p: Parser) returns Expr {
         dt_col := peek_col(p)
         advance(p)
         mut rhs := parse_expression(p)
-        mut range_ident := expr_new(NodeType.Ident, dt_line, dt_col, p.path)
-        range_ident.data = ExprData.StrVal("Range".clone())
-        mut new_access := expr_new(NodeType.FieldAccess, dt_line, dt_col, p.path)
-        new_access.data = ExprData.StrVal("new".clone())
-        expr_add_child(new_access, own range_ident)
-        mut rcall := expr_new(NodeType.FCall, dt_line, dt_col, p.path)
-        expr_add_child(rcall, own new_access)
-        expr_add_child(rcall, own e.clone())
-        expr_add_child(rcall, own rhs)
+        mut range_ident := Expr.new(ExprData.Ident("Range".clone()), dt_line, dt_col, p.path)
+        mut new_access := Expr.new(ExprData.FieldAccess("new".clone()), dt_line, dt_col, p.path)
+        Expr.add_child(new_access, own range_ident)
+        mut rcall := Expr.new(ExprData.FCall, dt_line, dt_col, p.path)
+        Expr.add_child(rcall, own new_access)
+        Expr.add_child(rcall, own e.clone())
+        Expr.add_child(rcall, own rhs)
         e = rcall
     }
 
@@ -609,10 +590,9 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
     // Declaration: name := value
     if check(p, TokenType.ColonEq) {
         advance(p)
-        mut dd := DeclData(name = name, is_mut = is_mut, is_own = is_own)
-        mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
-        decl.data = ExprData.Decl(dd)
-        expr_add_child(decl, own parse_expression(p))
+        mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
+        mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
+        Expr.add_child(decl, own parse_expression(p))
         return decl
     }
 
@@ -641,12 +621,11 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
             expect(p, TokenType.RParen)
             // Parse { body }
             expect(p, TokenType.LBrace)
-            expr_add_child(sig, own parse_block(p))
+            Expr.add_child(sig, own parse_block(p))
             // Wrap in NODE_DECL
-            mut dd := DeclData(name = name, is_mut = is_mut, is_own = is_own)
-            mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
-            decl.data = ExprData.Decl(dd)
-            expr_add_child(decl, own sig)
+            mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
+            mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
+            Expr.add_child(decl, own sig)
             return decl
         }
 
@@ -696,10 +675,10 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                 expect(p, TokenType.LBrace)
                 mut body := parse_block(p)
                 // Build incomplete FuncDef (types filled by initer)
-                mut ffd := FuncDefData()
+                mut ffd := FunctionDef()
                 ffd.func_type = FuncType.Func // placeholder
-                ffd.variadic_index = 0.sub(1)
-                ffd.kwargs_index = 0.sub(1)
+                ffd.variadic_index = 0.sub(1).to_i32()
+                ffd.kwargs_index = 0.sub(1).to_i32()
                 np := pnames.len()
                 for _ in 0..np {
                     ffd.param_types.push(own "")
@@ -710,32 +689,28 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                     ffd.param_fn_sigs.push(own 0.sub(1))
                 }
                 ffd.param_names = pnames
-                mut fdef := expr_new(NodeType.FuncDef, t_line, t_col, p.path)
-                fdef.data = ExprData.FuncDef(ffd)
-                expr_add_child(fdef, own body)
+                mut fdef := Expr.new(ExprData.FuncDef(ffd), t_line, t_col, p.path)
+                Expr.add_child(fdef, own body)
                 // Wrap in NODE_DECL with explicit_type
-                mut dd := DeclData(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
-                mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
-                decl.data = ExprData.Decl(dd)
-                expr_add_child(decl, own fdef)
+                mut dd := Declaration(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
+                mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
+                Expr.add_child(decl, own fdef)
                 return decl
             }
         }
 
-        mut dd := DeclData(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
-        mut decl := expr_new(NodeType.Decl, t_line, t_col, p.path)
-        decl.data = ExprData.Decl(dd)
-        expr_add_child(decl, own parse_expression(p))
+        mut dd := Declaration(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
+        mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
+        Expr.add_child(decl, own parse_expression(p))
         return decl
     }
 
     // Field access/assign or method call: name.field...
     if check(p, TokenType.Dot) {
-        mut obj := expr_new(NodeType.Ident, t_line, t_col, p.path)
-        obj.data = ExprData.StrVal(name.clone())
+        mut obj := Expr.new(ExprData.Ident(name.clone()), t_line, t_col, p.path)
         mut last_field := ""
-        mut last_line := 0
-        mut last_col := 0
+        mut last_line : U32 = 0
+        mut last_col : U32 = 0
         while check(p, TokenType.Dot) {
             advance(p) // consume '.'
             last_line = peek_line(p)
@@ -743,20 +718,18 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
             last_field = expect_text(p, TokenType.Ident)
             if check(p, TokenType.Dot) {
                 // More dots — intermediate access
-                mut access := expr_new(NodeType.FieldAccess, last_line, last_col, p.path)
-                access.data = ExprData.StrVal(last_field.clone())
-                expr_add_child(access, own obj.clone())
+                mut access := Expr.new(ExprData.FieldAccess(last_field.clone()), last_line, last_col, p.path)
+                Expr.add_child(access, own obj.clone())
                 obj = access
             }
         }
         // Method call: name.method(args)
         if check(p, TokenType.LParen) {
             advance(p) // consume '('
-            mut callee := expr_new(NodeType.FieldAccess, last_line, last_col, p.path)
-            callee.data = ExprData.StrVal(last_field)
-            expr_add_child(callee, own obj.clone())
-            mut mcall := expr_new(NodeType.FCall, last_line, last_col, p.path)
-            expr_add_child(mcall, own callee)
+            mut callee := Expr.new(ExprData.FieldAccess(last_field), last_line, last_col, p.path)
+            Expr.add_child(callee, own obj.clone())
+            mut mcall := Expr.new(ExprData.FCall, last_line, last_col, p.path)
+            Expr.add_child(mcall, own callee)
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 // Named arg check
                 if check(p, TokenType.Ident) {
@@ -767,10 +740,9 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                             na_col := peek_col(p)
                             aname := expect_text(p, TokenType.Ident)
                             advance(p) // consume '='
-                            mut na := expr_new(NodeType.NamedArg, na_line, na_col, p.path)
-                            na.data = ExprData.StrVal(aname)
-                            expr_add_child(na, own parse_expression(p))
-                            expr_add_child(mcall, own na)
+                            mut na := Expr.new(ExprData.NamedArg(aname), na_line, na_col, p.path)
+                            Expr.add_child(na, own parse_expression(p))
+                            Expr.add_child(mcall, own na)
                             if check(p, TokenType.Comma) { advance(p) }
                             continue
                         }
@@ -780,7 +752,7 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                 if check(p, TokenType.KwOwn) { advance(p); is_own_arg = true }
                 mut marg := parse_expression(p)
                 marg.is_own_arg = is_own_arg
-                expr_add_child(mcall, own marg)
+                Expr.add_child(mcall, own marg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
             expect(p, TokenType.RParen)
@@ -788,19 +760,17 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
         }
         // Field assignment: name.field = value
         expect(p, TokenType.Eq)
-        mut fa := expr_new(NodeType.FieldAssign, t_line, t_col, p.path)
-        fa.data = ExprData.StrVal(last_field)
-        expr_add_child(fa, own obj.clone())
-        expr_add_child(fa, own parse_expression(p))
+        mut fa := Expr.new(ExprData.FieldAssign(last_field), t_line, t_col, p.path)
+        Expr.add_child(fa, own obj.clone())
+        Expr.add_child(fa, own parse_expression(p))
         return fa
     }
 
     // Assignment: name = value
     if check(p, TokenType.Eq) {
         advance(p)
-        mut assign := expr_new(NodeType.Assign, t_line, t_col, p.path)
-        assign.data = ExprData.StrVal(name.clone())
-        expr_add_child(assign, own parse_expression(p))
+        mut assign := Expr.new(ExprData.Assign(name.clone()), t_line, t_col, p.path)
+        Expr.add_child(assign, own parse_expression(p))
         return assign
     }
 
@@ -811,7 +781,7 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
 
     panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
         ": expected ':=', ':', '=' or '(' after identifier '", name, "'")
-    return expr_new(NodeType.Body, 0, 0, p.path) // unreachable
+    return Expr.new(ExprData.Body, 0, 0, p.path) // unreachable
 }
 
 // parse_statement
@@ -830,7 +800,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
         i_line := peek_line(p)
         i_col := peek_col(p)
         iname := expect_text(p, TokenType.Ident)
-        mut dd := DeclData(name = iname, is_ref = true)
+        mut dd := Declaration(name = iname, is_ref = true)
         if ref_mut { dd.is_mut = true }
         if check(p, TokenType.Colon) {
             advance(p)
@@ -839,9 +809,8 @@ parse_statement := proc(mut p: Parser) returns Expr {
         } else {
             expect(p, TokenType.ColonEq)
         }
-        mut decl := expr_new(NodeType.Decl, i_line, i_col, p.path)
-        decl.data = ExprData.Decl(dd)
-        expr_add_child(decl, own parse_expression(p))
+        mut decl := Expr.new(ExprData.Decl(dd), i_line, i_col, p.path)
+        Expr.add_child(decl, own parse_expression(p))
         return decl
     }
     if t.type.eq(TokenType.KwMut) {
@@ -850,27 +819,27 @@ parse_statement := proc(mut p: Parser) returns Expr {
     }
     if t.type.eq(TokenType.KwReturn) {
         advance(p)
-        mut ret := expr_new(NodeType.Return, t_line, t_col, p.path)
+        mut ret := Expr.new(ExprData.Return, t_line, t_col, p.path)
         if check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-            expr_add_child(ret, own parse_expression(p))
+            Expr.add_child(ret, own parse_expression(p))
         }
         return ret
     }
     if t.type.eq(TokenType.KwIf) {
         advance(p)
-        mut node := expr_new(NodeType.If, t_line, t_col, p.path)
-        expr_add_child(node, own parse_expression(p))
+        mut node := Expr.new(ExprData.If, t_line, t_col, p.path)
+        Expr.add_child(node, own parse_expression(p))
         expect(p, TokenType.LBrace)
-        expr_add_child(node, own parse_block(p))
+        Expr.add_child(node, own parse_block(p))
         if check(p, TokenType.KwElse) {
             advance(p)
             if check(p, TokenType.KwIf) {
-                mut else_body := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
-                expr_add_child(else_body, own parse_statement(p))
-                expr_add_child(node, own else_body)
+                mut else_body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
+                Expr.add_child(else_body, own parse_statement(p))
+                Expr.add_child(node, own else_body)
             } else {
                 expect(p, TokenType.LBrace)
-                expr_add_child(node, own parse_block(p))
+                Expr.add_child(node, own parse_block(p))
             }
         }
         return node
@@ -885,10 +854,10 @@ parse_statement := proc(mut p: Parser) returns Expr {
     }
     if t.type.eq(TokenType.KwWhile) {
         advance(p)
-        mut node := expr_new(NodeType.While, t_line, t_col, p.path)
-        expr_add_child(node, own parse_expression(p))
+        mut node := Expr.new(ExprData.While, t_line, t_col, p.path)
+        Expr.add_child(node, own parse_expression(p))
         expect(p, TokenType.LBrace)
-        expr_add_child(node, own parse_block(p))
+        Expr.add_child(node, own parse_block(p))
         return node
     }
     if t.type.eq(TokenType.KwFor) {
@@ -896,36 +865,35 @@ parse_statement := proc(mut p: Parser) returns Expr {
         i_line := peek_line(p)
         i_col := peek_col(p)
         iname := expect_text(p, TokenType.Ident)
-        mut node := expr_new(NodeType.ForIn, i_line, i_col, p.path)
-        node.data = ExprData.StrVal(iname)
+        mut node := Expr.new(ExprData.ForIn(iname), i_line, i_col, p.path)
         if check(p, TokenType.Colon) {
             advance(p)
             node.struct_name = expect_text(p, TokenType.Ident)
         }
         expect(p, TokenType.KwIn)
-        expr_add_child(node, own parse_expression(p))
+        Expr.add_child(node, own parse_expression(p))
         expect(p, TokenType.LBrace)
-        expr_add_child(node, own parse_block(p))
+        Expr.add_child(node, own parse_block(p))
         return node
     }
     if t.type.eq(TokenType.KwSwitch) {
         advance(p)
-        mut node := expr_new(NodeType.Switch, t_line, t_col, p.path)
-        expr_add_child(node, own parse_expression(p))
+        mut node := Expr.new(ExprData.Switch, t_line, t_col, p.path)
+        Expr.add_child(node, own parse_expression(p))
         expect(p, TokenType.LBrace)
         while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
             expect(p, TokenType.KwCase)
-            mut cn := expr_new(NodeType.Case, peek_line(p), peek_col(p), p.path)
+            mut cn := Expr.new(ExprData.Case, peek_line(p), peek_col(p), p.path)
             if check(p, TokenType.Colon).not() {
-                expr_add_child(cn, own parse_expression(p))
+                Expr.add_child(cn, own parse_expression(p))
             }
             expect(p, TokenType.Colon)
-            mut cb := expr_new(NodeType.Body, peek_line(p), peek_col(p), p.path)
+            mut cb := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
             while check(p, TokenType.KwCase).not().and(check(p, TokenType.RBrace).not()).and(check(p, TokenType.Eof).not()) {
-                expr_add_child(cb, own parse_statement(p))
+                Expr.add_child(cb, own parse_statement(p))
             }
-            expr_add_child(cn, own cb)
-            expr_add_child(node, own cn)
+            Expr.add_child(cn, own cb)
+            Expr.add_child(node, own cn)
         }
         expect(p, TokenType.RBrace)
         return node
@@ -955,7 +923,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
         // Find the deepest child[0] that is FCALL or FIELD_ACCESS
         mut cur := expr
         while cur.children.len().gt(0).and(
-            cur.type.eq(NodeType.FCall).or(cur.type.eq(NodeType.FieldAccess))) {
+            cur.data.is_FCall().or(cur.data.is_FieldAccess())) {
             ref ch : Expr = cur.children.get(0)
             cur = ch
         }
@@ -964,16 +932,16 @@ parse_statement := proc(mut p: Parser) returns Expr {
     }
     if t.type.eq(TokenType.KwBreak) {
         advance(p)
-        return expr_new(NodeType.Break, t_line, t_col, p.path)
+        return Expr.new(ExprData.Break, t_line, t_col, p.path)
     }
     if t.type.eq(TokenType.KwContinue) {
         advance(p)
-        return expr_new(NodeType.Continue, t_line, t_col, p.path)
+        return Expr.new(ExprData.Continue, t_line, t_col, p.path)
     }
 
     panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
         ": expected statement, found '", t.text, "'")
-    return expr_new(NodeType.Body, 0, 0, p.path) // unreachable
+    return Expr.new(ExprData.Body, 0, 0, p.path) // unreachable
 }
 
 // parse: entry point
@@ -992,9 +960,9 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
     }
 
     // Parse body
-    mut root := expr_new(NodeType.Body, 1, 1, p.path)
+    mut root := Expr.new(ExprData.Body, 1, 1, p.path)
     while check(p, TokenType.Eof).not() {
-        expr_add_child(root, own parse_statement(p))
+        Expr.add_child(root, own parse_statement(p))
     }
     return root
 }

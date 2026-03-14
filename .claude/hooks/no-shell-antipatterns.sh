@@ -4,3 +4,7 @@ if echo "$cmd" | grep -qP '(^|[|;&])\s*(echo|cat|head|tail)\b'; then
     echo "BLOCKED: Use Read/Write/Grep tools instead of echo/cat/head/tail" >&2
     exit 2
 fi
+if echo "$cmd" | grep -qP 'git\s+(checkout|restore|stash)'; then
+    echo "BLOCKED: Never use git checkout, git restore, or git stash — these are destructive" >&2
+    exit 2
+fi

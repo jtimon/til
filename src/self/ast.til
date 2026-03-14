@@ -1,167 +1,95 @@
 mode lib
 
-// --- NodeType enum ---
-// Matches ast.h NodeType (NODE_* → PascalCase)
-
-NodeType := enum {
-    Body,
-    LiteralStr, LiteralNum, LiteralBool, LiteralNull,
-    Ident,
-    Decl, Assign,
-    FCall, FuncDef,
-    StructDef, EnumDef,
-    FieldAccess, FieldAssign,
-    Return, If, While, ForIn,
-    NamedArg,
-    Break, Continue,
-    MapLit, SetLit,
-    Switch, Case,
-}
-
-node_type_name := func(t: NodeType) returns Str {
-    switch t {
-    case NodeType.Body: return "body"
-    case NodeType.LiteralStr: return "str"
-    case NodeType.LiteralNum: return "num"
-    case NodeType.LiteralBool: return "bool"
-    case NodeType.LiteralNull: return "null"
-    case NodeType.Ident: return "ident"
-    case NodeType.Decl: return "decl"
-    case NodeType.Assign: return "assign"
-    case NodeType.FCall: return "fcall"
-    case NodeType.FuncDef: return "func_def"
-    case NodeType.StructDef: return "struct_def"
-    case NodeType.EnumDef: return "enum_def"
-    case NodeType.FieldAccess: return "field_access"
-    case NodeType.FieldAssign: return "field_assign"
-    case NodeType.Return: return "return"
-    case NodeType.If: return "if"
-    case NodeType.While: return "while"
-    case NodeType.ForIn: return "for_in"
-    case NodeType.NamedArg: return "named_arg"
-    case NodeType.Break: return "break"
-    case NodeType.Continue: return "continue"
-    case NodeType.MapLit: return "map_lit"
-    case NodeType.SetLit: return "set_lit"
-    case NodeType.Switch: return "switch"
-    case NodeType.Case: return "case"
-    case: return "?"
-    }
-}
-
-// --- FuncType enum ---
-
-FuncType := enum {
-    Func, Proc, Test, Macro, ExtFunc, ExtProc,
-}
-
-func_type_name := func(ft: FuncType) returns Str {
-    switch ft {
-    case FuncType.Func: return "func"
-    case FuncType.Proc: return "proc"
-    case FuncType.Test: return "test"
-    case FuncType.Macro: return "macro"
-    case FuncType.ExtFunc: return "ext_func"
-    case FuncType.ExtProc: return "ext_proc"
-    case: return "?"
-    }
-}
+import("lexer.til")
 
 // --- TilType enum ---
-// Resolved type annotation (filled in by typer pass)
 
 TilType := enum {
     Unknown, None,
-    TypeI64, TypeU8, TypeI16, TypeI32, TypeU32, TypeU64, TypeF32, TypeBool,
-    TypeStruct, TypeStructDef,
-    TypeEnum, TypeEnumDef,
-    TypeFuncDef, TypeFuncPtr, TypeDynamic,
+    I64, U8, I16, I32, U32, U64, F32, Bool,
+    Struct, StructDef,
+    Enum, EnumDef,
+    FuncDef, FuncPtr, Dynamic,
 }
 
-til_type_name := func(t: TilType) returns Str {
+til_type_name_c := func(t: TilType) returns Str {
     switch t {
-    case TilType.Unknown:      return "unknown"
-    case TilType.None:         return "None"
-    case TilType.TypeI64:      return "I64"
-    case TilType.TypeU8:       return "U8"
-    case TilType.TypeI16:      return "I16"
-    case TilType.TypeI32:      return "I32"
-    case TilType.TypeU32:      return "U32"
-    case TilType.TypeU64:      return "U64"
-    case TilType.TypeF32:      return "F32"
-    case TilType.TypeBool:     return "Bool"
-    case TilType.TypeStruct:   return "Struct"
-    case TilType.TypeStructDef: return "StructDef"
-    case TilType.TypeEnum:     return "Enum"
-    case TilType.TypeEnumDef:  return "EnumDef"
-    case TilType.TypeFuncDef:  return "FunctionDef"
-    case TilType.TypeFuncPtr:  return "Fn"
-    case TilType.TypeDynamic:  return "Dynamic"
+    case TilType.Unknown:   return "unknown"
+    case TilType.None:      return "None"
+    case TilType.I64:       return "I64"
+    case TilType.U8:        return "U8"
+    case TilType.I16:       return "I16"
+    case TilType.I32:       return "I32"
+    case TilType.U32:       return "U32"
+    case TilType.U64:       return "U64"
+    case TilType.F32:       return "F32"
+    case TilType.Bool:      return "Bool"
+    case TilType.Struct:    return "Struct"
+    case TilType.StructDef: return "StructDef"
+    case TilType.Enum:      return "Enum"
+    case TilType.EnumDef:   return "EnumDef"
+    case TilType.FuncDef:   return "FunctionDef"
+    case TilType.FuncPtr:   return "Fn"
+    case TilType.Dynamic:   return "Dynamic"
     case: return "?"
     }
 }
 
-// --- DeclData struct ---
-// Fields from C's data.decl union member
+// --- Declaration struct ---
 
-DeclData := struct {
+Declaration := struct {
     mut name := ""
     mut explicit_type := ""
     mut is_mut := false
     mut is_namespace := false
     mut is_ref := false
     mut is_own := false
-    mut field_offset := 0
-    mut field_size := 0
+    mut field_offset : I32 = 0
+    mut field_size : I32 = 0
+    ref mut field_struct_def : Expr = NULL
+    ref mut fn_sig : Expr = NULL
     namespace:
-    eq := func(a: DeclData, b: DeclData) returns Bool { return a.name.eq(b.name) }
-    to_str := func(self: DeclData) returns Str { return self.name }
+    eq := func(a: Declaration, b: Declaration) returns Bool { return a.name.eq(b.name) }
+    to_str := func(self: Declaration) returns Str { return self.name }
 }
 
-// --- FuncDefData struct ---
-// Fields from C's data.func_def union member
+// FuncType and FunctionDef: defined in core.til
 
-FuncDefData := struct {
-    mut func_type := FuncType.Func
-    mut return_type := ""
-    mut return_is_ref := false
-    mut return_is_shallow := false
-    mut variadic_index := 0.sub(1)
-    mut kwargs_index := 0.sub(1)
-    mut param_names := Vec.new("Str", Str.size())
-    mut param_types := Vec.new("Str", Str.size())
-    mut param_muts := Vec.new("Bool", Bool.size())
-    mut param_owns := Vec.new("Bool", Bool.size())
-    mut param_shallows := Vec.new("Bool", Bool.size())
-    mut param_fn_sigs := Vec.new("I64", I64.size())
-    // param_defaults: Vec of I64, each entry is index into Expr children
-    // or -1 if no default. Actual default Expr nodes stored as children
-    // of the FuncDef node after the body child.
-    mut param_defaults := Vec.new("I64", I64.size())
-    namespace:
-    eq := func(a: FuncDefData, b: FuncDefData) returns Bool { return a.return_type.eq(b.return_type) }
-    to_str := func(self: FuncDefData) returns Str { return self.return_type }
-}
-
-// --- ExprData tagged enum ---
-// Replaces C union { str_val, decl, func_def }
-
-NONE := 0.sub(1)
+// --- ExprData payload enum (25 variants) ---
 
 ExprData := enum {
-    StrVal: Str,
-    Decl: DeclData,
-    FuncDef: FuncDefData,
-    None,
+    Body,
+    LiteralStr: Str,
+    LiteralNum: Str,
+    LiteralBool: Str,
+    LiteralNull,
+    Ident: Str,
+    Decl: Declaration,
+    Assign: Str,
+    FCall,
+    FuncDef: FunctionDef,
+    StructDef,
+    EnumDef,
+    FieldAccess: Str,
+    FieldAssign: Str,
+    Return,
+    If,
+    While,
+    ForIn: Str,
+    NamedArg: Str,
+    Break,
+    Continue,
+    MapLit,
+    SetLit,
+    Switch,
+    Case,
 }
 
 // --- Expr struct ---
 
 Expr := struct {
-    mut type := NodeType.Body
+    mut data := ExprData.Body
     mut til_type := TilType.Unknown
-    mut data := ExprData.None
-
     mut struct_name := ""
     mut is_own_arg := false
     mut is_splat := false
@@ -171,65 +99,129 @@ Expr := struct {
     mut is_ext := false
     mut is_core := false
     mut save_old_delete := false
-
-    mut total_struct_size := 0
-    mut variadic_index := 0.sub(1)
-    mut variadic_count := 0
-    mut kwargs_index := 0.sub(1)
-    mut kwargs_count := 0
-    // fn_sig: index into children for function pointer signature, or -1
-    mut fn_sig_index := 0.sub(1)
-
+    mut total_struct_size : I32 = 0
+    mut variadic_index : I32 = 0.sub(1).to_i32()
+    mut variadic_count : U32 = 0
+    mut kwargs_index : I32 = 0.sub(1).to_i32()
+    mut kwargs_count : U32 = 0
+    ref mut fn_sig : Expr = NULL
     mut children := Vec.new("Expr", Expr.size())
-    mut line := 0
-    mut col := 0
+    mut line : U32 = 0
+    mut col : U32 = 0
     mut path := ""
+    namespace:
+    error := proc(self: Expr, msg: Str) {
+        println(self.path, ":", self.line.to_str(), ":", self.col.to_str(), ": error: ", msg)
+    }
+    todo_error := proc(self: Expr, msg: Str) {
+        Expr.error(self, msg)
+        println("  note: this language feature is not implemented yet")
+    }
+    lang_error := proc(self: Expr, msg: Str) {
+        Expr.error(self, msg)
+        println("  note: this is a bug in the language, please report it")
+    }
+    add_child := proc(mut self: Expr, own child: Expr) {
+        self.children.push(own child)
+    }
+    child := func(parent: Expr, i: I64) returns ref Expr {
+        ref c : Expr = parent.children.get(i.to_u64())
+        return c
+    }
+    child_count := func(parent: Expr) returns I64 {
+        return parent.children.len()
+    }
+    new := proc(data: ExprData, shallow line: U32, shallow col: U32, path: Str) returns Expr {
+        return Expr(data = data, line = line, col = col, path = path)
+    }
 }
 
-// --- Expr helpers ---
-
-expr_new := proc(type: NodeType, line: I64, col: I64, path: Str) returns Expr {
-    return Expr(type = type, line = line, col = col, path = path)
+// --- node_name ---
+node_name := func(data: ExprData) returns Str {
+    switch data {
+    case ExprData.Body:        return "body"
+    case ExprData.LiteralStr:  return "str"
+    case ExprData.LiteralNum:  return "num"
+    case ExprData.LiteralBool: return "bool"
+    case ExprData.LiteralNull: return "null"
+    case ExprData.Ident:       return "ident"
+    case ExprData.Decl:        return "decl"
+    case ExprData.Assign:      return "assign"
+    case ExprData.FCall:       return "fcall"
+    case ExprData.FuncDef:     return "func_def"
+    case ExprData.StructDef:   return "struct_def"
+    case ExprData.EnumDef:     return "enum_def"
+    case ExprData.FieldAccess: return "field_access"
+    case ExprData.FieldAssign: return "field_assign"
+    case ExprData.Return:      return "return"
+    case ExprData.If:          return "if"
+    case ExprData.While:       return "while"
+    case ExprData.ForIn:       return "for_in"
+    case ExprData.NamedArg:    return "named_arg"
+    case ExprData.Break:       return "break"
+    case ExprData.Continue:    return "continue"
+    case ExprData.MapLit:      return "map_lit"
+    case ExprData.SetLit:      return "set_lit"
+    case ExprData.Switch:      return "switch"
+    case ExprData.Case:        return "case"
+    case: return "?"
+    }
 }
 
-expr_add_child := proc(mut parent: Expr, own child: Expr) {
-    parent.children.push(own child)
+// --- func_type_name ---
+func_type_name := func(ft: FuncType) returns Str {
+    switch ft {
+    case FuncType.Func:    return "func"
+    case FuncType.Proc:    return "proc"
+    case FuncType.Test:    return "test"
+    case FuncType.Macro:   return "macro"
+    case FuncType.ExtFunc: return "ext_func"
+    case FuncType.ExtProc: return "ext_proc"
+    case: return "?"
+    }
 }
 
-expr_child := func(parent: Expr, i: I64) returns ref Expr {
-    ref c : Expr = parent.children.get(i.to_u64())
-    return c
-}
-
-expr_child_count := func(parent: Expr) returns I64 {
-    return parent.children.len()
-}
-
-// --- Error reporting ---
-
-expr_error := proc(e: Expr, msg: Str) {
-    // TODO: eprint to stderr when available
-    println(format(e.path, ":", e.line.to_str(), ":", e.col.to_str(), ": error: ", msg))
-}
-
-expr_todo_error := proc(e: Expr, msg: Str) {
-    expr_error(e, msg)
-    // TODO: eprint to stderr when available
-    println("  note: this language feature is not implemented yet")
-}
-
-expr_lang_error := proc(e: Expr, msg: Str) {
-    expr_error(e, msg)
-    // TODO: eprint to stderr when available
-    println("  note: this is a bug in the language, please report it")
+// --- ast_print ---
+ast_print := proc(e: Expr, shallow indent: U32) {
+    for i in 0..indent.to_i64().to_u64() {
+        print("  ")
+    }
+    print("(", node_name(e.data))
+    if e.til_type.eq(TilType.Unknown).not() {
+        print(":", til_type_name_c(e.til_type))
+    }
+    switch e.data {
+    case ExprData.Ident(s):      print(" \"", s, "\"")
+    case ExprData.LiteralStr(s): print(" \"", s, "\"")
+    case ExprData.LiteralNum(s): print(" \"", s, "\"")
+    case ExprData.LiteralBool(s):print(" \"", s, "\"")
+    case ExprData.ForIn(s):      print(" \"", s, "\"")
+    case ExprData.Decl(decl):
+        if decl.is_mut { print(" mut") }
+        print(" ", decl.name)
+    case ExprData.Assign(s):     print(" ", s)
+    case ExprData.NamedArg(s):   print(" ", s)
+    case ExprData.FuncDef(fdef): print(" ", func_type_name(fdef.func_type))
+    case: // nothing
+    }
+    if e.children.len().gt(0) {
+        println("")
+        for i in 0..e.children.len() {
+            ast_print(Expr.child(e, i.to_i64()), indent.add(1))
+        }
+        for i in 0..indent.to_i64().to_u64() {
+            print("  ")
+        }
+    }
+    println(")")
 }
 
 // --- Enum helpers ---
 
 enum_has_payloads := func(enum_def: Expr) returns Bool {
-    ref body := expr_child(enum_def, 0)
-    for i in 0..expr_child_count(body).to_u64() {
-        ref f := expr_child(body, i.to_i64())
+    ref body : Expr = Expr.child(enum_def, 0)
+    for i in 0..Expr.child_count(body).to_u64() {
+        ref f : Expr = Expr.child(body, i.to_i64())
         if f.data.is_Decl() {
             decl := f.data.get_Decl()
             if decl.is_namespace.not().and(decl.explicit_type.len().gt(0)) {
@@ -240,11 +232,11 @@ enum_has_payloads := func(enum_def: Expr) returns Bool {
     return false
 }
 
-enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
-    ref body := expr_child(enum_def, 0)
-    mut tag := 0
-    for i in 0..expr_child_count(body).to_u64() {
-        ref f := expr_child(body, i.to_i64())
+enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
+    ref body : Expr = Expr.child(enum_def, 0)
+    mut tag : I32 = 0
+    for i in 0..Expr.child_count(body).to_u64() {
+        ref f : Expr = Expr.child(body, i.to_i64())
         if f.data.is_Decl() {
             decl := f.data.get_Decl()
             if decl.is_namespace.not() {
@@ -253,14 +245,14 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I64 {
             }
         }
     }
-    return 0.sub(1)
+    return 0.sub(1).to_i32()
 }
 
-enum_variant_type := func(enum_def: Expr, tag: I64) returns Str {
-    ref body := expr_child(enum_def, 0)
-    mut idx := 0
-    for i in 0..expr_child_count(body).to_u64() {
-        ref f := expr_child(body, i.to_i64())
+enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
+    ref body : Expr = Expr.child(enum_def, 0)
+    mut idx : I32 = 0
+    for i in 0..Expr.child_count(body).to_u64() {
+        ref f : Expr = Expr.child(body, i.to_i64())
         if f.data.is_Decl() {
             decl := f.data.get_Decl()
             if decl.is_namespace.not() {
