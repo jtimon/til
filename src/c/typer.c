@@ -27,7 +27,7 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
     if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
     if (Str_eq_c(name, "EnumDef"))      return TIL_TYPE_ENUM_DEF;
-    if (Str_eq_c(name, "FunctionDef"))  return TIL_TYPE_FUNC_DEF;
+    // FunctionDef: regular struct (like Str), resolved via scope lookup
     if (Str_eq_c(name, "Fn"))          return TIL_TYPE_FUNC_PTR;
     if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
     // Check scope for user-defined struct/enum types
@@ -2628,7 +2628,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 else if (Str_eq_c(sname, "Bool")) { builtin_type = TIL_TYPE_BOOL; is_builtin = 1; }
                 else if (Str_eq_c(sname, "StructDef"))    { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
                 else if (Str_eq_c(sname, "EnumDef"))      { builtin_type = TIL_TYPE_ENUM_DEF;   is_builtin = 1; }
-                else if (Str_eq_c(sname, "FunctionDef"))  { builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
+                else if (Str_eq_c(sname, "FunctionDef"))  { is_builtin = 0; } // regular struct like Str
                 else if (Str_eq_c(sname, "Dynamic"))      { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
                 tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
                 // Store struct def pointer and builtin flag in the binding
@@ -2642,8 +2642,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (expr_child(stmt, 0)->type.tag == NODE_FUNC_DEF) {
                 // Check explicit type annotation if present
                 if (stmt->type.decl.explicit_type) {
-                    TilType declared = type_from_name(stmt->type.decl.explicit_type, scope);
-                    if (declared != TIL_TYPE_FUNC_DEF) {
+                    if (!Str_eq_c(stmt->type.decl.explicit_type, "FunctionDef")) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "'%s' declared as %s but value is FunctionDef",
                                  stmt->type.decl.name->c_str, stmt->type.decl.explicit_type->c_str);

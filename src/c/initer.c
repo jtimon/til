@@ -72,7 +72,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if (Str_eq_c(name, "Str"))  return TIL_TYPE_STRUCT;
     if (Str_eq_c(name, "Bool")) return TIL_TYPE_BOOL;
     if (Str_eq_c(name, "StructDef"))    return TIL_TYPE_STRUCT_DEF;
-    if (Str_eq_c(name, "FunctionDef"))  return TIL_TYPE_FUNC_DEF;
+    // FunctionDef: regular struct (like Str), not builtin
     if (Str_eq_c(name, "Dynamic"))     return TIL_TYPE_DYNAMIC;
     if (scope) {
         Expr *sdef = tscope_get_struct(scope, name);
@@ -244,7 +244,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         else if (Str_eq_c(sname, "Str"))        { is_builtin = 0; } // Str is a regular struct
         else if (Str_eq_c(sname, "Bool"))       { builtin_type = TIL_TYPE_BOOL;       is_builtin = 1; }
         else if (Str_eq_c(sname, "StructDef"))  { builtin_type = TIL_TYPE_STRUCT_DEF; is_builtin = 1; }
-        else if (Str_eq_c(sname, "FunctionDef")){ builtin_type = TIL_TYPE_FUNC_DEF;   is_builtin = 1; }
+        else if (Str_eq_c(sname, "FunctionDef")){ is_builtin = 0; } // regular struct like Str
         else if (Str_eq_c(sname, "Dynamic"))   { builtin_type = TIL_TYPE_DYNAMIC;    is_builtin = 1; }
 
         tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
