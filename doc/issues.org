@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 69
+# NEXT_ISSUE: 70
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -1365,6 +1365,10 @@
   - Result display: print expression values (needs to_str for all types)
 
 * Undecided
+
+** OPEN #69 Bundle tinyfiledialogs for mode gui
+  Bundle tinyfiledialogs as a dependency for mode gui (like raylib).
+  Use it in the editor to open a file dialog when saving a new file.
 
 ** OPEN #65 Standalone namespaces
   Allow declaring namespaces independently of structs. Currently namespaces
