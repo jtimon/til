@@ -2,11 +2,7 @@
 #define TIL_AST_H
 
 #include "../../bootstrap/lexer.h"
-#include <limits.h>
 #include <stddef.h>
-
-#define CAP_LIT  ULLONG_MAX
-#define CAP_VIEW (ULLONG_MAX - 1)
 
 // --- TilType (struct wrapping tag, matches til codegen) ---
 

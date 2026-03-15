@@ -14,7 +14,7 @@
 
   Key items:
   - Broken ast clean swap (d8b1e9c6): missing include updates
-  - CAP_LIT/CAP_VIEW can't share headers (blocked by #70)
+  - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h (workaround until #70)
   - is_ext_h_type inconsistency: Vec/Map/Set defined in both places
   - til_bridge.c full of unnecessary wrappers
   - Expr children pointer-vs-value mismatch (ast.c vs bootstrap/ast.c)
@@ -32,7 +32,8 @@
   - Hand-written C code can't use them at all
 
   Hand-written C currently works around this with duplicate ~#define~s in
-  src/c/aliases.h:
+  src/c/pre70.h (moved from ast.h to avoid clashing with bootstrap's
+  ~static U64 *~ variables of the same name):
   #+begin_src c
   #define CAP_LIT  ULLONG_MAX
   #define CAP_VIEW (ULLONG_MAX - 1)
@@ -42,7 +43,7 @@
   in the generated .h header, so all C code uses the same definitions.
 
   Once fixed:
-  - Remove CAP_LIT/CAP_VIEW ~#define~s from src/c/aliases.h
+  - Remove CAP_LIT/CAP_VIEW ~#define~s from src/c/pre70.h
   - All C files use the constants from the generated header
   - No more manual synchronization between str.til values and C defines
 

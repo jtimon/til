@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "scavenger.h"
 #include "ast.h"
+#include "pre70.h"
 
 // Name-to-Expr map (for top-level decls and namespace methods)
 static Expr *map_get_expr(Map *m, Str *key) {

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "precomp.h"
 #include "ast.h"
+#include "pre70.h"
 #include "interpreter.h"
 #include "dispatch.h"
 

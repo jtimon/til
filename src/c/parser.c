@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "ast.h"
+#include "pre70.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

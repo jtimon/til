@@ -1,5 +1,6 @@
 #include "typer.h"
 #include "ast.h"
+#include "pre70.h"
 #include "initer.h"
 #include <stdio.h>
 #include <stdlib.h>

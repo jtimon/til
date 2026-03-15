@@ -1,5 +1,6 @@
 #include "interpreter.h"
 #include "ast.h"
+#include "pre70.h"
 #include "dispatch.h"
 #include "ext.h"
 #include <stdio.h>

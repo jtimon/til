@@ -1,4 +1,5 @@
 #include "ast.h"
+#include "pre70.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
