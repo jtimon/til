@@ -6,23 +6,43 @@
 
 * Pre-self-hosting
 
-** OPEN #72 link_c files can't see til-defined types
+** OPEN #72 link_c files can't see til-defined types and functions
   link_c("file.c") files are compiled as separate translation units.
   They include ext.h to get type definitions, but as types move from
   ext.h to bootstrap (#71), link_c files lose visibility.
 
-  Current workaround: link_c files include bootstrap/lexer.h directly
-  (e.g. ext_module.c). This works but couples user C code to the
-  bootstrap file layout.
+  Current workaround: ext_module.c includes bootstrap/lexer.h directly.
+  This works but couples user C code to the bootstrap file layout.
 
-  Ideas:
-  - Builder generates a stable-named header with all types that link_c
-    files can include (e.g. gen/c/types.h)
-  - Builder passes ~-include gen/c/name.h~ flag when compiling link_c
-    files, injecting the generated header automatically
-  - #include link_c files in the generated .c (lose separate compilation
-    but gain full type visibility — matches what core.til already does)
-  - [placeholder: user's idea — to be filled in]
+*** Chosen solution: forward.h
+    Builder emits a ~forward.h~ alongside the generated .c/.h. It
+    contains ALL forward declarations: struct typedefs, enum tag enums
+    + struct typedefs, AND function declarations (namespace methods,
+    top-level funcs, ext_func/ext_proc). This handles cross-references
+    between til libs that reference each other's types freely.
+
+    Include chain:
+    - ~ext.h~ includes ~forward.h~ (+ aliases.h, stdbool, etc.)
+    - Generated .h includes ~ext.h~ → gets forward decls before definitions
+    - link_c .c files include ~ext.h~ → see all forward decls + primitives
+    - ext.c includes ~ext.h~ → same visibility
+
+    Any link_c file can call any til-defined function or use any til
+    type pointer by just including ext.h. For full struct definitions
+    (field access), the generated .h or bootstrap header is needed.
+
+    forward.h is auto-generated, so as types/functions change, it
+    updates automatically. Stable name — no coupling to gen/ layout.
+
+*** Quick initial solution: #include link_c in generated .c
+    As a stepping stone, emit ~#include "ext_module.c"~ in the
+    generated .c (like core.til does with ext.c). Loses separate
+    compilation but gives full visibility. No .h needed — the til
+    ext_func/ext_proc declarations serve as the interface.
+
+*** Other ideas considered
+    - Builder passes ~-include gen/c/name.h~ flag (invisible includes)
+    - Stable-named gen/c/types.h (couples to gen/ layout)
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
   :BLOCKS: #39 #12
@@ -368,6 +388,23 @@
    into the repo. People who clone the repo get pre-generated files.
    Two-pass build (cc → ctil_core → cc) handles breaking changes.
 
+*** Duplication and --allow-multiple-definition
+
+   During the transition, ctil links BOTH bootstrap code (e.g.
+   bootstrap/lexer.c with core.til types) AND hand-written C modules
+   that define the same functions. ~--allow-multiple-definition~ lets
+   the linker pick one (first in SRCS order wins).
+
+   This duplication is purely transitional. Once #39 is complete,
+   til.til IS the compiler — it imports everything as til files, gets
+   compiled into one bootstrap .c file with all definitions. No
+   duplication, no ~--allow-multiple-definition~ needed.
+
+   During the transition, forward.h (#72) helps: the builder emits a
+   header with ALL forward declarations (structs, enums, functions).
+   ext.h includes forward.h, so link_c files and ext.c see all types.
+   Each type/function is defined once and forward-declared everywhere.
+
 *** Two-commit pattern for each step
 
    For each C module X replaced by til-compiled equivalent:
@@ -431,6 +468,12 @@
   typer, interpreter, builder, precomp, scavenger (~6000 lines of C).
   Self-hosting means reimplementing all of these in til, using til's own
   features (structs, enums, ownership, FFI for I/O).
+
+  When complete, til.til IS the compiler. It imports core.til, lexer.til,
+  ast.til, parser.til, etc. as til imports — compiled into ONE bootstrap
+  .c file with all definitions. No duplication between bootstrap and
+  hand-written C, no ~--allow-multiple-definition~ linker hack. The
+  bootstrap file plus ext.c (primitives) is the entire C codebase.
 
   Depends on:
   - #1 (consistency): FIXED
