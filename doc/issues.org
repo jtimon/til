@@ -45,9 +45,10 @@
 
   Key items:
   - DONE: Array removed from is_ext_h_type and ext.h — bootstrap emits it
-  - Remove Str from is_ext_h_type and ext.h (needs ext.h include reordering)
-  - Move ~#include "ext.h"~ after forward decls in builder.c header gen
-  - Remove ext.c duplicates: *_to_str converters, *_new allocators
+  - DONE: Str removed from is_ext_h_type and ext.h — bootstrap emits it
+  - DONE: ~#include "ext.h"~ moved after forward decls in builder.c
+  - DONE: ext.c duplicates removed (ext_str_new, I64_to_str, U8_to_str,
+    *_new allocators); I64_new moved to dispatch.c (only user)
   - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h (workaround until #70)
   - Broken ast clean swap (d8b1e9c6): missing include updates
   - Expr children pointer-vs-value mismatch (ast.c vs bootstrap/ast.c)

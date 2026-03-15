@@ -3,12 +3,6 @@
 
 #include "aliases.h"
 
-typedef struct Str {
-    U8 *c_str;
-    U64 count;
-    U64 cap;
-} Str;
-
 // I64 clone/delete
 I64 I64_clone(I64 *v);
 void I64_delete(I64 *v, Bool *call_free);

@@ -1337,7 +1337,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
 static Bool is_ext_h_type(Str *name) {
     return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
            (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0) || (name->count == 3 && memcmp(name->c_str, "Str", 3) == 0);
+           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
 }
 
 // ext_func/ext_proc names that conflict with libc or builder-emitted statics
@@ -1687,7 +1687,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         return 1;
     }
 
-    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n#include \"ext.h\"\n\n");
+    fprintf(f, "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdarg.h>\n#include <limits.h>\n\n");
 
     Bool is_script = !mode || !mode->decls_only;
 
@@ -1717,6 +1717,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         }
     }
     fprintf(f, "\n");
+    fprintf(f, "#include \"ext.h\"\n\n");
 
     // Forward-declare user-defined ext_func/ext_proc (skip core.til builtins + libc conflicts)
     for (U32 i = 0; i < program->children.count; i++) {
@@ -1922,8 +1923,6 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"F32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}); Set_add(&emitted, _p); }
-        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}); Set_add(&emitted, _p); }
-        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}); Set_add(&emitted, _p); }
 
         U32 remaining = to_emit.count;
         Bool *done = calloc(to_emit.count, sizeof(Bool));
@@ -2399,7 +2398,7 @@ I32 build_header(Expr *program, Str *h_path) {
         return 1;
     }
 
-    fprintf(f, "#pragma once\n#include \"ext.h\"\n\n");
+    fprintf(f, "#pragma once\n\n");
 
     // Forward-declare structs (skip types defined by ext.h)
     for (U32 i = 0; i < program->children.count; i++) {
@@ -2425,6 +2424,7 @@ I32 build_header(Expr *program, Str *h_path) {
         }
     }
     fprintf(f, "\n");
+    fprintf(f, "#include \"ext.h\"\n\n");
 
     // Struct definitions with fields in dependency order (topo sorted)
     // Same algorithm as .c emission: repeatedly emit types whose inline deps are resolved.
@@ -2447,8 +2447,6 @@ I32 build_header(Expr *program, Str *h_path) {
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"F32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
-        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
-        { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
 
         U32 remaining_h = to_emit_h.count;
         Bool *done_h = calloc(to_emit_h.count, sizeof(Bool));

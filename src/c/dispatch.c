@@ -12,7 +12,7 @@ I32 I32_from_i64(I64 v);
 F32 F32_from_i64(I64 v);
 U32 U32_from_i64(I64 v);
 U64 U64_from_i64(I64 v);
-I64 *I64_new(I64 val);
+static I64 *I64_new(I64 val) { I64 *p = malloc(sizeof(I64)); *p = val; return p; }
 #include <stdlib.h>
 #include <string.h>
 #include <dlfcn.h>

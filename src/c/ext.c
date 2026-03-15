@@ -1,4 +1,4 @@
-#include "ext.h"
+#include "../../bootstrap/lexer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,17 +6,6 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <time.h>
-
-// Internal helper: allocate a Str from a C string (self-contained, no compat.c dep)
-static Str *ext_str_new(const char *data) {
-    U64 len = (U64)strlen(data);
-    Str *s = malloc(sizeof(Str));
-    s->c_str = malloc(len + 1);
-    memcpy(s->c_str, data, len + 1);
-    s->count = len;
-    s->cap = len;
-    return s;
-}
 
 // Internal helpers for heap-allocating scalar values
 static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
@@ -49,17 +38,6 @@ I64 I64_dec(I64 a) { return a - 1; }
 Bool I64_eq(I64 a, I64 b) { return a == b; }
 I64 I64_cmp(I64 a, I64 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
-Str *I64_to_str(I64 v) {
-    char buf[32];
-    snprintf(buf, 32, "%lld", v);
-    return ext_str_new(buf);
-}
-
-I64 *I64_new(I64 val) {
-    I64 *p = malloc(sizeof(I64));
-    *p = val;
-    return p;
-}
 
 // U8 arithmetic
 U8 U8_add(U8 a, U8 b) { return a + b; }
@@ -92,17 +70,6 @@ U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 U8 U8_clone(U8 *v) { return *v; }
 void U8_delete(U8 *v, Bool *call_free) { if (*call_free) free(v); }
 
-Str *U8_to_str(U8 v) {
-    char buf[4];
-    snprintf(buf, 4, "%u", (unsigned)v);
-    return ext_str_new(buf);
-}
-
-U8 *U8_new(U8 val) {
-    U8 *p = malloc(sizeof(U8));
-    *p = val;
-    return p;
-}
 
 // I16 arithmetic
 I16 I16_add(I16 a, I16 b) { return a + b; }
@@ -125,11 +92,6 @@ I64 I16_to_i64(I16 a) { return (I64)a; }
 I16 I16_from_i64(I64 v) { return (I16)v; }
 I16 I16_from_i64_ext(I64 *a) { return (I16)*a; }
 
-I16 *I16_new(I16 val) {
-    I16 *p = malloc(sizeof(I16));
-    *p = val;
-    return p;
-}
 
 // I16 clone/delete
 I16 I16_clone(I16 *v) { return *v; }
@@ -167,11 +129,6 @@ I64 I32_to_i64(I32 a) { return (I64)a; }
 I32 I32_from_i64(I64 v) { return (I32)v; }
 I32 I32_from_i64_ext(I64 *a) { return (I32)*a; }
 
-I32 *I32_new(I32 val) {
-    I32 *p = malloc(sizeof(I32));
-    *p = val;
-    return p;
-}
 
 // I32 clone/delete
 I32 I32_clone(I32 *v) { return *v; }
@@ -207,14 +164,15 @@ F32 F32_from_i64_ext(I64 *a) { return (F32)*a; }
 Str *F32_to_str(F32 v) {
     char buf[32];
     snprintf(buf, 32, "%g", (double)v);
-    return ext_str_new(buf);
+    U64 len = (U64)strlen(buf);
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(len + 1);
+    memcpy(s->c_str, buf, len + 1);
+    s->count = len;
+    s->cap = len;
+    return s;
 }
 
-F32 *F32_new(F32 val) {
-    F32 *p = malloc(sizeof(F32));
-    *p = val;
-    return p;
-}
 
 // F32 clone/delete
 F32 F32_clone(F32 *v) { return *v; }
@@ -241,11 +199,6 @@ I64 U32_to_i64(U32 a) { return (I64)a; }
 U32 U32_from_i64(I64 v) { return (U32)v; }
 U32 U32_from_i64_ext(I64 *a) { return (U32)*a; }
 
-U32 *U32_new(U32 val) {
-    U32 *p = malloc(sizeof(U32));
-    *p = val;
-    return p;
-}
 
 // U32 clone/delete
 U32 U32_clone(U32 *v) { return *v; }
@@ -276,16 +229,17 @@ U64 U64_from_i64_ext(I64 *a) { return (U64)*a; }
 Str *U64_to_str(U64 v) {
     char buf[32];
     snprintf(buf, 32, "%llu", v);
-    return ext_str_new(buf);
+    U64 len = (U64)strlen(buf);
+    Str *s = malloc(sizeof(Str));
+    s->c_str = malloc(len + 1);
+    memcpy(s->c_str, buf, len + 1);
+    s->count = len;
+    s->cap = len;
+    return s;
 }
 
 Str *U64_to_str_ext(U64 v) { return U64_to_str(v); }
 
-U64 *U64_new(U64 val) {
-    U64 *p = malloc(sizeof(U64));
-    *p = val;
-    return p;
-}
 
 // U64 clone/delete
 U64 U64_clone(U64 *v) { return *v; }
@@ -297,11 +251,6 @@ Bool Bool_and(Bool a, Bool b) { return a && b; }
 Bool Bool_or(Bool a, Bool b) { return a || b; }
 Bool Bool_not(Bool a) { return !a; }
 
-Bool *Bool_new(Bool val) {
-    Bool *p = malloc(sizeof(Bool));
-    *p = val;
-    return p;
-}
 
 // Bool clone/delete
 Bool Bool_clone(Bool *v) { return *v; }

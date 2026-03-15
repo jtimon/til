@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdarg.h>
 #include <limits.h>
-#include "ext.h"
 
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
@@ -22,6 +21,7 @@ typedef struct Range Range;
 typedef struct Array Array;
 typedef struct Map Map;
 typedef struct Set Set;
+typedef struct Str Str;
 typedef struct Vec Vec;
 typedef struct Tuple Tuple;
 typedef enum {
@@ -94,6 +94,8 @@ typedef enum {
 } TokenType_tag;
 typedef struct TokenType TokenType;
 typedef struct Token Token;
+
+#include "ext.h"
 
 
 static Str *Str_lit(const char *s, unsigned long long len);
@@ -462,34 +464,11 @@ typedef struct Range {
 
 
 
-typedef struct Array {
-    U8 *data;
-    U64 cap;
-    U64 elem_size;
-    Str elem_type;
-} Array;
-
-
-typedef struct Map {
-    U8 *key_data;
-    U8 *val_data;
+typedef struct Str {
+    U8 *c_str;
     U64 count;
     U64 cap;
-    U64 key_size;
-    Str key_type;
-    U64 val_size;
-    Str val_type;
-} Map;
-
-
-typedef struct Set {
-    U8 *data;
-    U64 count;
-    U64 cap;
-    U64 elem_size;
-    Str elem_type;
-} Set;
-
+} Str;
 
 
 typedef struct Vec {
@@ -538,6 +517,35 @@ typedef struct FunctionDef {
     Bool return_is_ref;
     Bool return_is_shallow;
 } FunctionDef;
+
+
+typedef struct Array {
+    U8 *data;
+    U64 cap;
+    U64 elem_size;
+    Str elem_type;
+} Array;
+
+
+typedef struct Map {
+    U8 *key_data;
+    U8 *val_data;
+    U64 count;
+    U64 cap;
+    U64 key_size;
+    Str key_type;
+    U64 val_size;
+    Str val_type;
+} Map;
+
+
+typedef struct Set {
+    U8 *data;
+    U64 count;
+    U64 cap;
+    U64 elem_size;
+    Str elem_type;
+} Set;
 
 
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
