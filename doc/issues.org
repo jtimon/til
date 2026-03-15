@@ -208,6 +208,51 @@
   (FFI into C libs, replace with native til), this works bottom-up
   (replace C modules in ctil one at a time).
 
+*** DONE Step 2: Replace C ast with til-compiled ast
+   Replaced src/c/ast.c+h with bootstrap/ast.c+h (generated from
+   src/self/ast.til). Clean swap: 3 files changed, 2 insertions,
+   401 deletions.
+
+   What was done (preparation commit):
+   - ast.til: ext_proc → regular proc (error, todo_error, lang_error, add_child)
+   - ast.til: replaced standalone expr_child/expr_child_count with Expr.child/Expr.child_count
+   - parser.til: replaced 57 expr_new calls with Expr.new
+   - Eliminated Str_new (442 sites), Str_eq_c (287 sites), vec_of_strs/bools/ptrs (65 sites)
+     across all C files — replaced with compound literals and inline memcmp
+   - Eliminated old-style wrappers and dead code from ast.h
+   - Deleted ast_ext.c, moved TypeScope/Mode clone/delete + Vec_take to initer.c
+   - builder.c: Str_lit restored for generated code (Str_clone frees c_str, breaks substr views)
+   - initer.c: removed FunctionDef skip from clone/delete/layout generation
+   - initer.c: fixed !ftype (always true for Str value) → ftype->count == 0
+   - typer.c: added Phase 5 switch desugaring for payload enum tag-only matching
+   - Updated asting.til and parsing.til tests for new AST API
+   - Removed dead code from til.til (til_expr_free, expr_push_child, expr_vec_pop, expr_vec_free)
+   - Makefile: uncommented ast.til translation in ctil_core
+
+   Lessons learned for Step 5 (parser):
+   - Compound literal scoping: &(Str){...} is only safe for temporaries.
+     For anything stored in a struct field, passed to ownership-taking
+     functions (Set_add, gc_str), or returned from functions, use Str_clone.
+     For pointers escaping inner blocks, use named variables at outer scope.
+   - Builder string emission: generated code needs Str_lit (heap wrapper,
+     CAP_LIT c_str pointing to static literal). Str_clone copies c_str data
+     and sets cap=count, so Str_delete frees c_str — breaks substr views.
+   - Expr_clone must do real deep cloning (not no-op). The typer's
+     hoist_to_temp modifies AST nodes in-place; with no-op clone, shared
+     default value nodes get corrupted across functions.
+   - Expr_delete must be a no-op. The typer's insert_exit_deletes inserts
+     delete calls for all owned locals, including NULL ones (expr_null()).
+   - The ERROR commit (353ac320) introduced bugs: no-op Expr_clone,
+     !ftype on Str values (always true), FunctionDef skipped from
+     clone/delete generation, missing payload enum tag-only switch matching.
+   - Two-pass bootstrap: first pass uses old bootstrap, ctil_core regenerates,
+     second pass uses new bootstrap. If bootstrap gets corrupted, restore
+     from gen/c/ (last successful translation) not from git HEAD.
+   - When replacing Str_new in bulk, watch for: returned compound literals
+     (dangling after function return), ownership transfer (Set_add/gc_str
+     need heap Str), and the &field->member precedence bug (& binds looser
+     than -> so &expr->field->count parses as &(expr->field->count)).
+
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from
    src/self/lexer.til). Since lexer.til imports core.til, bootstrap/lexer
@@ -321,7 +366,7 @@
 
    Commit 2 is trivial because equivalence is already proven in commit 1.
 
-*** WIP Step 4: Replace C ast with til-compiled ast
+*** DONE Step 2 (old plan): Replace C ast with til-compiled ast
    Replace src/c/ast.c+h with bootstrap/ast.c+h (generated from
    src/self/ast.til). Since ast.til imports lexer.til which imports
    core.til, bootstrap/ast subsumes bootstrap/lexer.
@@ -396,6 +441,13 @@
    Strict translation of ctil.c main + helpers (extract_imports,
    resolve_imports, mark_core, usage). Uses ext_struct/ext_func/ext_proc
    to FFI into the C modules via til_bridge.c.
+
+   Updated in #39 Step 2:
+   - Removed link_c("src/c/ast_ext.c") (deleted file)
+   - Removed dead declarations: til_expr_free, expr_push_child,
+     expr_vec_pop, expr_vec_free
+   - til_bridge.c: heap-allocate empty mode string return (generated
+     cleanup code frees it)
 
    Current state:
    - ~bin/c/til~ passes 32/32 tests as the TIL compiler for ti/tr modes

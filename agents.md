@@ -79,8 +79,7 @@ without running. The test suite already handles this — GUI tests are build-onl
 
 ## Commits
 
-- Always include ALL modified files in commits, including generated files (bootstrap/)
-- Local agents: include doc/totals.csv and img/totals.svg in commits
+- Always include ALL modified files in commits, including generated files (bootstrap/), doc/totals.csv, and img/totals.svg. NEVER forget these. Check git status before every commit and stage everything that changed.
 - Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv or img/totals.svg
 - Use `make test` before every commit
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
