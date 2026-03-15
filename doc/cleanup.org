@@ -3,6 +3,12 @@
   Everything that needs fixing before #39 and #12 can proceed with
   a sane, repeatable modus operandi for each step.
 
+  Guiding principle: ext.c should contain ONLY irreducible primitives
+  (scalar ops, system calls, I/O). Everything else — Str, Array, Vec,
+  Map, Set and all methods — comes from til, compiled into bootstrap.
+  No parallel C implementations. The builder should emit all til-defined
+  types; ext.h shrinks to scalar aliases and primitive declarations.
+
 ** Build system
 
 *** Broken make clean at d8b1e9c6 (ast clean swap)
@@ -39,16 +45,44 @@
     -Isrc/c). Each hand-written .c file now ~#include "pre70.h"~ directly.
     Real fix: #70 (builder emits constants as #define, not heap vars).
 
-** is_ext_h_type inconsistency (builder.c)
+** is_ext_h_type / ext.h: bootstrap should own all til-defined types
 
-*** Skipped types: Str, Array, U8, I16, I32, F32, U32, U64, I64, Bool
-    Builder's ~emit_struct_typedef~ returns early for these — they come
-    from ext.h/aliases.h, so no definition is emitted in generated code.
+*** Problem: Str and Array suppressed from bootstrap
+    ~is_ext_h_type()~ in builder.c skips Str, Array (+ scalars) —
+    prevents bootstrap from emitting their struct typedefs. ext.h
+    defines them instead. This means ext.h can never be removed and
+    til-defined types have their source of truth in hand-written C.
 
-*** NOT skipped: Vec, Map, Set, Range, Tuple, FuncType, FunctionDef, etc.
-    These are defined in BOTH bootstrap headers AND ext.h's include chain.
-    Coexist only because of ~--allow-multiple-definition~ linker flag.
-    Should be consistent: either skip all types from ext.h chain, or none.
+*** Fix: remove Str/Array from is_ext_h_type
+    Only true scalars (U8, I16, I32, F32, U32, U64, I64, Bool) should
+    be skipped — these are ext_struct primitives defined by aliases.h.
+    Str, Array, Vec, Map, Set, etc. are defined in til and the builder
+    should emit their typedefs in generated headers like any other type.
+
+*** Fix: move ~#include "ext.h"~ after forward declarations
+    Currently builder.c emits ~#include "ext.h"~ at line 1 of generated
+    .h files (right after ~#pragma once~). ext.h declares functions that
+    use Str* in their signatures, so Str must be known when ext.h is
+    parsed. Fix: emit the include AFTER forward declarations (which the
+    builder already generates for all types). This way ext.h can use any
+    til-defined type — and as more types move from C to til, ext.h
+    shrinks with no manual forward declarations needed.
+
+*** Fix: remove Str/Array struct definitions from ext.h
+    Once bootstrap emits them and the include ordering is fixed, ext.h
+    no longer needs ~typedef struct Str~ or ~typedef struct Array~.
+    ext.h keeps only: scalar type aliases (via aliases.h), primitive
+    function declarations (scalar ops, system calls, I/O).
+
+*** Fix: remove ext.c duplicates
+    ext.c has functions that duplicate what til defines:
+    - ~I64_to_str~, ~U8_to_str~, ~F32_to_str~, ~U64_to_str[_ext]~:
+      these are defined in core.til (e.g. I64.to_str). Remove from ext.c.
+    - ~I64_new~, ~U8_new~, ~I16_new~, etc.: heap allocators not used
+      by generated code. Remove.
+    - ~ext_str_new~: internal helper only used by the above. Remove.
+    Keep only: scalar arithmetic, comparisons, clone/delete, ptr_add,
+    is_null, CLI parsing, system I/O, process management.
 
 ** til_bridge.c — unnecessary wrappers
 

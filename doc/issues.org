@@ -8,20 +8,35 @@
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
   :BLOCKS: #39 #12
-  Comprehensive list of all wrappers, duplicates, incompatibilities,
-  and technical debt that must be fixed before #39 and #12 can proceed
-  with a sane modus operandi. See doc/cleanup.org for full details.
+  Remove all C duplication of things til defines. The end state: ext.c
+  contains ONLY irreducible primitives (scalar ops, system calls, I/O).
+  Everything else — Str, Array, Vec, Map, Set and all methods — comes
+  from til, compiled into bootstrap. No parallel C implementations.
+  See doc/cleanup.org for full details.
+
+  Core problem: ext.h defines Str/Array structs, and builder.c's
+  ~is_ext_h_type()~ suppresses bootstrap from emitting them. This must
+  be reversed — builder emits all til-defined types, ext.h shrinks to
+  only scalar aliases and primitive function declarations.
+
+  Fix for include ordering: builder.c emits ~#include "ext.h"~ AFTER
+  forward declarations in generated headers (not before). This way
+  ext.h can use any til-defined type in its function signatures without
+  needing manual forward declarations — the builder already generates
+  them all.
 
   Key items:
-  - Broken ast clean swap (d8b1e9c6): missing include updates
+  - Remove Str/Array from is_ext_h_type — bootstrap should emit them
+  - Move ~#include "ext.h"~ after forward decls in builder.c header gen
+  - Remove Str/Array struct definitions from ext.h (keep only in til)
+  - Remove ext.c duplicates: *_to_str converters, *_new allocators
   - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h (workaround until #70)
-  - is_ext_h_type inconsistency: Vec/Map/Set defined in both places
-  - til_bridge.c full of unnecessary wrappers
+  - Broken ast clean swap (d8b1e9c6): missing include updates
   - Expr children pointer-vs-value mismatch (ast.c vs bootstrap/ast.c)
   - dyn_call_delete duplication across bootstrap files
   - Mode uses const char* instead of Str
-  - -Isrc/c leaks into bootstrap include resolution
   - Dead Makefile filter-out and stale bootstrap/lexer.c+h
+  - til_bridge.c wrappers (go away as modules bootstrap in #39)
 
 ** OPEN #70 Builder: emit constants as #define in generated headers
   The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
@@ -315,29 +330,24 @@
 *** Architecture: core.til as ctil's runtime library
 
    core.til (which imports str.til, vec.til, map.til, set.til, array.til)
-   is built as a library via ~ctil build core.til~, producing core.c/core.h.
-   ctil itself links against this generated core.c instead of having its
-   own handwritten str.c, vec.c, map.c. The .til files become the single
-   source of truth.
+   is the single source of truth for Str, Array, Vec, Map, Set and all
+   their methods. Built into bootstrap via ~ctil translate~, these
+   generated C files ARE the implementation — no parallel C versions.
 
-   core.til uses ~link_c("ext.c")~ — the builder emits ~#include "ext.c"~
-   in the generated core.c, making it self-contained. ext.c is the
-   canonical source for scalar ops and system prims. Opaque type no-ops
-   (Expr/TypeScope/Mode clone/delete for til_bridge FFI) live in compat.c.
+   ext.c is the canonical source for irreducible primitives ONLY:
+   scalar arithmetic (I64_add, U8_eq, etc.), system calls (readfile,
+   writefile, spawn_cmd), pointer ops (ptr_add, is_null), CLI parsing.
+   Everything else comes from til.
 
-   Bootstrap: generated core.c/core.h are copied to src/bootstrap/ and checked
+   The builder emits ~#include "ext.h"~ in generated headers AFTER
+   forward declarations, so ext.h can reference any til-defined type
+   (Str, Array, Vec, etc.) in its function signatures without needing
+   manual forward declarations. As more types move from C to til,
+   ext.h naturally shrinks with no coordination needed.
+
+   Bootstrap: generated files are copied to bootstrap/ and checked
    into the repo. People who clone the repo get pre-generated files.
-   ~make libs~ rebuilds from core.til when needed.
-
-   Vec/Map/Set conflict: the generated types have different struct layouts
-   than the compiler's internal versions (e.g. generated Vec has I64 fields
-   + Str elem_type, compiler Vec has U32 fields + void* data). Resolution:
-   rename the compiler's internal types to CVec/CMap/CSet.
-
-   Str signature change: generated Str functions return I64*/Bool* (heap
-   pointers) instead of scalar I64/Bool. All compiler call sites (~60+)
-   need adapting (*Str_eq(...) style dereferences). Compiler-only helpers
-   (Str_val, Str_new, Str_new_len, Str_eq_c) stay in a compiler-only file.
+   Two-pass build (cc → ctil_core → cc) handles breaking changes.
 
 *** Two-commit pattern for each step
 
@@ -391,9 +401,12 @@
 
 ** WIP #12 Self-hosting: rewrite ctil in til
   :DEPENDENCIES: #71
-  Rewrite the til compiler/interpreter in til itself. This is the ultimate
-  test of the language — if til can compile itself, it's expressive enough
-  for real systems programming.
+  Rewrite the til compiler/interpreter in til itself. The end state:
+  all C code is eliminated except irreducible primitives in ext.c
+  (scalar ops, system calls, I/O). Everything else — data structures
+  (Str, Vec, Map, Set, Array), compiler modules (lexer, parser, typer,
+  builder, etc.) — is written in til. ext.c is the only hand-written C
+  file that remains.
 
   The current C implementation is the reference: lexer, parser, initer,
   typer, interpreter, builder, precomp, scavenger (~6000 lines of C).

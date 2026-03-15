@@ -82,7 +82,7 @@ without running. The test suite already handles this — GUI tests are build-onl
 - Always include ALL modified files in commits, including generated files (bootstrap/)
 - Local agents: include doc/totals.csv and img/totals.svg in commits
 - Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv or img/totals.svg
-- Use `make test` before every commit
+- Use `make test` before every commit (skip when only documentation changed)
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
 - NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" — just do it. Stop wasting tokens on justifying why something doesn't need changing.
 - WHEN TOLD "IN THE WHOLE CODEBASE" THAT MEANS THE WHOLE CODEBASE. IT DOES NOT MEAN "THE WHOLE CODEBASE EXCEPT FOR THE PARTS YOU DON'T FEEL ARE RELEVANT." EVERY FILE, EVERY PATH, EVERY OCCURRENCE. NO EXCEPTIONS. NO FILTERING BY "RELEVANCE." NO SKIPPING THINGS BECAUSE THEY'RE "NOT HIT CURRENTLY."
