@@ -9,18 +9,6 @@ typedef struct Str {
     U64 cap;
 } Str;
 
-typedef struct Array {
-    U8 *data;       // raw element buffer
-    U64 cap;        // number of elements
-    U64 elem_size;  // bytes per element
-    Str elem_type;  // element type name
-} Array;
-
-// Get pointer to element i in an Array (C-side helper, not the til function)
-static inline void *Array_elem(Array *a, U64 i) {
-    return a->data + i * a->elem_size;
-}
-
 // I64 clone/delete
 I64 I64_clone(I64 *v);
 void I64_delete(I64 *v, Bool *call_free);

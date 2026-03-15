@@ -19,6 +19,7 @@ typedef enum {
 typedef struct FuncType FuncType;
 typedef struct FunctionDef FunctionDef;
 typedef struct Range Range;
+typedef struct Array Array;
 typedef struct Map Map;
 typedef struct Set Set;
 typedef struct Vec Vec;
@@ -700,6 +701,13 @@ typedef struct Range {
 } Range;
 
 
+
+typedef struct Array {
+    U8 *data;
+    U64 cap;
+    U64 elem_size;
+    Str elem_type;
+} Array;
 
 
 typedef struct Map {

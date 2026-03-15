@@ -1337,8 +1337,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
 static Bool is_ext_h_type(Str *name) {
     return (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) ||
            (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0) || (name->count == 3 && memcmp(name->c_str, "Str", 3) == 0) ||
-           (name->count == 5 && memcmp(name->c_str, "Array", 5) == 0);
+           (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0) || (name->count == 3 && memcmp(name->c_str, "Str", 3) == 0);
 }
 
 // ext_func/ext_proc names that conflict with libc or builder-emitted statics

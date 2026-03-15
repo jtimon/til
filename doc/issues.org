@@ -1,10 +1,28 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 72
+# NEXT_ISSUE: 73
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #72 link_c files can't see til-defined types
+  link_c("file.c") files are compiled as separate translation units.
+  They include ext.h to get type definitions, but as types move from
+  ext.h to bootstrap (#71), link_c files lose visibility.
+
+  Current workaround: link_c files include bootstrap/lexer.h directly
+  (e.g. ext_module.c). This works but couples user C code to the
+  bootstrap file layout.
+
+  Ideas:
+  - Builder generates a stable-named header with all types that link_c
+    files can include (e.g. gen/c/types.h)
+  - Builder passes ~-include gen/c/name.h~ flag when compiling link_c
+    files, injecting the generated header automatically
+  - #include link_c files in the generated .c (lose separate compilation
+    but gain full type visibility — matches what core.til already does)
+  - [placeholder: user's idea — to be filled in]
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
   :BLOCKS: #39 #12
@@ -26,9 +44,9 @@
   them all.
 
   Key items:
-  - Remove Str/Array from is_ext_h_type — bootstrap should emit them
+  - DONE: Array removed from is_ext_h_type and ext.h — bootstrap emits it
+  - Remove Str from is_ext_h_type and ext.h (needs ext.h include reordering)
   - Move ~#include "ext.h"~ after forward decls in builder.c header gen
-  - Remove Str/Array struct definitions from ext.h (keep only in til)
   - Remove ext.c duplicates: *_to_str converters, *_new allocators
   - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h (workaround until #70)
   - Broken ast clean swap (d8b1e9c6): missing include updates

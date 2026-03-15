@@ -1,4 +1,4 @@
-#include "ext.h"
+#include "../../bootstrap/lexer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,7 +40,7 @@ I64 *sum_all(Array *args) {
     I64 *r = malloc(sizeof(I64));
     *r = 0;
     for (U64 i = 0; i < args->cap; i++) {
-        I64 *elem = (I64 *)Array_elem(args, i);
+        I64 *elem = (I64 *)(args->data + i * args->elem_size);
         *r += *elem;
     }
     return r;
