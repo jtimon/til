@@ -2,8 +2,8 @@
 
 all: bin/ctil bin/c/til
 
-SRCS := $(wildcard src/*.c) $(filter-out src/c/lexer.c, $(wildcard src/c/*.c)) bootstrap/lexer.c
-HDRS := $(filter-out src/c/lexer.h, $(wildcard src/c/*.h)) bootstrap/lexer.h
+SRCS := $(wildcard src/*.c) $(wildcard src/c/*.c) bootstrap/lexer.c
+HDRS := $(wildcard src/c/*.h) bootstrap/lexer.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 
