@@ -1,10 +1,27 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 71
+# NEXT_ISSUE: 72
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
+  :BLOCKS: #39 #12
+  Comprehensive list of all wrappers, duplicates, incompatibilities,
+  and technical debt that must be fixed before #39 and #12 can proceed
+  with a sane modus operandi. See doc/cleanup.org for full details.
+
+  Key items:
+  - Broken ast clean swap (d8b1e9c6): missing include updates
+  - CAP_LIT/CAP_VIEW can't share headers (blocked by #70)
+  - is_ext_h_type inconsistency: Vec/Map/Set defined in both places
+  - til_bridge.c full of unnecessary wrappers
+  - Expr children pointer-vs-value mismatch (ast.c vs bootstrap/ast.c)
+  - dyn_call_delete duplication across bootstrap files
+  - Mode uses const char* instead of Str
+  - -Isrc/c leaks into bootstrap include resolution
+  - Dead Makefile filter-out and stale bootstrap/lexer.c+h
 
 ** OPEN #70 Builder: emit constants as #define in generated headers
   The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
@@ -225,7 +242,7 @@
   operations are on the hot path for the compiler.
 
 ** WIP #39 Replace ctil with til (bottom-up C elimination)
-  :DEPENDENCIES: #12
+  :DEPENDENCIES: #12 #71
   Replace C modules in ctil with their til-compiled equivalents,
   bottom-up. The inverse of #12: where #12 builds til.til top-down
   (FFI into C libs, replace with native til), this works bottom-up
@@ -372,7 +389,7 @@
   interpreted, til compiled — all must produce identical results.
 
 ** WIP #12 Self-hosting: rewrite ctil in til
-  :DEPENDENCIES: #2
+  :DEPENDENCIES: #71
   Rewrite the til compiler/interpreter in til itself. This is the ultimate
   test of the language — if til can compile itself, it's expressive enough
   for real systems programming.

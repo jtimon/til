@@ -1,0 +1,171 @@
+* Bootstrap cleanup: incompatibilities, wrappers, and debt
+
+  Everything that needs fixing before #39 and #12 can proceed with
+  a sane, repeatable modus operandi for each step.
+
+** Build system
+
+*** Broken make clean at d8b1e9c6 (ast clean swap)
+    Deleted src/c/ast.h without updating 16 files that include it.
+    Fix: replace all ~#include "ast.h"~ with ~#include "../../bootstrap/ast.h"~
+    in src/c/ files, ~#include "../bootstrap/ast.h"~ in src/ctil.c.
+
+*** Dead filter-out in Makefile
+    ~$(filter-out src/c/lexer.c src/c/ast.c, ...)~ filters files that
+    don't exist. Remove the filter-out, use plain ~$(wildcard src/c/*.c)~.
+
+*** Makefile still lists bootstrap/lexer.c+h
+    Subsumed by bootstrap/ast.c+h. Remove from SRCS/HDRS.
+
+*** ctil_core still translates lexer.til
+    Subsumed by ast.til translation. Remove lexer.til lines.
+
+*** -Isrc/c leaks into bootstrap
+    Bootstrap's ~#include "ext.h"~ finds src/c/ext.h through -Isrc/c.
+    This couples generated code to hand-written headers. Should use
+    explicit relative paths or bundle ext.h in bootstrap/.
+
+** CAP_LIT / CAP_VIEW (#70 blocker)
+
+*** Bootstrap defines them as ~static U64 *~ heap variables
+    Generated code: ~static U64 *CAP_LIT; ... CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = ...~
+
+*** Hand-written code needs them as compile-time constants
+    ~#define CAP_LIT ULLONG_MAX~ — used in 10 .c files for compound
+    literal initializers like ~{.cap = CAP_LIT}~.
+
+*** Can't share a header
+    Any header in the ext.h → aliases.h chain is visible to bootstrap
+    code. A ~#define CAP_LIT~ there replaces the variable name → error.
+    Workaround: put defines in src/c/pre70.h (hand-written-only header).
+    Real fix: #70 (builder emits constants as #define, not heap vars).
+
+** is_ext_h_type inconsistency (builder.c)
+
+*** Skipped types: Str, Array, U8, I16, I32, F32, U32, U64, I64, Bool
+    Builder's ~emit_struct_typedef~ returns early for these — they come
+    from ext.h/aliases.h, so no definition is emitted in generated code.
+
+*** NOT skipped: Vec, Map, Set, Range, Tuple, FuncType, FunctionDef, etc.
+    These are defined in BOTH bootstrap headers AND ext.h's include chain.
+    Coexist only because of ~--allow-multiple-definition~ linker flag.
+    Should be consistent: either skip all types from ext.h chain, or none.
+
+** til_bridge.c — unnecessary wrappers
+
+   til_bridge.c exists because til.til calls C modules through FFI, and
+   the C functions have signatures incompatible with til's calling
+   convention. Each wrapper is a symptom of an incompatibility.
+
+*** Tokenize/parse wrappers (lines 25-39)
+    ~til_tokenize~: wraps tokenize(), clones inputs, stores Vec* in static.
+    ~til_tok_count~: returns count from stored Vec.
+    ~til_parse~: wraps parse() with different signature (Token*/U32/Str*/Str**
+    vs Vec*/Str*/Str*). Stores mode in static.
+    ~til_parse_mode~: returns stored mode.
+    Root cause: parse() has output param (Str **mode_out) that til can't
+    handle. Once parse() is bootstrapped (#39 parser step), these go away.
+
+*** Expr field accessors (lines 43-103)
+    ~expr_null~, ~expr_is_null~, ~Expr_eq~: trivial NULL/equality checks.
+    ~expr_get_tag~, ~expr_get_str_val~: NULL-safe field access.
+    ~expr_get_child~, ~expr_nchildren~: NULL-safe children access.
+    ~expr_set_core~, ~expr_push_child~: thin wrappers.
+    ~expr_swap_children~: Vec replacement helper.
+    ~expr_vec_new/push/get/count/pop/free~: Vec<Expr*> operations.
+    Root cause: til.til can't directly access C struct fields or handle
+    NULL safely. Once ast is fully in til, direct field access works.
+
+*** Mode helpers (lines 107-144)
+    ~til_mode_resolve~: string → Mode* lookup.
+    ~til_mode_eq~, ~Mode_eq~: pointer equality.
+    ~til_mode_none/script/cli/gui/test/pure/pura/lib/liba~: constants.
+    ~til_mode_name~, ~til_mode_auto_import~: field accessors.
+    ~til_mode_is_lib~, ~til_mode_is_lib_output~: predicates.
+    Root cause: Mode is a C struct with const char* fields. til can't
+    access const char* directly. Fix: make Mode a til struct or enum.
+
+*** Pipeline wrappers (lines 148-207)
+    ~til_init_declarations~: passes through to init_declarations().
+    ~til_type_check~: passes through to type_check().
+    ~til_precomp~: passes through to precomp().
+    ~til_scavenge~: passes through to scavenge().
+    ~til_interpret~: converts empty Str→NULL, Str**→char**.
+    ~til_build~, ~til_build_header~, ~til_build_til_binding~: pass through.
+    ~til_compile_c~, ~til_compile_lib~: convert empty Str→NULL.
+    ~til_ast_print~: passes through to ast_print().
+    ~til_Expr_delete~: wraps Expr_delete with Bool* param.
+    Root cause: C functions use NULL for "no value", til uses empty Str.
+    C functions use char** for argv, til uses Str**. As each module
+    is bootstrapped, its wrapper becomes unnecessary.
+
+*** Utility wrappers (lines 212-258)
+    ~til_str_left~: substring helper (workaround for scavenger ordering).
+    ~til_realpath~: wraps realpath() with Str I/O.
+    ~til_system~: wraps system() with WEXITSTATUS handling.
+    ~til_set_new/has/add/free~: Set operations with clone safety.
+    ~til_bin_dir~: finds project root via /proc/self/exe.
+    ~til_prepare_s~: weak-symbol trampoline for self-hosting.
+    Root cause: til can't call libc directly (no raw char* support).
+    These should become ext_func/ext_proc declarations in til.
+
+** Duplicate function definitions (--allow-multiple-definition)
+
+*** src/c/ast.c vs bootstrap/ast.c
+    Both define: Expr_new, Expr_add_child, Expr_clone, Expr_delete,
+    Expr_error, Expr_todo_error, Expr_lang_error, TilType_clone/delete,
+    Declaration_clone/delete, ExprData_clone/delete, til_type_name_c,
+    node_name, func_type_name, ast_print, enum_has_payloads,
+    enum_variant_tag, enum_variant_type.
+    src/c/ast.c wins (first in SRCS).
+    CRITICAL: src/c/ast.c uses pointer-based children (sizeof(Expr*)),
+    bootstrap/ast.c uses value-based (sizeof(Expr)). Different semantics.
+
+*** dyn_call_delete/clone/cmp in bootstrap
+    Each bootstrap file (lexer.c, ast.c) has its own dyn_call_delete
+    that only knows about types defined at that level. With
+    --allow-multiple-definition, the first one in SRCS wins. If the
+    winning version doesn't know about a type, delete is silently skipped.
+
+** Expr children: pointer-based vs value-based
+
+*** Hand-written (ast.c): sizeof(Expr*) elements
+    ~Expr_new~: ~Vec_new("", sizeof(Expr *))~
+    ~Expr_add_child~: ~Expr **_p = malloc(sizeof(Expr *)); *_p = child; Vec_push(...)~
+    ~Expr_child~ (inline): ~*(Expr **)Vec_get(...)~
+
+*** Bootstrap (ast.c): sizeof(Expr) elements
+    ~Expr_new~: ~Vec_new("Expr", sizeof(Expr))~ (via Expr_size())
+    ~Expr_add_child~: ~Vec_push(&self->children, child)~ (copies full struct)
+    ~Expr_child~: ~(Expr *)Vec_get(...)~ (pointer into Vec data)
+
+*** Impact
+    ctil.c's merge pattern stores Expr_child() results as pointers in
+    a separate Vec, then swaps children. With value-based children,
+    freeing the old Vec invalidates stored pointers → dangling.
+    Currently works because pointer-based ast.c wins via link order.
+    Must be resolved before ast.c can be fully eliminated.
+
+** ctil.c vs til.til equivalence gaps
+
+*** mode_resolve: ctil.c has its own (line 16) using const char*
+    til.til uses til_mode_resolve from bridge (takes Str*).
+    Should be unified.
+
+*** Import resolution and merge logic
+    ctil.c does resolve_imports + merge with pointer-based Expr_child.
+    til.til does equivalent through bridge functions.
+    Not directly comparable — til.til uses higher-level abstractions.
+
+** modes.h
+
+*** Mode uses const char* fields
+    ~name~ and ~auto_import~ are const char*, not Str.
+    til.til accesses them through bridge wrappers (til_mode_name, etc.).
+    Should be Str fields or Mode should become a til struct/enum.
+
+*** Static const Mode instances
+    MODE_SCRIPT, MODE_CLI, etc. are static const in the header.
+    Every TU gets its own copy. Pointer comparison (Mode_eq) only works
+    because each TU compares against its own copy, and the bridge
+    wrappers return addresses from the same TU (til_bridge.c).
