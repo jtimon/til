@@ -1,10 +1,33 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 70
+# NEXT_ISSUE: 71
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #70 Builder: emit constants as #define in generated headers
+  The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
+  str.til) as ~static U64 *~ heap-allocated runtime variables in the
+  generated .c file. This means:
+  - They're not visible outside the generated compilation unit (~static~)
+  - They're pointers, not values — can't be used in aggregate initializers
+  - Hand-written C code can't use them at all
+
+  Hand-written C currently works around this with duplicate ~#define~s in
+  src/c/aliases.h:
+  #+begin_src c
+  #define CAP_LIT  ULLONG_MAX
+  #define CAP_VIEW (ULLONG_MAX - 1)
+  #+end_src
+
+  The builder should instead emit constants as ~#define~ (or ~static const~)
+  in the generated .h header, so all C code uses the same definitions.
+
+  Once fixed:
+  - Remove CAP_LIT/CAP_VIEW ~#define~s from src/c/aliases.h
+  - All C files use the constants from the generated header
+  - No more manual synchronization between str.til values and C defines
 
 ** OPEN #68 Negative literal support
   Two phases:
