@@ -9,18 +9,6 @@
   All callers clone borrowed refs before passing to own parameters.
   Precomp registers namespace funcs for constant folding.
 
-* FIXED #71 Bootstrap cleanup: fix incompatibilities before self-hosting
-  All semantic blockers resolved:
-  - Str/Array removed from ext.h and is_ext_h_type
-  - ext.c duplicates removed
-  - forward.h for link_c type visibility (#72)
-  - Per-module .c and .h emission (#74)
-  - Value-based Expr children (#75)
-  - Real clone/delete for TilType, Declaration, ExprData, Expr
-  - Precomp namespace func folding
-  Remaining items (dyn_call_delete duplication, Makefile stale
-  bootstrap/lexer.c+h) resolve automatically with #39 ast swap.
-
 * FIXED #74 Builder: emit separate .c and .h per source module
   Each til source module gets its own .c (function bodies) and .h
   (struct definitions + function declarations). Auto-generated functions

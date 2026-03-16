@@ -7,7 +7,34 @@
 * Pre-self-hosting
 
 
-** OPEN #70 Builder: emit constants as #define in generated headers
+** WIP #71 Bootstrap cleanup: fix incompatibilities before self-hosting
+  :BLOCKS: #39 #12
+  Remove all C duplication of things til defines. The end state: ext.c
+  contains ONLY irreducible primitives (scalar ops, system calls, I/O).
+  Everything else — Str, Array, Vec, Map, Set and all methods — comes
+  from til, compiled into bootstrap. No parallel C implementations.
+  See doc/cleanup.org for full details.
+
+  DONE items:
+  - DONE: Array removed from is_ext_h_type and ext.h
+  - DONE: Str removed from is_ext_h_type and ext.h
+  - DONE: ~#include "ext.h"~ moved after forward decls in builder.c
+  - DONE: ext.c duplicates removed
+  - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h
+  - DONE: Dead Makefile filter-out removed
+  - DONE: forward.h (#72) — link_c type visibility
+  - DONE: Per-module .c and .h emission (#74)
+  - DONE: Value-based Expr children (#75)
+  - DONE: Real clone/delete for TilType, Declaration, ExprData, Expr
+  - DONE: Precomp namespace func folding
+  - DONE: bootstrap/ast.c added to SRCS link
+
+  Remaining:
+  - 11 build_t_* tests fail (bin/c/til double-free in Expr cleanup)
+  - src/c/ast.c still present — clean swap not done
+  - Memory leak from children Vecs with empty elem_type
+
+** OPEN #70 Builder: emit constants as proper constants in generated headers
   The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
   str.til) as ~static U64 *~ heap-allocated runtime variables in the
   generated .c file. This means:
