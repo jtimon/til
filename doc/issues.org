@@ -6,43 +6,6 @@
 
 * Pre-self-hosting
 
-** OPEN #72 link_c files can't see til-defined types and functions
-  link_c("file.c") files are compiled as separate translation units.
-  They include ext.h to get type definitions, but as types move from
-  ext.h to bootstrap (#71), link_c files lose visibility.
-
-  Current workaround: ext_module.c includes bootstrap/lexer.h directly.
-  This works but couples user C code to the bootstrap file layout.
-
-*** Chosen solution: forward.h
-    Builder emits a ~forward.h~ alongside the generated .c/.h. It
-    contains ALL forward declarations: struct typedefs, enum tag enums
-    + struct typedefs, AND function declarations (namespace methods,
-    top-level funcs, ext_func/ext_proc). This handles cross-references
-    between til libs that reference each other's types freely.
-
-    Include chain:
-    - ~ext.h~ includes ~forward.h~ (+ aliases.h, stdbool, etc.)
-    - Generated .h includes ~ext.h~ → gets forward decls before definitions
-    - link_c .c files include ~ext.h~ → see all forward decls + primitives
-    - ext.c includes ~ext.h~ → same visibility
-
-    Any link_c file can call any til-defined function or use any til
-    type pointer by just including ext.h. For full struct definitions
-    (field access), the generated .h or bootstrap header is needed.
-
-    forward.h is auto-generated, so as types/functions change, it
-    updates automatically. Stable name — no coupling to gen/ layout.
-
-*** Quick initial solution: #include link_c in generated .c
-    As a stepping stone, emit ~#include "ext_module.c"~ in the
-    generated .c (like core.til does with ext.c). Loses separate
-    compilation but gives full visibility. No .h needed — the til
-    ext_func/ext_proc declarations serve as the interface.
-
-*** Other ideas considered
-    - Builder passes ~-include gen/c/name.h~ flag (invisible includes)
-    - Stable-named gen/c/types.h (couples to gen/ layout)
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
   :BLOCKS: #39 #12
@@ -70,11 +33,13 @@
   - DONE: ext.c duplicates removed (ext_str_new, I64_to_str, U8_to_str,
     *_new allocators); I64_new moved to dispatch.c (only user)
   - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h (workaround until #70)
-  - Broken ast clean swap (d8b1e9c6): missing include updates
+  - DONE: Dead Makefile filter-out removed
+  - DONE: forward.h (#72) — link_c files see all til-defined types via
+    ~-include gen/c/forward.h~ when compiled to .o separately
   - Expr children pointer-vs-value mismatch (ast.c vs bootstrap/ast.c)
   - dyn_call_delete duplication across bootstrap files
+  - Makefile: stale bootstrap/lexer.c+h (subsumed by ast.c+h)
   - Mode uses const char* instead of Str
-  - Dead Makefile filter-out and stale bootstrap/lexer.c+h
   - til_bridge.c wrappers (go away as modules bootstrap in #39)
 
 ** OPEN #70 Builder: emit constants as #define in generated headers

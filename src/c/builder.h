@@ -15,6 +15,10 @@ I32 build_header(Expr *program, Str *h_path);
 // Generate a .til FFI binding file for the library.
 I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name);
 
+// Generate forward.h with all type definitions and function declarations.
+// Used by link_c files via -include.
+I32 build_forward_header(Expr *program, Str *fwd_path);
+
 // Compile a generated C file to a binary using cc.
 I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str *link_flags);
 

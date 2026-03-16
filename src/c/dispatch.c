@@ -1,5 +1,6 @@
 #include "dispatch.h"
 #include "ast.h"
+#include "builder.h"
 #include "pre70.h"
 #include "ext.h"
 #include <stdio.h>
@@ -983,10 +984,14 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
         char pid_buf[32];
         snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
         so_path = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
-        system("mkdir -p tmp");
+        system("mkdir -p tmp gen/c");
+        // Generate forward.h so link_c file can see all types
+        Str *fwd_path = &(Str){.c_str = (U8*)"gen/c/forward.h", .count = 15, .cap = CAP_LIT};
+        build_forward_header(program, fwd_path);
         Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-        Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
             &(Str){.c_str = (U8*)"cc -Wall -Wextra -shared -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
+            &(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}), fwd_path),
             &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), so_path),
             &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), user_c_path), lf);
         int rc = system((const char *)cmd->c_str);

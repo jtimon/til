@@ -1,5 +1,19 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #72 link_c files can't see til-defined types and functions
+  Builder emits ~gen/c/forward.h~ with all struct definitions (topo-sorted),
+  enum tag enums, and function declarations. link_c files get it via
+  ~-include~ flag when compiled to .o separately.
+
+  Key design: ext.h is untouched — forward.h is invisible to the ctil
+  build (avoids conflicts with hand-written ast.h, same pattern as
+  pre70.h). ~compile_c~ compiles link_c .c to .o separately with
+  ~-include forward.h~, then links the .o. ~ffi_init~ (interpreter path)
+  also generates forward.h and uses ~-include~.
+
+  ext_struct types (Point, Pair in ext_module.c) no longer need manual
+  C typedef — forward.h provides them from the til declarations.
+
 * FIXED #32 Keyword arguments (kwargs) capture
   Functions can capture unmatched named arguments as an implicit ~Map<Str, Dynamic>~
   using the ~opts: ...~ syntax (three bare dots, no type). Follows the variadic

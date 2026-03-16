@@ -1,4 +1,4 @@
-#include "../../bootstrap/lexer.h"
+#include "ext.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,9 +25,7 @@ void greet_print(Str *name) {
     putchar('\n');
 }
 
-// Regular struct used as ext_func arg/return
-typedef struct { I64 x; I64 y; } Point;
-
+// Point struct defined by til (available via forward.h -include)
 Point *add_points(Point *a, Point *b) {
     Point *r = malloc(sizeof(Point));
     r->x = a->x + b->x;
@@ -48,8 +46,7 @@ I64 *sum_all(Array *args) {
 
 // ext_struct: Pair
 
-typedef struct { I64 a; I64 b; } Pair;
-
+// Pair struct defined by til (available via forward.h -include)
 I64 *Pair_sum(Pair *self) {
     I64 *r = malloc(sizeof(I64));
     *r = self->a + self->b;
