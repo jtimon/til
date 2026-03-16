@@ -19,6 +19,8 @@ ALWAYS read a file before writing or editing it. No exceptions. If you haven't r
 ## Testing
 
 Always run `make test` and verify all tests pass before committing.
+Use `systemd-run --user --scope -p MemoryMax=64G make test` to limit memory
+usage during tests (prevents OOM from memory leaks killing the system).
 
 ## Build & Run
 

@@ -132,7 +132,7 @@ Expr *Expr_new(ExprData *data, U32 line, U32 col, Str *path) {
     { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); e->children = *_vp; free(_vp); }
     e->line = line;
     e->col = col;
-    if (path) e->path = *path;
+    if (path) e->path = *Str_clone(path);
     e->variadic_index = -1;
     e->kwargs_index = -1;
     return e;
