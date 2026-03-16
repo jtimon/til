@@ -8,34 +8,6 @@
 
 
 
-** WIP #74 Builder: emit separate .c and .h per source module
-  :BLOCKS: #39
-
-  Each til source module gets its own .c (function bodies) and .h
-  (struct definitions + function declarations). Auto-generated functions
-  (clone/delete/eq/to_str/size, enum helpers) stay in the main file.
-
-*** What was done
-    - Builder splits function bodies by ~stmt->path~ basename
-    - Per-module .c files emitted alongside main .c
-    - Main .c ~#include~-s per-module .c files
-    - Copied to bootstrap/ by ctil_core
-    - Makefile auto-reverts bootstrap before first cc pass
-    - ~make self_diff~ target with gen/self_diff/ output
-    - Auto-generated functions (is_core) filtered to main file only
-    - Per-module .h files: struct/enum definitions + function declarations
-    - Shared ~_decls.h~ with forward declarations (typedef struct X X; + enum tags)
-    - Per-module .h includes ~_decls.h~ + cross-module .h for inline field deps
-    - Per-module .c includes its own .h
-    - Main .c includes all per-module .h files (replaces inline struct typedefs)
-    - forward.h unchanged (full defs for link_c files via -include)
-    - Makefile copies per-module .h files to bootstrap/
-    - 88/88 tests pass
-
-*** What remains
-    - forward.h still has full struct defs (needed by link_c); plan said
-      to reduce to forward-decls-only but that would break ext_module.c
-    - Document in c2til.org and til2c.org
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
   :BLOCKS: #39 #12

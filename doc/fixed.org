@@ -1,6 +1,18 @@
 # Fixed issues moved from issues.org.
 
 
+* FIXED #74 Builder: emit separate .c and .h per source module
+  Each til source module gets its own .c (function bodies) and .h
+  (struct definitions + function declarations). Auto-generated functions
+  (clone/delete/eq/to_str/size, enum helpers) stay in the main file.
+
+  Per-module .h: struct/enum definitions + function declarations.
+  Shared ~_decls.h~: forward declarations (typedef struct X X; + enum tags).
+  Per-module .h includes ~_decls.h~ + cross-module .h for inline field deps.
+  Per-module .c includes its own .h.
+  Main .c includes all per-module .h files (replaces inline struct typedefs).
+  forward.h unchanged (full defs needed by link_c files via -include).
+
 * FIXED #72 link_c files can't see til-defined types and functions
   Builder emits ~gen/c/forward.h~ with all struct definitions (topo-sorted),
   enum tag enums, and function declarations. link_c files get it via
