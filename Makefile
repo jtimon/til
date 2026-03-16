@@ -101,6 +101,24 @@ tmp_run_structs:
 tmp_run_parsing:
 	@bin/ctil run src/test/parsing.til 2>&1 || true
 
+tmp_gdb_parsing:
+	@gdb -batch \
+	  -ex "set pagination off" \
+	  -ex "break typer.c:682" \
+	  -ex "commands 1" \
+	  -ex "  silent" \
+	  -ex "  printf \"=== struct=%s field=%d ===\\n\", name->c_str, i" \
+	  -ex "  continue" \
+	  -ex "end" \
+	  -ex "run run src/test/parsing.til" \
+	  bin/ctil 2>&1 || true
+
+tmp_run_own_fields:
+	@bin/ctil run src/test/own_fields.til 2>&1 || true
+
+tmp_translate_parsing:
+	@bin/ctil translate src/test/parsing.til > tmp/translate_out.log 2> tmp/translate_err.log || true
+
 tmp_interpret_functions:
 	@bin/ctil interpret src/test/functions.til 2>&1 || true
 

@@ -6,31 +6,31 @@
 
 * Pre-self-hosting
 
-** OPEN #76 Builder: struct default value temps shared across C functions
-  When a struct has non-trivial default field values (e.g.
-  ~variadic_index : I32 = 0.sub(1).to_i32()~), the typer adds
-  these default value expressions as extra children to every
-  constructor FCall. These are SHARED AST nodes — the same Expr
-  subtree appears in every constructor call across the program.
+** OPEN #76 Builder emits stale temp refs for struct default values
+  When multiple functions construct the same struct type (e.g.
+  ~FunctionDef()~ in parser.til), the generated C code for the
+  second+ constructor references temp variables (~_t3162~) that
+  were defined in the first constructor's C function.
 
-  The builder assigns temp variable IDs (~_tNNNN~) on first emission
-  and stores them in the AST node. On second emission in a DIFFERENT
-  C function, the builder reuses the same temp IDs, but those temps
-  were local to the first C function — causing "undeclared variable"
-  errors.
+  Investigation findings:
+  - Typer DOES clone defaults (line 640, ~Expr_clone~) — no sharing
+  - Struct body defaults are clean (un-hoisted) when cloned
+  - The ~_tN~ temps are created by ~hoist_fcall_args~ AFTER cloning
+  - ~hoist_counter~ is global and increments — each temp gets unique ID
+  - Yet the generated C shows the SAME ~_t3162~ referenced across
+    functions, with ~DEREF()~ (pointer style) instead of value style
+  - The bug is likely in the builder, not the typer — the builder
+    may cache something about struct constructor emission and reuse
+    stale temp references from the first emission
 
-  Root cause: builder temp IDs are assigned once per AST node, not
-  per emission site. When shared AST nodes are emitted in multiple
-  C functions, the temps from the first function leak into later ones.
-
-  Fix options:
-  - A: Builder re-assigns temp IDs for shared default value nodes on
-    each emission (detect shared nodes, reset their temp IDs)
-  - B: Typer clones default value subtrees instead of sharing them
-  - C: Scavenger detects shared subtrees and clones them before builder
+  Next steps: investigate builder.c to find where it caches or
+  reuses temp references for struct constructor field defaults.
+  The builder emits ~I64_sub(DEREF(_t3162), ...)~ for the second
+  constructor but ~I64 _t3162 = 0~ for the first — different
+  emission patterns for the same default expression.
 
   Reproduces with: ~bin/ctil run src/test/parsing.til~
-  (parser.til has multiple functions that construct FunctionDef structs)
+  (parser.til has 3 functions that construct FunctionDef structs)
 
 
 
