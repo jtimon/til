@@ -679,9 +679,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     const char *tname = type_to_name(Expr_child(e, &(I64){(I64)(ai)})->til_type,
                                                       &Expr_child(e, &(I64){(I64)(ai)})->struct_name);
                     if (tname) {
-                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(ai)}) = *make_clone_call(tname,
+                        Expr *_mc = make_clone_call(tname,
                             Expr_child(e, &(I64){(I64)(ai)})->til_type, Expr_child(e, &(I64){(I64)(ai)}),
                             Expr_child(e, &(I64){(I64)(ai)}));
+                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(ai)}) = *_mc;
+                        _mc->children = (Vec){0};
                     }
                 }
               }
@@ -2806,9 +2808,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 !stmt->data.data.Decl.is_ref) {
                 const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
                 if (tname) {
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *make_clone_call(
-                        tname, stmt->til_type,
+                    Expr *_mc = make_clone_call(tname, stmt->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
+                    _mc->children = (Vec){0};
                 }
             }
             break;
@@ -2857,9 +2860,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                   Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_Enum))) {
                 const char *tname = type_to_name(Expr_child(stmt, &(I64){(I64)(0)})->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
                 if (tname) {
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *make_clone_call(
-                        tname, Expr_child(stmt, &(I64){(I64)(0)})->til_type,
+                    Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(I64){(I64)(0)})->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
+                    _mc->children = (Vec){0};
                 }
             }
             break;
@@ -2927,9 +2931,11 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 const char *tname = type_to_name(Expr_child(stmt, &(I64){(I64)(1)})->til_type,
                                                   &Expr_child(stmt, &(I64){(I64)(1)})->struct_name);
                 if (tname) {
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(1)}) = *make_clone_call(tname,
+                    Expr *_mc = make_clone_call(tname,
                         Expr_child(stmt, &(I64){(I64)(1)})->til_type, Expr_child(stmt, &(I64){(I64)(1)}),
                         Expr_child(stmt, &(I64){(I64)(1)}));
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(1)}) = *_mc;
+                    _mc->children = (Vec){0};
                 }
             }
             break;
@@ -2956,9 +2962,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
                         const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
                         if (tname) {
-                            *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *make_clone_call(
-                                tname, stmt->til_type,
+                            Expr *_mc = make_clone_call(tname, stmt->til_type,
                                 Expr_child(stmt, &(I64){(I64)(0)}), stmt);
+                            *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
+                            _mc->children = (Vec){0};
                         }
                     }
                 }
@@ -3289,6 +3296,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 slot->children.data = malloc(sz ? sz : 1);
                 memcpy(slot->children.data, block->children.data, sz);
                 slot->children.cap = block->children.count ? block->children.count : 1;
+                block->children = (Vec){0};
             }
             i--; // re-visit to type-check
             break;
@@ -3482,6 +3490,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 slot->children.data = malloc(sz ? sz : 1);
                 memcpy(slot->children.data, block->children.data, sz);
                 slot->children.cap = block->children.count ? block->children.count : 1;
+                block->children = (Vec){0};
             }
             i--; // re-visit to type-check the replacement
             break;

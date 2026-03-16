@@ -99,8 +99,6 @@ void Expr_delete(Expr *self, Bool *call_free) {
     ExprData_delete(&self->data, &(Bool){0});
     TilType_delete(&self->til_type, &(Bool){0});
     Str_delete(&self->struct_name, &(Bool){0});
-    for (U32 i = 0; i < self->children.count; i++)
-        Expr_delete(expr_child(self, i), &(Bool){0});
     Vec_delete(&self->children, &(Bool){0});
     Str_delete(&self->path, &(Bool){0});
     if (*call_free) free(self);
