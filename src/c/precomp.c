@@ -151,7 +151,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
                 Expr_error(arg, &(Str){.c_str = (U8*)"macro argument must be known at compile time", .count = 44, .cap = CAP_LIT});
             }
             // Clean up: detach callee so it's not double-freed
-            *(Expr**)Vec_get(&eval_call->children, &(U64){(U64)(0)}) = NULL;
+            memset(Vec_get(&eval_call->children, &(U64){(U64)(0)}), 0, sizeof(Expr));
             eval_call->children.count = 0;
             Expr_delete(eval_call, &(Bool){1});
             return NULL;
@@ -165,7 +165,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     Value result = eval_expr(scope, eval_call);
 
     // Clean up eval_call (detach callee ident first — it's shared with original)
-    *(Expr**)Vec_get(&eval_call->children, &(U64){(U64)(0)}) = NULL;
+    memset(Vec_get(&eval_call->children, &(U64){(U64)(0)}), 0, sizeof(Expr));
     for (U32 i = 1; i < eval_call->children.count; i++)
         Expr_delete(Expr_child(eval_call, &(I64){(I64)(i)}), &(Bool){1});
     Vec_delete(&eval_call->children, &(Bool){0});
@@ -216,14 +216,14 @@ static void process_body(Scope *scope, Expr *body) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 1);
                 if (lit) {
                     Expr_delete(Expr_child(stmt, &(I64){(I64)(0)}), &(Bool){1});
-                    *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = lit;
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
                     track_literal(scope, DECL_NAME(stmt), lit);
                 }
             } else if (is_func_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
                 if (lit) {
                     Expr_delete(Expr_child(stmt, &(I64){(I64)(0)}), &(Bool){1});
-                    *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = lit;
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
                     track_literal(scope, DECL_NAME(stmt), lit);
                 } else {
                     track_literal(scope, DECL_NAME(stmt), Expr_child(stmt, &(I64){(I64)(0)}));
@@ -252,13 +252,13 @@ static void process_body(Scope *scope, Expr *body) {
                 Expr *lit = try_eval_call(scope, stmt, 1);
                 if (lit) {
                     Expr_delete(stmt, &(Bool){1});
-                    *(Expr**)Vec_get(&body->children, &(U64){(U64)(i)}) = lit;
+                    *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *lit;
                 }
             } else if (is_func_call(stmt)) {
                 Expr *lit = try_eval_call(scope, stmt, 0);
                 if (lit) {
                     Expr_delete(stmt, &(Bool){1});
-                    *(Expr**)Vec_get(&body->children, &(U64){(U64)(i)}) = lit;
+                    *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *lit;
                 }
             }
             break;

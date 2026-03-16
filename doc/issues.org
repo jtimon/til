@@ -1,12 +1,31 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 75
+# NEXT_ISSUE: 76
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
 
+** WIP #75 Value-based Expr children + ownership discipline
+  :BLOCKS: #39
 
+  *Before*: Expr children stored as pointers (~sizeof(Expr*)~).
+  ~Expr_child~ returned a stable heap pointer. ~Expr_add_child~ malloc'd
+  an ~Expr**~ wrapper and pushed the pointer. C code freely cached
+  ~Expr*~ from ~Expr_child~ across mutations — safe because Exprs lived
+  on their own heap allocations, not inside the Vec buffer.
+
+  *After*: Expr children stored as values (~sizeof(Expr)~).
+  ~Expr_child~ returns a borrowed ref into the Vec buffer.
+  ~Expr_add_child~ passes the owned Expr directly to ~Vec_push~
+  (which memcpys + frees). C code must respect til ownership rules:
+  - NEVER pass a borrowed ref to ~Vec_push~ (takes ~own~) — clone first
+  - NEVER cache borrowed refs across Vec mutations (push may realloc)
+  - Re-fetch from ~Expr_child~ after any mutation to the same parent
+
+  *Status*: core changes done (ast.h, ast.c, typer.c, ctil.c, dispatch.c,
+  precomp.c, interpreter.c, scavenger.c, initer.c). Fixing remaining
+  ASAN crashes from cached borrowed refs one at a time.
 
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting

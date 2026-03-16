@@ -163,7 +163,7 @@ void Expr_todo_error(Expr *self, Str *msg);
 void Expr_lang_error(Expr *self, Str *msg);
 
 static inline Expr *Expr_child(Expr *parent, I64 *i) {
-    return *(Expr **)Vec_get(&parent->children, &(U64){(U64)(*i)});
+    return (Expr *)Vec_get(&parent->children, &(U64){(U64)(*i)});
 }
 
 static inline I64 Expr_child_count(Expr *parent) {
@@ -171,7 +171,7 @@ static inline I64 Expr_child_count(Expr *parent) {
 }
 
 // Old-style macro (used by ast.c internals)
-#define expr_child(e, i) (*(Expr **)Vec_get(&(e)->children, &(U64){(U64)(i)}))
+#define expr_child(e, i) ((Expr *)Vec_get(&(e)->children, &(U64){(U64)(i)}))
 
 // --- Vec helper (in initer.c) ---
 

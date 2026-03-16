@@ -59,14 +59,13 @@ void Expr_lang_error(Expr *self, Str *msg) {
 }
 
 void Expr_add_child(Expr *self, Expr *child) {
-    Expr **_p = malloc(sizeof(Expr *)); *_p = child;
-    Vec_push(&self->children, _p);
+    { Expr *_p = malloc(sizeof(Expr)); *_p = *child; Vec_push(&self->children, _p); }
 }
 
 Expr *Expr_new(ExprData *data, U32 line, U32 col, Str *path) {
     Expr *e = calloc(1, sizeof(Expr));
     e->data = *data;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); e->children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); e->children = *_vp; free(_vp); }
     e->line = line;
     e->col = col;
     if (path) e->path = *path;
@@ -79,11 +78,10 @@ Expr *Expr_clone(Expr *self) {
     if (!self) return NULL;
     Expr *c = calloc(1, sizeof(Expr));
     *c = *self;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); c->children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); c->children = *_vp; free(_vp); }
     for (U32 i = 0; i < self->children.count; i++) {
         Expr *cloned = Expr_clone(expr_child(self, i));
-        Expr **_p = malloc(sizeof(Expr *)); *_p = cloned;
-        Vec_push(&c->children, _p);
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *cloned; Vec_push(&c->children, _p); }
     }
     return c;
 }

@@ -313,16 +313,16 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         // Rewrite: a.f(b) → f(a, b)
                         Expr *fn_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, fa->line, fa->col, &fa->path);
                         fn_ident->data.data.Ident = *method;
-                        *(Expr**)Vec_get(&e->children, &(U64){(U64)(0)}) = fn_ident;
+                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(0)}) = *fn_ident;
                         // Insert instance as first arg
                         Expr *instance = obj;
-                        Expr *dummy = NULL;
-                        { Expr **_p = malloc(sizeof(Expr *)); *_p = dummy; Vec_push(&e->children, _p); }
+                        Expr dummy = {0};
+                        { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
                         {
-                            Expr **ch = (Expr **)e->children.data;
-                            memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr *));
+                            Expr *ch = (Expr *)e->children.data;
+                            memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
                         }
-                        *(Expr**)Vec_get(&e->children, &(U64){(U64)(1)}) = instance;
+                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(1)}) = *instance;
                         goto regular_call;
                     }
                     // Fallback: check if method is a FuncSig-typed struct field
@@ -382,15 +382,15 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Expr *instance = obj;
                 Expr *type_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, obj->line, obj->col, &obj->path);
                 type_ident->data.data.Ident = *type_name;
-                *(Expr**)Vec_get(&fa->children, &(U64){(U64)(0)}) = type_ident;
+                *(Expr*)Vec_get(&fa->children, &(U64){(U64)(0)}) = *type_ident;
                 // Insert instance as first arg
-                Expr *dummy = NULL;
-                { Expr **_p = malloc(sizeof(Expr *)); *_p = dummy; Vec_push(&e->children, _p); }
+                Expr dummy = {0};
+                { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
                 {
-                    Expr **ch = (Expr **)e->children.data;
-                    memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr *));
+                    Expr *ch = (Expr *)e->children.data;
+                    memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
                 }
-                *(Expr**)Vec_get(&e->children, &(U64){(U64)(1)}) = instance;
+                *(Expr*)Vec_get(&e->children, &(U64){(U64)(1)}) = *instance;
                 // Fall through -- existing code below handles Type.method(instance, args)
             }
 
@@ -480,11 +480,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     type_error(e, buf);
                 }
                 // Rebuild children: callee + desugared args
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                 Expr *callee = Expr_child(e, &(I64){(I64)(0)});
-                { Expr **_p = malloc(sizeof(Expr *)); *_p = callee; Vec_push(&new_ch, _p); }
+                { Expr *_p = malloc(sizeof(Expr)); *_p = *callee; Vec_push(&new_ch, _p); }
                 for (U32 i = 0; i < np; i++) {
-                    Expr **_p = malloc(sizeof(Expr *)); *_p = new_args[i]; Vec_push(&new_ch, _p);
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *new_args[i]; Vec_push(&new_ch, _p); }
                 }
                 Vec_delete(&e->children, &(Bool){0});
                 e->children = new_ch;
@@ -575,7 +575,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         regular_call:;
         // Resolve callee
-        Str *name = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
+        Str _name_val = Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
+        Str *name = &_name_val;
         // Struct instantiation: Point() or Point(x=1, y=2)
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) {
@@ -635,11 +636,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
             // Rebuild children: callee + instance field values
-            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
             Expr *callee = Expr_child(e, &(I64){(I64)(0)});
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = callee; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *callee; Vec_push(&new_ch, _p); }
             for (U32 i = 0; i < nfields; i++) {
-                Expr **_p = malloc(sizeof(Expr *)); *_p = field_vals[i]; Vec_push(&new_ch, _p);
+                { Expr *_p = malloc(sizeof(Expr)); *_p = *field_vals[i]; Vec_push(&new_ch, _p); }
             }
             Vec_delete(&e->children, &(Bool){0});
             e->children = new_ch;
@@ -673,7 +674,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     const char *tname = type_to_name(Expr_child(e, &(I64){(I64)(ai)})->til_type,
                                                       &Expr_child(e, &(I64){(I64)(ai)})->struct_name);
                     if (tname) {
-                        *(Expr**)Vec_get(&e->children, &(U64){(U64)(ai)}) = make_clone_call(tname,
+                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(ai)}) = *make_clone_call(tname,
                             Expr_child(e, &(I64){(I64)(ai)})->til_type, Expr_child(e, &(I64){(I64)(ai)}),
                             Expr_child(e, &(I64){(I64)(ai)}));
                     }
@@ -764,26 +765,26 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 type_error(e, buf);
             }
             // Rebuild children: callee + args_before_variadic + variadic_args + args_after_variadic
-            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
             Expr *callee = Expr_child(e, &(I64){(I64)(0)});
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = callee; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *callee; Vec_push(&new_ch, _p); }
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
                     e->variadic_index = new_ch.count; // children index of first variadic arg
                     for (U32 j = 0; j < va_args.count; j++) {
                         Expr *va = *(Expr **)Vec_get(&va_args, &(U64){(U64)(j)});
-                        { Expr **_p = malloc(sizeof(Expr *)); *_p = va; Vec_push(&new_ch, _p); }
+                        { Expr *_p = malloc(sizeof(Expr)); *_p = *va; Vec_push(&new_ch, _p); }
                     }
                     e->variadic_count = va_args.count;
                 } else if ((I32)i == kwi) {
                     e->kwargs_index = new_ch.count; // children index of first kwargs arg
                     for (U32 j = 0; j < kw_args.count; j++) {
                         Expr *kw = *(Expr **)Vec_get(&kw_args, &(U64){(U64)(j)});
-                        { Expr **_p = malloc(sizeof(Expr *)); *_p = kw; Vec_push(&new_ch, _p); }
+                        { Expr *_p = malloc(sizeof(Expr)); *_p = *kw; Vec_push(&new_ch, _p); }
                     }
                     e->kwargs_count = kw_args.count;
                 } else {
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = new_args[i]; Vec_push(&new_ch, _p); }
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *new_args[i]; Vec_push(&new_ch, _p); }
                 }
             }
             Vec_delete(&e->children, &(Bool){0});
@@ -1104,14 +1105,14 @@ static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
 //   Set.add(s, own v3)
 
 static void desugar_set_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0 ||
             Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_SetLit) {
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
         changed = 1;
@@ -1122,7 +1123,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 
         if (set_lit->children.count == 0) {
             type_error(set_lit, "set literal must have at least one element");
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
 
@@ -1131,7 +1132,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         const char *elem_type = type_to_name(first->til_type, &first->struct_name);
         if (!elem_type) {
             type_error(first, "set literal: cannot determine element type");
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
 
@@ -1171,7 +1172,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         TypeBinding *vb = tscope_find(scope, var_name);
         if (vb) vb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT});
 
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = decl; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *decl; Vec_push(&new_ch, _p); }
 
         // Build .add calls for each element
         for (U32 j = 0; j < set_lit->children.count; j++) {
@@ -1184,7 +1185,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
             Expr *val = Expr_child(set_lit, &(I64){(I64)(j)});
             val->is_own_arg = true;
             Expr_add_child(add_call, val);
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = add_call; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *add_call; Vec_push(&new_ch, _p); }
         }
     }
 
@@ -1203,7 +1204,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 //   Map.set(m, own k2, own v2)
 
 static void desugar_map_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1211,7 +1212,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         // Only handle: name := {k: v, ...}
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0 ||
             Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_MapLit) {
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
         changed = 1;
@@ -1223,12 +1224,12 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
 
         if (map_lit->children.count == 0) {
             type_error(map_lit, "map literal must have at least one entry");
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
         if (map_lit->children.count % 2 != 0) {
             type_error(map_lit, "map literal has mismatched key/value pairs");
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
 
@@ -1240,12 +1241,12 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
 
         if (!key_type) {
             type_error(first_key, "map literal: cannot determine key type");
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
         if (!val_type) {
             type_error(first_val, "map literal: cannot determine value type");
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
 
@@ -1302,7 +1303,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         TypeBinding *vb = tscope_find(scope, var_name);
         if (vb) vb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
 
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = decl; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *decl; Vec_push(&new_ch, _p); }
 
         // Build .set calls for each key-value pair
         for (U32 j = 0; j < n_pairs; j++) {
@@ -1322,7 +1323,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
             val->is_own_arg = true;
             Expr_add_child(set_call, val);
 
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = set_call; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *set_call; Vec_push(&new_ch, _p); }
         }
     }
 
@@ -1379,14 +1380,14 @@ static Expr *make_ns_call(const char *sname, const char *method,
 static I32 _va_counter = 0;
 
 static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
         Expr *fcall = find_variadic_fcall(stmt);
         if (!fcall) {
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
         changed = 1;
@@ -1426,7 +1427,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             }
         }
         if (!elem_type) {
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
 
@@ -1440,20 +1441,20 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             }
             splat->is_own_arg = true;
             // Rebuild fcall children replacing variadic slot with splat
-            Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); fcall_new_ch = *_vp; free(_vp); }
+            Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
             for (U32 j = 0; j < fcall->children.count; j++) {
                 if ((I32)j == vi) {
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = splat; Vec_push(&fcall_new_ch, _p); }
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *splat; Vec_push(&fcall_new_ch, _p); }
                 } else {
                     Expr *ch = Expr_child(fcall, &(I64){(I64)(j)});
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&fcall_new_ch, _p); }
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&fcall_new_ch, _p); }
                 }
             }
             Vec_delete(&fcall->children, &(Bool){0});
             fcall->children = fcall_new_ch;
             fcall->variadic_index = -1;
             fcall->variadic_count = 0;
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
 
@@ -1494,7 +1495,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         TypeBinding *vab = tscope_find(scope, va_name);
         if (vab) vab->struct_name = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
 
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = va_decl; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *va_decl; Vec_push(&new_ch, _p); }
 
         // 2. Array.set calls for each variadic arg
         for (U32 j = 0; j < vc; j++) {
@@ -1524,11 +1525,11 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             val->is_own_arg = true;
             Expr_add_child(set_call, val);
 
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = set_call; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *set_call; Vec_push(&new_ch, _p); }
         }
 
         // 3. Replace variadic args in FCALL with _va ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); fcall_new_ch = *_vp; free(_vp); }
+        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
         Bool va_inserted = 0;
         for (U32 j = 0; j < fcall->children.count; j++) {
             if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
@@ -1538,7 +1539,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                     va_id->til_type = (TilType){TilType_TAG_Struct};
                     va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
                     va_id->is_own_arg = true;
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = va_id; Vec_push(&fcall_new_ch, _p); }
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *va_id; Vec_push(&fcall_new_ch, _p); }
                     va_inserted = 1;
                 }
                 continue;
@@ -1550,11 +1551,11 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                 va_id->til_type = (TilType){TilType_TAG_Struct};
                 va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
                 va_id->is_own_arg = true;
-                { Expr **_p = malloc(sizeof(Expr *)); *_p = va_id; Vec_push(&fcall_new_ch, _p); }
+                { Expr *_p = malloc(sizeof(Expr)); *_p = *va_id; Vec_push(&fcall_new_ch, _p); }
                 va_inserted = 1;
             }
             Expr *ch = Expr_child(fcall, &(I64){(I64)(j)});
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&fcall_new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&fcall_new_ch, _p); }
         }
         // Insert _va at end if variadic was last param and vc==0
         if (!va_inserted) {
@@ -1563,7 +1564,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             va_id->til_type = (TilType){TilType_TAG_Struct};
             va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
             va_id->is_own_arg = true;
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = va_id; Vec_push(&fcall_new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *va_id; Vec_push(&fcall_new_ch, _p); }
         }
         Vec_delete(&fcall->children, &(Bool){0});
         fcall->children = fcall_new_ch;
@@ -1571,7 +1572,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         fcall->variadic_count = 0;
 
         // Insert the original statement
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
     }
 
     if (changed) {
@@ -1600,14 +1601,14 @@ static Expr *find_kwargs_fcall(Expr *e) {
 static I32 _kw_counter = 0;
 
 static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
         Expr *fcall = find_kwargs_fcall(stmt);
         if (!fcall) {
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
             continue;
         }
         changed = 1;
@@ -1666,7 +1667,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         TypeBinding *kwb = tscope_find(scope, kw_name);
         if (kwb) kwb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
 
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_decl; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *kw_decl; Vec_push(&new_ch, _p); }
 
         // 2. Map.set calls for each kwargs arg
         for (U32 j = 0; j < kc; j++) {
@@ -1698,11 +1699,11 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
             val->is_own_arg = true;
             Expr_add_child(set_call, val);
 
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = set_call; Vec_push(&new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *set_call; Vec_push(&new_ch, _p); }
         }
 
         // 3. Replace kwargs args in FCALL with _kw ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); fcall_new_ch = *_vp; free(_vp); }
+        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
         Bool kw_inserted = 0;
         for (U32 j = 0; j < fcall->children.count; j++) {
             if ((I32)j >= ki && (I32)j < ki + (I32)kc) {
@@ -1712,7 +1713,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
                     kw_id->til_type = (TilType){TilType_TAG_Struct};
                     kw_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
                     kw_id->is_own_arg = true;
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_id; Vec_push(&fcall_new_ch, _p); }
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *kw_id; Vec_push(&fcall_new_ch, _p); }
                     kw_inserted = 1;
                 }
                 continue;
@@ -1724,11 +1725,11 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
                 kw_id->til_type = (TilType){TilType_TAG_Struct};
                 kw_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
                 kw_id->is_own_arg = true;
-                { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_id; Vec_push(&fcall_new_ch, _p); }
+                { Expr *_p = malloc(sizeof(Expr)); *_p = *kw_id; Vec_push(&fcall_new_ch, _p); }
                 kw_inserted = 1;
             }
             Expr *ch = Expr_child(fcall, &(I64){(I64)(j)});
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&fcall_new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&fcall_new_ch, _p); }
         }
         // Insert _kw at end if kwargs was last param and kc==0
         if (!kw_inserted) {
@@ -1737,7 +1738,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
             kw_id->til_type = (TilType){TilType_TAG_Struct};
             kw_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
             kw_id->is_own_arg = true;
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = kw_id; Vec_push(&fcall_new_ch, _p); }
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *kw_id; Vec_push(&fcall_new_ch, _p); }
         }
         Vec_delete(&fcall->children, &(Bool){0});
         fcall->children = fcall_new_ch;
@@ -1745,7 +1746,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         fcall->kwargs_count = 0;
 
         // Insert the original statement
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
     }
 
     if (changed) {
@@ -1883,12 +1884,12 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
                 continue; // don't hoist — builder handles directly
         }
 
-        *(Expr**)Vec_get(&e->children, &(U64){(U64)(i)}) = hoist_to_temp(Expr_child(e, &(I64){(I64)(i)}), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&e->children, &(U64){(U64)(i)}) = *hoist_to_temp(Expr_child(e, &(I64){(I64)(i)}), hoisted, nhoisted, cap, scope);
     }
 }
 
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
         // Collect hoisted decls from this statement
@@ -1904,7 +1905,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             if (stmt->til_type.tag != TilType_TAG_None) {
                 hoist_to_temp(stmt, &hoisted, &nhoisted, &hcap, scope);
                 stmt = hoisted[--nhoisted];
-                *(Expr**)Vec_get(&body->children, &(U64){(U64)(i)}) = stmt;
+                *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *stmt;
             }
             break;
         case ExprData_TAG_Return:
@@ -1914,7 +1915,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                     Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum ||
                     Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralStr ||
                     Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralBool) {
-                    *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = hoist_to_temp(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *hoist_to_temp(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
                 }
             }
             break;
@@ -1934,7 +1935,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum ||
                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralStr ||
                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = hoist_to_temp(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
+                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *hoist_to_temp(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
             }
             // For mut struct/enum params, replace assignment with swap so
             // ASAP delete of the temp frees the OLD value, not the new one.
@@ -1981,14 +1982,14 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralNum ||
                 Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralStr ||
                 Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(1)}) = hoist_to_temp(Expr_child(stmt, &(I64){(I64)(1)}), &hoisted, &nhoisted, &hcap, scope);
+                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(1)}) = *hoist_to_temp(Expr_child(stmt, &(I64){(I64)(1)}), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         }
         case ExprData_TAG_If:
             hoist_expr(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
             if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FCall) {
-                *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = hoist_to_temp(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
+                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *hoist_to_temp(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         // ExprData_TAG_While: skip condition -- hoisting changes loop semantics
@@ -1996,11 +1997,11 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
         }
         // Insert hoisted decls before the statement
         for (U32 j = 0; j < nhoisted; j++) {
-            Expr **_p = malloc(sizeof(Expr *)); *_p = hoisted[j]; Vec_push(&new_ch, _p);
+            { Expr *_p = malloc(sizeof(Expr)); *_p = *hoisted[j]; Vec_push(&new_ch, _p); }
         }
         free(hoisted);
         // Add original statement
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
     }
     if (new_ch.count != body->children.count) {
         Vec_delete(&body->children, &(Bool){0});
@@ -2103,7 +2104,7 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
 
 // Insert delete calls before field reassignments (own and inline compound)
 static void insert_field_deletes(Expr *body) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -2124,12 +2125,12 @@ static void insert_field_deletes(Expr *body) {
             if (need_delete) {
                 Expr *del = make_field_delete(stmt, is_own);
                 if (del) {
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = del; Vec_push(&new_ch, _p); }
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *del; Vec_push(&new_ch, _p); }
                     changed = 1;
                 }
             }
         }
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
     }
     if (changed) {
         Vec_delete(&body->children, &(Bool){0});
@@ -2305,7 +2306,7 @@ static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
 static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool return_only) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
         if (stmt->data.tag == ExprData_TAG_If) {
@@ -2323,10 +2324,10 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool re
                      alias_used_in_expr(body, live[j].name, Expr_child(stmt, &(I64){(I64)(0)})))) continue;
                 Expr *del = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name, stmt);
-                if (del) { Expr **_p = malloc(sizeof(Expr *)); *_p = del; Vec_push(&new_ch, _p); }
+                if (del) { Expr *_p = malloc(sizeof(Expr)); *_p = *del; Vec_push(&new_ch, _p); }
             }
         }
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
     }
     if (new_ch.count != body->children.count) {
         Vec_delete(&body->children, &(Bool){0});
@@ -2474,7 +2475,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     }
 
     // Phase 2: rebuild body with ASAP frees
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
@@ -2490,7 +2491,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].decl_index < (I32)i &&
                     (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
-                    if (del) { Expr **_p = malloc(sizeof(Expr *)); *_p = del; Vec_push(&new_ch, _p); }
+                    if (del) { Expr *_p = malloc(sizeof(Expr)); *_p = *del; Vec_push(&new_ch, _p); }
                 }
             }
         }
@@ -2538,7 +2539,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                         if (locals[j].struct_name) stmt->struct_name = *locals[j].struct_name;
                     } else {
                         Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
-                        if (del) { Expr **_p = malloc(sizeof(Expr *)); *_p = del; Vec_push(&new_ch, _p); }
+                        if (del) { Expr *_p = malloc(sizeof(Expr)); *_p = *del; Vec_push(&new_ch, _p); }
                     }
                 }
                 break;
@@ -2546,7 +2547,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         }
 
         // Add original statement
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = stmt; Vec_push(&new_ch, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&new_ch, _p); }
 
         // After non-exit statements: free locals whose last use is this statement
         if (stmt->data.tag != ExprData_TAG_Return && stmt->data.tag != ExprData_TAG_Break && stmt->data.tag != ExprData_TAG_Continue) {
@@ -2555,12 +2556,12 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == (I32)i) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
-                    if (del) { Expr **_p = malloc(sizeof(Expr *)); *_p = del; Vec_push(&new_ch, _p); }
+                    if (del) { Expr *_p = malloc(sizeof(Expr)); *_p = *del; Vec_push(&new_ch, _p); }
                 }
                 // Never used after declaration: free immediately
                 if (locals[j].last_use == -1 && locals[j].decl_index == (I32)i) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
-                    if (del) { Expr **_p = malloc(sizeof(Expr *)); *_p = del; Vec_push(&new_ch, _p); }
+                    if (del) { Expr *_p = malloc(sizeof(Expr)); *_p = *del; Vec_push(&new_ch, _p); }
                 }
             }
         }
@@ -2783,7 +2784,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 !stmt->data.data.Decl.is_ref) {
                 const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
                 if (tname) {
-                    *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = make_clone_call(
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *make_clone_call(
                         tname, stmt->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
                 }
@@ -2834,7 +2835,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                   Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_Enum))) {
                 const char *tname = type_to_name(Expr_child(stmt, &(I64){(I64)(0)})->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
                 if (tname) {
-                    *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = make_clone_call(
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *make_clone_call(
                         tname, Expr_child(stmt, &(I64){(I64)(0)})->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
                 }
@@ -2904,7 +2905,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 const char *tname = type_to_name(Expr_child(stmt, &(I64){(I64)(1)})->til_type,
                                                   &Expr_child(stmt, &(I64){(I64)(1)})->struct_name);
                 if (tname) {
-                    *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(1)}) = make_clone_call(tname,
+                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(1)}) = *make_clone_call(tname,
                         Expr_child(stmt, &(I64){(I64)(1)})->til_type, Expr_child(stmt, &(I64){(I64)(1)}),
                         Expr_child(stmt, &(I64){(I64)(1)}));
                 }
@@ -2933,7 +2934,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
                         const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
                         if (tname) {
-                            *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = make_clone_call(
+                            *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *make_clone_call(
                                 tname, stmt->til_type,
                                 Expr_child(stmt, &(I64){(I64)(0)}), stmt);
                         }
@@ -3027,12 +3028,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Expr_add_child(else_body, brk);
                 Expr_add_child(if_node, else_body);
                 // Prepend decl + if to body
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
-                { Expr **_p = malloc(sizeof(Expr *)); *_p = decl; Vec_push(&new_ch, _p); }
-                { Expr **_p = malloc(sizeof(Expr *)); *_p = if_node; Vec_push(&new_ch, _p); }
+                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                { Expr *_p = malloc(sizeof(Expr)); *_p = *decl; Vec_push(&new_ch, _p); }
+                { Expr *_p = malloc(sizeof(Expr)); *_p = *if_node; Vec_push(&new_ch, _p); }
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *ch = Expr_child(body, &(I64){(I64)(j)});
-                    { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&new_ch, _p); }
+                    { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&new_ch, _p); }
                 }
                 Vec_delete(&body->children, &(Bool){0});
                 body->children = new_ch;
@@ -3040,7 +3041,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
                 true_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
                 true_lit->til_type = (TilType){TilType_TAG_Bool};
-                *(Expr**)Vec_get(&stmt->children, &(U64){(U64)(0)}) = true_lit;
+                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *true_lit;
             }
             {
                 TypeScope *while_scope = tscope_new(scope);
@@ -3180,11 +3181,11 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             Expr_add_child(bind_decl, get_call);
 
                             // Prepend to case body
-                            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); new_ch = *_vp; free(_vp); }
-                            { Expr **_p = malloc(sizeof(Expr *)); *_p = bind_decl; Vec_push(&new_ch, _p); }
+                            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                            { Expr *_p = malloc(sizeof(Expr)); *_p = *bind_decl; Vec_push(&new_ch, _p); }
                             for (U32 bi = 0; bi < case_body->children.count; bi++) {
                                 Expr *ch = Expr_child(case_body, &(I64){(I64)(bi)});
-                                { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(&new_ch, _p); }
+                                { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&new_ch, _p); }
                             }
                             Vec_delete(&case_body->children, &(Bool){0});
                             case_body->children = new_ch;
@@ -3257,7 +3258,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (first_if) Expr_add_child(block, first_if);
 
             // Replace ExprData_TAG_Switch with desugared block
-            *(Expr**)Vec_get(&body->children, &(U64){(U64)(i)}) = block;
+            *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *block;
             i--; // re-visit to type-check
             break;
         }
@@ -3443,7 +3444,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Expr_add_child(block, while_node);
 
             // Replace FOR_IN with the desugared block in parent body
-            *(Expr**)Vec_get(&body->children, &(U64){(U64)(i)}) = block;
+            *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *block;
             i--; // re-visit to type-check the replacement
             break;
         }

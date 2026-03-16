@@ -249,7 +249,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
             Str *dname = &stmt->data.data.Decl.name;
             if (!*Set_has(&visited, dname)) continue;
         }
-        *(Expr**)Vec_get(&program->children, &(U64){(U64)(w++)}) = stmt;
+        *(Expr*)Vec_get(&program->children, &(U64){(U64)(w++)}) = *stmt;
     }
     program->children.count = w;
 
@@ -268,7 +268,7 @@ void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
                 Str *qn = qualified_name(sname, &field->data.data.Decl.name);
                 if (!*Set_has(&visited, qn)) continue;
             }
-            *(Expr**)Vec_get(&body->children, &(U64){(U64)(bw++)}) = field;
+            *(Expr*)Vec_get(&body->children, &(U64){(U64)(bw++)}) = *field;
         }
         body->children.count = bw;
     }

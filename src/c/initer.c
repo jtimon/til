@@ -581,13 +581,13 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)}); // ExprData_TAG_Body
 
         // Collect variant info (names + optional payload types)
-        Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); variant_names = *_vp; free(_vp); }
-        Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); variant_types = *_vp; free(_vp); } // NULL entries for no-payload
+        Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str)}); variant_names = *_vp; free(_vp); }
+        Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str)}); variant_types = *_vp; free(_vp); }
         Bool has_payloads = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             if (Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.is_namespace) continue;
-            { Str **_p = malloc(sizeof(Str *)); *_p = &Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.name; Vec_push(&variant_names, _p); }
-            { Str **_p = malloc(sizeof(Str *)); *_p = &Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.explicit_type; Vec_push(&variant_types, _p); }
+            { Str *_p = Str_clone(&Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.name); Vec_push(&variant_names, _p); }
+            { Str *_p = Str_clone(&Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.explicit_type); Vec_push(&variant_types, _p); }
             if ((Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.explicit_type.count > 0)) has_payloads = 1;
         }
 
@@ -602,7 +602,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 snprintf(buf, sizeof(buf), "%d", j);
                 lit->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
                 Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                decl->data.data.Decl.name = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                 decl->data.data.Decl.is_namespace = true;
                 Expr_add_child(decl, lit);
                 Expr_add_child(body, decl);
@@ -612,7 +612,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             // Keep original variant markers as registry (don't compact)
 
             for (U32 j = 0; j < variant_names.count; j++) {
-                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
+                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
                     // Payload variant: ext_func constructor
                     // e.g. Num := ext_func(val: I64) returns Token {}
                     Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
@@ -621,7 +621,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                     *((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(0)})) = (Str){.c_str = (U8*)"val", .count = 3, .cap = CAP_LIT};
                     fdef->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-                    *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = **(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                    *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *(Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
                     fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                     fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                     fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
@@ -630,7 +630,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->data.data.FuncDef.kwargs_index = -1;
                     Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
                     Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                    decl->data.data.Decl.name = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                     decl->data.data.Decl.is_namespace = true;
                     Expr_add_child(decl, fdef);
                     Expr_add_child(body, decl);
@@ -650,7 +650,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     fdef->data.data.FuncDef.kwargs_index = -1;
                     Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
                     Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                    decl->data.data.Decl.name = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                     decl->data.data.Decl.is_namespace = true;
                     Expr_add_child(decl, fdef);
                     Expr_add_child(body, decl);
@@ -659,9 +659,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
             // Generate get_Variant ext_func for payload variants
             for (U32 j = 0; j < variant_names.count; j++) {
-                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count == 0) continue;
+                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count == 0) continue;
                 char name_buf[256];
-                snprintf(name_buf, sizeof(name_buf), "get_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                snprintf(name_buf, sizeof(name_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                 Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
                 fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
                 fdef->data.data.FuncDef.nparam = 1;
@@ -672,7 +672,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-                fdef->data.data.FuncDef.return_type = **(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                fdef->data.data.FuncDef.return_type = *(Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
                 fdef->data.data.FuncDef.variadic_index = -1;
                 fdef->data.data.FuncDef.kwargs_index = -1;
                 Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
@@ -687,7 +687,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Generate is_Variant ext_func for every variant (all enums)
         for (U32 j = 0; j < variant_names.count; j++) {
             char name_buf[256];
-            snprintf(name_buf, sizeof(name_buf), "is_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+            snprintf(name_buf, sizeof(name_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
             fdef->data.data.FuncDef.nparam = 1;
@@ -731,7 +731,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                 char is_buf[256];
                 snprintf(is_buf, sizeof(is_buf), "is_%s",
-                         (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                         ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                 Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                 is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
                 Expr_add_child(is_acc, self_id);
@@ -740,8 +740,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
                 Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
 
-                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
-                    Str *vtype = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
+                    Str *vtype = (Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
                     Bool is_funcsig = type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr;
 
                     // Payload variant:
@@ -783,7 +783,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         // return self.get_Vj().eq(other.get_Vj())
                         char get_buf[256];
                         snprintf(get_buf, sizeof(get_buf), "get_%s",
-                                 (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                                 ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         Expr *get_acc1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
@@ -872,11 +872,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 ename_id->data.data.Ident = *ename;
                 Expr *ctor_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                ctor_acc->data.data.FieldAccess = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                ctor_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                 Expr_add_child(ctor_acc, ename_id);
 
                 Expr *ctor_expr;
-                if ((*(Str **)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
+                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
                     // Payload variant: E.V(self.get_V())
                     Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
                     Expr_add_child(ctor_call, ctor_acc);
@@ -884,7 +884,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     self_g->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                     char get_buf[256];
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
-                             (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                             ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                     Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                     get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
                     Expr_add_child(get_acc, self_g);
@@ -908,7 +908,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         char is_buf[256];
                         snprintf(is_buf, sizeof(is_buf), "is_%s",
-                                 (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                                 ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                         is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
                         Expr_add_child(is_acc, self_id);
@@ -925,7 +925,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr *en2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         en2->data.data.Ident = *ename;
                         Expr *va2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        va2->data.data.FieldAccess = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                        va2->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                         Expr_add_child(va2, en2);
 
                         cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
@@ -1030,7 +1030,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                     char is_buf[256];
-                    snprintf(is_buf, sizeof(is_buf), "is_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                    snprintf(is_buf, sizeof(is_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                     Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                     is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
                     Expr_add_child(is_acc, self_id);
@@ -1038,11 +1038,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr_add_child(is_call, is_acc);
 
                     Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-                    Str *vtype = *(Str **)Vec_get(&variant_types, &(U64){(U64)(j)});
+                    Str *vtype = (Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
                     if (vtype && (*vtype).count > 0 && type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr) {
                         // FuncSig payload: return "Variant(func)"
                         char buf[256];
-                        snprintf(buf, sizeof(buf), "%s(func)", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        snprintf(buf, sizeof(buf), "%s(func)", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
                         ret_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
                         Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
@@ -1056,7 +1056,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr_add_child(fmt_call, fmt_id);
 
                         char prefix_buf[256];
-                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *prefix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
                         prefix->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(prefix_buf), .count = (U64)strlen((const char*)(prefix_buf)), .cap = CAP_VIEW});
                         Expr_add_child(fmt_call, prefix);
@@ -1065,7 +1065,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         char get_buf[256];
-                        snprintf(get_buf, sizeof(get_buf), "get_%s", (*(Str **)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        snprintf(get_buf, sizeof(get_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
                         Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                         get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
                         Expr_add_child(get_acc, self2);
@@ -1088,7 +1088,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     } else {
                         // return "VariantName"
                         Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                        ret_str->data.data.LiteralStr = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                        ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                         Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
                         Expr_add_child(ret, ret_str);
                         Expr_add_child(then_body, ret);
@@ -1110,7 +1110,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     ename_id->data.data.Ident = *ename;
                     Expr *var_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    var_acc->data.data.FieldAccess = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    var_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                     Expr_add_child(var_acc, ename_id);
 
                     Expr *eq_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
@@ -1118,7 +1118,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr_add_child(eq_call, var_acc);
 
                     Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                    ret_str->data.data.LiteralStr = **(Str **)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
                     Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
                     Expr_add_child(ret, ret_str);
                     Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);

@@ -289,21 +289,19 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
-    Expr *ti_ptr = &type_ident;
-    { Expr **_p = malloc(sizeof(Expr *)); *_p = ti_ptr; Vec_push(&field_access.children, _p); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
+    { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = e->line;
     fake_call.col = e->col;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
-    Expr *fa_ptr = &field_access;
-    { Expr **_p = malloc(sizeof(Expr *)); *_p = fa_ptr; Vec_push(&fake_call.children, _p); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
+    { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
     // Skip child 3 (arity literal), actual args start at child 4
     for (U32 i = 4; i < e->children.count; i++) {
         Expr *arg = Expr_child(e, &(I64){(I64)(i)});
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&fake_call.children, _p); }
+        { Expr *_p = malloc(sizeof(Expr)); *_p = *arg; Vec_push(&fake_call.children, _p); }
     }
 
     Value fn_val = eval_expr(s, &field_access);
@@ -315,7 +313,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
             if (VEC_SET(fdef->data.data.FuncDef.param_defaults) &&
                 (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
                 Expr *def_arg = (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}));
-                { Expr **_p = malloc(sizeof(Expr *)); *_p = def_arg; Vec_push(&fake_call.children, _p); }
+                { Expr *_p = malloc(sizeof(Expr)); *_p = *def_arg; Vec_push(&fake_call.children, _p); }
             }
         }
     }
@@ -383,17 +381,15 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); field_access.children = *_vp; free(_vp); }
-    Expr *ti = &type_ident;
-    { Expr **_p = malloc(sizeof(Expr *)); *_p = ti; Vec_push(&field_access.children, _p); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
+    { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); fake_call.children = *_vp; free(_vp); }
-    Expr *fa = &field_access;
-    { Expr **_p = malloc(sizeof(Expr *)); *_p = fa; Vec_push(&fake_call.children, _p); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
+    { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
 
     Value result = eval_call(s, &fake_call);
     Vec_delete(&fake_call.children, &(Bool){0});

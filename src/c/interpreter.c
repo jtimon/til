@@ -475,9 +475,9 @@ Value eval_call(Scope *scope, Expr *e) {
             Expr flat_ident = *orig_callee;
             flat_ident.data.tag = ExprData_TAG_Ident;
             flat_ident.data.data.Ident = flat_str;
-            *(Expr**)Vec_get(&e->children, &(U64){(U64)(0)}) = &flat_ident;
+            *(Expr*)Vec_get(&e->children, &(U64){(U64)(0)}) = flat_ident;
             Value result = eval_call(scope, e);
-            *(Expr**)Vec_get(&e->children, &(U64){(U64)(0)}) = orig_callee;
+            *(Expr*)Vec_get(&e->children, &(U64){(U64)(0)}) = *orig_callee;
             return result;
         }
         Expr *body = Expr_child(func_def, &(I64){(I64)(0)});
