@@ -48,10 +48,14 @@ namespace:
 
     clone := func(self: Vec) returns Vec {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
-        for i in 0..self.count {
-            own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, ptr_add(self.data, i.mul(self.elem_size)))
-            memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
-            free(own cloned)
+        if self.elem_type.is_empty().not() {
+            for i in 0..self.count {
+                own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, ptr_add(self.data, i.mul(self.elem_size)))
+                memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                free(own cloned)
+            }
+        } else {
+            memcpy(new_data, self.data, self.count.mul(self.elem_size))
         }
         return Vec(data = new_data, count = self.count, cap = self.cap,
                    elem_size = self.elem_size, elem_type = self.elem_type)

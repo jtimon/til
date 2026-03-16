@@ -683,7 +683,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             Expr_child(e, &(I64){(I64)(ai)})->til_type, Expr_child(e, &(I64){(I64)(ai)}),
                             Expr_child(e, &(I64){(I64)(ai)}));
                         *(Expr*)Vec_get(&e->children, &(U64){(U64)(ai)}) = *_mc;
-                        _mc->children = (Vec){0};
+                        memset(_mc, 0, sizeof(Expr)); free(_mc);
                     }
                 }
               }
@@ -2811,7 +2811,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr *_mc = make_clone_call(tname, stmt->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
-                    _mc->children = (Vec){0};
+                    memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
             }
             break;
@@ -2863,7 +2863,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(I64){(I64)(0)})->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
-                    _mc->children = (Vec){0};
+                    memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
             }
             break;
@@ -2935,7 +2935,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         Expr_child(stmt, &(I64){(I64)(1)})->til_type, Expr_child(stmt, &(I64){(I64)(1)}),
                         Expr_child(stmt, &(I64){(I64)(1)}));
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(1)}) = *_mc;
-                    _mc->children = (Vec){0};
+                    memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
             }
             break;
@@ -2965,7 +2965,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             Expr *_mc = make_clone_call(tname, stmt->til_type,
                                 Expr_child(stmt, &(I64){(I64)(0)}), stmt);
                             *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
-                            _mc->children = (Vec){0};
+                            memset(_mc, 0, sizeof(Expr)); free(_mc);
                         }
                     }
                 }
