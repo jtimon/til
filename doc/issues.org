@@ -285,6 +285,38 @@
   (FFI into C libs, replace with native til), this works bottom-up
   (replace C modules in ctil one at a time).
 
+*** General approach (per module)
+    1. ~make self_diff~ → read the diff
+    2. Classify each difference: *semantic/interface* vs *bikeshedding*
+    3. Fix semantic/interface differences one at a time
+    4. When only bikeshedding remains → swap to generated version
+    5. Repeat for next module
+
+    *Bikeshedding* (tolerable, don't fix): switch vs if-else, printf vs
+    println, for-loops vs Range, direct field access vs accessor calls,
+    ~(void)x;~ noise, temp variable names.
+
+    *Semantic/interface* (must fix): different data layouts, missing
+    implementations, wrong signatures, callers using incompatible patterns.
+
+*** WIP Step 4: Replace C ast with til-compiled ast
+    Diff: 2615 lines (~make self_diff~). Most is bikeshedding.
+
+    Semantic blockers:
+    - B1: Pointer-vs-value children — hand-written uses ~sizeof(Expr *)~,
+      generated uses ~sizeof(Expr)~. ALL C callers (parser.c, typer.c,
+      builder.c, dispatch.c, interpreter.c, til_bridge.c, scavenger.c,
+      initer.c) use the pointer-based pattern. Biggest single change.
+    - B2: Clone/delete no-ops — hand-written has no-ops for TilType,
+      Declaration, ExprData, Expr clone/delete. Generated has real
+      field-by-field implementations.
+
+    Already bikeshedding (tolerable):
+    - switch vs nested if-else (til_type_name_c, node_name)
+    - printf vs Array+println (Expr_error, Expr_todo_error, Expr_lang_error)
+    - for-loop vs Range iteration (enum helpers)
+    - Include lines, Expr_child_count return type
+
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from
    src/self/lexer.til). Since lexer.til imports core.til, bootstrap/lexer
