@@ -8,33 +8,12 @@
 
 
 
-** WIP #74 Builder: emit separate .c per source module
+** WIP #74 Builder: emit separate .c and .h per source module
   :BLOCKS: #39
 
-  Per-module .c emission is partially done: the builder splits function
-  bodies by ~stmt->path~ basename and emits ~#include "<prefix>_<mod>.c"~
-  in the main file. This works — bootstrap/ast.c includes bootstrap/ast_str.c
-  etc. and compiles correctly.
-
-  What's NOT done: the per-module files still contain ALL functions from
-  that module — including auto-generated ones (enum constructors,
-  is_Variant, eq, to_str, clone, delete, size). For the diff-driven #39
-  workflow, ~gen/c/ast_ast.c~ needs to contain ONLY the functions that
-  ~src/c/ast.c~ also defines. Currently the diff is 4925 lines (useless)
-  because ~gen/c/ast_ast.c~ has ~4700 lines of auto-generated functions
-  that ~src/c/ast.c~ never had.
-
-  The contract: each per-module .c should contain only its OWN function
-  bodies — not the auto-generated helpers that the builder creates.
-  Auto-generated functions (enum helpers, clone/delete/eq/to_str/size)
-  should go in the main file or their own helpers file, not in the
-  per-module split.
-
-  Additionally: ~import~ in til should become ~#include "mod.h"~ in C
-  (separate compilation), not ~#include "mod.c"~ (textual inclusion).
-  The current ~#include "ast_str.c"~ approach works but is not true
-  separate compilation. Each module should be its own TU with its own
-  .h for declarations, linked via the .h include chain.
+  Each til source module gets its own .c (function bodies) and .h
+  (struct definitions + function declarations). Auto-generated functions
+  (clone/delete/eq/to_str/size, enum helpers) stay in the main file.
 
 *** What was done
     - Builder splits function bodies by ~stmt->path~ basename
@@ -43,10 +22,19 @@
     - Copied to bootstrap/ by ctil_core
     - Makefile auto-reverts bootstrap before first cc pass
     - ~make self_diff~ target with gen/self_diff/ output
+    - Auto-generated functions (is_core) filtered to main file only
+    - Per-module .h files: struct/enum definitions + function declarations
+    - Shared ~_decls.h~ with forward declarations (typedef struct X X; + enum tags)
+    - Per-module .h includes ~_decls.h~ + cross-module .h for inline field deps
+    - Per-module .c includes its own .h
+    - Main .c includes all per-module .h files (replaces inline struct typedefs)
+    - forward.h unchanged (full defs for link_c files via -include)
+    - Makefile copies per-module .h files to bootstrap/
+    - 88/88 tests pass
 
 *** What remains
-    - Auto-generated functions should NOT be in per-module files
-    - Per-module .c should only have manually-written-equivalent funcs
+    - forward.h still has full struct defs (needed by link_c); plan said
+      to reduce to forward-decls-only but that would break ext_module.c
     - Document in c2til.org and til2c.org
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting

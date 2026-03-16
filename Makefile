@@ -57,10 +57,12 @@ ctil_core:
 	@cp gen/c/lexer.c bootstrap/lexer.c
 	@cp gen/c/lexer.h bootstrap/lexer.h
 	@cp gen/c/lexer_*.c bootstrap/ 2>/dev/null || true
+	@cp gen/c/lexer_*.h bootstrap/ 2>/dev/null || true
 	@bin/ctil translate src/self/ast.til
 	@cp gen/c/ast.c bootstrap/ast.c
 	@cp gen/c/ast.h bootstrap/ast.h
 	@cp gen/c/ast_*.c bootstrap/ 2>/dev/null || true
+	@cp gen/c/ast_*.h bootstrap/ 2>/dev/null || true
 	#@bin/ctil translate src/self/parser.til
 	#@cp gen/c/parser.c bootstrap/parser.c
 	#@cp gen/c/parser.h bootstrap/parser.h

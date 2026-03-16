@@ -1,3 +1,5 @@
+#include "lexer_core.h"
+
 EnumDef * EnumDef_clone(EnumDef * self) {
     (void)self;
     EnumDef *_t0 = malloc(sizeof(EnumDef));

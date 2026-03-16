@@ -1,3 +1,5 @@
+#include "lexer_str.h"
+
 U64 *Str_size(void) {
     U64 *r = malloc(sizeof(U64));
     *r = (U64)sizeof(Str);

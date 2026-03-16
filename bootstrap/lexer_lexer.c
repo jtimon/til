@@ -1,3 +1,5 @@
+#include "lexer_lexer.h"
+
 Token * Token_clone(Token * self) {
     (void)self;
     I64 _t1595 = I64_clone(&self->line);
