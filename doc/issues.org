@@ -374,34 +374,120 @@
 
    For each C module X replaced by til-compiled equivalent:
 
-   Commit 1 — Unify translation (prove equivalence):
-   1. Write src/self/X.til as exact c2til.org translation of src/c/X.c+h
-   2. Update src/c/X.c+h to define types with the naming/layout that
-      til generates (e.g. ExprData_TAG_*, inline Str, Vec for arrays)
-   3. Update ALL C consumers to use the new naming/layout
-   4. Makefile: add ~ctil translate src/self/X.til~ step
-   5. Verify: generated gen/c/X.c is equivalent to updated src/c/X.c
-   6. ~make test~ passes
-   7. Commit
+   Commit 1 — Unify calling convention (make C match til semantics):
+   1. Update src/c/X.c to match what bootstrap/X.c generates.
+      The key principle: C ~own~ = heap pointer, Vec.push copies +
+      frees, Vec.get returns pointer into buffer. All C callers must
+      use the same pattern: clone before push, single-cast on get.
+   2. Update ALL C consumers to use the new calling convention.
+   3. ~make test~ passes.
+   4. Commit.
 
    Commit 2 — Clean swap:
    1. Makefile: SRCS/HDRS use bootstrap/X.c+h instead of src/c/X.c+h
-   2. ctil_core copies generated code to bootstrap/
+   2. ctil_core translation updated
    3. Delete src/c/X.c, src/c/X.h
    4. ~make test~ passes
    5. Commit
 
-   Commit 2 is trivial because equivalence is already proven in commit 1.
+   Commit 2 is trivial because the calling convention already matches.
+
+*** Calling convention: C must match til ownership semantics
+
+   The C code must follow the same patterns that til generates.
+   Reference: qualifiers.org for arg/return/field mapping.
+
+   Vec of struct values (e.g. Expr children):
+   #+begin_src til
+   // til: Vec stores inline values, push takes ownership
+   children := Vec.new("Expr", Expr.size())
+   add_child := proc(mut self: Expr, own child: Expr) {
+       self.children.push(own child)    // copies + frees child
+   }
+   child := func(parent: Expr, i: I64) returns ref Expr {
+       ref c : Expr = parent.children.get(i.to_u64())
+       return c                         // pointer into Vec buffer
+   }
+   #+end_src
+
+   #+begin_src c
+   // C equivalent (matching til):
+   // Vec_new with sizeof(Expr) — value storage, NOT pointer storage
+   Vec_new(&(Str){"Expr", 4, CAP_LIT}, &(U64){sizeof(Expr)})
+
+   // add_child: push copies sizeof(Expr) bytes, frees original
+   void Expr_add_child(Expr *self, Expr *child) {
+       Vec_push(&self->children, child);  // copies + free(child)
+   }
+
+   // child: single cast, returns pointer INTO Vec buffer
+   Expr *Expr_child(Expr *parent, I64 *i) {
+       return (Expr *)Vec_get(&parent->children, ...);
+   }
+   #+end_src
+
+   #+begin_src c
+   // WRONG (old C pattern — pointer-based, not matching til):
+   Vec_new(&(Str){"", 0, CAP_LIT}, &(U64){sizeof(Expr *)})  // WRONG
+   Expr **_p = malloc(sizeof(Expr *)); *_p = child;
+   Vec_push(&self->children, _p);                             // WRONG
+   *(Expr **)Vec_get(...)                                     // WRONG
+   #+end_src
+
+   Moving children between Vecs (e.g. ctil.c merge pattern):
+   #+begin_src til
+   // til: clone before push (Expr_child returns ref into source Vec,
+   // push would free it — can't free a pointer into another Vec's buffer)
+   mut merged := Vec.new("Expr", Expr.size())
+   for i in 0..ast.children.len() {
+       ref ch : Expr = ast.children.get(i)
+       merged.push(own ch.clone())  // clone → new heap alloc → push copies + frees
+   }
+   #+end_src
+
+   #+begin_src c
+   // C equivalent:
+   Vec merged; { Vec *_vp = Vec_new(..., &(U64){sizeof(Expr)}); merged = *_vp; free(_vp); }
+   for (U32 i = 0; i < ast->children.count; i++) {
+       Expr *ch = Expr_child(ast, &(I64){i});  // ref into ast's Vec buffer
+       Expr *cloned = Expr_clone(ch);           // new heap allocation
+       Vec_push(&merged, cloned);               // copies sizeof(Expr), frees cloned
+   }
+   #+end_src
+
+   Assigning to an existing children slot:
+   #+begin_src c
+   // C: copy into slot, free the source
+   Expr *new_val = Expr_new(...);
+   memcpy(Vec_get(&e->children, &(U64){idx}), new_val, sizeof(Expr));
+   free(new_val);
+   #+end_src
 
 *** WIP Step 4: Replace C ast with til-compiled ast
-   Replace src/c/ast.c+h with bootstrap/ast.c+h (generated from
-   src/self/ast.til). Since ast.til imports lexer.til which imports
-   core.til, bootstrap/ast subsumes bootstrap/lexer.
 
-   Also in this step:
-   - Move src/bootstrap/ → bootstrap/ (root level)
-   - .gitattributes: ~bootstrap/** linguist-generated~ (generic glob)
-   - Eliminate compat.c/h — merge into ast.c/h
+**** Commit 1: Unify calling convention
+     Change src/c/ast.c to value-based children (match bootstrap/ast.c).
+     Change ALL callers in src/c/ and src/ctil.c:
+     - ~sizeof(Expr *)~ → ~sizeof(Expr)~ in Vec creation (~100 sites)
+     - ~{ Expr **_p = malloc(...); *_p = ch; Vec_push(&v, _p); }~ →
+       ~Vec_push(&v, Expr_clone(ch));~ when ch is from Expr_child, or
+       ~Vec_push(&v, ch);~ when ch is from Expr_new (already owned)
+     - ~*(Expr **)Vec_get(...)~ → ~(Expr *)Vec_get(...)~
+     - ~*(Expr**)Vec_get(&x->children, &idx) = val;~ →
+       ~memcpy(Vec_get(&x->children, &idx), val, sizeof(Expr)); free(val);~
+     - ~memmove~ with ~sizeof(Expr *)~ → ~sizeof(Expr)~
+     - Expr_clone: clone children by value into new Vec
+     Files: ast.c, ast.h, ctil.c, typer.c, parser.c, dispatch.c,
+            til_bridge.c, scavenger.c
+
+**** Commit 2: Clean swap
+     - Makefile: SRCS bootstrap/lexer.c → bootstrap/ast.c
+     - Makefile: HDRS bootstrap/lexer.h → bootstrap/ast.h
+     - ctil_core: remove lexer.til translation (ast.til subsumes it)
+     - src/c/ast.h: change ~#include "../../bootstrap/lexer.h"~ →
+       ~#include "../../bootstrap/ast.h"~
+     - Delete src/c/ast.c (all functions now in bootstrap/ast.c)
+     - ~make test~ passes
 
 *** Order
    1. Builder: link_c emits #include in generated .c (not separate compile)

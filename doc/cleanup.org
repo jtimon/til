@@ -162,22 +162,25 @@
 
 ** Expr children: pointer-based vs value-based
 
-*** Hand-written (ast.c): sizeof(Expr*) elements
-    ~Expr_new~: ~Vec_new("", sizeof(Expr *))~
-    ~Expr_add_child~: ~Expr **_p = malloc(sizeof(Expr *)); *_p = child; Vec_push(...)~
-    ~Expr_child~ (inline): ~*(Expr **)Vec_get(...)~
+*** The C code is wrong, not the til code
+    The bootstrap (from ast.til) uses value-based children — this is
+    the correct til ownership semantics. Vec.push(own val) copies
+    elem_size bytes and frees the original (see vec.til line 24-25).
+    Vec.get returns a ref (pointer into the Vec buffer).
 
-*** Bootstrap (ast.c): sizeof(Expr) elements
-    ~Expr_new~: ~Vec_new("Expr", sizeof(Expr))~ (via Expr_size())
-    ~Expr_add_child~: ~Vec_push(&self->children, child)~ (copies full struct)
-    ~Expr_child~: ~(Expr *)Vec_get(...)~ (pointer into Vec data)
+    The hand-written C uses pointer-based children as an optimization
+    that doesn't match til semantics. This must be fixed in the C code
+    before the clean swap to bootstrap.
 
-*** Impact
-    ctil.c's merge pattern stores Expr_child() results as pointers in
-    a separate Vec, then swaps children. With value-based children,
-    freeing the old Vec invalidates stored pointers → dangling.
-    Currently works because pointer-based ast.c wins via link order.
-    Must be resolved before ast.c can be fully eliminated.
+*** Fix: make C match til
+    - ~Vec_new("Expr", sizeof(Expr))~ not ~sizeof(Expr *)~
+    - ~Vec_push(&children, child)~ — push copies + frees child
+    - ~(Expr *)Vec_get(...)~ — single cast, pointer into buffer
+    - When moving children between Vecs: ~Expr_clone(ch)~ before push
+      (can't free a pointer into another Vec's buffer)
+    - When assigning to a slot: ~memcpy(Vec_get(...), val, sizeof(Expr)); free(val)~
+
+    See #39 step 4 for the full blueprint with code examples.
 
 ** ctil.c vs til.til equivalence gaps
 
