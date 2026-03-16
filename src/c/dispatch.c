@@ -984,9 +984,11 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
         char pid_buf[32];
         snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
         so_path = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
-        system("mkdir -p tmp gen/c");
-        // Generate forward.h so link_c file can see all types
-        Str *fwd_path = &(Str){.c_str = (U8*)"gen/c/forward.h", .count = 15, .cap = CAP_LIT};
+        system("mkdir -p tmp");
+        // Generate per-PID forward.h so link_c file can see all types (race-safe)
+        char fwd_buf[64];
+        snprintf(fwd_buf, sizeof(fwd_buf), "tmp/ffi_%d_forward.h", (int)getpid());
+        Str *fwd_path = Str_clone(&(Str){.c_str = (U8*)(fwd_buf), .count = (U64)strlen((const char*)(fwd_buf)), .cap = CAP_VIEW});
         build_forward_header(program, fwd_path);
         Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
         Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(

@@ -1689,11 +1689,12 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
         return 1;
     }
 
-    // Emit forward.h alongside the .c file
+    // Emit per-program forward.h alongside the .c file (e.g. gen/c/foo_forward.h)
     {
         I64 slash = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        Str *fwd_dir = slash >= 0 ? Str_substr(c_output_path, &(U64){0}, &(U64){(U64)slash}) : &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
-        Str *fwd_path = Str_concat(fwd_dir, &(Str){.c_str = (U8*)"/forward.h", .count = 10, .cap = CAP_LIT});
+        I64 dot = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+        Str *base = (dot > slash) ? Str_substr(c_output_path, &(U64){0}, &(U64){(U64)dot}) : c_output_path;
+        Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
         build_forward_header(program, fwd_path);
     }
 
@@ -2660,11 +2661,12 @@ I32 build_header(Expr *program, Str *h_path) {
             }
         }
     }
-    // Emit forward.h alongside the .h file
+    // Emit per-program forward.h alongside the .h file
     {
         I64 slash = *Str_rfind(h_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        Str *fwd_dir = slash >= 0 ? Str_substr(h_path, &(U64){0}, &(U64){(U64)slash}) : &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
-        Str *fwd_path = Str_concat(fwd_dir, &(Str){.c_str = (U8*)"/forward.h", .count = 10, .cap = CAP_LIT});
+        I64 dot = *Str_rfind(h_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+        Str *base = (dot > slash) ? Str_substr(h_path, &(U64){0}, &(U64){(U64)dot}) : h_path;
+        Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
         build_forward_header(program, fwd_path);
     }
 
@@ -3163,7 +3165,9 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     if (user_c_path) {
         I64 c_slash = *Str_rfind(c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
         Str *c_dir = c_slash >= 0 ? Str_substr(c_path, &(U64){0}, &(U64){(U64)c_slash}) : &_dot_str;
-        Str *fwd_path = Str_concat(c_dir, &(Str){.c_str = (U8*)"/forward.h", .count = 10, .cap = CAP_LIT});
+        I64 c_dot = *Str_rfind(c_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+        Str *c_base = (c_dot > c_slash) ? Str_substr(c_path, &(U64){0}, &(U64){(U64)c_dot}) : c_path;
+        Str *fwd_path = Str_concat(c_base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
         Str *user_obj = Str_concat(c_dir, &(Str){.c_str = (U8*)"/user.o", .count = 7, .cap = CAP_LIT});
 
         Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
