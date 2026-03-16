@@ -3261,7 +3261,15 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (first_if) Expr_add_child(block, first_if);
 
             // Replace ExprData_TAG_Switch with desugared block
-            *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *block;
+            {
+                Expr *slot = (Expr*)Vec_get(&body->children, &(U64){(U64)(i)});
+                *slot = *block;
+                // Deep-copy children buffer so slot doesn't share with block
+                U64 sz = block->children.count * block->children.elem_size;
+                slot->children.data = malloc(sz ? sz : 1);
+                memcpy(slot->children.data, block->children.data, sz);
+                slot->children.cap = block->children.count ? block->children.count : 1;
+            }
             i--; // re-visit to type-check
             break;
         }
@@ -3447,7 +3455,14 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Expr_add_child(block, while_node);
 
             // Replace FOR_IN with the desugared block in parent body
-            *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *block;
+            {
+                Expr *slot = (Expr*)Vec_get(&body->children, &(U64){(U64)(i)});
+                *slot = *block;
+                U64 sz = block->children.count * block->children.elem_size;
+                slot->children.data = malloc(sz ? sz : 1);
+                memcpy(slot->children.data, block->children.data, sz);
+                slot->children.cap = block->children.count ? block->children.count : 1;
+            }
             i--; // re-visit to type-check the replacement
             break;
         }

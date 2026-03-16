@@ -59,7 +59,8 @@ void Expr_lang_error(Expr *self, Str *msg) {
 }
 
 void Expr_add_child(Expr *self, Expr *child) {
-    { Expr *_p = malloc(sizeof(Expr)); *_p = *child; Vec_push(&self->children, _p); }
+    Expr *_p = malloc(sizeof(Expr)); *_p = *child;
+    Vec_push(&self->children, _p);
 }
 
 Expr *Expr_new(ExprData *data, U32 line, U32 col, Str *path) {
