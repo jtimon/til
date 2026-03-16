@@ -1,4 +1,5 @@
 #pragma once
+#include "aliases.h"
 
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
@@ -140,8 +141,6 @@ typedef enum {
 } ExprData_tag;
 typedef struct ExprData ExprData;
 typedef struct Expr Expr;
-
-#include "ext.h"
 
 typedef struct StructDef {
     char _;
@@ -617,4 +616,6 @@ Bool * ExprData_is_Switch(ExprData *);
 ExprData *ExprData_Switch();
 Bool * ExprData_is_Case(ExprData *);
 ExprData *ExprData_Case();
+
+#include "ext.h"
 

@@ -23,7 +23,6 @@ lib/libffi/.built:
 
 bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
-	@$(MAKE) revert_bootstrap
 	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
 	@$(MAKE) ctil_core
 	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil

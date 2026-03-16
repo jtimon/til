@@ -2923,11 +2923,10 @@ I32 build_header(Expr *program, Str *h_path) {
         return 1;
     }
 
-    fprintf(f, "#pragma once\n\n");
+    fprintf(f, "#pragma once\n#include \"aliases.h\"\n\n");
     emit_header_forward_decls(f, program);
-    fprintf(f, "#include \"ext.h\"\n\n");
-
     emit_header_defs_and_funcs(f, program);
+    fprintf(f, "#include \"ext.h\"\n\n");
 
     fclose(f);
     return 0;
