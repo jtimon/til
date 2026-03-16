@@ -3,6 +3,9 @@
 
 #include "../../bootstrap/lexer.h"
 #include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <limits.h>
 
 // --- TilType (struct wrapping tag, matches til codegen) ---
 
@@ -162,19 +165,114 @@ void Expr_error(Expr *self, Str *msg);
 void Expr_todo_error(Expr *self, Str *msg);
 void Expr_lang_error(Expr *self, Str *msg);
 
-static inline Expr *Expr_child(Expr *parent, I64 *i) {
-    return (Expr *)Vec_get(&parent->children, &(U64){(U64)(*i)});
-}
-
-static inline I64 Expr_child_count(Expr *parent) {
-    return (I64)parent->children.count;
-}
-
-// Old-style macro (used by ast.c internals)
+Expr *Expr_child(Expr *parent, I64 *i);
+I64 *Expr_child_count(Expr *parent);
 #define expr_child(e, i) ((Expr *)Vec_get(&(e)->children, &(U64){(U64)(i)}))
 
-// --- Vec helper (in initer.c) ---
-
+#ifndef TIL_CAP_LIT
+#define TIL_CAP_LIT ULLONG_MAX
+#endif
+#define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
+Str *Str_lit(const char *s, unsigned long long len);
+void print_single(Str *s);
+void print_flush(void);
+Str *U32_to_str(U32 *val);
+Bool *U64_lt(U64 *a, U64 *b);
+Bool *U64_gt(U64 *a, U64 *b);
+Bool *TilType_eq(TilType *, TilType *);
+Str *TilType_to_str(TilType *self);
+U64 *TilType_size(void);
+TilType *TilType_Unknown();
+TilType *TilType_None();
+TilType *TilType_I64();
+TilType *TilType_U8();
+TilType *TilType_I16();
+TilType *TilType_I32();
+TilType *TilType_U32();
+TilType *TilType_U64();
+TilType *TilType_F32();
+TilType *TilType_Bool();
+TilType *TilType_Struct();
+TilType *TilType_StructDef();
+TilType *TilType_Enum();
+TilType *TilType_EnumDef();
+TilType *TilType_FuncDef();
+TilType *TilType_FuncPtr();
+TilType *TilType_Dynamic();
+Bool *Declaration_eq(Declaration *a, Declaration *b);
+Str *Declaration_to_str(Declaration *self);
+U64 *Declaration_size(void);
+Bool *ExprData_eq(ExprData *, ExprData *);
+Str *ExprData_to_str(ExprData *self);
+U64 *ExprData_size(void);
+Bool *ExprData_is_Body(ExprData *);
+ExprData *ExprData_Body();
+Bool *ExprData_is_LiteralStr(ExprData *);
+ExprData *ExprData_LiteralStr(Str *);
+Str *ExprData_get_LiteralStr(ExprData *);
+Bool *ExprData_is_LiteralNum(ExprData *);
+ExprData *ExprData_LiteralNum(Str *);
+Str *ExprData_get_LiteralNum(ExprData *);
+Bool *ExprData_is_LiteralBool(ExprData *);
+ExprData *ExprData_LiteralBool(Str *);
+Str *ExprData_get_LiteralBool(ExprData *);
+Bool *ExprData_is_LiteralNull(ExprData *);
+ExprData *ExprData_LiteralNull();
+Bool *ExprData_is_Ident(ExprData *);
+ExprData *ExprData_Ident(Str *);
+Str *ExprData_get_Ident(ExprData *);
+Bool *ExprData_is_Decl(ExprData *);
+ExprData *ExprData_Decl(Declaration *);
+Declaration *ExprData_get_Decl(ExprData *);
+Bool *ExprData_is_Assign(ExprData *);
+ExprData *ExprData_Assign(Str *);
+Str *ExprData_get_Assign(ExprData *);
+Bool *ExprData_is_FCall(ExprData *);
+ExprData *ExprData_FCall();
+Bool *ExprData_is_FuncDef(ExprData *);
+ExprData *ExprData_FuncDef(FunctionDef *);
+FunctionDef *ExprData_get_FuncDef(ExprData *);
+Bool *ExprData_is_StructDef(ExprData *);
+ExprData *ExprData_StructDef();
+Bool *ExprData_is_EnumDef(ExprData *);
+ExprData *ExprData_EnumDef();
+Bool *ExprData_is_FieldAccess(ExprData *);
+ExprData *ExprData_FieldAccess(Str *);
+Str *ExprData_get_FieldAccess(ExprData *);
+Bool *ExprData_is_FieldAssign(ExprData *);
+ExprData *ExprData_FieldAssign(Str *);
+Str *ExprData_get_FieldAssign(ExprData *);
+Bool *ExprData_is_Return(ExprData *);
+ExprData *ExprData_Return();
+Bool *ExprData_is_If(ExprData *);
+ExprData *ExprData_If();
+Bool *ExprData_is_While(ExprData *);
+ExprData *ExprData_While();
+Bool *ExprData_is_ForIn(ExprData *);
+ExprData *ExprData_ForIn(Str *);
+Str *ExprData_get_ForIn(ExprData *);
+Bool *ExprData_is_NamedArg(ExprData *);
+ExprData *ExprData_NamedArg(Str *);
+Str *ExprData_get_NamedArg(ExprData *);
+Bool *ExprData_is_Break(ExprData *);
+ExprData *ExprData_Break();
+Bool *ExprData_is_Continue(ExprData *);
+ExprData *ExprData_Continue();
+Bool *ExprData_is_MapLit(ExprData *);
+ExprData *ExprData_MapLit();
+Bool *ExprData_is_SetLit(ExprData *);
+ExprData *ExprData_SetLit();
+Bool *ExprData_is_Switch(ExprData *);
+ExprData *ExprData_Switch();
+Bool *ExprData_is_Case(ExprData *);
+ExprData *ExprData_Case();
+U64 *Expr_size(void);
+FuncType *FuncType_Func();
+FuncType *FuncType_Proc();
+FuncType *FuncType_Test();
+FuncType *FuncType_Macro();
+FuncType *FuncType_ExtFunc();
+FuncType *FuncType_ExtProc();
 void *Vec_take(Vec *v);
 
 #endif

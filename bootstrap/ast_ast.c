@@ -559,7 +559,7 @@ Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path) {
     (void)_t2676;
     ;
     ;
-    Str *_t2677 = Str_lit("Expr", 4ULL);
+    Str *_t2677 = Str_lit("", 0ULL);
     (void)_t2677;
     U64 _t2678; { U64 *_hp = (U64 *)Expr_size(); _t2678 = *_hp; free(_hp); }
     (void)_t2678;

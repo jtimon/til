@@ -1,10 +1,20 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 76
+# NEXT_ISSUE: 77
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #76 Precomp: struct default value temps leak into wrong function scope
+  When a struct field has a non-trivial default value (e.g.
+  ~variadic_index : I32 = 0.sub(1).to_i32()~), the precomp inlines
+  the default computation temps into the calling function. If the
+  struct definition changes (shifting temp IDs), the inlined temps
+  reference IDs from the old numbering, causing "undeclared variable"
+  errors in the generated C code.
+  Reproduces with: ~bin/ctil run src/test/parsing.til~ after changing
+  any field default in ast.til (e.g. children elem_type "" vs "Expr").
 
 
 ** WIP #71 Bootstrap cleanup: fix incompatibilities before self-hosting

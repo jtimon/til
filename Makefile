@@ -86,6 +86,33 @@ bin/ctil_dbg: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 revert_bootstrap:
 	git checkout HEAD -- bootstrap/
 
+tmp_run_tests: bin/c/tests
+	@bin/c/tests $(if $(J),-j$(J))
+
+tmp_gdb_functions:
+	@echo "r run src/test/functions.til" | gdb -batch -ex run -ex bt bin/ctil --args bin/ctil run src/test/functions.til 2>&1 || true
+
+tmp_run_functions:
+	@bin/ctil run src/test/functions.til 2>&1 || true
+
+tmp_run_ref:
+	@bin/ctil run src/test/ref.til 2>&1 || true
+
+tmp_gdb_til:
+	@gdb -batch -ex run -ex bt bin/c/til --args bin/c/til translate src/til.til 2>&1 || true
+
+tmp_run_structs:
+	@bin/ctil run src/test/structs.til 2>&1 || true
+
+tmp_run_parsing:
+	@bin/ctil run src/test/parsing.til 2>&1 || true
+
+tmp_interpret_functions:
+	@bin/ctil interpret src/test/functions.til 2>&1 || true
+
+tmp_run_til_asan:
+	@bin/c/til_asan translate src/til.til || true
+
 clean:
 	rm -rf bin/*
 	$(MAKE) -C lib/raylib/src clean

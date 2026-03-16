@@ -377,6 +377,7 @@ static U64 *CAP_VIEW;
 void EnumDef_delete(EnumDef * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     if (DEREF(call_free)) {
         free(self);
     }
@@ -547,6 +548,7 @@ FuncType * FuncType_clone(FuncType * self) {
 void FuncType_delete(FuncType * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     if (DEREF(call_free)) {
         free(self);
     }
@@ -636,6 +638,7 @@ Str * FunctionDef_to_str(FunctionDef * self) {
 void FunctionDef_delete(FunctionDef * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     Bool _t41 = 0;
     (void)_t41;
     FuncType_delete(&self->func_type, &(Bool){_t41});
@@ -1202,6 +1205,7 @@ Range * Range_clone(Range * val) {
 void Range_delete(Range * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     if (DEREF(call_free)) {
         free(self);
     }
@@ -1416,6 +1420,7 @@ void Array_set(Array * self, U64 * i, void * val) {
 void Array_delete(Array * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     {
         U64 _fi444 = 0;
         (void)_fi444;
@@ -2048,6 +2053,7 @@ void Map_set(Map * self, void * key, void * val) {
 void Map_delete(Map * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     Bool _t613; { Bool *_hp = (Bool *)Str_is_empty(&self->key_type); _t613 = *_hp; free(_hp); }
     (void)_t613;
     Bool _t614 = Bool_not(_t613);
@@ -2608,6 +2614,7 @@ void Set_add(Set * self, void * val) {
 void Set_delete(Set * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     Bool _t725; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t725 = *_hp; free(_hp); }
     (void)_t725;
     Bool _t726 = Bool_not(_t725);
@@ -3055,6 +3062,7 @@ Str * Str_clone(Str * val) {
 void Str_delete(Str * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     Bool _t808; { Bool *_hp = (Bool *)U64_lt(&self->cap, CAP_VIEW); _t808 = *_hp; free(_hp); }
     (void)_t808;
     if (_t808) {
@@ -4296,6 +4304,7 @@ void * Vec_get(Vec * self, U64 * i) {
 void Vec_delete(Vec * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     Bool _t1111; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1111 = *_hp; free(_hp); }
     (void)_t1111;
     Bool _t1112 = Bool_not(_t1111);
@@ -4688,6 +4697,7 @@ U64 * Tuple_size_at(Tuple * self, U64 * i) {
 void Tuple_delete(Tuple * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     U64 *offset = malloc(sizeof(U64));
     *offset = 0;
     (void)offset;
@@ -6598,6 +6608,7 @@ TokenType * TokenType_clone(TokenType * self) {
 void TokenType_delete(TokenType * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     if (DEREF(call_free)) {
         free(self);
     }
@@ -7214,6 +7225,7 @@ U64 *TokenType_size(void) {
 void Token_delete(Token * self, Bool * call_free) {
     (void)self;
     (void)call_free;
+    if (!self) return;
     Bool _t1601 = 0;
     (void)_t1601;
     TokenType_delete(&self->type, &(Bool){_t1601});

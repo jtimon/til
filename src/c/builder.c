@@ -1310,6 +1310,12 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, 
         fprintf(f, ") {\n");
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++)
             fprintf(f, "    (void)%s;\n", ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)}))->c_str);
+        // NULL guard for struct delete methods (self may be NULL)
+        if (name->count > 7 && memcmp(name->c_str + name->count - 7, "_delete", 7) == 0 &&
+            func_def->data.data.FuncDef.nparam >= 1 &&
+            ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){0}))->count == 4 &&
+            memcmp(((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){0}))->c_str, "self", 4) == 0)
+            fprintf(f, "    if (!self) return;\n");
         in_func_def = 1;
         current_fdef = func_def;
         // Save/restore shallow_locals and unsafe_to_hoist per function
