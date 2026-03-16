@@ -1,11 +1,122 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 74
+# NEXT_ISSUE: 75
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
 
+
+** OPEN #74 Builder: emit separate .c per source module
+  :BLOCKS: #39
+
+  Currently ~ctil translate ast.til~ merges all imports into one
+  monolithic .c file. Change the builder to emit one .c per source
+  .til file, with the main .c ~#include~-ing the per-module .c files.
+
+  ~import~ in til becomes ~#include~ in C.
+
+*** Directory structure
+
+    Lib-like modes (lib/liba/pure/pura) skip scavenging → output is
+    deterministic. Per-module files go in ~gen/c/lib/~:
+    #+begin_src
+    ctil translate src/self/ast.til (mode lib)
+    → gen/c/lib/str.c        (str.til function bodies)
+      gen/c/lib/vec.c        (vec.til function bodies)
+      gen/c/lib/map.c        ...
+      gen/c/lib/set.c
+      gen/c/lib/array.c
+      gen/c/lib/tuple.c
+      gen/c/lib/core.c       (core.til — may be empty, just imports)
+      gen/c/lib/lexer.c      (lexer.til function bodies)
+      gen/c/lib/ast.c        (ast.til function bodies — diffable vs src/c/ast.c)
+      gen/c/lib/forward.h    (all declarations)
+    #+end_src
+
+    Scavenged modes (script/cli/gui/test) produce different subsets
+    per program. Per-program subdirectory:
+    #+begin_src
+    ctil build src/examples/gui_hello.til (mode gui)
+    → gen/c/gui_hello/gui_hello.c   (entry point: #includes + dyn_call + main)
+      gen/c/gui_hello/str.c         (scavenged subset)
+      gen/c/gui_hello/vec.c         ...
+      gen/c/gui_hello/forward.h
+    #+end_src
+
+*** Main .c structure
+
+    The main .c (entry point, what compile_c compiles) contains:
+    #+begin_src c
+    // preamble: includes, forward declarations, struct/enum defs,
+    // DEREF macro, Str_lit, print_single, print_flush
+    // (all unchanged from current monolithic emission)
+
+    // Per-module function bodies via #include
+    #include "str.c"
+    #include "vec.c"
+    #include "map.c"
+    // ... one per imported module ...
+    #include "lexer.c"
+    #include "ast.c"
+
+    // Program-level: globals, dyn_call, array/vec helpers, main()
+    #+end_src
+
+    Each per-module .c has NO includes — it's included by the main
+    file which provides the preamble. Contains only function bodies.
+
+*** Grouping by path
+
+    Each Expr has a ~path~ field (absolute, set by parser, survives
+    typer/precomp/scavenger). Builder groups top-level declarations
+    by path basename (~rfind("/")~, strip ~.til~).
+
+    Synthetic nodes (typer-inserted clone/delete calls, hoisted temps)
+    inherit path from the expression they derive from → stay in the
+    right module.
+
+*** Implementation: builder.c build()
+
+    Only the function body emission loop (lines 2096-2111) changes:
+
+    1. Before the loop: collect unique path basenames from top-level
+       declarations. Open one FILE* per basename. Store in Map.
+       Derive output dir: ~gen/c/lib/~ for lib modes, ~gen/c/<name>/~
+       for scavenged modes.
+    2. In the loop: for each stmt, derive basename from ~stmt->path~,
+       look up FILE* from Map, call ~emit_struct_funcs~ /
+       ~emit_enum_def~ / ~emit_func_def~ with that FILE* instead of f.
+    3. After the loop: close all per-module files. Write ~#include~
+       lines into main file f (one per module).
+    4. dyn_call, array/vec helpers, main() continue using f (main file).
+
+    Everything above the function body loop (preamble, forward decls,
+    struct defs, helpers) stays in the main file unchanged.
+
+    compile_c unchanged — it compiles the main .c which #includes
+    the rest.
+
+*** Considerations
+
+    - Pipeline (parse, merge, type check, precomp, scavenge) unchanged.
+    - Interpreter unchanged — works on merged AST.
+    - Scavenged programs use per-program subdirectory → no race.
+    - Lib modules share ~gen/c/lib/~ → stable, deterministic, no race
+      (only one translate per module at a time).
+    - Scavenged programs could ~#include "../lib/str.c"~ instead of
+      re-emitting scavenged subsets (future optimization, not now).
+
+*** Enables diff-driven #39
+
+    ~gen/c/lib/ast.c~ contains only ast function bodies → directly
+    diffable against ~src/c/ast.c~. The diff IS the todo list.
+    When diff is empty → clean swap (delete src/c/ast.c).
+
+*** Documentation
+
+    Update c2til.org: ~import~ → ~#include~.
+    Create til2c.org: ownership semantics mapping.
 
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
   :BLOCKS: #39 #12
@@ -262,7 +373,7 @@
   operations are on the hot path for the compiler.
 
 ** WIP #39 Replace ctil with til (bottom-up C elimination)
-  :DEPENDENCIES: #12 #71
+  :DEPENDENCIES: #12 #71 #74
   Replace C modules in ctil with their til-compiled equivalents,
   bottom-up. The inverse of #12: where #12 builds til.til top-down
   (FFI into C libs, replace with native til), this works bottom-up
@@ -463,7 +574,17 @@
    free(new_val);
    #+end_src
 
-*** WIP Step 4: Replace C ast with til-compiled ast
+*** Step 4a: Diff-driven module matching (#74 prerequisite)
+    Once #74 is done (builder emits separate .c per source module):
+    1. ~ctil translate ast.til~ produces gen/c/ast.c with ONLY ast
+       functions (not core/lexer mixed in)
+    2. Diff gen/c/ast.c vs src/c/ast.c — the diff IS the todo list
+    3. Fix differences one function at a time until diff is empty
+    4. Add codegen diff test in tests.til per module (same pattern as
+       existing ~gen/c/til.c~ vs ~gen/til/til.c~ check)
+    5. Repeat for each subsequent module (parser, initer, typer, etc.)
+
+*** Step 4b: Replace C ast with til-compiled ast
 
 **** Commit 1: Unify calling convention
      Change src/c/ast.c to value-based children (match bootstrap/ast.c).
