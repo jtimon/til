@@ -77,21 +77,21 @@ void expr_swap_children(Expr *e, Vec *new_children) {
     new_children->cap = 0;
 }
 
-// Create new Vec for collecting Expr* (elem_size = sizeof(Expr*))
+// Create new Vec for collecting Expr values (elem_size = sizeof(Expr))
 Vec *expr_vec_new(void) {
     Vec *v = malloc(sizeof(Vec));
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); *v = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); *v = *_vp; free(_vp); }
     return v;
 }
 
-// Push an Expr* into a Vec
+// Push an Expr into a Vec (clones e, takes ownership of clone)
 void expr_vec_push(Vec *v, Expr *e) {
-    { Expr **_p = malloc(sizeof(Expr *)); *_p = e; Vec_push(v, _p); }
+    Vec_push(v, Expr_clone(e));
 }
 
 // Get Expr* from Vec at index i
 Expr *expr_vec_get(Vec *v, U32 i) {
-    return *(Expr **)Vec_get(v, &(U64){(U64)(i)});
+    return (Expr *)Vec_get(v, &(U64){(U64)(i)});
 }
 
 U32 expr_vec_count(Vec *v) { return v->count; }

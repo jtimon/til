@@ -379,7 +379,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     break;
                 }
                 // Desugar: rewrite AST to Type.method(instance, args)
-                Expr *instance = obj;
+                Expr *instance = Expr_clone(obj); // clone before fa->children overwrite
                 Expr *type_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, obj->line, obj->col, &obj->path);
                 type_ident->data.data.Ident = *type_name;
                 *(Expr*)Vec_get(&fa->children, &(U64){(U64)(0)}) = *type_ident;
@@ -390,7 +390,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     Expr *ch = (Expr *)e->children.data;
                     memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
                 }
-                *(Expr*)Vec_get(&e->children, &(U64){(U64)(1)}) = *Expr_clone(instance);
+                *(Expr*)Vec_get(&e->children, &(U64){(U64)(1)}) = *instance;
                 // Fall through -- existing code below handles Type.method(instance, args)
                 // Re-fetch after e->children mutation (push may realloc)
                 fa = Expr_child(e, &(I64){(I64)(0)});
@@ -544,8 +544,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         Bool pown = (*(Bool*)Vec_get(&po, &(U64){(U64)(i - 1)}));
                         if (pown && !Expr_child(e, &(I64){(I64)(i)})->is_own_arg) {
                             char buf[128];
-                            snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
-                                     ((Str*)Vec_get(&ns_func->data.data.FuncDef.param_names, &(U64){(U64)(i - 1)}))->c_str);
+                            snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own' [tag=%d own=%d]",
+                                     ((Str*)Vec_get(&ns_func->data.data.FuncDef.param_names, &(U64){(U64)(i - 1)}))->c_str,
+                                     Expr_child(e, &(I64){(I64)(i)})->data.tag,
+                                     Expr_child(e, &(I64){(I64)(i)})->is_own_arg);
                             type_error(Expr_child(e, &(I64){(I64)(i)}), buf);
                         } else if (!pown && Expr_child(e, &(I64){(I64)(i)})->is_own_arg) {
                             char buf[128];

@@ -141,7 +141,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     Expr *eval_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, fcall->line, fcall->col, &fcall->path);
     eval_call->til_type = fcall->til_type;
     eval_call->struct_name = fcall->struct_name;
-    Expr_add_child(eval_call, Expr_child(fcall, &(I64){(I64)(0)})); // callee ident
+    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(I64){(I64)(0)}))); // callee ident (clone — borrowed ref)
 
     for (U32 i = 0; i < nargs; i++) {
         Expr *arg = Expr_child(fcall, &(I64){(I64)(i + 1)});
@@ -167,7 +167,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Clean up eval_call (detach callee ident first — it's shared with original)
     memset(Vec_get(&eval_call->children, &(U64){(U64)(0)}), 0, sizeof(Expr));
     for (U32 i = 1; i < eval_call->children.count; i++)
-        Expr_delete(Expr_child(eval_call, &(I64){(I64)(i)}), &(Bool){1});
+        Expr_delete(Expr_child(eval_call, &(I64){(I64)(i)}), &(Bool){0});
     Vec_delete(&eval_call->children, &(Bool){0});
     free(eval_call);
 
@@ -186,7 +186,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
 static void track_literal(Scope *scope, Str *name, Expr *rhs) {
     Value v;
     if (is_known(rhs, &v)) {
-        { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(v)); memcpy(_v, &v, sizeof(v)); Map_set(&known, _k, _v); }
+        { Str *_k = Str_clone(name); void *_v = malloc(sizeof(v)); memcpy(_v, &v, sizeof(v)); Map_set(&known, _k, _v); }
         scope_set_owned(scope, name, v);
     }
 }
@@ -215,14 +215,14 @@ static void process_body(Scope *scope, Expr *body) {
             if (is_macro_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 1);
                 if (lit) {
-                    Expr_delete(Expr_child(stmt, &(I64){(I64)(0)}), &(Bool){1});
+                    Expr_delete(Expr_child(stmt, &(I64){(I64)(0)}), &(Bool){0});
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
                     track_literal(scope, DECL_NAME(stmt), lit);
                 }
             } else if (is_func_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
                 if (lit) {
-                    Expr_delete(Expr_child(stmt, &(I64){(I64)(0)}), &(Bool){1});
+                    Expr_delete(Expr_child(stmt, &(I64){(I64)(0)}), &(Bool){0});
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
                     track_literal(scope, DECL_NAME(stmt), lit);
                 } else {
@@ -278,9 +278,27 @@ void precomp(Expr *program) {
         if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
             FuncType ft = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
             if (ft.tag == FuncType_TAG_Macro)
-                { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&macros, _p); }
+                { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(&stmt->data.data.Decl.name)->c_str, stmt->data.data.Decl.name.count, stmt->data.data.Decl.name.count}; Set_add(&macros, _p); }
             else if (ft.tag == FuncType_TAG_Func)
-                { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&funcs, _p); }
+                { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(&stmt->data.data.Decl.name)->c_str, stmt->data.data.Decl.name.count, stmt->data.data.Decl.name.count}; Set_add(&funcs, _p); }
+        }
+        // Register namespace funcs from struct/enum bodies
+        if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 &&
+            (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
+             Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            Str *sname = &stmt->data.data.Decl.name;
+            Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)});
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (field->data.data.Decl.is_namespace &&
+                    Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    FuncType ft = Expr_child(field, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+                    if (ft.tag == FuncType_TAG_Func) {
+                        Str *qname = Str_concat(Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT}), &field->data.data.Decl.name);
+                        { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(qname)->c_str, qname->count, qname->count}; Set_add(&funcs, _p); }
+                    }
+                }
+            }
         }
     }
 

@@ -75,6 +75,10 @@ bin/ctil_asan: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
 	cc -Wall -Wextra -g -fsanitize=address -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_asan
 
+bin/c/til_asan: bin/ctil $(CORE) $(SELF) src/til.til
+	@bin/ctil translate src/til.til
+	cc -Wall -Wextra -g -fsanitize=address -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/c/til_asan
+
 bin/ctil_dbg: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
 	cc -Wall -Wextra -g -O0 -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_dbg

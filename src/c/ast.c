@@ -4,10 +4,72 @@
 #include <stdio.h>
 #include <string.h>
 
-// --- TilType clone/delete (no-ops) ---
+TilType *TilType_clone(TilType *self) {
+    TilType *c = malloc(sizeof(TilType));
+    *c = *self;
+    return c;
+}
 
-TilType *TilType_clone(TilType *self) { return self; }
-void TilType_delete(TilType *self, Bool *call_free) { (void)self; (void)call_free; }
+void TilType_delete(TilType *self, Bool *call_free) {
+    if (*call_free) free(self);
+}
+
+Declaration *Declaration_clone(Declaration *self) {
+    Declaration *c = malloc(sizeof(Declaration));
+    *c = *self;
+    { Str *_ca = Str_clone(&self->name); c->name = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->explicit_type); c->explicit_type = *_ca; free(_ca); }
+    return c;
+}
+
+void Declaration_delete(Declaration *self, Bool *call_free) {
+    Str_delete(&self->name, &(Bool){0});
+    Str_delete(&self->explicit_type, &(Bool){0});
+    if (*call_free) free(self);
+}
+
+ExprData *ExprData_clone(ExprData *self) {
+    ExprData *c = malloc(sizeof(ExprData));
+    *c = *self;
+    switch (self->tag) {
+    case ExprData_TAG_LiteralStr: case ExprData_TAG_LiteralNum:
+    case ExprData_TAG_LiteralBool: case ExprData_TAG_Ident:
+    case ExprData_TAG_Assign: case ExprData_TAG_ForIn:
+    case ExprData_TAG_FieldAccess: case ExprData_TAG_FieldAssign:
+    case ExprData_TAG_NamedArg:
+        { Str *_ca = Str_clone(&self->data.Ident); c->data.Ident = *_ca; free(_ca); }
+        break;
+    case ExprData_TAG_Decl:
+        { Declaration *_ca = Declaration_clone(&self->data.Decl); c->data.Decl = *_ca; free(_ca); }
+        break;
+    case ExprData_TAG_FuncDef:
+        c->data.FuncDef = self->data.FuncDef;
+        { Str *_ca = Str_clone(&self->data.FuncDef.return_type); c->data.FuncDef.return_type = *_ca; free(_ca); }
+        break;
+    default: break;
+    }
+    return c;
+}
+
+void ExprData_delete(ExprData *self, Bool *call_free) {
+    switch (self->tag) {
+    case ExprData_TAG_LiteralStr: case ExprData_TAG_LiteralNum:
+    case ExprData_TAG_LiteralBool: case ExprData_TAG_Ident:
+    case ExprData_TAG_Assign: case ExprData_TAG_ForIn:
+    case ExprData_TAG_FieldAccess: case ExprData_TAG_FieldAssign:
+    case ExprData_TAG_NamedArg:
+        Str_delete(&self->data.Ident, &(Bool){0});
+        break;
+    case ExprData_TAG_Decl:
+        Declaration_delete(&self->data.Decl, &(Bool){0});
+        break;
+    case ExprData_TAG_FuncDef:
+        Str_delete(&self->data.FuncDef.return_type, &(Bool){0});
+        break;
+    default: break;
+    }
+    if (*call_free) free(self);
+}
 
 Str *til_type_name_c(TilType *t) {
     switch (t->tag) {
@@ -32,15 +94,17 @@ Str *til_type_name_c(TilType *t) {
     return Str_clone(&(Str){.c_str = (U8*)"?", .count = 1, .cap = CAP_LIT});
 }
 
-// --- Declaration clone/delete (no-ops) ---
-
-Declaration *Declaration_clone(Declaration *self) { return self; }
-void Declaration_delete(Declaration *self, Bool *call_free) { (void)self; (void)call_free; }
-
-// --- ExprData clone/delete (no-ops) ---
-
-ExprData *ExprData_clone(ExprData *self) { return self; }
-void ExprData_delete(ExprData *self, Bool *call_free) { (void)self; (void)call_free; }
+void Expr_delete(Expr *self, Bool *call_free) {
+    if (!self) return;
+    ExprData_delete(&self->data, &(Bool){0});
+    TilType_delete(&self->til_type, &(Bool){0});
+    Str_delete(&self->struct_name, &(Bool){0});
+    for (U32 i = 0; i < self->children.count; i++)
+        Expr_delete(expr_child(self, i), &(Bool){0});
+    Vec_delete(&self->children, &(Bool){0});
+    Str_delete(&self->path, &(Bool){0});
+    if (*call_free) free(self);
+}
 
 // --- Expr namespace methods ---
 
@@ -78,6 +142,9 @@ Expr *Expr_clone(Expr *self) {
     if (!self) return NULL;
     Expr *c = calloc(1, sizeof(Expr));
     *c = *self;
+    { ExprData *_ca = ExprData_clone(&self->data); c->data = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->struct_name); c->struct_name = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->path); c->path = *_ca; free(_ca); }
     { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); c->children = *_vp; free(_vp); }
     for (U32 i = 0; i < self->children.count; i++) {
         Expr *cloned = Expr_clone(expr_child(self, i));
@@ -85,8 +152,6 @@ Expr *Expr_clone(Expr *self) {
     }
     return c;
 }
-
-void Expr_delete(Expr *self, Bool *call_free) { (void)self; (void)call_free; }
 
 // --- Top-level functions ---
 
