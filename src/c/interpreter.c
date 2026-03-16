@@ -471,13 +471,13 @@ Value eval_call(Scope *scope, Expr *e) {
             memcpy(flat_name_buf + sn->count + 1, fn->c_str, fn->count);
             flat_name_buf[flen] = '\0';
             Str flat_str = {.c_str = (U8 *)flat_name_buf, .count = flen};
-            Expr *orig_callee = Expr_child(e, &(I64){(I64)(0)});
-            Expr flat_ident = *orig_callee;
+            Expr orig_callee_val = *Expr_child(e, &(I64){(I64)(0)});
+            Expr flat_ident = orig_callee_val;
             flat_ident.data.tag = ExprData_TAG_Ident;
             flat_ident.data.data.Ident = flat_str;
-            *(Expr*)Vec_get(&e->children, &(U64){(U64)(0)}) = flat_ident;
+            memcpy(Vec_get(&e->children, &(U64){(U64)(0)}), &flat_ident, sizeof(Expr));
             Value result = eval_call(scope, e);
-            *(Expr*)Vec_get(&e->children, &(U64){(U64)(0)}) = *orig_callee;
+            memcpy(Vec_get(&e->children, &(U64){(U64)(0)}), &orig_callee_val, sizeof(Expr));
             return result;
         }
         Expr *body = Expr_child(func_def, &(I64){(I64)(0)});

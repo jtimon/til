@@ -301,7 +301,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     // Skip child 3 (arity literal), actual args start at child 4
     for (U32 i = 4; i < e->children.count; i++) {
         Expr *arg = Expr_child(e, &(I64){(I64)(i)});
-        { Expr *_p = malloc(sizeof(Expr)); *_p = *arg; Vec_push(&fake_call.children, _p); }
+        Vec_push(&fake_call.children, Expr_clone(arg));
     }
 
     Value fn_val = eval_expr(s, &field_access);
@@ -312,8 +312,8 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
         for (U32 i = nargs; i < nparam; i++) {
             if (VEC_SET(fdef->data.data.FuncDef.param_defaults) &&
                 (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
-                Expr *def_arg = (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}));
-                { Expr *_p = malloc(sizeof(Expr)); *_p = *def_arg; Vec_push(&fake_call.children, _p); }
+                Expr *def_arg = Expr_clone((*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)})));
+                Vec_push(&fake_call.children, def_arg);
             }
         }
     }
@@ -390,6 +390,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     fake_call.path = src->path;
     { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
     { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
+
 
     Value result = eval_call(s, &fake_call);
     Vec_delete(&fake_call.children, &(Bool){0});

@@ -57,7 +57,7 @@ static Vec extract_imports(Expr *body) {
             Str *path_p = Str_clone(&path_str);
             { Str **_p = malloc(sizeof(Str *)); *_p = path_p; Vec_push(&paths, _p); }
         } else {
-            { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&kept, _p); }
+            Vec_push(&kept, Expr_clone(stmt));
         }
     }
     Vec_delete(&body->children, &(Bool){0});
@@ -139,7 +139,7 @@ static int resolve_imports(Vec *import_paths, Str *base_dir,
         // Append imported file's declarations
         for (U32 j = 0; j < sub_ast->children.count; j++) {
             Expr *ch = Expr_child(sub_ast, &(I64){(I64)(j)});
-            { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(merged, _p); }
+            { Expr **_p = malloc(sizeof(Expr *)); *_p = ch; Vec_push(merged, _p); }  // merged is pointer Vec (core_import_decls)
         }
 
         // Pop from stack
@@ -229,16 +229,16 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
     for (U32 i = 0; i < core_ast->children.count; i++) {
         Expr *ch = Expr_child(core_ast, &(I64){(I64)(i)});
         mark_core(ch);
-        { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+        Vec_push(&merged, Expr_clone(ch));
     }
     for (U32 i = 0; i < core_import_decls.count; i++) {
         Expr *ch = *(Expr **)Vec_get(&core_import_decls, &(U64){(U64)(i)});
         mark_core(ch);
-        { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+        Vec_push(&merged, Expr_clone(ch));
     }
     for (U32 i = 0; i < ast->children.count; i++) {
         Expr *ch = Expr_child(ast, &(I64){(I64)(i)});
-        { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+        Vec_push(&merged, Expr_clone(ch));
     }
     Vec_delete(&ast->children, &(Bool){0});
     ast->children = merged;
@@ -253,7 +253,7 @@ Expr *til_prepare(Str *path, Str *bin_dir) {
             Str fn = Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident;
             if (((&fn)->count == 4 && memcmp((&fn)->c_str, "link", 4) == 0) || ((&fn)->count == 6 && memcmp((&fn)->c_str, "link_c", 6) == 0)) continue;
         }
-        { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&kept, _p); }
+        Vec_push(&kept, Expr_clone(stmt));
     }
     Vec_delete(&ast->children, &(Bool){0});
     ast->children = kept;
@@ -439,27 +439,27 @@ int main(int argc, char **argv) {
                 for (U32 i = 0; i < core_ast->children.count; i++) {
                     Expr *ch = Expr_child(core_ast, &(I64){(I64)(i)});
                     mark_core(ch);
-                    { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+                    Vec_push(&merged, Expr_clone(ch));
                 }
             }
             for (U32 i = 0; i < core_import_decls.count; i++) {
                 Expr *ch = *(Expr **)Vec_get(&core_import_decls, &(U64){(U64)(i)});
                 mark_core(ch);
-                { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+                Vec_push(&merged, Expr_clone(ch));
             }
             if (mode_ast) {
                 for (U32 i = 0; i < mode_ast->children.count; i++) {
                     Expr *ch = Expr_child(mode_ast, &(I64){(I64)(i)});
-                    { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+                    Vec_push(&merged, Expr_clone(ch));
                 }
             }
             for (U32 i = 0; i < import_decls.count; i++) {
                 Expr *ch = *(Expr **)Vec_get(&import_decls, &(U64){(U64)(i)});
-                { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+                Vec_push(&merged, Expr_clone(ch));
             }
             for (U32 i = 0; i < ast->children.count; i++) {
                 Expr *ch = Expr_child(ast, &(I64){(I64)(i)});
-                { Expr *_p = malloc(sizeof(Expr)); *_p = *ch; Vec_push(&merged, _p); }
+                Vec_push(&merged, Expr_clone(ch));
             }
             Vec_delete(&ast->children, &(Bool){0});
             ast->children = merged;
@@ -485,10 +485,10 @@ int main(int argc, char **argv) {
                         link_c_paths = Str_concat(link_c_paths, &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT});
                     link_c_paths = Str_concat(link_c_paths, &arg);
                 } else {
-                    { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&kept, _p); }
+                    Vec_push(&kept, Expr_clone(stmt));
                 }
             } else {
-                { Expr *_p = malloc(sizeof(Expr)); *_p = *stmt; Vec_push(&kept, _p); }
+                Vec_push(&kept, Expr_clone(stmt));
             }
         }
         Vec_delete(&ast->children, &(Bool){0});
