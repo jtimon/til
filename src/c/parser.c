@@ -1,5 +1,5 @@
 #include "parser.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include <stdio.h>
 #include <stdlib.h>

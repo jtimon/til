@@ -1,5 +1,5 @@
 #include "interpreter.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include "dispatch.h"
 #include "ext.h"
@@ -484,7 +484,7 @@ Value eval_call(Scope *scope, Expr *e) {
 
         // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
         if (func_def->data.data.FuncDef.nparam > 0 &&
-            VEC_SET(func_def->data.data.FuncDef.param_owns) &&
+            func_def->data.data.FuncDef.param_owns.count > 0 &&
             (*(Bool*)Vec_get(&func_def->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) &&
             e->children.count > 1 && Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident) {
             Cell *fc = scope_get(scope, &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident);
@@ -637,7 +637,7 @@ Value eval_call(Scope *scope, Expr *e) {
 
     // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
     if (func_def->data.data.FuncDef.nparam > 0 &&
-        VEC_SET(func_def->data.data.FuncDef.param_owns) &&
+        func_def->data.data.FuncDef.param_owns.count > 0 &&
         (*(Bool*)Vec_get(&func_def->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) &&
         e->children.count > 1 && Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident) {
         Cell *fc = scope_get(scope, &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident);
@@ -796,7 +796,7 @@ static void eval_body(Scope *scope, Expr *body) {
             if (stmt->data.data.Decl.is_ref && rhs->data.tag == ExprData_TAG_Ident) {
                 // Ref decl from ident: borrow the same cell (no move, no free)
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
-                scope_set_borrowed(scope, DECL_NAME(stmt), src);
+                scope_set_borrowed(scope, (&stmt->data.data.Decl.name), src);
             } else {
                 Value val;
                 if (rhs->data.tag == ExprData_TAG_Ident) {
@@ -852,7 +852,7 @@ static void eval_body(Scope *scope, Expr *body) {
                         }
                     }
                 }
-                scope_set_owned(scope, DECL_NAME(stmt), val);
+                scope_set_owned(scope, (&stmt->data.data.Decl.name), val);
             }
             break;
         }
@@ -1071,7 +1071,7 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                         free(fval.i64);
                         fval = val_i32(tag);
                     }
-                    ns_set(sname, DECL_NAME(field), fval);
+                    ns_set(sname, (&field->data.data.Decl.name), fval);
                 }
             }
         }
@@ -1207,7 +1207,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *u
              Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
              Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
             Value val = {.type = VAL_FUNC, .func = Expr_child(stmt, &(I64){(I64)(0)})};
-            scope_set_owned(global, DECL_NAME(stmt), val);
+            scope_set_owned(global, (&stmt->data.data.Decl.name), val);
         }
     }
 

@@ -1,5 +1,5 @@
 #include "initer.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include "modes.h"
 #include <stdio.h>

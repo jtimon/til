@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "precomp.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include "interpreter.h"
 #include "dispatch.h"
@@ -216,19 +216,19 @@ static void process_body(Scope *scope, Expr *body) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 1);
                 if (lit) {
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
-                    track_literal(scope, DECL_NAME(stmt), lit);
+                    track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 }
             } else if (is_func_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
                 if (lit) {
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
-                    track_literal(scope, DECL_NAME(stmt), lit);
+                    track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 } else {
-                    track_literal(scope, DECL_NAME(stmt), Expr_child(stmt, &(I64){(I64)(0)}));
+                    track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));
                 }
             } else {
                 // Track compile-time known value
-                track_literal(scope, DECL_NAME(stmt), Expr_child(stmt, &(I64){(I64)(0)}));
+                track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));
             }
             break;
 
@@ -316,7 +316,7 @@ void precomp(Expr *program) {
              Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
              Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
             Value val = {.type = VAL_FUNC, .func = Expr_child(stmt, &(I64){(I64)(0)})};
-            scope_set_owned(global, DECL_NAME(stmt), val);
+            scope_set_owned(global, (&stmt->data.data.Decl.name), val);
         }
     }
     interpreter_init_ns(global, program);

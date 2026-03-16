@@ -1,5 +1,5 @@
 #include "typer.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include "initer.h"
 #include <stdio.h>
@@ -175,13 +175,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 // Variadic param: bind as Array (element type already validated above)
                 if ((I32)i == e->data.data.FuncDef.variadic_index) {
-                    if (VEC_SET(e->data.data.FuncDef.param_owns)) (*(Bool*)Vec_get(&e->data.data.FuncDef.param_owns, &(U64){(U64)(i)})) = true;
+                    if (e->data.data.FuncDef.param_owns.count > 0) (*(Bool*)Vec_get(&e->data.data.FuncDef.param_owns, &(U64){(U64)(i)})) = true;
                     tscope_set(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})), (TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = tscope_find(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})));
                     if (pb) pb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
                 } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
                     // Kwargs param: bind as Map
-                    if (VEC_SET(e->data.data.FuncDef.param_owns)) (*(Bool*)Vec_get(&e->data.data.FuncDef.param_owns, &(U64){(U64)(i)})) = true;
+                    if (e->data.data.FuncDef.param_owns.count > 0) (*(Bool*)Vec_get(&e->data.data.FuncDef.param_owns, &(U64){(U64)(i)})) = true;
                     tscope_set(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})), (TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = tscope_find(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})));
                     if (pb) pb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
@@ -200,7 +200,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                     // For named FuncSig params (no inline sig), resolve from outer scope
                     if (pt.tag == TilType_TAG_FuncPtr &&
-                        !(VEC_SET(e->data.data.FuncDef.param_fn_sigs) && (*(Expr**)Vec_get(&e->data.data.FuncDef.param_fn_sigs, &(U64){(U64)(i)})))) {
+                        !(e->data.data.FuncDef.param_fn_sigs.count > 0 && (*(Expr**)Vec_get(&e->data.data.FuncDef.param_fn_sigs, &(U64){(U64)(i)})))) {
                         TypeBinding *fsb = tscope_find(scope, ptn);
                         if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
                             TypeBinding *pb = tscope_find(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})));
@@ -466,7 +466,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 // Fill defaults for missing args
                 for (U32 i = 0; i < np; i++) {
                     if (!new_args[i]) {
-                        if (VEC_SET(ns_func->data.data.FuncDef.param_defaults) &&
+                        if (ns_func->data.data.FuncDef.param_defaults.count > 0 &&
                             (*(Expr**)Vec_get(&ns_func->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
                             new_args[i] = Expr_clone((*(Expr**)Vec_get(&ns_func->data.data.FuncDef.param_defaults, &(U64){(U64)(i)})));
                         } else {
@@ -538,7 +538,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Validate 'own' markers on arguments
             {
                 Vec po = ns_func->data.data.FuncDef.param_owns;
-                if (VEC_SET(po)) {
+                if (po.count > 0) {
                     U32 np = ns_func->data.data.FuncDef.nparam;
                     for (U32 i = 1; i < e->children.count && i - 1 < np; i++) {
                         Bool pown = (*(Bool*)Vec_get(&po, &(U64){(U64)(i - 1)}));
@@ -562,7 +562,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         if (pown && Expr_child(e, &(I64){(I64)(i)})->data.tag == ExprData_TAG_LiteralNull)
                             type_error(Expr_child(e, &(I64){(I64)(i)}), "cannot pass null to 'own' parameter");
                         Vec ps_vec = ns_func->data.data.FuncDef.param_shallows;
-                        if (VEC_SET(ps_vec) && (*(Bool*)Vec_get(&ps_vec, &(U64){(U64)(i - 1)})) && Expr_child(e, &(I64){(I64)(i)})->data.tag == ExprData_TAG_LiteralNull)
+                        if (ps_vec.count > 0 && (*(Bool*)Vec_get(&ps_vec, &(U64){(U64)(i - 1)})) && Expr_child(e, &(I64){(I64)(i)})->data.tag == ExprData_TAG_LiteralNull)
                             type_error(Expr_child(e, &(I64){(I64)(i)}), "cannot pass null to 'shallow' parameter");
                     }
                 }
@@ -753,7 +753,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if ((I32)i == vi) continue; // variadic param handled separately
                 if ((I32)i == kwi) continue; // kwargs param handled separately
                 if (!new_args[i]) {
-                    if (VEC_SET(fdef->data.data.FuncDef.param_defaults) &&
+                    if (fdef->data.data.FuncDef.param_defaults.count > 0 &&
                         (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
                         new_args[i] = Expr_clone((*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)})));
                     } else {
@@ -892,7 +892,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     ci += fkc; // skip kwargs args
                     continue;
                 }
-                Bool pown = VEC_SET(po_vec) ? (*(Bool*)Vec_get(&po_vec, &(U64){(U64)(pi)})) : 0;
+                Bool pown = po_vec.count > 0 ? (*(Bool*)Vec_get(&po_vec, &(U64){(U64)(pi)})) : 0;
                 if (pown && !Expr_child(e, &(I64){(I64)(ci)})->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
@@ -911,7 +911,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (pown && Expr_child(e, &(I64){(I64)(ci)})->data.tag == ExprData_TAG_LiteralNull)
                     type_error(Expr_child(e, &(I64){(I64)(ci)}), "cannot pass null to 'own' parameter");
                 Vec ps_vec2 = fdef->data.data.FuncDef.param_shallows;
-                if (VEC_SET(ps_vec2) && (*(Bool*)Vec_get(&ps_vec2, &(U64){(U64)(pi)})) && Expr_child(e, &(I64){(I64)(ci)})->data.tag == ExprData_TAG_LiteralNull)
+                if (ps_vec2.count > 0 && (*(Bool*)Vec_get(&ps_vec2, &(U64){(U64)(pi)})) && Expr_child(e, &(I64){(I64)(ci)})->data.tag == ExprData_TAG_LiteralNull)
                     type_error(Expr_child(e, &(I64){(I64)(ci)}), "cannot pass null to 'shallow' parameter");
                 ci++;
             }
@@ -2226,7 +2226,7 @@ static Bool expr_contains_decl(Expr *e, Str *name) {
 // Helper: given a func_def, check if var_name is passed to an own param
 static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
     Vec po3 = fdef->data.data.FuncDef.param_owns;
-    if (!VEC_SET(po3)) return 0;
+    if (!(po3.count > 0)) return 0;
     U32 np = fdef->data.data.FuncDef.nparam;
     for (U32 i = 0; i < np && i + 1 < fcall->children.count; i++) {
         if ((*(Bool*)Vec_get(&po3, &(U64){(U64)(i)})) && Expr_child(fcall, &(I64){(I64)(i + 1)})->data.tag == ExprData_TAG_Ident &&

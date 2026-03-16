@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <sys/wait.h>
 #include "c/parser.h"
-#include "c/ast.h"
+#include "../bootstrap/ast.h"
 #include "c/pre70.h"
 #include "c/initer.h"
 #include "c/typer.h"

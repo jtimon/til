@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "scavenger.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 
 // Name-to-Expr map (for top-level decls and namespace methods)

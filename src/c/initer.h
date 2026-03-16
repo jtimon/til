@@ -1,7 +1,7 @@
 #ifndef TIL_INITER_H
 #define TIL_INITER_H
 
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 
 // --- Type scope (tracks variable types across phases) ---
 
@@ -42,5 +42,8 @@ Bool tscope_is_mut(TypeScope *s, Str *name);
 // Pre-scan top-level declarations (structs and functions) into scope.
 // Returns number of errors.
 I32 init_declarations(Expr *program, TypeScope *scope);
+
+// Move Vec buffer out (returns data pointer, zeroes Vec)
+void *Vec_take(Vec *v);
 
 #endif

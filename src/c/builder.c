@@ -1,5 +1,5 @@
 #include "builder.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -3221,7 +3221,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    if (VEC_SET(fdef->data.data.FuncDef.param_owns) && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
+                    if (fdef->data.data.FuncDef.param_owns.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
                         fprintf(f, "own ");
                     fprintf(f, "%s: %s", ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
                             ((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
@@ -3263,7 +3263,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    if (VEC_SET(fdef->data.data.FuncDef.param_owns) && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
+                    if (fdef->data.data.FuncDef.param_owns.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
                         fprintf(f, "own ");
                     fprintf(f, "%s: %s", ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
                             ((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
@@ -3287,7 +3287,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             fprintf(f, "%s := %s(", name->c_str, kw);
             for (U32 p = 0; p < rhs->data.data.FuncDef.nparam; p++) {
                 if (p > 0) fprintf(f, ", ");
-                if (VEC_SET(rhs->data.data.FuncDef.param_owns) && (*(Bool*)Vec_get(&rhs->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
+                if (rhs->data.data.FuncDef.param_owns.count > 0 && (*(Bool*)Vec_get(&rhs->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
                     fprintf(f, "own ");
                 I32 vi = rhs->data.data.FuncDef.variadic_index;
                 I32 kwi = rhs->data.data.FuncDef.kwargs_index;

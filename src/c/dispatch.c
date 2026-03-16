@@ -1,5 +1,5 @@
 #include "dispatch.h"
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "builder.h"
 #include "pre70.h"
 #include "ext.h"
@@ -310,7 +310,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
         U32 nparam = fdef->data.data.FuncDef.nparam;
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
-            if (VEC_SET(fdef->data.data.FuncDef.param_defaults) &&
+            if (fdef->data.data.FuncDef.param_defaults.count > 0 &&
                 (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
                 Expr *def_arg = Expr_clone((*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)})));
                 Vec_push(&fake_call.children, def_arg);
@@ -945,12 +945,12 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     if (has_shallow) {
         pshallows = malloc(sizeof(bool) * np);
         for (U32 k = 0; k < np; k++)
-            pshallows[k] = VEC_SET(fdef->data.data.FuncDef.param_shallows) && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(k)}));
+            pshallows[k] = fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(k)}));
     }
     bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
     FFIEntry entry = {
         .fn = fn,
-        .return_type = (fdef->data.data.FuncDef.return_type).count > 0 ? FDEF_RTYPE(fdef) : NULL,
+        .return_type = (fdef->data.data.FuncDef.return_type).count > 0 ? (&fdef->data.data.FuncDef.return_type) : NULL,
         .nparam = np,
         .param_shallows = pshallows,
         .return_is_shallow = ret_shallow,
@@ -1049,7 +1049,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
 
             void *fn = ffi_dlsym((const char *)stmt->data.data.Decl.name.c_str);
             if (!fn) continue;
-            ffi_register(DECL_NAME(stmt), fn, fdef);
+            ffi_register((&stmt->data.data.Decl.name), fn, fdef);
         }
 
         // ext_struct namespace methods
@@ -1082,7 +1082,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
                         FuncType ift = idef->data.data.FuncDef.func_type;
                         if (ift.tag != FuncType_TAG_ExtFunc && ift.tag != FuncType_TAG_ExtProc) continue;
                         void *fn = ffi_dlsym((const char *)inner->data.data.Decl.name.c_str);
-                        if (fn) ffi_register(DECL_NAME(inner), fn, idef);
+                        if (fn) ffi_register((&inner->data.data.Decl.name), fn, idef);
                     }
                 }
             }

@@ -1,7 +1,7 @@
 #ifndef TIL_INTERPRETER_H
 #define TIL_INTERPRETER_H
 
-#include "ast.h"
+#include "../../bootstrap/ast.h"
 #include "modes.h"
 #include <stdlib.h>
 
