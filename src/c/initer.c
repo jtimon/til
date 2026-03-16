@@ -49,8 +49,9 @@ void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut,
         b->is_own = is_own;
         return;
     }
-    TypeBinding nb = {name, type, is_proc, is_mut, line, col, is_param, is_own, 0, 0, NULL, NULL, 0, 0, NULL};
-    { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW}; void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
+    Str *name_copy = Str_clone(name);
+    TypeBinding nb = {name_copy, type, is_proc, is_mut, line, col, is_param, is_own, 0, 0, NULL, NULL, 0, 0, NULL};
+    { Str *_k = Str_clone(name); void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
 }
 
 TypeBinding *tscope_find(TypeScope *s, Str *name) {

@@ -392,6 +392,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 *(Expr*)Vec_get(&e->children, &(U64){(U64)(1)}) = *instance;
                 // Fall through -- existing code below handles Type.method(instance, args)
+                // Re-fetch after e->children mutation (push may realloc)
+                fa = Expr_child(e, &(I64){(I64)(0)});
+                method = &fa->data.data.FieldAccess;
             }
 
             // Type the (possibly new) object and look up namespace func
@@ -1812,7 +1815,7 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     ident->is_own_arg = val->is_own_arg;
     tscope_set(scope, tname, val->til_type, -1, 0, val->line, val->col, 0, 0);
     TypeBinding *tb = tscope_find(scope, tname);
-    if (tb) tb->struct_name = &val->struct_name;
+    if (tb) tb->struct_name = Str_clone(&val->struct_name);
     if (val->data.tag == ExprData_TAG_FCall && fcall_returns_ref(val, scope)) {
         decl->data.data.Decl.is_ref = true;
         if (tb) tb->is_ref = 1;
@@ -2721,7 +2724,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             tscope_set(scope, &stmt->data.data.Decl.name, stmt->til_type, -1, stmt->data.data.Decl.is_mut, stmt->line, stmt->col, 0, 0);
             if ((stmt->til_type.tag == TilType_TAG_Struct || stmt->til_type.tag == TilType_TAG_Enum) && (Expr_child(stmt, &(I64){(I64)(0)})->struct_name.count > 0)) {
                 TypeBinding *b = tscope_find(scope, &stmt->data.data.Decl.name);
-                if (b) b->struct_name = &Expr_child(stmt, &(I64){(I64)(0)})->struct_name;
+                if (b) b->struct_name = Str_clone(&Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
             }
             // For function pointer variables, propagate func_def from source or fn_sig
             if (stmt->til_type.tag == TilType_TAG_FuncPtr) {
