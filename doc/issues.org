@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 73
+# NEXT_ISSUE: 74
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -1429,6 +1429,11 @@
   - Result display: print expression values (needs to_str for all types)
 
 * Undecided
+
+** OPEN #73 Replace #ifndef guards with #pragma once
+  All 13 hand-written headers in src/c/ use ~#ifndef/#define/#endif~
+  include guards. Bootstrap uses ~#pragma once~. Replace all with
+  ~#pragma once~ for consistency. Supported by gcc, clang, msvc.
 
 ** OPEN #69 Bundle tinyfiledialogs for mode gui
   Bundle tinyfiledialogs as a dependency for mode gui (like raylib).
