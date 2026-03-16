@@ -8,6 +8,47 @@
 
 
 
+** WIP #74 Builder: emit separate .c per source module
+  :BLOCKS: #39
+
+  Per-module .c emission is partially done: the builder splits function
+  bodies by ~stmt->path~ basename and emits ~#include "<prefix>_<mod>.c"~
+  in the main file. This works — bootstrap/ast.c includes bootstrap/ast_str.c
+  etc. and compiles correctly.
+
+  What's NOT done: the per-module files still contain ALL functions from
+  that module — including auto-generated ones (enum constructors,
+  is_Variant, eq, to_str, clone, delete, size). For the diff-driven #39
+  workflow, ~gen/c/ast_ast.c~ needs to contain ONLY the functions that
+  ~src/c/ast.c~ also defines. Currently the diff is 4925 lines (useless)
+  because ~gen/c/ast_ast.c~ has ~4700 lines of auto-generated functions
+  that ~src/c/ast.c~ never had.
+
+  The contract: each per-module .c should contain only its OWN function
+  bodies — not the auto-generated helpers that the builder creates.
+  Auto-generated functions (enum helpers, clone/delete/eq/to_str/size)
+  should go in the main file or their own helpers file, not in the
+  per-module split.
+
+  Additionally: ~import~ in til should become ~#include "mod.h"~ in C
+  (separate compilation), not ~#include "mod.c"~ (textual inclusion).
+  The current ~#include "ast_str.c"~ approach works but is not true
+  separate compilation. Each module should be its own TU with its own
+  .h for declarations, linked via the .h include chain.
+
+*** What was done
+    - Builder splits function bodies by ~stmt->path~ basename
+    - Per-module .c files emitted alongside main .c
+    - Main .c ~#include~-s per-module .c files
+    - Copied to bootstrap/ by ctil_core
+    - Makefile auto-reverts bootstrap before first cc pass
+    - ~make self_diff~ target with gen/self_diff/ output
+
+*** What remains
+    - Auto-generated functions should NOT be in per-module files
+    - Per-module .c should only have manually-written-equivalent funcs
+    - Document in c2til.org and til2c.org
+
 ** OPEN #71 Bootstrap cleanup: fix incompatibilities before self-hosting
   :BLOCKS: #39 #12
   Remove all C duplication of things til defines. The end state: ext.c

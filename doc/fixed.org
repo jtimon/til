@@ -1,18 +1,5 @@
 # Fixed issues moved from issues.org.
 
-* FIXED #74 Builder: emit separate .c per source module
-  Builder emits one .c per source .til file. The main .c ~#include~-s
-  the per-module .c files. Each per-module .c has only function bodies
-  from that module (grouped by ~stmt->path~ basename).
-
-  Per-module files use program prefix (e.g. ~gen/c/ast_str.c~,
-  ~gen/c/ast_lexer.c~) to avoid race conditions. Copied to ~bootstrap/~
-  by ctil_core. Makefile auto-reverts bootstrap before first cc pass.
-
-  Enables diff-driven #39: ~gen/c/ast_ast.c~ is directly diffable
-  against ~src/c/ast.c~.
-
-  TODO: update c2til.org (~import~ → ~#include~), create til2c.org.
 
 * FIXED #72 link_c files can't see til-defined types and functions
   Builder emits ~gen/c/forward.h~ with all struct definitions (topo-sorted),
