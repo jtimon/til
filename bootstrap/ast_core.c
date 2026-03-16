@@ -55,7 +55,7 @@ U64 *FunctionDef_size(void) {
     return r;
 }
 
-static __attribute__((unused)) Bool * U8_lt(U8 * a, U8 * b) {
+Bool * U8_lt(U8 * a, U8 * b) {
     (void)a;
     (void)b;
     I64 _t59 = 0;
@@ -75,7 +75,7 @@ static __attribute__((unused)) Bool * U8_lt(U8 * a, U8 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t63; return _r; }
 }
 
-static __attribute__((unused)) Bool * U8_gt(U8 * a, U8 * b) {
+Bool * U8_gt(U8 * a, U8 * b) {
     (void)a;
     (void)b;
     I64 _t64 = U8_cmp(DEREF(a), DEREF(b));
@@ -89,7 +89,7 @@ static __attribute__((unused)) Bool * U8_gt(U8 * a, U8 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t66; return _r; }
 }
 
-static __attribute__((unused)) Bool * U8_neq(U8 * a, U8 * b) {
+Bool * U8_neq(U8 * a, U8 * b) {
     (void)a;
     (void)b;
     Bool _t67 = U8_eq(DEREF(a), DEREF(b));
@@ -100,7 +100,7 @@ static __attribute__((unused)) Bool * U8_neq(U8 * a, U8 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t68; return _r; }
 }
 
-static __attribute__((unused)) Bool * U8_lte(U8 * a, U8 * b) {
+Bool * U8_lte(U8 * a, U8 * b) {
     (void)a;
     (void)b;
     Bool _t69; { Bool *_hp = (Bool *)U8_gt(a, b); _t69 = *_hp; free(_hp); }
@@ -111,7 +111,7 @@ static __attribute__((unused)) Bool * U8_lte(U8 * a, U8 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t70; return _r; }
 }
 
-static __attribute__((unused)) Bool * U8_gte(U8 * a, U8 * b) {
+Bool * U8_gte(U8 * a, U8 * b) {
     (void)a;
     (void)b;
     Bool _t71; { Bool *_hp = (Bool *)U8_lt(a, b); _t71 = *_hp; free(_hp); }
@@ -122,7 +122,7 @@ static __attribute__((unused)) Bool * U8_gte(U8 * a, U8 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t72; return _r; }
 }
 
-static __attribute__((unused)) Bool * I16_lt(I16 * a, I16 * b) {
+Bool * I16_lt(I16 * a, I16 * b) {
     (void)a;
     (void)b;
     I64 _t88 = 0;
@@ -142,7 +142,7 @@ static __attribute__((unused)) Bool * I16_lt(I16 * a, I16 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t92; return _r; }
 }
 
-static __attribute__((unused)) Bool * I16_gt(I16 * a, I16 * b) {
+Bool * I16_gt(I16 * a, I16 * b) {
     (void)a;
     (void)b;
     I64 _t93 = I16_cmp(DEREF(a), DEREF(b));
@@ -156,7 +156,7 @@ static __attribute__((unused)) Bool * I16_gt(I16 * a, I16 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t95; return _r; }
 }
 
-static __attribute__((unused)) Bool * I16_neq(I16 * a, I16 * b) {
+Bool * I16_neq(I16 * a, I16 * b) {
     (void)a;
     (void)b;
     Bool _t96 = I16_eq(DEREF(a), DEREF(b));
@@ -167,7 +167,7 @@ static __attribute__((unused)) Bool * I16_neq(I16 * a, I16 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t97; return _r; }
 }
 
-static __attribute__((unused)) Bool * I16_lte(I16 * a, I16 * b) {
+Bool * I16_lte(I16 * a, I16 * b) {
     (void)a;
     (void)b;
     Bool _t98; { Bool *_hp = (Bool *)I16_gt(a, b); _t98 = *_hp; free(_hp); }
@@ -178,7 +178,7 @@ static __attribute__((unused)) Bool * I16_lte(I16 * a, I16 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t99; return _r; }
 }
 
-static __attribute__((unused)) Bool * I16_gte(I16 * a, I16 * b) {
+Bool * I16_gte(I16 * a, I16 * b) {
     (void)a;
     (void)b;
     Bool _t100; { Bool *_hp = (Bool *)I16_lt(a, b); _t100 = *_hp; free(_hp); }
@@ -189,7 +189,7 @@ static __attribute__((unused)) Bool * I16_gte(I16 * a, I16 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t101; return _r; }
 }
 
-static __attribute__((unused)) Bool * I32_lt(I32 * a, I32 * b) {
+Bool * I32_lt(I32 * a, I32 * b) {
     (void)a;
     (void)b;
     I64 _t117 = 0;
@@ -209,7 +209,7 @@ static __attribute__((unused)) Bool * I32_lt(I32 * a, I32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t121; return _r; }
 }
 
-static __attribute__((unused)) Bool * I32_gt(I32 * a, I32 * b) {
+Bool * I32_gt(I32 * a, I32 * b) {
     (void)a;
     (void)b;
     I64 _t122 = I32_cmp(DEREF(a), DEREF(b));
@@ -223,7 +223,7 @@ static __attribute__((unused)) Bool * I32_gt(I32 * a, I32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t124; return _r; }
 }
 
-static __attribute__((unused)) Bool * I32_neq(I32 * a, I32 * b) {
+Bool * I32_neq(I32 * a, I32 * b) {
     (void)a;
     (void)b;
     Bool _t125 = I32_eq(DEREF(a), DEREF(b));
@@ -234,7 +234,7 @@ static __attribute__((unused)) Bool * I32_neq(I32 * a, I32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t126; return _r; }
 }
 
-static __attribute__((unused)) Bool * I32_lte(I32 * a, I32 * b) {
+Bool * I32_lte(I32 * a, I32 * b) {
     (void)a;
     (void)b;
     Bool _t127; { Bool *_hp = (Bool *)I32_gt(a, b); _t127 = *_hp; free(_hp); }
@@ -245,7 +245,7 @@ static __attribute__((unused)) Bool * I32_lte(I32 * a, I32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t128; return _r; }
 }
 
-static __attribute__((unused)) Bool * I32_gte(I32 * a, I32 * b) {
+Bool * I32_gte(I32 * a, I32 * b) {
     (void)a;
     (void)b;
     Bool _t129; { Bool *_hp = (Bool *)I32_lt(a, b); _t129 = *_hp; free(_hp); }
@@ -256,7 +256,7 @@ static __attribute__((unused)) Bool * I32_gte(I32 * a, I32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t130; return _r; }
 }
 
-static __attribute__((unused)) Bool * F32_lt(F32 * a, F32 * b) {
+Bool * F32_lt(F32 * a, F32 * b) {
     (void)a;
     (void)b;
     I64 _t133 = 0;
@@ -276,7 +276,7 @@ static __attribute__((unused)) Bool * F32_lt(F32 * a, F32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t137; return _r; }
 }
 
-static __attribute__((unused)) Bool * F32_gt(F32 * a, F32 * b) {
+Bool * F32_gt(F32 * a, F32 * b) {
     (void)a;
     (void)b;
     I64 _t138 = F32_cmp(DEREF(a), DEREF(b));
@@ -290,7 +290,7 @@ static __attribute__((unused)) Bool * F32_gt(F32 * a, F32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t140; return _r; }
 }
 
-static __attribute__((unused)) Bool * F32_neq(F32 * a, F32 * b) {
+Bool * F32_neq(F32 * a, F32 * b) {
     (void)a;
     (void)b;
     Bool _t141 = F32_eq(DEREF(a), DEREF(b));
@@ -301,7 +301,7 @@ static __attribute__((unused)) Bool * F32_neq(F32 * a, F32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t142; return _r; }
 }
 
-static __attribute__((unused)) Bool * F32_lte(F32 * a, F32 * b) {
+Bool * F32_lte(F32 * a, F32 * b) {
     (void)a;
     (void)b;
     Bool _t143; { Bool *_hp = (Bool *)F32_gt(a, b); _t143 = *_hp; free(_hp); }
@@ -312,7 +312,7 @@ static __attribute__((unused)) Bool * F32_lte(F32 * a, F32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t144; return _r; }
 }
 
-static __attribute__((unused)) Bool * F32_gte(F32 * a, F32 * b) {
+Bool * F32_gte(F32 * a, F32 * b) {
     (void)a;
     (void)b;
     Bool _t145; { Bool *_hp = (Bool *)F32_lt(a, b); _t145 = *_hp; free(_hp); }
@@ -323,7 +323,7 @@ static __attribute__((unused)) Bool * F32_gte(F32 * a, F32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t146; return _r; }
 }
 
-static __attribute__((unused)) Bool * U32_lt(U32 * a, U32 * b) {
+Bool * U32_lt(U32 * a, U32 * b) {
     (void)a;
     (void)b;
     I64 _t150 = 0;
@@ -343,7 +343,7 @@ static __attribute__((unused)) Bool * U32_lt(U32 * a, U32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t154; return _r; }
 }
 
-static __attribute__((unused)) Bool * U32_gt(U32 * a, U32 * b) {
+Bool * U32_gt(U32 * a, U32 * b) {
     (void)a;
     (void)b;
     I64 _t155 = U32_cmp(DEREF(a), DEREF(b));
@@ -357,7 +357,7 @@ static __attribute__((unused)) Bool * U32_gt(U32 * a, U32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t157; return _r; }
 }
 
-static __attribute__((unused)) Bool * U32_neq(U32 * a, U32 * b) {
+Bool * U32_neq(U32 * a, U32 * b) {
     (void)a;
     (void)b;
     Bool _t158 = U32_eq(DEREF(a), DEREF(b));
@@ -368,7 +368,7 @@ static __attribute__((unused)) Bool * U32_neq(U32 * a, U32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t159; return _r; }
 }
 
-static __attribute__((unused)) Bool * U32_lte(U32 * a, U32 * b) {
+Bool * U32_lte(U32 * a, U32 * b) {
     (void)a;
     (void)b;
     Bool _t160; { Bool *_hp = (Bool *)U32_gt(a, b); _t160 = *_hp; free(_hp); }
@@ -379,7 +379,7 @@ static __attribute__((unused)) Bool * U32_lte(U32 * a, U32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t161; return _r; }
 }
 
-static __attribute__((unused)) Bool * U32_gte(U32 * a, U32 * b) {
+Bool * U32_gte(U32 * a, U32 * b) {
     (void)a;
     (void)b;
     Bool _t162; { Bool *_hp = (Bool *)U32_lt(a, b); _t162 = *_hp; free(_hp); }
@@ -390,7 +390,7 @@ static __attribute__((unused)) Bool * U32_gte(U32 * a, U32 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t163; return _r; }
 }
 
-static __attribute__((unused)) Bool * U64_lt(U64 * a, U64 * b) {
+Bool * U64_lt(U64 * a, U64 * b) {
     (void)a;
     (void)b;
     I64 _t167 = 0;
@@ -410,7 +410,7 @@ static __attribute__((unused)) Bool * U64_lt(U64 * a, U64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t171; return _r; }
 }
 
-static __attribute__((unused)) Bool * U64_gt(U64 * a, U64 * b) {
+Bool * U64_gt(U64 * a, U64 * b) {
     (void)a;
     (void)b;
     I64 _t172 = U64_cmp(DEREF(a), DEREF(b));
@@ -424,7 +424,7 @@ static __attribute__((unused)) Bool * U64_gt(U64 * a, U64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t174; return _r; }
 }
 
-static __attribute__((unused)) Bool * U64_neq(U64 * a, U64 * b) {
+Bool * U64_neq(U64 * a, U64 * b) {
     (void)a;
     (void)b;
     Bool _t175 = U64_eq(DEREF(a), DEREF(b));
@@ -435,7 +435,7 @@ static __attribute__((unused)) Bool * U64_neq(U64 * a, U64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t176; return _r; }
 }
 
-static __attribute__((unused)) Bool * U64_lte(U64 * a, U64 * b) {
+Bool * U64_lte(U64 * a, U64 * b) {
     (void)a;
     (void)b;
     Bool _t177; { Bool *_hp = (Bool *)U64_gt(a, b); _t177 = *_hp; free(_hp); }
@@ -446,7 +446,7 @@ static __attribute__((unused)) Bool * U64_lte(U64 * a, U64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t178; return _r; }
 }
 
-static __attribute__((unused)) Bool * U64_gte(U64 * a, U64 * b) {
+Bool * U64_gte(U64 * a, U64 * b) {
     (void)a;
     (void)b;
     Bool _t179; { Bool *_hp = (Bool *)U64_lt(a, b); _t179 = *_hp; free(_hp); }
@@ -457,7 +457,7 @@ static __attribute__((unused)) Bool * U64_gte(U64 * a, U64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t180; return _r; }
 }
 
-static __attribute__((unused)) Bool * I64_lt(I64 * a, I64 * b) {
+Bool * I64_lt(I64 * a, I64 * b) {
     (void)a;
     (void)b;
     I64 _t238 = 0;
@@ -477,7 +477,7 @@ static __attribute__((unused)) Bool * I64_lt(I64 * a, I64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t242; return _r; }
 }
 
-static __attribute__((unused)) Bool * I64_gt(I64 * a, I64 * b) {
+Bool * I64_gt(I64 * a, I64 * b) {
     (void)a;
     (void)b;
     I64 _t243 = I64_cmp(DEREF(a), DEREF(b));
@@ -491,7 +491,7 @@ static __attribute__((unused)) Bool * I64_gt(I64 * a, I64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t245; return _r; }
 }
 
-static __attribute__((unused)) Bool * I64_neq(I64 * a, I64 * b) {
+Bool * I64_neq(I64 * a, I64 * b) {
     (void)a;
     (void)b;
     Bool _t246 = I64_eq(DEREF(a), DEREF(b));
@@ -502,7 +502,7 @@ static __attribute__((unused)) Bool * I64_neq(I64 * a, I64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t247; return _r; }
 }
 
-static __attribute__((unused)) Bool * I64_lte(I64 * a, I64 * b) {
+Bool * I64_lte(I64 * a, I64 * b) {
     (void)a;
     (void)b;
     Bool _t248; { Bool *_hp = (Bool *)I64_gt(a, b); _t248 = *_hp; free(_hp); }
@@ -513,7 +513,7 @@ static __attribute__((unused)) Bool * I64_lte(I64 * a, I64 * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t249; return _r; }
 }
 
-static __attribute__((unused)) Bool * I64_gte(I64 * a, I64 * b) {
+Bool * I64_gte(I64 * a, I64 * b) {
     (void)a;
     (void)b;
     Bool _t250; { Bool *_hp = (Bool *)I64_lt(a, b); _t250 = *_hp; free(_hp); }
@@ -530,7 +530,7 @@ U64 *Range_size(void) {
     return r;
 }
 
-static __attribute__((unused)) Bool * Bool_lt(Bool * a, Bool * b) {
+Bool * Bool_lt(Bool * a, Bool * b) {
     (void)a;
     (void)b;
     I64 _t272 = 0;
@@ -550,7 +550,7 @@ static __attribute__((unused)) Bool * Bool_lt(Bool * a, Bool * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t276; return _r; }
 }
 
-static __attribute__((unused)) Bool * Bool_gt(Bool * a, Bool * b) {
+Bool * Bool_gt(Bool * a, Bool * b) {
     (void)a;
     (void)b;
     I64 _t277; { I64 *_hp = (I64 *)Bool_cmp(a, b); _t277 = *_hp; free(_hp); }
@@ -564,7 +564,7 @@ static __attribute__((unused)) Bool * Bool_gt(Bool * a, Bool * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t279; return _r; }
 }
 
-static __attribute__((unused)) Bool * Bool_neq(Bool * a, Bool * b) {
+Bool * Bool_neq(Bool * a, Bool * b) {
     (void)a;
     (void)b;
     Bool _t280 = Bool_eq(DEREF(a), DEREF(b));
@@ -575,7 +575,7 @@ static __attribute__((unused)) Bool * Bool_neq(Bool * a, Bool * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t281; return _r; }
 }
 
-static __attribute__((unused)) Bool * Bool_lte(Bool * a, Bool * b) {
+Bool * Bool_lte(Bool * a, Bool * b) {
     (void)a;
     (void)b;
     Bool _t282; { Bool *_hp = (Bool *)Bool_gt(a, b); _t282 = *_hp; free(_hp); }
@@ -586,7 +586,7 @@ static __attribute__((unused)) Bool * Bool_lte(Bool * a, Bool * b) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t283; return _r; }
 }
 
-static __attribute__((unused)) Bool * Bool_gte(Bool * a, Bool * b) {
+Bool * Bool_gte(Bool * a, Bool * b) {
     (void)a;
     (void)b;
     Bool _t284; { Bool *_hp = (Bool *)Bool_lt(a, b); _t284 = *_hp; free(_hp); }

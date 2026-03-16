@@ -1393,18 +1393,8 @@ static void emit_struct_typedef(FILE *f, Str *name, Expr *struct_def) {
     }
 }
 
-// Check if a func_def has any shallow parameters (which means its C signature
-// matches ext.h declarations — can't use 'static' or it conflicts)
-static Bool func_has_shallow_params(Expr *fdef) {
-    for (U32 i = 0; i < fdef->data.data.FuncDef.nparam; i++) {
-        if (fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(i)})))
-            return 1;
-    }
-    return 0;
-}
-
 static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib, I32 filter) {
-    Bool is_scalar = is_lib && is_scalar_method_type(name);
+    (void)is_lib;
     Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *field = Expr_child(body, &(I64){(I64)(i)});
@@ -1422,10 +1412,10 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib,
             (fdef->data.data.FuncDef.return_type).count > 0 &&
             (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0)) {
             if (fdef->data.data.FuncDef.return_is_shallow) {
-                fprintf(f, "%sU64 %s_size(void) {\n", is_scalar ? "static " : "", name->c_str);
+                fprintf(f, "U64 %s_size(void) {\n", name->c_str);
                 fprintf(f, "    return (U64)sizeof(%s);\n", name->c_str);
             } else {
-                fprintf(f, "%sU64 *%s_size(void) {\n", is_scalar ? "static " : "", name->c_str);
+                fprintf(f, "U64 *%s_size(void) {\n", name->c_str);
                 fprintf(f, "    U64 *r = malloc(sizeof(U64));\n");
                 fprintf(f, "    *r = (U64)sizeof(%s);\n", name->c_str);
                 fprintf(f, "    return r;\n");
@@ -1433,9 +1423,7 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib,
             fprintf(f, "}\n\n");
             continue;
         }
-        // For scalar types in lib mode: static for pointer-param funcs (no ext.h conflict),
-        // non-static for shallow-param funcs (match ext.h, linker deduplicates)
-        Bool make_static = is_scalar && !func_has_shallow_params(fdef);
+        Bool make_static = 0;
         char full_name_buf[256];
         snprintf(full_name_buf, sizeof(full_name_buf), "%s_%s", name->c_str, field->data.data.Decl.name.c_str);
         Str *full_name = Str_clone(&(Str){.c_str = (U8*)(full_name_buf), .count = (U64)strlen((const char*)(full_name_buf)), .cap = CAP_VIEW});
@@ -2091,9 +2079,9 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
     fprintf(f, "\n");
 
     // Forward-declare helper functions (implementations after struct defs)
-    fprintf(f, "static Str *Str_lit(const char *s, unsigned long long len);\n");
-    fprintf(f, "static void print_single(Str *s);\n");
-    fprintf(f, "static void print_flush();\n\n");
+    fprintf(f, "Str *Str_lit(const char *s, unsigned long long len);\n");
+    fprintf(f, "void print_single(Str *s);\n");
+    fprintf(f, "void print_flush();\n\n");
 
     // Forward-declare all functions (namespace methods + top-level)
     for (U32 i = 0; i < program->children.count; i++) {
@@ -2115,9 +2103,7 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
                         ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                         : type_name_to_c(&fdef->data.data.FuncDef.return_type);
                 }
-                Bool is_ext = (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc);
-                Bool fwd_static = is_lib && is_scalar_method_type(sname) && !is_ext && !func_has_shallow_params(fdef);
-                fprintf(f, "%s%s %s_%s(", fwd_static ? "static __attribute__((unused)) " : "", ret, sname->c_str, field->data.data.Decl.name.c_str);
+                fprintf(f, "%s %s_%s(", ret, sname->c_str, field->data.data.Decl.name.c_str);
                 emit_param_list(f, fdef, 1);
                 fprintf(f, ");\n");
             }
@@ -2253,20 +2239,17 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
 
     // String helper functions (after all struct typedefs so Str is complete)
     fprintf(f, "#define TIL_CAP_LIT ULLONG_MAX\n");
-    fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static Str *Str_lit(const char *s, unsigned long long len) {\n");
+    fprintf(f, "Str *Str_lit(const char *s, unsigned long long len) {\n");
     fprintf(f, "    Str *r = malloc(sizeof(Str));\n");
     fprintf(f, "    r->c_str = (U8 *)s;\n");
     fprintf(f, "    r->count = len;\n");
     fprintf(f, "    r->cap = TIL_CAP_LIT;\n");
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n");
-    fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static void print_single(Str *s) {\n");
+    fprintf(f, "void print_single(Str *s) {\n");
     fprintf(f, "    fwrite(s->c_str, 1, (size_t)s->count, stdout);\n");
     fprintf(f, "}\n");
-    fprintf(f, "__attribute__((unused))\n");
-    fprintf(f, "static void print_flush() {\n");
+    fprintf(f, "void print_flush() {\n");
     fprintf(f, "    putchar('\\n');\n");
     fprintf(f, "}\n\n");
 
