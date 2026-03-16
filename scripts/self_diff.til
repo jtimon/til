@@ -1,0 +1,31 @@
+// Diff generated per-module .c files against hand-written equivalents.
+// Add modules here as they're bootstrapped in #39.
+// Run: bin/ctil run scripts/self_diff.til
+//   or: make self_diff
+
+// Each entry: module name (same name for generated and hand-written)
+// Generated: gen/c/<module>_<module>.c (from ctil translate src/self/<module>.til)
+// Hand-written: src/c/<module>.c
+modules := array("Str", "ast")
+
+mut diffs := 0
+for m : Str in modules {
+    gen_path := "gen/c/".concat(m).concat("_").concat(m).concat(".c")
+    src_path := "src/c/".concat(m).concat(".c")
+    println("--- ", m, " ---")
+    pid := spawn_cmd("diff ".concat(gen_path).concat(" ").concat(src_path))
+    result := wait_cmd(pid)
+    if result.eq(0) {
+        println("MATCH")
+    } else {
+        diffs = diffs.add(1)
+    }
+    println("")
+}
+
+if diffs.eq(0) {
+    println("All modules match!")
+} else {
+    println(diffs.to_str(), " module(s) differ")
+}
+exit(diffs)

@@ -1,4 +1,4 @@
-.PHONY: all clean test ctil_core revert_bootstrap
+.PHONY: all clean test ctil_core revert_bootstrap self_diff
 
 all: bin/ctil bin/c/til
 
@@ -47,6 +47,10 @@ gen/til/til.c: bin/c/til $(CORE) $(SELF) src/til.til
 
 test: bin/ctil bin/c/til bin/c/test_runner bin/c/plot bin/c/tests gen/til/til.c
 	@bin/c/tests $(if $(J),-j$(J))
+
+self_diff: bin/ctil
+	@$(MAKE) ctil_core
+	@bin/ctil run scripts/self_diff.til
 
 ctil_core:
 	@bin/ctil translate src/self/lexer.til
