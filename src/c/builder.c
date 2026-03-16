@@ -1403,7 +1403,7 @@ static Bool func_has_shallow_params(Expr *fdef) {
     return 0;
 }
 
-static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib) {
+static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib, I32 filter) {
     Bool is_scalar = is_lib && is_scalar_method_type(name);
     Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1413,6 +1413,8 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib)
         Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
         FuncType fft = fdef->data.data.FuncDef.func_type;
         if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
+        if (filter == 1 && !fdef->is_core) continue;  // auto-only: skip user-written
+        if (filter == 2 && fdef->is_core) continue;   // user-only: skip auto-generated
         // Emit size() as sizeof — the initer's computed sum doesn't account for
         // C alignment padding or union semantics in tagged enums
         if ((field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0) &&
@@ -2140,16 +2142,24 @@ I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_out
             }
         }
 
-        // Emit function bodies to per-module files
+        // Loop 1: auto-generated functions → main file
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
+                emit_struct_funcs(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), is_lib, 1);
+            } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+                emit_enum_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}));
+                fprintf(f, "\n");
+            }
+        }
+
+        // Loop 2: user-written functions → per-module files
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
             Str *bn = path_basename_no_ext(&stmt->path);
             FILE *mf = *Map_has(&mod_files, bn) ? *(FILE **)Map_get(&mod_files, bn) : f;
             if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
-                emit_struct_funcs(mf, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), is_lib);
-            } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
-                emit_enum_def(mf, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}));
-                fprintf(mf, "\n");
+                emit_struct_funcs(mf, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), is_lib, 2);
             } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
                 FuncType fft2 = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
                 if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
