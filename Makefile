@@ -23,6 +23,7 @@ lib/libffi/.built:
 
 bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
+	@$(MAKE) revert_bootstrap
 	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
 	@$(MAKE) ctil_core
 	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
@@ -51,9 +52,11 @@ ctil_core:
 	@bin/ctil translate src/self/lexer.til
 	@cp gen/c/lexer.c bootstrap/lexer.c
 	@cp gen/c/lexer.h bootstrap/lexer.h
+	@cp gen/c/lexer_*.c bootstrap/ 2>/dev/null || true
 	@bin/ctil translate src/self/ast.til
 	@cp gen/c/ast.c bootstrap/ast.c
 	@cp gen/c/ast.h bootstrap/ast.h
+	@cp gen/c/ast_*.c bootstrap/ 2>/dev/null || true
 	#@bin/ctil translate src/self/parser.til
 	#@cp gen/c/parser.c bootstrap/parser.c
 	#@cp gen/c/parser.h bootstrap/parser.h
