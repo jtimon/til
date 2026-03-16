@@ -4,34 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 
-// --- clone/delete for AST types ---
-// Expr_clone does real deep cloning (typer shares AST nodes via no-op clone → broken codegen).
-// Expr_delete is a no-op (typer inserts delete calls that can pass NULL; AST is never freed).
-// TilType/Declaration/ExprData clone/delete: no-ops (only needed for FFI dispatch table).
+// --- TilType clone/delete (no-ops) ---
 
 TilType *TilType_clone(TilType *self) { return self; }
 void TilType_delete(TilType *self, Bool *call_free) { (void)self; (void)call_free; }
-Declaration *Declaration_clone(Declaration *self) { return self; }
-void Declaration_delete(Declaration *self, Bool *call_free) { (void)self; (void)call_free; }
-ExprData *ExprData_clone(ExprData *self) { return self; }
-void ExprData_delete(ExprData *self, Bool *call_free) { (void)self; (void)call_free; }
-
-Expr *Expr_clone(Expr *self) {
-    if (!self) return NULL;
-    Expr *c = calloc(1, sizeof(Expr));
-    *c = *self;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); c->children = *_vp; free(_vp); }
-    for (U32 i = 0; i < self->children.count; i++) {
-        Expr *cloned = Expr_clone(expr_child(self, i));
-        Expr **_p = malloc(sizeof(Expr *)); *_p = cloned;
-        Vec_push(&c->children, _p);
-    }
-    return c;
-}
-
-void Expr_delete(Expr *self, Bool *call_free) { (void)self; (void)call_free; }
-
-// --- Functions matching ast.til signatures ---
 
 Str *til_type_name_c(TilType *t) {
     switch (t->tag) {
@@ -55,6 +31,66 @@ Str *til_type_name_c(TilType *t) {
     }
     return Str_clone(&(Str){.c_str = (U8*)"?", .count = 1, .cap = CAP_LIT});
 }
+
+// --- Declaration clone/delete (no-ops) ---
+
+Declaration *Declaration_clone(Declaration *self) { return self; }
+void Declaration_delete(Declaration *self, Bool *call_free) { (void)self; (void)call_free; }
+
+// --- ExprData clone/delete (no-ops) ---
+
+ExprData *ExprData_clone(ExprData *self) { return self; }
+void ExprData_delete(ExprData *self, Bool *call_free) { (void)self; (void)call_free; }
+
+// --- Expr namespace methods ---
+
+void Expr_error(Expr *self, Str *msg) {
+    printf("%s:%u:%u: error: %s\n", self->path.c_str, self->line, self->col, msg->c_str);
+}
+
+void Expr_todo_error(Expr *self, Str *msg) {
+    Expr_error(self, msg);
+    printf("  note: this language feature is not implemented yet\n");
+}
+
+void Expr_lang_error(Expr *self, Str *msg) {
+    Expr_error(self, msg);
+    printf("  note: this is a bug in the language, please report it\n");
+}
+
+void Expr_add_child(Expr *self, Expr *child) {
+    Expr **_p = malloc(sizeof(Expr *)); *_p = child;
+    Vec_push(&self->children, _p);
+}
+
+Expr *Expr_new(ExprData *data, U32 line, U32 col, Str *path) {
+    Expr *e = calloc(1, sizeof(Expr));
+    e->data = *data;
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); e->children = *_vp; free(_vp); }
+    e->line = line;
+    e->col = col;
+    if (path) e->path = *path;
+    e->variadic_index = -1;
+    e->kwargs_index = -1;
+    return e;
+}
+
+Expr *Expr_clone(Expr *self) {
+    if (!self) return NULL;
+    Expr *c = calloc(1, sizeof(Expr));
+    *c = *self;
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); c->children = *_vp; free(_vp); }
+    for (U32 i = 0; i < self->children.count; i++) {
+        Expr *cloned = Expr_clone(expr_child(self, i));
+        Expr **_p = malloc(sizeof(Expr *)); *_p = cloned;
+        Vec_push(&c->children, _p);
+    }
+    return c;
+}
+
+void Expr_delete(Expr *self, Bool *call_free) { (void)self; (void)call_free; }
+
+// --- Top-level functions ---
 
 Str *node_name(ExprData *data) {
     switch (data->tag) {
@@ -180,37 +216,4 @@ Str *enum_variant_type(Expr *enum_def, I32 tag) {
         }
     }
     return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-}
-
-// --- Expr namespace methods ---
-
-void Expr_error(Expr *self, Str *msg) {
-    printf("%s:%u:%u: error: %s\n", self->path.c_str, self->line, self->col, msg->c_str);
-}
-
-void Expr_todo_error(Expr *self, Str *msg) {
-    Expr_error(self, msg);
-    printf("  note: this language feature is not implemented yet\n");
-}
-
-void Expr_lang_error(Expr *self, Str *msg) {
-    Expr_error(self, msg);
-    printf("  note: this is a bug in the language, please report it\n");
-}
-
-void Expr_add_child(Expr *self, Expr *child) {
-    Expr **_p = malloc(sizeof(Expr *)); *_p = child;
-    Vec_push(&self->children, _p);
-}
-
-Expr *Expr_new(ExprData *data, U32 line, U32 col, Str *path) {
-    Expr *e = calloc(1, sizeof(Expr));
-    e->data = *data;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); e->children = *_vp; free(_vp); }
-    e->line = line;
-    e->col = col;
-    if (path) e->path = *path;
-    e->variadic_index = -1;
-    e->kwargs_index = -1;
-    return e;
 }
