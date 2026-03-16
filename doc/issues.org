@@ -27,21 +27,36 @@
   needing manual forward declarations — the builder already generates
   them all.
 
-  Key items:
-  - DONE: Array removed from is_ext_h_type and ext.h — bootstrap emits it
-  - DONE: Str removed from is_ext_h_type and ext.h — bootstrap emits it
+  DONE items:
+  - DONE: Array removed from is_ext_h_type and ext.h
+  - DONE: Str removed from is_ext_h_type and ext.h
   - DONE: ~#include "ext.h"~ moved after forward decls in builder.c
-  - DONE: ext.c duplicates removed (ext_str_new, I64_to_str, U8_to_str,
-    *_new allocators); I64_new moved to dispatch.c (only user)
-  - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h (workaround until #70)
+  - DONE: ext.c duplicates removed
+  - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h
   - DONE: Dead Makefile filter-out removed
-  - DONE: forward.h (#72) — link_c files see all til-defined types via
-    ~-include gen/c/forward.h~ when compiled to .o separately
-  - Expr children pointer-vs-value mismatch (ast.c vs bootstrap/ast.c)
-  - dyn_call_delete duplication across bootstrap files
-  - Makefile: stale bootstrap/lexer.c+h (subsumed by ast.c+h)
+  - DONE: forward.h (#72) — link_c type visibility
+  - DONE: Per-module .c emission (#74) — enables diff-driven #39
+
+  Remaining (blocking #39 clean swap to ast):
+  - Expr children pointer-vs-value mismatch: src/c/ast.c uses
+    ~sizeof(Expr *)~ (pointer-based), bootstrap/ast.c uses
+    ~sizeof(Expr)~ (value-based). ALL C callers (ctil.c, typer.c,
+    parser.c, dispatch.c, til_bridge.c) use the pointer-based pattern.
+    Must change C to match til ownership semantics (see #39 step 4a
+    blueprint + doc/cleanup.org). Use ~diff gen/c/ast_ast.c src/c/ast.c~
+    to track progress.
+  - Clone/delete no-ops: src/c/ast.c has no-op clone/delete for
+    TilType, Declaration, ExprData, Expr. Bootstrap does real
+    field-by-field clone/delete. C callers assume no-op behavior.
+    Must verify real clone/delete is safe before swap.
+  - dyn_call_delete duplication: resolves when Makefile swaps from
+    bootstrap/lexer.c to bootstrap/ast.c (ast.c's version covers
+    all types).
+  - Makefile stale bootstrap/lexer.c+h: resolves with the swap.
+
+  Not blocking #39 (separate concerns):
   - Mode uses const char* instead of Str
-  - til_bridge.c wrappers (go away as modules bootstrap in #39)
+  - til_bridge.c wrappers (go away as modules bootstrap)
 
 ** OPEN #70 Builder: emit constants as #define in generated headers
   The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
