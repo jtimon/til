@@ -134,6 +134,25 @@ Slot := struct {
     mut start_ms := 0
 }
 
+// --- Output helpers ---
+
+print_test_result := proc(t: Test) {
+    if t.kind.is_Mode() {
+        md := t.kind.get_Mode()
+        mut line := pad_right(t.label, 42)
+        if t.has_ci.eq(1) { line = line.concat("ci: ").concat(pad_right(ms_to_str(md.ci_ms), 9)) }
+        if t.has_cr.eq(1) { line = line.concat("cr: ").concat(pad_right(ms_to_str(md.cr_ms), 9)) }
+        if t.has_ti.eq(1) { line = line.concat("ti: ").concat(pad_right(ms_to_str(md.ti_ms), 9)) }
+        if t.has_tr.eq(1) { line = line.concat("tr: ").concat(pad_right(ms_to_str(md.tr_ms), 9)) }
+        if md.output_match.eq(0) { line = line.concat(" MISMATCH") }
+        println(line)
+    } else {
+        if t.ok.eq(1) {
+            println(pad_right(t.label, 42), ms_to_str(t.ms))
+        }
+    }
+}
+
 // --- Registration helpers ---
 
 add_mode := proc(tests: Vec, file: Str, flags: Str,
@@ -251,6 +270,8 @@ run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
                         md.output_match = parse_kv(result_line, "match")
                         t.kind = TestKind.Mode(md)
                     }
+
+                    print_test_result(t)
 
                     if status.neq(0) {
                         runner_lines := split(runner_out, NL)
@@ -442,7 +463,7 @@ main := proc(args: ..Str) {
     // === Run all tests in parallel ===
     run_all_parallel(tests, j, fail)
 
-    // --- Print mode test timing table ---
+    // --- Accumulate totals ---
 
     println("")
     mut total_ci_ms := 0
@@ -457,28 +478,11 @@ main := proc(args: ..Str) {
         if t.kind.is_Mode() {
             mode_total = mode_total.add(1)
             md := t.kind.get_Mode()
-            mut line := pad_right(t.label, 42)
-            if t.has_ci.eq(1) {
-                line = line.concat("ci: ").concat(pad_right(ms_to_str(md.ci_ms), 9))
-                total_ci_ms = total_ci_ms.add(md.ci_ms)
-            }
-            if t.has_cr.eq(1) {
-                line = line.concat("cr: ").concat(pad_right(ms_to_str(md.cr_ms), 9))
-                total_cr_ms = total_cr_ms.add(md.cr_ms)
-            }
-            if t.has_ti.eq(1) {
-                line = line.concat("ti: ").concat(pad_right(ms_to_str(md.ti_ms), 9))
-                total_ti_ms = total_ti_ms.add(md.ti_ms)
-            }
-            if t.has_tr.eq(1) {
-                line = line.concat("tr: ").concat(pad_right(ms_to_str(md.tr_ms), 9))
-                total_tr_ms = total_tr_ms.add(md.tr_ms)
-            }
-            if md.output_match.eq(0) {
-                line = line.concat(" MISMATCH")
-            }
+            if t.has_ci.eq(1) { total_ci_ms = total_ci_ms.add(md.ci_ms) }
+            if t.has_cr.eq(1) { total_cr_ms = total_cr_ms.add(md.cr_ms) }
+            if t.has_ti.eq(1) { total_ti_ms = total_ti_ms.add(md.ti_ms) }
+            if t.has_tr.eq(1) { total_tr_ms = total_tr_ms.add(md.tr_ms) }
             if t.ok.eq(1) { mode_passed = mode_passed.add(1) }
-            println(line)
         }
         pi = pi.add(1)
     }
