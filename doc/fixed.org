@@ -1,5 +1,13 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #71 Bootstrap cleanup: clean ast swap
+  src/c/ast.c replaced by bootstrap/ast.c (generated from ast.til).
+  src/c/ast.h stripped to thin wrapper including bootstrap/ast.h.
+  Makefile: bootstrap/lexer.c removed from SRCS (ast subsumes lexer).
+  ctil_core: lexer.til translation removed (ast.til imports it).
+  ext.c: includes bootstrap/ast.h instead of bootstrap/lexer.h.
+  Builder: scalar methods + helpers emitted as non-static.
+  Builder: null guard in auto-generated _delete methods.
 
 * FIXED #75 Value-based Expr children + ownership discipline
   Expr children changed from sizeof(Expr*) to sizeof(Expr).

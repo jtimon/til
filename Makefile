@@ -2,8 +2,8 @@
 
 all: bin/ctil bin/c/til
 
-SRCS := $(wildcard src/*.c) $(wildcard src/c/*.c) bootstrap/ast.c bootstrap/lexer.c
-HDRS := $(wildcard src/c/*.h) bootstrap/ast.h bootstrap/lexer.h
+SRCS := $(wildcard src/*.c) $(wildcard src/c/*.c) bootstrap/ast.c
+HDRS := $(wildcard src/c/*.h) bootstrap/ast.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 
@@ -53,11 +53,6 @@ self_diff: bin/ctil
 	@bin/ctil run scripts/self_diff.til
 
 ctil_core:
-	@bin/ctil translate src/self/lexer.til
-	@cp gen/c/lexer.c bootstrap/lexer.c
-	@cp gen/c/lexer.h bootstrap/lexer.h
-	@cp gen/c/lexer_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/c/lexer_*.h bootstrap/ 2>/dev/null || true
 	@bin/ctil translate src/self/ast.til
 	@cp gen/c/ast.c bootstrap/ast.c
 	@cp gen/c/ast.h bootstrap/ast.h

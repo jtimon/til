@@ -17,32 +17,6 @@
   any field default in ast.til (e.g. children elem_type "" vs "Expr").
 
 
-** WIP #71 Bootstrap cleanup: fix incompatibilities before self-hosting
-  :BLOCKS: #39 #12
-  Remove all C duplication of things til defines. The end state: ext.c
-  contains ONLY irreducible primitives (scalar ops, system calls, I/O).
-  Everything else — Str, Array, Vec, Map, Set and all methods — comes
-  from til, compiled into bootstrap. No parallel C implementations.
-  See doc/cleanup.org for full details.
-
-  DONE items:
-  - DONE: Array removed from is_ext_h_type and ext.h
-  - DONE: Str removed from is_ext_h_type and ext.h
-  - DONE: ~#include "ext.h"~ moved after forward decls in builder.c
-  - DONE: ext.c duplicates removed
-  - DONE: CAP_LIT/CAP_VIEW moved to src/c/pre70.h
-  - DONE: Dead Makefile filter-out removed
-  - DONE: forward.h (#72) — link_c type visibility
-  - DONE: Per-module .c and .h emission (#74)
-  - DONE: Value-based Expr children (#75)
-  - DONE: Real clone/delete for TilType, Declaration, ExprData, Expr
-  - DONE: Precomp namespace func folding
-  - DONE: bootstrap/ast.c added to SRCS link
-
-  Remaining:
-  - 11 build_t_* tests fail (bin/c/til double-free in Expr cleanup)
-  - src/c/ast.c still present — clean swap not done
-  - Memory leak from children Vecs with empty elem_type
 
 ** OPEN #70 Builder: emit constants as proper constants in generated headers
   The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
@@ -284,23 +258,25 @@
     *Semantic/interface* (must fix): different data layouts, missing
     implementations, wrong signatures, callers using incompatible patterns.
 
-*** WIP Step 4: Replace C ast with til-compiled ast
-    Diff: 2615 lines (~make self_diff~). Most is bikeshedding.
+*** DONE Step 4: Replace C ast with til-compiled ast
+   Replaced src/c/ast.c with bootstrap/ast.c (generated from ast.til).
+   Since ast.til imports lexer.til imports core.til, bootstrap/ast
+   subsumes bootstrap/lexer — removed lexer from SRCS.
 
-    Semantic blockers:
-    - B1: Pointer-vs-value children — hand-written uses ~sizeof(Expr *)~,
-      generated uses ~sizeof(Expr)~. ALL C callers (parser.c, typer.c,
-      builder.c, dispatch.c, interpreter.c, til_bridge.c, scavenger.c,
-      initer.c) use the pointer-based pattern. Biggest single change.
-    - B2: Clone/delete no-ops — hand-written has no-ops for TilType,
-      Declaration, ExprData, Expr clone/delete. Generated has real
-      field-by-field implementations.
-
-    Already bikeshedding (tolerable):
-    - switch vs nested if-else (til_type_name_c, node_name)
-    - printf vs Array+println (Expr_error, Expr_todo_error, Expr_lang_error)
-    - for-loop vs Range iteration (enum helpers)
-    - Include lines, Expr_child_count return type
+   What was done:
+   - B1 (value-based children) and B2 (real clone/delete) fixed in #75
+   - Builder: scalar methods + helpers emitted as non-static (#71)
+   - Builder: null guard in auto-generated _delete methods
+   - ast.til: children elem_type changed to "" (avoids recursive
+     Vec_delete that conflicts with manual C lifetime management)
+   - src/c/ast.c replaced with gen/c/ast_ast.c (0 diff except include)
+   - src/c/ast.h stripped to thin wrapper (macros only, includes
+     bootstrap/ast.h for all types and declarations)
+   - Makefile: SRCS/HDRS use bootstrap/ast only (not lexer)
+   - ctil_core: only translates ast.til (lexer.til subsumed)
+   - ext.c: includes bootstrap/ast.h instead of bootstrap/lexer.h
+   - Deleted: src/c/ast.c
+   - New issue #76 for precomp temp scope bug (parsing.til disabled)
 
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from
