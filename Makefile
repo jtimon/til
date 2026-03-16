@@ -22,11 +22,10 @@ lib/libffi/.built:
 	@touch $@
 
 bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
-	@mkdir -p bin gen/c
-	@test -f gen/c/forward.h || printf '#pragma once\n#include "aliases.h"\n#include <stdbool.h>\ntypedef struct Str Str;\n' > gen/c/forward.h
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c -Igen/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
+	@mkdir -p bin
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
 	@$(MAKE) ctil_core
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c -Igen/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
 
 TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
 bin/c/til: bin/ctil $(CORE) $(SELF) src/til.til
