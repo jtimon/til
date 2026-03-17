@@ -3,11 +3,10 @@ mode cli
 // test_runner.til — runs tests and reports structured results for tests.til.
 //
 // Usage:
-//   test_runner mode <file> [-no-ci] [-no-cr] [-no-ti] [-no-tr]
+//   test_runner mode <file> [-no-interp] [-no-run]
 //   test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>
 //   test_runner count <label> <needle> <expected_count> -- <cmd...>
 
-CTIL := "bin/ctil"
 TIL := "bin/c/til"
 
 // Extract basename from path: "src/test/types.til" → "types"
@@ -54,92 +53,54 @@ main := proc(args: ..Str) {
     // ========== mode subcommand ==========
     if subcmd.eq("mode") {
         if args.len().lt(2) {
-            println("Usage: test_runner mode <file> [-no-ci] [-no-cr] [-no-ti] [-no-tr]")
+            println("Usage: test_runner mode <file> [-no-interp] [-no-run]")
             exit(1)
         }
 
         ref file : Str = args.get(1)
-        mut en_ci := 1
-        mut en_cr := 1
-        mut en_ti := 1
-        mut en_tr := 1
+        mut en_interp := 1
+        mut en_run := 1
         for i in 2..args.len() {
             ref arg : Str = args.get(i)
-            if arg.eq("-no-ci") { en_ci = 0 }
-            if arg.eq("-no-cr") { en_cr = 0 }
-            if arg.eq("-no-ti") { en_ti = 0 }
-            if arg.eq("-no-tr") { en_tr = 0 }
+            if arg.eq("-no-interp") { en_interp = 0 }
+            if arg.eq("-no-run") { en_run = 0 }
         }
 
         basename := test_basename(file)
 
-        ci_outfile := "gen/out/ci/".concat(basename).concat(".out")
-        cr_outfile := "gen/out/cr/".concat(basename).concat(".out")
-        ti_outfile := "gen/out/ti/".concat(basename).concat(".out")
-        tr_outfile := "gen/out/tr/".concat(basename).concat(".out")
+        interp_outfile := "gen/out/interp/".concat(basename).concat(".out")
+        run_outfile := "gen/out/run/".concat(basename).concat(".out")
 
-        mut ci_ms := 0
-        mut ci_ok := 0
-        mut cr_ms := 0
-        mut cr_ok := 0
-        mut ti_ms := 0
-        mut ti_ok := 0
-        mut tr_ms := 0
-        mut tr_ok := 0
+        mut interp_ms := 0
+        mut interp_ok := 0
+        mut run_ms := 0
+        mut run_ok := 0
         mut fail := 0
 
-        if en_ci.eq(1) {
+        if en_interp.eq(1) {
             start := clock_ms()
-            cmd := CTIL.concat(" interpret '").concat(file).concat("' > ").concat(ci_outfile).concat(" 2>/dev/null")
+            cmd := TIL.concat(" interpret '").concat(file).concat("' > ").concat(interp_outfile).concat(" 2>/dev/null")
             pid := spawn_cmd(cmd)
             status := wait_cmd(pid)
-            ci_ms = clock_ms().sub(start)
+            interp_ms = clock_ms().sub(start)
             if status.eq(0) {
-                ci_ok = 1
+                interp_ok = 1
             } else {
-                println("FAIL (ci): ", file)
+                println("FAIL (interp): ", file)
                 fail = 1
             }
         }
 
-        if en_cr.eq(1) {
+        if en_run.eq(1) {
             start := clock_ms()
-            cmd := CTIL.concat(" run '").concat(file).concat("' > ").concat(cr_outfile).concat(" 2>/dev/null")
+            cmd := TIL.concat(" run '").concat(file).concat("' > ").concat(run_outfile).concat(" 2>/dev/null")
             pid := spawn_cmd(cmd)
             status := wait_cmd(pid)
-            cr_ms = clock_ms().sub(start)
+            run_ms = clock_ms().sub(start)
             if status.eq(0) {
-                cr_ok = 1
+                run_ok = 1
             } else {
-                println("FAIL (cr): ", file)
-                fail = 1
-            }
-        }
-
-        if en_ti.eq(1) {
-            start := clock_ms()
-            cmd := TIL.concat(" interpret '").concat(file).concat("' > ").concat(ti_outfile).concat(" 2>/dev/null")
-            pid := spawn_cmd(cmd)
-            status := wait_cmd(pid)
-            ti_ms = clock_ms().sub(start)
-            if status.eq(0) {
-                ti_ok = 1
-            } else {
-                println("FAIL (ti): ", file)
-                fail = 1
-            }
-        }
-
-        if en_tr.eq(1) {
-            start := clock_ms()
-            cmd := TIL.concat(" run '").concat(file).concat("' > ").concat(tr_outfile).concat(" 2>/dev/null")
-            pid := spawn_cmd(cmd)
-            status := wait_cmd(pid)
-            tr_ms = clock_ms().sub(start)
-            if status.eq(0) {
-                tr_ok = 1
-            } else {
-                println("FAIL (tr): ", file)
+                println("FAIL (run): ", file)
                 fail = 1
             }
         }
@@ -149,45 +110,19 @@ main := proc(args: ..Str) {
         mut ref_out := ""
         mut has_ref := 0
 
-        if en_ci.eq(1).and(ci_ok.eq(1)) {
-            ref_out = readfile(ci_outfile)
+        if en_interp.eq(1).and(interp_ok.eq(1)) {
+            ref_out = readfile(interp_outfile)
             has_ref = 1
         }
-        if en_cr.eq(1).and(cr_ok.eq(1)) {
-            cr_out := readfile(cr_outfile)
+        if en_run.eq(1).and(run_ok.eq(1)) {
+            run_out := readfile(run_outfile)
             if has_ref.eq(0) {
-                ref_out = cr_out
+                ref_out = run_out
                 has_ref = 1
             } else {
-                if cr_out.neq(ref_out) {
+                if run_out.neq(ref_out) {
                     out_match = 0
-                    println("MISMATCH: ", file, " (cr vs ci)")
-                    fail = 1
-                }
-            }
-        }
-        if en_ti.eq(1).and(ti_ok.eq(1)) {
-            ti_out := readfile(ti_outfile)
-            if has_ref.eq(0) {
-                ref_out = ti_out
-                has_ref = 1
-            } else {
-                if ti_out.neq(ref_out) {
-                    out_match = 0
-                    println("MISMATCH: ", file, " (ti vs ref)")
-                    fail = 1
-                }
-            }
-        }
-        if en_tr.eq(1).and(tr_ok.eq(1)) {
-            tr_out := readfile(tr_outfile)
-            if has_ref.eq(0) {
-                ref_out = tr_out
-                has_ref = 1
-            } else {
-                if tr_out.neq(ref_out) {
-                    out_match = 0
-                    println("MISMATCH: ", file, " (tr vs ref)")
+                    println("MISMATCH: ", file, " (run vs interp)")
                     fail = 1
                 }
             }
@@ -196,13 +131,11 @@ main := proc(args: ..Str) {
         mut mode_ok := 1
         if fail.neq(0) { mode_ok = 0 }
         if out_match.eq(0) { mode_ok = 0 }
-        total_ms := ci_ms.add(cr_ms).add(ti_ms).add(tr_ms)
+        total_ms := interp_ms.add(run_ms)
 
         println("RESULT ok=", mode_ok.to_str(), " ms=", total_ms.to_str(),
-                " ci_ms=", ci_ms.to_str(), " ci_ok=", ci_ok.to_str(),
-                " cr_ms=", cr_ms.to_str(), " cr_ok=", cr_ok.to_str(),
-                " ti_ms=", ti_ms.to_str(), " ti_ok=", ti_ok.to_str(),
-                " tr_ms=", tr_ms.to_str(), " tr_ok=", tr_ok.to_str(),
+                " interp_ms=", interp_ms.to_str(), " interp_ok=", interp_ok.to_str(),
+                " run_ms=", run_ms.to_str(), " run_ok=", run_ok.to_str(),
                 " match=", out_match.to_str())
 
         exit(fail)

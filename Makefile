@@ -115,6 +115,12 @@ tmp_gdb_parsing:
 	  -ex "run run src/test/parsing.til" \
 	  bin/ctil 2>&1 || true
 
+tmp_test_cli_err:
+	@bin/c/til interpret src/examples/hello_cli.til extra 2>&1; echo "exit: $$?" || true
+
+tmp_test_cli_hello:
+	@bin/c/til interpret src/examples/hello_cli.til hello world 2>&1 || true
+
 tmp_run_lexing:
 	@bin/ctil run src/test/lexing.til 2>&1 || true
 

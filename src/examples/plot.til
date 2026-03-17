@@ -4,7 +4,7 @@ mode cli
 // Usage: plot <csv_path> <svg_output_path> [last_n]
 //
 // CSV format (header + data rows):
-//   commit,ci_ms,cr_ms,ti_ms,tr_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total
+//   commit,interp_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total
 
 NL := Str.from_byte(10)
 Q := Str.from_byte(34)
@@ -27,10 +27,8 @@ qa := func(val: Str) returns Str {
 // Data row
 Row := struct {
     commit := ""
-    ci_ms := 0
-    cr_ms := 0
-    ti_ms := 0
-    tr_ms := 0
+    interp_ms := 0
+    run_ms := 0
     wall_ms := 0
 }
 
@@ -45,23 +43,19 @@ parse_csv := proc(content: Str) returns Vec {
             continue
         }
         cols := split(line, ",")
-        if cols.len().lt(9) {
+        if cols.len().lt(7) {
             i = i.add(1)
             continue
         }
         ref c0 : Str = cols.get(0)
         ref c1 : Str = cols.get(1)
         ref c2 : Str = cols.get(2)
-        ref c3 : Str = cols.get(3)
-        ref c4 : Str = cols.get(4)
-        ref c8 : Str = cols.get(8)
+        ref c6 : Str = cols.get(6)
         rows.push(own Row(
             commit = c0.clone(),
-            ci_ms = c1.to_i64(),
-            cr_ms = c2.to_i64(),
-            ti_ms = c3.to_i64(),
-            tr_ms = c4.to_i64(),
-            wall_ms = c8.to_i64()
+            interp_ms = c1.to_i64(),
+            run_ms = c2.to_i64(),
+            wall_ms = c6.to_i64()
         ))
         i = i.add(1)
     }
@@ -88,10 +82,8 @@ build_points := func(rows: Vec, series: Str, y_max: I64) returns Str {
     while i.lt(rows.len()) {
         ref row : Row = rows.get(i)
         mut val := 0
-        if series.eq("ci") { val = row.ci_ms }
-        if series.eq("cr") { val = row.cr_ms }
-        if series.eq("ti") { val = row.ti_ms }
-        if series.eq("tr") { val = row.tr_ms }
+        if series.eq("interp") { val = row.interp_ms }
+        if series.eq("run") { val = row.run_ms }
         if series.eq("wall") { val = row.wall_ms }
         x := x_px(i.to_i64(), rows.len().to_i64())
         y := y_px(val, y_max)
@@ -132,10 +124,8 @@ series_has_data := func(rows: Vec, series: Str) returns Bool {
     while i.lt(rows.len()) {
         ref row : Row = rows.get(i)
         mut val := 0
-        if series.eq("ci") { val = row.ci_ms }
-        if series.eq("cr") { val = row.cr_ms }
-        if series.eq("ti") { val = row.ti_ms }
-        if series.eq("tr") { val = row.tr_ms }
+        if series.eq("interp") { val = row.interp_ms }
+        if series.eq("run") { val = row.run_ms }
         if series.eq("wall") { val = row.wall_ms }
         if val.gt(0) { return true }
         i = i.add(1)
@@ -153,10 +143,8 @@ generate_svg := proc(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
     mut i : U64 = 0
     while i.lt(rows.len()) {
         ref row : Row = rows.get(i)
-        y_max = max_val(y_max, row.ci_ms)
-        y_max = max_val(y_max, row.cr_ms)
-        y_max = max_val(y_max, row.ti_ms)
-        y_max = max_val(y_max, row.tr_ms)
+        y_max = max_val(y_max, row.interp_ms)
+        y_max = max_val(y_max, row.run_ms)
         y_max = max_val(y_max, row.wall_ms)
         i = i.add(1)
     }
@@ -197,16 +185,12 @@ generate_svg := proc(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
     }
 
     // Data polylines (skip series with all-zero data)
-    has_ci := series_has_data(rows, "ci")
-    has_cr := series_has_data(rows, "cr")
-    has_ti := series_has_data(rows, "ti")
-    has_tr := series_has_data(rows, "tr")
+    has_interp := series_has_data(rows, "interp")
+    has_run := series_has_data(rows, "run")
     has_wall := series_has_data(rows, "wall")
     if rows.len().gt(0) {
-        if has_ci { svg = svg.concat(svg_polyline(build_points(rows, "ci", y_max), "#0072B2")) }
-        if has_cr { svg = svg.concat(svg_polyline(build_points(rows, "cr", y_max), "#D55E00")) }
-        if has_ti { svg = svg.concat(svg_polyline(build_points(rows, "ti", y_max), "#CC79A7")) }
-        if has_tr { svg = svg.concat(svg_polyline(build_points(rows, "tr", y_max), "#E69F00")) }
+        if has_interp { svg = svg.concat(svg_polyline(build_points(rows, "interp", y_max), "#0072B2")) }
+        if has_run { svg = svg.concat(svg_polyline(build_points(rows, "run", y_max), "#D55E00")) }
         if has_wall { svg = svg.concat(svg_polyline(build_points(rows, "wall", y_max), "#009E73")) }
 
         // Dots on data points
@@ -214,10 +198,8 @@ generate_svg := proc(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
         while i.lt(rows.len()) {
             ref row : Row = rows.get(i)
             x := x_px(i.to_i64(), rows.len().to_i64())
-            if has_ci { svg = svg.concat(svg_circle(x, y_px(row.ci_ms, y_max), 3, "#0072B2")) }
-            if has_cr { svg = svg.concat(svg_circle(x, y_px(row.cr_ms, y_max), 3, "#D55E00")) }
-            if has_ti { svg = svg.concat(svg_circle(x, y_px(row.ti_ms, y_max), 3, "#CC79A7")) }
-            if has_tr { svg = svg.concat(svg_circle(x, y_px(row.tr_ms, y_max), 3, "#E69F00")) }
+            if has_interp { svg = svg.concat(svg_circle(x, y_px(row.interp_ms, y_max), 3, "#0072B2")) }
+            if has_run { svg = svg.concat(svg_circle(x, y_px(row.run_ms, y_max), 3, "#D55E00")) }
             if has_wall { svg = svg.concat(svg_circle(x, y_px(row.wall_ms, y_max), 3, "#009E73")) }
             i = i.add(1)
         }
@@ -240,24 +222,14 @@ generate_svg := proc(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool 
     ly := 20
     lx2 := MARGIN_LEFT.add(20)
     mut lx_pos := lx2
-    if has_ci {
+    if has_interp {
         svg = svg.concat(svg_circle(lx_pos, ly, 4, "#0072B2"))
-        svg = svg.concat(svg_text(lx_pos.add(8), ly.add(4), "start", 12, "#0072B2", "ctil-i"))
+        svg = svg.concat(svg_text(lx_pos.add(8), ly.add(4), "start", 12, "#0072B2", "interp"))
         lx_pos = lx_pos.add(70)
     }
-    if has_cr {
+    if has_run {
         svg = svg.concat(svg_circle(lx_pos, ly, 4, "#D55E00"))
-        svg = svg.concat(svg_text(lx_pos.add(8), ly.add(4), "start", 12, "#D55E00", "ctil-r"))
-        lx_pos = lx_pos.add(70)
-    }
-    if has_ti {
-        svg = svg.concat(svg_circle(lx_pos, ly, 4, "#CC79A7"))
-        svg = svg.concat(svg_text(lx_pos.add(8), ly.add(4), "start", 12, "#CC79A7", "til-i"))
-        lx_pos = lx_pos.add(60)
-    }
-    if has_tr {
-        svg = svg.concat(svg_circle(lx_pos, ly, 4, "#E69F00"))
-        svg = svg.concat(svg_text(lx_pos.add(8), ly.add(4), "start", 12, "#E69F00", "til-r"))
+        svg = svg.concat(svg_text(lx_pos.add(8), ly.add(4), "start", 12, "#D55E00", "run"))
         lx_pos = lx_pos.add(60)
     }
     if has_wall {
@@ -279,8 +251,8 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
         mut i := all_rows.len().sub(last_n.to_u64())
         while i.lt(all_rows.len()) {
             ref r : Row = all_rows.get(i)
-            rows.push(own Row(commit = r.commit.clone(), ci_ms = r.ci_ms, cr_ms = r.cr_ms,
-                              ti_ms = r.ti_ms, tr_ms = r.tr_ms, wall_ms = r.wall_ms))
+            rows.push(own Row(commit = r.commit.clone(), interp_ms = r.interp_ms,
+                              run_ms = r.run_ms, wall_ms = r.wall_ms))
             i = i.add(1)
         }
     } else {

@@ -75,33 +75,25 @@ parse_kv := func(line: Str, key: Str) returns I64 {
     return line.substr(start, end.sub(start)).to_i64()
 }
 
-mode_flags := func(en_ci: I64, en_cr: I64, en_ti: I64, en_tr: I64) returns Str {
+mode_flags := func(en_interp: I64, en_run: I64) returns Str {
     mut f := ""
-    if en_ci.eq(0) { f = f.concat(" -no-ci") }
-    if en_cr.eq(0) { f = f.concat(" -no-cr") }
-    if en_ti.eq(0) { f = f.concat(" -no-ti") }
-    if en_tr.eq(0) { f = f.concat(" -no-tr") }
+    if en_interp.eq(0) { f = f.concat(" -no-interp") }
+    if en_run.eq(0) { f = f.concat(" -no-run") }
     return f
 }
 
 // --- Data structures ---
 
 ModeData := struct {
-    mut ci_ms := 0
-    mut ci_ok := 0
-    mut cr_ms := 0
-    mut cr_ok := 0
-    mut ti_ms := 0
-    mut ti_ok := 0
-    mut tr_ms := 0
-    mut tr_ok := 0
+    mut interp_ms := 0
+    mut interp_ok := 0
+    mut run_ms := 0
+    mut run_ok := 0
     mut output_match := 1
     namespace:
     eq := func(a: ModeData, b: ModeData) returns Bool {
-        return a.ci_ms.eq(b.ci_ms).and(a.ci_ok.eq(b.ci_ok))
-            .and(a.cr_ms.eq(b.cr_ms)).and(a.cr_ok.eq(b.cr_ok))
-            .and(a.ti_ms.eq(b.ti_ms)).and(a.ti_ok.eq(b.ti_ok))
-            .and(a.tr_ms.eq(b.tr_ms)).and(a.tr_ok.eq(b.tr_ok))
+        return a.interp_ms.eq(b.interp_ms).and(a.interp_ok.eq(b.interp_ok))
+            .and(a.run_ms.eq(b.run_ms)).and(a.run_ok.eq(b.run_ok))
             .and(a.output_match.eq(b.output_match))
     }
     to_str := func(self: ModeData) returns Str { return "ModeData" }
@@ -122,10 +114,8 @@ Test := struct {
     mut ok := 0
     mut ms := 0
     // mode config flags
-    mut has_ci := 0
-    mut has_cr := 0
-    mut has_ti := 0
-    mut has_tr := 0
+    mut has_interp := 0
+    mut has_run := 0
 }
 
 Slot := struct {
@@ -140,10 +130,8 @@ print_test_result := proc(t: Test) {
     if t.kind.is_Mode() {
         md := t.kind.get_Mode()
         mut line := pad_right(t.label, 42)
-        if t.has_ci.eq(1) { line = line.concat("ci: ").concat(pad_right(ms_to_str(md.ci_ms), 9)) }
-        if t.has_cr.eq(1) { line = line.concat("cr: ").concat(pad_right(ms_to_str(md.cr_ms), 9)) }
-        if t.has_ti.eq(1) { line = line.concat("ti: ").concat(pad_right(ms_to_str(md.ti_ms), 9)) }
-        if t.has_tr.eq(1) { line = line.concat("tr: ").concat(pad_right(ms_to_str(md.tr_ms), 9)) }
+        if t.has_interp.eq(1) { line = line.concat("interp: ").concat(pad_right(ms_to_str(md.interp_ms), 9)) }
+        if t.has_run.eq(1) { line = line.concat("run: ").concat(pad_right(ms_to_str(md.run_ms), 9)) }
         if md.output_match.eq(0) { line = line.concat(" MISMATCH") }
         println(line)
     } else {
@@ -156,7 +144,7 @@ print_test_result := proc(t: Test) {
 // --- Registration helpers ---
 
 add_mode := proc(tests: Vec, file: Str, flags: Str,
-                 en_ci: I64, en_cr: I64, en_ti: I64, en_tr: I64) {
+                 en_interp: I64, en_run: I64) {
     bn := test_basename(file)
     tests.push(own Test(
         label = file.clone(),
@@ -164,7 +152,7 @@ add_mode := proc(tests: Vec, file: Str, flags: Str,
         outfile = "gen/out/results/".concat(bn).concat(".txt"),
         category = "mode",
         kind = TestKind.Mode(ModeData()),
-        has_ci = en_ci, has_cr = en_cr, has_ti = en_ti, has_tr = en_tr
+        has_interp = en_interp, has_run = en_run
     ))
 }
 
@@ -198,6 +186,7 @@ add_count := proc(tests: Vec, label: Str, category: Str,
 
 add_cli_pair := proc(tests: Vec, name: Str, file: Str,
                      cli_args: Str, expected_exit: I64, expected_out: Str) {
+    // TODO #12: switch to TIL once til.til handles user_argv and exit codes
     mut cmd_i := CTIL.concat(" interpret ").concat(file)
     if cli_args.len().gt(0) { cmd_i = cmd_i.concat(" ").concat(cli_args) }
     add_single(tests, name.concat("_i"), "cli", expected_exit, expected_out, cmd_i)
@@ -259,14 +248,10 @@ run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
                     // Parse mode-specific fields into payload
                     if t.kind.is_Mode() {
                         md := t.kind.get_Mode()
-                        md.ci_ms = parse_kv(result_line, "ci_ms")
-                        md.ci_ok = parse_kv(result_line, "ci_ok")
-                        md.cr_ms = parse_kv(result_line, "cr_ms")
-                        md.cr_ok = parse_kv(result_line, "cr_ok")
-                        md.ti_ms = parse_kv(result_line, "ti_ms")
-                        md.ti_ok = parse_kv(result_line, "ti_ok")
-                        md.tr_ms = parse_kv(result_line, "tr_ms")
-                        md.tr_ok = parse_kv(result_line, "tr_ok")
+                        md.interp_ms = parse_kv(result_line, "interp_ms")
+                        md.interp_ok = parse_kv(result_line, "interp_ok")
+                        md.run_ms = parse_kv(result_line, "run_ms")
+                        md.run_ok = parse_kv(result_line, "run_ok")
                         md.output_match = parse_kv(result_line, "match")
                         t.kind = TestKind.Mode(md)
                     }
@@ -313,12 +298,10 @@ run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
 main := proc(args: ..Str) {
     wall_start := clock_ms()
 
-    // Parse args: -jN, -no-ci, -no-cr, -no-ti, -no-tr
+    // Parse args: -jN, -no-interp, -no-run
     mut j := get_thread_count().to_u64()
-    mut en_ci := 1
-    mut en_cr := 1
-    mut en_ti := 1
-    mut en_tr := 1
+    mut en_interp := 1
+    mut en_run := 1
     mut i : U64 = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
@@ -326,73 +309,71 @@ main := proc(args: ..Str) {
             j = arg.substr(2, arg.len().sub(2)).to_i64().to_u64()
             if j.lt(1) { j = 1 }
         }
-        if arg.eq("-no-ci") { en_ci = 0 }
-        if arg.eq("-no-cr") { en_cr = 0 }
-        if arg.eq("-no-ti") { en_ti = 0 }
-        if arg.eq("-no-tr") { en_tr = 0 }
+        if arg.eq("-no-interp") { en_interp = 0 }
+        if arg.eq("-no-run") { en_run = 0 }
         i = i.add(1)
     }
 
     mut fail := 0
 
     // Create output directories
-    run("mkdir -p gen/out/ci gen/out/cr gen/out/ti gen/out/tr gen/out/results gen/out/single gen/out/expected")
+    run("mkdir -p gen/out/interp gen/out/run gen/out/results gen/out/single gen/out/expected")
 
     tests := Vec.new("Test", Test.size())
-    flags := mode_flags(en_ci, en_cr, en_ti, en_tr)
+    flags := mode_flags(en_interp, en_run)
 
     // === 35 mode tests ===
-    add_mode(tests, "src/test/types.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/operators.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/functions.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/structs.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/optional_args.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/forward_refs.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/flow.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/strings.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/ref.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/own_fields.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/macros.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/enums.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/vecs.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/tuples.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/arrays.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/sets.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/maps.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/globals.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/globals_cli.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/misc.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/array_lit.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/cmp.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/ufcs.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/booleans.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/imports.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/import_diamond.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/pure.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/aliases.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/loops.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/splat.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/shallow.til", flags, en_ci, en_cr, en_ti, en_tr)
-    // TODO: lexing.til and parsing.til fail ci/ti modes after Token line/col I64→U32
+    add_mode(tests, "src/test/types.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/operators.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/functions.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/structs.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/optional_args.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/forward_refs.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/flow.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/strings.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/ref.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/own_fields.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/macros.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/enums.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/vecs.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/tuples.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/arrays.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/sets.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/maps.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/globals.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/globals_cli.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/misc.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/array_lit.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/cmp.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/ufcs.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/booleans.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/imports.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/import_diamond.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/pure.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/aliases.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/loops.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/splat.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/shallow.til", flags, en_interp, en_run)
+    // TODO: lexing.til and parsing.til fail interp mode after Token line/col I64→U32
     // (interpreter doesn't handle U32 struct fields correctly)
-    // add_mode(tests, "src/test/lexing.til", flags, en_ci, en_cr, en_ti, en_tr)
-    // add_mode(tests, "src/test/parsing.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/fn_ptr.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/asting.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/trailing.til", flags, en_ci, en_cr, en_ti, en_tr)
-    add_mode(tests, "src/test/kwargs.til", flags, en_ci, en_cr, en_ti, en_tr)
+    // add_mode(tests, "src/test/lexing.til", flags, en_interp, en_run)
+    // add_mode(tests, "src/test/parsing.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/fn_ptr.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/asting.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/trailing.til", flags, en_interp, en_run)
+    add_mode(tests, "src/test/kwargs.til", flags, en_interp, en_run)
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"
     writefile(ffi_exp, "hello world".concat(NL).concat("hello universe").concat(NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
-               CTIL.concat(" interpret src/examples/ffi/ext_module.til"))
+               TIL.concat(" interpret src/examples/ffi/ext_module.til"))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
-               CTIL.concat(" run src/examples/ffi/ext_module.til"))
+               TIL.concat(" run src/examples/ffi/ext_module.til"))
 
     // === 1 typer errors test ===
     add_count(tests, "typer_errors", "typer", "type error:", 52,
-              CTIL.concat(" interpret src/test/typer_errors.til"))
+              TIL.concat(" interpret src/test/typer_errors.til"))
 
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
@@ -438,7 +419,7 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "")
     add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "")
 
-    // === 20 build tests (build + run with timeout) ===
+    // === build tests (build + run with timeout) ===
     gui_files := array("Str",
         "src/examples/gui_hello.til", "src/examples/snake.til",
         "src/examples/piano.til", "src/examples/music.til",
@@ -450,16 +431,10 @@ main := proc(args: ..Str) {
         bn := test_basename(gf)
         mut run_args := ""
         if bn.eq("popcorn") { run_args = " --mute" }
-        add_single(tests, "build_c_".concat(bn), "build", 124, "",
-                   CTIL.concat(" build ").concat(gf)
+        add_single(tests, "build_".concat(bn), "build", 124, "",
+                   TIL.concat(" build ").concat(gf)
                        .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
-                       .concat(" bin/c/").concat(bn).concat(run_args))
-        if en_tr.eq(1) {
-            add_single(tests, "build_t_".concat(bn), "build", 124, "",
-                       TIL.concat(" build ").concat(gf)
-                           .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
-                           .concat(" bin/til/").concat(bn).concat(run_args))
-        }
+                       .concat(" bin/til/").concat(bn).concat(run_args))
     }
 
     // === Run all tests in parallel ===
@@ -468,10 +443,8 @@ main := proc(args: ..Str) {
     // --- Accumulate totals ---
 
     println("")
-    mut total_ci_ms := 0
-    mut total_cr_ms := 0
-    mut total_ti_ms := 0
-    mut total_tr_ms := 0
+    mut total_interp_ms := 0
+    mut total_run_ms := 0
     mut mode_passed : U64 = 0
     mut mode_total : U64 = 0
     mut pi : U64 = 0
@@ -480,10 +453,8 @@ main := proc(args: ..Str) {
         if t.kind.is_Mode() {
             mode_total = mode_total.add(1)
             md := t.kind.get_Mode()
-            if t.has_ci.eq(1) { total_ci_ms = total_ci_ms.add(md.ci_ms) }
-            if t.has_cr.eq(1) { total_cr_ms = total_cr_ms.add(md.cr_ms) }
-            if t.has_ti.eq(1) { total_ti_ms = total_ti_ms.add(md.ti_ms) }
-            if t.has_tr.eq(1) { total_tr_ms = total_tr_ms.add(md.tr_ms) }
+            if t.has_interp.eq(1) { total_interp_ms = total_interp_ms.add(md.interp_ms) }
+            if t.has_run.eq(1) { total_run_ms = total_run_ms.add(md.run_ms) }
             if t.ok.eq(1) { mode_passed = mode_passed.add(1) }
         }
         pi = pi.add(1)
@@ -514,9 +485,9 @@ main := proc(args: ..Str) {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("commit,ci_ms,cr_ms,ti_ms,tr_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total", NL,
-                       "abc1234,1940,5520,1950,5530,200,1710,1970,4640,32,32", NL,
-                       "def5678,1880,5400,1890,5410,190,1680,1950,4500,32,32", NL)
+    test_csv := format("commit,interp_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total", NL,
+                       "abc1234,1950,5530,200,1710,1970,4640,32,32", NL,
+                       "def5678,1890,5410,190,1680,1950,4500,32,32", NL)
     writefile("tmp/_test_plot.csv", test_csv)
     run(PLOT.concat(" tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := readfile("tmp/_test_plot.svg")
@@ -526,8 +497,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "<polyline").lt(5) {
-        println("FAIL: plot.til expected 5 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
+    if count_matches(plot_svg, "<polyline").lt(3) {
+        println("FAIL: plot.til expected 3 polylines, got ", count_matches(plot_svg, "<polyline").to_str())
         plot_ok = 0
         fail = 1
     }
@@ -536,8 +507,8 @@ main := proc(args: ..Str) {
         plot_ok = 0
         fail = 1
     }
-    if count_matches(plot_svg, "ctil-i").eq(0) {
-        println("FAIL: plot.til missing legend label ctil-i")
+    if count_matches(plot_svg, "interp").eq(0) {
+        println("FAIL: plot.til missing legend label interp")
         plot_ok = 0
         fail = 1
     }
@@ -545,37 +516,19 @@ main := proc(args: ..Str) {
 
     // --- Summary ---
 
-    // --- Codegen diff check (ctil vs til) ---
-
-    mut diff_ok := 1
-    c_til := readfile("gen/c/til.c")
-    t_til := readfile("gen/til/til.c")
-    if c_til.neq(t_til) {
-        println("FAIL: gen/c/til.c differs from gen/til/til.c")
-        diff_ok = 0
-        fail = 1
-    }
-
-    total_passed := mode_passed.add(other_passed).add(plot_ok.to_u64()).add(diff_ok.to_u64())
-    total_tests := mode_total.add(other_total).add(2)
+    total_passed := mode_passed.add(other_passed).add(plot_ok.to_u64())
+    total_tests := mode_total.add(other_total).add(1)
 
     wall_ms := clock_ms().sub(wall_start)
     println("")
     println("=== Summary ===")
-    if en_ci.eq(1) { println("ctil interp:  ", ms_to_str(total_ci_ms)) }
-    if en_cr.eq(1) { println("ctil run:     ", ms_to_str(total_cr_ms)) }
-    if en_ti.eq(1) { println("til interp:   ", ms_to_str(total_ti_ms)) }
-    if en_tr.eq(1) { println("til run:      ", ms_to_str(total_tr_ms)) }
+    if en_interp.eq(1) { println("interp:       ", ms_to_str(total_interp_ms)) }
+    if en_run.eq(1) { println("run:          ", ms_to_str(total_run_ms)) }
     println("FFI tests:    ", ms_to_str(ffi_ms))
     println("Typer errors: ", ms_to_str(typer_ms))
     println("CLI tests:    ", ms_to_str(cli_ms))
     println("Plot test:    ", ms_to_str(plot_ms))
     println("Build tests:  ", ms_to_str(build_ms))
-    if diff_ok.eq(1) {
-        println("Codegen diff: identical")
-    } else {
-        println("Codegen diff: DIFFERENT")
-    }
     println("Wall-clock:   ", ms_to_str(wall_ms))
     println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
     println("")
@@ -592,7 +545,7 @@ main := proc(args: ..Str) {
     // gen/benchmark.csv — mode tests only (not tracked)
     run("mkdir -p gen")
     mut bench := Str.with_capacity(32768)
-    bench.push_str("commit,file,ci_ms,cr_ms,ti_ms,tr_ms,ci_ok,cr_ok,ti_ok,tr_ok")
+    bench.push_str("commit,file,interp_ms,run_ms,interp_ok,run_ok")
     bench.push_str(NL)
     mut bi : U64 = 0
     while bi.lt(tests.len()) {
@@ -600,10 +553,8 @@ main := proc(args: ..Str) {
         if bt.kind.is_Mode() {
             bmd := bt.kind.get_Mode()
             bench.push_str(format(commit, ",", bt.label, ",",
-                                  bmd.ci_ms.to_str(), ",", bmd.cr_ms.to_str(), ",",
-                                  bmd.ti_ms.to_str(), ",", bmd.tr_ms.to_str(), ",",
-                                  bmd.ci_ok.to_str(), ",", bmd.cr_ok.to_str(), ",",
-                                  bmd.ti_ok.to_str(), ",", bmd.tr_ok.to_str(), NL))
+                                  bmd.interp_ms.to_str(), ",", bmd.run_ms.to_str(), ",",
+                                  bmd.interp_ok.to_str(), ",", bmd.run_ok.to_str(), NL))
         }
         bi = bi.add(1)
     }
@@ -612,8 +563,7 @@ main := proc(args: ..Str) {
     // doc/totals.csv — all test totals (skip on failure)
     if fail.eq(0) {
         totals_line := format(commit, ",",
-                              total_ci_ms.to_str(), ",", total_cr_ms.to_str(), ",",
-                              total_ti_ms.to_str(), ",", total_tr_ms.to_str(), ",",
+                              total_interp_ms.to_str(), ",", total_run_ms.to_str(), ",",
                               ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
                               cli_ms.to_str(), ",", wall_ms.to_str(), ",",
                               total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str())
