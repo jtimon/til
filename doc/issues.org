@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 78
+# NEXT_ISSUE: 79
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -566,6 +566,23 @@
 
 
 * Post-self-hosting
+
+** OPEN #78 Scavenger: support programs with link_c/link directives
+  The scavenger is currently skipped entirely when ~link_c_paths~ is
+  non-empty (src/til.til line 440). This was a workaround for #12:
+  the scavenger can't track C-level dependencies from link_c files,
+  so it incorrectly removes functions that those C files call.
+
+  til.til itself is the main affected program — it links C compiler
+  modules (parser.c, typer.c, etc.) that call functions from imported
+  til modules (Expr_child, Vec_new, etc.). Without scavenging, the
+  generated bootstrap code is larger than necessary.
+
+  The workaround is correct for the #39 transition period: while C
+  modules are being replaced, link_c programs can't be scavenged.
+  Once #39 is complete (no more link_c), the workaround naturally
+  goes away — the scavenger works normally on pure til programs,
+  and imported ~mode lib~ modules already skip scavenging.
 
 ** OPEN #63 User-defined modes
   8 built-in modes are hardcoded in the compiler (modes.h):
