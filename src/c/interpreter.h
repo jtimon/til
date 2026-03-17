@@ -9,6 +9,9 @@
 // If run_tests is true, ignores main/script body and runs all test functions.
 I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, U32 user_argc, char **user_argv);
 
+// Vec-based variant: takes Vec of Str values for user argv
+I32 interpret_v(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv);
+
 // --- Values ---
 
 typedef enum {

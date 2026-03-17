@@ -962,10 +962,17 @@ Expr *parse_statement(Parser *p) {
     }
 }
 
+static Str *_last_parsed_mode = NULL;
+
+Str *parser_get_mode(void) {
+    return _last_parsed_mode ? _last_parsed_mode : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+}
+
 Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out) {
     Parser p = {tokens, count, 0, path};
 
     // Parse optional mode declaration
+    _last_parsed_mode = NULL;
     if (mode_out) *mode_out = NULL;
     if (check(&p, TokenType_TAG_KwMode)) {
         advance(&p); // consume 'mode'
@@ -973,6 +980,7 @@ Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out) {
         Token *mode_name = (check(&p, TokenType_TAG_Ident) || check(&p, TokenType_TAG_KwTest))
             ? advance(&p) : expect(&p, TokenType_TAG_Ident);
         if (mode_out) *mode_out = tok_str(mode_name);
+        _last_parsed_mode = tok_str(mode_name);
     }
 
     // Parse body (top-level statements until EOF)

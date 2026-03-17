@@ -8,4 +8,7 @@
 // (e.g. "cli", "lib") if a mode declaration is found, or NULL.
 Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out);
 
+// Returns the mode string from the last parse() call (or empty Str if none).
+Str *parser_get_mode(void);
+
 #endif

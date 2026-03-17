@@ -3317,6 +3317,8 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
 I32 compile_lib(Str *c_path, Str *lib_name,
                 Str *ext_c_path, Str *user_c_path,
                 Str *link_flags) {
+    if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
+    if (link_flags && link_flags->count == 0) link_flags = NULL;
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
@@ -3393,6 +3395,9 @@ I32 compile_lib(Str *c_path, Str *lib_name,
 }
 
 I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str *link_flags) {
+    // Normalize empty strings to NULL for optional params
+    if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
+    if (link_flags && link_flags->count == 0) link_flags = NULL;
     // Extract directory from ext_c_path for -I flag
     Str *ext_dir;
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
@@ -3425,9 +3430,17 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
             snprintf(obj_name, sizeof(obj_name), "/user_%u.o", fi);
             Str *user_obj = Str_concat(c_dir, &(Str){.c_str = (U8*)obj_name, .count = (U64)strlen(obj_name), .cap = CAP_VIEW});
 
-            Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+            // Skip -include forward.h for src/c/ files — they have their own
+            // headers (bootstrap/ast.h etc.) which define the same types
+            // Skip -include forward.h for src/c/ files — they have their own
+            // headers (bootstrap/ast.h etc.) which define the same types
+            Bool skip_fwd = (file->count > 6 && memcmp(file->c_str, "src/c/", 6) == 0);
+            Str *fwd_flag = skip_fwd
+                ? &(Str){.c_str = (U8*)" -Isrc/c -Ibootstrap", .count = 20, .cap = CAP_LIT}
+                : Str_concat(&(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}, fwd_path);
+            Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
                 &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -I", .count = 27, .cap = CAP_LIT}, ext_dir),
-                &(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}), fwd_path),
+                fwd_flag),
                 &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), file),
                 Str_concat(&(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}, user_obj));
 
@@ -3442,7 +3455,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     }
 
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -Wl,--allow-multiple-definition -I", .count = 59, .cap = CAP_LIT}, ext_dir),
+        &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -g -rdynamic -Wl,--allow-multiple-definition -I", .count = 72, .cap = CAP_LIT}, ext_dir),
         &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), bin_path),
         &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), c_path),
         &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), Str_concat(Str_concat(ext_c_path, user_part), lf));

@@ -1306,3 +1306,23 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *u
     ffi_cleanup();
     return 0;
 }
+
+I32 interpret_v(Expr *program, const Mode *mode, Bool run_tests,
+                Str *path, Str *user_c_path, Str *ext_c_path,
+                Str *link_flags, Vec *user_argv) {
+    if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
+    if (link_flags && link_flags->count == 0) link_flags = NULL;
+    char **argv = NULL;
+    U32 argc = user_argv ? (U32)user_argv->count : 0;
+    if (argc > 0) {
+        argv = malloc(argc * sizeof(char *));
+        for (U32 i = 0; i < argc; i++) {
+            Str *s = (Str *)Vec_get(user_argv, &(U64){(U64)i});
+            argv[i] = (char *)s->c_str;
+        }
+    }
+    I32 r = interpret(program, mode, run_tests, path, user_c_path,
+                      ext_c_path, link_flags, argc, argv);
+    free(argv);
+    return r;
+}
