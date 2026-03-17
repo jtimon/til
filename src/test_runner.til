@@ -70,9 +70,12 @@ main := proc(args: ..Str) {
 
         interp_outfile := "gen/out/interp/".concat(basename).concat(".out")
         run_outfile := "gen/out/run/".concat(basename).concat(".out")
+        bin_path := "bin/c/".concat(basename)
 
         mut interp_ms := 0
         mut interp_ok := 0
+        mut compile_ms := 0
+        mut compile_ok := 0
         mut run_ms := 0
         mut run_ok := 0
         mut fail := 0
@@ -92,15 +95,28 @@ main := proc(args: ..Str) {
         }
 
         if en_run.eq(1) {
+            // Compile
             start := clock_ms()
-            cmd := TIL.concat(" run '").concat(file).concat("' > ").concat(run_outfile).concat(" 2>/dev/null")
-            pid := spawn_cmd(cmd)
+            build_cmd := TIL.concat(" build -o ").concat(bin_path).concat(" '").concat(file).concat("' 2>/dev/null")
+            pid := spawn_cmd(build_cmd)
             status := wait_cmd(pid)
-            run_ms = clock_ms().sub(start)
+            compile_ms = clock_ms().sub(start)
             if status.eq(0) {
-                run_ok = 1
+                compile_ok = 1
+                // Run the compiled binary
+                run_start := clock_ms()
+                run_cmd := bin_path.concat(" > ").concat(run_outfile).concat(" 2>/dev/null")
+                run_pid := spawn_cmd(run_cmd)
+                run_status := wait_cmd(run_pid)
+                run_ms = clock_ms().sub(run_start)
+                if run_status.eq(0) {
+                    run_ok = 1
+                } else {
+                    println("FAIL (run): ", file)
+                    fail = 1
+                }
             } else {
-                println("FAIL (run): ", file)
+                println("FAIL (compile): ", file)
                 fail = 1
             }
         }
@@ -131,10 +147,11 @@ main := proc(args: ..Str) {
         mut mode_ok := 1
         if fail.neq(0) { mode_ok = 0 }
         if out_match.eq(0) { mode_ok = 0 }
-        total_ms := interp_ms.add(run_ms)
+        total_ms := interp_ms.add(compile_ms).add(run_ms)
 
         println("RESULT ok=", mode_ok.to_str(), " ms=", total_ms.to_str(),
                 " interp_ms=", interp_ms.to_str(), " interp_ok=", interp_ok.to_str(),
+                " compile_ms=", compile_ms.to_str(), " compile_ok=", compile_ok.to_str(),
                 " run_ms=", run_ms.to_str(), " run_ok=", run_ok.to_str(),
                 " match=", out_match.to_str())
 
