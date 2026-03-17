@@ -1,5 +1,14 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #76 Shallow Expr_clone corrupted struct body defaults
+  Root cause: auto-generated Expr_clone used Vec_clone with elem_type=""
+  which did a shallow memcpy of children. Inner Expr nodes shared their
+  children Vec data buffers with originals. When hoist_fcall_args modified
+  cloned struct default expressions, it corrupted the original struct body,
+  causing subsequent constructors to reference stale temp variables.
+  Fix: custom deep Expr.clone method in ast.til that loops children and
+  clones each one individually.
+
 * FIXED #71 Bootstrap cleanup: clean ast swap
   src/c/ast.c replaced by bootstrap/ast.c (generated from ast.til).
   src/c/ast.h stripped to thin wrapper including bootstrap/ast.h.

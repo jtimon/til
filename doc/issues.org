@@ -6,32 +6,6 @@
 
 * Pre-self-hosting
 
-** OPEN #76 Builder emits stale temp refs for struct default values
-  When multiple functions construct the same struct type (e.g.
-  ~FunctionDef()~ in parser.til), the generated C code for the
-  second+ constructor references temp variables (~_t3162~) that
-  were defined in the first constructor's C function.
-
-  Investigation findings:
-  - Typer DOES clone defaults (line 640, ~Expr_clone~) — no sharing
-  - Struct body defaults are clean (un-hoisted) when cloned
-  - The ~_tN~ temps are created by ~hoist_fcall_args~ AFTER cloning
-  - ~hoist_counter~ is global and increments — each temp gets unique ID
-  - Yet the generated C shows the SAME ~_t3162~ referenced across
-    functions, with ~DEREF()~ (pointer style) instead of value style
-  - The bug is likely in the builder, not the typer — the builder
-    may cache something about struct constructor emission and reuse
-    stale temp references from the first emission
-
-  Next steps: investigate builder.c to find where it caches or
-  reuses temp references for struct constructor field defaults.
-  The builder emits ~I64_sub(DEREF(_t3162), ...)~ for the second
-  constructor but ~I64 _t3162 = 0~ for the first — different
-  emission patterns for the same default expression.
-
-  Reproduces with: ~bin/ctil run src/test/parsing.til~
-  (parser.til has 3 functions that construct FunctionDef structs)
-
 
 
 ** OPEN #70 Builder: emit constants as proper constants in generated headers

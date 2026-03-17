@@ -113,6 +113,9 @@ tmp_gdb_parsing:
 	  -ex "run run src/test/parsing.til" \
 	  bin/ctil 2>&1 || true
 
+tmp_run_fn_ptr:
+	@bin/ctil run src/test/fn_ptr.til 2>&1 || true
+
 tmp_run_own_fields:
 	@bin/ctil run src/test/own_fields.til 2>&1 || true
 

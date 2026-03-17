@@ -134,6 +134,28 @@ Expr := struct {
     new := proc(data: ExprData, shallow line: U32, shallow col: U32, path: Str) returns Expr {
         return Expr(data = data, line = line, col = col, path = path)
     }
+    clone := func(self: Expr) returns Expr {
+        mut new_children := Vec.new("", Expr.size())
+        for i in 0..self.children.len() {
+            ref c : Expr = self.children.get(i)
+            own cloned := Expr.clone(c)
+            new_children.push(own cloned)
+        }
+        return Expr(data = self.data, til_type = self.til_type,
+                    struct_name = self.struct_name,
+                    is_own_arg = self.is_own_arg, is_splat = self.is_splat,
+                    is_own_field = self.is_own_field, is_ref_field = self.is_ref_field,
+                    is_ns_field = self.is_ns_field, is_ext = self.is_ext,
+                    is_core = self.is_core, save_old_delete = self.save_old_delete,
+                    total_struct_size = self.total_struct_size,
+                    variadic_index = self.variadic_index,
+                    variadic_count = self.variadic_count,
+                    kwargs_index = self.kwargs_index,
+                    kwargs_count = self.kwargs_count,
+                    fn_sig = self.fn_sig,
+                    children = new_children,
+                    line = self.line, col = self.col, path = self.path)
+    }
 }
 
 // --- node_name ---
