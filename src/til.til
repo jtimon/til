@@ -1,9 +1,8 @@
 mode cli
 
 // Link C modules (same as ctil Makefile SRCS)
-link_c("bootstrap/lexer.c")
+link_c("bootstrap/ast.c")
 link_c("src/c/parser.c")
-link_c("src/c/ast.c")
 link_c("src/c/initer.c")
 link_c("src/c/typer.c")
 link_c("src/c/interpreter.c")
