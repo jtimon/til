@@ -1,0 +1,103 @@
+# U64→U32 migration plan (deferred)
+# Saved from wip_u32 branch for later reference.
+# WIP code lives in the wip_u32 branch.
+
+* Atomic U64→U32 migration for all collection types
+
+** Context
+
+For-in loops desugar to ~Range(0, collection.len())~ + ~.get(i)~. The typer
+requires ~.get()~ index type == ~.len()~ return type. All iterable types must
+change together.
+
+CAP_LIT/CAP_VIEW sentinels in Str must also change from ULLONG_MAX to
+UINT_MAX (and pre70.h updated accordingly).
+
+** What changes (all in one commit)
+
+*** Fields (U64 → U32)
+- Range: ~start~, ~end~ (core.til)
+- Str: ~count~, ~cap~ (str.til)
+- Vec: ~count~, ~cap~, ~elem_size~ (vec.til)
+- Array: ~cap~, ~elem_size~ (array.til)
+- Map: ~count~, ~cap~, ~key_size~, ~val_size~ (map.til)
+- Set: ~count~, ~cap~, ~elem_size~ (set.til)
+- Tuple: ~total_size~, ~cap~ (tuple.til)
+
+*** Methods (U64 → U32 params/returns)
+- Range: ~new(U32, U32)~, ~len() → U32~, ~get(U32) → U32~
+- Str: ~len() → U32~, ~get(U32)~, ~byte_at(U32)~, ~substr(U32, U32)~
+- Vec: ~len() → U32~, ~get(U32)~
+- Array: ~len() → U32~, ~get(U32)~, ~set(U32, ...)~
+- Map: ~len() → U32~ (get uses key, not index)
+- Set: ~len() → U32~ (no get)
+- Tuple: ~len() → U32~, ~get(U32)~, ~push(..., U32 elem_size, ...)~
+
+*** Low-level functions (U64 → U32)
+- ~malloc(U32)~, ~calloc(U32, U32)~, ~realloc(Dynamic, U32)~
+- ~ptr_add(Dynamic, U32)~
+- ~memcpy(Dynamic, Dynamic, U32)~, ~memmove(Dynamic, Dynamic, U32)~
+- ~memset(Dynamic, I32, U32)~
+- All ~_size()~ methods: ~returns U32~ instead of ~returns U64~
+
+*** Internal loops in core/*.til
+Every ~for i in 0..self.count~ and ~i.mul(self.elem_size)~ etc. will
+use U32 arithmetic instead of U64.
+
+*** C callers
+- All C code ~&(U64){...}~ → ~&(U32){...}~ for Vec_get, Vec_new, etc.
+- ~.count~ field reads: U64 → U32
+- ~sizeof()~ casts to U32
+- Format strings: ~%llu~ → ~%u~
+- ext.c/ext.h: function signatures (~Str_substr~, ~ptr_add~, etc.)
+- pre70.h: ~CAP_LIT ULLONG_MAX~ → ~UINT_MAX~, ~CAP_VIEW~ likewise
+- builder.c: ~TIL_CAP_LIT ULLONG_MAX~ → ~UINT_MAX~, size method emission
+
+** Files to modify
+- src/core/core.til, str.til, vec.til, array.til, map.til, set.til, tuple.til
+- src/self/lexer.til, ast.til, parser.til
+- src/c/ext.c, ext.h, pre70.h
+- src/c/parser.c, typer.c, builder.c, initer.c, interpreter.c
+- src/c/dispatch.c, precomp.c, scavenger.c, til_bridge.c
+- src/ctil.c
+
+** U32 method availability
+Need in ext.c (most already exist):
+- U32_add, U32_sub, U32_mul, U32_div, U32_mod ✓
+- U32_lt, U32_lte, U32_gt, U32_gte ✓
+- U32_eq ✓
+- U32_inc, U32_dec ✓
+- U32_to_i64 ✓
+- U32_to_u64 — needs adding
+
+** Bootstrap chicken-and-egg problem
+
+The committed bootstrap has U64 types. The compiled ~_size()~ functions
+return U64. The precomp folds ~Str.size()~ at compile time by calling the
+compiled function, producing a U64 literal. This U64 literal then fails
+type-checking when passed to ~Vec.new(U32)~.
+
+Approaches tried:
+1. Relaxed first cc pass (~-Wno-error~): compiles but segfaults at runtime
+   (U32 pointer passed to U64 parameter reads garbage upper bytes)
+2. Disabled precomp func folding: first cc compiles but ctil_core still
+   fails because the compiled bootstrap functions have U64 signatures
+3. Backup ctil: same issue — reads new core.til with U32 types but
+   compiled functions return U64
+
+The solution needs to either:
+- Build ctil from committed C (U64) → use it to regenerate bootstrap (U32)
+  → rebuild ctil from new C (U32) + new bootstrap (U32)
+- Or find a way to make the transition in two steps where each step is
+  self-consistent
+
+** WIP branch
+Code lives in ~wip_u32~ branch. .til files are fully updated. C files
+partially updated (agent did mechanical replacements but session was
+interrupted). precomp.c has func folding temporarily disabled.
+
+** Also needed (discovered during work)
+- Token line/col already changed to U32 (committed to master)
+- lexing.til and parsing.til tests disabled (interpreter U32 struct issue)
+- precomp.c had a bug: ~&(I64){0}~ passed as ~require_known~ (truthy
+  pointer instead of false) — fixed on master
