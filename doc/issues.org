@@ -537,58 +537,45 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-** WIP #12 Self-hosting: rewrite ctil in til
+** WIP #12 Self-hosting: eliminate ctil.c, use only til.til
   :DEPENDENCIES: #71
-  Rewrite the til compiler/interpreter in til itself. The end state:
-  all C code is eliminated except irreducible primitives in ext.c
-  (scalar ops, system calls, I/O). Everything else — data structures
-  (Str, Vec, Map, Set, Array), compiler modules (lexer, parser, typer,
-  builder, etc.) — is written in til. ext.c is the only hand-written C
-  file that remains.
 
-  The current C implementation is the reference: lexer, parser, initer,
-  typer, interpreter, builder, precomp, scavenger (~6000 lines of C).
-  Self-hosting means reimplementing all of these in til, using til's own
-  features (structs, enums, ownership, FFI for I/O).
+  Reduced scope: til.til already works as the compiler (~bin/c/til~
+  passes all tests). Self-hosting = delete ctil.c and use til.til as
+  the only compiler entry point. #39 continues separately for the
+  bottom-up C module elimination (parser.c, typer.c, etc.).
 
-  When complete, til.til IS the compiler. It imports core.til, lexer.til,
-  ast.til, parser.til, etc. as til imports — compiled into ONE bootstrap
-  .c file with all definitions. No duplication between bootstrap and
-  hand-written C, no ~--allow-multiple-definition~ linker hack. The
-  bootstrap file plus ext.c (primitives) is the entire C codebase.
+  til.til uses the C modules (typer, builder, etc.) via FFI through
+  til_bridge.c. That's fine — self-hosting means the ENTRY POINT is
+  til, not that every module is rewritten in til (that's #39).
 
-  Depends on:
-  - #1 (consistency): FIXED
-  - #2 (ref): FIXED
-  - #5 (pointers/Vec): FIXED
-  - #8 (variadic): FIXED
-  - #16 (imports): FIXED
-  - #30 (Vec-in-struct): FIXED
-  - #37 (mode lib): FIXED
-  - #38 (drop til_ prefix): FIXED
-  - #23 (shallow FFI): FIXED
+*** Commit 1: Unify til.til with ctil.c
+    Diff ~gen/c/til.c~ (generated from til.til) against ~src/ctil.c~.
+    Fix every difference until they're functionally equivalent.
+    Ensure bin/c/til produces identical output to bin/ctil for all
+    test cases. ~make test~ passes with both compilers.
 
-  Does NOT depend on #10 (REPL) or #11 (GUI mode).
+*** Commit 2: Simplify tests.til — drop ctil modes
+    Remove the ci/cr test modes (ctil interpret / ctil run).
+    Only keep ti/tr (til interpret / til run). This means tests.til
+    no longer needs bin/ctil at all. Halves the test matrix.
 
-*** Strategy: top-down til.til with FFI into C libs
-   Build til.til as a top-level program that uses the existing C modules
-   (lexer, parser, etc.) via FFI. Start with everything as C FFI imports,
-   then replace imports with native til one at a time, top-down:
+*** Commit 3: Remove ctil.c, reorganize Makefile
+    - Delete src/ctil.c
+    - Makefile: stop building bin/ctil entirely
+    - bin/c/til becomes the primary compiler (rename to bin/til?)
+    - Three build paths:
+      1. ~make~ — normal: bootstrap.c + ext.c → gcc → til binary.
+         Uses bootstrap/ (committed generated C) to compile til.til.
+      2. ~til build src/til.til~ — self-build: til compiles itself.
+         Requires a working til binary already.
+      3. ~make rescue~ — escape hatch: builds til from the PREVIOUS
+         commit's bootstrap via ~git show HEAD~1:bootstrap/...~ into
+         tmp/. For when breaking changes leave the current bootstrap
+         incompatible with current source. Manual, not automatic.
 
-   1. til.til imports lexer, parser, typer, etc. as FFI libs from ctil
-   2. Rewrite lexer.til as native til (already done) → drop FFI lexer import
-   3. Rewrite parser.til as native til (WIP) → drop FFI parser import
-   4. Continue replacing: initer, typer, interpreter, builder
-   5. All imports native → til.til is fully self-hosted
-
-   The test suite (tests.til) runs four configurations to validate:
-   - C interpreted, C compiled (existing ctil)
-   - til interpreted, til compiled (new til.til)
-   All four must produce identical results.
-
-   Once til.til is complete, #39 handles the reverse direction: replacing
-   ctil's C modules with til-compiled libraries bottom-up, eventually
-   eliminating the C codebase entirely.
+  #39 continues after #12 is done: replace parser.c, typer.c, etc.
+  with til-compiled versions one at a time.
 
 *** DONE Entry point (src/til.til)
    Strict translation of ctil.c main + helpers (extract_imports,
