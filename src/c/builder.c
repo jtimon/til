@@ -3406,7 +3406,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
 
     Str *lf = Str_concat(raylib_flags, link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
 
-    // If link_c file present, compile it to .o separately with -include forward.h
+    // If link_c files present, compile each to .o separately with -include forward.h
     Str *user_part = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     if (user_c_path) {
         I64 c_slash = *Str_rfind(c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
@@ -3414,20 +3414,31 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
         I64 c_dot = *Str_rfind(c_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
         Str *c_base = (c_dot > c_slash) ? Str_substr(c_path, &(U64){0}, &(U64){(U64)c_dot}) : c_path;
         Str *fwd_path = Str_concat(c_base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
-        Str *user_obj = Str_concat(c_dir, &(Str){.c_str = (U8*)"/user.o", .count = 7, .cap = CAP_LIT});
 
-        Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-            &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -I", .count = 27, .cap = CAP_LIT}, ext_dir),
-            &(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}), fwd_path),
-            &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), user_c_path),
-            Str_concat(&(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}, user_obj));
+        // Split space-separated link_c files and compile each individually
+        Vec *files = split(user_c_path, &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT});
+        Str *all_objs = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
+        for (U32 fi = 0; fi < files->count; fi++) {
+            Str *file = (Str *)Vec_get(files, &(U64){(U64)fi});
+            if (file->count == 0) continue;
+            char obj_name[32];
+            snprintf(obj_name, sizeof(obj_name), "/user_%u.o", fi);
+            Str *user_obj = Str_concat(c_dir, &(Str){.c_str = (U8*)obj_name, .count = (U64)strlen(obj_name), .cap = CAP_VIEW});
 
-        int obj_result = system((const char *)obj_cmd->c_str);
-        if (obj_result != 0) {
-            fprintf(stderr, "error: link_c compilation failed\n");
-            return 1;
+            Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+                &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -I", .count = 27, .cap = CAP_LIT}, ext_dir),
+                &(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}), fwd_path),
+                &(Str){.c_str = (U8*)" -c ", .count = 4, .cap = CAP_LIT}), file),
+                Str_concat(&(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}, user_obj));
+
+            int obj_result = system((const char *)obj_cmd->c_str);
+            if (obj_result != 0) {
+                fprintf(stderr, "error: link_c compilation failed for %s\n", file->c_str);
+                return 1;
+            }
+            all_objs = Str_concat(Str_concat(all_objs, &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), user_obj);
         }
-        user_part = Str_concat(&(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}, user_obj);
+        user_part = all_objs;
     }
 
     Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
