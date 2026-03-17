@@ -18,10 +18,17 @@ typedef struct Token {
 Bool * TokenType_eq(TokenType * self, TokenType * other);
 TokenType * TokenType_clone(TokenType * self);
 void TokenType_delete(TokenType * self, Bool * call_free);
+Str * TokenType_to_str(TokenType * self);
 U64 * TokenType_size(void);
 Token * Token_clone(Token * self);
 void Token_delete(Token * self, Bool * call_free);
 U64 * Token_size(void);
+Bool * is_digit(U8 * c);
+Bool * is_alpha(U8 * c);
+Bool * is_alnum(U8 * c);
+Str * tok_name(TokenType * type);
+TokenType * lookup_keyword(Str * word);
+Vec * tokenize(Str * src, Str * path);
 Bool * TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();
 TokenType *TokenType_LParen();

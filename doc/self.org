@@ -67,19 +67,24 @@ by calling the interpreter. Converting them is deferred because:
 *** Build flow
 
    ~make~ (or ~make test~ which depends on it):
-   1. First cc: compile src/c/*.c + bootstrap/*.c + bootstrap/til.c → bin/til_bootstrap
+   1. First cc: compile src/c/*.c + bootstrap/ → bin/til_bootstrap
    2. ~til_core~: bin/til_bootstrap translates .til sources → regenerates bootstrap/
-   3. Second cc: recompile with new bootstrap → bin/til_bootstrap (final)
+   3. Second cc: recompile with new bootstrap → bin/til_bootstrap (new code)
+   4. ~til_core~: regenerate again with the new binary
+   5. Third cc: recompile → bin/til_bootstrap (final)
 
-   The first cc uses whatever bootstrap/ is in the working tree.
-   The second cc uses the freshly regenerated bootstrap/.
-   Both cc passes compile the SAME source files.
+   Pass 3 (steps 4-5) is needed because the pass-1 binary may have old
+   compiler behavior (e.g. different scavenger/builder logic). The pass-2
+   binary has the new code, so its til_core output is correct. All three
+   cc passes compile the SAME source files.
 
 *** Making changes to .til files only
-   Just run ~make clean && make test~. The build flow handles it:
+   Just run ~make clean && make test~. The three-pass build handles it:
    - First cc uses committed bootstrap (old .til output) → works
-   - til_core regenerates bootstrap with new .til changes
-   - Second cc uses new bootstrap → works
+   - First til_core regenerates bootstrap (using old binary)
+   - Second cc uses new bootstrap → binary has new code
+   - Second til_core regenerates bootstrap (using new binary → correct)
+   - Third cc uses correct bootstrap → final binary
    - Commit everything: .til files + regenerated bootstrap/
 
 *** Changing C files that call bootstrap functions

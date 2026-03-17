@@ -23,10 +23,18 @@ lib/libffi/.built:
 	$(MAKE) -C $(LIBFFI_DIR)
 	@touch $@
 
-# --- til (self-hosted compiler — two-pass gcc from bootstrap) ---
+# --- til (self-hosted compiler — three-pass gcc from bootstrap) ---
+# Pass 1: gcc from committed bootstrap → binary (may have old behavior)
+# Pass 2: til_core regenerates bootstrap → gcc → binary with new code
+# Pass 3: til_core again with fixed binary → gcc → final binary
+# Pass 3 is needed when .til changes affect compiler behavior (e.g.
+# scavenger, builder). The second til_core produces correct bootstrap
+# because the pass-2 binary already has the new code.
 
 bin/til_bootstrap: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
+	cc $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap
+	@$(MAKE) til_core
 	cc $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap
 	@$(MAKE) til_core
 	cc $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap

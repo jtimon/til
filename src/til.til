@@ -457,10 +457,11 @@ main := proc(args: ..Str) {
 
     til_precomp(ast)
 
-    // Skip scavenging for lib/pure translate/build
+    // Skip scavenging for lib/pure translate/build, and for programs
+    // with link_c (scavenger can't track C-level dependencies)
     is_lib_target := til_mode_is_lib_output(cur_mode)
         .and(command.eq("translate").or(command.eq("build")))
-    if is_lib_target.not() {
+    if is_lib_target.not().and(link_c_paths.len().eq(0)) {
         til_scavenge(ast, cur_mode, run_tests)
     }
 

@@ -626,25 +626,25 @@ void mark_core(void * e) {
 
 int main(int argc, char **argv) {
     if (argc - 1 < 0) { fprintf(stderr, "error: main expects at least 0 argument(s), got %d\n", argc - 1); return 1; }
-    _t3634 = malloc(sizeof(I64));
-    *_t3634 = 0;
-    (void)_t3634;
-    _t3635 = malloc(sizeof(I64));
-    *_t3635 = 1;
-    (void)_t3635;
-    _t3636 = malloc(sizeof(I64)); *_t3636 = I64_sub(DEREF(_t3634), DEREF(_t3635));
-    (void)_t3636;
-    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t3636));
-    (void)CAP_LIT;
-    _t3637 = malloc(sizeof(I64));
-    *_t3637 = 0;
-    (void)_t3637;
     _t3638 = malloc(sizeof(I64));
-    *_t3638 = 2;
+    *_t3638 = 0;
     (void)_t3638;
-    _t3639 = malloc(sizeof(I64)); *_t3639 = I64_sub(DEREF(_t3637), DEREF(_t3638));
+    _t3639 = malloc(sizeof(I64));
+    *_t3639 = 1;
     (void)_t3639;
-    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t3639));
+    _t3640 = malloc(sizeof(I64)); *_t3640 = I64_sub(DEREF(_t3638), DEREF(_t3639));
+    (void)_t3640;
+    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t3640));
+    (void)CAP_LIT;
+    _t3641 = malloc(sizeof(I64));
+    *_t3641 = 0;
+    (void)_t3641;
+    _t3642 = malloc(sizeof(I64));
+    *_t3642 = 2;
+    (void)_t3642;
+    _t3643 = malloc(sizeof(I64)); *_t3643 = I64_sub(DEREF(_t3641), DEREF(_t3642));
+    (void)_t3643;
+    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t3643));
     (void)CAP_VIEW;
     NODE_BODY = malloc(sizeof(I32));
     *NODE_BODY = 0;
@@ -1688,10 +1688,22 @@ int main(int argc, char **argv) {
     (void)is_lib_target;
     ;
     ;
-    Bool _t3618 = Bool_not(is_lib_target);
+    U64 _t3618; { U64 *_hp = (U64 *)Str_len(link_c_paths); _t3618 = *_hp; free(_hp); }
     (void)_t3618;
+    U64 _t3619 = 0;
+    (void)_t3619;
+    Bool _t3620 = Bool_not(is_lib_target);
+    (void)_t3620;
     ;
-    if (_t3618) {
+    Bool _t3621 = U64_eq(_t3618, _t3619);
+    (void)_t3621;
+    ;
+    ;
+    Bool _t3622 = Bool_and(_t3620, _t3621);
+    (void)_t3622;
+    ;
+    ;
+    if (_t3622) {
         til_scavenge(ast, cur_mode, run_tests);
     }
     ;
@@ -1699,30 +1711,30 @@ int main(int argc, char **argv) {
     (void)result;
     Str *user_c = Str_lit("", 0ULL);
     (void)user_c;
-    U64 _t3619; { U64 *_hp = (U64 *)Str_len(link_c_paths); _t3619 = *_hp; free(_hp); }
-    (void)_t3619;
-    U64 _t3620 = 0;
-    (void)_t3620;
-    Bool _t3621; { Bool *_hp = (Bool *)U64_gt(&(U64){_t3619}, &(U64){_t3620}); _t3621 = *_hp; free(_hp); }
-    (void)_t3621;
+    U64 _t3623; { U64 *_hp = (U64 *)Str_len(link_c_paths); _t3623 = *_hp; free(_hp); }
+    (void)_t3623;
+    U64 _t3624 = 0;
+    (void)_t3624;
+    Bool _t3625; { Bool *_hp = (Bool *)U64_gt(&(U64){_t3623}, &(U64){_t3624}); _t3625 = *_hp; free(_hp); }
+    (void)_t3625;
     ;
     ;
-    if (_t3621) {
+    if (_t3625) {
         user_c = Str_clone(link_c_paths);
     }
     ;
     Str_delete(link_c_paths, &(Bool){1});
-    Str *_t3622 = Str_lit("Str", 3ULL);
-    (void)_t3622;
-    U64 _t3623; { U64 *_hp = (U64 *)Str_size(); _t3623 = *_hp; free(_hp); }
-    (void)_t3623;
-    Vec *user_argv = Vec_new(_t3622, &(U64){_t3623});
+    Str *_t3626 = Str_lit("Str", 3ULL);
+    (void)_t3626;
+    U64 _t3627; { U64 *_hp = (U64 *)Str_size(); _t3627 = *_hp; free(_hp); }
+    (void)_t3627;
+    Vec *user_argv = Vec_new(_t3626, &(U64){_t3627});
     (void)user_argv;
-    Str_delete(_t3622, &(Bool){1});
+    Str_delete(_t3626, &(Bool){1});
     ;
-    U64 _t3624 = 1;
-    (void)_t3624;
-    U64 *ai = malloc(sizeof(U64)); *ai = U64_add(DEREF(path_idx), _t3624);
+    U64 _t3628 = 1;
+    (void)_t3628;
+    U64 *ai = malloc(sizeof(U64)); *ai = U64_add(DEREF(path_idx), _t3628);
     (void)ai;
     ;
     U64_delete(path_idx, &(Bool){1});
@@ -1816,36 +1828,36 @@ int main(int argc, char **argv) {
     Array_delete(args, &(Bool){1});
     Str *lflags = Str_lit("", 0ULL);
     (void)lflags;
-    U64 _t3625; { U64 *_hp = (U64 *)Str_len(link_flags); _t3625 = *_hp; free(_hp); }
-    (void)_t3625;
-    U64 _t3626 = 0;
-    (void)_t3626;
-    Bool _t3627; { Bool *_hp = (Bool *)U64_gt(&(U64){_t3625}, &(U64){_t3626}); _t3627 = *_hp; free(_hp); }
-    (void)_t3627;
+    U64 _t3629; { U64 *_hp = (U64 *)Str_len(link_flags); _t3629 = *_hp; free(_hp); }
+    (void)_t3629;
+    U64 _t3630 = 0;
+    (void)_t3630;
+    Bool _t3631; { Bool *_hp = (Bool *)U64_gt(&(U64){_t3629}, &(U64){_t3630}); _t3631 = *_hp; free(_hp); }
+    (void)_t3631;
     ;
     ;
-    if (_t3627) {
+    if (_t3631) {
         lflags = Str_clone(link_flags);
     }
     ;
     Str_delete(link_flags, &(Bool){1});
     Bool is_lib_mode = til_mode_is_lib(cur_mode);
     (void)is_lib_mode;
-    Str *_t3628 = Str_lit("interpret", 9ULL);
-    (void)_t3628;
-    Str *_t3629 = Str_lit("test", 4ULL);
-    (void)_t3629;
-    Bool _t3630; { Bool *_hp = (Bool *)Str_eq(command, _t3628); _t3630 = *_hp; free(_hp); }
-    (void)_t3630;
-    Str_delete(_t3628, &(Bool){1});
-    Bool _t3631; { Bool *_hp = (Bool *)Str_eq(command, _t3629); _t3631 = *_hp; free(_hp); }
-    (void)_t3631;
-    Str_delete(_t3629, &(Bool){1});
-    Bool _t3632 = Bool_or(_t3630, _t3631);
+    Str *_t3632 = Str_lit("interpret", 9ULL);
     (void)_t3632;
+    Str *_t3633 = Str_lit("test", 4ULL);
+    (void)_t3633;
+    Bool _t3634; { Bool *_hp = (Bool *)Str_eq(command, _t3632); _t3634 = *_hp; free(_hp); }
+    (void)_t3634;
+    Str_delete(_t3632, &(Bool){1});
+    Bool _t3635; { Bool *_hp = (Bool *)Str_eq(command, _t3633); _t3635 = *_hp; free(_hp); }
+    (void)_t3635;
+    Str_delete(_t3633, &(Bool){1});
+    Bool _t3636 = Bool_or(_t3634, _t3635);
+    (void)_t3636;
     ;
     ;
-    if (_t3632) {
+    if (_t3636) {
         Str *_t3346 = Str_lit("interpret", 9ULL);
         (void)_t3346;
         Bool _t3347; { Bool *_hp = (Bool *)Str_eq(command, _t3346); _t3347 = *_hp; free(_hp); }
@@ -1872,7 +1884,7 @@ int main(int argc, char **argv) {
             (void)_t3344;
             Array_set(_va69, &(U64){_t3343}, _t3344);
             ;
-            Str *_t3345 = Str_lit("src/til.til:503:19", 18ULL);
+            Str *_t3345 = Str_lit("src/til.til:504:19", 18ULL);
             (void)_t3345;
             panic(_t3345, _va69);
             Str_delete(_t3345, &(Bool){1});
@@ -1933,7 +1945,7 @@ int main(int argc, char **argv) {
                 (void)_t3354;
                 Array_set(_va70, &(U64){_t3353}, _t3354);
                 ;
-                Str *_t3355 = Str_lit("src/til.til:509:19", 18ULL);
+                Str *_t3355 = Str_lit("src/til.til:510:19", 18ULL);
                 (void)_t3355;
                 panic(_t3355, _va70);
                 Str_delete(_t3355, &(Bool){1});
@@ -2677,10 +2689,10 @@ int main(int argc, char **argv) {
     ;
     Vec_delete(user_argv, &(Bool){1});
     Str_delete(user_c, &(Bool){1});
-    I64 _t3633 = I32_to_i64(result);
-    (void)_t3633;
+    I64 _t3637 = I32_to_i64(result);
+    (void)_t3637;
     ;
-    exit(_t3633);
+    exit(_t3637);
     ;
     return 0;
 }

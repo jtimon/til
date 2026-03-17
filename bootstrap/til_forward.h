@@ -2,6 +2,8 @@
 #include "aliases.h"
 #include <stdbool.h>
 
+typedef struct StructDef StructDef;
+typedef struct EnumDef EnumDef;
 typedef struct Dynamic Dynamic;
 typedef enum {
     FuncType_TAG_Func,
@@ -15,9 +17,11 @@ typedef struct FuncType FuncType;
 typedef struct FunctionDef FunctionDef;
 typedef struct Range Range;
 typedef struct Array Array;
+typedef struct Map Map;
 typedef struct Set Set;
 typedef struct Str Str;
 typedef struct Vec Vec;
+typedef struct Tuple Tuple;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -141,6 +145,16 @@ typedef struct Expr Expr;
 typedef struct Mode Mode;
 typedef struct TypeScope TypeScope;
 
+typedef struct StructDef {
+    char _;
+} StructDef;
+
+
+typedef struct EnumDef {
+    char _;
+} EnumDef;
+
+
 typedef struct Dynamic {
     char _;
 } Dynamic;
@@ -149,6 +163,8 @@ typedef struct Dynamic {
 struct FuncType {
     FuncType_tag tag;
 };
+
+
 
 
 
@@ -176,6 +192,15 @@ typedef struct Vec {
     U64 elem_size;
     Str elem_type;
 } Vec;
+
+
+typedef struct Tuple {
+    U8 *data;
+    U64 total_size;
+    U64 cap;
+    Vec type_names;
+    Vec type_sizes;
+} Tuple;
 
 
 struct TokenType {
@@ -244,6 +269,18 @@ typedef struct Array {
 } Array;
 
 
+typedef struct Map {
+    U8 *key_data;
+    U8 *val_data;
+    U64 count;
+    U64 cap;
+    U64 key_size;
+    Str key_type;
+    U64 val_size;
+    Str val_type;
+} Map;
+
+
 typedef struct Set {
     U8 *data;
     U64 count;
@@ -295,10 +332,16 @@ typedef struct Expr {
 } Expr;
 
 
+EnumDef * EnumDef_clone(EnumDef * self);
+void EnumDef_delete(EnumDef * self, Bool * call_free);
+U64 * EnumDef_size(void);
 Bool * FuncType_eq(FuncType * self, FuncType * other);
 FuncType * FuncType_clone(FuncType * self);
 void FuncType_delete(FuncType * self, Bool * call_free);
+Str * FuncType_to_str(FuncType * self);
 U64 * FuncType_size(void);
+Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
+Str * FunctionDef_to_str(FunctionDef * self);
 FunctionDef * FunctionDef_clone(FunctionDef * self);
 void FunctionDef_delete(FunctionDef * self, Bool * call_free);
 U64 * FunctionDef_size(void);
@@ -309,8 +352,20 @@ Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool * call_free);
 U64 * Range_size(void);
 void println(Array * parts);
+void print(Array * parts);
 Str * format(Array * parts);
+void swap(void * a, void * b, U64 size);
+void move(void * dest, void * src, U64 size);
+I64 * wait_cmd(I64 * pid);
+I64 * run_cmd(Str * output, Array * args);
 void panic(Str * loc_str, Array * parts);
+void TODO(Str * loc_str, Array * parts);
+void UNREACHABLE(Str * loc_str);
+Bool * assertm(Str * loc_str, Bool * cond, Array * parts);
+Bool * assert(Str * loc_str, Bool * cond);
+void test_expect(Str * loc_str, Bool * cond, Array * parts);
+void assert_eq(Str * loc_str, I64 * a, I64 * b);
+void assert_eq_str(Str * loc_str, Str * a, Str * b);
 Array * Array_new(Str * elem_type, U64 * elem_size, U64 * cap);
 U64 * Array_len(Array * self);
 void * Array_get(Array * self, U64 * i);
@@ -318,22 +373,53 @@ void Array_set(Array * self, U64 * i, void * val);
 void Array_delete(Array * self, Bool * call_free);
 Array * Array_clone(Array * self);
 U64 * Array_size(void);
+Map * Map_new(Str * key_type, U64 * key_size, Str * val_type, U64 * val_size);
+U64 * Map_len(Map * self);
+Bool * Map_has(Map * self, void * key);
+void * Map_get(Map * self, void * key);
+void Map_set(Map * self, void * key, void * val);
+void Map_delete(Map * self, Bool * call_free);
+Map * Map_clone(Map * self);
+U64 * Map_size(void);
+Set * Set_new(Str * elem_type, U64 * elem_size);
+U64 * Set_len(Set * self);
+Bool * Set_has(Set * self, void * val);
+void Set_add(Set * self, void * val);
 void Set_delete(Set * self, Bool * call_free);
 Set * Set_clone(Set * self);
 U64 * Set_size(void);
 U64 * Str_len(Str * self);
 U8 * Str_get(Str * self, U64 * i);
+U8 * Str_byte_at(Str * self, U64 * i);
 I64 * Str_cmp(Str * a, Str * b);
 Str * Str_concat(Str * a, Str * b);
+Str * Str_with_capacity(U64 * n);
+void Str_push_str(Str * self, Str * s);
 Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool * call_free);
+Str * Str_to_str(Str * val);
 Str * Str_substr(Str * s, U64 * start, U64 * n);
+Bool * Str_contains(Str * a, Str * b);
 Bool * Str_starts_with(Str * a, Str * b);
 Bool * Str_ends_with(Str * a, Str * b);
 Bool * Str_is_empty(Str * self);
+I64 * Str_find(Str * self, Str * needle);
 I64 * Str_rfind(Str * self, Str * needle);
+Str * Str_replace(Str * self, Str * from, Str * to);
+Str * Str_get_char(Str * self, U64 * i);
+Str * Str_strip_prefix(Str * self, Str * prefix);
+Str * Str_strip_suffix(Str * self, Str * suffix);
+Str * Str_from_byte(U8 * byte);
+I64 * Str_to_i64(Str * self);
+Vec * Str_split(Str * self, Str * delim);
 U64 * Str_size(void);
 Bool * Str_eq(Str * a, Str * b);
+Bool * Str_lt(Str * a, Str * b);
+Bool * Str_gt(Str * a, Str * b);
+Bool * Str_neq(Str * a, Str * b);
+Bool * Str_lte(Str * a, Str * b);
+Bool * Str_gte(Str * a, Str * b);
+Str * join(Vec * parts, Str * sep);
 Vec * Vec_new(Str * elem_type, U64 * elem_size);
 U64 * Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
@@ -341,26 +427,61 @@ void * Vec_get(Vec * self, U64 * i);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
 U64 * Vec_size(void);
+Tuple * Tuple_new(void);
+U64 * Tuple_len(Tuple * self);
+void Tuple_push(Tuple * self, Str * elem_type, U64 * elem_size, void * val);
+void * Tuple_get(Tuple * self, U64 * i);
+Str * Tuple_type_at(Tuple * self, U64 * i);
+U64 * Tuple_size_at(Tuple * self, U64 * i);
+void Tuple_delete(Tuple * self, Bool * call_free);
+Tuple * Tuple_clone(Tuple * self);
+U64 * Tuple_size(void);
 Bool * TokenType_eq(TokenType * self, TokenType * other);
 TokenType * TokenType_clone(TokenType * self);
 void TokenType_delete(TokenType * self, Bool * call_free);
+Str * TokenType_to_str(TokenType * self);
 U64 * TokenType_size(void);
 Token * Token_clone(Token * self);
 void Token_delete(Token * self, Bool * call_free);
 U64 * Token_size(void);
+Bool * is_digit(U8 * c);
+Bool * is_alpha(U8 * c);
+Bool * is_alnum(U8 * c);
+Str * tok_name(TokenType * type);
+TokenType * lookup_keyword(Str * word);
+Vec * tokenize(Str * src, Str * path);
 Bool * TilType_eq(TilType * self, TilType * other);
 TilType * TilType_clone(TilType * self);
 void TilType_delete(TilType * self, Bool * call_free);
+Str * TilType_to_str(TilType * self);
 U64 * TilType_size(void);
+Str * til_type_name_c(TilType * t);
+Bool * Declaration_eq(Declaration * a, Declaration * b);
+Str * Declaration_to_str(Declaration * self);
 Declaration * Declaration_clone(Declaration * self);
 void Declaration_delete(Declaration * self, Bool * call_free);
 U64 * Declaration_size(void);
+Bool * ExprData_eq(ExprData * self, ExprData * other);
 ExprData * ExprData_clone(ExprData * self);
 void ExprData_delete(ExprData * self, Bool * call_free);
+Str * ExprData_to_str(ExprData * self);
 U64 * ExprData_size(void);
+void Expr_error(Expr * self, Str * msg);
+void Expr_todo_error(Expr * self, Str * msg);
+void Expr_lang_error(Expr * self, Str * msg);
+void Expr_add_child(Expr * self, Expr * child);
+Expr * Expr_child(Expr * parent, I64 * i);
+I64 * Expr_child_count(Expr * parent);
+Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U64 * Expr_size(void);
+Str * node_name(ExprData * data);
+Str * func_type_name(FuncType * ft);
+void ast_print(Expr * e, U32 indent);
+Bool * enum_has_payloads(Expr * enum_def);
+I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
+Str * enum_variant_type(Expr * enum_def, I32 tag);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
 U64 * Mode_size(void);

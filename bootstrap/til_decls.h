@@ -2,6 +2,8 @@
 #include "aliases.h"
 #include <stdbool.h>
 
+typedef struct StructDef StructDef;
+typedef struct EnumDef EnumDef;
 typedef struct Dynamic Dynamic;
 typedef enum {
     FuncType_TAG_Func,
@@ -15,9 +17,11 @@ typedef struct FuncType FuncType;
 typedef struct FunctionDef FunctionDef;
 typedef struct Range Range;
 typedef struct Array Array;
+typedef struct Map Map;
 typedef struct Set Set;
 typedef struct Str Str;
 typedef struct Vec Vec;
+typedef struct Tuple Tuple;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
