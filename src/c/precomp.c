@@ -219,13 +219,10 @@ static void process_body(Scope *scope, Expr *body) {
                     track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 }
             } else if (is_func_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
-                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 0);
-                if (lit) {
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
-                    track_literal(scope, (&stmt->data.data.Decl.name), lit);
-                } else {
-                    track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));
-                }
+                // Temporarily skip func folding for U32 bootstrap migration
+                // (compiled _size() returns U64, .til declares U32 — precomp would
+                // create U64 literal that mismatches U32 parameter types)
+                track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));
             } else {
                 // Track compile-time known value
                 track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));

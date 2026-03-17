@@ -199,9 +199,9 @@ lookup_keyword := func(word: Str) returns TokenType {
 
 tokenize := proc(src: Str, path: Str) returns Vec {
     mut tokens := Vec.new("Token", Token.size())
-    mut pos : U64 = 0
+    mut pos : U32 = 0
     mut line : U32 = 1
-    mut line_start : U64 = 0
+    mut line_start : U32 = 0
     src_len := src.len()
 
     while pos.lt(src_len) {
@@ -219,7 +219,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             continue
         }
 
-        col : U32 = pos.sub(line_start).add(1).to_i64().to_u32()
+        col : U32 = pos.sub(line_start).add(1)
         start := pos
 
         // Line comments: // or #
