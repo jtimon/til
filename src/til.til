@@ -99,7 +99,7 @@ til_init_declarations := ext_func(program: Expr, scope: TypeScope) returns shall
 til_type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
 til_precomp := ext_proc(program: Expr) {}
 til_scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
-til_interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, shallow user_argc: U32, user_argv: Dynamic) returns shallow I32 {}
+til_interpret_v := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec) returns shallow I32 {}
 til_build := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
 til_build_header := ext_func(ast: Expr, h_path: Str) returns shallow I32 {}
 til_build_til_binding := ext_func(ast: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
@@ -502,8 +502,8 @@ main := proc(args: ..Str) {
         if is_lib_mode.and(command.eq("interpret")) {
             panic(__LOC__, "cannot interpret a library — use translate or build")
         }
-        result = til_interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
-                               user_argv.len().to_i64().to_u32(), NULL)
+        result = til_interpret_v(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
+                                user_argv)
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
         if is_lib_mode.and(command.eq("run")) {
             panic(__LOC__, "cannot run a library — use translate or build")
@@ -599,4 +599,5 @@ main := proc(args: ..Str) {
         result = 1
     }
 
+    exit(result.to_i64())
 }

@@ -179,6 +179,26 @@ I32 til_interpret(Expr *ast, const Mode *mode, Bool run_tests,
     return r;
 }
 
+// Vec-based variant: takes Vec of Str values for user argv (called from til.til)
+I32 til_interpret_v(Expr *ast, const Mode *mode, Bool run_tests,
+                    Str *path, Str *user_c, Str *ext_c, Str *link_flags,
+                    Vec *user_argv) {
+    if (user_c && user_c->count == 0) user_c = NULL;
+    if (link_flags && link_flags->count == 0) link_flags = NULL;
+    char **argv = NULL;
+    U32 argc = user_argv ? (U32)user_argv->count : 0;
+    if (argc > 0) {
+        argv = malloc(argc * sizeof(char *));
+        for (U32 i = 0; i < argc; i++) {
+            Str *s = (Str *)Vec_get(user_argv, &(U64){(U64)i});
+            argv[i] = (char *)s->c_str;
+        }
+    }
+    I32 r = interpret(ast, mode, run_tests, path, user_c, ext_c, link_flags, argc, argv);
+    free(argv);
+    return r;
+}
+
 I32 til_build(Expr *ast, const Mode *mode, Bool run_tests,
               Str *path, Str *c_path) {
     return build(ast, mode, run_tests, path, c_path);

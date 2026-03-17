@@ -1,7 +1,6 @@
 mode cli
 
 NL := Str.from_byte(10)
-CTIL := "bin/ctil"
 TIL := "bin/c/til"
 RUNNER := "bin/c/test_runner"
 PLOT := "bin/c/plot"
@@ -188,11 +187,10 @@ add_count := proc(tests: Vec, label: Str, category: Str,
 
 add_cli_pair := proc(tests: Vec, name: Str, file: Str,
                      cli_args: Str, expected_exit: I64, expected_out: Str) {
-    // TODO #12: switch to TIL once til.til handles user_argv and exit codes
-    mut cmd_i := CTIL.concat(" interpret ").concat(file)
+    mut cmd_i := TIL.concat(" interpret ").concat(file)
     if cli_args.len().gt(0) { cmd_i = cmd_i.concat(" ").concat(cli_args) }
     add_single(tests, name.concat("_i"), "cli", expected_exit, expected_out, cmd_i)
-    mut cmd_r := CTIL.concat(" run -o bin/c/").concat(name)
+    mut cmd_r := TIL.concat(" run -o bin/c/").concat(name)
         .concat(" -c gen/c/").concat(name).concat(".c ")
         .concat(file)
     if cli_args.len().gt(0) { cmd_r = cmd_r.concat(" ").concat(cli_args) }
