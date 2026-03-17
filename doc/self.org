@@ -69,22 +69,23 @@ by calling the interpreter. Converting them is deferred because:
    ~make~ (or ~make test~ which depends on it):
    1. First cc: compile src/c/*.c + bootstrap/ → bin/til_bootstrap
    2. ~til_core~: bin/til_bootstrap translates .til sources → regenerates bootstrap/
-   3. Second cc: recompile with new bootstrap → bin/til_bootstrap (new code)
-   4. ~til_core~: regenerate again with the new binary
-   5. Third cc: recompile → bin/til_bootstrap (final)
+   3. Second cc: recompile with new bootstrap → bin/til_bootstrap (final)
 
-   Pass 3 (steps 4-5) is needed because the pass-1 binary may have old
-   compiler behavior (e.g. different scavenger/builder logic). The pass-2
-   binary has the new code, so its til_core output is correct. All three
-   cc passes compile the SAME source files.
+   ~make clean~ only deletes bin/* — bootstrap/ is never touched.
+   The committed bootstrap is always available for pass 1.
+
+   Two passes handle ALL changes, including compiler behavior changes
+   in .til, because ~til_core~ regenerates both ~ast.c~ and ~til.c~:
+   - ~ast.til~ is ~mode lib~ → scavenging is skipped → ~ast.c~ always
+     has all function bodies
+   - ~--allow-multiple-definition~ lets the linker find any symbols
+     missing from ~til.c~ in ~ast.c~
 
 *** Making changes to .til files only
-   Just run ~make clean && make test~. The three-pass build handles it:
-   - First cc uses committed bootstrap (old .til output) → works
-   - First til_core regenerates bootstrap (using old binary)
-   - Second cc uses new bootstrap → binary has new code
-   - Second til_core regenerates bootstrap (using new binary → correct)
-   - Third cc uses correct bootstrap → final binary
+   Just run ~make clean && make test~. The two-pass build handles it:
+   - First cc uses committed bootstrap → works
+   - til_core regenerates bootstrap with current .til
+   - Second cc uses new bootstrap → final binary
    - Commit everything: .til files + regenerated bootstrap/
 
 *** Changing C files that call bootstrap functions
