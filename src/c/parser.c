@@ -14,21 +14,21 @@ typedef struct {
     Str *path;
 } Parser;
 
-static Token *peek(Parser *p) {
+Token *peek(Parser *p) {
     return &p->tokens[p->pos];
 }
 
-static Token *advance(Parser *p) {
+Token *advance(Parser *p) {
     Token *t = &p->tokens[p->pos];
     if (t->type.tag != TokenType_TAG_Eof) p->pos++;
     return t;
 }
 
-static I32 check(Parser *p, TokenType_tag type) {
+I32 check(Parser *p, TokenType_tag type) {
     return peek(p)->type.tag == type;
 }
 
-static Token *expect(Parser *p, TokenType_tag type) {
+Token *expect(Parser *p, TokenType_tag type) {
     Token *t = peek(p);
     if (t->type.tag != type) {
         TokenType tt = {type};
@@ -42,19 +42,19 @@ static Token *expect(Parser *p, TokenType_tag type) {
 }
 
 // Extract a Str from a token.
-static Str *tok_str(Token *t) {
+Str *tok_str(Token *t) {
     return Str_clone(&t->text);
 }
 
 // --- Forward declarations ---
 
-static Expr *parse_statement(Parser *p);
-static Expr *parse_expression(Parser *p);
+Expr *parse_statement(Parser *p);
+Expr *parse_expression(Parser *p);
 
 // --- Parsing functions ---
 
 // parse_block: expects '{' already consumed, reads statements until '}'
-static Expr *parse_block(Parser *p) {
+Expr *parse_block(Parser *p) {
     Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, p->path);
     while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
         Expr_add_child(body, parse_statement(p));
@@ -66,7 +66,7 @@ static Expr *parse_block(Parser *p) {
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
 // Returns a synthetic ExprData_TAG_FuncDef Expr with param_types and return_type,
 // or NULL if not followed by '(' (bare "Fn" type).
-static Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
+Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
     if (!check(p, TokenType_TAG_LParen)) return NULL;
     advance(p); // consume '('
 
@@ -118,7 +118,7 @@ static Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
 }
 
 // parse_func_def: current token is func/proc/etc
-static Expr *parse_func_def(Parser *p) {
+Expr *parse_func_def(Parser *p) {
     Token *kw = advance(p); // consume func/proc/etc
     FuncType ft;
     switch (kw->type.tag) {
@@ -309,7 +309,7 @@ static Expr *parse_func_def(Parser *p) {
 }
 
 // parse_struct_def: current token is 'struct' or 'ext_struct'
-static Expr *parse_struct_def(Parser *p) {
+Expr *parse_struct_def(Parser *p) {
     Token *kw = advance(p); // consume 'struct' or 'ext_struct'
     bool is_ext = (kw->type.tag == TokenType_TAG_KwExtStruct);
     Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_StructDef}, kw->line, kw->col, p->path);
@@ -338,7 +338,7 @@ static Expr *parse_struct_def(Parser *p) {
 }
 
 // parse_enum_def: current token is 'enum'
-static Expr *parse_enum_def(Parser *p) {
+Expr *parse_enum_def(Parser *p) {
     Token *kw = advance(p); // consume 'enum'
     Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_EnumDef}, kw->line, kw->col, p->path);
     expect(p, TokenType_TAG_LBrace);
@@ -377,7 +377,7 @@ static Expr *parse_enum_def(Parser *p) {
 }
 
 // parse_call: identifier already consumed, current token is '('
-static Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
+Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
     advance(p); // consume '('
 
     Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, p->path);
@@ -422,7 +422,7 @@ static Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
 }
 
 // parse_expression: for now handles literals, identifiers, and calls
-static Expr *parse_expression(Parser *p) {
+Expr *parse_expression(Parser *p) {
     Token *t = peek(p);
     Expr *e = NULL;
 
@@ -593,7 +593,7 @@ static Expr *parse_expression(Parser *p) {
 }
 
 // parse_statement_ident: identifier is current token
-static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
+Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     Token *t = advance(p); // consume identifier
     Str *name = tok_str(t);
 
@@ -795,7 +795,7 @@ static Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     exit(1);
 }
 
-static Expr *parse_statement(Parser *p) {
+Expr *parse_statement(Parser *p) {
     Token *t = peek(p);
 
     switch (t->type.tag) {
