@@ -1,0 +1,97 @@
+# Plan: #77 modes.til swap — same pattern as ast.til, facade for #39
+
+## Context
+
+Replace C Mode (src/c/modes.h + ext.c constants) with til Mode
+(src/self/modes.til). Same pattern as core.til→lexer.til→ast.til.
+modes.til becomes the "facade" — the top of the self-hosted chain.
+As #39 progresses (parser, initer, etc.), only modes.til's import
+changes. Both sides get everything through one single entry point:
+- til.til: `import("self/modes.til")` → gets all til types
+- C modules: `#include "../../bootstrap/modes.h"` → gets all C types
+One import/include each, always up to date, no tracking needed.
+
+## Existing work to keep
+
+- `src/self/modes.til` — already created and committed (a1310276)
+- `src/til.til` — uncommitted changes: imports modes.til, removes
+  Mode ext_struct, replaces all til_mode_* calls. Keep these.
+- `src/c/ext.c` — uncommitted: Mode_eq removed. Keep this.
+- bootstrap/ — uncommitted regeneration from two-pass. Keep these.
+
+## The #39 module swap pattern (document in self.org)
+
+For each C module → til replacement:
+1. Write the .til file (mode lib)
+2. Make .til import the previous "top" module
+3. Update til_core: translate the new top instead of (or in addition
+   to) the old one. Copy generated .c/.h to bootstrap/.
+4. Update Makefile SRCS/HDRS: bootstrap/new.c replaces bootstrap/old.c
+5. Update C module includes: bootstrap/new.h replaces old headers
+6. Remove old C source (src/c/old.c, src/c/old.h or modes.h)
+7. Remove functions from ext.c that are now in the .til module
+8. `make clean && make test` at EACH step
+
+## Commits
+
+### Commit 1: modes.til becomes the facade (swap)
+
+modes.til already exists. Make it import ast.til (becoming the top):
+
+**src/self/modes.til**: add `import("ast.til")` at top
+
+**Makefile**:
+- SRCS: `bootstrap/modes.c` replaces `bootstrap/ast.c`
+- HDRS: `bootstrap/modes.h` replaces `bootstrap/ast.h`
+- til_core: translate modes.til (not ast.til separately), copy to
+  bootstrap/. The modes.til translation produces everything
+  (modes + ast + lexer + core). Keep parser.til translation
+  separately (it's a different chain for now).
+
+**C modules** (7 files): replace includes:
+- `#include "modes.h"` → remove (no longer needed)
+- `#include "../../bootstrap/ast.h"` → `#include "../../bootstrap/modes.h"`
+- Files: builder.h, interpreter.h, scavenger.h, typer.h, initer.c,
+  ext.c, til_bridge.c, parser.c, parser.h, dispatch.c, precomp.c/h
+
+**src/c/ext.c**: remove Mode constants (MODE_SCRIPT etc.), mode
+helper functions (mode_resolve, mode_none, mode_script, etc.),
+mode_name, mode_auto_import, mode_is_lib, mode_is_lib_output.
+These all come from modes.til now. Keep mode_none as backward
+compat stub if committed bootstrap still references it.
+
+**src/c/modes.h**: delete entirely.
+
+**src/til.til**: keep uncommitted changes (import modes.til,
+use real Mode). Since modes.til now imports ast.til, til.til
+can drop `import("self/ast.til")` — it gets everything through
+modes.til.
+
+Verify: `make clean && make test` — 73/73
+
+### Commit 2: bridge removal (separate, builds on Commit 1)
+
+Replace remaining bridge functions with real types and direct
+ext_func calls. Delete til_bridge.c. This is the rest of #77.
+Plan details in a future session if needed.
+
+### Commit 3: til build src/til.til + close #77
+
+Test self-compilation, update docs, close #77.
+
+## Key risks
+
+- **Redefinition**: if any C file includes BOTH the old modes.h and
+  the new bootstrap/modes.h → compile error. Fix: remove modes.h
+  include from all C files in the same commit.
+- **--allow-multiple-definition**: Mode constants exist in both
+  ext.c and bootstrap/modes.c (from modes.til). Remove ext.c ones.
+- **First-pass bootstrap**: committed bootstrap has old ast.h
+  includes. First pass compiles fine because bootstrap/ files are
+  self-contained. After til_core regenerates, everything switches
+  to modes.h. Two-pass handles it.
+
+## self.org update (include in Commit 1)
+
+Document the module swap pattern for future #39 steps.
+Update the #39 progress table (modes → DONE).
