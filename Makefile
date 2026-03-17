@@ -68,6 +68,10 @@ ctil_core:
 	@cp gen/c/parser.h bootstrap/parser.h
 	@cp gen/c/parser_*.c bootstrap/ 2>/dev/null || true
 	@cp gen/c/parser_*.h bootstrap/ 2>/dev/null || true
+	@bin/ctil translate src/til.til
+	@cp gen/c/til.c bootstrap/til.c
+	@cp gen/c/til_*.c bootstrap/ 2>/dev/null || true
+	@cp gen/c/til_*.h bootstrap/ 2>/dev/null || true
 
 self_diff: bin/ctil
 	@$(MAKE) ctil_core
