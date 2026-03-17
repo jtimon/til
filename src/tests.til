@@ -1,9 +1,9 @@
 mode cli
 
 NL := Str.from_byte(10)
-TIL := "bin/c/til"
-RUNNER := "bin/c/test_runner"
-PLOT := "bin/c/plot"
+TIL := "bin/til_bootstrap"
+RUNNER := "bin/til/test_runner"
+PLOT := "bin/til/plot"
 GUI_TIMEOUT := "1"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
