@@ -1,4 +1,4 @@
-.PHONY: all clean test ctil_core revert_bootstrap self_diff
+.PHONY: all clean test ctil_core revert_bootstrap self_diff rescue
 
 all: bin/ctil bin/c/til
 
@@ -6,6 +6,8 @@ SRCS := $(wildcard src/*.c) $(wildcard src/c/*.c) bootstrap/ast.c
 HDRS := $(wildcard src/c/*.h) bootstrap/ast.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
+CC_FLAGS := -Wall -Wextra -Werror -g -Isrc -Isrc/c
+LD_FLAGS := -Wl,--allow-multiple-definition -rdynamic -ldl
 
 RAYLIB_LIB := lib/raylib/src/libraylib.a
 RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lm -lpthread -lrt
@@ -21,16 +23,23 @@ lib/libffi/.built:
 	$(MAKE) -C $(LIBFFI_DIR)
 	@touch $@
 
-bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
-	@mkdir -p bin
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
-	@$(MAKE) ctil_core
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
+# --- ctil (C entry point) ---
 
 TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
+
+bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
+	@mkdir -p bin
+	cc $(CC_FLAGS) $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
+	@$(MAKE) ctil_core
+	cc $(CC_FLAGS) $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
+
+# --- til (til entry point — the self-hosted compiler) ---
+
 bin/c/til: bin/ctil $(CORE) $(SELF) src/til.til
 	@bin/ctil translate src/til.til
-	@cc -Wall -Wextra -Werror -g -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/c/til
+	@cc $(CC_FLAGS) $(TIL_SRCS) gen/c/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/c/til
+
+# --- programs built by ctil ---
 
 bin/c/test_runner: bin/ctil $(CORE) src/test_runner.til
 	@bin/ctil build src/test_runner.til
@@ -41,15 +50,12 @@ bin/c/plot: bin/ctil $(CORE) src/examples/plot.til
 bin/c/tests: bin/ctil $(CORE) src/tests.til
 	@bin/ctil build src/tests.til
 
-gen/til/til.c: bin/c/til $(CORE) $(SELF) src/til.til
-	@bin/c/til translate src/til.til
+# --- test suite ---
 
-test: bin/ctil bin/c/til bin/c/test_runner bin/c/plot bin/c/tests gen/til/til.c
+test: bin/ctil bin/c/til bin/c/test_runner bin/c/plot bin/c/tests
 	@bin/c/tests $(if $(J),-j$(J))
 
-self_diff: bin/ctil
-	@$(MAKE) ctil_core
-	@bin/ctil run scripts/self_diff.til
+# --- bootstrap regeneration ---
 
 ctil_core:
 	@bin/ctil translate src/self/ast.til
@@ -63,83 +69,41 @@ ctil_core:
 	@cp gen/c/parser_*.c bootstrap/ 2>/dev/null || true
 	@cp gen/c/parser_*.h bootstrap/ 2>/dev/null || true
 
-bootstrap/til.c: bin/ctil $(CORE) $(SELF) src/til.til
-	@bin/ctil translate src/til.til
-	@cp gen/c/til.c bootstrap/til.c
+self_diff: bin/ctil
+	@$(MAKE) ctil_core
+	@bin/ctil run scripts/self_diff.til
+
+# --- rescue: build compiler from previous commit's bootstrap ---
+# Use when breaking changes leave current bootstrap incompatible.
+
+rescue: $(RAYLIB_LIB) lib/libffi/.built
+	@mkdir -p tmp/rescue
+	@git show HEAD~1:bootstrap/ast.c > tmp/rescue/ast.c
+	@git show HEAD~1:bootstrap/ast.h > tmp/rescue/ast.h
+	@for f in $$(git show HEAD~1:bootstrap/ 2>/dev/null | grep -v '^tree' | grep '\.c$$\|\.h$$'); do \
+		git show "HEAD~1:bootstrap/$$f" > "tmp/rescue/$$f" 2>/dev/null || true; \
+	done
+	cc $(CC_FLAGS) $(filter-out bootstrap/ast.c,$(TIL_SRCS)) tmp/rescue/ast.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o tmp/rescue/til
+	@echo "Rescue compiler: tmp/rescue/til"
+
+# --- debug/asan targets ---
 
 bin/ctil_asan: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
-	cc -Wall -Wextra -g -fsanitize=address -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_asan
+	cc -Wall -Wextra -g -fsanitize=address -Isrc -Isrc/c $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_asan
 
 bin/c/til_asan: bin/ctil $(CORE) $(SELF) src/til.til
 	@bin/ctil translate src/til.til
-	cc -Wall -Wextra -g -fsanitize=address -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/c/til_asan
+	cc -Wall -Wextra -g -fsanitize=address -Isrc -Isrc/c $(TIL_SRCS) gen/c/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/c/til_asan
 
 bin/ctil_dbg: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
-	cc -Wall -Wextra -g -O0 -Isrc -Isrc/c $(SRCS) -Wl,--allow-multiple-definition -rdynamic -ldl $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_dbg
+	cc -Wall -Wextra -g -O0 -Isrc -Isrc/c $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_dbg
 
 revert_bootstrap:
 	git checkout HEAD -- bootstrap/
 
-tmp_run_tests: bin/c/tests
-	@bin/c/tests $(if $(J),-j$(J))
-
-tmp_gdb_functions:
-	@echo "r run src/test/functions.til" | gdb -batch -ex run -ex bt bin/ctil --args bin/ctil run src/test/functions.til 2>&1 || true
-
-tmp_run_functions:
-	@bin/ctil run src/test/functions.til 2>&1 || true
-
-tmp_run_ref:
-	@bin/ctil run src/test/ref.til 2>&1 || true
-
-tmp_gdb_til:
-	@gdb -batch -ex run -ex bt bin/c/til --args bin/c/til translate src/til.til 2>&1 || true
-
-tmp_run_structs:
-	@bin/ctil run src/test/structs.til 2>&1 || true
-
-tmp_run_parsing:
-	@bin/ctil run src/test/parsing.til 2>&1 || true
-
-tmp_gdb_parsing:
-	@gdb -batch \
-	  -ex "set pagination off" \
-	  -ex "break typer.c:682" \
-	  -ex "commands 1" \
-	  -ex "  silent" \
-	  -ex "  printf \"=== struct=%s field=%d ===\\n\", name->c_str, i" \
-	  -ex "  continue" \
-	  -ex "end" \
-	  -ex "run run src/test/parsing.til" \
-	  bin/ctil 2>&1 || true
-
-tmp_test_cli_err:
-	@bin/c/til interpret src/examples/hello_cli.til extra 2>&1; echo "exit: $$?" || true
-
-tmp_test_cli_hello:
-	@bin/c/til interpret src/examples/hello_cli.til hello world 2>&1 || true
-
-tmp_run_lexing:
-	@bin/ctil run src/test/lexing.til 2>&1 || true
-
-tmp_run_fn_ptr:
-	@bin/ctil run src/test/fn_ptr.til 2>&1 || true
-
-tmp_run_own_fields:
-	@bin/ctil run src/test/own_fields.til 2>&1 || true
-
-tmp_translate_parsing:
-	@bin/ctil translate src/test/parsing.til > tmp/translate_out.log 2> tmp/translate_err.log || true
-
-tmp_interpret_functions:
-	@bin/ctil interpret src/test/functions.til 2>&1 || true
-
-tmp_run_til_asan:
-	@bin/c/til_asan translate src/til.til || true
-
 clean:
-	rm -rf bin/*
+	rm -rf bin/* tmp/rescue
 	$(MAKE) -C lib/raylib/src clean
 	cd $(LIBFFI_DIR) && $(MAKE) clean && rm -f .built
