@@ -219,7 +219,7 @@ static void process_body(Scope *scope, Expr *body) {
                     track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 }
             } else if (is_func_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
-                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
+                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 0);
                 if (lit) {
                     *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
                     track_literal(scope, (&stmt->data.data.Decl.name), lit);

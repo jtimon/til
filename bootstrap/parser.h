@@ -208,8 +208,8 @@ struct TokenType {
 typedef struct Token {
     TokenType type;
     Str text;
-    I64 line;
-    I64 col;
+    U32 line;
+    U32 col;
 } Token;
 
 
@@ -233,8 +233,8 @@ typedef struct Declaration {
 
 typedef struct Parser {
     Vec tokens;
-    I64 count;
-    I64 pos;
+    U32 count;
+    U32 pos;
     Str path;
 } Parser;
 

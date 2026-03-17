@@ -1,7 +1,7 @@
 #pragma once
-#include "ast_decls.h"
+#include "parser_decls.h"
 
-#include "ast_str.h"
+#include "parser_str.h"
 
 struct TokenType {
     TokenType_tag tag;

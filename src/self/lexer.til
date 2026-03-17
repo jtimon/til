@@ -51,8 +51,8 @@ TokenType := enum {
 Token := struct {
     type := TokenType.Eof
     text := ""
-    line := 0
-    col := 0
+    line : U32 = 0
+    col : U32 = 0
 }
 
 // --- Character helpers ---
@@ -200,7 +200,7 @@ lookup_keyword := func(word: Str) returns TokenType {
 tokenize := proc(src: Str, path: Str) returns Vec {
     mut tokens := Vec.new("Token", Token.size())
     mut pos : U64 = 0
-    mut line := 1
+    mut line : U32 = 1
     mut line_start : U64 = 0
     src_len := src.len()
 
@@ -219,7 +219,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             continue
         }
 
-        col := pos.sub(line_start).add(1).to_i64()
+        col : U32 = pos.sub(line_start).add(1).to_i64().to_u32()
         start := pos
 
         // Line comments: // or #

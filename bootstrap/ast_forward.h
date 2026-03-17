@@ -208,8 +208,8 @@ struct TokenType {
 typedef struct Token {
     TokenType type;
     Str text;
-    I64 line;
-    I64 col;
+    U32 line;
+    U32 col;
 } Token;
 
 

@@ -32,7 +32,7 @@ Token *expect(Parser *p, TokenType_tag type) {
     Token *t = peek(p);
     if (t->type.tag != type) {
         TokenType tt = {type};
-        fprintf(stderr, "%s:%lld:%lld: parse error: expected '%s', found '%.*s'\n",
+        fprintf(stderr, "%s:%u:%u: parse error: expected '%s', found '%.*s'\n",
                 p->path->c_str, t->line, t->col,
                 tok_name(&tt)->c_str,
                 (int)t->text.count, (const char *)t->text.c_str);
@@ -129,7 +129,7 @@ Expr *parse_func_def(Parser *p) {
     case TokenType_TAG_KwExtFunc:  ft = (FuncType){FuncType_TAG_ExtFunc}; break;
     case TokenType_TAG_KwExtProc:  ft = (FuncType){FuncType_TAG_ExtProc}; break;
     default:
-        fprintf(stderr, "%s:%lld:%lld: parse error: expected function keyword\n",
+        fprintf(stderr, "%s:%u:%u: parse error: expected function keyword\n",
                 p->path->c_str, kw->line, kw->col);
         exit(1);
     }
@@ -176,17 +176,17 @@ Expr *parse_func_def(Parser *p) {
             if (check(p, TokenType_TAG_DotDotDot)) {
                 advance(p); // consume '...'
                 if (is_own || is_mut || is_shallow) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: kwargs parameter '%.*s' cannot be own/mut/shallow\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: kwargs parameter '%.*s' cannot be own/mut/shallow\n",
                             p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (kwargs_index >= 0) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: only one kwargs parameter is allowed\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: only one kwargs parameter is allowed\n",
                             p->path->c_str, pname->line, pname->col);
                     exit(1);
                 }
                 if (variadic_index >= 0) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: cannot combine variadic and kwargs in the same function\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: cannot combine variadic and kwargs in the same function\n",
                             p->path->c_str, pname->line, pname->col);
                     exit(1);
                 }
@@ -197,27 +197,27 @@ Expr *parse_func_def(Parser *p) {
             } else if (check(p, TokenType_TAG_DotDot)) {
                 advance(p); // consume '..'
                 if (is_own) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
                             p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (is_mut) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
                             p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (is_shallow) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: variadic parameter '%.*s' cannot be 'shallow'\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'shallow'\n",
                             p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (variadic_index >= 0) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: only one variadic parameter is allowed\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: only one variadic parameter is allowed\n",
                             p->path->c_str, pname->line, pname->col);
                     exit(1);
                 }
                 if (kwargs_index >= 0) {
-                    fprintf(stderr, "%s:%lld:%lld: parse error: cannot combine variadic and kwargs in the same function\n",
+                    fprintf(stderr, "%s:%u:%u: parse error: cannot combine variadic and kwargs in the same function\n",
                             p->path->c_str, pname->line, pname->col);
                     exit(1);
                 }
@@ -250,7 +250,7 @@ Expr *parse_func_def(Parser *p) {
             def_val = parse_expression(p);
         }
         if (variadic_index >= 0 && !is_this_variadic && !def_val) {
-            fprintf(stderr, "%s:%lld:%lld: parse error: positional parameter '%.*s' not allowed after variadic\n",
+            fprintf(stderr, "%s:%u:%u: parse error: positional parameter '%.*s' not allowed after variadic\n",
                     p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
             exit(1);
         }
@@ -298,7 +298,7 @@ Expr *parse_func_def(Parser *p) {
     } else {
         // Bodyless = FuncSig type definition (only for func/proc)
         if (ft.tag != FuncType_TAG_Func && ft.tag != FuncType_TAG_Proc) {
-            fprintf(stderr, "%s:%lld:%lld: parse error: %s requires a body\n",
+            fprintf(stderr, "%s:%u:%u: parse error: %s requires a body\n",
                     p->path->c_str, kw->line, kw->col,
                     ft.tag == FuncType_TAG_Test ? "test" : "ext_func/ext_proc");
             exit(1);
@@ -469,7 +469,7 @@ Expr *parse_expression(Parser *p) {
         // compile-time directives
         if ((name->count == 7 && memcmp(name->c_str, "__LOC__", 7) == 0)) {
             char loc[32];
-            snprintf(loc, sizeof(loc), ":%lld:%lld", t->line, t->col);
+            snprintf(loc, sizeof(loc), ":%u:%u", t->line, t->col);
             e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, t->line, t->col, p->path);
             e->data.data.LiteralStr = *Str_concat(p->path, Str_clone(&(Str){.c_str = (U8*)(loc), .count = (U64)strlen((const char*)(loc)), .cap = CAP_VIEW}));
         } else if ((name->count == 8 && memcmp(name->c_str, "__FILE__", 8) == 0)) {
@@ -477,12 +477,12 @@ Expr *parse_expression(Parser *p) {
             e->data.data.LiteralStr = *Str_clone(p->path);
         } else if ((name->count == 8 && memcmp(name->c_str, "__LINE__", 8) == 0)) {
             char buf[24];
-            snprintf(buf, sizeof(buf), "%lld", t->line);
+            snprintf(buf, sizeof(buf), "%u", t->line);
             e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, p->path);
             e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         } else if ((name->count == 7 && memcmp(name->c_str, "__COL__", 7) == 0)) {
             char buf[24];
-            snprintf(buf, sizeof(buf), "%lld", t->col);
+            snprintf(buf, sizeof(buf), "%u", t->col);
             e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, p->path);
             e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         } else if (check(p, TokenType_TAG_LParen)) {
@@ -526,7 +526,7 @@ Expr *parse_expression(Parser *p) {
         }
         expect(p, TokenType_TAG_RBrace);
     } else {
-        fprintf(stderr, "%s:%lld:%lld: parse error: unexpected token '%.*s'\n",
+        fprintf(stderr, "%s:%u:%u: parse error: unexpected token '%.*s'\n",
                 p->path->c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
         exit(1);
     }
@@ -790,7 +790,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         return parse_call(p, name, t->line, t->col);
     }
 
-    fprintf(stderr, "%s:%lld:%lld: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
+    fprintf(stderr, "%s:%u:%u: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
             p->path->c_str, t->line, t->col, name->c_str);
     exit(1);
 }
@@ -932,7 +932,7 @@ Expr *parse_statement(Parser *p) {
             // Not a declaration — fall through to own expression
             if (own_mut) {
                 // We consumed 'mut' but it's not a declaration — error
-                fprintf(stderr, "%s:%lld:%lld: parse error: expected identifier after 'own mut'\n",
+                fprintf(stderr, "%s:%u:%u: parse error: expected identifier after 'own mut'\n",
                         p->path->c_str, t->line, t->col);
                 exit(1);
             }
@@ -956,7 +956,7 @@ Expr *parse_statement(Parser *p) {
         return Expr_new(&(ExprData){.tag = ExprData_TAG_Continue}, t->line, t->col, p->path);
     }
     default:
-        fprintf(stderr, "%s:%lld:%lld: parse error: expected statement, found '%.*s'\n",
+        fprintf(stderr, "%s:%u:%u: parse error: expected statement, found '%.*s'\n",
                 p->path->c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
         exit(1);
     }

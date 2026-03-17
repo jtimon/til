@@ -1,5 +1,6 @@
 #pragma once
 #include "aliases.h"
+#include <stdbool.h>
 
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
@@ -141,6 +142,7 @@ typedef enum {
 } ExprData_tag;
 typedef struct ExprData ExprData;
 typedef struct Expr Expr;
+typedef struct Parser Parser;
 
 typedef struct StructDef {
     char _;
@@ -228,6 +230,14 @@ typedef struct Declaration {
     Expr *field_struct_def;
     Expr *fn_sig;
 } Declaration;
+
+
+typedef struct Parser {
+    Vec tokens;
+    U32 count;
+    U32 pos;
+    Str path;
+} Parser;
 
 
 typedef struct FunctionDef {
@@ -469,6 +479,26 @@ void ast_print(Expr * e, U32 indent);
 Bool * enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
+Parser * Parser_clone(Parser * self);
+void Parser_delete(Parser * self, Bool * call_free);
+U64 * Parser_size(void);
+Token * peek(Parser * p);
+Token * advance(Parser * p);
+Bool * check(Parser * p, TokenType * type);
+void expect(Parser * p, TokenType * type);
+Str * expect_text(Parser * p, TokenType * type);
+U32 * peek_line(Parser * p);
+U32 * peek_col(Parser * p);
+Expr * parse_fn_signature(Parser * p, U32 * line, U32 * col);
+Expr * parse_block(Parser * p);
+Expr * parse_func_def(Parser * p);
+Expr * parse_struct_def(Parser * p);
+Expr * parse_enum_def(Parser * p);
+Expr * parse_call(Parser * p, Str * name, U32 * call_line, U32 * call_col);
+Expr * parse_expression(Parser * p);
+Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own);
+Expr * parse_statement(Parser * p);
+Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 Bool * TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();
 TokenType *TokenType_LParen();
@@ -616,6 +646,4 @@ Bool * ExprData_is_Switch(ExprData *);
 ExprData *ExprData_Switch();
 Bool * ExprData_is_Case(ExprData *);
 ExprData *ExprData_Case();
-
-#include "ext.h"
 

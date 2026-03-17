@@ -51,8 +51,8 @@ expect_text := proc(mut p: Parser, type: TokenType) returns Str {
 }
 
 // Save line/col before advancing
-peek_line := func(p: Parser) returns U32 { return peek(p).line.to_u32() }
-peek_col := func(p: Parser) returns U32 { return peek(p).col.to_u32() }
+peek_line := func(p: Parser) returns U32 { return peek(p).line }
+peek_col := func(p: Parser) returns U32 { return peek(p).col }
 
 // --- Parsing functions ---
 
