@@ -1,4 +1,4 @@
-.PHONY: all clean test til_core revert_bootstrap self_diff rescue
+.PHONY: all clean test til_core revert_boot self_diff rescue
 
 all: bin/til_bootstrap
 
@@ -95,8 +95,8 @@ bin/til_bootstrap_dbg: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/
 	@mkdir -p bin
 	cc -Wall -Wextra -g -O0 $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap_dbg
 
-revert_bootstrap:
-	git checkout HEAD -- bootstrap/
+revert_boot:
+	git checkout HEAD bootstrap/
 
 clean:
 	rm -rf bin/* tmp/rescue

@@ -98,7 +98,7 @@ by calling the interpreter. Converting them is deferred because:
    5. Commit everything together: .til + C + bootstrap
 
 *** Recovery targets
-   - ~make revert_bootstrap~ — restore bootstrap/ from last commit
+   - ~make revert_boot~ — restore bootstrap/ from last commit
    - ~make rescue~ — build compiler from previous commit's bootstrap
 
 *** Rules
