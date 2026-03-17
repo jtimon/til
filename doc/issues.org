@@ -1,10 +1,35 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 77
+# NEXT_ISSUE: 78
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #77 til.til: use import("self/ast.til") instead of link_c("bootstrap/ast.c")
+  til.til currently uses ~link_c("bootstrap/ast.c")~ + ~ext_struct Expr {}~
+  to access Expr/Token types through bridge functions. Since ast.til is
+  fully self-hosted, til.til could ~import("self/ast.til")~ directly,
+  getting real struct definitions instead of opaque ext_struct placeholders.
+
+  Benefits:
+  - Eliminates link_c for bootstrap files (only C modules remain)
+  - Enables ~til build src/til.til~ self-compilation (currently blocked
+    by forward.h header conflicts between bootstrap headers and generated
+    forward.h when bootstrap files are in link_c)
+  - Allows til.til to access Expr/Token fields directly if needed
+  - Moves toward pure til imports (less link_c, more import)
+
+  Blocker: builder's per-module emission puts imported function bodies
+  in separate ~til_ast.c~, ~til_core.c~ etc. files that ~compile_c()~
+  doesn't compile. The monolithic ~til.c~ only has the main program's
+  code. Fix: builder needs a monolithic emission mode for ~build~ that
+  includes imported modules' function bodies in the main .c file.
+
+  Also: ~compile_c()~'s ~-include forward.h~ conflicts with link_c files
+  that include ~bootstrap/ast.h~ (same type definitions). Fixed for
+  ~src/c/*~ files by skipping forward.h, but a general solution would
+  be better (e.g. include guards shared between forward.h and bootstrap).
 
 
 
