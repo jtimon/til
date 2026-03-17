@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 82
+# NEXT_ISSUE: 83
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -632,6 +632,15 @@
   Post-self-hosting — depends on #25 (multi-platform support) to
   actually have different platforms to target. On Linux x86_64 only,
   UPtr is just U64.
+
+** OPEN #82 POSIX ~--~ end-of-options in til CLI argument parsing
+  Decide whether til's CLI argument parser should support ~--~ as
+  "end of options" (POSIX getopt convention). Most Unix tools support
+  it. Currently til.til parses ~-o~ and ~-c~ flags before the source
+  path — no ~--~ handling.
+
+  Probably not needed until the CLI gets complex enough flags that
+  ambiguity becomes a real risk. Low priority.
 
 ** OPEN #78 Scavenger: support programs with link_c/link directives
   The scavenger is currently skipped entirely when ~link_c_paths~ is
