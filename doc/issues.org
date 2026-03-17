@@ -257,16 +257,23 @@
    - B1 (value-based children) and B2 (real clone/delete) fixed in #75
    - Builder: scalar methods + helpers emitted as non-static (#71)
    - Builder: null guard in auto-generated _delete methods
-   - ast.til: children elem_type changed to "" (avoids recursive
-     Vec_delete that conflicts with manual C lifetime management)
+   - Builder: ext.h include moved after struct defs in monolithic header
+   - ast.til: children elem_type "" (avoids recursive Vec_delete),
+     custom deep Expr.clone (fixes #76 shallow clone corruption)
    - src/c/ast.c replaced with gen/c/ast_ast.c (0 diff except include)
-   - src/c/ast.h stripped to thin wrapper (macros only, includes
-     bootstrap/ast.h for all types and declarations)
-   - Makefile: SRCS/HDRS use bootstrap/ast only (not lexer)
+   - src/c/ast.h deleted — all C files include bootstrap/ast.h directly
+   - Makefile: SRCS/HDRS use bootstrap/ast only (not lexer),
+     removed revert_bootstrap from bin/ctil target
    - ctil_core: only translates ast.til (lexer.til subsumed)
    - ext.c: includes bootstrap/ast.h instead of bootstrap/lexer.h
-   - Deleted: src/c/ast.c
-   - New issue #76 for precomp temp scope bug (parsing.til disabled)
+   - Deleted: src/c/ast.c, src/c/ast.h
+   - Inlined macros: DECL_NAME, FDEF_RTYPE, VEC_SET at all call sites
+   - Vec_take moved to initer.h declaration
+   - #76 fixed: shallow Vec_clone corrupted struct defaults
+
+*** WIP Step 5: Replace C parser with til-compiled parser
+   Next module to swap. parser.til already exists in src/self/.
+   Use ~make self_diff~ (now targeting parser) to track progress.
 
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from

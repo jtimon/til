@@ -7,7 +7,7 @@
 // Each entry: module name (same name for generated and hand-written)
 // Generated: gen/c/<module>_<module>.c (from ctil translate src/self/<module>.til)
 // Hand-written: src/c/<module>.c
-modules := array("Str", "ast")
+modules := array("Str", "parser")
 
 pid := spawn_cmd("mkdir -p gen/self_diff")
 wait_cmd(pid)

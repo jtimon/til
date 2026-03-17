@@ -57,9 +57,11 @@ ctil_core:
 	@cp gen/c/ast.h bootstrap/ast.h
 	@cp gen/c/ast_*.c bootstrap/ 2>/dev/null || true
 	@cp gen/c/ast_*.h bootstrap/ 2>/dev/null || true
-	#@bin/ctil translate src/self/parser.til
-	#@cp gen/c/parser.c bootstrap/parser.c
-	#@cp gen/c/parser.h bootstrap/parser.h
+	@bin/ctil translate src/self/parser.til
+	@cp gen/c/parser.c bootstrap/parser.c
+	@cp gen/c/parser.h bootstrap/parser.h
+	@cp gen/c/parser_*.c bootstrap/ 2>/dev/null || true
+	@cp gen/c/parser_*.h bootstrap/ 2>/dev/null || true
 
 bootstrap/til.c: bin/ctil $(CORE) $(SELF) src/til.til
 	@bin/ctil translate src/til.til

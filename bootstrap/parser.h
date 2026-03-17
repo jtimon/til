@@ -1,13 +1,24 @@
 #pragma once
-#include "ext.h"
+#include "aliases.h"
 
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
-typedef struct FunctionDef FunctionDef;
 typedef struct Dynamic Dynamic;
+typedef enum {
+    FuncType_TAG_Func,
+    FuncType_TAG_Proc,
+    FuncType_TAG_Test,
+    FuncType_TAG_Macro,
+    FuncType_TAG_ExtFunc,
+    FuncType_TAG_ExtProc
+} FuncType_tag;
+typedef struct FuncType FuncType;
+typedef struct FunctionDef FunctionDef;
 typedef struct Range Range;
+typedef struct Array Array;
 typedef struct Map Map;
 typedef struct Set Set;
+typedef struct Str Str;
 typedef struct Vec Vec;
 typedef struct Tuple Tuple;
 typedef enum {
@@ -81,69 +92,52 @@ typedef enum {
 typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef enum {
-    NodeType_TAG_Body,
-    NodeType_TAG_LiteralStr,
-    NodeType_TAG_LiteralNum,
-    NodeType_TAG_LiteralBool,
-    NodeType_TAG_LiteralNull,
-    NodeType_TAG_Ident,
-    NodeType_TAG_Decl,
-    NodeType_TAG_Assign,
-    NodeType_TAG_FCall,
-    NodeType_TAG_FuncDef,
-    NodeType_TAG_StructDef,
-    NodeType_TAG_EnumDef,
-    NodeType_TAG_FieldAccess,
-    NodeType_TAG_FieldAssign,
-    NodeType_TAG_Return,
-    NodeType_TAG_If,
-    NodeType_TAG_While,
-    NodeType_TAG_ForIn,
-    NodeType_TAG_NamedArg,
-    NodeType_TAG_Break,
-    NodeType_TAG_Continue,
-    NodeType_TAG_MapLit,
-    NodeType_TAG_SetLit,
-    NodeType_TAG_Switch,
-    NodeType_TAG_Case
-} NodeType_tag;
-typedef struct NodeType NodeType;
-typedef enum {
-    FuncType_TAG_Func,
-    FuncType_TAG_Proc,
-    FuncType_TAG_Test,
-    FuncType_TAG_Macro,
-    FuncType_TAG_ExtFunc,
-    FuncType_TAG_ExtProc
-} FuncType_tag;
-typedef struct FuncType FuncType;
-typedef enum {
     TilType_TAG_Unknown,
     TilType_TAG_None,
-    TilType_TAG_TypeI64,
-    TilType_TAG_TypeU8,
-    TilType_TAG_TypeI16,
-    TilType_TAG_TypeI32,
-    TilType_TAG_TypeU32,
-    TilType_TAG_TypeU64,
-    TilType_TAG_TypeF32,
-    TilType_TAG_TypeBool,
-    TilType_TAG_TypeStruct,
-    TilType_TAG_TypeStructDef,
-    TilType_TAG_TypeEnum,
-    TilType_TAG_TypeEnumDef,
-    TilType_TAG_TypeFuncDef,
-    TilType_TAG_TypeFuncPtr,
-    TilType_TAG_TypeDynamic
+    TilType_TAG_I64,
+    TilType_TAG_U8,
+    TilType_TAG_I16,
+    TilType_TAG_I32,
+    TilType_TAG_U32,
+    TilType_TAG_U64,
+    TilType_TAG_F32,
+    TilType_TAG_Bool,
+    TilType_TAG_Struct,
+    TilType_TAG_StructDef,
+    TilType_TAG_Enum,
+    TilType_TAG_EnumDef,
+    TilType_TAG_FuncDef,
+    TilType_TAG_FuncPtr,
+    TilType_TAG_Dynamic
 } TilType_tag;
 typedef struct TilType TilType;
-typedef struct DeclData DeclData;
-typedef struct FuncDefData FuncDefData;
+typedef struct Declaration Declaration;
 typedef enum {
-    ExprData_TAG_StrVal,
+    ExprData_TAG_Body,
+    ExprData_TAG_LiteralStr,
+    ExprData_TAG_LiteralNum,
+    ExprData_TAG_LiteralBool,
+    ExprData_TAG_LiteralNull,
+    ExprData_TAG_Ident,
     ExprData_TAG_Decl,
+    ExprData_TAG_Assign,
+    ExprData_TAG_FCall,
     ExprData_TAG_FuncDef,
-    ExprData_TAG_None
+    ExprData_TAG_StructDef,
+    ExprData_TAG_EnumDef,
+    ExprData_TAG_FieldAccess,
+    ExprData_TAG_FieldAssign,
+    ExprData_TAG_Return,
+    ExprData_TAG_If,
+    ExprData_TAG_While,
+    ExprData_TAG_ForIn,
+    ExprData_TAG_NamedArg,
+    ExprData_TAG_Break,
+    ExprData_TAG_Continue,
+    ExprData_TAG_MapLit,
+    ExprData_TAG_SetLit,
+    ExprData_TAG_Switch,
+    ExprData_TAG_Case
 } ExprData_tag;
 typedef struct ExprData ExprData;
 typedef struct Expr Expr;
@@ -159,15 +153,14 @@ typedef struct EnumDef {
 } EnumDef;
 
 
-typedef struct FunctionDef {
-    char _;
-} FunctionDef;
-
-
 typedef struct Dynamic {
     char _;
 } Dynamic;
 
+
+struct FuncType {
+    FuncType_tag tag;
+};
 
 
 
@@ -183,27 +176,11 @@ typedef struct Range {
 
 
 
-
-typedef struct Map {
-    U8 *key_data;
-    U8 *val_data;
+typedef struct Str {
+    U8 *c_str;
     U64 count;
     U64 cap;
-    U64 key_size;
-    Str key_type;
-    U64 val_size;
-    Str val_type;
-} Map;
-
-
-typedef struct Set {
-    U8 *data;
-    U64 count;
-    U64 cap;
-    U64 elem_size;
-    Str elem_type;
-} Set;
-
+} Str;
 
 
 typedef struct Vec {
@@ -236,80 +213,22 @@ typedef struct Token {
 } Token;
 
 
-struct NodeType {
-    NodeType_tag tag;
-};
-
-struct FuncType {
-    FuncType_tag tag;
-};
-
 struct TilType {
     TilType_tag tag;
 };
 
-typedef struct DeclData {
+typedef struct Declaration {
     Str name;
     Str explicit_type;
     Bool is_mut;
     Bool is_namespace;
     Bool is_ref;
     Bool is_own;
-    I64 field_offset;
-    I64 field_size;
-} DeclData;
-
-
-typedef struct FuncDefData {
-    FuncType func_type;
-    Str return_type;
-    Bool return_is_ref;
-    Bool return_is_shallow;
-    I64 variadic_index;
-    I64 kwargs_index;
-    Vec param_names;
-    Vec param_types;
-    Vec param_muts;
-    Vec param_owns;
-    Vec param_shallows;
-    Vec param_fn_sigs;
-    Vec param_defaults;
-} FuncDefData;
-
-
-struct ExprData {
-    ExprData_tag tag;
-    union {
-        Str StrVal;
-        DeclData Decl;
-        FuncDefData FuncDef;
-    } data;
-};
-
-typedef struct Expr {
-    NodeType type;
-    TilType til_type;
-    ExprData data;
-    Str struct_name;
-    Bool is_own_arg;
-    Bool is_splat;
-    Bool is_own_field;
-    Bool is_ref_field;
-    Bool is_ns_field;
-    Bool is_ext;
-    Bool is_core;
-    Bool save_old_delete;
-    I64 total_struct_size;
-    I64 variadic_index;
-    I64 variadic_count;
-    I64 kwargs_index;
-    I64 kwargs_count;
-    I64 fn_sig_index;
-    Vec children;
-    I64 line;
-    I64 col;
-    Str path;
-} Expr;
+    I32 field_offset;
+    I32 field_size;
+    Expr *field_struct_def;
+    Expr *fn_sig;
+} Declaration;
 
 
 typedef struct Parser {
@@ -320,9 +239,108 @@ typedef struct Parser {
 } Parser;
 
 
+typedef struct FunctionDef {
+    FuncType func_type;
+    Vec param_names;
+    Vec param_types;
+    Vec param_muts;
+    Vec param_owns;
+    Vec param_shallows;
+    Vec param_fn_sigs;
+    U32 nparam;
+    Vec param_defaults;
+    Str return_type;
+    I32 variadic_index;
+    I32 kwargs_index;
+    Bool return_is_ref;
+    Bool return_is_shallow;
+} FunctionDef;
+
+
+typedef struct Array {
+    U8 *data;
+    U64 cap;
+    U64 elem_size;
+    Str elem_type;
+} Array;
+
+
+typedef struct Map {
+    U8 *key_data;
+    U8 *val_data;
+    U64 count;
+    U64 cap;
+    U64 key_size;
+    Str key_type;
+    U64 val_size;
+    Str val_type;
+} Map;
+
+
+typedef struct Set {
+    U8 *data;
+    U64 count;
+    U64 cap;
+    U64 elem_size;
+    Str elem_type;
+} Set;
+
+
+struct ExprData {
+    ExprData_tag tag;
+    union {
+        Str LiteralStr;
+        Str LiteralNum;
+        Str LiteralBool;
+        Str Ident;
+        Declaration Decl;
+        Str Assign;
+        FunctionDef FuncDef;
+        Str FieldAccess;
+        Str FieldAssign;
+        Str ForIn;
+        Str NamedArg;
+    } data;
+};
+
+typedef struct Expr {
+    ExprData data;
+    TilType til_type;
+    Str struct_name;
+    Bool is_own_arg;
+    Bool is_splat;
+    Bool is_own_field;
+    Bool is_ref_field;
+    Bool is_ns_field;
+    Bool is_ext;
+    Bool is_core;
+    Bool save_old_delete;
+    I32 total_struct_size;
+    I32 variadic_index;
+    U32 variadic_count;
+    I32 kwargs_index;
+    U32 kwargs_count;
+    Expr *fn_sig;
+    Vec children;
+    U32 line;
+    U32 col;
+    Str path;
+} Expr;
+
+
 EnumDef * EnumDef_clone(EnumDef * self);
 void EnumDef_delete(EnumDef * self, Bool * call_free);
 U64 * EnumDef_size(void);
+Bool * FuncType_eq(FuncType * self, FuncType * other);
+FuncType * FuncType_clone(FuncType * self);
+void FuncType_delete(FuncType * self, Bool * call_free);
+Str * FuncType_to_str(FuncType * self);
+U64 * FuncType_size(void);
+Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
+Str * FunctionDef_to_str(FunctionDef * self);
+FunctionDef * FunctionDef_clone(FunctionDef * self);
+void FunctionDef_delete(FunctionDef * self, Bool * call_free);
+U64 * FunctionDef_size(void);
 Range * Range_new(U64 start, U64 end);
 U64 * Range_len(Range * self);
 U64 * Range_get(Range * self, U64 i);
@@ -428,52 +446,38 @@ Bool * is_alnum(U8 * c);
 Str * tok_name(TokenType * type);
 TokenType * lookup_keyword(Str * word);
 Vec * tokenize(Str * src, Str * path);
-Bool * NodeType_eq(NodeType * self, NodeType * other);
-NodeType * NodeType_clone(NodeType * self);
-void NodeType_delete(NodeType * self, Bool * call_free);
-Str * NodeType_to_str(NodeType * self);
-U64 * NodeType_size(void);
-Str * node_type_name(NodeType * t);
-Bool * FuncType_eq(FuncType * self, FuncType * other);
-FuncType * FuncType_clone(FuncType * self);
-void FuncType_delete(FuncType * self, Bool * call_free);
-Str * FuncType_to_str(FuncType * self);
-U64 * FuncType_size(void);
-Str * func_type_name(FuncType * ft);
 Bool * TilType_eq(TilType * self, TilType * other);
 TilType * TilType_clone(TilType * self);
 void TilType_delete(TilType * self, Bool * call_free);
 Str * TilType_to_str(TilType * self);
 U64 * TilType_size(void);
-Str * til_type_name(TilType * t);
-Bool * DeclData_eq(DeclData * a, DeclData * b);
-Str * DeclData_to_str(DeclData * self);
-DeclData * DeclData_clone(DeclData * self);
-void DeclData_delete(DeclData * self, Bool * call_free);
-U64 * DeclData_size(void);
-Bool * FuncDefData_eq(FuncDefData * a, FuncDefData * b);
-Str * FuncDefData_to_str(FuncDefData * self);
-FuncDefData * FuncDefData_clone(FuncDefData * self);
-void FuncDefData_delete(FuncDefData * self, Bool * call_free);
-U64 * FuncDefData_size(void);
+Str * til_type_name_c(TilType * t);
+Bool * Declaration_eq(Declaration * a, Declaration * b);
+Str * Declaration_to_str(Declaration * self);
+Declaration * Declaration_clone(Declaration * self);
+void Declaration_delete(Declaration * self, Bool * call_free);
+U64 * Declaration_size(void);
 Bool * ExprData_eq(ExprData * self, ExprData * other);
 ExprData * ExprData_clone(ExprData * self);
 void ExprData_delete(ExprData * self, Bool * call_free);
 Str * ExprData_to_str(ExprData * self);
 U64 * ExprData_size(void);
+void Expr_error(Expr * self, Str * msg);
+void Expr_todo_error(Expr * self, Str * msg);
+void Expr_lang_error(Expr * self, Str * msg);
+void Expr_add_child(Expr * self, Expr * child);
+Expr * Expr_child(Expr * parent, I64 * i);
+I64 * Expr_child_count(Expr * parent);
+Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U64 * Expr_size(void);
-Expr * expr_new(NodeType * type, I64 * line, I64 * col, Str * path);
-void expr_add_child(Expr * parent, Expr * child);
-Expr * expr_child(Expr * parent, I64 * i);
-I64 * expr_child_count(Expr * parent);
-void expr_error(Expr * e, Str * msg);
-void expr_todo_error(Expr * e, Str * msg);
-void expr_lang_error(Expr * e, Str * msg);
+Str * node_name(ExprData * data);
+Str * func_type_name(FuncType * ft);
+void ast_print(Expr * e, U32 indent);
 Bool * enum_has_payloads(Expr * enum_def);
-I64 * enum_variant_tag(Expr * enum_def, Str * variant_name);
-Str * enum_variant_type(Expr * enum_def, I64 * tag);
+I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
+Str * enum_variant_type(Expr * enum_def, I32 tag);
 Parser * Parser_clone(Parser * self);
 void Parser_delete(Parser * self, Bool * call_free);
 U64 * Parser_size(void);
@@ -482,14 +486,14 @@ Token * advance(Parser * p);
 Bool * check(Parser * p, TokenType * type);
 void expect(Parser * p, TokenType * type);
 Str * expect_text(Parser * p, TokenType * type);
-I64 * peek_line(Parser * p);
-I64 * peek_col(Parser * p);
-Expr * parse_fn_signature(Parser * p, I64 * line, I64 * col);
+U32 * peek_line(Parser * p);
+U32 * peek_col(Parser * p);
+Expr * parse_fn_signature(Parser * p, U32 * line, U32 * col);
 Expr * parse_block(Parser * p);
 Expr * parse_func_def(Parser * p);
 Expr * parse_struct_def(Parser * p);
 Expr * parse_enum_def(Parser * p);
-Expr * parse_call(Parser * p, Str * name, I64 * call_line, I64 * call_col);
+Expr * parse_call(Parser * p, Str * name, U32 * call_line, U32 * call_col);
 Expr * parse_expression(Parser * p);
 Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own);
 Expr * parse_statement(Parser * p);
@@ -561,67 +565,86 @@ TokenType *TokenType_KwTrue();
 TokenType *TokenType_KwFalse();
 TokenType *TokenType_KwNull();
 TokenType *TokenType_Error();
-Bool * NodeType_eq(NodeType *, NodeType *);
-NodeType *NodeType_Body();
-NodeType *NodeType_LiteralStr();
-NodeType *NodeType_LiteralNum();
-NodeType *NodeType_LiteralBool();
-NodeType *NodeType_LiteralNull();
-NodeType *NodeType_Ident();
-NodeType *NodeType_Decl();
-NodeType *NodeType_Assign();
-NodeType *NodeType_FCall();
-NodeType *NodeType_FuncDef();
-NodeType *NodeType_StructDef();
-NodeType *NodeType_EnumDef();
-NodeType *NodeType_FieldAccess();
-NodeType *NodeType_FieldAssign();
-NodeType *NodeType_Return();
-NodeType *NodeType_If();
-NodeType *NodeType_While();
-NodeType *NodeType_ForIn();
-NodeType *NodeType_NamedArg();
-NodeType *NodeType_Break();
-NodeType *NodeType_Continue();
-NodeType *NodeType_MapLit();
-NodeType *NodeType_SetLit();
-NodeType *NodeType_Switch();
-NodeType *NodeType_Case();
-Bool * FuncType_eq(FuncType *, FuncType *);
-FuncType *FuncType_Func();
-FuncType *FuncType_Proc();
-FuncType *FuncType_Test();
-FuncType *FuncType_Macro();
-FuncType *FuncType_ExtFunc();
-FuncType *FuncType_ExtProc();
 Bool * TilType_eq(TilType *, TilType *);
 TilType *TilType_Unknown();
 TilType *TilType_None();
-TilType *TilType_TypeI64();
-TilType *TilType_TypeU8();
-TilType *TilType_TypeI16();
-TilType *TilType_TypeI32();
-TilType *TilType_TypeU32();
-TilType *TilType_TypeU64();
-TilType *TilType_TypeF32();
-TilType *TilType_TypeBool();
-TilType *TilType_TypeStruct();
-TilType *TilType_TypeStructDef();
-TilType *TilType_TypeEnum();
-TilType *TilType_TypeEnumDef();
-TilType *TilType_TypeFuncDef();
-TilType *TilType_TypeFuncPtr();
-TilType *TilType_TypeDynamic();
+TilType *TilType_I64();
+TilType *TilType_U8();
+TilType *TilType_I16();
+TilType *TilType_I32();
+TilType *TilType_U32();
+TilType *TilType_U64();
+TilType *TilType_F32();
+TilType *TilType_Bool();
+TilType *TilType_Struct();
+TilType *TilType_StructDef();
+TilType *TilType_Enum();
+TilType *TilType_EnumDef();
+TilType *TilType_FuncDef();
+TilType *TilType_FuncPtr();
+TilType *TilType_Dynamic();
 Bool * ExprData_eq(ExprData *, ExprData *);
-Bool * ExprData_is_StrVal(ExprData *);
-ExprData *ExprData_StrVal(Str *);
-Str * ExprData_get_StrVal(ExprData *);
+Bool * ExprData_is_Body(ExprData *);
+ExprData *ExprData_Body();
+Bool * ExprData_is_LiteralStr(ExprData *);
+ExprData *ExprData_LiteralStr(Str *);
+Str * ExprData_get_LiteralStr(ExprData *);
+Bool * ExprData_is_LiteralNum(ExprData *);
+ExprData *ExprData_LiteralNum(Str *);
+Str * ExprData_get_LiteralNum(ExprData *);
+Bool * ExprData_is_LiteralBool(ExprData *);
+ExprData *ExprData_LiteralBool(Str *);
+Str * ExprData_get_LiteralBool(ExprData *);
+Bool * ExprData_is_LiteralNull(ExprData *);
+ExprData *ExprData_LiteralNull();
+Bool * ExprData_is_Ident(ExprData *);
+ExprData *ExprData_Ident(Str *);
+Str * ExprData_get_Ident(ExprData *);
 Bool * ExprData_is_Decl(ExprData *);
-ExprData *ExprData_Decl(DeclData *);
-DeclData * ExprData_get_Decl(ExprData *);
+ExprData *ExprData_Decl(Declaration *);
+Declaration * ExprData_get_Decl(ExprData *);
+Bool * ExprData_is_Assign(ExprData *);
+ExprData *ExprData_Assign(Str *);
+Str * ExprData_get_Assign(ExprData *);
+Bool * ExprData_is_FCall(ExprData *);
+ExprData *ExprData_FCall();
 Bool * ExprData_is_FuncDef(ExprData *);
-ExprData *ExprData_FuncDef(FuncDefData *);
-FuncDefData * ExprData_get_FuncDef(ExprData *);
-Bool * ExprData_is_None(ExprData *);
-ExprData *ExprData_None();
+ExprData *ExprData_FuncDef(FunctionDef *);
+FunctionDef * ExprData_get_FuncDef(ExprData *);
+Bool * ExprData_is_StructDef(ExprData *);
+ExprData *ExprData_StructDef();
+Bool * ExprData_is_EnumDef(ExprData *);
+ExprData *ExprData_EnumDef();
+Bool * ExprData_is_FieldAccess(ExprData *);
+ExprData *ExprData_FieldAccess(Str *);
+Str * ExprData_get_FieldAccess(ExprData *);
+Bool * ExprData_is_FieldAssign(ExprData *);
+ExprData *ExprData_FieldAssign(Str *);
+Str * ExprData_get_FieldAssign(ExprData *);
+Bool * ExprData_is_Return(ExprData *);
+ExprData *ExprData_Return();
+Bool * ExprData_is_If(ExprData *);
+ExprData *ExprData_If();
+Bool * ExprData_is_While(ExprData *);
+ExprData *ExprData_While();
+Bool * ExprData_is_ForIn(ExprData *);
+ExprData *ExprData_ForIn(Str *);
+Str * ExprData_get_ForIn(ExprData *);
+Bool * ExprData_is_NamedArg(ExprData *);
+ExprData *ExprData_NamedArg(Str *);
+Str * ExprData_get_NamedArg(ExprData *);
+Bool * ExprData_is_Break(ExprData *);
+ExprData *ExprData_Break();
+Bool * ExprData_is_Continue(ExprData *);
+ExprData *ExprData_Continue();
+Bool * ExprData_is_MapLit(ExprData *);
+ExprData *ExprData_MapLit();
+Bool * ExprData_is_SetLit(ExprData *);
+ExprData *ExprData_SetLit();
+Bool * ExprData_is_Switch(ExprData *);
+ExprData *ExprData_Switch();
+Bool * ExprData_is_Case(ExprData *);
+ExprData *ExprData_Case();
+
+#include "ext.h"
 
