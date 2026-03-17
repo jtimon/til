@@ -1,5 +1,34 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #12 Self-hosting: eliminate ctil.c, use only til.til
+  src/ctil.c deleted. til.til (src/til.til) is now the sole compiler
+  entry point. The compiler binary is bin/til_bootstrap, built via
+  two-pass gcc from bootstrap/ (see doc/self.org for build workflow).
+
+  What was done:
+  - til.til verified as functionally equivalent to ctil.c for all tests
+  - Fixed til.til user_argv passing (added til_interpret_v bridge)
+  - Fixed til.til exit code propagation (exit(result.to_i64()))
+  - Fixed builder compile_c() for multiple link_c files (compile each
+    individually instead of batch cc -c with -o)
+  - Fixed forward.h conflict: skip -include forward.h for src/c/ files
+    that have their own headers
+  - Test suite simplified: dropped ci/cr (ctil interpret/run) modes,
+    kept only interp/run. Test count halved from ~160 to 73.
+  - Split compile vs run timing in test suite (compile_ms column)
+  - Makefile restructured: single bin/til_bootstrap target, two-pass
+    build (gcc → til_core regenerate bootstrap/ → gcc), removed all
+    ctil targets (bin/ctil, ctil_core, ctil_asan, ctil_dbg)
+  - Debug targets renamed: bin/til_bootstrap_asan, bin/til_bootstrap_dbg
+  - bootstrap/til.c + bootstrap/til_*.c/h now tracked in repo
+  - Str.split() moved from vec.til standalone to str.til namespace
+  - doc/totals.csv migrated from old format (ci_ms,cr_ms,ti_ms,tr_ms)
+    to new (interp_ms,compile_ms,run_ms)
+  - README.org, CLAUDE.md, agents.md, doc/self.org updated
+
+  #39 continues separately for bottom-up C module elimination.
+  #77 filed for til.til to use import instead of link_c for ast.til.
+
 * FIXED #76 Shallow Expr_clone corrupted struct body defaults
   Root cause: auto-generated Expr_clone used Vec_clone with elem_type=""
   which did a shallow memcpy of children. Inner Expr nodes shared their

@@ -16,12 +16,12 @@ make
 
 Interpret a program:
 #+begin_src sh
-bin/ctil interpret program.til
+bin/til_bootstrap interpret program.til
 #+end_src
 
 Compile to C and run:
 #+begin_src sh
-bin/ctil run program.til
+bin/til_bootstrap run program.til
 #+end_src
 
 ** Test

@@ -1,23 +1,27 @@
 * Self-hosting strategy
 
-til self-hosting uses three approaches simultaneously:
-
-- *Bottom-up (#39)*: Replace C modules in ctil with til-compiled equivalents
-- *Top-down (#12)*: Build til.til as a full compiler via FFI into C modules
-- *Convergence*: Both meet in the middle at the typer
-
-When asked "top-down, bottom-up, or parallel?" — the answer is "yes."
+til self-hosting proceeds bottom-up (#39): replace C modules one at a time
+with til-compiled equivalents. The top-down path (#12) is complete — ctil.c
+has been deleted and til.til is the sole compiler entry point.
 
 ** Current state
 
-*** Bottom-up (#39): C elimination in ctil
+*** Top-down (#12): COMPLETE
+
+til.til (src/til.til) replaced ctil.c as the compiler entry point.
+It links C modules via link_c() and calls them through FFI bridge
+functions (til_bridge.c). As #39 replaces C modules, til.til's
+link_c() list shrinks and can switch to importing .til modules
+directly (#77).
+
+*** Bottom-up (#39): C elimination
 
 | Module        | Status | Notes                                    |
 |---------------+--------+------------------------------------------|
 | vec/map/str   | DONE   | Replaced by core.til (bootstrap/core.c)  |
 | lexer         | DONE   | Replaced by lexer.til (bootstrap/lexer.c)|
+| ast           | DONE   | Replaced by ast.til (bootstrap/ast.c)    |
 | parser        | NEXT   | bootstrap/parser.c+h generated, not yet linked |
-| ast           | TODO   | Relatively simple data structures         |
 | initer        | TODO   | Declaration scanner, straightforward      |
 | scavenger     | TODO   | Dead code elimination, straightforward    |
 | modes         | TODO   | Trivial — just mode constants             |
@@ -25,13 +29,6 @@ When asked "top-down, bottom-up, or parallel?" — the answer is "yes."
 | typer         | LAST   | Semantic core — most complex, most risk   |
 | precomp       | DEFER  | Depends on interpreter                    |
 | interpreter   | DEFER  | Slowest path, interdependent with precomp |
-
-*** Top-down (#12): til.til compiler
-
-til.til (src/til.til) is a complete reimplementation of ctil.c's main()
-in til. It links every C module via link_c() and calls them through FFI bridge
-functions. As #39 replaces C modules, til.til's link_c() list shrinks and
-can switch to importing .til modules directly.
 
 ** Order of operations
 
@@ -69,19 +66,19 @@ by calling the interpreter. Converting them is deferred because:
 
 *** Build flow
 
-   ~make bin/ctil~ (or ~make test~ which depends on it):
-   1. First cc: compile src/*.c + bootstrap/*.c → bin/ctil
-   2. ~ctil_core~: bin/ctil translates .til sources → regenerates bootstrap/
-   3. Second cc: recompile with new bootstrap → bin/ctil (final)
+   ~make~ (or ~make test~ which depends on it):
+   1. First cc: compile src/c/*.c + bootstrap/*.c + bootstrap/til.c → bin/til_bootstrap
+   2. ~til_core~: bin/til_bootstrap translates .til sources → regenerates bootstrap/
+   3. Second cc: recompile with new bootstrap → bin/til_bootstrap (final)
 
    The first cc uses whatever bootstrap/ is in the working tree.
    The second cc uses the freshly regenerated bootstrap/.
-   Both cc passes compile the SAME src/*.c files.
+   Both cc passes compile the SAME source files.
 
 *** Making changes to .til files only
    Just run ~make clean && make test~. The build flow handles it:
    - First cc uses committed bootstrap (old .til output) → works
-   - ctil_core regenerates bootstrap with new .til changes
+   - til_core regenerates bootstrap with new .til changes
    - Second cc uses new bootstrap → works
    - Commit everything: .til files + regenerated bootstrap/
 
@@ -113,7 +110,8 @@ by calling the interpreter. Converting them is deferred because:
 - precomp's dependency on interpreter means they form a unit. You can't
   convert precomp without converting (or at least bridging) interpreter.
   Since interpreter is the least performance-critical path (everyone
-  uses `til run` not `til interpret` for real work), there's no urgency.
+  uses ~bin/til_bootstrap run~ not ~interpret~ for real work), there's
+  no urgency.
 
 - As each C module gets replaced, til.til benefits too — it can import
   the .til version instead of linking the .c version, gradually becoming

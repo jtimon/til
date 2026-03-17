@@ -1,8 +1,8 @@
-.PHONY: all clean test ctil_core til_core revert_bootstrap self_diff rescue
+.PHONY: all clean test til_core revert_bootstrap self_diff rescue
 
-all: bin/ctil bin/til_bootstrap
+all: bin/til_bootstrap
 
-SRCS := $(wildcard src/*.c) $(wildcard src/c/*.c) bootstrap/ast.c
+SRCS := $(wildcard src/c/*.c) bootstrap/ast.c
 HDRS := $(wildcard src/c/*.h) bootstrap/ast.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
@@ -15,8 +15,6 @@ RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lm -lpthread -lrt
 LIBFFI_DIR := lib/libffi
 LIBFFI_FLAGS = -I$(firstword $(wildcard $(LIBFFI_DIR)/*/include)) -L$(firstword $(wildcard $(LIBFFI_DIR)/*/.libs)) -lffi
 
-TIL_SRCS := $(filter-out src/ctil.c, $(SRCS))
-
 $(RAYLIB_LIB):
 	$(MAKE) -C lib/raylib/src PLATFORM=PLATFORM_DESKTOP CUSTOM_CFLAGS="-DSUPPORT_CLIPBOARD_IMAGE=0 -I$(CURDIR)/lib/x11/include"
 
@@ -25,21 +23,13 @@ lib/libffi/.built:
 	$(MAKE) -C $(LIBFFI_DIR)
 	@touch $@
 
-# --- ctil (C entry point — kept temporarily) ---
-
-bin/ctil: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
-	@mkdir -p bin
-	cc $(CC_FLAGS) $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
-	@$(MAKE) ctil_core
-	cc $(CC_FLAGS) $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil
-
 # --- til (self-hosted compiler — two-pass gcc from bootstrap) ---
 
-bin/til_bootstrap: $(TIL_SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
+bin/til_bootstrap: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
-	cc $(CC_FLAGS) $(TIL_SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap
+	cc $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap
 	@$(MAKE) til_core
-	cc $(CC_FLAGS) $(TIL_SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap
+	cc $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap
 
 # --- programs built by til ---
 
@@ -58,22 +48,6 @@ test: bin/til_bootstrap bin/til/test_runner bin/til/plot bin/til/tests
 	@bin/til/tests $(if $(J),-j$(J))
 
 # --- bootstrap regeneration ---
-
-ctil_core:
-	@bin/ctil translate src/self/ast.til
-	@cp gen/c/ast.c bootstrap/ast.c
-	@cp gen/c/ast.h bootstrap/ast.h
-	@cp gen/c/ast_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/c/ast_*.h bootstrap/ 2>/dev/null || true
-	@bin/ctil translate src/self/parser.til
-	@cp gen/c/parser.c bootstrap/parser.c
-	@cp gen/c/parser.h bootstrap/parser.h
-	@cp gen/c/parser_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/c/parser_*.h bootstrap/ 2>/dev/null || true
-	@bin/ctil translate src/til.til
-	@cp gen/c/til.c bootstrap/til.c
-	@cp gen/c/til_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/c/til_*.h bootstrap/ 2>/dev/null || true
 
 til_core:
 	@bin/til_bootstrap translate src/self/ast.til
@@ -102,22 +76,18 @@ rescue: $(RAYLIB_LIB) lib/libffi/.built
 	@for f in $$(git ls-tree --name-only HEAD~1 bootstrap/ 2>/dev/null); do \
 		git show "HEAD~1:$$f" > "tmp/rescue/$$(basename $$f)" 2>/dev/null || true; \
 	done
-	cc $(CC_FLAGS) $(filter-out bootstrap/%,$(TIL_SRCS)) tmp/rescue/*.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o tmp/rescue/til
+	cc $(CC_FLAGS) $(filter-out bootstrap/%,$(SRCS)) tmp/rescue/*.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o tmp/rescue/til
 	@echo "Rescue compiler: tmp/rescue/til"
 
 # --- debug/asan targets ---
 
-bin/ctil_asan: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
+bin/til_bootstrap_asan: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
-	cc -Wall -Wextra -g -fsanitize=address $(CC_FLAGS) $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_asan
+	cc -Wall -Wextra -g -fsanitize=address $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap_asan
 
-bin/til_bootstrap_asan: $(TIL_SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
+bin/til_bootstrap_dbg: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
-	cc -Wall -Wextra -g -fsanitize=address $(CC_FLAGS) $(TIL_SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap_asan
-
-bin/ctil_dbg: $(SRCS) $(HDRS) $(RAYLIB_LIB) lib/libffi/.built
-	@mkdir -p bin
-	cc -Wall -Wextra -g -O0 -Isrc -Isrc/c -Ibootstrap $(SRCS) $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/ctil_dbg
+	cc -Wall -Wextra -g -O0 $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap_dbg
 
 revert_bootstrap:
 	git checkout HEAD -- bootstrap/
