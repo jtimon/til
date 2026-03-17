@@ -1,10 +1,57 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 79
+# NEXT_ISSUE: 81
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * Pre-self-hosting
+
+** OPEN #80 USize type alias for container sizes
+  :DEPENDENCIES: #79
+  Introduce ~USize := U64~ (or platform-appropriate type) as the
+  semantic type for container sizes: Vec count/cap, Str count/cap,
+  Array cap, Map/Set internals. Currently all use U64 directly.
+
+  Name bikeshedding: must start with U (like U8, U32, U64).
+  - ~USize~ — follows U + CamelCase pattern. "Size" is a word, not
+    abbreviation, so capitalized like struct names. Consistent with
+    U8/U32/U64 prefix convention. Most natural reading.
+  - ~Usize~ — Rust-style but til capitalizes types, reads more like
+    a struct name than a primitive.
+
+  Leaning toward ~USize~.
+
+  Implementation:
+  1. Create ~src/core/aliases.til~ with ~USize := U64~, imported by core.til
+  2. Replace U64 → USize in core.til containers (Str, Vec, Array, Map, Set)
+  3. Replace U64 → USize in C modules simultaneously (single commit,
+     same bootstrap philosophy — .til + C + bootstrap all at once)
+  4. Reference: ~wip_u32~ branch has prior work (different approach —
+     tried U32 directly, hit bootstrap chicken-and-egg). The alias
+     approach avoids the chicken-and-egg because USize IS U64 initially.
+
+** OPEN #79 Type aliases for structs, enums, and function types
+  ~MyAlias := ExistingType~ should create a type alias, not a variable.
+  Currently works for function signatures (~BinaryOp := func(I64, I64)
+  returns I64~) but not for structs, enums, or primitives.
+
+  Should work for all type kinds:
+  #+begin_src til
+  Point2 := Point          // struct alias
+  Color2 := Color          // enum alias
+  Callback := BinaryOp     // funcSig alias (may already work?)
+  USize := U64             // primitive alias (needed for #80)
+  #+end_src
+
+  Tests needed in:
+  - src/test/structs.til — struct type aliases
+  - src/test/enums.til — enum type aliases
+  - src/test/fn_ptr.til — funcSig aliases (verify existing, add if missing)
+  - src/test/misc.til — primitive type aliases
+
+  Implementation: the typer/initer need to recognize when RHS of ~:=~
+  is a known type name and create an alias binding instead of a
+  variable binding.
 
 ** WIP #77 til.til: import self-hosted modules, use ~til build~ in Makefile
   Goal: til.til imports self-hosted modules directly instead of link_c,
