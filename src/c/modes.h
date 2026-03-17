@@ -1,25 +1,22 @@
 #ifndef MODES_H
 #define MODES_H
 
-#include "aliases.h"
-#include <stddef.h>
+#include "../../bootstrap/ast.h"
+#include "pre70.h"
 
 typedef struct {
-    const char *name;
+    Str name;
     Bool needs_main;
     Bool decls_only;
-    const char *auto_import; // e.g. "gui" → loads modes/gui.til
+    Str auto_import;
     Bool is_pure;
-    Bool debug_prints; // allow print/println in funcs
+    Bool debug_prints;
 } Mode;
 
-static const Mode MODE_SCRIPT = {"script", 0, 0, NULL, 0, 0};
-static const Mode MODE_CLI    = {"cli",    1, 1, NULL, 0, 0};
-static const Mode MODE_GUI    = {"gui",    1, 1, "gui", 0, 0};
-static const Mode MODE_TEST   = {"test",   0, 1, NULL, 0, 0};
-static const Mode MODE_PURE   = {"pure",   0, 1, NULL, 1, 0};
-static const Mode MODE_PURA   = {"pura",   0, 1, NULL, 1, 1};
-static const Mode MODE_LIB    = {"lib",    0, 1, NULL, 0, 0};
-static const Mode MODE_LIBA   = {"liba",   0, 1, NULL, 0, 1};
+#define STR_LIT(s) ((Str){.c_str = (U8*)(s), .count = sizeof(s) - 1, .cap = CAP_LIT})
+#define STR_EMPTY  ((Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT})
+
+extern Mode MODE_SCRIPT, MODE_CLI, MODE_GUI, MODE_TEST;
+extern Mode MODE_PURE, MODE_PURA, MODE_LIB, MODE_LIBA;
 
 #endif

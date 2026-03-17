@@ -131,9 +131,9 @@ const Mode *til_mode_pura(void)   { return &MODE_PURA; }
 const Mode *til_mode_lib(void)    { return &MODE_LIB; }
 const Mode *til_mode_liba(void)   { return &MODE_LIBA; }
 
-Str *til_mode_name(const Mode *m) { return Str_clone(&(Str){.c_str = (U8*)(m ? m->name : ""), .count = (U64)strlen((const char*)(m ? m->name : "")), .cap = CAP_VIEW}); }
+Str *til_mode_name(const Mode *m) { return m ? Str_clone((Str *)&m->name) : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}); }
 Str *til_mode_auto_import(const Mode *m) {
-    return Str_clone(&(Str){.c_str = (U8*)(m && m->auto_import ? m->auto_import : ""), .count = (U64)strlen((const char*)(m && m->auto_import ? m->auto_import : "")), .cap = CAP_VIEW});
+    return m ? Str_clone((Str *)&m->auto_import) : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
 }
 
 Bool til_mode_is_lib(const Mode *m) {

@@ -1249,7 +1249,7 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *u
         Str main_name = {.c_str = (U8 *)"main", .count = 4};
         Cell *main_cell = scope_get(global, &main_name);
         if (!main_cell || main_cell->val.type != VAL_FUNC) {
-            fprintf(stderr, "%s: error: mode '%s' requires a 'main' proc\n", path->c_str, mode->name);
+            fprintf(stderr, "%s: error: mode '%.*s' requires a 'main' proc\n", path->c_str, (int)mode->name.count, (const char *)mode->name.c_str);
             scope_free(global);
             return 1;
         }
