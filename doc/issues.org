@@ -1,24 +1,22 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 81
+# NEXT_ISSUE: 82
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
 ** OPEN #80 USize type alias for container sizes
   :DEPENDENCIES: #79
-  Introduce ~USize := U64~ (or platform-appropriate type) as the
-  semantic type for container sizes: Vec count/cap, Str count/cap,
-  Array cap, Map/Set internals. Currently all use U64 directly.
+  ~USize~ — semantic type for container sizes: Vec count/cap, Str
+  count/cap, Array cap, Map/Set internals. Currently all use U64.
 
-  Name bikeshedding: must start with U (like U8, U32, U64).
-  - ~USize~ — follows U + CamelCase pattern. "Size" is a word, not
-    abbreviation, so capitalized like struct names. Consistent with
-    U8/U32/U64 prefix convention. Most natural reading.
-  - ~Usize~ — Rust-style but til capitalizes types, reads more like
-    a struct name than a primitive.
+  Default ~USize := U32~ — 4 billion elements is enough for almost
+  everything, saves memory in every container. User-configurable via
+  compiler flag for programs that need larger containers.
 
-  Leaning toward ~USize~.
+  Distinct from UPtr (#81) which is platform-determined pointer size.
+  USize is about "how many elements" (user's choice), UPtr is about
+  "how big is an address" (platform's choice).
 
   Phase 1 (pre, Linux only):
   1. Create ~src/core/aliases.til~ with ~USize := U64~, imported by core.til
@@ -620,6 +618,21 @@
   interpreted, til compiled — all must produce identical results.
 
 * [0/19] Post
+** OPEN #81 UPtr type alias for pointer-sized integers
+  :DEPENDENCIES: #79 #25
+  ~UPtr := U64~ on 64-bit platforms, ~UPtr := U32~ on 32-bit.
+  Platform-determined, NOT user-configurable (unlike USize #80).
+
+  This is the type for raw pointer arithmetic, address calculations,
+  and anything that must match the platform's native pointer width.
+  Distinct from USize which is for container sizes and can be
+  configured independently (e.g. USize := U32 on a 64-bit platform
+  is fine — you rarely need 4 billion element containers).
+
+  Post-self-hosting — depends on #25 (multi-platform support) to
+  actually have different platforms to target. On Linux x86_64 only,
+  UPtr is just U64.
+
 ** OPEN #78 Scavenger: support programs with link_c/link directives
   The scavenger is currently skipped entirely when ~link_c_paths~ is
   non-empty (src/til.til line 440). This was a workaround for #12:
