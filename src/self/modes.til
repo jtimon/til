@@ -1,0 +1,45 @@
+mode lib
+
+Mode := struct {
+    mut name := ""
+    mut needs_main := false
+    mut decls_only := false
+    mut auto_import := ""
+    mut is_pure := false
+    mut debug_prints := false
+    namespace:
+    eq := func(a: Mode, b: Mode) returns Bool {
+        return a.name.eq(b.name)
+    }
+}
+
+MODE_SCRIPT := Mode(name = "script")
+MODE_CLI    := Mode(name = "cli", needs_main = true, decls_only = true)
+MODE_GUI    := Mode(name = "gui", needs_main = true, decls_only = true, auto_import = "gui")
+MODE_TEST   := Mode(name = "test", decls_only = true)
+MODE_PURE   := Mode(name = "pure", decls_only = true, is_pure = true)
+MODE_PURA   := Mode(name = "pura", decls_only = true, is_pure = true, debug_prints = true)
+MODE_LIB    := Mode(name = "lib", decls_only = true)
+MODE_LIBA   := Mode(name = "liba", decls_only = true, debug_prints = true)
+
+mode_resolve := func(name: Str) returns Mode {
+    if name.eq("script") { return MODE_SCRIPT }
+    if name.eq("cli")    { return MODE_CLI }
+    if name.eq("gui")    { return MODE_GUI }
+    if name.eq("test")   { return MODE_TEST }
+    if name.eq("pure")   { return MODE_PURE }
+    if name.eq("pura")   { return MODE_PURA }
+    if name.eq("lib")    { return MODE_LIB }
+    if name.eq("liba")   { return MODE_LIBA }
+    panic(__LOC__, "unknown mode '".concat(name).concat("'"))
+    return MODE_SCRIPT
+}
+
+mode_is_lib := func(m: Mode) returns Bool {
+    return m.name.eq("lib").or(m.name.eq("liba"))
+}
+
+mode_is_lib_output := func(m: Mode) returns Bool {
+    return m.name.eq("lib").or(m.name.eq("liba"))
+        .or(m.name.eq("pure")).or(m.name.eq("pura"))
+}
