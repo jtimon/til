@@ -6,30 +6,32 @@
 
 * Pre-self-hosting
 
-** OPEN #77 til.til: use import("self/ast.til") instead of link_c("bootstrap/ast.c")
-  til.til currently uses ~link_c("bootstrap/ast.c")~ + ~ext_struct Expr {}~
-  to access Expr/Token types through bridge functions. Since ast.til is
-  fully self-hosted, til.til could ~import("self/ast.til")~ directly,
-  getting real struct definitions instead of opaque ext_struct placeholders.
+** WIP #77 til.til: import self-hosted modules, use ~til build~ in Makefile
+  Goal: til.til imports self-hosted modules directly instead of link_c,
+  and Makefile uses ~til build src/til.til~ instead of two-pass gcc.
 
-  Benefits:
-  - Eliminates link_c for bootstrap files (only C modules remain)
-  - Enables ~til build src/til.til~ self-compilation (currently blocked
-    by forward.h header conflicts between bootstrap headers and generated
-    forward.h when bootstrap files are in link_c)
-  - Allows til.til to access Expr/Token fields directly if needed
-  - Moves toward pure til imports (less link_c, more import)
+*** DONE import("self/ast.til") instead of link_c("bootstrap/ast.c")
+    til.til now uses ~import("self/ast.til")~ and gets real Expr/Token
+    struct definitions instead of opaque ~ext_struct~ placeholders.
+    Bridge functions kept for now (work unchanged with real types).
+    bootstrap/ast.c still in SRCS (provides implementations for C modules).
 
-  Blocker: builder's per-module emission puts imported function bodies
-  in separate ~til_ast.c~, ~til_core.c~ etc. files that ~compile_c()~
-  doesn't compile. The monolithic ~til.c~ only has the main program's
-  code. Fix: builder needs a monolithic emission mode for ~build~ that
-  includes imported modules' function bodies in the main .c file.
+*** TODO Builder: emit imported function bodies in per-module .c files
+    Builder currently skips user-written function bodies from imported
+    modules in per-module emission. Only auto-generated functions
+    (clone/size) are emitted to ~til_ast.c~. User-written namespace
+    functions (Expr_child, Expr_new, etc.) are missing entirely.
+    Fix: builder must emit all function bodies from imported modules.
+    Until fixed, bootstrap/ast.c must stay in SRCS.
 
-  Also: ~compile_c()~'s ~-include forward.h~ conflicts with link_c files
-  that include ~bootstrap/ast.h~ (same type definitions). Fixed for
-  ~src/c/*~ files by skipping forward.h, but a general solution would
-  be better (e.g. include guards shared between forward.h and bootstrap).
+*** TODO Makefile: ~til build src/til.til~ instead of two-pass gcc
+    Once builder emits imported function bodies, ~compile_c()~ can
+    build til.til directly. Makefile switches from:
+      ~gcc $(SRCS) bootstrap/til.c → bin/til_bootstrap~
+    to:
+      ~bin/til_bootstrap build src/til.til -o bin/til_bootstrap~
+    forward.h conflict already fixed (src/c/ files skip it).
+    bootstrap/ast.c drops from SRCS (implementations in til_ast.c).
 
 
 

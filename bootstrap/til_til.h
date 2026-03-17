@@ -2,16 +2,6 @@
 #include "til_decls.h"
 
 
-typedef struct Expr {
-    char _;
-} Expr;
-
-
-typedef struct Token {
-    char _;
-} Token;
-
-
 typedef struct Mode {
     char _;
 } Mode;
@@ -22,12 +12,6 @@ typedef struct TypeScope {
 } TypeScope;
 
 
-Expr * Expr_clone(Expr * self);
-void Expr_delete(Expr * self, Bool * call_free);
-U64 * Expr_size(void);
-Token * Token_clone(Token * self);
-void Token_delete(Token * self, Bool * call_free);
-U64 * Token_size(void);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
 U64 * Mode_size(void);

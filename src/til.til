@@ -1,7 +1,9 @@
 mode cli
 
-// Link C modules (same as ctil Makefile SRCS)
-link_c("bootstrap/ast.c")
+// Import self-hosted modules
+import("self/ast.til")
+
+// Link C modules
 link_c("src/c/parser.c")
 link_c("src/c/initer.c")
 link_c("src/c/typer.c")
@@ -16,8 +18,6 @@ link("dl")
 link("ffi")
 
 // --- C types (accessed only through bridge functions) ---
-Expr := ext_struct {}
-Token := ext_struct {}
 Mode := ext_struct {
     namespace:
     eq := ext_func(self: Mode, other: Mode) returns Bool {}

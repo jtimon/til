@@ -1,5 +1,47 @@
 #include "til_core.h"
 
+FunctionDef * FunctionDef_clone(FunctionDef * self) {
+    (void)self;
+    U32 _t35 = U32_clone(&self->nparam);
+    (void)_t35;
+    I32 _t36 = I32_clone(&self->variadic_index);
+    (void)_t36;
+    I32 _t37 = I32_clone(&self->kwargs_index);
+    (void)_t37;
+    Bool _t38 = Bool_clone(&self->return_is_ref);
+    (void)_t38;
+    Bool _t39 = Bool_clone(&self->return_is_shallow);
+    (void)_t39;
+    FunctionDef *_t40 = malloc(sizeof(FunctionDef));
+    { FuncType *_ca = FuncType_clone(&self->func_type); _t40->func_type = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_names); _t40->param_names = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_types); _t40->param_types = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_muts); _t40->param_muts = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_owns); _t40->param_owns = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_shallows); _t40->param_shallows = *_ca; free(_ca); }
+    { Vec *_ca = Vec_clone(&self->param_fn_sigs); _t40->param_fn_sigs = *_ca; free(_ca); }
+    _t40->nparam = _t35;
+    { Vec *_ca = Vec_clone(&self->param_defaults); _t40->param_defaults = *_ca; free(_ca); }
+    { Str *_ca = Str_clone(&self->return_type); _t40->return_type = *_ca; free(_ca); }
+    _t40->variadic_index = _t36;
+    _t40->kwargs_index = _t37;
+    _t40->return_is_ref = _t38;
+    _t40->return_is_shallow = _t39;
+    (void)_t40;
+    ;
+    ;
+    ;
+    ;
+    ;
+    return _t40;
+}
+
+U64 *FunctionDef_size(void) {
+    U64 *r = malloc(sizeof(U64));
+    *r = (U64)sizeof(FunctionDef);
+    return r;
+}
+
 Bool * U8_neq(U8 * a, U8 * b) {
     (void)a;
     (void)b;
