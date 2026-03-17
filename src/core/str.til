@@ -224,4 +224,36 @@ namespace:
         if neg { return 0.sub(result) }
         return result
     }
+
+    split := func(self: Str, delim: Str) returns Vec {
+        parts := Vec.new("Str", Str.size())
+        if delim.len().eq(0) {
+            parts.push(own self.clone())
+            return parts
+        }
+        mut start : U64 = 0
+        mut pos : U64 = 0
+        while pos.lte(self.len().sub(delim.len())) {
+            if self.substr(pos, delim.len()).eq(delim) {
+                parts.push(own self.substr(start, pos.sub(start)).clone())
+                start = pos.add(delim.len())
+                pos = start
+            } else {
+                pos = pos.add(1)
+            }
+        }
+        parts.push(own self.substr(start, self.len().sub(start)).clone())
+        return parts
+    }
+}
+
+join := func(parts: Vec, sep: Str) returns Str {
+    if parts.len().eq(0) { return "" }
+    mut result := ""
+    for i in 0..parts.len() {
+        if i.gt(0) { result = result.concat(sep) }
+        ref p : Str = parts.get(i)
+        result = result.concat(p)
+    }
+    return result
 }

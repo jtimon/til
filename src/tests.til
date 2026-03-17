@@ -261,7 +261,7 @@ run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
                     print_test_result(t)
 
                     if status.neq(0) {
-                        runner_lines := split(runner_out, NL)
+                        runner_lines := runner_out.split(NL)
                         mut li : U64 = 0
                         while li.lt(runner_lines.len()) {
                             ref ln : Str = runner_lines.get(li)
@@ -582,7 +582,7 @@ main := proc(args: ..Str) {
         totals_path := "doc/totals.csv"
         existing := readfile(totals_path)
         mut totals_content := ""
-        lines := split(existing, NL)
+        lines := existing.split(NL)
         mut last_data_idx := lines.len().sub(1)
         while last_data_idx.gt(0) {
             ref last_line : Str = lines.get(last_data_idx)

@@ -3416,7 +3416,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
         Str *fwd_path = Str_concat(c_base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
 
         // Split space-separated link_c files and compile each individually
-        Vec *files = split(user_c_path, &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT});
+        Vec *files = Str_split(user_c_path, &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT});
         Str *all_objs = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
         for (U32 fi = 0; fi < files->count; fi++) {
             Str *file = (Str *)Vec_get(files, &(U64){(U64)fi});

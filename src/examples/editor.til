@@ -25,7 +25,7 @@ main := proc(args: ..Str) {
     if filename.len().gt(0) {
         content := readfile(filename)
         if content.len().gt(0) {
-            parts := split(content, "\n")
+            parts := content.split("\n")
             mut i : U64 = 0
             while i.lt(parts.len()) {
                 ref p : Str = parts.get(i)

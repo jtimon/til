@@ -65,6 +65,45 @@ by calling the interpreter. Converting them is deferred because:
 - For practical purposes, even a fully self-hosted til can keep the C
   interpreter as a fallback without shame
 
+** Bootstrap build workflow
+
+*** Build flow
+
+   ~make bin/ctil~ (or ~make test~ which depends on it):
+   1. First cc: compile src/*.c + bootstrap/*.c → bin/ctil
+   2. ~ctil_core~: bin/ctil translates .til sources → regenerates bootstrap/
+   3. Second cc: recompile with new bootstrap → bin/ctil (final)
+
+   The first cc uses whatever bootstrap/ is in the working tree.
+   The second cc uses the freshly regenerated bootstrap/.
+   Both cc passes compile the SAME src/*.c files.
+
+*** Making changes to .til files only
+   Just run ~make clean && make test~. The build flow handles it:
+   - First cc uses committed bootstrap (old .til output) → works
+   - ctil_core regenerates bootstrap with new .til changes
+   - Second cc uses new bootstrap → works
+   - Commit everything: .til files + regenerated bootstrap/
+
+*** Changing C files that call bootstrap functions
+   If you rename or change a function in .til that C code calls
+   (e.g. ~split~ → ~Str_split~):
+   1. Change the .til files first (the source of truth)
+   2. ~make clean && make test~ — regenerates bootstrap with new names
+   3. Now change the C files to use the new names
+   4. ~make clean && make test~ again — both passes match
+   5. Commit everything together: .til + C + bootstrap
+
+*** Recovery targets
+   - ~make revert_bootstrap~ — restore bootstrap/ from last commit
+   - ~make rescue~ — build compiler from previous commit's bootstrap
+
+*** Rules
+   - NEVER edit bootstrap/ files manually. They are generated.
+   - Always commit .til changes + regenerated bootstrap together.
+   - The committed bootstrap must be compatible with committed C source.
+   - ~make clean && make test~ from a fresh clone must always work.
+
 ** Design notes
 
 - The typer is dangerous territory. It contains the actual semantics of

@@ -35,7 +35,7 @@ Row := struct {
 
 parse_csv := proc(content: Str) returns Vec {
     rows := Vec.new("Row", Row.size())
-    lines := split(content, NL)
+    lines := content.split(NL)
     mut i : U64 = 1 // skip header
     while i.lt(lines.len()) {
         ref line : Str = lines.get(i)
@@ -43,7 +43,7 @@ parse_csv := proc(content: Str) returns Vec {
             i = i.add(1)
             continue
         }
-        cols := split(line, ",")
+        cols := line.split(",")
         if cols.len().lt(8) {
             i = i.add(1)
             continue

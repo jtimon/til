@@ -145,7 +145,7 @@ test_to_i64 := test() {
 }
 
 test_split := test() {
-    parts := split("a,b,c", ",")
+    parts := "a,b,c".split(",")
     assert_eq(__LOC__, parts.len().to_i64(), 3)
     ref p0 : Str = parts.get(0)
     ref p1 : Str = parts.get(1)
@@ -154,19 +154,19 @@ test_split := test() {
     assert_eq_str(__LOC__, p1, "b")
     assert_eq_str(__LOC__, p2, "c")
 
-    parts2 := split("hello", ",")
+    parts2 := "hello".split(",")
     assert_eq(__LOC__, parts2.len().to_i64(), 1)
     ref q0 : Str = parts2.get(0)
     assert_eq_str(__LOC__, q0, "hello")
 
-    parts3 := split("a::b", "::")
+    parts3 := "a::b".split("::")
     assert_eq(__LOC__, parts3.len().to_i64(), 2)
     ref r0 : Str = parts3.get(0)
     ref r1 : Str = parts3.get(1)
     assert_eq_str(__LOC__, r0, "a")
     assert_eq_str(__LOC__, r1, "b")
 
-    parts4 := split(",a,", ",")
+    parts4 := ",a,".split(",")
     assert_eq(__LOC__, parts4.len().to_i64(), 3)
     ref s0 : Str = parts4.get(0)
     ref s1 : Str = parts4.get(1)
@@ -207,7 +207,7 @@ test_substr_view := test() {
 }
 
 test_join := test() {
-    parts := split("a,b,c", ",")
+    parts := "a,b,c".split(",")
     assert_eq_str(__LOC__, join(parts, ","), "a,b,c")
     assert_eq_str(__LOC__, join(parts, " - "), "a - b - c")
 

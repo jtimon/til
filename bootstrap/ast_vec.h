@@ -19,5 +19,3 @@ void * Vec_get(Vec * self, U64 * i);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
 U64 * Vec_size(void);
-Vec * split(Str * s, Str * delim);
-Str * join(Vec * parts, Str * sep);

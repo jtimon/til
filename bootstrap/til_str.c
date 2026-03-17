@@ -9,14 +9,14 @@ U64 *Str_size(void) {
 Bool * Str_eq(Str * a, Str * b) {
     (void)a;
     (void)b;
-    I64 _t1050; { I64 *_hp = (I64 *)Str_cmp(a, b); _t1050 = *_hp; free(_hp); }
-    (void)_t1050;
-    I64 _t1051 = 0;
-    (void)_t1051;
-    Bool _t1052 = I64_eq(_t1050, _t1051);
-    (void)_t1052;
+    I64 _t1075; { I64 *_hp = (I64 *)Str_cmp(a, b); _t1075 = *_hp; free(_hp); }
+    (void)_t1075;
+    I64 _t1076 = 0;
+    (void)_t1076;
+    Bool _t1077 = I64_eq(_t1075, _t1076);
+    (void)_t1077;
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1052; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t1077; return _r; }
 }
 

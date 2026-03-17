@@ -1569,25 +1569,25 @@ I64 * Str_rfind(Str * self, Str * needle) {
 Vec * Vec_new(Str * elem_type, U64 * elem_size) {
     (void)elem_type;
     (void)elem_size;
-    void *_t1067 = malloc(DEREF(elem_size));
-    (void)_t1067;
-    U64 _t1068 = 0;
-    (void)_t1068;
-    I64 _t1069 = 1;
-    (void)_t1069;
-    U64 _t1070 = U64_clone(elem_size);
-    (void)_t1070;
-    Vec *_t1071 = malloc(sizeof(Vec));
-    _t1071->data = _t1067;
-    _t1071->count = _t1068;
-    _t1071->cap = _t1069;
-    _t1071->elem_size = _t1070;
-    { Str *_ca = Str_clone(elem_type); _t1071->elem_type = *_ca; free(_ca); }
-    (void)_t1071;
+    void *_t1109 = malloc(DEREF(elem_size));
+    (void)_t1109;
+    U64 _t1110 = 0;
+    (void)_t1110;
+    I64 _t1111 = 1;
+    (void)_t1111;
+    U64 _t1112 = U64_clone(elem_size);
+    (void)_t1112;
+    Vec *_t1113 = malloc(sizeof(Vec));
+    _t1113->data = _t1109;
+    _t1113->count = _t1110;
+    _t1113->cap = _t1111;
+    _t1113->elem_size = _t1112;
+    { Str *_ca = Str_clone(elem_type); _t1113->elem_type = *_ca; free(_ca); }
+    (void)_t1113;
     ;
     ;
     ;
-    return _t1071;
+    return _t1113;
 }
 
 U64 * Vec_len(Vec * self) {
@@ -1598,159 +1598,159 @@ U64 * Vec_len(Vec * self) {
 void Vec_push(Vec * self, void * val) {
     (void)self;
     (void)val;
-    Bool _t1076 = U64_eq(self->count, self->cap);
-    (void)_t1076;
-    if (_t1076) {
-        U64 _t1072 = 2;
-        (void)_t1072;
-        U64 new_cap = U64_mul(self->cap, _t1072);
+    Bool _t1118 = U64_eq(self->count, self->cap);
+    (void)_t1118;
+    if (_t1118) {
+        U64 _t1114 = 2;
+        (void)_t1114;
+        U64 new_cap = U64_mul(self->cap, _t1114);
         (void)new_cap;
         ;
-        U64 _t1073 = U64_mul(new_cap, self->elem_size);
-        (void)_t1073;
-        void *_t1074 = realloc(self->data, _t1073);
-        (void)_t1074;
+        U64 _t1115 = U64_mul(new_cap, self->elem_size);
+        (void)_t1115;
+        void *_t1116 = realloc(self->data, _t1115);
+        (void)_t1116;
         ;
-        self->data = _t1074;
-        U64 _t1075 = U64_clone(&(U64){new_cap});
-        (void)_t1075;
+        self->data = _t1116;
+        U64 _t1117 = U64_clone(&(U64){new_cap});
+        (void)_t1117;
         ;
-        self->cap = _t1075;
+        self->cap = _t1117;
         ;
     }
     ;
-    U64 *_t1077 = malloc(sizeof(U64)); *_t1077 = U64_mul(self->count, self->elem_size);
-    (void)_t1077;
-    void *_t1078 = ptr_add(self->data, DEREF(_t1077));
-    (void)_t1078;
-    memcpy(_t1078, val, self->elem_size);
-    U64_delete(_t1077, &(Bool){1});
+    U64 *_t1119 = malloc(sizeof(U64)); *_t1119 = U64_mul(self->count, self->elem_size);
+    (void)_t1119;
+    void *_t1120 = ptr_add(self->data, DEREF(_t1119));
+    (void)_t1120;
+    memcpy(_t1120, val, self->elem_size);
+    U64_delete(_t1119, &(Bool){1});
     free(val);
-    U64 _t1079 = 1;
-    (void)_t1079;
-    U64 _t1080 = U64_add(self->count, _t1079);
-    (void)_t1080;
+    U64 _t1121 = 1;
+    (void)_t1121;
+    U64 _t1122 = U64_add(self->count, _t1121);
+    (void)_t1122;
     ;
-    self->count = _t1080;
+    self->count = _t1122;
     ;
 }
 
 void * Vec_get(Vec * self, U64 * i) {
     (void)self;
     (void)i;
-    Bool _t1095; { Bool *_hp = (Bool *)U64_gte(i, &self->count); _t1095 = *_hp; free(_hp); }
-    (void)_t1095;
-    if (_t1095) {
-        Str *_t1081 = Str_lit("Str", 3ULL);
-        (void)_t1081;
-        U64 _t1082; { U64 *_hp = (U64 *)Str_size(); _t1082 = *_hp; free(_hp); }
-        (void)_t1082;
-        U64 _t1083 = 5;
-        (void)_t1083;
-        Array *_va18 = Array_new(_t1081, &(U64){_t1082}, &(U64){_t1083});
+    Bool _t1137; { Bool *_hp = (Bool *)U64_gte(i, &self->count); _t1137 = *_hp; free(_hp); }
+    (void)_t1137;
+    if (_t1137) {
+        Str *_t1123 = Str_lit("Str", 3ULL);
+        (void)_t1123;
+        U64 _t1124; { U64 *_hp = (U64 *)Str_size(); _t1124 = *_hp; free(_hp); }
+        (void)_t1124;
+        U64 _t1125 = 5;
+        (void)_t1125;
+        Array *_va18 = Array_new(_t1123, &(U64){_t1124}, &(U64){_t1125});
         (void)_va18;
-        Str_delete(_t1081, &(Bool){1});
+        Str_delete(_t1123, &(Bool){1});
         ;
         ;
-        U64 _t1084 = 0;
-        (void)_t1084;
-        Str *_t1085 = Str_lit("Vec.get: index ", 15ULL);
-        (void)_t1085;
-        Array_set(_va18, &(U64){_t1084}, _t1085);
+        U64 _t1126 = 0;
+        (void)_t1126;
+        Str *_t1127 = Str_lit("Vec.get: index ", 15ULL);
+        (void)_t1127;
+        Array_set(_va18, &(U64){_t1126}, _t1127);
         ;
-        U64 _t1086 = 1;
-        (void)_t1086;
-        Str *_t1087 = U64_to_str(DEREF(i));
-        (void)_t1087;
-        Array_set(_va18, &(U64){_t1086}, _t1087);
+        U64 _t1128 = 1;
+        (void)_t1128;
+        Str *_t1129 = U64_to_str(DEREF(i));
+        (void)_t1129;
+        Array_set(_va18, &(U64){_t1128}, _t1129);
         ;
-        U64 _t1088 = 2;
-        (void)_t1088;
-        Str *_t1089 = Str_lit(" out of bounds (len ", 20ULL);
-        (void)_t1089;
-        Array_set(_va18, &(U64){_t1088}, _t1089);
+        U64 _t1130 = 2;
+        (void)_t1130;
+        Str *_t1131 = Str_lit(" out of bounds (len ", 20ULL);
+        (void)_t1131;
+        Array_set(_va18, &(U64){_t1130}, _t1131);
         ;
-        U64 _t1090 = 3;
-        (void)_t1090;
-        Str *_t1091 = U64_to_str(self->count);
-        (void)_t1091;
-        Array_set(_va18, &(U64){_t1090}, _t1091);
+        U64 _t1132 = 3;
+        (void)_t1132;
+        Str *_t1133 = U64_to_str(self->count);
+        (void)_t1133;
+        Array_set(_va18, &(U64){_t1132}, _t1133);
         ;
-        U64 _t1092 = 4;
-        (void)_t1092;
-        Str *_t1093 = Str_lit(")", 1ULL);
-        (void)_t1093;
-        Array_set(_va18, &(U64){_t1092}, _t1093);
+        U64 _t1134 = 4;
+        (void)_t1134;
+        Str *_t1135 = Str_lit(")", 1ULL);
+        (void)_t1135;
+        Array_set(_va18, &(U64){_t1134}, _t1135);
         ;
-        Str *_t1094 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/vec.til:31:19", 60ULL);
-        (void)_t1094;
-        panic(_t1094, _va18);
-        Str_delete(_t1094, &(Bool){1});
+        Str *_t1136 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/vec.til:31:19", 60ULL);
+        (void)_t1136;
+        panic(_t1136, _va18);
+        Str_delete(_t1136, &(Bool){1});
     }
     ;
-    U64 *_t1096 = malloc(sizeof(U64)); *_t1096 = U64_mul(DEREF(i), self->elem_size);
-    (void)_t1096;
-    void *_t1097 = ptr_add(self->data, DEREF(_t1096));
-    (void)_t1097;
-    U64_delete(_t1096, &(Bool){1});
-    return _t1097;
+    U64 *_t1138 = malloc(sizeof(U64)); *_t1138 = U64_mul(DEREF(i), self->elem_size);
+    (void)_t1138;
+    void *_t1139 = ptr_add(self->data, DEREF(_t1138));
+    (void)_t1139;
+    U64_delete(_t1138, &(Bool){1});
+    return _t1139;
 }
 
 void Vec_delete(Vec * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t1111; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1111 = *_hp; free(_hp); }
-    (void)_t1111;
-    Bool _t1112 = Bool_not(_t1111);
-    (void)_t1112;
+    Bool _t1153; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1153 = *_hp; free(_hp); }
+    (void)_t1153;
+    Bool _t1154 = Bool_not(_t1153);
+    (void)_t1154;
     ;
-    if (_t1112) {
+    if (_t1154) {
         {
-            U64 _fi1098 = 0;
-            (void)_fi1098;
+            U64 _fi1140 = 0;
+            (void)_fi1140;
             while (1) {
-                U64 _t1100 = 0;
-                (void)_t1100;
-                Range *_t1101 = Range_new(_t1100, self->count);
-                (void)_t1101;
+                U64 _t1142 = 0;
+                (void)_t1142;
+                Range *_t1143 = Range_new(_t1142, self->count);
+                (void)_t1143;
                 ;
-                U64 _t1102; { U64 *_hp = (U64 *)Range_len(_t1101); _t1102 = *_hp; free(_hp); }
-                (void)_t1102;
-                Range_delete(_t1101, &(Bool){1});
-                Bool _wcond1099; { Bool *_hp = (Bool *)U64_lt(&(U64){_fi1098}, &(U64){_t1102}); _wcond1099 = *_hp; free(_hp); }
-                (void)_wcond1099;
+                U64 _t1144; { U64 *_hp = (U64 *)Range_len(_t1143); _t1144 = *_hp; free(_hp); }
+                (void)_t1144;
+                Range_delete(_t1143, &(Bool){1});
+                Bool _wcond1141; { Bool *_hp = (Bool *)U64_lt(&(U64){_fi1140}, &(U64){_t1144}); _wcond1141 = *_hp; free(_hp); }
+                (void)_wcond1141;
                 ;
-                if (_wcond1099) {
+                if (_wcond1141) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U64 _t1103 = 0;
-                (void)_t1103;
-                Range *_t1104 = Range_new(_t1103, self->count);
-                (void)_t1104;
+                U64 _t1145 = 0;
+                (void)_t1145;
+                Range *_t1146 = Range_new(_t1145, self->count);
+                (void)_t1146;
                 ;
-                U64 i; { U64 *_hp = (U64 *)Range_get(_t1104, _fi1098); i = *_hp; free(_hp); }
+                U64 i; { U64 *_hp = (U64 *)Range_get(_t1146, _fi1140); i = *_hp; free(_hp); }
                 (void)i;
-                Range_delete(_t1104, &(Bool){1});
-                U64 _t1105 = 1;
-                (void)_t1105;
-                U64 _t1106 = U64_add(_fi1098, _t1105);
-                (void)_t1106;
+                Range_delete(_t1146, &(Bool){1});
+                U64 _t1147 = 1;
+                (void)_t1147;
+                U64 _t1148 = U64_add(_fi1140, _t1147);
+                (void)_t1148;
                 ;
-                _fi1098 = _t1106;
+                _fi1140 = _t1148;
                 ;
-                U64 *_t1107 = malloc(sizeof(U64)); *_t1107 = U64_mul(i, self->elem_size);
-                (void)_t1107;
+                U64 *_t1149 = malloc(sizeof(U64)); *_t1149 = U64_mul(i, self->elem_size);
+                (void)_t1149;
                 ;
-                void *_t1108 = ptr_add(self->data, DEREF(_t1107));
-                (void)_t1108;
-                Bool _t1109 = 0;
-                (void)_t1109;
-                dyn_call_delete(&self->elem_type, _t1108, &(Bool){_t1109});
-                U64_delete(_t1107, &(Bool){1});
+                void *_t1150 = ptr_add(self->data, DEREF(_t1149));
+                (void)_t1150;
+                Bool _t1151 = 0;
+                (void)_t1151;
+                dyn_call_delete(&self->elem_type, _t1150, &(Bool){_t1151});
+                U64_delete(_t1149, &(Bool){1});
                 ;
             }
             ;
@@ -1758,15 +1758,15 @@ void Vec_delete(Vec * self, Bool * call_free) {
     }
     ;
     free(self->data);
-    Bool _t1113; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1113 = *_hp; free(_hp); }
-    (void)_t1113;
-    Bool _t1114 = Bool_not(_t1113);
-    (void)_t1114;
+    Bool _t1155; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1155 = *_hp; free(_hp); }
+    (void)_t1155;
+    Bool _t1156 = Bool_not(_t1155);
+    (void)_t1156;
     ;
-    if (_t1114) {
-        Bool _t1110 = 0;
-        (void)_t1110;
-        Str_delete(&self->elem_type, &(Bool){_t1110});
+    if (_t1156) {
+        Bool _t1152 = 0;
+        (void)_t1152;
+        Str_delete(&self->elem_type, &(Bool){_t1152});
         ;
     }
     ;
@@ -1777,86 +1777,86 @@ void Vec_delete(Vec * self, Bool * call_free) {
 
 Vec * Vec_clone(Vec * self) {
     (void)self;
-    U64 _t1129 = U64_mul(self->cap, self->elem_size);
-    (void)_t1129;
-    U8 *new_data = malloc(_t1129);
+    U64 _t1171 = U64_mul(self->cap, self->elem_size);
+    (void)_t1171;
+    U8 *new_data = malloc(_t1171);
     (void)new_data;
     ;
-    Bool _t1130; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1130 = *_hp; free(_hp); }
-    (void)_t1130;
-    Bool _t1131 = Bool_not(_t1130);
-    (void)_t1131;
+    Bool _t1172; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1172 = *_hp; free(_hp); }
+    (void)_t1172;
+    Bool _t1173 = Bool_not(_t1172);
+    (void)_t1173;
     ;
-    if (_t1131) {
+    if (_t1173) {
         {
-            U64 _fi1115 = 0;
-            (void)_fi1115;
+            U64 _fi1157 = 0;
+            (void)_fi1157;
             while (1) {
-                U64 _t1117 = 0;
-                (void)_t1117;
-                Range *_t1118 = Range_new(_t1117, self->count);
-                (void)_t1118;
+                U64 _t1159 = 0;
+                (void)_t1159;
+                Range *_t1160 = Range_new(_t1159, self->count);
+                (void)_t1160;
                 ;
-                U64 _t1119; { U64 *_hp = (U64 *)Range_len(_t1118); _t1119 = *_hp; free(_hp); }
-                (void)_t1119;
-                Range_delete(_t1118, &(Bool){1});
-                Bool _wcond1116; { Bool *_hp = (Bool *)U64_lt(&(U64){_fi1115}, &(U64){_t1119}); _wcond1116 = *_hp; free(_hp); }
-                (void)_wcond1116;
+                U64 _t1161; { U64 *_hp = (U64 *)Range_len(_t1160); _t1161 = *_hp; free(_hp); }
+                (void)_t1161;
+                Range_delete(_t1160, &(Bool){1});
+                Bool _wcond1158; { Bool *_hp = (Bool *)U64_lt(&(U64){_fi1157}, &(U64){_t1161}); _wcond1158 = *_hp; free(_hp); }
+                (void)_wcond1158;
                 ;
-                if (_wcond1116) {
+                if (_wcond1158) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U64 _t1120 = 0;
-                (void)_t1120;
-                Range *_t1121 = Range_new(_t1120, self->count);
-                (void)_t1121;
+                U64 _t1162 = 0;
+                (void)_t1162;
+                Range *_t1163 = Range_new(_t1162, self->count);
+                (void)_t1163;
                 ;
-                U64 i; { U64 *_hp = (U64 *)Range_get(_t1121, _fi1115); i = *_hp; free(_hp); }
+                U64 i; { U64 *_hp = (U64 *)Range_get(_t1163, _fi1157); i = *_hp; free(_hp); }
                 (void)i;
-                Range_delete(_t1121, &(Bool){1});
-                U64 _t1122 = 1;
-                (void)_t1122;
-                U64 _t1123 = U64_add(_fi1115, _t1122);
-                (void)_t1123;
+                Range_delete(_t1163, &(Bool){1});
+                U64 _t1164 = 1;
+                (void)_t1164;
+                U64 _t1165 = U64_add(_fi1157, _t1164);
+                (void)_t1165;
                 ;
-                _fi1115 = _t1123;
+                _fi1157 = _t1165;
                 ;
-                U64 *_t1124 = malloc(sizeof(U64)); *_t1124 = U64_mul(i, self->elem_size);
-                (void)_t1124;
-                void *_t1125 = ptr_add(self->data, DEREF(_t1124));
-                (void)_t1125;
-                void *cloned = dyn_call_clone(&self->elem_type, _t1125);
+                U64 *_t1166 = malloc(sizeof(U64)); *_t1166 = U64_mul(i, self->elem_size);
+                (void)_t1166;
+                void *_t1167 = ptr_add(self->data, DEREF(_t1166));
+                (void)_t1167;
+                void *cloned = dyn_call_clone(&self->elem_type, _t1167);
                 (void)cloned;
-                U64_delete(_t1124, &(Bool){1});
-                U64 *_t1126 = malloc(sizeof(U64)); *_t1126 = U64_mul(i, self->elem_size);
-                (void)_t1126;
+                U64_delete(_t1166, &(Bool){1});
+                U64 *_t1168 = malloc(sizeof(U64)); *_t1168 = U64_mul(i, self->elem_size);
+                (void)_t1168;
                 ;
-                void *_t1127 = ptr_add(new_data, DEREF(_t1126));
-                (void)_t1127;
-                memcpy(_t1127, cloned, self->elem_size);
-                U64_delete(_t1126, &(Bool){1});
+                void *_t1169 = ptr_add(new_data, DEREF(_t1168));
+                (void)_t1169;
+                memcpy(_t1169, cloned, self->elem_size);
+                U64_delete(_t1168, &(Bool){1});
                 free(cloned);
             }
             ;
         }
     } else {
-        U64 _t1128 = U64_mul(self->count, self->elem_size);
-        (void)_t1128;
-        memcpy(new_data, self->data, _t1128);
+        U64 _t1170 = U64_mul(self->count, self->elem_size);
+        (void)_t1170;
+        memcpy(new_data, self->data, _t1170);
         ;
     }
     ;
-    Vec *_t1132 = malloc(sizeof(Vec));
-    _t1132->data = new_data;
-    _t1132->count = self->count;
-    _t1132->cap = self->cap;
-    _t1132->elem_size = self->elem_size;
-    { Str *_ca = Str_clone(&self->elem_type); _t1132->elem_type = *_ca; free(_ca); }
-    (void)_t1132;
-    return _t1132;
+    Vec *_t1174 = malloc(sizeof(Vec));
+    _t1174->data = new_data;
+    _t1174->count = self->count;
+    _t1174->cap = self->cap;
+    _t1174->elem_size = self->elem_size;
+    { Str *_ca = Str_clone(&self->elem_type); _t1174->elem_type = *_ca; free(_ca); }
+    (void)_t1174;
+    return _t1174;
 }
 
 void Expr_delete(Expr * self, Bool * call_free) {
