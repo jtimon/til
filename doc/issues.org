@@ -4,8 +4,7 @@
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
-* Pre-self-hosting
-
+* [0/12] Pre
 ** OPEN #80 USize type alias for container sizes
   :DEPENDENCIES: #79
   Introduce ~USize := U64~ (or platform-appropriate type) as the
@@ -80,7 +79,10 @@
     forward.h conflict already fixed (src/c/ files skip it).
     bootstrap/ast.c drops from SRCS (implementations in til_ast.c).
 
-
+** OPEN #73 Replace #ifndef guards with #pragma once
+  All 13 hand-written headers in src/c/ use ~#ifndef/#define/#endif~
+  include guards. Bootstrap uses ~#pragma once~. Replace all with
+  ~#pragma once~ for consistency. Supported by gcc, clang, msvc.
 
 ** OPEN #70 Builder: emit constants as proper constants in generated headers
   The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
@@ -178,7 +180,6 @@
   recursively walks the entire merged AST (core.til + imports + user),
   tscope_free walks the type scope tree. ctil.c pays this cost before
   returning; til.til just exits and the OS reclaims everything.
-
 
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
@@ -611,9 +612,7 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-
-* Post-self-hosting
-
+* [0/19] Post
 ** OPEN #78 Scavenger: support programs with link_c/link directives
   The scavenger is currently skipped entirely when ~link_c_paths~ is
   non-empty (src/til.til line 440). This was a workaround for #12:
@@ -630,6 +629,82 @@
   Once #39 is complete (no more link_c), the workaround naturally
   goes away — the scavenger works normally on pure til programs,
   and imported ~mode lib~ modules already skip scavenging.
+
+** OPEN #69 Bundle tinyfiledialogs for mode gui
+  Bundle tinyfiledialogs as a dependency for mode gui (like raylib).
+  Use it in the editor to open a file dialog when saving a new file.
+
+** OPEN #66 Better imports: qualified namespaces
+  :RELATED: #65
+  Currently ~import("file.til")~ dumps all symbols into the current scope.
+  Qualified imports would let you namespace them, returning a module object:
+
+  #+begin_src til
+  MyMap := import("map.til")
+  MyMap.new("Str", Str.size(), "I64", I64.size())
+
+  // vs current behavior:
+  import("map.til")   // all symbols dumped into scope
+  Map.new(...)        // works but pollutes namespace
+  #+end_src
+
+  This connects to #65 (standalone namespaces) — ~import()~ would return
+  a namespace, and qualified access (~MyMap.new~) uses the same dot-access
+  mechanism as namespace members.
+
+  Design questions:
+  - Does ~import()~ return a namespace or a module (new concept)?
+  - Can you selectively import? ~from "map.til" import Map, Set~
+  - Can you re-export? ~export MyMap~
+  - How does this interact with the current import deduplication?
+** OPEN #65 Standalone namespaces
+  Allow declaring namespaces independently of structs. Currently namespaces
+  only exist as ~namespace:~ sections inside struct definitions. Standalone
+  namespaces would group related functions and mutable state under a name
+  without needing a struct.
+
+  #+begin_src til
+  MyNamespace := namespace {
+      mut urmom := 69
+
+      get := func() returns I64 {
+          return urmom
+      }
+
+      set := proc(val: I64) {
+          urmom = val
+      }
+  }
+
+  println(MyNamespace.get().to_str())   // 69
+  MyNamespace.set(420)
+  println(MyNamespace.get().to_str())   // 420
+  #+end_src
+
+  Implementation: pure sugar. The typer desugars ~namespace { ... }~ into
+  ~struct { namespace: ... }~ — a struct with no fields and a namespace
+  section containing all the declarations. No new AST nodes, no new codegen,
+  no new runtime support. The parser recognizes ~namespace { ... }~ as a new
+  expression form and the typer rewrites it before type checking proceeds.
+
+  #+begin_src til
+  // What you write:
+  MyNamespace := namespace {
+      mut urmom := 69
+      get := func() returns I64 { return urmom }
+  }
+
+  // What the typer sees after desugaring:
+  MyNamespace := struct {
+      namespace:
+      mut urmom := 69
+      get := func() returns I64 { return urmom }
+  }
+  #+end_src
+
+  Open questions:
+  - Can namespaces have mutable state (globals scoped to the namespace)?
+  - Can namespaces be nested?
 
 ** OPEN #63 User-defined modes
   8 built-in modes are hardcoded in the compiler (modes.h):
@@ -701,7 +776,6 @@
   - In collections: ~ops.push(|a, b| { a.add(b) })~
 
   No captures — pure lambdas only. Closures (captures) are #54.
-
 
 ** OPEN #58 First-class functions: Type hierarchy and FuncSig/FuncDef
   :DEPENDENCIES: #14 #61
@@ -1307,7 +1381,6 @@
   - Struct field matching
   - Guard clauses (~case X if cond:~)
 
-
 ** OPEN #25 Support for the 4 main operative systems
   :DEPENDENCIES: #12
   til currently only builds and runs on GNU/Linux. Should support the 4
@@ -1500,86 +1573,4 @@
   - Persistent scope: declarations accumulate across inputs
   - Result display: print expression values (needs to_str for all types)
 
-* Undecided
-
-** OPEN #73 Replace #ifndef guards with #pragma once
-  All 13 hand-written headers in src/c/ use ~#ifndef/#define/#endif~
-  include guards. Bootstrap uses ~#pragma once~. Replace all with
-  ~#pragma once~ for consistency. Supported by gcc, clang, msvc.
-
-** OPEN #69 Bundle tinyfiledialogs for mode gui
-  Bundle tinyfiledialogs as a dependency for mode gui (like raylib).
-  Use it in the editor to open a file dialog when saving a new file.
-
-** OPEN #65 Standalone namespaces
-  Allow declaring namespaces independently of structs. Currently namespaces
-  only exist as ~namespace:~ sections inside struct definitions. Standalone
-  namespaces would group related functions and mutable state under a name
-  without needing a struct.
-
-  #+begin_src til
-  MyNamespace := namespace {
-      mut urmom := 69
-
-      get := func() returns I64 {
-          return urmom
-      }
-
-      set := proc(val: I64) {
-          urmom = val
-      }
-  }
-
-  println(MyNamespace.get().to_str())   // 69
-  MyNamespace.set(420)
-  println(MyNamespace.get().to_str())   // 420
-  #+end_src
-
-  Implementation: pure sugar. The typer desugars ~namespace { ... }~ into
-  ~struct { namespace: ... }~ — a struct with no fields and a namespace
-  section containing all the declarations. No new AST nodes, no new codegen,
-  no new runtime support. The parser recognizes ~namespace { ... }~ as a new
-  expression form and the typer rewrites it before type checking proceeds.
-
-  #+begin_src til
-  // What you write:
-  MyNamespace := namespace {
-      mut urmom := 69
-      get := func() returns I64 { return urmom }
-  }
-
-  // What the typer sees after desugaring:
-  MyNamespace := struct {
-      namespace:
-      mut urmom := 69
-      get := func() returns I64 { return urmom }
-  }
-  #+end_src
-
-  Open questions:
-  - Can namespaces have mutable state (globals scoped to the namespace)?
-  - Can namespaces be nested?
-
-** OPEN #66 Better imports: qualified namespaces
-  :RELATED: #65
-  Currently ~import("file.til")~ dumps all symbols into the current scope.
-  Qualified imports would let you namespace them, returning a module object:
-
-  #+begin_src til
-  MyMap := import("map.til")
-  MyMap.new("Str", Str.size(), "I64", I64.size())
-
-  // vs current behavior:
-  import("map.til")   // all symbols dumped into scope
-  Map.new(...)        // works but pollutes namespace
-  #+end_src
-
-  This connects to #65 (standalone namespaces) — ~import()~ would return
-  a namespace, and qualified access (~MyMap.new~) uses the same dot-access
-  mechanism as namespace members.
-
-  Design questions:
-  - Does ~import()~ return a namespace or a module (new concept)?
-  - Can you selectively import? ~from "map.til" import Map, Set~
-  - Can you re-export? ~export MyMap~
-  - How does this interact with the current import deduplication?
+* [0/0] Undecided

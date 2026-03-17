@@ -1,5 +1,7 @@
 mode lib
 
+import("ast.til")
+
 Mode := struct {
     mut name := ""
     mut needs_main := false

@@ -1,7 +1,7 @@
 #ifndef TIL_INITER_H
 #define TIL_INITER_H
 
-#include "../../bootstrap/ast.h"
+#include "../../bootstrap/modes.h"
 
 // --- Type scope (tracks variable types across phases) ---
 

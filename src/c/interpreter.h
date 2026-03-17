@@ -1,8 +1,7 @@
 #ifndef TIL_INTERPRETER_H
 #define TIL_INTERPRETER_H
 
-#include "../../bootstrap/ast.h"
-#include "modes.h"
+#include "../../bootstrap/modes.h"
 #include <stdlib.h>
 
 // Interpret a parsed program. Returns 0 on success, non-zero on error.

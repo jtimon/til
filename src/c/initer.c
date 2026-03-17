@@ -1,7 +1,6 @@
 #include "initer.h"
-#include "../../bootstrap/ast.h"
+#include "../../bootstrap/modes.h"
 #include "pre70.h"
-#include "modes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

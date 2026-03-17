@@ -1,7 +1,7 @@
 // FFI bridge for til.til — thin wrappers around C module APIs.
 // Converts Str* ↔ const char*, handles output params, provides Expr field accessors.
 
-#include "../../bootstrap/ast.h"
+#include "../../bootstrap/modes.h"
 #include "pre70.h"
 #include "parser.h"
 #include "initer.h"
@@ -10,7 +10,6 @@
 #include "builder.h"
 #include "precomp.h"
 #include "scavenger.h"
-#include "modes.h"
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>

@@ -1,7 +1,7 @@
 #ifndef TIL_PARSER_H
 #define TIL_PARSER_H
 
-#include "../../bootstrap/ast.h"
+#include "../../bootstrap/modes.h"
 
 // Parse a token array into an AST. Returns the root body node.
 // `path` is used for error messages. `mode_out` receives the mode name
