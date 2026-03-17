@@ -20,14 +20,21 @@
 
   Leaning toward ~USize~.
 
-  Implementation:
+  Phase 1 (pre, Linux only):
   1. Create ~src/core/aliases.til~ with ~USize := U64~, imported by core.til
   2. Replace U64 → USize in core.til containers (Str, Vec, Array, Map, Set)
   3. Replace U64 → USize in C modules simultaneously (single commit,
      same bootstrap philosophy — .til + C + bootstrap all at once)
-  4. Reference: ~wip_u32~ branch has prior work (different approach —
-     tried U32 directly, hit bootstrap chicken-and-egg). The alias
-     approach avoids the chicken-and-egg because USize IS U64 initially.
+  4. Then switch alias to ~USize := U32~ — everything gets smaller/faster.
+     The alias approach avoids the bootstrap chicken-and-egg that blocked
+     the ~wip_u32~ branch (tried U32 directly, precomp returned wrong types).
+
+  Phase 2 (post, depends on #25): USize maps to platform native pointer
+  size — U64 on x86_64/arm64, U32 on x86/arm32. Initially just
+  Linux 64 vs 32. Cross-platform builds (rstil showed gcc handles most
+  targets, clang for mac, wine for windows testing from linux).
+
+  Reference: ~wip_u32~ branch has prior work on the U32 migration.
 
 ** OPEN #79 Type aliases for structs, enums, and function types
   ~MyAlias := ExistingType~ should create a type alias, not a variable.
