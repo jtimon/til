@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 83
+# NEXT_ISSUE: 85
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -632,6 +632,69 @@
   Post-self-hosting — depends on #25 (multi-platform support) to
   actually have different platforms to target. On Linux x86_64 only,
   UPtr is just U64.
+
+** OPEN #83 tiled: editor, window manager, terminal and more
+  :DEPENDENCIES: #69
+  Mode gui application. The TempleOS-inspired everything-in-one-app:
+  editor + window manager + terminal + session manager + git client.
+  Like emacs but in til, with raylib rendering.
+
+  Existing: ~src/examples/editor.til~ — basic text editing, no save
+  (blocked by #69 tinyfiledialogs for file dialogs).
+
+  Components (ongoing, like #24 music.til — may have no end):
+
+*** Editor (emacs/vim hybrid)
+    Text editing with keybindings. Syntax highlighting for .til files.
+    Multiple buffers/tabs. File save/open (needs #69).
+
+*** Git client (magit/egg replacement)
+    Status, diff, stage, commit, log — all from within tiled.
+    No more switching to terminal for git operations.
+    Replaces the emacs egg/magit workflow.
+
+*** Window manager (i3-style tiling)
+    Split panes, tiling layout. Run editor + terminal + git side by
+    side in one raylib window. Keyboard-driven, no mouse required.
+
+*** Terminal emulator
+    Run shell commands, see output. Replaces tmux/terminal tabs.
+    Combined with the window manager, this is the full desktop
+    environment inside one til program.
+
+*** Session manager
+    Save/restore window layouts, open files, terminal state.
+    Like tmux sessions but integrated.
+
+*** Themes
+    tiled uses ~mode theme~ (#84) for its own color scheme. Gets
+    theme support for free once #84 is implemented.
+
+** OPEN #84 mode theme: cross-editor theme generation
+  One .til file defines a color theme. The compiler generates all
+  editor formats from it:
+  - .el (emacs)
+  - .vim / .lua (vim/neovim)
+  - .json (vscode)
+  - tiled native (#83)
+
+  #+begin_src til
+  mode theme
+  til_dark := {
+      "background": Color(r=30, g=30, b=30),
+      "keyword": "#ff6600",
+      "string": "#33cc33",
+      "error": "#cc0000",
+  }
+  #+end_src
+
+  Existing: ~editor/emacs/til-dark.el~, ~til-light.el~ — current
+  taste in emacs format. These become the reference for generating
+  the til source, then the .el files are generated FROM til.
+
+  Theme designers only need to learn til color map syntax. No elisp,
+  lua, vimscript, json, etc. Independent of tiled — works for any
+  editor, tiled is just one more output target.
 
 ** OPEN #82 POSIX ~--~ end-of-options in til CLI argument parsing
   Decide whether til's CLI argument parser should support ~--~ as
