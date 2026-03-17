@@ -272,8 +272,22 @@
    - #76 fixed: shallow Vec_clone corrupted struct defaults
 
 *** WIP Step 5: Replace C parser with til-compiled parser
-   Next module to swap. parser.til already exists in src/self/.
-   Use ~make self_diff~ (now targeting parser) to track progress.
+   Diff: 5586 lines (~make self_diff~). Mostly bikeshedding.
+   parser.c functions already non-static. count/pos already U32.
+
+   Remaining semantic blockers:
+   - Parser path: ~Str *path~ → ~Str path~ (value). ~80 sites in parser.c.
+   - Parser tokens: ~Token *tokens~ → ~Vec tokens~. Changes peek/advance
+     to use Vec_get. parse() signature: ~(Token*, U32, ...)~ → ~(Vec*, ...)~.
+     Update callers in ctil.c and til_bridge.c.
+   - parse() mode_out: ~Str **~ → ~Str *~ (mutable reference).
+   - check/expect signatures: ~TokenType_tag~ → ~TokenType *~. ~100 sites.
+
+   Already bikeshedding (tolerable):
+   - println via Array vs printf/fprintf
+   - Hoisted temps, (void) casts
+   - Bool_not(x) vs !x
+   - TokenType_eq() vs tag == comparison
 
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from
