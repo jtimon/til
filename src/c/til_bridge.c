@@ -42,7 +42,6 @@ Str *til_parse_mode(void) { return Str_clone(&_parse_mode); }
 
 Expr *expr_null(void) { return NULL; }
 Bool expr_is_null(Expr *e) { return e == NULL; }
-Bool Expr_eq(Expr *a, Expr *b) { return a == b; }
 // NULL-safe: .and() chains in compiled til evaluate all operands eagerly
 // (unlike C's && which short-circuits), so these may be called on NULL exprs
 // or out-of-bounds indices when a prior condition would have been false.
@@ -65,8 +64,6 @@ Expr *expr_get_child(Expr *e, U32 i) {
 }
 U32 expr_nchildren(Expr *e) { return e ? e->children.count : 0; }
 void expr_set_core(Expr *e) { e->is_core = true; }
-void expr_push_child(Expr *e, Expr *child) { Expr_add_child(e, child); }
-
 // Replace children: old children are freed, new_children is moved in
 void expr_swap_children(Expr *e, Vec *new_children) {
     Vec_delete(&e->children, &(Bool){0});
@@ -95,13 +92,6 @@ Expr *expr_vec_get(Vec *v, U32 i) {
 
 U32 expr_vec_count(Vec *v) { return v->count; }
 
-void expr_vec_pop(Vec *v) { v->count--; }
-
-void expr_vec_free(Vec *v) {
-    Vec_delete(v, &(Bool){0});
-    free(v);
-}
-
 // --- Mode helpers ---
 
 const Mode *til_mode_resolve(Str *name) {
@@ -118,7 +108,6 @@ const Mode *til_mode_resolve(Str *name) {
 }
 
 Bool til_mode_eq(const Mode *a, const Mode *b) { return a == b; }
-Bool Mode_eq(const Mode *a, const Mode *b) { return a == b; }
 
 const Mode *til_mode_none(void)   { return NULL; }
 const Mode *til_mode_script(void) { return &MODE_SCRIPT; }
@@ -193,7 +182,6 @@ I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lf
 }
 
 void til_ast_print(Expr *ast, U32 indent) { ast_print(ast, indent); }
-void til_Expr_delete(Expr *ast) { Expr_delete(ast, &(Bool){1}); }
 
 // --- Utility wrappers ---
 
@@ -267,11 +255,3 @@ Str *til_bin_dir(void) {
     return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
 }
 
-// til_prepare: exposed for self-hosting (til.til can call the C version)
-// When compiled as part of ctil, til_prepare is defined in ctil.c.
-// When compiled standalone (e.g. til.til compiled binary), it may not exist.
-extern Expr *til_prepare(Str *path, Str *bin_dir) __attribute__((weak));
-Expr *til_prepare_s(Str *path, Str *bin_dir) {
-    if (til_prepare) return til_prepare(path, bin_dir);
-    return NULL;
-}

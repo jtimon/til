@@ -1,10 +1,37 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 86
+# NEXT_ISSUE: 87
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #86 Typer error for unused declarations
+  Unused variables, function parameters, and imports should be
+  type errors — not warnings. til has no warnings, only errors.
+
+  Escape hatch: prefix with ~_~ to suppress. This lets WIP code
+  compile without noise while keeping the codebase clean.
+
+  #+begin_src til
+  x := 42          // error: unused variable 'x'
+  _x := 42         // ok: _ prefix suppresses
+
+  proc foo(a: I64, b: I64) {   // error: unused parameter 'b'
+      println(a.to_str())
+  }
+  proc foo(a: I64, _b: I64) {  // ok
+      println(a.to_str())
+  }
+  #+end_src
+
+  Exempt from this rule:
+  - Struct fields (part of a layout, removing one changes the struct)
+  - Enum variants (part of a type, removing one changes the enum)
+  - Namespace functions (may be called externally)
+
+  Implementation: typer tracks which bindings are read. After
+  type-checking a scope, any unread non-~_~ binding is an error.
+
 ** OPEN #85 C code must use enum structs, not raw tags
   :DEPENDENCIES_OF: #39
   Hand-written C code uses raw enum tags (~TokenType_tag~,
