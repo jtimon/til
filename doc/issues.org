@@ -407,8 +407,32 @@
     1. ~make self_diff~ → read the diff
     2. Classify each difference: *semantic/interface* vs *bikeshedding*
     3. Fix semantic/interface differences one at a time
-    4. When only bikeshedding remains → swap to generated version
-    5. Repeat for next module
+    4. Compatibility commit: copy generated per-module .c into src/c/
+    5. Swap commit: delete src/c/ file, switch SRCS + includes
+    6. Repeat for next module
+
+*** Compatibility commit pattern (step 4)
+    Before the actual swap, verify the generated code is compatible
+    with all callers. Copy the per-module generated .c body into
+    the hand-written src/c/ file:
+
+    1. Copy function bodies from ~bootstrap/XX_XX.c~ (the per-module
+       file, NOT the monolithic ~bootstrap/XX.c~) into ~src/c/XX.c~
+    2. Keep the old ~#include "XX.h"~ (not the generated includes)
+    3. Keep compile-time globals if needed (e.g. MODE_* constants)
+    4. Keep the old implementation for functions that depend on
+       runtime init (e.g. mode_resolve uses Map → keep memcmp
+       version until the swap provides the init)
+    5. Expand ~src/c/XX.h~ with any declarations the generated code
+       needs that aren't in ~bootstrap/ast.h~ (e.g. ~Mode_size~,
+       ~Str_lit~, ~Mode_clone~)
+
+    This was the pattern for the ast swap (#39 Step 4 Commit 1:
+    ~src/c/ast.c now matches gen/c/ast_ast.c~) and will be used
+    for every subsequent module.
+
+    Build + test. If it passes, the generated code is compatible.
+    The swap commit (step 5) then just changes SRCS and includes.
 
     *Bikeshedding* (tolerable, don't fix): switch vs if-else, printf vs
     println, for-loops vs Range, direct field access vs accessor calls,
