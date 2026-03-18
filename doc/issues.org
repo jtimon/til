@@ -389,6 +389,20 @@
   in src/c/ with its til-compiled equivalent from bootstrap/.
   See doc/self.org for bootstrap build workflow and recovery.
 
+*** Bootstrap facade: modes.til
+    ~bootstrap/modes.c~ is the single generated file in SRCS.
+    modes.til is the top of the import chain — it imports the next
+    module down, which imports the next, etc:
+
+    ~modes.til → parser.til → ast.til → lexer.til → core.til~
+
+    When a new module is ported (e.g. initer), change modes.til's
+    import to point to it: ~import("initer.til")~ (initer imports
+    parser, parser imports ast, etc.). SRCS stays the same —
+    always ~bootstrap/modes.c~, no Makefile changes.
+
+    One ~_til_lib_init~ constructor, one header chain, no collisions.
+
 *** General approach (per module)
     1. ~make self_diff~ → read the diff
     2. Classify each difference: *semantic/interface* vs *bikeshedding*

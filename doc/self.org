@@ -14,11 +14,27 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
    The committed bootstrap is always available for pass 1.
 
    Two passes handle ALL changes, including compiler behavior changes
-   in .til, because ~til_core~ regenerates both ~ast.c~ and ~til.c~:
-   - ~ast.til~ is ~mode lib~ → scavenging is skipped → ~ast.c~ always
-     has all function bodies
+   in .til, because ~til_core~ regenerates both ~modes.c~ and ~til.c~:
+   - ~modes.til~ is ~mode lib~ and imports the whole chain
+     (ast.til, lexer.til, core.til) → scavenging is skipped →
+     ~modes.c~ always has all function bodies
    - ~--allow-multiple-definition~ lets the linker find any symbols
-     missing from ~til.c~ in ~ast.c~
+     missing from ~til.c~ in ~modes.c~
+
+** Bootstrap facade: modes.til
+
+   ~bootstrap/modes.c~ is the single generated file in SRCS.
+   modes.til sits at the top of the import chain:
+
+   ~modes.til → ast.til → lexer.til → core.til~
+
+   As modules are ported, modes.til's import changes to point to
+   the newest module. E.g. when parser is ported:
+
+   ~modes.til → parser.til → ast.til → lexer.til → core.til~
+
+   SRCS always stays ~bootstrap/modes.c~ — no Makefile changes.
+   One ~_til_lib_init~ constructor, one header, no collisions.
 
 ** Making changes to .til files only
 
