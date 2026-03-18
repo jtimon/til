@@ -48,7 +48,6 @@ Expr *expr_get_child(Expr *e, U32 i) {
     return Expr_child(e, &(I64){(I64)(i)});
 }
 U32 expr_nchildren(Expr *e) { return e ? e->children.count : 0; }
-void expr_set_core(Expr *e) { e->is_core = true; }
 // Replace children: old children are freed, new_children is moved in
 void expr_swap_children(Expr *e, Vec *new_children) {
     Vec_delete(&e->children, &(Bool){0});
