@@ -1684,7 +1684,7 @@ int main(int argc, char **argv) {
     Bool _t3626; { Bool *_hp = (Bool *)Str_eq(command, _t3624); _t3626 = *_hp; free(_hp); }
     (void)_t3626;
     Str_delete(_t3624, &(Bool){1});
-    Bool _t3627 = mode_is_lib_output(cur_mode);
+    Bool _t3627; { Bool *_hp = (Bool *)mode_is_lib_output(cur_mode); _t3627 = *_hp; free(_hp); }
     (void)_t3627;
     Bool _t3628 = Bool_or(_t3625, _t3626);
     (void)_t3628;
@@ -1847,7 +1847,7 @@ int main(int argc, char **argv) {
     }
     ;
     Str_delete(link_flags, &(Bool){1});
-    Bool is_lib_mode = mode_is_lib(cur_mode);
+    Bool is_lib_mode; { Bool *_hp = (Bool *)mode_is_lib(cur_mode); is_lib_mode = *_hp; free(_hp); }
     (void)is_lib_mode;
     Str *_t3643 = Str_lit("interpret", 9ULL);
     (void)_t3643;
@@ -2067,7 +2067,7 @@ int main(int argc, char **argv) {
             Bool _t3516; { Bool *_hp = (Bool *)Str_eq(command, _t3515); _t3516 = *_hp; free(_hp); }
             (void)_t3516;
             Str_delete(_t3515, &(Bool){1});
-            Bool _t3517 = mode_is_lib_output(cur_mode);
+            Bool _t3517; { Bool *_hp = (Bool *)mode_is_lib_output(cur_mode); _t3517 = *_hp; free(_hp); }
             (void)_t3517;
             Bool _t3518 = Bool_not(_t3516);
             (void)_t3518;

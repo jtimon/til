@@ -30,7 +30,7 @@ lib/libffi/.built:
 # bootstrap/ast.c in SRCS ensures linking always succeeds: ast.til is
 # mode lib (no scavenging), so ast.c always has all function bodies.
 
-bin/til_bootstrap: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
+bin/til_bootstrap: $(SRCS) $(HDRS) $(CORE) $(SELF) bootstrap/til.c src/til.til $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
 	cc $(CC_FLAGS) $(SRCS) bootstrap/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_bootstrap
 	@$(MAKE) til_core
@@ -38,13 +38,16 @@ bin/til_bootstrap: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.bui
 
 # --- programs built by til ---
 
-bin/til/test_runner: bin/til_bootstrap $(CORE) src/test_runner.til
+bin/til/test_runner: bin/til_bootstrap $(CORE) $(SELF) src/test_runner.til
+	@mkdir -p bin/til
 	@bin/til_bootstrap build src/test_runner.til
 
-bin/til/plot: bin/til_bootstrap $(CORE) src/examples/plot.til
+bin/til/plot: bin/til_bootstrap $(CORE) $(SELF) src/examples/plot.til
+	@mkdir -p bin/til
 	@bin/til_bootstrap build src/examples/plot.til
 
-bin/til/tests: bin/til_bootstrap $(CORE) src/tests.til
+bin/til/tests: bin/til_bootstrap $(CORE) $(SELF) src/tests.til
+	@mkdir -p bin/til
 	@bin/til_bootstrap build src/tests.til
 
 # --- test suite ---
@@ -111,6 +114,6 @@ bisect:
 	git bisect reset
 
 clean:
-	rm -rf bin/* tmp/rescue
+	rm -rf bin/* gen/* tmp/rescue
 	$(MAKE) -C lib/raylib/src clean
 	cd $(LIBFFI_DIR) && $(MAKE) clean && rm -f .built

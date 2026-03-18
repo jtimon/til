@@ -78,8 +78,8 @@ expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
 
 // Mode
 mode_resolve := ext_func(name: Str) returns Mode {}
-mode_is_lib := ext_func(m: Mode) returns shallow Bool {}
-mode_is_lib_output := ext_func(m: Mode) returns shallow Bool {}
+mode_is_lib := ext_func(m: Mode) returns Bool {}
+mode_is_lib_output := ext_func(m: Mode) returns Bool {}
 
 // Pipeline
 tscope_new := ext_func(parent: TypeScope) returns TypeScope {}

@@ -20,7 +20,7 @@ extern Mode MODE_SCRIPT, MODE_CLI, MODE_GUI, MODE_TEST;
 extern Mode MODE_PURE, MODE_PURA, MODE_LIB, MODE_LIBA;
 
 Mode *mode_resolve(Str *name);
-Bool mode_is_lib(Mode *m);
-Bool mode_is_lib_output(Mode *m);
+Bool *mode_is_lib(Mode *m);
+Bool *mode_is_lib_output(Mode *m);
 
 #endif

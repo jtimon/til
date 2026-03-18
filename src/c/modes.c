@@ -1,4 +1,5 @@
 #include "modes.h"
+#include <stdlib.h>
 #include <string.h>
 
 // --- Mode constants ---
@@ -27,10 +28,14 @@ Mode *mode_resolve(Str *name) {
     return NULL;
 }
 
-Bool mode_is_lib(Mode *m) {
-    return m && (m == &MODE_LIB || m == &MODE_LIBA);
+Bool *mode_is_lib(Mode *m) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = m && (m == &MODE_LIB || m == &MODE_LIBA);
+    return r;
 }
-Bool mode_is_lib_output(Mode *m) {
-    return m && (m == &MODE_LIB || m == &MODE_LIBA ||
-                 m == &MODE_PURE || m == &MODE_PURA);
+Bool *mode_is_lib_output(Mode *m) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = m && (m == &MODE_LIB || m == &MODE_LIBA ||
+               m == &MODE_PURE || m == &MODE_PURA);
+    return r;
 }

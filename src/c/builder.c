@@ -1630,7 +1630,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     (void)path;
 
     codegen_program = program;
-    Bool is_lib = mode_is_lib_output(mode);
+    Bool is_lib = *mode_is_lib_output(mode);
 
     // Build struct body lookup map
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
@@ -3369,7 +3369,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     // Create shared library
     Str *so_path = Str_concat(Str_concat(&(Str){.c_str = (U8*)"gen/lib/lib", .count = 11, .cap = CAP_LIT}, lib_name), &(Str){.c_str = (U8*)".so", .count = 3, .cap = CAP_LIT});
     cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-        &(Str){.c_str = (U8*)"cc -shared -o ", .count = 14, .cap = CAP_LIT}, so_path),
+        &(Str){.c_str = (U8*)"cc -shared -Wl,--allow-multiple-definition -o ", .count = 46, .cap = CAP_LIT}, so_path),
         &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), obj_path), &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), ext_obj),
         Str_concat(Str_concat(&(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}, user_obj), lf));
     result = system((const char *)cmd->c_str);
