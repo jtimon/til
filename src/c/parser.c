@@ -105,7 +105,7 @@ Expr *parse_fn_signature(Parser *p, U32 line, U32 col) {
     sig->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     sig->data.data.FuncDef.param_shallows = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     sig->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-    sig->data.data.FuncDef.param_fn_sigs = (Vec){0};
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); sig->data.data.FuncDef.param_fn_sigs = *_vp; free(_vp); }
     sig->data.data.FuncDef.return_type = return_type ? *return_type : (Str){0};
     sig->data.data.FuncDef.variadic_index = -1;
     sig->data.data.FuncDef.kwargs_index = -1;
@@ -689,7 +689,7 @@ Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
                 def->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.param_shallows = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-                def->data.data.FuncDef.param_fn_sigs = (Vec){0};
+                { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); def->data.data.FuncDef.param_fn_sigs = *_vp; free(_vp); }
                 def->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(np); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.return_type = (Str){0};
                 def->data.data.FuncDef.variadic_index = -1;

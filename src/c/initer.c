@@ -641,11 +641,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
                     fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
                     fdef->data.data.FuncDef.nparam = 0;
-                    fdef->data.data.FuncDef.param_names = (Vec){0};
-                    fdef->data.data.FuncDef.param_types = (Vec){0};
-                    fdef->data.data.FuncDef.param_muts = (Vec){0};
-                    fdef->data.data.FuncDef.param_owns = (Vec){0};
-                    fdef->data.data.FuncDef.param_defaults = (Vec){0};
+                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); fdef->data.data.FuncDef.param_names = *_v; free(_v); }
+                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); fdef->data.data.FuncDef.param_types = *_v; free(_v); }
+                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); fdef->data.data.FuncDef.param_muts = *_v; free(_v); }
+                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); fdef->data.data.FuncDef.param_owns = *_v; free(_v); }
+                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(I64)}); fdef->data.data.FuncDef.param_defaults = *_v; free(_v); }
                     fdef->data.data.FuncDef.return_type = *ename;
                     fdef->data.data.FuncDef.variadic_index = -1;
                     fdef->data.data.FuncDef.kwargs_index = -1;
@@ -1222,11 +1222,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *func_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
         func_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
         func_def->data.data.FuncDef.nparam = 0;
-        func_def->data.data.FuncDef.param_names = (Vec){0};
-        func_def->data.data.FuncDef.param_types = (Vec){0};
-        func_def->data.data.FuncDef.param_muts = (Vec){0};
-        func_def->data.data.FuncDef.param_owns = (Vec){0};
-        func_def->data.data.FuncDef.param_defaults = (Vec){0};
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); func_def->data.data.FuncDef.param_names = *_v; free(_v); }
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); func_def->data.data.FuncDef.param_types = *_v; free(_v); }
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); func_def->data.data.FuncDef.param_muts = *_v; free(_v); }
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); func_def->data.data.FuncDef.param_owns = *_v; free(_v); }
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(I64)}); func_def->data.data.FuncDef.param_defaults = *_v; free(_v); }
         func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT};
         func_def->data.data.FuncDef.variadic_index = -1;
         func_def->data.data.FuncDef.kwargs_index = -1;
