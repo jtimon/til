@@ -28,7 +28,6 @@ const Mode *mode_resolve(Str *name) {
 }
 
 Bool Mode_eq(const Mode *a, const Mode *b) { return a == b; }
-const Mode *mode_none(void)   { return NULL; }
 const Mode *mode_script(void) { return &MODE_SCRIPT; }
 const Mode *mode_cli(void)    { return &MODE_CLI; }
 const Mode *mode_gui(void)    { return &MODE_GUI; }
