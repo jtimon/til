@@ -423,26 +423,27 @@
 
 *** Compatibility commit pattern (step 4)
     Before the actual swap, verify the generated code is compatible
-    with all callers. Copy the per-module generated .c body into
-    the hand-written src/c/ file:
+    with all callers.
 
-    1. Copy function bodies from ~bootstrap/XX_XX.c~ (the per-module
-       file, NOT the monolithic ~bootstrap/XX.c~) into ~src/c/XX.c~
-    2. Keep the old ~#include "XX.h"~ (not the generated includes)
-    3. Keep compile-time globals if needed (e.g. MODE_* constants)
-    4. Keep the old implementation for functions that depend on
-       runtime init (e.g. mode_resolve uses Map → keep memcmp
-       version until the swap provides the init)
-    5. Expand ~src/c/XX.h~ with any declarations the generated code
-       needs that aren't in ~bootstrap/ast.h~ (e.g. ~Mode_size~,
-       ~Str_lit~, ~Mode_clone~)
+    For small modules (modes): copy function bodies from
+    ~bootstrap/XX_XX.c~ (per-module file) into ~src/c/XX.c~,
+    keep old includes and compile-time globals.
 
-    This was the pattern for the ast swap (#39 Step 4 Commit 1:
-    ~src/c/ast.c now matches gen/c/ast_ast.c~) and will be used
-    for every subsequent module.
+    For large modules (parser, ast): copy the monolithic
+    ~bootstrap/XX.c~ into ~src/c/XX.c~. The monolithic file
+    is self-contained (includes its own per-module headers and
+    .c files via ~-Ibootstrap~). No need to expand src/c/XX.h —
+    the monolithic file has all declarations internally.
+
+    Note: the per-module files (~bootstrap/XX_XX.c~) are what
+    contain the actual module logic. The monolithic file
+    (~bootstrap/XX.c~) includes them via ~#include "XX_XX.c"~ at
+    the bottom. When checking generated signatures, look at the
+    per-module file (~bootstrap/XX_XX.h~ for declarations,
+    ~bootstrap/XX_XX.c~ for implementations).
 
     Build + test. If it passes, the generated code is compatible.
-    The swap commit (step 5) then just changes SRCS and includes.
+    The swap commit then changes modes.til's import.
 
     *Bikeshedding* (tolerable, don't fix): switch vs if-else, printf vs
     println, for-loops vs Range, direct field access vs accessor calls,
