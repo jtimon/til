@@ -38,22 +38,24 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
    4. ~make clean && make test~ again — both passes match
    5. Commit everything together: .til + C + bootstrap
 
-** Simultaneous C + .til + bootstrap changes
+** Removing bridge functions or changing signatures
 
-   When both C and .til must change in sync (new signatures, removed
-   bridge functions, etc.), you must also update bootstrap/ manually
-   for the first pass to compile:
-   1. Change .til source (source of truth)
-   2. Change C source (callers, bridges)
-   3. Update bootstrap/ declarations and call sites to match
-   4. ~make clean && make test~ — first pass compiles with manual
-      bootstrap edits, til_core regenerates proper bootstrap, second
-      pass compiles with generated bootstrap
-   5. Commit everything together: .til + C + bootstrap
+   When a function is removed from src/c/ that the old bootstrap
+   still calls, the first-pass link will fail with undefined references.
+   Do NOT fix this by editing bootstrap/ — the fix is always in the
+   .til or src/c/ sources.
 
-   This is the pattern used when removing bridge functions or changing
-   signatures that both C and generated code depend on (#39 Step 5
-   changes all followed this pattern).
+   Two-step approach:
+   1. Change .til source only (e.g. rename ~til_foo~ to ~foo~). Build.
+      First pass uses old bootstrap (calls ~til_foo~, bridge provides it).
+      ~til_core~ regenerates bootstrap with ~foo~. Second pass uses new
+      bootstrap. Commit.
+   2. Remove bridge function (now dead code). Build. Both passes use
+      ~foo~ directly. Commit.
+
+   If the function doesn't exist in the underlying C module either
+   (truly new or truly removed), the .til source must be restructured
+   so the generated code doesn't need it.
 
 ** Recovery targets
 
@@ -62,9 +64,8 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
 
 ** Rules
 
-   - NEVER edit bootstrap/ files manually (except for simultaneous
-     changes as described above — those edits get overwritten by
-     til_core in the same build).
+   - NEVER edit bootstrap/ files. If the build fails with errors
+     in bootstrap/, fix the .til sources or src/c/ instead.
    - Always commit .til changes + regenerated bootstrap together.
    - The committed bootstrap must be compatible with committed C source.
    - ~make clean && make test~ from a fresh clone must always work.
