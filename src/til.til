@@ -60,7 +60,6 @@ til_parse_mode := ext_func() returns Str {}
 
 // Expr helpers
 expr_null := ext_func() returns Expr {}
-expr_is_null := ext_func(e: Expr) returns shallow Bool {}
 expr_get_tag := ext_func(e: Expr) returns shallow I32 {}
 expr_get_str_val := ext_func(e: Expr) returns ref Str {}
 expr_get_child := ext_func(e: Expr, shallow i: U32) returns ref Expr {}
@@ -335,14 +334,7 @@ main := proc(args: ..Str) {
     }
 
     // If mode has auto_import, load its .til declarations
-    mut mode_ast : Expr = expr_null()
     auto_import := til_mode_auto_import(cur_mode)
-    if auto_import.len().gt(0) {
-        mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
-        mode_source := readfile(mode_til_path)
-        mode_tokens := tokenize(mode_source, mode_til_path)
-        mode_ast = til_parse(mode_tokens, mode_til_path)
-    }
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)
     import_decls := expr_vec_new()
@@ -379,7 +371,11 @@ main := proc(args: ..Str) {
     }
 
     // Mode auto-import declarations
-    if expr_is_null(mode_ast).not() {
+    if auto_import.len().gt(0) {
+        mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
+        mode_source := readfile(mode_til_path)
+        mode_tokens := tokenize(mode_source, mode_til_path)
+        mode_ast := til_parse(mode_tokens, mode_til_path)
         i = 0
         while i.lt(expr_nchildren(mode_ast)) {
             ref ch : Expr = expr_get_child(mode_ast, i)

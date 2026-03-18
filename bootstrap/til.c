@@ -21,7 +21,6 @@ Vec * tokenize(Str *, Str *);
 Expr * til_parse(Vec *, Str *);
 Str * til_parse_mode(void);
 Expr * expr_null(void);
-Bool expr_is_null(Expr *);
 I32 expr_get_tag(Expr *);
 Str * expr_get_str_val(Expr *);
 Expr * expr_get_child(Expr *, U32);
@@ -618,13 +617,13 @@ void print_flush() {
     putchar('\n');
 }
 
+static I64 *_t3645;
+static I64 *_t3646;
 static I64 *_t3647;
+static U64 *CAP_LIT;
 static I64 *_t3648;
 static I64 *_t3649;
-static U64 *CAP_LIT;
 static I64 *_t3650;
-static I64 *_t3651;
-static I64 *_t3652;
 static U64 *CAP_VIEW;
 static I32 *NODE_BODY;
 static I32 *NODE_LITERAL_STR;
