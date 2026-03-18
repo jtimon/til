@@ -51,8 +51,8 @@ expect_text := proc(mut p: Parser, type: TokenType) returns Str {
 }
 
 // Save line/col before advancing
-peek_line := func(p: Parser) returns U32 { return peek(p).line }
-peek_col := func(p: Parser) returns U32 { return peek(p).col }
+peek_line := func(p: Parser) returns shallow U32 { return peek(p).line }
+peek_col := func(p: Parser) returns shallow U32 { return peek(p).col }
 
 // --- Parsing functions ---
 
@@ -582,7 +582,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
 }
 
 // parse_statement_ident: identifier is current token
-parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns Expr {
+parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_own: Bool) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     name := expect_text(p, TokenType.Ident)
