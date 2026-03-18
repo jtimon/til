@@ -9,7 +9,7 @@
 
 typedef struct {
     Vec tokens;
-    U32 pos;
+    U64 pos;
     Str path;
 } Parser;
 

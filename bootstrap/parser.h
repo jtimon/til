@@ -233,8 +233,7 @@ typedef struct Declaration {
 
 typedef struct Parser {
     Vec tokens;
-    U32 count;
-    U32 pos;
+    U64 pos;
     Str path;
 } Parser;
 

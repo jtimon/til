@@ -7,8 +7,7 @@ import("ast.til")
 
 Parser := struct {
     mut tokens := Vec.new("Token", Token.size())
-    mut count : U32 = 0
-    mut pos : U32 = 0
+    mut pos : U64 = 0
     mut path := ""
 }
 
@@ -362,7 +361,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         // Named arg: IDENT '=' expr
         if check(p, TokenType.Ident) {
-            if p.pos.add(1).lt(p.count) {
+            if p.pos.add(1).lt(p.tokens.len()) {
                 ref next_tok : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
                 if next_tok.type.eq(TokenType.Eq) {
                     na_line := peek_line(p)
@@ -531,7 +530,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 // Named arg check
                 if check(p, TokenType.Ident) {
-                    if p.pos.add(1).lt(p.count) {
+                    if p.pos.add(1).lt(p.tokens.len()) {
                         ref nt : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
                         if nt.type.eq(TokenType.Eq) {
                             na_line := peek_line(p)
@@ -733,7 +732,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 // Named arg check
                 if check(p, TokenType.Ident) {
-                    if p.pos.add(1).lt(p.count) {
+                    if p.pos.add(1).lt(p.tokens.len()) {
                         ref nt : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
                         if nt.type.eq(TokenType.Eq) {
                             na_line := peek_line(p)
@@ -904,7 +903,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
             mut own_mut := false
             if check(p, TokenType.KwMut) { advance(p); own_mut = true }
             if check(p, TokenType.Ident) {
-                if p.pos.add(1).lt(p.count) {
+                if p.pos.add(1).lt(p.tokens.len()) {
                     ref nt : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
                     if nt.type.eq(TokenType.ColonEq).or(nt.type.eq(TokenType.Colon)) {
                         return parse_statement_ident(p, own_mut, true)
@@ -946,7 +945,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
 
 // parse: entry point
 parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
-    mut p := Parser(tokens = tokens, count = tokens.len(), pos = 0, path = path)
+    mut p := Parser(tokens = tokens, pos = 0, path = path)
 
     // Parse optional mode declaration
     if check(p, TokenType.KwMode) {
