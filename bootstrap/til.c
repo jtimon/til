@@ -17,9 +17,8 @@
 
 #include "ext.h"
 
-Token * til_tokenize(Str *, Str *);
-U32 til_tok_count(void);
-Expr * til_parse(Token *, U32, Str *);
+Vec * til_tokenize(Str *, Str *);
+Expr * til_parse(Vec *, Str *);
 Str * til_parse_mode(void);
 Expr * expr_null(void);
 Bool expr_is_null(Expr *);

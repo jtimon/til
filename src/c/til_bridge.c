@@ -23,19 +23,18 @@
 static Vec *_tok_vec;
 static Str *_parse_mode;
 
-Token *til_tokenize(Str *source, Str *path) {
+Vec *til_tokenize(Str *source, Str *path) {
     // Clone inputs: tokenizer creates Str views (CAP_VIEW) into source buffer,
     // and parser stores path in AST nodes. The generated caller may free its
     // copies (scavenger inserts Str_delete), so the bridge must own persistent copies.
     _tok_vec = tokenize(Str_clone(source), Str_clone(path));
-    return (Token *)_tok_vec->data;
+    return _tok_vec;
 }
-U32 til_tok_count(void) { return _tok_vec ? _tok_vec->count : 0; }
 
-Expr *til_parse(Token *tokens, U32 count, Str *path) {
+Expr *til_parse(Vec *tokens, Str *path) {
     _parse_mode = NULL;
     // Clone path: parser stores Str* in Parser struct and propagates to AST nodes.
-    return parse(tokens, count, Str_clone(path), &_parse_mode);
+    return parse(tokens, Str_clone(path), &_parse_mode);
 }
 Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}); }
 

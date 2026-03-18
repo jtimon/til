@@ -54,9 +54,8 @@ NODE_CASE : I32 = 24
 // --- Bridge ext_func/ext_proc declarations ---
 
 // Tokenize/Parse
-til_tokenize := ext_func(source: Str, path: Str) returns Token {}
-til_tok_count := ext_func() returns shallow U32 {}
-til_parse := ext_func(tokens: Token, shallow count: U32, path: Str) returns Expr {}
+til_tokenize := ext_func(source: Str, path: Str) returns Vec {}
+til_parse := ext_func(tokens: Vec, path: Str) returns Expr {}
 til_parse_mode := ext_func() returns Str {}
 
 // Expr helpers
@@ -171,8 +170,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Load, lex, parse the imported file
         source := readfile(abs)
         tokens := til_tokenize(source, abs)
-        count := til_tok_count()
-        sub_ast := til_parse(tokens, count, abs)
+        sub_ast := til_parse(tokens, abs)
         sub_mode := til_parse_mode()
         sub_imports := extract_imports(sub_ast)
 
@@ -296,8 +294,7 @@ main := proc(args: ..Str) {
     // Load core.til
     core_source := readfile(core_path)
     core_tokens := til_tokenize(core_source, core_path)
-    core_count := til_tok_count()
-    core_ast := til_parse(core_tokens, core_count, core_path)
+    core_ast := til_parse(core_tokens, core_path)
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
     mut skip_core := false
@@ -324,8 +321,7 @@ main := proc(args: ..Str) {
     // Load user file
     source := readfile(path)
     tokens := til_tokenize(source, path)
-    count := til_tok_count()
-    ast := til_parse(tokens, count, path)
+    ast := til_parse(tokens, path)
     imports := extract_imports(ast)
 
     // Resolve cur_mode
@@ -345,8 +341,7 @@ main := proc(args: ..Str) {
         mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
         mode_source := readfile(mode_til_path)
         mode_tokens := til_tokenize(mode_source, mode_til_path)
-        mode_count := til_tok_count()
-        mode_ast = til_parse(mode_tokens, mode_count, mode_til_path)
+        mode_ast = til_parse(mode_tokens, mode_til_path)
     }
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)

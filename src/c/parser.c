@@ -8,18 +8,17 @@
 // --- Parser state ---
 
 typedef struct {
-    Token *tokens;
-    U32 count;
+    Vec tokens;
     U32 pos;
     Str path;
 } Parser;
 
 Token *peek(Parser *p) {
-    return &p->tokens[p->pos];
+    return (Token *)Vec_get(&p->tokens, &(U64){(U64)p->pos});
 }
 
 Token *advance(Parser *p) {
-    Token *t = &p->tokens[p->pos];
+    Token *t = (Token *)Vec_get(&p->tokens, &(U64){(U64)p->pos});
     if (t->type.tag != TokenType_TAG_Eof) p->pos++;
     return t;
 }
@@ -390,8 +389,8 @@ Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
     // parse arguments (positional or named: name=expr)
     while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
         // Check for named arg: IDENT '=' expr (peek ahead)
-        if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->count &&
-            p->tokens[p->pos + 1].type.tag == TokenType_TAG_Eq) {
+        if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->tokens.count &&
+            ((Token *)Vec_get(&p->tokens, &(U64){(U64)(p->pos + 1)}))->type.tag == TokenType_TAG_Eq) {
             Token *aname = advance(p); // consume ident
             advance(p); // consume '='
             Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, &p->path);
@@ -544,8 +543,8 @@ Expr *parse_expression(Parser *p) {
             Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, field->line, field->col, &p->path);
             Expr_add_child(call, callee);
             while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
-                if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->count &&
-                    p->tokens[p->pos + 1].type.tag == TokenType_TAG_Eq) {
+                if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->tokens.count &&
+                    ((Token *)Vec_get(&p->tokens, &(U64){(U64)(p->pos + 1)}))->type.tag == TokenType_TAG_Eq) {
                     Token *aname = advance(p);
                     advance(p);
                     Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, &p->path);
@@ -575,7 +574,7 @@ Expr *parse_expression(Parser *p) {
     }
     // Range expression: expr..expr → Range.new(expr, expr)
     if (check(p, TokenType_TAG_DotDot)) {
-        Token *dt = &p->tokens[p->pos];
+        Token *dt = (Token *)Vec_get(&p->tokens, &(U64){(U64)p->pos});
         advance(p); // consume '..'
         Expr *rhs = parse_expression(p);
         Expr *range_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, dt->line, dt->col, &p->path);
@@ -744,8 +743,8 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
             Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, last_field->line, last_field->col, &p->path);
             Expr_add_child(call, callee);
             while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
-                if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->count &&
-                    p->tokens[p->pos + 1].type.tag == TokenType_TAG_Eq) {
+                if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->tokens.count &&
+                    ((Token *)Vec_get(&p->tokens, &(U64){(U64)(p->pos + 1)}))->type.tag == TokenType_TAG_Eq) {
                     Token *aname = advance(p);
                     advance(p);
                     Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, &p->path);
@@ -924,7 +923,7 @@ Expr *parse_statement(Parser *p) {
             I32 own_mut = 0;
             if (check(p, TokenType_TAG_KwMut)) { advance(p); own_mut = 1; }
             if (check(p, TokenType_TAG_Ident)) {
-                Token *next = &p->tokens[p->pos + 1];
+                Token *next = (Token *)Vec_get(&p->tokens, &(U64){(U64)(p->pos + 1)});
                 if (next->type.tag == TokenType_TAG_ColonEq || next->type.tag == TokenType_TAG_Colon) {
                     return parse_statement_ident(p, own_mut, 1);
                 }
@@ -968,8 +967,8 @@ Str *parser_get_mode(void) {
     return _last_parsed_mode ? _last_parsed_mode : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
 }
 
-Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out) {
-    Parser p = {tokens, count, 0, *path};
+Expr *parse(Vec *tokens, Str *path, Str **mode_out) {
+    Parser p = {*tokens, 0, *path};
 
     // Parse optional mode declaration
     _last_parsed_mode = NULL;

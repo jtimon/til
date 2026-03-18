@@ -6,7 +6,7 @@
 // Parse a token array into an AST. Returns the root body node.
 // `path` is used for error messages. `mode_out` receives the mode name
 // (e.g. "cli", "lib") if a mode declaration is found, or NULL.
-Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out);
+Expr *parse(Vec *tokens, Str *path, Str **mode_out);
 
 // Returns the mode string from the last parse() call (or empty Str if none).
 Str *parser_get_mode(void);
