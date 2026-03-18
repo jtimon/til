@@ -205,24 +205,24 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             }
         }
 
+        // Optional default value (before push(own nm) consumes nm)
+        mut has_default := false
+        if check(p, TokenType.Eq) {
+            advance(p)
+            def_expr := parse_expression(p)
+            fd.param_defaults.set(own nm.clone(), own def_expr)
+            has_default = true
+        }
+        if fd.variadic_index.neq(0.sub(1).to_i32()).and(is_variadic.not()).and(has_default.not()) {
+            panic(__LOC__, "positional param not allowed after variadic")
+        }
+
         fd.param_names.push(own nm)
         fd.param_types.push(own tp)
         fd.param_muts.push(own is_mut)
         fd.param_owns.push(own is_own)
         fd.param_shallows.push(own is_shallow)
         fd.param_fn_sigs.push(own fn_sig_idx)
-
-        // Optional default value
-        mut has_default := 0.sub(1)
-        if check(p, TokenType.Eq) {
-            advance(p)
-            has_default = def_exprs.len().to_i64()
-            def_expr := parse_expression(p)
-            def_exprs.push(own def_expr)
-        }
-        if fd.variadic_index.neq(0.sub(1).to_i32()).and(is_variadic.not()).and(has_default.eq(0.sub(1))) {
-            panic(__LOC__, "positional param not allowed after variadic")
-        }
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
