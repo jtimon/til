@@ -23,7 +23,7 @@ Token *advance(Parser *p) {
     return t;
 }
 
-I32 check(Parser *p, TokenType *type) {
+Bool check(Parser *p, TokenType *type) {
     return peek(p)->type.tag == type->tag;
 }
 
@@ -315,7 +315,7 @@ Expr *parse_struct_def(Parser *p) {
     expect_token(p, &(TokenType){TokenType_TAG_LBrace});
     // Parse struct body with namespace: support
     Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
-    I32 in_namespace = 0;
+    Bool in_namespace = 0;
     while (!check(p, &(TokenType){TokenType_TAG_RBrace}) && !check(p, &(TokenType){TokenType_TAG_Eof})) {
         if (check(p, &(TokenType){TokenType_TAG_KwNamespace})) {
             advance(p); // consume 'namespace'
@@ -341,7 +341,7 @@ Expr *parse_enum_def(Parser *p) {
     Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_EnumDef}, kw->line, kw->col, &p->path);
     expect_token(p, &(TokenType){TokenType_TAG_LBrace});
     Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
-    I32 in_namespace = 0;
+    Bool in_namespace = 0;
     while (!check(p, &(TokenType){TokenType_TAG_RBrace}) && !check(p, &(TokenType){TokenType_TAG_Eof})) {
         if (check(p, &(TokenType){TokenType_TAG_KwNamespace})) {
             advance(p);
@@ -591,7 +591,7 @@ Expr *parse_expression(Parser *p) {
 }
 
 // parse_statement_ident: identifier is current token
-Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
+Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
     Token *t = advance(p); // consume identifier
     Str *name = tok_str(t);
 
@@ -919,7 +919,7 @@ Expr *parse_statement(Parser *p) {
         advance(p); // consume 'own'
         // own field declaration: own name := value  or  own mut name := value
         if (check(p, &(TokenType){TokenType_TAG_Ident}) || check(p, &(TokenType){TokenType_TAG_KwMut})) {
-            I32 own_mut = 0;
+            Bool own_mut = 0;
             if (check(p, &(TokenType){TokenType_TAG_KwMut})) { advance(p); own_mut = 1; }
             if (check(p, &(TokenType){TokenType_TAG_Ident})) {
                 Token *next = (Token *)Vec_get(&p->tokens, &(U64){(U64)(p->pos + 1)});
