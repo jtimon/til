@@ -4,12 +4,8 @@
 #include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include "parser.h"
-#include "initer.h"
-#include "typer.h"
 #include "interpreter.h"
 #include "builder.h"
-#include "precomp.h"
-#include "scavenger.h"
 #include "modes.h"
 #include <stdlib.h>
 #include <string.h>
@@ -125,39 +121,12 @@ Bool til_mode_is_lib_output(Mode *m) {
 
 // --- Pipeline wrappers ---
 
-I32 til_init_declarations(Expr *program, TypeScope *scope) {
-    return init_declarations(program, scope);
-}
-
-I32 til_type_check(Expr *program, TypeScope *scope, Mode *mode) {
-    return type_check(program, scope, mode);
-}
-
-void til_precomp(Expr *program) { precomp(program); }
-
-void til_scavenge(Expr *program, Mode *mode, Bool run_tests) {
-    scavenge(program, mode, run_tests);
-}
-
 I32 til_interpret_v(Expr *ast, Mode *mode, Bool run_tests,
                     Str *path, Str *user_c, Str *ext_c, Str *link_flags,
                     Vec *user_argv) {
     if (user_c && user_c->count == 0) user_c = NULL;
     if (link_flags && link_flags->count == 0) link_flags = NULL;
     return interpret(ast, mode, run_tests, path, user_c, ext_c, link_flags, user_argv);
-}
-
-I32 til_build(Expr *ast, Mode *mode, Bool run_tests,
-              Str *path, Str *c_path) {
-    return build(ast, mode, run_tests, path, c_path);
-}
-
-I32 til_build_header(Expr *ast, Str *h_path) {
-    return build_header(ast, h_path);
-}
-
-I32 til_build_til_binding(Expr *ast, Str *til_path, Str *lib_name) {
-    return build_til_binding(ast, til_path, lib_name);
 }
 
 I32 til_compile_c(Str *c_path, Str *bin_path, Str *ext_c, Str *user_c, Str *lflags) {
@@ -171,8 +140,6 @@ I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lf
     if (lflags && lflags->count == 0) lflags = NULL;
     return compile_lib(c_path, lib_name, ext_c, user_c, lflags);
 }
-
-void til_ast_print(Expr *ast, U32 indent) { ast_print(ast, indent); }
 
 // --- Utility wrappers ---
 

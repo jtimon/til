@@ -1581,10 +1581,10 @@ int main(int argc, char **argv) {
     Vec_delete(kept, &(Bool){1});
     TypeScope *scope = tscope_new(NULL);
     (void)scope;
-    I32 _t3608 = til_init_declarations(ast, scope);
+    I32 _t3608 = init_declarations(ast, scope);
     (void)_t3608;
     ;
-    I32 type_errors = til_type_check(ast, scope, cur_mode);
+    I32 type_errors = type_check(ast, scope, cur_mode);
     (void)type_errors;
     TypeScope_delete(scope, &(Bool){1});
     I32 _t3609 = 0;
@@ -1655,7 +1655,7 @@ int main(int argc, char **argv) {
     (void)run_tests;
     ;
     ;
-    til_precomp(ast);
+    precomp(ast);
     Str *_t3621 = Str_lit("translate", 9ULL);
     (void)_t3621;
     Str *_t3622 = Str_lit("build", 5ULL);
@@ -1692,7 +1692,7 @@ int main(int argc, char **argv) {
     ;
     ;
     if (_t3631) {
-        til_scavenge(ast, cur_mode, run_tests);
+        scavenge(ast, cur_mode, run_tests);
     }
     ;
     I32 result = 0;
@@ -2133,7 +2133,7 @@ int main(int argc, char **argv) {
                 Str_delete(_t3391, &(Bool){1});
                 ;
             }
-            I32 _t3507 = til_build(ast, cur_mode, run_tests, path, c_path);
+            I32 _t3507 = build(ast, cur_mode, run_tests, path, c_path);
             (void)_t3507;
             result = _t3507;
             ;
@@ -2168,7 +2168,7 @@ int main(int argc, char **argv) {
                 (void)til_path;
                 Str_delete(_t3453, &(Bool){1});
                 Str_delete(_t3454, &(Bool){1});
-                I32 _t3455 = til_build_header(ast, h_path);
+                I32 _t3455 = build_header(ast, h_path);
                 (void)_t3455;
                 result = _t3455;
                 ;
@@ -2178,7 +2178,7 @@ int main(int argc, char **argv) {
                 (void)_t3457;
                 ;
                 if (_t3457) {
-                    I32 _t3393 = til_build_til_binding(ast, til_path, name);
+                    I32 _t3393 = build_til_binding(ast, til_path, name);
                     (void)_t3393;
                     result = _t3393;
                     ;
@@ -2624,7 +2624,7 @@ int main(int argc, char **argv) {
                 ;
                 U32 _t3548 = 0;
                 (void)_t3548;
-                til_ast_print(ast, _t3548);
+                ast_print(ast, _t3548);
                 ;
             } else {
                 Str *_t3549 = Str_lit("Str", 3ULL);
