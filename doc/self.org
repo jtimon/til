@@ -1,70 +1,9 @@
-* Self-hosting strategy
+* Self-hosting bootstrap workflow
 
-til self-hosting proceeds bottom-up (#39): replace C modules one at a time
-with til-compiled equivalents. The top-down path (#12) is complete — ctil.c
-has been deleted and til.til is the sole compiler entry point.
+This document covers the two-pass build, how to make breaking changes,
+and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
 
-** Current state
-
-*** Top-down (#12): COMPLETE
-
-til.til (src/til.til) replaced ctil.c as the compiler entry point.
-It links C modules via link_c() and calls them through FFI bridge
-functions (til_bridge.c). As #39 replaces C modules, til.til's
-link_c() list shrinks and can switch to importing .til modules
-directly (#77).
-
-*** Bottom-up (#39): C elimination
-
-| Module        | Status | Notes                                    |
-|---------------+--------+------------------------------------------|
-| vec/map/str   | DONE   | Replaced by core.til (bootstrap/core.c)  |
-| lexer         | DONE   | Replaced by lexer.til (bootstrap/lexer.c)|
-| ast           | DONE   | Replaced by ast.til (bootstrap/ast.c)    |
-| parser        | NEXT   | bootstrap/parser.c+h generated, not yet linked |
-| initer        | TODO   | Declaration scanner, straightforward      |
-| scavenger     | TODO   | Dead code elimination, straightforward    |
-| modes         | TODO   | Trivial — just mode constants             |
-| builder       | TODO   | Codegen to C, medium complexity           |
-| typer         | LAST   | Semantic core — most complex, most risk   |
-| precomp       | DEFER  | Depends on interpreter                    |
-| interpreter   | DEFER  | Slowest path, interdependent with precomp |
-
-** Order of operations
-
-*** Phase 1: Simple modules (current)
-lexer, parser, ast, initer, scavenger, modes — these are relatively
-independent and mechanical. Each swap follows the same pattern:
-1. Write/verify the .til equivalent
-2. Generate bootstrap .c+h
-3. Update Makefile, adapt C call sites
-4. Delete old .c+h
-
-*** Phase 2: Builder
-Medium complexity. Generates C code from the AST. No dependencies on
-interpreter. Can be converted once the simpler modules are done.
-
-*** Phase 3: Typer
-The semantic core — type inference, checking, resolution. This is where
-most of the compiler's intelligence lives. Convert last among the
-"main path" modules because:
-- Highest risk of subtle behavioral changes
-- Every other module will be battle-tested in til by then
-- Any bugs in earlier conversions surface here (typer exercises everything)
-
-*** Phase 4: Precomp + Interpreter (deferred)
-These two are interdependent: precomp evaluates compile-time expressions
-by calling the interpreter. Converting them is deferred because:
-- The interpreter is the slowest execution path (the builder/compile
-  path is the primary target for performance)
-- Interdependency makes the conversion harder — both must move together
-- Once everything else is in til, these can be replaced last
-- For practical purposes, even a fully self-hosted til can keep the C
-  interpreter as a fallback without shame
-
-** Bootstrap build workflow
-
-*** Build flow
+** Build flow
 
    ~make~ (or ~make test~ which depends on it):
    1. First cc: compile src/c/*.c + bootstrap/ → bin/til_bootstrap
@@ -81,14 +20,16 @@ by calling the interpreter. Converting them is deferred because:
    - ~--allow-multiple-definition~ lets the linker find any symbols
      missing from ~til.c~ in ~ast.c~
 
-*** Making changes to .til files only
+** Making changes to .til files only
+
    Just run ~make clean && make test~. The two-pass build handles it:
    - First cc uses committed bootstrap → works
    - til_core regenerates bootstrap with current .til
    - Second cc uses new bootstrap → final binary
    - Commit everything: .til files + regenerated bootstrap/
 
-*** Changing C files that call bootstrap functions
+** Changing C files that call bootstrap functions
+
    If you rename or change a function in .til that C code calls
    (e.g. ~split~ → ~Str_split~):
    1. Change the .til files first (the source of truth)
@@ -97,28 +38,45 @@ by calling the interpreter. Converting them is deferred because:
    4. ~make clean && make test~ again — both passes match
    5. Commit everything together: .til + C + bootstrap
 
-*** Recovery targets
+** Simultaneous C + .til + bootstrap changes
+
+   When both C and .til must change in sync (new signatures, removed
+   bridge functions, etc.), you must also update bootstrap/ manually
+   for the first pass to compile:
+   1. Change .til source (source of truth)
+   2. Change C source (callers, bridges)
+   3. Update bootstrap/ declarations and call sites to match
+   4. ~make clean && make test~ — first pass compiles with manual
+      bootstrap edits, til_core regenerates proper bootstrap, second
+      pass compiles with generated bootstrap
+   5. Commit everything together: .til + C + bootstrap
+
+   This is the pattern used when removing bridge functions or changing
+   signatures that both C and generated code depend on (#39 Step 5
+   changes all followed this pattern).
+
+** Recovery targets
+
    - ~make revert_boot~ — restore bootstrap/ from last commit
    - ~make rescue~ — build compiler from previous commit's bootstrap
 
-*** Rules
-   - NEVER edit bootstrap/ files manually. They are generated.
+** Rules
+
+   - NEVER edit bootstrap/ files manually (except for simultaneous
+     changes as described above — those edits get overwritten by
+     til_core in the same build).
    - Always commit .til changes + regenerated bootstrap together.
    - The committed bootstrap must be compatible with committed C source.
    - ~make clean && make test~ from a fresh clone must always work.
 
-** Design notes
+** Limitations while C modules remain (#39)
 
-- The typer is dangerous territory. It contains the actual semantics of
-  the language. Converting it too early risks introducing subtle bugs
-  that are hard to trace. Better to have every other module proven first.
-
-- precomp's dependency on interpreter means they form a unit. You can't
-  convert precomp without converting (or at least bridging) interpreter.
-  Since interpreter is the least performance-critical path (everyone
-  uses ~bin/til_bootstrap run~ not ~interpret~ for real work), there's
-  no urgency.
-
-- As each C module gets replaced, til.til benefits too — it can import
-  the .til version instead of linking the .c version, gradually becoming
-  a pure til program.
+   - til.til links C modules via link_c() and calls them through FFI
+     bridge functions (til_bridge.c). As #39 replaces C modules, the
+     link_c() list shrinks.
+   - #77 tracks switching til.til from link_c to import for modules
+     already converted (ast.til done, parser.til next). Blocked on
+     builder emitting imported function bodies in per-module .c files.
+   - precomp depends on interpreter — they form a unit and will be
+     converted together (or last). The C interpreter can remain as
+     a fallback without shame.

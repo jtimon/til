@@ -284,12 +284,14 @@
   allocate once upfront. Should measurably improve performance since Str
   operations are on the hot path for the compiler.
 
-** WIP #39 Replace ctil with til (bottom-up C elimination)
-  :DEPENDENCIES: #12 #71 #74
-  Replace C modules in ctil with their til-compiled equivalents,
-  bottom-up. The inverse of #12: where #12 builds til.til top-down
-  (FFI into C libs, replace with native til), this works bottom-up
-  (replace C modules in ctil one at a time).
+** WIP #39 Self-hosting: replace C modules with til (bottom-up)
+  :DEPENDENCIES: #71 #74 #77
+  The centralized issue for tracking self-hosting progress.
+  #12 (top-down: til.til replaces ctil.c) is done. #77 (til.til
+  imports .til modules instead of link_c) is a dependency.
+  This issue tracks the bottom-up work: replacing each C module
+  in src/c/ with its til-compiled equivalent from bootstrap/.
+  See doc/self.org for bootstrap build workflow and recovery.
 
 *** General approach (per module)
     1. ~make self_diff~ → read the diff
@@ -332,13 +334,21 @@
    Diff: 5586 lines (~make self_diff~). Mostly bikeshedding.
    parser.c functions already non-static. count/pos already U32.
 
-   Remaining semantic blockers:
-   - Parser path: ~Str *path~ → ~Str path~ (value). ~80 sites in parser.c.
-   - Parser tokens: ~Token *tokens~ → ~Vec tokens~. Changes peek/advance
-     to use Vec_get. parse() signature: ~(Token*, U32, ...)~ → ~(Vec*, ...)~.
-     Update callers in ctil.c and til_bridge.c.
-   - parse() mode_out: ~Str **~ → ~Str *~ (mutable reference).
-   - check/expect signatures: ~TokenType_tag~ → ~TokenType *~. ~100 sites.
+   Completed semantic blockers:
+   - DONE Parser path: ~Str *path~ → ~Str path~ (value). ~80 sites.
+   - DONE Parser tokens: ~Token *tokens~ → ~Vec tokens~. peek/advance
+     use Vec_get. parse() takes ~Vec *~, count removed.
+     Bridge: ~til_tokenize~ returns ~Vec *~, ~til_tok_count~ deleted.
+   - DONE parse() mode_out: ~Str **~ → ~Str *~ (mutable reference).
+     Empty Str = no mode. ~_last_parsed_mode~ is value, not pointer.
+   - DONE expect renamed to expect_token (matches parser.c).
+
+   Also done (beyond parser, same unification pass):
+   - DONE interpret(): ~U32 argc, char **argv~ → ~Vec *argv~.
+     ~interpret_v~ deleted, ~til_interpret~ (unused) deleted.
+
+   Remaining semantic blocker:
+   - check/expect_token signatures: ~TokenType_tag~ → ~TokenType *~. ~100 sites.
 
    Already bikeshedding (tolerable):
    - println via Array vs printf/fprintf
