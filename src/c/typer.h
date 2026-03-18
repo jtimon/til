@@ -2,7 +2,6 @@
 #define TIL_TYPER_H
 
 #include "initer.h"
-#include "modes.h"
 
 // Run type inference and type checking on the AST (in-place).
 // Scope should be pre-populated by init_declarations.

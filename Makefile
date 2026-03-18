@@ -2,8 +2,8 @@
 
 all: bin/til_bootstrap
 
-SRCS := $(wildcard src/c/*.c) bootstrap/ast.c
-HDRS := $(wildcard src/c/*.h) bootstrap/ast.h
+SRCS := $(wildcard src/c/*.c) bootstrap/modes.c
+HDRS := $(wildcard src/c/*.h) bootstrap/modes.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 CC_FLAGS := -Wall -Wextra -Werror -g -Isrc -Isrc/c -Ibootstrap
@@ -27,8 +27,8 @@ lib/libffi/.built:
 # Pass 1: gcc from committed bootstrap → compiler
 # til_core: compiler regenerates bootstrap/ from .til sources
 # Pass 2: gcc from regenerated bootstrap → final compiler
-# bootstrap/ast.c in SRCS ensures linking always succeeds: ast.til is
-# mode lib (no scavenging), so ast.c always has all function bodies.
+# bootstrap/modes.c in SRCS: modes.til is the facade (imports ast.til
+# etc.), mode lib (no scavenging), so modes.c has all function bodies.
 
 bin/til_bootstrap: $(SRCS) $(HDRS) $(CORE) $(SELF) bootstrap/til.c src/til.til $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
