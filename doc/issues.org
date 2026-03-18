@@ -89,29 +89,6 @@
   include guards. Bootstrap uses ~#pragma once~. Replace all with
   ~#pragma once~ for consistency. Supported by gcc, clang, msvc.
 
-** OPEN #70 Builder: emit constants as proper constants in generated headers
-  The builder emits top-level constants (e.g. CAP_LIT, CAP_VIEW from
-  str.til) as ~static U64 *~ heap-allocated runtime variables in the
-  generated .c file. This means:
-  - They're not visible outside the generated compilation unit (~static~)
-  - They're pointers, not values — can't be used in aggregate initializers
-  - Hand-written C code can't use them at all
-
-  Hand-written C currently works around this with duplicate ~#define~s in
-  src/c/pre70.h (moved from ast.h to avoid clashing with bootstrap's
-  ~static U64 *~ variables of the same name):
-  #+begin_src c
-  #define CAP_LIT  ULLONG_MAX
-  #define CAP_VIEW (ULLONG_MAX - 1)
-  #+end_src
-
-  The builder should instead emit constants as ~#define~ (or ~static const~)
-  in the generated .h header, so all C code uses the same definitions.
-
-  Once fixed:
-  - Remove CAP_LIT/CAP_VIEW ~#define~s from src/c/pre70.h
-  - All C files use the constants from the generated header
-  - No more manual synchronization between str.til values and C defines
 
 ** OPEN #68 Negative literal support
   Two phases:
@@ -695,6 +672,25 @@
   Theme designers only need to learn til color map syntax. No elisp,
   lua, vimscript, json, etc. Independent of tiled — works for any
   editor, tiled is just one more output target.
+
+** OPEN #70 Precomp: constant folding for all types (not just scalars)
+  The builder emits top-level constants as heap-allocated runtime
+  variables. Precomp currently folds scalar expressions (I64, Str,
+  Bool) but not struct-valued or collection-valued ones.
+
+  Broader scope: precomp should fold ANY compile-time-known expression
+  into a constant value in the generated code. Examples:
+  - ~CAP_LIT := max_u64()~ → ~#define CAP_LIT ULLONG_MAX~
+  - ~MODE_SCRIPT := Mode(name = "script")~ → ~Mode MODE_SCRIPT = {...}~
+  - ~core_modes := {"script": Mode(...), ...}~ → static Map
+  - Fibonacci via macro returning Vec → static array
+
+  The syntax already works: ~ref MODE_SCRIPT : Mode = core_modes.get("script")~
+  is a typed reference to a compile-time-known value. Precomp just needs
+  to evaluate it and the builder needs to emit the result as a constant.
+
+  Until fixed, src/c/pre70.h provides CAP_LIT/CAP_VIEW as ~#define~s
+  (workaround for the scalar case). Will live until #39 is done.
 
 ** OPEN #82 POSIX ~--~ end-of-options in til CLI argument parsing
   Decide whether til's CLI argument parser should support ~--~ as
