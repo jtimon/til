@@ -1,4 +1,4 @@
-.PHONY: all clean test til_core revert_boot self_diff rescue
+.PHONY: all clean test til_core revert_boot self_diff rescue bisect
 
 all: bin/til_bootstrap
 
@@ -98,6 +98,13 @@ bin/til_bootstrap_dbg: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/
 revert_boot:
 	git checkout HEAD bootstrap/
 	git clean -fd bootstrap/
+
+# Usage: make bisect GOOD=<commit>
+# Finds the first commit after GOOD where make clean && make test fails.
+bisect:
+	git bisect start HEAD $(GOOD)
+	git bisect run sh -c 'make clean && make test'
+	git bisect reset
 
 clean:
 	rm -rf bin/* tmp/rescue
