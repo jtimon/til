@@ -28,13 +28,8 @@ core_modes := {
 }
 
 mode_resolve := func(name: Str) returns ref Mode {
-    if core_modes.has(name) {
-        ref m : Mode = core_modes.get(name)
-        return m
-    }
-    panic(__LOC__, "unknown mode '".concat(name).concat("'"))
-    ref fallback : Mode = core_modes.get("script")
-    return fallback
+    ref m : Mode = core_modes.get(name)
+    return m
 }
 
 mode_is_lib := func(m: Mode) returns Bool {
