@@ -27,8 +27,6 @@ Str *til_parse_mode(void) { return Str_clone(&_parse_mode); }
 
 // --- Expr field accessors ---
 
-Expr *expr_null(void) { return NULL; }
-Bool expr_is_null(Expr *e) { return e == NULL; }
 // NULL-safe: .and() chains in compiled til evaluate all operands eagerly
 // (unlike C's && which short-circuits), so these may be called on NULL exprs
 // or out-of-bounds indices when a prior condition would have been false.
