@@ -64,7 +64,7 @@ Expr *parse_block(Parser *p) {
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
 // Returns a synthetic ExprData_TAG_FuncDef Expr with param_types and return_type,
 // or NULL if not followed by '(' (bare "Fn" type).
-Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
+Expr *parse_fn_signature(Parser *p, U32 line, U32 col) {
     if (!check(p, &(TokenType){TokenType_TAG_LParen})) return NULL;
     advance(p); // consume '('
 
@@ -72,10 +72,10 @@ Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
     Vec ptypes; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); ptypes = *_vp; free(_vp); }
     Vec pmuts; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); pmuts = *_vp; free(_vp); }
     while (!check(p, &(TokenType){TokenType_TAG_RParen}) && !check(p, &(TokenType){TokenType_TAG_Eof})) {
-        bool is_mut = false;
+        Bool is_mut = 0;
         if (check(p, &(TokenType){TokenType_TAG_KwMut})) {
             advance(p);
-            is_mut = true;
+            is_mut = 1;
         }
         Token *ptype = expect_token(p, &(TokenType){TokenType_TAG_Ident});
         Str *tp = tok_str(ptype);
@@ -109,8 +109,8 @@ Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
     sig->data.data.FuncDef.return_type = return_type ? *return_type : (Str){0};
     sig->data.data.FuncDef.variadic_index = -1;
     sig->data.data.FuncDef.kwargs_index = -1;
-    sig->data.data.FuncDef.return_is_ref = false;
-    sig->data.data.FuncDef.return_is_shallow = false;
+    sig->data.data.FuncDef.return_is_ref = 0;
+    sig->data.data.FuncDef.return_is_shallow = 0;
     // No body — this is just a type signature
     return sig;
 }
@@ -145,26 +145,26 @@ Expr *parse_func_def(Parser *p) {
     I32 variadic_index = -1;
     I32 kwargs_index = -1;
     while (!check(p, &(TokenType){TokenType_TAG_RParen}) && !check(p, &(TokenType){TokenType_TAG_Eof})) {
-        bool is_shallow = false;
+        Bool is_shallow = 0;
         if (check(p, &(TokenType){TokenType_TAG_KwShallow})) {
             advance(p);
-            is_shallow = true;
+            is_shallow = 1;
         }
-        bool is_own = false;
+        Bool is_own = 0;
         if (check(p, &(TokenType){TokenType_TAG_KwOwn})) {
             advance(p);
-            is_own = true;
+            is_own = 1;
         }
-        bool is_mut = false;
+        Bool is_mut = 0;
         if (check(p, &(TokenType){TokenType_TAG_KwMut})) {
             advance(p);
-            is_mut = true;
+            is_mut = 1;
         }
         Token *pname = expect_token(p, &(TokenType){TokenType_TAG_Ident});
         // Bare type (FuncSig style): no colon after identifier
         Str *nm = NULL;
         Str *tp = NULL;
-        bool is_this_variadic = false;
+        Bool is_this_variadic = 0;
         if (!check(p, &(TokenType){TokenType_TAG_Colon})) {
             // No colon — this is a bare type, not name: Type
             tp = tok_str(pname);
@@ -189,7 +189,7 @@ Expr *parse_func_def(Parser *p) {
                     exit(1);
                 }
                 kwargs_index = pnames.count;
-                is_own = true; // kwargs Map is owned by callee
+                is_own = 1; // kwargs Map is owned by callee
                 nm = tok_str(pname);
                 tp = &(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}; // implicit type
             } else if (check(p, &(TokenType){TokenType_TAG_DotDot})) {
@@ -220,7 +220,7 @@ Expr *parse_func_def(Parser *p) {
                     exit(1);
                 }
                 variadic_index = pnames.count;
-                is_this_variadic = true;
+                is_this_variadic = 1;
                 Token *ptype = expect_token(p, &(TokenType){TokenType_TAG_Ident});
                 nm = tok_str(pname);
                 tp = tok_str(ptype);
@@ -259,16 +259,16 @@ Expr *parse_func_def(Parser *p) {
 
     // Parse optional 'returns [ref|shallow] Type'
     Str *return_type = NULL;
-    bool return_is_ref = false;
-    bool return_is_shallow = false;
+    Bool return_is_ref = 0;
+    Bool return_is_shallow = 0;
     if (check(p, &(TokenType){TokenType_TAG_KwReturns})) {
         advance(p);
         if (check(p, &(TokenType){TokenType_TAG_KwRef})) {
             advance(p);
-            return_is_ref = true;
+            return_is_ref = 1;
         } else if (check(p, &(TokenType){TokenType_TAG_KwShallow})) {
             advance(p);
-            return_is_shallow = true;
+            return_is_shallow = 1;
         }
         Token *rt = expect_token(p, &(TokenType){TokenType_TAG_Ident});
         return_type = tok_str(rt);
@@ -309,7 +309,7 @@ Expr *parse_func_def(Parser *p) {
 // parse_struct_def: current token is 'struct' or 'ext_struct'
 Expr *parse_struct_def(Parser *p) {
     Token *kw = advance(p); // consume 'struct' or 'ext_struct'
-    bool is_ext = (kw->type.tag == TokenType_TAG_KwExtStruct);
+    Bool is_ext = (kw->type.tag == TokenType_TAG_KwExtStruct);
     Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_StructDef}, kw->line, kw->col, &p->path);
     def->is_ext = is_ext;
     expect_token(p, &(TokenType){TokenType_TAG_LBrace});
@@ -325,7 +325,7 @@ Expr *parse_struct_def(Parser *p) {
         }
         Expr *stmt = parse_statement(p);
         if (in_namespace && stmt->data.tag == ExprData_TAG_Decl) {
-            stmt->data.data.Decl.is_namespace = true;
+            stmt->data.data.Decl.is_namespace = 1;
         }
         Expr_add_child(body, stmt);
     }
@@ -352,7 +352,7 @@ Expr *parse_enum_def(Parser *p) {
         if (in_namespace) {
             Expr *stmt = parse_statement(p);
             if (stmt->data.tag == ExprData_TAG_Decl) {
-                stmt->data.data.Decl.is_namespace = true;
+                stmt->data.data.Decl.is_namespace = 1;
             }
             Expr_add_child(body, stmt);
         } else {
@@ -375,7 +375,7 @@ Expr *parse_enum_def(Parser *p) {
 }
 
 // parse_call: identifier already consumed, current token is '('
-Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
+Expr *parse_call(Parser *p, Str *name, U32 line, U32 col) {
     advance(p); // consume '('
 
     Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, &p->path);
@@ -397,15 +397,15 @@ Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
             Expr_add_child(na, parse_expression(p));
             Expr_add_child(call, na);
         } else {
-            bool is_splat = false;
+            Bool is_splat = 0;
             if (check(p, &(TokenType){TokenType_TAG_DotDot})) {
                 advance(p);
-                is_splat = true;
+                is_splat = 1;
             }
-            bool is_own_arg = false;
+            Bool is_own_arg = 0;
             if (check(p, &(TokenType){TokenType_TAG_KwOwn})) {
                 advance(p);
-                is_own_arg = true;
+                is_own_arg = 1;
             }
             Expr *arg = parse_expression(p);
             arg->is_own_arg = is_own_arg;
@@ -551,10 +551,10 @@ Expr *parse_expression(Parser *p) {
                     Expr_add_child(na, parse_expression(p));
                     Expr_add_child(call, na);
                 } else {
-                    bool is_own_arg = false;
+                    Bool is_own_arg = 0;
                     if (check(p, &(TokenType){TokenType_TAG_KwOwn})) {
                         advance(p);
-                        is_own_arg = true;
+                        is_own_arg = 1;
                     }
                     Expr *arg = parse_expression(p);
                     arg->is_own_arg = is_own_arg;
@@ -751,10 +751,10 @@ Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
                     Expr_add_child(na, parse_expression(p));
                     Expr_add_child(call, na);
                 } else {
-                    bool is_own_arg = false;
+                    Bool is_own_arg = 0;
                     if (check(p, &(TokenType){TokenType_TAG_KwOwn})) {
                         advance(p);
-                        is_own_arg = true;
+                        is_own_arg = 1;
                     }
                     Expr *arg = parse_expression(p);
                     arg->is_own_arg = is_own_arg;
@@ -801,17 +801,17 @@ Expr *parse_statement(Parser *p) {
         return parse_statement_ident(p, 0, 0);
     case TokenType_TAG_KwRef: {
         advance(p); // consume 'ref'
-        bool ref_mut = false;
+        Bool ref_mut = 0;
         if (check(p, &(TokenType){TokenType_TAG_KwMut})) {
             advance(p); // consume 'mut'
-            ref_mut = true;
+            ref_mut = 1;
         }
         Token *ident = expect_token(p, &(TokenType){TokenType_TAG_Ident});
         Str *name = tok_str(ident);
         Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, ident->line, ident->col, &p->path);
         decl->data.data.Decl.name = *name;
-        decl->data.data.Decl.is_ref = true;
-        if (ref_mut) decl->data.data.Decl.is_mut = true;
+        decl->data.data.Decl.is_ref = 1;
+        if (ref_mut) decl->data.data.Decl.is_mut = 1;
         if (check(p, &(TokenType){TokenType_TAG_Colon})) {
             // ref name : Type = expr
             advance(p); // consume :
@@ -942,7 +942,7 @@ Expr *parse_statement(Parser *p) {
                (primary->data.tag == ExprData_TAG_FCall || primary->data.tag == ExprData_TAG_FieldAccess)) {
             primary = Expr_child(primary, &(I64){(I64)(0)});
         }
-        primary->is_own_arg = true;
+        primary->is_own_arg = 1;
         return expr;
     }
     case TokenType_TAG_KwBreak: {
