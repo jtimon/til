@@ -30,6 +30,23 @@ Mode *mode_resolve(Str *name) {
 // Bridge-only functions (Mode_eq, mode_script/cli/etc getters,
 // mode_name, mode_auto_import) removed — only til_bridge.c uses them.
 
+Bool mode_eq(Mode *a, Mode *b) { return a == b; }
+
+Mode *mode_none(void)   { return NULL; }
+Mode *mode_script(void) { return &MODE_SCRIPT; }
+Mode *mode_cli(void)    { return &MODE_CLI; }
+Mode *mode_gui(void)    { return &MODE_GUI; }
+Mode *mode_test(void)   { return &MODE_TEST; }
+Mode *mode_pure(void)   { return &MODE_PURE; }
+Mode *mode_pura(void)   { return &MODE_PURA; }
+Mode *mode_lib(void)    { return &MODE_LIB; }
+Mode *mode_liba(void)   { return &MODE_LIBA; }
+
+Str *mode_name(Mode *m) { return m ? Str_clone((Str *)&m->name) : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}); }
+Str *mode_auto_import(Mode *m) {
+    return m ? Str_clone((Str *)&m->auto_import) : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+}
+
 Bool mode_is_lib(Mode *m) {
     return m && (m == &MODE_LIB || m == &MODE_LIBA);
 }
@@ -37,3 +54,20 @@ Bool mode_is_lib_output(Mode *m) {
     return m && (m == &MODE_LIB || m == &MODE_LIBA ||
                  m == &MODE_PURE || m == &MODE_PURA);
 }
+
+// Old names (bootstrap compat, will be removed after regeneration)
+Mode *til_mode_resolve(Str *name) { return mode_resolve(name); }
+Bool til_mode_eq(Mode *a, Mode *b) { return mode_eq(a, b); }
+Mode *til_mode_none(void)   { return mode_none(); }
+Mode *til_mode_script(void) { return mode_script(); }
+Mode *til_mode_cli(void)    { return mode_cli(); }
+Mode *til_mode_gui(void)    { return mode_gui(); }
+Mode *til_mode_test(void)   { return mode_test(); }
+Mode *til_mode_pure(void)   { return mode_pure(); }
+Mode *til_mode_pura(void)   { return mode_pura(); }
+Mode *til_mode_lib(void)    { return mode_lib(); }
+Mode *til_mode_liba(void)   { return mode_liba(); }
+Str *til_mode_name(Mode *m) { return mode_name(m); }
+Str *til_mode_auto_import(Mode *m) { return mode_auto_import(m); }
+Bool til_mode_is_lib(Mode *m) { return mode_is_lib(m); }
+Bool til_mode_is_lib_output(Mode *m) { return mode_is_lib_output(m); }

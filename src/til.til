@@ -73,21 +73,21 @@ expr_vec_get := ext_func(v: Vec, shallow i: U32) returns ref Expr {}
 expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
 
 // Mode
-til_mode_none := ext_func() returns Mode {}
-til_mode_resolve := ext_func(name: Str) returns Mode {}
-til_mode_eq := ext_func(a: Mode, b: Mode) returns shallow Bool {}
-til_mode_script := ext_func() returns Mode {}
-til_mode_cli := ext_func() returns Mode {}
-til_mode_gui := ext_func() returns Mode {}
-til_mode_test := ext_func() returns Mode {}
-til_mode_pure := ext_func() returns Mode {}
-til_mode_pura := ext_func() returns Mode {}
-til_mode_lib := ext_func() returns Mode {}
-til_mode_liba := ext_func() returns Mode {}
-til_mode_name := ext_func(m: Mode) returns Str {}
-til_mode_auto_import := ext_func(m: Mode) returns Str {}
-til_mode_is_lib := ext_func(m: Mode) returns shallow Bool {}
-til_mode_is_lib_output := ext_func(m: Mode) returns shallow Bool {}
+mode_none := ext_func() returns Mode {}
+mode_resolve := ext_func(name: Str) returns Mode {}
+mode_eq := ext_func(a: Mode, b: Mode) returns shallow Bool {}
+mode_script := ext_func() returns Mode {}
+mode_cli := ext_func() returns Mode {}
+mode_gui := ext_func() returns Mode {}
+mode_test := ext_func() returns Mode {}
+mode_pure := ext_func() returns Mode {}
+mode_pura := ext_func() returns Mode {}
+mode_lib := ext_func() returns Mode {}
+mode_liba := ext_func() returns Mode {}
+mode_name := ext_func(m: Mode) returns Str {}
+mode_auto_import := ext_func(m: Mode) returns Str {}
+mode_is_lib := ext_func(m: Mode) returns shallow Bool {}
+mode_is_lib_output := ext_func(m: Mode) returns shallow Bool {}
 
 // Pipeline
 tscope_new := ext_func(parent: TypeScope) returns TypeScope {}
@@ -324,16 +324,16 @@ main := proc(args: ..Str) {
 
     // Resolve cur_mode
     mode_str := til_parse_mode()
-    mut cur_mode : Mode = til_mode_none()
+    mut cur_mode : Mode = mode_none()
     if mode_str.len().gt(0) {
-        cur_mode = til_mode_resolve(mode_str)
-        if til_mode_eq(cur_mode, til_mode_none()) {
+        cur_mode = mode_resolve(mode_str)
+        if mode_eq(cur_mode, mode_none()) {
             panic(__LOC__, "unknown mode '".concat(mode_str).concat("'"))
         }
     }
 
     // If mode has auto_import, load its .til declarations
-    auto_import := til_mode_auto_import(cur_mode)
+    auto_import := mode_auto_import(cur_mode)
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)
     import_decls := expr_vec_new()
@@ -441,15 +441,15 @@ main := proc(args: ..Str) {
     }
 
     run_tests := command.eq("test")
-        .or(til_mode_eq(cur_mode, til_mode_test()))
-        .or(til_mode_eq(cur_mode, til_mode_pure()))
-        .or(til_mode_eq(cur_mode, til_mode_pura()))
+        .or(mode_eq(cur_mode, mode_test()))
+        .or(mode_eq(cur_mode, mode_pure()))
+        .or(mode_eq(cur_mode, mode_pura()))
 
     precomp(ast)
 
     // Skip scavenging for lib/pure translate/build, and for programs
     // with link_c (scavenger can't track C-level dependencies)
-    is_lib_target := til_mode_is_lib_output(cur_mode)
+    is_lib_target := mode_is_lib_output(cur_mode)
         .and(command.eq("translate").or(command.eq("build")))
     if is_lib_target.not().and(link_c_paths.len().eq(0)) {
         scavenge(ast, cur_mode, run_tests)
@@ -487,7 +487,7 @@ main := proc(args: ..Str) {
         lflags = link_flags
     }
 
-    is_lib_mode := til_mode_is_lib(cur_mode)
+    is_lib_mode := mode_is_lib(cur_mode)
 
     if command.eq("interpret").or(command.eq("test")) {
         if is_lib_mode.and(command.eq("interpret")) {
@@ -519,7 +519,7 @@ main := proc(args: ..Str) {
         mut bin_path := "bin/til/".concat(name)
         if custom_bin.len().gt(0) { bin_path = custom_bin }
 
-        do_lib := til_mode_is_lib_output(cur_mode).and(command.eq("run").not())
+        do_lib := mode_is_lib_output(cur_mode).and(command.eq("run").not())
 
         if do_lib {
             til_system("mkdir -p gen/til gen/lib")
@@ -578,8 +578,8 @@ main := proc(args: ..Str) {
             result = til_system(cmd)
         }
     } else if command.eq("ast") {
-        if til_mode_eq(cur_mode, til_mode_none()).not() {
-            println("mode: ".concat(til_mode_name(cur_mode)))
+        if mode_eq(cur_mode, mode_none()).not() {
+            println("mode: ".concat(mode_name(cur_mode)))
         } else {
             println("mode: (none)")
         }

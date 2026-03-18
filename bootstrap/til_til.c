@@ -1132,7 +1132,7 @@ int main(int argc, char **argv) {
     (void)imports;
     Str *mode_str = til_parse_mode();
     (void)mode_str;
-    Mode *cur_mode = til_mode_none();
+    Mode *cur_mode = mode_none();
     (void)cur_mode;
     U64 _t3594; { U64 *_hp = (U64 *)Str_len(mode_str); _t3594 = *_hp; free(_hp); }
     (void)_t3594;
@@ -1143,10 +1143,10 @@ int main(int argc, char **argv) {
     ;
     ;
     if (_t3596) {
-        cur_mode = til_mode_resolve(mode_str);
-        Mode *_t3250 = til_mode_none();
+        cur_mode = mode_resolve(mode_str);
+        Mode *_t3250 = mode_none();
         (void)_t3250;
-        Bool _t3251 = til_mode_eq(cur_mode, _t3250);
+        Bool _t3251 = mode_eq(cur_mode, _t3250);
         (void)_t3251;
         Mode_delete(_t3250, &(Bool){1});
         if (_t3251) {
@@ -1185,7 +1185,7 @@ int main(int argc, char **argv) {
     }
     ;
     Str_delete(mode_str, &(Bool){1});
-    Str *auto_import = til_mode_auto_import(cur_mode);
+    Str *auto_import = mode_auto_import(cur_mode);
     (void)auto_import;
     Vec *import_decls = expr_vec_new();
     (void)import_decls;
@@ -1619,30 +1619,30 @@ int main(int argc, char **argv) {
     ;
     Str *_t3610 = Str_lit("test", 4ULL);
     (void)_t3610;
-    Mode *_t3611 = til_mode_test();
+    Mode *_t3611 = mode_test();
     (void)_t3611;
     Bool _t3612; { Bool *_hp = (Bool *)Str_eq(command, _t3610); _t3612 = *_hp; free(_hp); }
     (void)_t3612;
     Str_delete(_t3610, &(Bool){1});
-    Bool _t3613 = til_mode_eq(cur_mode, _t3611);
+    Bool _t3613 = mode_eq(cur_mode, _t3611);
     (void)_t3613;
     Mode_delete(_t3611, &(Bool){1});
-    Mode *_t3614 = til_mode_pure();
+    Mode *_t3614 = mode_pure();
     (void)_t3614;
     Bool _t3615 = Bool_or(_t3612, _t3613);
     (void)_t3615;
     ;
     ;
-    Bool _t3616 = til_mode_eq(cur_mode, _t3614);
+    Bool _t3616 = mode_eq(cur_mode, _t3614);
     (void)_t3616;
     Mode_delete(_t3614, &(Bool){1});
-    Mode *_t3617 = til_mode_pura();
+    Mode *_t3617 = mode_pura();
     (void)_t3617;
     Bool _t3618 = Bool_or(_t3615, _t3616);
     (void)_t3618;
     ;
     ;
-    Bool _t3619 = til_mode_eq(cur_mode, _t3617);
+    Bool _t3619 = mode_eq(cur_mode, _t3617);
     (void)_t3619;
     Mode_delete(_t3617, &(Bool){1});
     Bool run_tests = Bool_or(_t3618, _t3619);
@@ -1660,7 +1660,7 @@ int main(int argc, char **argv) {
     Bool _t3623; { Bool *_hp = (Bool *)Str_eq(command, _t3621); _t3623 = *_hp; free(_hp); }
     (void)_t3623;
     Str_delete(_t3621, &(Bool){1});
-    Bool _t3624 = til_mode_is_lib_output(cur_mode);
+    Bool _t3624 = mode_is_lib_output(cur_mode);
     (void)_t3624;
     Bool _t3625 = Bool_or(_t3622, _t3623);
     (void)_t3625;
@@ -1823,7 +1823,7 @@ int main(int argc, char **argv) {
     }
     ;
     Str_delete(link_flags, &(Bool){1});
-    Bool is_lib_mode = til_mode_is_lib(cur_mode);
+    Bool is_lib_mode = mode_is_lib(cur_mode);
     (void)is_lib_mode;
     Str *_t3640 = Str_lit("interpret", 9ULL);
     (void)_t3640;
@@ -2043,7 +2043,7 @@ int main(int argc, char **argv) {
             Bool _t3505; { Bool *_hp = (Bool *)Str_eq(command, _t3504); _t3505 = *_hp; free(_hp); }
             (void)_t3505;
             Str_delete(_t3504, &(Bool){1});
-            Bool _t3506 = til_mode_is_lib_output(cur_mode);
+            Bool _t3506 = mode_is_lib_output(cur_mode);
             (void)_t3506;
             Bool _t3507 = Bool_not(_t3505);
             (void)_t3507;
@@ -2562,9 +2562,9 @@ int main(int argc, char **argv) {
             (void)_t3560;
             Str_delete(_t3559, &(Bool){1});
             if (_t3560) {
-                Mode *_t3546 = til_mode_none();
+                Mode *_t3546 = mode_none();
                 (void)_t3546;
-                Bool _t3547 = til_mode_eq(cur_mode, _t3546);
+                Bool _t3547 = mode_eq(cur_mode, _t3546);
                 (void)_t3547;
                 Mode_delete(_t3546, &(Bool){1});
                 Bool _t3548 = Bool_not(_t3547);
@@ -2584,7 +2584,7 @@ int main(int argc, char **argv) {
                     ;
                     Str *_t3537 = Str_lit("mode: ", 6ULL);
                     (void)_t3537;
-                    Str *_t3538 = til_mode_name(cur_mode);
+                    Str *_t3538 = mode_name(cur_mode);
                     (void)_t3538;
                     U64 _t3539 = 0;
                     (void)_t3539;
