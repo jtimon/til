@@ -202,17 +202,17 @@ test_clone := test() {
 
 test_delete := test() {
     p := Point(x=3, y=7)
-    own p.delete()
+    Point.delete(own p)
 
     l := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
     Line.delete(own l)
 
     x := 42
-    own x.delete()
+    I64.delete(own x)
     s := "hello"
-    own s.delete()
+    Str.delete(own s)
     b := true
-    own b.delete()
+    Bool.delete(own b)
 }
 
 // Custom clone: adds 1 to val, proving auto-generated clone was skipped
@@ -246,10 +246,10 @@ test_custom_clone := test() {
 test_custom_delete := test() {
     assert_eq(__LOC__, DeleteCustom.delete_count, 0)
     t := DeleteCustom(id=1)
-    own t.delete()
+    DeleteCustom.delete(own t)
     assert_eq(__LOC__, DeleteCustom.delete_count, 1)
     t2 := DeleteCustom(id=2)
-    own t2.delete()
+    DeleteCustom.delete(own t2)
     assert_eq(__LOC__, DeleteCustom.delete_count, 2)
 }
 

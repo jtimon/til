@@ -1,10 +1,22 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 88
+# NEXT_ISSUE: 89
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #88 UFCS with ~own~ first arg: ~own p.delete()~ rejected by typer
+  ~own p.delete()~ is rejected with "argument for 'own' parameter 'self'
+  must be marked 'own'". The parser sets ~is_own_arg~ on the primary
+  expression, but the typer doesn't propagate it through the UFCS
+  desugaring to the self parameter.
+
+  Options:
+  - Allow ~own a.method()~ UFCS syntax in typer (desugar to ~Type.method(own a)~)
+  - Improve error message to suggest ~Type.delete(own p)~ syntax
+
+  Workaround: use ~Type.delete(own p)~ instead of ~own p.delete()~.
+
 ** OPEN #87 ~priv~ keyword for private declarations
   :DEPENDENCIES: #86
   Everything in til is public by default. Add ~priv~ keyword to
