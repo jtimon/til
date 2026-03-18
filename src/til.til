@@ -64,7 +64,6 @@ expr_get_tag := ext_func(e: Expr) returns shallow I32 {}
 expr_get_str_val := ext_func(e: Expr) returns ref Str {}
 expr_get_child := ext_func(e: Expr, shallow i: U32) returns ref Expr {}
 expr_nchildren := ext_func(e: Expr) returns shallow U32 {}
-expr_set_core := ext_proc(e: Expr) {}
 expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
 
 // Expr Vec helpers
@@ -213,8 +212,8 @@ usage := proc() {
     println("  help       Print this message")
 }
 
-mark_core := proc(e: Dynamic) {
-    expr_set_core(e)
+mark_core := proc(mut e: Expr) {
+    e.is_core = true
     mut i : U32 = 0
     while i.lt(expr_nchildren(e)) {
         mark_core(expr_get_child(e, i))

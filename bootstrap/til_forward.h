@@ -490,7 +490,7 @@ U64 * TypeScope_size(void);
 Vec * extract_imports(void * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, void * resolved_set, void * stack, void * merged, Str * lib_dir);
 void usage(void);
-void mark_core(void * e);
+void mark_core(Expr * e);
 void main(Array * args);
 Bool * TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();

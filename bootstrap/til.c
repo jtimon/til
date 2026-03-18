@@ -25,7 +25,6 @@ I32 expr_get_tag(Expr *);
 Str * expr_get_str_val(Expr *);
 Expr * expr_get_child(Expr *, U32);
 U32 expr_nchildren(Expr *);
-void expr_set_core(Expr *);
 void expr_swap_children(Expr *, Vec *);
 Vec * expr_vec_new(void);
 void expr_vec_push(Vec *, Expr *);
@@ -439,7 +438,7 @@ U64 * TypeScope_size(void);
 Vec * extract_imports(void * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, void * resolved_set, void * stack, void * merged, Str * lib_dir);
 void usage(void);
-void mark_core(void * e);
+void mark_core(Expr * e);
 Bool * FuncType_eq(FuncType *, FuncType *);
 FuncType *FuncType_Func();
 FuncType *FuncType_Proc();
@@ -617,13 +616,13 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t3645;
 static I64 *_t3646;
 static I64 *_t3647;
-static U64 *CAP_LIT;
 static I64 *_t3648;
+static U64 *CAP_LIT;
 static I64 *_t3649;
 static I64 *_t3650;
+static I64 *_t3651;
 static U64 *CAP_VIEW;
 static I32 *NODE_BODY;
 static I32 *NODE_LITERAL_STR;
