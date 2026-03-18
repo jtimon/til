@@ -1,10 +1,31 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 87
+# NEXT_ISSUE: 88
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #87 ~priv~ keyword for private declarations
+  :DEPENDENCIES: #86
+  Everything in til is public by default. Add ~priv~ keyword to
+  mark declarations as module-private (not visible to importers).
+
+  #+begin_src til
+  priv helper := func(x: I64) returns I64 { x.mul(2) }
+  do_thing := func(x: I64) returns I64 { helper(x).add(1) }
+  #+end_src
+
+  Importing this module gives access to ~do_thing~ but not ~helper~.
+
+  Depends on #86 (unused declarations): private functions that are
+  only called internally would trigger unused errors without proper
+  visibility tracking. The typer needs to know that ~priv~ functions
+  are "used" if called within their own module.
+
+  Like Rust's ~pub~ but inverted — til defaults to public, you opt
+  into private. Simpler for small programs (everything just works),
+  explicit when you need encapsulation.
+
 ** OPEN #86 Typer error for unused declarations
   Unused variables, function parameters, and imports should be
   type errors — not warnings. til has no warnings, only errors.
