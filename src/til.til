@@ -19,8 +19,12 @@ link("ffi")
 
 // --- C types (accessed only through bridge functions) ---
 Mode := ext_struct {
-    namespace:
-    eq := ext_func(self: Mode, other: Mode) returns Bool {}
+    mut name := ""
+    mut needs_main := false
+    mut decls_only := false
+    mut auto_import := ""
+    mut is_pure := false
+    mut debug_prints := false
 }
 TypeScope := ext_struct {}
 
@@ -76,14 +80,9 @@ expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
 mode_none := ext_func() returns Mode {}
 mode_resolve := ext_func(name: Str) returns Mode {}
 mode_eq := ext_func(a: Mode, b: Mode) returns shallow Bool {}
-mode_script := ext_func() returns Mode {}
-mode_cli := ext_func() returns Mode {}
-mode_gui := ext_func() returns Mode {}
 mode_test := ext_func() returns Mode {}
 mode_pure := ext_func() returns Mode {}
 mode_pura := ext_func() returns Mode {}
-mode_lib := ext_func() returns Mode {}
-mode_liba := ext_func() returns Mode {}
 mode_name := ext_func(m: Mode) returns Str {}
 mode_auto_import := ext_func(m: Mode) returns Str {}
 mode_is_lib := ext_func(m: Mode) returns shallow Bool {}

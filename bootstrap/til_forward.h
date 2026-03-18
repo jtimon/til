@@ -234,7 +234,12 @@ typedef struct Declaration {
 
 
 typedef struct Mode {
-    char _;
+    Str name;
+    Bool needs_main;
+    Bool decls_only;
+    Str auto_import;
+    Bool is_pure;
+    Bool debug_prints;
 } Mode;
 
 
