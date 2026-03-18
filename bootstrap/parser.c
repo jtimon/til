@@ -385,7 +385,7 @@ U64 * Parser_size(void);
 Token * peek(Parser * p);
 Token * advance(Parser * p);
 Bool check(Parser * p, TokenType * type);
-void expect_token(Parser * p, TokenType * type);
+Token * expect_token(Parser * p, TokenType * type);
 Str * expect_text(Parser * p, TokenType * type);
 U32 * peek_line(Parser * p);
 U32 * peek_col(Parser * p);
@@ -576,13 +576,13 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t4132;
-static I64 *_t4133;
-static I64 *_t4134;
+static I64 *_t4171;
+static I64 *_t4172;
+static I64 *_t4173;
 static U64 *CAP_LIT;
-static I64 *_t4135;
-static I64 *_t4136;
-static I64 *_t4137;
+static I64 *_t4174;
+static I64 *_t4175;
+static I64 *_t4176;
 static U64 *CAP_VIEW;
 
 void EnumDef_delete(EnumDef * self, Bool * call_free) {
@@ -10008,25 +10008,25 @@ Bool dyn_has_cmp(Str *type_name) {
 
 __attribute__((constructor))
 static void _til_lib_init(void) {
-    _t4132 = malloc(sizeof(I64));
-    *_t4132 = 0;
-    (void)_t4132;
-    _t4133 = malloc(sizeof(I64));
-    *_t4133 = 1;
-    (void)_t4133;
-    _t4134 = malloc(sizeof(I64)); *_t4134 = I64_sub(DEREF(_t4132), DEREF(_t4133));
-    (void)_t4134;
-    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t4134));
+    _t4171 = malloc(sizeof(I64));
+    *_t4171 = 0;
+    (void)_t4171;
+    _t4172 = malloc(sizeof(I64));
+    *_t4172 = 1;
+    (void)_t4172;
+    _t4173 = malloc(sizeof(I64)); *_t4173 = I64_sub(DEREF(_t4171), DEREF(_t4172));
+    (void)_t4173;
+    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t4173));
     (void)CAP_LIT;
-    _t4135 = malloc(sizeof(I64));
-    *_t4135 = 0;
-    (void)_t4135;
-    _t4136 = malloc(sizeof(I64));
-    *_t4136 = 2;
-    (void)_t4136;
-    _t4137 = malloc(sizeof(I64)); *_t4137 = I64_sub(DEREF(_t4135), DEREF(_t4136));
-    (void)_t4137;
-    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t4137));
+    _t4174 = malloc(sizeof(I64));
+    *_t4174 = 0;
+    (void)_t4174;
+    _t4175 = malloc(sizeof(I64));
+    *_t4175 = 2;
+    (void)_t4175;
+    _t4176 = malloc(sizeof(I64)); *_t4176 = I64_sub(DEREF(_t4174), DEREF(_t4175));
+    (void)_t4176;
+    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t4176));
     (void)CAP_VIEW;
 }
 

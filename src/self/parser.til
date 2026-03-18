@@ -29,13 +29,13 @@ check := func(p: Parser, type: TokenType) returns shallow Bool {
     return peek(p).type.eq(type)
 }
 
-expect_token := proc(mut p: Parser, type: TokenType) {
+expect_token := proc(mut p: Parser, type: TokenType) returns Token {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
             ": expected '", tok_name(type), "', found '", t.text, "'")
     }
-    advance(p)
+    return advance(p)
 }
 
 // Like expect but returns the text of the consumed token
