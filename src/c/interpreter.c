@@ -1168,11 +1168,12 @@ static void value_to_buf(void *dest, Value v, Str *type_name) {
     }
 }
 
-static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
+static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) {
     I32 esz = elem_size_for_type(elem_type);
-    void *data = calloc(argc > 0 ? argc : 1, esz);
-    for (U32 i = 0; i < argc; i++) {
-        Value v = parse_cli_arg(argv[i], elem_type);
+    void *data = calloc(count > 0 ? count : 1, esz);
+    for (U32 i = 0; i < count; i++) {
+        Str *s = (Str *)Vec_get(argv, &(U64){(U64)(offset + i)});
+        Value v = parse_cli_arg((char *)s->c_str, elem_type);
         value_to_buf((char *)data + i * esz, v, elem_type);
     }
     StructInstance *inst = malloc(sizeof(StructInstance));
@@ -1186,13 +1187,14 @@ static Value build_argv_array(U32 argc, char **argv, Str *elem_type) {
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
     write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
-    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u64(argc));
+    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u64(count));
     write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u64(esz));
     write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)elem_type->c_str, elem_type->count));
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
-I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, U32 user_argc, char **user_argv) {
+I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv) {
+    U32 user_argc = user_argv ? (U32)user_argv->count : 0;
     // Initialize FFI: load user .c library (if provided) and auto-discover C functions
     I32 ffi_rc = ffi_init(program, user_c_path, ext_c_path, link_flags);
     if (ffi_rc != 0) return ffi_rc;
@@ -1282,11 +1284,12 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *u
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
                     U32 va_count = user_argc - fixed;
-                    Value arr = build_argv_array(va_count, user_argv + argi, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(vi)})));
+                    Value arr = build_argv_array(user_argv, argi, va_count, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(vi)})));
                     scope_set_owned(main_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), arr);
                     argi += va_count;
                 } else {
-                    Value v = parse_cli_arg(user_argv[argi], ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
+                    Str *arg_s = (Str *)Vec_get(user_argv, &(U64){(U64)argi});
+                    Value v = parse_cli_arg((char *)arg_s->c_str, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
                     scope_set_owned(main_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), v);
                     argi++;
                 }
@@ -1307,22 +1310,3 @@ I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *u
     return 0;
 }
 
-I32 interpret_v(Expr *program, const Mode *mode, Bool run_tests,
-                Str *path, Str *user_c_path, Str *ext_c_path,
-                Str *link_flags, Vec *user_argv) {
-    if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
-    if (link_flags && link_flags->count == 0) link_flags = NULL;
-    char **argv = NULL;
-    U32 argc = user_argv ? (U32)user_argv->count : 0;
-    if (argc > 0) {
-        argv = malloc(argc * sizeof(char *));
-        for (U32 i = 0; i < argc; i++) {
-            Str *s = (Str *)Vec_get(user_argv, &(U64){(U64)i});
-            argv[i] = (char *)s->c_str;
-        }
-    }
-    I32 r = interpret(program, mode, run_tests, path, user_c_path,
-                      ext_c_path, link_flags, argc, argv);
-    free(argv);
-    return r;
-}
