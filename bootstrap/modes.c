@@ -10108,6 +10108,7 @@ static void _til_lib_init(void) {
     _t3086->is_pure = DEREF(_t3083);
     _t3086->debug_prints = DEREF(_t3084);
     (void)_t3086;
+    Map_set(core_modes, _t3085, _t3086);
     _t3087 = malloc(sizeof(Bool));
     *_t3087 = 1;
     (void)_t3087;
@@ -10130,6 +10131,7 @@ static void _til_lib_init(void) {
     _t3092->is_pure = DEREF(_t3089);
     _t3092->debug_prints = DEREF(_t3090);
     (void)_t3092;
+    Map_set(core_modes, _t3091, _t3092);
     _t3093 = malloc(sizeof(Bool));
     *_t3093 = 1;
     (void)_t3093;
@@ -10152,6 +10154,7 @@ static void _til_lib_init(void) {
     _t3098->is_pure = DEREF(_t3095);
     _t3098->debug_prints = DEREF(_t3096);
     (void)_t3098;
+    Map_set(core_modes, _t3097, _t3098);
     _t3099 = malloc(sizeof(Bool));
     *_t3099 = 0;
     (void)_t3099;
@@ -10174,6 +10177,7 @@ static void _til_lib_init(void) {
     _t3104->is_pure = DEREF(_t3101);
     _t3104->debug_prints = DEREF(_t3102);
     (void)_t3104;
+    Map_set(core_modes, _t3103, _t3104);
     _t3105 = malloc(sizeof(Bool));
     *_t3105 = 0;
     (void)_t3105;
@@ -10196,6 +10200,7 @@ static void _til_lib_init(void) {
     _t3110->is_pure = DEREF(_t3107);
     _t3110->debug_prints = DEREF(_t3108);
     (void)_t3110;
+    Map_set(core_modes, _t3109, _t3110);
     _t3111 = malloc(sizeof(Bool));
     *_t3111 = 0;
     (void)_t3111;
@@ -10218,6 +10223,7 @@ static void _til_lib_init(void) {
     _t3116->is_pure = DEREF(_t3113);
     _t3116->debug_prints = DEREF(_t3114);
     (void)_t3116;
+    Map_set(core_modes, _t3115, _t3116);
     _t3117 = malloc(sizeof(Bool));
     *_t3117 = 0;
     (void)_t3117;
@@ -10240,6 +10246,7 @@ static void _til_lib_init(void) {
     _t3122->is_pure = DEREF(_t3119);
     _t3122->debug_prints = DEREF(_t3120);
     (void)_t3122;
+    Map_set(core_modes, _t3121, _t3122);
     _t3123 = malloc(sizeof(Bool));
     *_t3123 = 0;
     (void)_t3123;
@@ -10262,5 +10269,6 @@ static void _til_lib_init(void) {
     _t3128->is_pure = DEREF(_t3125);
     _t3128->debug_prints = DEREF(_t3126);
     (void)_t3128;
+    Map_set(core_modes, _t3127, _t3128);
 }
 

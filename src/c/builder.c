@@ -2593,10 +2593,13 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         emit_ns_inits(f, 1);
         for (U32 i = 0; i < codegen_program->children.count; i++) {
             Expr *gs = Expr_child(codegen_program, &(I64){(I64)(i)});
-            if (gs->data.tag != ExprData_TAG_Decl) continue;
-            Expr *rhs = Expr_child(gs, &(I64){(I64)(0)});
-            if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-                rhs->data.tag == ExprData_TAG_EnumDef) continue;
+            if (gs->data.tag == ExprData_TAG_Decl) {
+                Expr *rhs = Expr_child(gs, &(I64){(I64)(0)});
+                if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
+                    rhs->data.tag == ExprData_TAG_EnumDef) continue;
+            } else if (gs->data.tag != ExprData_TAG_FCall) {
+                continue;
+            }
             emit_stmt(f, gs, 1);
         }
         fprintf(f, "}\n\n");
