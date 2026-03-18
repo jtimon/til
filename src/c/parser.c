@@ -28,7 +28,7 @@ I32 check(Parser *p, TokenType_tag type) {
     return peek(p)->type.tag == type;
 }
 
-Token *expect(Parser *p, TokenType_tag type) {
+Token *expect_token(Parser *p, TokenType_tag type) {
     Token *t = peek(p);
     if (t->type.tag != type) {
         TokenType tt = {type};
@@ -59,7 +59,7 @@ Expr *parse_block(Parser *p) {
     while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
         Expr_add_child(body, parse_statement(p));
     }
-    expect(p, TokenType_TAG_RBrace);
+    expect_token(p, TokenType_TAG_RBrace);
     return body;
 }
 
@@ -79,19 +79,19 @@ Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
             advance(p);
             is_mut = true;
         }
-        Token *ptype = expect(p, TokenType_TAG_Ident);
+        Token *ptype = expect_token(p, TokenType_TAG_Ident);
         Str *tp = tok_str(ptype);
         { Str *_p = malloc(sizeof(Str)); *_p = *tp; Vec_push(&ptypes, _p); }
         { Bool *_p = malloc(sizeof(Bool)); *_p = is_mut; Vec_push(&pmuts, _p); }
         if (check(p, TokenType_TAG_Comma)) advance(p);
     }
-    expect(p, TokenType_TAG_RParen);
+    expect_token(p, TokenType_TAG_RParen);
 
     // Parse optional 'returns Type'
     Str *return_type = NULL;
     if (check(p, TokenType_TAG_KwReturns)) {
         advance(p);
-        Token *rt = expect(p, TokenType_TAG_Ident);
+        Token *rt = expect_token(p, TokenType_TAG_Ident);
         return_type = tok_str(rt);
     }
 
@@ -134,7 +134,7 @@ Expr *parse_func_def(Parser *p) {
         exit(1);
     }
 
-    expect(p, TokenType_TAG_LParen);
+    expect_token(p, TokenType_TAG_LParen);
 
     // Parse parameters: name: Type, name: Type, ...
     Vec pnames; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); pnames = *_vp; free(_vp); }
@@ -162,7 +162,7 @@ Expr *parse_func_def(Parser *p) {
             advance(p);
             is_mut = true;
         }
-        Token *pname = expect(p, TokenType_TAG_Ident);
+        Token *pname = expect_token(p, TokenType_TAG_Ident);
         // Bare type (FuncSig style): no colon after identifier
         Str *nm = NULL;
         Str *tp = NULL;
@@ -172,7 +172,7 @@ Expr *parse_func_def(Parser *p) {
             tp = tok_str(pname);
             nm = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};  // no param name
         } else {
-            expect(p, TokenType_TAG_Colon);
+            expect_token(p, TokenType_TAG_Colon);
             if (check(p, TokenType_TAG_DotDotDot)) {
                 advance(p); // consume '...'
                 if (is_own || is_mut || is_shallow) {
@@ -223,11 +223,11 @@ Expr *parse_func_def(Parser *p) {
                 }
                 variadic_index = pnames.count;
                 is_this_variadic = true;
-                Token *ptype = expect(p, TokenType_TAG_Ident);
+                Token *ptype = expect_token(p, TokenType_TAG_Ident);
                 nm = tok_str(pname);
                 tp = tok_str(ptype);
             } else {
-                Token *ptype = expect(p, TokenType_TAG_Ident);
+                Token *ptype = expect_token(p, TokenType_TAG_Ident);
                 nm = tok_str(pname);
                 tp = tok_str(ptype);
             }
@@ -257,7 +257,7 @@ Expr *parse_func_def(Parser *p) {
         { Expr **_p = malloc(sizeof(Expr *)); *_p = def_val; Vec_push(&pdefs, _p); }
         if (check(p, TokenType_TAG_Comma)) advance(p);
     }
-    expect(p, TokenType_TAG_RParen);
+    expect_token(p, TokenType_TAG_RParen);
 
     // Parse optional 'returns [ref|shallow] Type'
     Str *return_type = NULL;
@@ -272,7 +272,7 @@ Expr *parse_func_def(Parser *p) {
             advance(p);
             return_is_shallow = true;
         }
-        Token *rt = expect(p, TokenType_TAG_Ident);
+        Token *rt = expect_token(p, TokenType_TAG_Ident);
         return_type = tok_str(rt);
     }
 
@@ -293,7 +293,7 @@ Expr *parse_func_def(Parser *p) {
     def->data.data.FuncDef.kwargs_index = kwargs_index;
 
     if (check(p, TokenType_TAG_LBrace)) {
-        expect(p, TokenType_TAG_LBrace);
+        expect_token(p, TokenType_TAG_LBrace);
         Expr_add_child(def, parse_block(p));
     } else {
         // Bodyless = FuncSig type definition (only for func/proc)
@@ -314,14 +314,14 @@ Expr *parse_struct_def(Parser *p) {
     bool is_ext = (kw->type.tag == TokenType_TAG_KwExtStruct);
     Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_StructDef}, kw->line, kw->col, &p->path);
     def->is_ext = is_ext;
-    expect(p, TokenType_TAG_LBrace);
+    expect_token(p, TokenType_TAG_LBrace);
     // Parse struct body with namespace: support
     Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
     I32 in_namespace = 0;
     while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
         if (check(p, TokenType_TAG_KwNamespace)) {
             advance(p); // consume 'namespace'
-            expect(p, TokenType_TAG_Colon);
+            expect_token(p, TokenType_TAG_Colon);
             in_namespace = 1;
             continue;
         }
@@ -331,7 +331,7 @@ Expr *parse_struct_def(Parser *p) {
         }
         Expr_add_child(body, stmt);
     }
-    expect(p, TokenType_TAG_RBrace);
+    expect_token(p, TokenType_TAG_RBrace);
     Expr_add_child(def, body);
 
     return def;
@@ -341,13 +341,13 @@ Expr *parse_struct_def(Parser *p) {
 Expr *parse_enum_def(Parser *p) {
     Token *kw = advance(p); // consume 'enum'
     Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_EnumDef}, kw->line, kw->col, &p->path);
-    expect(p, TokenType_TAG_LBrace);
+    expect_token(p, TokenType_TAG_LBrace);
     Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
     I32 in_namespace = 0;
     while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
         if (check(p, TokenType_TAG_KwNamespace)) {
             advance(p);
-            expect(p, TokenType_TAG_Colon);
+            expect_token(p, TokenType_TAG_Colon);
             in_namespace = 1;
             continue;
         }
@@ -359,19 +359,19 @@ Expr *parse_enum_def(Parser *p) {
             Expr_add_child(body, stmt);
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
-            Token *name = expect(p, TokenType_TAG_Ident);
+            Token *name = expect_token(p, TokenType_TAG_Ident);
             Expr *variant = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, name->line, name->col, &p->path);
             variant->data.data.Decl.name = *tok_str(name);
             if (check(p, TokenType_TAG_Colon)) {
                 advance(p);
-                Token *ptype = expect(p, TokenType_TAG_Ident);
+                Token *ptype = expect_token(p, TokenType_TAG_Ident);
                 variant->data.data.Decl.explicit_type = *tok_str(ptype);
             }
             Expr_add_child(body, variant);
             if (check(p, TokenType_TAG_Comma)) advance(p);
         }
     }
-    expect(p, TokenType_TAG_RBrace);
+    expect_token(p, TokenType_TAG_RBrace);
     Expr_add_child(def, body);
     return def;
 }
@@ -416,7 +416,7 @@ Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
         }
         if (check(p, TokenType_TAG_Comma)) advance(p); // skip comma between args
     }
-    expect(p, TokenType_TAG_RParen);
+    expect_token(p, TokenType_TAG_RParen);
 
     return call;
 }
@@ -510,7 +510,7 @@ Expr *parse_expression(Parser *p) {
             if (check(p, TokenType_TAG_Comma)) advance(p);
             while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
                 Expr_add_child(e, parse_expression(p));
-                expect(p, TokenType_TAG_Colon);
+                expect_token(p, TokenType_TAG_Colon);
                 Expr_add_child(e, parse_expression(p));
                 if (check(p, TokenType_TAG_Comma)) advance(p);
             }
@@ -524,7 +524,7 @@ Expr *parse_expression(Parser *p) {
                 if (check(p, TokenType_TAG_Comma)) advance(p);
             }
         }
-        expect(p, TokenType_TAG_RBrace);
+        expect_token(p, TokenType_TAG_RBrace);
     } else {
         fprintf(stderr, "%s:%u:%u: parse error: unexpected token '%.*s'\n",
                 p->path.c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
@@ -534,7 +534,7 @@ Expr *parse_expression(Parser *p) {
     // field access chain: expr.field.field... or expr.method(args)
     while (check(p, TokenType_TAG_Dot)) {
         advance(p); // consume '.'
-        Token *field = expect(p, TokenType_TAG_Ident);
+        Token *field = expect_token(p, TokenType_TAG_Ident);
         if (check(p, TokenType_TAG_LParen)) {
             // Method call: expr.method(args)
             advance(p); // consume '('
@@ -564,7 +564,7 @@ Expr *parse_expression(Parser *p) {
                 }
                 if (check(p, TokenType_TAG_Comma)) advance(p);
             }
-            expect(p, TokenType_TAG_RParen);
+            expect_token(p, TokenType_TAG_RParen);
             e = call;
         } else {
             Expr *access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, field->line, field->col, &p->path);
@@ -616,18 +616,18 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         // FuncSig form: name : func(Types) returns T = (names) { body }
         if (check(p, TokenType_TAG_KwFunc) || check(p, TokenType_TAG_KwProc)) {
             Expr *sig = parse_func_def(p);  // parses bodyless func(I64, I64) returns I64
-            expect(p, TokenType_TAG_Eq);    // consume =
+            expect_token(p, TokenType_TAG_Eq);    // consume =
             // Parse (name1, name2, ...) — just identifiers
-            expect(p, TokenType_TAG_LParen);
+            expect_token(p, TokenType_TAG_LParen);
             for (U32 i = 0; i < sig->data.data.FuncDef.nparam; i++) {
-                if (i > 0) expect(p, TokenType_TAG_Comma);
-                Token *pn = expect(p, TokenType_TAG_Ident);
+                if (i > 0) expect_token(p, TokenType_TAG_Comma);
+                Token *pn = expect_token(p, TokenType_TAG_Ident);
                 *((Str*)Vec_get(&sig->data.data.FuncDef.param_names, &(U64){(U64)(i)})) = *tok_str(pn);
             }
             if (check(p, TokenType_TAG_Comma)) advance(p); // trailing comma
-            expect(p, TokenType_TAG_RParen);
+            expect_token(p, TokenType_TAG_RParen);
             // Parse { body }
-            expect(p, TokenType_TAG_LBrace);
+            expect_token(p, TokenType_TAG_LBrace);
             Expr_add_child(sig, parse_block(p));
             // Wrap in ExprData_TAG_Decl — same AST as FuncDef form
             Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, &p->path);
@@ -647,7 +647,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         if ((type_name->count == 2 && memcmp(type_name->c_str, "Fn", 2) == 0)) {
             fn_sig = parse_fn_signature(p, type_tok->line, type_tok->col);
         }
-        expect(p, TokenType_TAG_Eq); // consume =
+        expect_token(p, TokenType_TAG_Eq); // consume =
 
         // Named FuncSig form: name : Type = (names) { body }
         // Lookahead: check if pattern is (ident [, ident]* [,]) {
@@ -670,16 +670,16 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
 
             if (is_fsf) {
                 // Parse (name1, name2, ...) as param names
-                expect(p, TokenType_TAG_LParen);
+                expect_token(p, TokenType_TAG_LParen);
                 Vec pnames; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); pnames = *_vp; free(_vp); }
                 while (!check(p, TokenType_TAG_RParen)) {
-                    Token *pn = expect(p, TokenType_TAG_Ident);
+                    Token *pn = expect_token(p, TokenType_TAG_Ident);
                     { Str *_p = malloc(sizeof(Str)); *_p = *tok_str(pn); Vec_push(&pnames, _p); }
                     if (check(p, TokenType_TAG_Comma)) advance(p);
                 }
-                expect(p, TokenType_TAG_RParen);
+                expect_token(p, TokenType_TAG_RParen);
                 // Parse { body }
-                expect(p, TokenType_TAG_LBrace);
+                expect_token(p, TokenType_TAG_LBrace);
                 Expr *body = parse_block(p);
                 // Build incomplete ExprData_TAG_FuncDef (types filled by initer)
                 Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, t->line, t->col, &p->path);
@@ -726,7 +726,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         Token *last_field = NULL;
         while (check(p, TokenType_TAG_Dot)) {
             advance(p); // consume '.'
-            last_field = expect(p, TokenType_TAG_Ident);
+            last_field = expect_token(p, TokenType_TAG_Ident);
             if (check(p, TokenType_TAG_Dot)) {
                 // More dots coming — this is an intermediate access
                 Expr *access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, last_field->line, last_field->col, &p->path);
@@ -764,11 +764,11 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
                 }
                 if (check(p, TokenType_TAG_Comma)) advance(p);
             }
-            expect(p, TokenType_TAG_RParen);
+            expect_token(p, TokenType_TAG_RParen);
             return call;
         }
         // Field assignment
-        expect(p, TokenType_TAG_Eq);
+        expect_token(p, TokenType_TAG_Eq);
         Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAssign}, t->line, t->col, &p->path);
         fa->data.data.FieldAssign = *tok_str(last_field);
         Expr_add_child(fa, obj);
@@ -808,7 +808,7 @@ Expr *parse_statement(Parser *p) {
             advance(p); // consume 'mut'
             ref_mut = true;
         }
-        Token *ident = expect(p, TokenType_TAG_Ident);
+        Token *ident = expect_token(p, TokenType_TAG_Ident);
         Str *name = tok_str(ident);
         Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, ident->line, ident->col, &p->path);
         decl->data.data.Decl.name = *name;
@@ -820,10 +820,10 @@ Expr *parse_statement(Parser *p) {
             Token *type_tok = peek(p);
             decl->data.data.Decl.explicit_type = *tok_str(type_tok);
             advance(p); // consume type name
-            expect(p, TokenType_TAG_Eq); // consume =
+            expect_token(p, TokenType_TAG_Eq); // consume =
         } else {
             // ref name := expr
-            expect(p, TokenType_TAG_ColonEq);
+            expect_token(p, TokenType_TAG_ColonEq);
         }
         Expr_add_child(decl, parse_expression(p));
         return decl;
@@ -845,7 +845,7 @@ Expr *parse_statement(Parser *p) {
         advance(p); // consume 'if'
         Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, t->line, t->col, &p->path);
         Expr_add_child(node, parse_expression(p)); // condition
-        expect(p, TokenType_TAG_LBrace);
+        expect_token(p, TokenType_TAG_LBrace);
         Expr_add_child(node, parse_block(p));       // then body
         if (check(p, TokenType_TAG_KwElse)) {
             advance(p); // consume 'else'
@@ -855,7 +855,7 @@ Expr *parse_statement(Parser *p) {
                 Expr_add_child(else_body, parse_statement(p));
                 Expr_add_child(node, else_body);
             } else {
-                expect(p, TokenType_TAG_LBrace);
+                expect_token(p, TokenType_TAG_LBrace);
                 Expr_add_child(node, parse_block(p));
             }
         }
@@ -875,13 +875,13 @@ Expr *parse_statement(Parser *p) {
         advance(p); // consume 'while'
         Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_While}, t->line, t->col, &p->path);
         Expr_add_child(node, parse_expression(p)); // condition
-        expect(p, TokenType_TAG_LBrace);
+        expect_token(p, TokenType_TAG_LBrace);
         Expr_add_child(node, parse_block(p));       // body
         return node;
     }
     case TokenType_TAG_KwFor: {
         advance(p); // consume 'for'
-        Token *ident = expect(p, TokenType_TAG_Ident);
+        Token *ident = expect_token(p, TokenType_TAG_Ident);
         Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_ForIn}, ident->line, ident->col, &p->path);
         node->data.data.ForIn = *tok_str(ident);
         if (check(p, TokenType_TAG_Colon)) {
@@ -889,9 +889,9 @@ Expr *parse_statement(Parser *p) {
             node->struct_name = *tok_str(peek(p)); // explicit element type
             advance(p); // consume type name
         }
-        expect(p, TokenType_TAG_KwIn);
+        expect_token(p, TokenType_TAG_KwIn);
         Expr_add_child(node, parse_expression(p)); // iterable
-        expect(p, TokenType_TAG_LBrace);
+        expect_token(p, TokenType_TAG_LBrace);
         Expr_add_child(node, parse_block(p));       // body
         return node;
     }
@@ -899,14 +899,14 @@ Expr *parse_statement(Parser *p) {
         advance(p); // consume 'switch'
         Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_Switch}, t->line, t->col, &p->path);
         Expr_add_child(node, parse_expression(p)); // switch expression
-        expect(p, TokenType_TAG_LBrace);
+        expect_token(p, TokenType_TAG_LBrace);
         while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
-            expect(p, TokenType_TAG_KwCase);
+            expect_token(p, TokenType_TAG_KwCase);
             Expr *cn = Expr_new(&(ExprData){.tag = ExprData_TAG_Case}, peek(p)->line, peek(p)->col, &p->path);
             if (!check(p, TokenType_TAG_Colon)) {
                 Expr_add_child(cn, parse_expression(p)); // match value
             }
-            expect(p, TokenType_TAG_Colon);
+            expect_token(p, TokenType_TAG_Colon);
             Expr *cb = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
             while (!check(p, TokenType_TAG_KwCase) && !check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
                 Expr_add_child(cb, parse_statement(p));
@@ -914,7 +914,7 @@ Expr *parse_statement(Parser *p) {
             Expr_add_child(cn, cb);
             Expr_add_child(node, cn);
         }
-        expect(p, TokenType_TAG_RBrace);
+        expect_token(p, TokenType_TAG_RBrace);
         return node;
     }
     case TokenType_TAG_KwOwn: {
@@ -978,7 +978,7 @@ Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out) {
         advance(&p); // consume 'mode'
         // Accept TOK_IDENT or TOK_TEST (test is both a keyword and a mode name)
         Token *mode_name = (check(&p, TokenType_TAG_Ident) || check(&p, TokenType_TAG_KwTest))
-            ? advance(&p) : expect(&p, TokenType_TAG_Ident);
+            ? advance(&p) : expect_token(&p, TokenType_TAG_Ident);
         if (mode_out) *mode_out = tok_str(mode_name);
         _last_parsed_mode = tok_str(mode_name);
     }
