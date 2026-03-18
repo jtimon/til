@@ -77,14 +77,7 @@ expr_vec_get := ext_func(v: Vec, shallow i: U32) returns ref Expr {}
 expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
 
 // Mode
-mode_none := ext_func() returns Mode {}
 mode_resolve := ext_func(name: Str) returns Mode {}
-mode_eq := ext_func(a: Mode, b: Mode) returns shallow Bool {}
-mode_test := ext_func() returns Mode {}
-mode_pure := ext_func() returns Mode {}
-mode_pura := ext_func() returns Mode {}
-mode_name := ext_func(m: Mode) returns Str {}
-mode_auto_import := ext_func(m: Mode) returns Str {}
 mode_is_lib := ext_func(m: Mode) returns shallow Bool {}
 mode_is_lib_output := ext_func(m: Mode) returns shallow Bool {}
 
@@ -323,16 +316,16 @@ main := proc(args: ..Str) {
 
     // Resolve cur_mode
     mode_str := til_parse_mode()
-    mut cur_mode : Mode = mode_none()
+    mut cur_mode : Mode = mode_resolve("script")
     if mode_str.len().gt(0) {
         cur_mode = mode_resolve(mode_str)
-        if mode_eq(cur_mode, mode_none()) {
+        if cur_mode.name.len().eq(0) {
             panic(__LOC__, "unknown mode '".concat(mode_str).concat("'"))
         }
     }
 
     // If mode has auto_import, load its .til declarations
-    auto_import := mode_auto_import(cur_mode)
+    auto_import := cur_mode.auto_import
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)
     import_decls := expr_vec_new()
@@ -440,9 +433,9 @@ main := proc(args: ..Str) {
     }
 
     run_tests := command.eq("test")
-        .or(mode_eq(cur_mode, mode_test()))
-        .or(mode_eq(cur_mode, mode_pure()))
-        .or(mode_eq(cur_mode, mode_pura()))
+        .or(cur_mode.name.eq("test"))
+        .or(cur_mode.name.eq("pure"))
+        .or(cur_mode.name.eq("pura"))
 
     precomp(ast)
 
@@ -577,11 +570,7 @@ main := proc(args: ..Str) {
             result = til_system(cmd)
         }
     } else if command.eq("ast") {
-        if mode_eq(cur_mode, mode_none()).not() {
-            println("mode: ".concat(mode_name(cur_mode)))
-        } else {
-            println("mode: (none)")
-        }
+        println("mode: ".concat(cur_mode.name))
         ast_print(ast, 0)
     } else {
         println("error: unknown command '".concat(command).concat("'"))

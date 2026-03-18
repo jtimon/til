@@ -30,14 +30,7 @@ Vec * expr_vec_new(void);
 void expr_vec_push(Vec *, Expr *);
 Expr * expr_vec_get(Vec *, U32);
 U32 expr_vec_count(Vec *);
-Mode * mode_none(void);
 Mode * mode_resolve(Str *);
-Bool mode_eq(Mode *, Mode *);
-Mode * mode_test(void);
-Mode * mode_pure(void);
-Mode * mode_pura(void);
-Str * mode_name(Mode *);
-Str * mode_auto_import(Mode *);
 Bool mode_is_lib(Mode *);
 Bool mode_is_lib_output(Mode *);
 TypeScope * tscope_new(TypeScope *);
@@ -610,13 +603,13 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t3656;
-static I64 *_t3657;
-static I64 *_t3658;
+static I64 *_t3649;
+static I64 *_t3650;
+static I64 *_t3651;
 static U64 *CAP_LIT;
-static I64 *_t3659;
-static I64 *_t3660;
-static I64 *_t3661;
+static I64 *_t3652;
+static I64 *_t3653;
+static I64 *_t3654;
 static U64 *CAP_VIEW;
 static I32 *NODE_BODY;
 static I32 *NODE_LITERAL_STR;
