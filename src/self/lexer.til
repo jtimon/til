@@ -289,7 +289,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 }
             }
             tokens.push(own Token(type = TokenType.Number,
-                text = src.substr(start, pos.sub(start)),
+                text = src.substr(start, pos.sub(start)).clone(),
                 line = line, col = col))
             continue
         }
@@ -302,7 +302,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             }
             word := src.substr(start, pos.sub(start))
             type := lookup_keyword(word)
-            tokens.push(own Token(type = type, text = word, line = line, col = col))
+            tokens.push(own Token(type = type, text = word.clone(), line = line, col = col))
             continue
         }
 
@@ -323,12 +323,12 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             if pos.lt(src_len).and(src.byte_at(pos).eq('"')) {
                 pos = pos.inc()
                 tokens.push(own Token(type = TokenType.StringTok,
-                    text = src.substr(start.add(1), pos.sub(start).sub(2)),
+                    text = src.substr(start.add(1), pos.sub(start).sub(2)).clone(),
                     line = line, col = col))
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
                 tokens.push(own Token(type = TokenType.Error,
-                    text = src.substr(start, pos.sub(start)),
+                    text = src.substr(start, pos.sub(start)).clone(),
                     line = line, col = col))
             }
             continue
@@ -344,13 +344,13 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             pos = pos.inc()
             if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
                 tokens.push(own Token(type = TokenType.Char,
-                    text = src.substr(ch_start, pos.sub(ch_start)),
+                    text = src.substr(ch_start, pos.sub(ch_start)).clone(),
                     line = line, col = col))
                 pos = pos.inc()
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
                 tokens.push(own Token(type = TokenType.Error,
-                    text = src.substr(start, pos.sub(start)),
+                    text = src.substr(start, pos.sub(start)).clone(),
                     line = line, col = col))
             }
             continue
@@ -371,7 +371,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                     ref c3 : U8 = src.byte_at(pos.add(2))
                     if c3.eq('.') {
                         tokens.push(own Token(type = TokenType.DotDotDot,
-                            text = src.substr(start, 3),
+                            text = src.substr(start, 3).clone(),
                             line = line, col = col))
                         pos = pos.add(3)
                         continue
@@ -381,7 +381,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             }
             if two.eq(TokenType.Eof).not() {
                 tokens.push(own Token(type = two,
-                    text = src.substr(start, 2),
+                    text = src.substr(start, 2).clone(),
                     line = line, col = col))
                 pos = pos.add(2)
                 continue
@@ -413,7 +413,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
 
         if single.eq(TokenType.Eof).not() {
             tokens.push(own Token(type = single,
-                text = src.substr(start, 1),
+                text = src.substr(start, 1).clone(),
                 line = line, col = col))
             pos = pos.inc()
             continue
@@ -422,7 +422,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
         // Unknown character
         println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
         tokens.push(own Token(type = TokenType.Error,
-            text = src.substr(start, 1),
+            text = src.substr(start, 1).clone(),
             line = line, col = col))
         pos = pos.inc()
     }

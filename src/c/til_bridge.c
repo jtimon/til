@@ -18,18 +18,16 @@
 #include <unistd.h>
 #include <stdio.h>
 
-// --- Tokenize/Parse wrappers (avoid output params) ---
+// --- Tokenize/Parse wrappers ---
 
+// DEAD: kept for first-pass bootstrap compat, remove after regeneration
 static Vec *_tok_vec;
-static Str _parse_mode;
-
 Vec *til_tokenize(Str *source, Str *path) {
-    // Clone inputs: tokenizer creates Str views (CAP_VIEW) into source buffer,
-    // and parser stores path in AST nodes. The generated caller may free its
-    // copies (scavenger inserts Str_delete), so the bridge must own persistent copies.
     _tok_vec = tokenize(Str_clone(source), Str_clone(path));
     return _tok_vec;
 }
+
+static Str _parse_mode;
 
 Expr *til_parse(Vec *tokens, Str *path) {
     _parse_mode = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
