@@ -19,7 +19,7 @@ typedef struct {
 extern Mode MODE_SCRIPT, MODE_CLI, MODE_GUI, MODE_TEST;
 extern Mode MODE_PURE, MODE_PURA, MODE_LIB, MODE_LIBA;
 
-Bool mode_is_lib(const Mode *m);
-Bool mode_is_lib_output(const Mode *m);
+Bool mode_is_lib(Mode *m);
+Bool mode_is_lib_output(Mode *m);
 
 #endif

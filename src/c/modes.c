@@ -14,7 +14,7 @@ Mode MODE_LIBA   = {STR_LIT("liba"),   0, 1, STR_EMPTY, 0, 1};
 
 // --- Mode helpers ---
 
-const Mode *mode_resolve(Str *name) {
+Mode *mode_resolve(Str *name) {
     if (!name) return NULL;
     if ((name->count == 6 && memcmp(name->c_str, "script", 6) == 0)) return &MODE_SCRIPT;
     if ((name->count == 3 && memcmp(name->c_str, "cli", 3) == 0))    return &MODE_CLI;
@@ -30,10 +30,10 @@ const Mode *mode_resolve(Str *name) {
 // Bridge-only functions (Mode_eq, mode_script/cli/etc getters,
 // mode_name, mode_auto_import) removed — only til_bridge.c uses them.
 
-Bool mode_is_lib(const Mode *m) {
+Bool mode_is_lib(Mode *m) {
     return m && (m == &MODE_LIB || m == &MODE_LIBA);
 }
-Bool mode_is_lib_output(const Mode *m) {
+Bool mode_is_lib_output(Mode *m) {
     return m && (m == &MODE_LIB || m == &MODE_LIBA ||
                  m == &MODE_PURE || m == &MODE_PURA);
 }

@@ -94,7 +94,7 @@ U32 expr_vec_count(Vec *v) { return v->count; }
 
 // --- Mode helpers ---
 
-const Mode *til_mode_resolve(Str *name) {
+Mode *til_mode_resolve(Str *name) {
     if (!name) return NULL;
     if ((name->count == 6 && memcmp(name->c_str, "script", 6) == 0)) return &MODE_SCRIPT;
     if ((name->count == 3 && memcmp(name->c_str, "cli", 3) == 0))    return &MODE_CLI;
@@ -107,27 +107,27 @@ const Mode *til_mode_resolve(Str *name) {
     return NULL;
 }
 
-Bool til_mode_eq(const Mode *a, const Mode *b) { return a == b; }
+Bool til_mode_eq(Mode *a, Mode *b) { return a == b; }
 
-const Mode *til_mode_none(void)   { return NULL; }
-const Mode *til_mode_script(void) { return &MODE_SCRIPT; }
-const Mode *til_mode_cli(void)    { return &MODE_CLI; }
-const Mode *til_mode_gui(void)    { return &MODE_GUI; }
-const Mode *til_mode_test(void)   { return &MODE_TEST; }
-const Mode *til_mode_pure(void)   { return &MODE_PURE; }
-const Mode *til_mode_pura(void)   { return &MODE_PURA; }
-const Mode *til_mode_lib(void)    { return &MODE_LIB; }
-const Mode *til_mode_liba(void)   { return &MODE_LIBA; }
+Mode *til_mode_none(void)   { return NULL; }
+Mode *til_mode_script(void) { return &MODE_SCRIPT; }
+Mode *til_mode_cli(void)    { return &MODE_CLI; }
+Mode *til_mode_gui(void)    { return &MODE_GUI; }
+Mode *til_mode_test(void)   { return &MODE_TEST; }
+Mode *til_mode_pure(void)   { return &MODE_PURE; }
+Mode *til_mode_pura(void)   { return &MODE_PURA; }
+Mode *til_mode_lib(void)    { return &MODE_LIB; }
+Mode *til_mode_liba(void)   { return &MODE_LIBA; }
 
-Str *til_mode_name(const Mode *m) { return m ? Str_clone((Str *)&m->name) : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}); }
-Str *til_mode_auto_import(const Mode *m) {
+Str *til_mode_name(Mode *m) { return m ? Str_clone((Str *)&m->name) : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}); }
+Str *til_mode_auto_import(Mode *m) {
     return m ? Str_clone((Str *)&m->auto_import) : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
 }
 
-Bool til_mode_is_lib(const Mode *m) {
+Bool til_mode_is_lib(Mode *m) {
     return m && (m == &MODE_LIB || m == &MODE_LIBA);
 }
-Bool til_mode_is_lib_output(const Mode *m) {
+Bool til_mode_is_lib_output(Mode *m) {
     return m && (m == &MODE_LIB || m == &MODE_LIBA ||
                  m == &MODE_PURE || m == &MODE_PURA);
 }
@@ -138,17 +138,17 @@ I32 til_init_declarations(Expr *program, TypeScope *scope) {
     return init_declarations(program, scope);
 }
 
-I32 til_type_check(Expr *program, TypeScope *scope, const Mode *mode) {
+I32 til_type_check(Expr *program, TypeScope *scope, Mode *mode) {
     return type_check(program, scope, mode);
 }
 
 void til_precomp(Expr *program) { precomp(program); }
 
-void til_scavenge(Expr *program, const Mode *mode, Bool run_tests) {
+void til_scavenge(Expr *program, Mode *mode, Bool run_tests) {
     scavenge(program, mode, run_tests);
 }
 
-I32 til_interpret_v(Expr *ast, const Mode *mode, Bool run_tests,
+I32 til_interpret_v(Expr *ast, Mode *mode, Bool run_tests,
                     Str *path, Str *user_c, Str *ext_c, Str *link_flags,
                     Vec *user_argv) {
     if (user_c && user_c->count == 0) user_c = NULL;
@@ -156,7 +156,7 @@ I32 til_interpret_v(Expr *ast, const Mode *mode, Bool run_tests,
     return interpret(ast, mode, run_tests, path, user_c, ext_c, link_flags, user_argv);
 }
 
-I32 til_build(Expr *ast, const Mode *mode, Bool run_tests,
+I32 til_build(Expr *ast, Mode *mode, Bool run_tests,
               Str *path, Str *c_path) {
     return build(ast, mode, run_tests, path, c_path);
 }

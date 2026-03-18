@@ -1193,7 +1193,7 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
-I32 interpret(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv) {
+I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv) {
     U32 user_argc = user_argv ? (U32)user_argv->count : 0;
     // Initialize FFI: load user .c library (if provided) and auto-discover C functions
     I32 ffi_rc = ffi_init(program, user_c_path, ext_c_path, link_flags);

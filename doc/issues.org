@@ -789,6 +789,11 @@
   Until fixed, src/c/pre70.h provides CAP_LIT/CAP_VIEW as ~#define~s
   (workaround for the scalar case). Will live until #39 is done.
 
+  Also blocks ~const~ in hand-written C: the builder doesn't emit
+  ~const~ qualifiers, so C code must drop ~const~ from ~Mode *~ etc.
+  to match generated signatures for #39 swaps. Once #70 lands, the
+  builder can emit ~const~ where appropriate and C can use it again.
+
 ** OPEN #82 POSIX ~--~ end-of-options in til CLI argument parsing
   Decide whether til's CLI argument parser should support ~--~ as
   "end of options" (POSIX getopt convention). Most Unix tools support

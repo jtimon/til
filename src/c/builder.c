@@ -1175,7 +1175,7 @@ static void emit_ns_inits(FILE *f, I32 depth) {
     }
 }
 
-static void emit_func_def(FILE *f, Str *name, Expr *func_def, const Mode *mode, Bool is_static) {
+static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool is_static) {
     (void)func_def->data.data.FuncDef.func_type;
     Expr *body = Expr_child(func_def, &(I64){(I64)(0)});
 
@@ -1626,7 +1626,7 @@ static Str *path_basename_no_ext(Str *path) {
     return Str_clone(Str_substr(path, &start, &(U64){end - start}));
 }
 
-I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
+I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     (void)path;
 
     codegen_program = program;

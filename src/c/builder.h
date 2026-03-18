@@ -7,7 +7,7 @@
 // Generate C source code from a parsed program.
 // Writes the generated C to `c_output_path`.
 // Returns 0 on success, non-zero on error.
-I32 build(Expr *program, const Mode *mode, Bool run_tests, Str *path, Str *c_output_path);
+I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path);
 
 // Generate a C header file declaring the library's public interface.
 I32 build_header(Expr *program, Str *h_path);

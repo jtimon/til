@@ -9,7 +9,7 @@
 // --- Type inference/checking pass ---
 
 static I32 errors;
-static const Mode *current_mode;
+static Mode *current_mode;
 
 static void type_error(Expr *e, const char *msg) {
     fprintf(stderr, "%s:%u:%u: type error: %s\n", e->path.c_str, e->line, e->col, msg);
@@ -3509,7 +3509,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
     insert_free_calls(body, scope, owns_scope);
 }
 
-I32 type_check(Expr *program, TypeScope *scope, const Mode *mode) {
+I32 type_check(Expr *program, TypeScope *scope, Mode *mode) {
     errors = 0;
     current_mode = mode;
     infer_body(scope, program, 0, 1, 0, 0);

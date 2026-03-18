@@ -133,7 +133,7 @@ static void collect_refs(Expr *e, Vec *refs) {
         collect_refs(Expr_child(e, &(I64){(I64)(i)}), refs);
 }
 
-void scavenge(Expr *program, const Mode *mode, Bool run_tests) {
+void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     Bool is_cli = mode && mode->needs_main && !run_tests;
 
     { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
