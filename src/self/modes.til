@@ -15,24 +15,33 @@ Mode := struct {
     }
 }
 
-MODE_SCRIPT := Mode(name = "script")
-MODE_CLI    := Mode(name = "cli", needs_main = true, decls_only = true)
-MODE_GUI    := Mode(name = "gui", needs_main = true, decls_only = true, auto_import = "gui")
-MODE_TEST   := Mode(name = "test", decls_only = true)
-MODE_PURE   := Mode(name = "pure", decls_only = true, is_pure = true)
-MODE_PURA   := Mode(name = "pura", decls_only = true, is_pure = true, debug_prints = true)
-MODE_LIB    := Mode(name = "lib", decls_only = true)
-MODE_LIBA   := Mode(name = "liba", decls_only = true, debug_prints = true)
+// Core mode registry — user-defined modes (#63) will add to this via -M flag
+core_modes := {
+    "script": Mode(name = "script"),
+    "cli":    Mode(name = "cli", needs_main = true, decls_only = true),
+    "gui":    Mode(name = "gui", needs_main = true, decls_only = true, auto_import = "gui"),
+    "test":   Mode(name = "test", decls_only = true),
+    "pure":   Mode(name = "pure", decls_only = true, is_pure = true),
+    "pura":   Mode(name = "pura", decls_only = true, is_pure = true, debug_prints = true),
+    "lib":    Mode(name = "lib", decls_only = true),
+    "liba":   Mode(name = "liba", decls_only = true, debug_prints = true),
+}
+
+// Convenience constants for comparisons
+ref MODE_SCRIPT : Mode = core_modes.get("script")
+ref MODE_CLI    : Mode = core_modes.get("cli")
+ref MODE_GUI    : Mode = core_modes.get("gui")
+ref MODE_TEST   : Mode = core_modes.get("test")
+ref MODE_PURE   : Mode = core_modes.get("pure")
+ref MODE_PURA   : Mode = core_modes.get("pura")
+ref MODE_LIB    : Mode = core_modes.get("lib")
+ref MODE_LIBA   : Mode = core_modes.get("liba")
 
 mode_resolve := func(name: Str) returns Mode {
-    if name.eq("script") { return MODE_SCRIPT }
-    if name.eq("cli")    { return MODE_CLI }
-    if name.eq("gui")    { return MODE_GUI }
-    if name.eq("test")   { return MODE_TEST }
-    if name.eq("pure")   { return MODE_PURE }
-    if name.eq("pura")   { return MODE_PURA }
-    if name.eq("lib")    { return MODE_LIB }
-    if name.eq("liba")   { return MODE_LIBA }
+    if core_modes.has(name) {
+        ref m : Mode = core_modes.get(name)
+        return m
+    }
     panic(__LOC__, "unknown mode '".concat(name).concat("'"))
     return MODE_SCRIPT
 }
