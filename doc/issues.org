@@ -423,24 +423,31 @@
 
 *** Compatibility commit pattern (step 4)
     Before the actual swap, verify the generated code is compatible
-    with all callers.
+    with all callers. Copy the per-module file into src/c/:
 
-    For small modules (modes): copy function bodies from
-    ~bootstrap/XX_XX.c~ (per-module file) into ~src/c/XX.c~,
-    keep old includes and compile-time globals.
+    ~cp bootstrap/XX_XX.c src/c/XX.c~
 
-    For large modules (parser, ast): copy the monolithic
-    ~bootstrap/XX.c~ into ~src/c/XX.c~. The monolithic file
-    is self-contained (includes its own per-module headers and
-    .c files via ~-Ibootstrap~). No need to expand src/c/XX.h —
-    the monolithic file has all declarations internally.
+    The per-module file (~bootstrap/XX_XX.c~) contains ONLY the
+    module's own function bodies — not the full core/lexer/ast
+    chain. That's the file we want:
+    - ~bootstrap/modes_modes.c~ → ~src/c/modes.c~
+    - ~bootstrap/parser_parser.c~ → ~src/c/parser.c~
+    - ~bootstrap/initer_initer.c~ → ~src/c/initer.c~ (future)
 
-    Note: the per-module files (~bootstrap/XX_XX.c~) are what
-    contain the actual module logic. The monolithic file
-    (~bootstrap/XX.c~) includes them via ~#include "XX_XX.c"~ at
-    the bottom. When checking generated signatures, look at the
-    per-module file (~bootstrap/XX_XX.h~ for declarations,
-    ~bootstrap/XX_XX.c~ for implementations).
+    Do NOT use the monolithic ~bootstrap/XX.c~ — that's 10K+ lines
+    including all imported modules. The monolithic file exists only
+    for compilation as part of SRCS; the per-module file is the
+    actual module logic.
+
+    After copying, fix the ~#include~ line:
+    ~#include "XX_XX.h"~ → ~#include "XX.h"~
+
+    Then expand ~src/c/XX.h~ with any declarations the generated
+    code needs that aren't in ~bootstrap/modes.h~ (e.g. ~Str_lit~,
+    ~U32_to_str~, ~Mode_size~, scalar methods, ~DEREF~ macro).
+
+    Build + test. If it passes, the generated code is compatible.
+    The swap commit then changes modes.til's import.
 
     Build + test. If it passes, the generated code is compatible.
     The swap commit then changes modes.til's import.
