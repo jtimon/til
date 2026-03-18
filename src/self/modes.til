@@ -1,6 +1,6 @@
 mode lib
 
-import("ast.til")
+import("lexer.til")
 
 Mode := struct {
     mut name := ""

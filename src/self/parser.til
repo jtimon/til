@@ -1,7 +1,6 @@
 mode lib
 
 import("lexer.til")
-import("ast.til")
 
 // --- Parser state ---
 

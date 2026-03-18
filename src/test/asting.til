@@ -1,5 +1,4 @@
 mode test
-import("../self/ast.til")
 
 test_node_name := test() {
     assert_eq_str(__LOC__, node_name(ExprData.Body), "body")

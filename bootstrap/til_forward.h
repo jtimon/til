@@ -5,16 +5,6 @@
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
 typedef struct Dynamic Dynamic;
-typedef enum {
-    FuncType_TAG_Func,
-    FuncType_TAG_Proc,
-    FuncType_TAG_Test,
-    FuncType_TAG_Macro,
-    FuncType_TAG_ExtFunc,
-    FuncType_TAG_ExtProc
-} FuncType_tag;
-typedef struct FuncType FuncType;
-typedef struct FunctionDef FunctionDef;
 typedef struct Range Range;
 typedef struct Array Array;
 typedef struct Map Map;
@@ -22,76 +12,6 @@ typedef struct Set Set;
 typedef struct Str Str;
 typedef struct Vec Vec;
 typedef struct Tuple Tuple;
-typedef enum {
-    TokenType_TAG_Eof,
-    TokenType_TAG_LParen,
-    TokenType_TAG_RParen,
-    TokenType_TAG_LBrace,
-    TokenType_TAG_RBrace,
-    TokenType_TAG_LBracket,
-    TokenType_TAG_RBracket,
-    TokenType_TAG_Comma,
-    TokenType_TAG_Colon,
-    TokenType_TAG_Question,
-    TokenType_TAG_Bang,
-    TokenType_TAG_Minus,
-    TokenType_TAG_Plus,
-    TokenType_TAG_Star,
-    TokenType_TAG_Slash,
-    TokenType_TAG_Dot,
-    TokenType_TAG_DotDot,
-    TokenType_TAG_DotDotDot,
-    TokenType_TAG_Eq,
-    TokenType_TAG_EqEq,
-    TokenType_TAG_Neq,
-    TokenType_TAG_Lt,
-    TokenType_TAG_LtEq,
-    TokenType_TAG_Gt,
-    TokenType_TAG_GtEq,
-    TokenType_TAG_ColonEq,
-    TokenType_TAG_Ident,
-    TokenType_TAG_StringTok,
-    TokenType_TAG_Number,
-    TokenType_TAG_Char,
-    TokenType_TAG_KwMode,
-    TokenType_TAG_KwMut,
-    TokenType_TAG_KwOwn,
-    TokenType_TAG_KwRef,
-    TokenType_TAG_KwShallow,
-    TokenType_TAG_KwStruct,
-    TokenType_TAG_KwExtStruct,
-    TokenType_TAG_KwEnum,
-    TokenType_TAG_KwNamespace,
-    TokenType_TAG_KwFunc,
-    TokenType_TAG_KwProc,
-    TokenType_TAG_KwTest,
-    TokenType_TAG_KwMacro,
-    TokenType_TAG_KwExtFunc,
-    TokenType_TAG_KwExtProc,
-    TokenType_TAG_KwReturns,
-    TokenType_TAG_KwThrows,
-    TokenType_TAG_KwIf,
-    TokenType_TAG_KwElse,
-    TokenType_TAG_KwWhile,
-    TokenType_TAG_KwFor,
-    TokenType_TAG_KwIn,
-    TokenType_TAG_KwSwitch,
-    TokenType_TAG_KwMatch,
-    TokenType_TAG_KwCase,
-    TokenType_TAG_KwDefault,
-    TokenType_TAG_KwReturn,
-    TokenType_TAG_KwThrow,
-    TokenType_TAG_KwCatch,
-    TokenType_TAG_KwBreak,
-    TokenType_TAG_KwContinue,
-    TokenType_TAG_KwDefer,
-    TokenType_TAG_KwTrue,
-    TokenType_TAG_KwFalse,
-    TokenType_TAG_KwNull,
-    TokenType_TAG_Error
-} TokenType_tag;
-typedef struct TokenType TokenType;
-typedef struct Token Token;
 typedef enum {
     TilType_TAG_Unknown,
     TilType_TAG_None,
@@ -113,6 +33,16 @@ typedef enum {
 } TilType_tag;
 typedef struct TilType TilType;
 typedef struct Declaration Declaration;
+typedef enum {
+    FuncType_TAG_Func,
+    FuncType_TAG_Proc,
+    FuncType_TAG_Test,
+    FuncType_TAG_Macro,
+    FuncType_TAG_ExtFunc,
+    FuncType_TAG_ExtProc
+} FuncType_tag;
+typedef struct FuncType FuncType;
+typedef struct FunctionDef FunctionDef;
 typedef enum {
     ExprData_TAG_Body,
     ExprData_TAG_LiteralStr,
@@ -160,10 +90,6 @@ typedef struct Dynamic {
 } Dynamic;
 
 
-struct FuncType {
-    FuncType_tag tag;
-};
-
 
 
 
@@ -203,18 +129,6 @@ typedef struct Tuple {
 } Tuple;
 
 
-struct TokenType {
-    TokenType_tag tag;
-};
-
-typedef struct Token {
-    TokenType type;
-    Str text;
-    U32 line;
-    U32 col;
-} Token;
-
-
 struct TilType {
     TilType_tag tag;
 };
@@ -232,6 +146,10 @@ typedef struct Declaration {
     Expr *fn_sig;
 } Declaration;
 
+
+struct FuncType {
+    FuncType_tag tag;
+};
 
 typedef struct Mode {
     Str name;
@@ -340,16 +258,6 @@ typedef struct Expr {
 EnumDef * EnumDef_clone(EnumDef * self);
 void EnumDef_delete(EnumDef * self, Bool * call_free);
 U64 * EnumDef_size(void);
-Bool * FuncType_eq(FuncType * self, FuncType * other);
-FuncType * FuncType_clone(FuncType * self);
-void FuncType_delete(FuncType * self, Bool * call_free);
-Str * FuncType_to_str(FuncType * self);
-U64 * FuncType_size(void);
-Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
-Str * FunctionDef_to_str(FunctionDef * self);
-FunctionDef * FunctionDef_clone(FunctionDef * self);
-void FunctionDef_delete(FunctionDef * self, Bool * call_free);
-U64 * FunctionDef_size(void);
 Range * Range_new(U64 start, U64 end);
 U64 * Range_len(Range * self);
 U64 * Range_get(Range * self, U64 i);
@@ -440,20 +348,6 @@ U64 * Tuple_size_at(Tuple * self, U64 * i);
 void Tuple_delete(Tuple * self, Bool * call_free);
 Tuple * Tuple_clone(Tuple * self);
 U64 * Tuple_size(void);
-Bool * TokenType_eq(TokenType * self, TokenType * other);
-TokenType * TokenType_clone(TokenType * self);
-void TokenType_delete(TokenType * self, Bool * call_free);
-Str * TokenType_to_str(TokenType * self);
-U64 * TokenType_size(void);
-Token * Token_clone(Token * self);
-void Token_delete(Token * self, Bool * call_free);
-U64 * Token_size(void);
-Bool * is_digit(U8 * c);
-Bool * is_alpha(U8 * c);
-Bool * is_alnum(U8 * c);
-Str * tok_name(TokenType * type);
-TokenType * lookup_keyword(Str * word);
-Vec * tokenize(Str * src, Str * path);
 Bool * TilType_eq(TilType * self, TilType * other);
 TilType * TilType_clone(TilType * self);
 void TilType_delete(TilType * self, Bool * call_free);
@@ -465,6 +359,16 @@ Str * Declaration_to_str(Declaration * self);
 Declaration * Declaration_clone(Declaration * self);
 void Declaration_delete(Declaration * self, Bool * call_free);
 U64 * Declaration_size(void);
+Bool * FuncType_eq(FuncType * self, FuncType * other);
+FuncType * FuncType_clone(FuncType * self);
+void FuncType_delete(FuncType * self, Bool * call_free);
+Str * FuncType_to_str(FuncType * self);
+U64 * FuncType_size(void);
+Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
+Str * FunctionDef_to_str(FunctionDef * self);
+FunctionDef * FunctionDef_clone(FunctionDef * self);
+void FunctionDef_delete(FunctionDef * self, Bool * call_free);
+U64 * FunctionDef_size(void);
 Bool * ExprData_eq(ExprData * self, ExprData * other);
 ExprData * ExprData_clone(ExprData * self);
 void ExprData_delete(ExprData * self, Bool * call_free);
@@ -497,151 +401,4 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, void * resolved_set, v
 void usage(void);
 void mark_core(Expr * e);
 void main(Array * args);
-Bool * TokenType_eq(TokenType *, TokenType *);
-TokenType *TokenType_Eof();
-TokenType *TokenType_LParen();
-TokenType *TokenType_RParen();
-TokenType *TokenType_LBrace();
-TokenType *TokenType_RBrace();
-TokenType *TokenType_LBracket();
-TokenType *TokenType_RBracket();
-TokenType *TokenType_Comma();
-TokenType *TokenType_Colon();
-TokenType *TokenType_Question();
-TokenType *TokenType_Bang();
-TokenType *TokenType_Minus();
-TokenType *TokenType_Plus();
-TokenType *TokenType_Star();
-TokenType *TokenType_Slash();
-TokenType *TokenType_Dot();
-TokenType *TokenType_DotDot();
-TokenType *TokenType_DotDotDot();
-TokenType *TokenType_Eq();
-TokenType *TokenType_EqEq();
-TokenType *TokenType_Neq();
-TokenType *TokenType_Lt();
-TokenType *TokenType_LtEq();
-TokenType *TokenType_Gt();
-TokenType *TokenType_GtEq();
-TokenType *TokenType_ColonEq();
-TokenType *TokenType_Ident();
-TokenType *TokenType_StringTok();
-TokenType *TokenType_Number();
-TokenType *TokenType_Char();
-TokenType *TokenType_KwMode();
-TokenType *TokenType_KwMut();
-TokenType *TokenType_KwOwn();
-TokenType *TokenType_KwRef();
-TokenType *TokenType_KwShallow();
-TokenType *TokenType_KwStruct();
-TokenType *TokenType_KwExtStruct();
-TokenType *TokenType_KwEnum();
-TokenType *TokenType_KwNamespace();
-TokenType *TokenType_KwFunc();
-TokenType *TokenType_KwProc();
-TokenType *TokenType_KwTest();
-TokenType *TokenType_KwMacro();
-TokenType *TokenType_KwExtFunc();
-TokenType *TokenType_KwExtProc();
-TokenType *TokenType_KwReturns();
-TokenType *TokenType_KwThrows();
-TokenType *TokenType_KwIf();
-TokenType *TokenType_KwElse();
-TokenType *TokenType_KwWhile();
-TokenType *TokenType_KwFor();
-TokenType *TokenType_KwIn();
-TokenType *TokenType_KwSwitch();
-TokenType *TokenType_KwMatch();
-TokenType *TokenType_KwCase();
-TokenType *TokenType_KwDefault();
-TokenType *TokenType_KwReturn();
-TokenType *TokenType_KwThrow();
-TokenType *TokenType_KwCatch();
-TokenType *TokenType_KwBreak();
-TokenType *TokenType_KwContinue();
-TokenType *TokenType_KwDefer();
-TokenType *TokenType_KwTrue();
-TokenType *TokenType_KwFalse();
-TokenType *TokenType_KwNull();
-TokenType *TokenType_Error();
-Bool * TilType_eq(TilType *, TilType *);
-TilType *TilType_Unknown();
-TilType *TilType_None();
-TilType *TilType_I64();
-TilType *TilType_U8();
-TilType *TilType_I16();
-TilType *TilType_I32();
-TilType *TilType_U32();
-TilType *TilType_U64();
-TilType *TilType_F32();
-TilType *TilType_Bool();
-TilType *TilType_Struct();
-TilType *TilType_StructDef();
-TilType *TilType_Enum();
-TilType *TilType_EnumDef();
-TilType *TilType_FuncDef();
-TilType *TilType_FuncPtr();
-TilType *TilType_Dynamic();
-Bool * ExprData_eq(ExprData *, ExprData *);
-Bool * ExprData_is_Body(ExprData *);
-ExprData *ExprData_Body();
-Bool * ExprData_is_LiteralStr(ExprData *);
-ExprData *ExprData_LiteralStr(Str *);
-Str * ExprData_get_LiteralStr(ExprData *);
-Bool * ExprData_is_LiteralNum(ExprData *);
-ExprData *ExprData_LiteralNum(Str *);
-Str * ExprData_get_LiteralNum(ExprData *);
-Bool * ExprData_is_LiteralBool(ExprData *);
-ExprData *ExprData_LiteralBool(Str *);
-Str * ExprData_get_LiteralBool(ExprData *);
-Bool * ExprData_is_LiteralNull(ExprData *);
-ExprData *ExprData_LiteralNull();
-Bool * ExprData_is_Ident(ExprData *);
-ExprData *ExprData_Ident(Str *);
-Str * ExprData_get_Ident(ExprData *);
-Bool * ExprData_is_Decl(ExprData *);
-ExprData *ExprData_Decl(Declaration *);
-Declaration * ExprData_get_Decl(ExprData *);
-Bool * ExprData_is_Assign(ExprData *);
-ExprData *ExprData_Assign(Str *);
-Str * ExprData_get_Assign(ExprData *);
-Bool * ExprData_is_FCall(ExprData *);
-ExprData *ExprData_FCall();
-Bool * ExprData_is_FuncDef(ExprData *);
-ExprData *ExprData_FuncDef(FunctionDef *);
-FunctionDef * ExprData_get_FuncDef(ExprData *);
-Bool * ExprData_is_StructDef(ExprData *);
-ExprData *ExprData_StructDef();
-Bool * ExprData_is_EnumDef(ExprData *);
-ExprData *ExprData_EnumDef();
-Bool * ExprData_is_FieldAccess(ExprData *);
-ExprData *ExprData_FieldAccess(Str *);
-Str * ExprData_get_FieldAccess(ExprData *);
-Bool * ExprData_is_FieldAssign(ExprData *);
-ExprData *ExprData_FieldAssign(Str *);
-Str * ExprData_get_FieldAssign(ExprData *);
-Bool * ExprData_is_Return(ExprData *);
-ExprData *ExprData_Return();
-Bool * ExprData_is_If(ExprData *);
-ExprData *ExprData_If();
-Bool * ExprData_is_While(ExprData *);
-ExprData *ExprData_While();
-Bool * ExprData_is_ForIn(ExprData *);
-ExprData *ExprData_ForIn(Str *);
-Str * ExprData_get_ForIn(ExprData *);
-Bool * ExprData_is_NamedArg(ExprData *);
-ExprData *ExprData_NamedArg(Str *);
-Str * ExprData_get_NamedArg(ExprData *);
-Bool * ExprData_is_Break(ExprData *);
-ExprData *ExprData_Break();
-Bool * ExprData_is_Continue(ExprData *);
-ExprData *ExprData_Continue();
-Bool * ExprData_is_MapLit(ExprData *);
-ExprData *ExprData_MapLit();
-Bool * ExprData_is_SetLit(ExprData *);
-ExprData *ExprData_SetLit();
-Bool * ExprData_is_Switch(ExprData *);
-ExprData *ExprData_Switch();
-Bool * ExprData_is_Case(ExprData *);
-ExprData *ExprData_Case();
 

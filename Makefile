@@ -60,8 +60,7 @@ test: bin/til_bootstrap bin/til/test_runner bin/til/plot bin/til/tests
 til_core:
 	@$(or $(TIL),bin/til_bootstrap) translate src/self/modes.til
 	@cp gen/til/modes*.c gen/til/modes*.h bootstrap/ 2>/dev/null || true
-	@cp gen/til/ast*.c gen/til/ast*.h bootstrap/ 2>/dev/null || true
-	@cp gen/til/lexer*.c gen/til/lexer*.h bootstrap/ 2>/dev/null || true
+	@$(or $(TIL),bin/til_bootstrap) translate src/self/parser.til
 	@cp gen/til/parser*.c gen/til/parser*.h bootstrap/ 2>/dev/null || true
 	@$(or $(TIL),bin/til_bootstrap) translate src/til.til
 	@cp gen/til/til*.c gen/til/til*.h bootstrap/ 2>/dev/null || true

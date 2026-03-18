@@ -2,8 +2,8 @@
 #include "parser_decls.h"
 
 #include "parser_str.h"
-#include "parser_core.h"
 #include "parser_vec.h"
+#include "parser_map.h"
 
 struct TilType {
     TilType_tag tag;
@@ -21,6 +21,28 @@ typedef struct Declaration {
     Expr *field_struct_def;
     Expr *fn_sig;
 } Declaration;
+
+
+struct FuncType {
+    FuncType_tag tag;
+};
+
+typedef struct FunctionDef {
+    FuncType func_type;
+    Vec param_names;
+    Vec param_types;
+    Vec param_muts;
+    Vec param_owns;
+    Vec param_shallows;
+    Vec param_fn_sigs;
+    U32 nparam;
+    Map param_defaults;
+    Str return_type;
+    I32 variadic_index;
+    I32 kwargs_index;
+    Bool return_is_ref;
+    Bool return_is_shallow;
+} FunctionDef;
 
 
 struct ExprData {
@@ -76,6 +98,16 @@ Str * Declaration_to_str(Declaration * self);
 Declaration * Declaration_clone(Declaration * self);
 void Declaration_delete(Declaration * self, Bool * call_free);
 U64 * Declaration_size(void);
+Bool * FuncType_eq(FuncType * self, FuncType * other);
+FuncType * FuncType_clone(FuncType * self);
+void FuncType_delete(FuncType * self, Bool * call_free);
+Str * FuncType_to_str(FuncType * self);
+U64 * FuncType_size(void);
+Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
+Str * FunctionDef_to_str(FunctionDef * self);
+FunctionDef * FunctionDef_clone(FunctionDef * self);
+void FunctionDef_delete(FunctionDef * self, Bool * call_free);
+U64 * FunctionDef_size(void);
 Bool * ExprData_eq(ExprData * self, ExprData * other);
 ExprData * ExprData_clone(ExprData * self);
 void ExprData_delete(ExprData * self, Bool * call_free);
@@ -97,83 +129,3 @@ void ast_print(Expr * e, U32 indent);
 Bool * enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
-Bool * TilType_eq(TilType *, TilType *);
-TilType *TilType_Unknown();
-TilType *TilType_None();
-TilType *TilType_I64();
-TilType *TilType_U8();
-TilType *TilType_I16();
-TilType *TilType_I32();
-TilType *TilType_U32();
-TilType *TilType_U64();
-TilType *TilType_F32();
-TilType *TilType_Bool();
-TilType *TilType_Struct();
-TilType *TilType_StructDef();
-TilType *TilType_Enum();
-TilType *TilType_EnumDef();
-TilType *TilType_FuncDef();
-TilType *TilType_FuncPtr();
-TilType *TilType_Dynamic();
-Bool * ExprData_eq(ExprData *, ExprData *);
-Bool * ExprData_is_Body(ExprData *);
-ExprData *ExprData_Body();
-Bool * ExprData_is_LiteralStr(ExprData *);
-ExprData *ExprData_LiteralStr(Str *);
-Str * ExprData_get_LiteralStr(ExprData *);
-Bool * ExprData_is_LiteralNum(ExprData *);
-ExprData *ExprData_LiteralNum(Str *);
-Str * ExprData_get_LiteralNum(ExprData *);
-Bool * ExprData_is_LiteralBool(ExprData *);
-ExprData *ExprData_LiteralBool(Str *);
-Str * ExprData_get_LiteralBool(ExprData *);
-Bool * ExprData_is_LiteralNull(ExprData *);
-ExprData *ExprData_LiteralNull();
-Bool * ExprData_is_Ident(ExprData *);
-ExprData *ExprData_Ident(Str *);
-Str * ExprData_get_Ident(ExprData *);
-Bool * ExprData_is_Decl(ExprData *);
-ExprData *ExprData_Decl(Declaration *);
-Declaration * ExprData_get_Decl(ExprData *);
-Bool * ExprData_is_Assign(ExprData *);
-ExprData *ExprData_Assign(Str *);
-Str * ExprData_get_Assign(ExprData *);
-Bool * ExprData_is_FCall(ExprData *);
-ExprData *ExprData_FCall();
-Bool * ExprData_is_FuncDef(ExprData *);
-ExprData *ExprData_FuncDef(FunctionDef *);
-FunctionDef * ExprData_get_FuncDef(ExprData *);
-Bool * ExprData_is_StructDef(ExprData *);
-ExprData *ExprData_StructDef();
-Bool * ExprData_is_EnumDef(ExprData *);
-ExprData *ExprData_EnumDef();
-Bool * ExprData_is_FieldAccess(ExprData *);
-ExprData *ExprData_FieldAccess(Str *);
-Str * ExprData_get_FieldAccess(ExprData *);
-Bool * ExprData_is_FieldAssign(ExprData *);
-ExprData *ExprData_FieldAssign(Str *);
-Str * ExprData_get_FieldAssign(ExprData *);
-Bool * ExprData_is_Return(ExprData *);
-ExprData *ExprData_Return();
-Bool * ExprData_is_If(ExprData *);
-ExprData *ExprData_If();
-Bool * ExprData_is_While(ExprData *);
-ExprData *ExprData_While();
-Bool * ExprData_is_ForIn(ExprData *);
-ExprData *ExprData_ForIn(Str *);
-Str * ExprData_get_ForIn(ExprData *);
-Bool * ExprData_is_NamedArg(ExprData *);
-ExprData *ExprData_NamedArg(Str *);
-Str * ExprData_get_NamedArg(ExprData *);
-Bool * ExprData_is_Break(ExprData *);
-ExprData *ExprData_Break();
-Bool * ExprData_is_Continue(ExprData *);
-ExprData *ExprData_Continue();
-Bool * ExprData_is_MapLit(ExprData *);
-ExprData *ExprData_MapLit();
-Bool * ExprData_is_SetLit(ExprData *);
-ExprData *ExprData_SetLit();
-Bool * ExprData_is_Switch(ExprData *);
-ExprData *ExprData_Switch();
-Bool * ExprData_is_Case(ExprData *);
-ExprData *ExprData_Case();
