@@ -65,6 +65,11 @@ til_core:
 	@cp gen/til/parser.h bootstrap/parser.h
 	@cp gen/til/parser_*.c bootstrap/ 2>/dev/null || true
 	@cp gen/til/parser_*.h bootstrap/ 2>/dev/null || true
+	@bin/til_bootstrap translate src/self/modes.til
+	@cp gen/til/modes.c bootstrap/modes.c
+	@cp gen/til/modes.h bootstrap/modes.h
+	@cp gen/til/modes_*.c bootstrap/ 2>/dev/null || true
+	@cp gen/til/modes_*.h bootstrap/ 2>/dev/null || true
 	@bin/til_bootstrap translate src/til.til
 	@cp gen/til/til.c bootstrap/til.c
 	@cp gen/til/til_*.c bootstrap/ 2>/dev/null || true

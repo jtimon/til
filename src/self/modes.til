@@ -37,7 +37,7 @@ ref MODE_PURA   : Mode = core_modes.get("pura")
 ref MODE_LIB    : Mode = core_modes.get("lib")
 ref MODE_LIBA   : Mode = core_modes.get("liba")
 
-mode_resolve := func(name: Str) returns Mode {
+mode_resolve := func(name: Str) returns ref Mode {
     if core_modes.has(name) {
         ref m : Mode = core_modes.get(name)
         return m
