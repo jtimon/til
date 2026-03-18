@@ -29,7 +29,7 @@ check := func(p: Parser, type: TokenType) returns Bool {
     return peek(p).type.eq(type)
 }
 
-expect := proc(mut p: Parser, type: TokenType) {
+expect_token := proc(mut p: Parser, type: TokenType) {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),
@@ -76,7 +76,7 @@ parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Expr {
         pmuts.push(own is_mut)
         if check(p, TokenType.Comma) { advance(p) }
     }
-    expect(p, TokenType.RParen)
+    expect_token(p, TokenType.RParen)
 
     // Parse optional 'returns Type'
     mut return_type := ""
@@ -116,7 +116,7 @@ parse_block := proc(mut p: Parser) returns Expr {
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         Expr.add_child(body, own parse_statement(p))
     }
-    expect(p, TokenType.RBrace)
+    expect_token(p, TokenType.RBrace)
     return body
 }
 
@@ -136,7 +136,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     case: panic(__LOC__, "expected function keyword")
     }
 
-    expect(p, TokenType.LParen)
+    expect_token(p, TokenType.LParen)
 
     mut fd := FunctionDef()
     fd.func_type = ft
@@ -160,7 +160,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             tp = pname.clone()
             nm = ""
         } else {
-            expect(p, TokenType.Colon)
+            expect_token(p, TokenType.Colon)
             if check(p, TokenType.DotDotDot) {
                 advance(p) // consume '...'
                 if is_own.or(is_mut).or(is_shallow) {
@@ -228,7 +228,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         fd.param_defaults.push(own has_default)
         if check(p, TokenType.Comma) { advance(p) }
     }
-    expect(p, TokenType.RParen)
+    expect_token(p, TokenType.RParen)
 
     // Parse optional 'returns [ref|shallow] Type'
     if check(p, TokenType.KwReturns) {
@@ -246,7 +246,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
     mut def := Expr.new(ExprData.FuncDef(fd), kw_line, kw_col, p.path)
 
     if check(p, TokenType.LBrace) {
-        expect(p, TokenType.LBrace)
+        expect_token(p, TokenType.LBrace)
         Expr.add_child(def, own parse_block(p))
     } else {
         // Bodyless = FuncSig type definition (only for func/proc)
@@ -274,14 +274,14 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
 
     mut def := Expr.new(ExprData.StructDef, kw_line, kw_col, p.path)
     def.is_ext = is_ext
-    expect(p, TokenType.LBrace)
+    expect_token(p, TokenType.LBrace)
 
     mut body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
     mut in_namespace := false
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         if check(p, TokenType.KwNamespace) {
             advance(p)
-            expect(p, TokenType.Colon)
+            expect_token(p, TokenType.Colon)
             in_namespace = true
             continue
         }
@@ -295,7 +295,7 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
         }
         Expr.add_child(body, own stmt)
     }
-    expect(p, TokenType.RBrace)
+    expect_token(p, TokenType.RBrace)
     Expr.add_child(def, own body)
     return def
 }
@@ -307,14 +307,14 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
     advance(p)
 
     mut def := Expr.new(ExprData.EnumDef, kw_line, kw_col, p.path)
-    expect(p, TokenType.LBrace)
+    expect_token(p, TokenType.LBrace)
 
     mut body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
     mut in_namespace := false
     while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
         if check(p, TokenType.KwNamespace) {
             advance(p)
-            expect(p, TokenType.Colon)
+            expect_token(p, TokenType.Colon)
             in_namespace = true
             continue
         }
@@ -343,7 +343,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.Comma) { advance(p) }
         }
     }
-    expect(p, TokenType.RBrace)
+    expect_token(p, TokenType.RBrace)
     Expr.add_child(def, own body)
     return def
 }
@@ -395,7 +395,7 @@ parse_call := proc(mut p: Parser, name: Str, call_line: U32, call_col: U32) retu
         Expr.add_child(call, own arg)
         if check(p, TokenType.Comma) { advance(p) }
     }
-    expect(p, TokenType.RParen)
+    expect_token(p, TokenType.RParen)
     return call
 }
 
@@ -492,7 +492,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.Comma) { advance(p) }
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
                 Expr.add_child(e, own parse_expression(p))
-                expect(p, TokenType.Colon)
+                expect_token(p, TokenType.Colon)
                 Expr.add_child(e, own parse_expression(p))
                 if check(p, TokenType.Comma) { advance(p) }
             }
@@ -506,7 +506,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
                 if check(p, TokenType.Comma) { advance(p) }
             }
         }
-        expect(p, TokenType.RBrace)
+        expect_token(p, TokenType.RBrace)
         e_set = true
     }
 
@@ -553,7 +553,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
                 Expr.add_child(mcall, own marg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
-            expect(p, TokenType.RParen)
+            expect_token(p, TokenType.RParen)
             e = mcall
         } else {
             mut access := Expr.new(ExprData.FieldAccess(fname), f_line, f_col, p.path)
@@ -603,14 +603,14 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
         // FuncSig form: name : func(Types) returns T = (names) { body }
         if check(p, TokenType.KwFunc).or(check(p, TokenType.KwProc)) {
             mut sig := parse_func_def(p) // parses bodyless func(...) returns T
-            expect(p, TokenType.Eq)
+            expect_token(p, TokenType.Eq)
             // Parse (name1, name2, ...) — just identifiers
-            expect(p, TokenType.LParen)
+            expect_token(p, TokenType.LParen)
             if sig.data.is_FuncDef() {
                 mut sfd := sig.data.get_FuncDef()
                 mut new_names := Vec.new("Str", Str.size())
                 for pi in 0..sfd.param_names.len() {
-                    if pi.gt(0) { expect(p, TokenType.Comma) }
+                    if pi.gt(0) { expect_token(p, TokenType.Comma) }
                     pn := expect_text(p, TokenType.Ident)
                     new_names.push(own pn)
                 }
@@ -618,9 +618,9 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                 sig.data = ExprData.FuncDef(sfd)
             }
             if check(p, TokenType.Comma) { advance(p) } // trailing comma
-            expect(p, TokenType.RParen)
+            expect_token(p, TokenType.RParen)
             // Parse { body }
-            expect(p, TokenType.LBrace)
+            expect_token(p, TokenType.LBrace)
             Expr.add_child(sig, own parse_block(p))
             // Wrap in NODE_DECL
             mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
@@ -640,7 +640,7 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
             }
         }
 
-        expect(p, TokenType.Eq)
+        expect_token(p, TokenType.Eq)
 
         // Named FuncSig form: name : Type = (names) { body }
         // Lookahead: check if pattern is (ident [, ident]* [,]) {
@@ -663,16 +663,16 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
 
             if is_fsf {
                 // Parse (name1, name2, ...) as param names
-                expect(p, TokenType.LParen)
+                expect_token(p, TokenType.LParen)
                 mut pnames := Vec.new("Str", Str.size())
                 while check(p, TokenType.RParen).not() {
                     pn := expect_text(p, TokenType.Ident)
                     pnames.push(own pn)
                     if check(p, TokenType.Comma) { advance(p) }
                 }
-                expect(p, TokenType.RParen)
+                expect_token(p, TokenType.RParen)
                 // Parse { body }
-                expect(p, TokenType.LBrace)
+                expect_token(p, TokenType.LBrace)
                 mut body := parse_block(p)
                 // Build incomplete FuncDef (types filled by initer)
                 mut ffd := FunctionDef()
@@ -755,11 +755,11 @@ parse_statement_ident := proc(mut p: Parser, is_mut: Bool, is_own: Bool) returns
                 Expr.add_child(mcall, own marg)
                 if check(p, TokenType.Comma) { advance(p) }
             }
-            expect(p, TokenType.RParen)
+            expect_token(p, TokenType.RParen)
             return mcall
         }
         // Field assignment: name.field = value
-        expect(p, TokenType.Eq)
+        expect_token(p, TokenType.Eq)
         mut fa := Expr.new(ExprData.FieldAssign(last_field), t_line, t_col, p.path)
         Expr.add_child(fa, own obj.clone())
         Expr.add_child(fa, own parse_expression(p))
@@ -805,9 +805,9 @@ parse_statement := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.Colon) {
             advance(p)
             dd.explicit_type = expect_text(p, TokenType.Ident)
-            expect(p, TokenType.Eq)
+            expect_token(p, TokenType.Eq)
         } else {
-            expect(p, TokenType.ColonEq)
+            expect_token(p, TokenType.ColonEq)
         }
         mut decl := Expr.new(ExprData.Decl(dd), i_line, i_col, p.path)
         Expr.add_child(decl, own parse_expression(p))
@@ -829,7 +829,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
         advance(p)
         mut node := Expr.new(ExprData.If, t_line, t_col, p.path)
         Expr.add_child(node, own parse_expression(p))
-        expect(p, TokenType.LBrace)
+        expect_token(p, TokenType.LBrace)
         Expr.add_child(node, own parse_block(p))
         if check(p, TokenType.KwElse) {
             advance(p)
@@ -838,7 +838,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
                 Expr.add_child(else_body, own parse_statement(p))
                 Expr.add_child(node, own else_body)
             } else {
-                expect(p, TokenType.LBrace)
+                expect_token(p, TokenType.LBrace)
                 Expr.add_child(node, own parse_block(p))
             }
         }
@@ -856,7 +856,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
         advance(p)
         mut node := Expr.new(ExprData.While, t_line, t_col, p.path)
         Expr.add_child(node, own parse_expression(p))
-        expect(p, TokenType.LBrace)
+        expect_token(p, TokenType.LBrace)
         Expr.add_child(node, own parse_block(p))
         return node
     }
@@ -870,9 +870,9 @@ parse_statement := proc(mut p: Parser) returns Expr {
             advance(p)
             node.struct_name = expect_text(p, TokenType.Ident)
         }
-        expect(p, TokenType.KwIn)
+        expect_token(p, TokenType.KwIn)
         Expr.add_child(node, own parse_expression(p))
-        expect(p, TokenType.LBrace)
+        expect_token(p, TokenType.LBrace)
         Expr.add_child(node, own parse_block(p))
         return node
     }
@@ -880,14 +880,14 @@ parse_statement := proc(mut p: Parser) returns Expr {
         advance(p)
         mut node := Expr.new(ExprData.Switch, t_line, t_col, p.path)
         Expr.add_child(node, own parse_expression(p))
-        expect(p, TokenType.LBrace)
+        expect_token(p, TokenType.LBrace)
         while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
-            expect(p, TokenType.KwCase)
+            expect_token(p, TokenType.KwCase)
             mut cn := Expr.new(ExprData.Case, peek_line(p), peek_col(p), p.path)
             if check(p, TokenType.Colon).not() {
                 Expr.add_child(cn, own parse_expression(p))
             }
-            expect(p, TokenType.Colon)
+            expect_token(p, TokenType.Colon)
             mut cb := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
             while check(p, TokenType.KwCase).not().and(check(p, TokenType.RBrace).not()).and(check(p, TokenType.Eof).not()) {
                 Expr.add_child(cb, own parse_statement(p))
@@ -895,7 +895,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
             Expr.add_child(cn, own cb)
             Expr.add_child(node, own cn)
         }
-        expect(p, TokenType.RBrace)
+        expect_token(p, TokenType.RBrace)
         return node
     }
     if t.type.eq(TokenType.KwOwn) {
@@ -955,7 +955,7 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
             mode_out = peek(p).text.clone()
             advance(p)
         } else {
-            expect(p, TokenType.Ident)
+            expect_token(p, TokenType.Ident)
         }
     }
 

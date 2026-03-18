@@ -385,7 +385,7 @@ U64 * Parser_size(void);
 Token * peek(Parser * p);
 Token * advance(Parser * p);
 Bool * check(Parser * p, TokenType * type);
-void expect(Parser * p, TokenType * type);
+void expect_token(Parser * p, TokenType * type);
 Str * expect_text(Parser * p, TokenType * type);
 U32 * peek_line(Parser * p);
 U32 * peek_col(Parser * p);
