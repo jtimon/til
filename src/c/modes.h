@@ -19,6 +19,13 @@ typedef struct {
 extern Mode MODE_SCRIPT, MODE_CLI, MODE_GUI, MODE_TEST;
 extern Mode MODE_PURE, MODE_PURA, MODE_LIB, MODE_LIBA;
 
+// Declarations matching generated bootstrap/modes_modes.c
+Str *Str_lit(const char *s, unsigned long long len);
+Bool * Mode_eq(Mode * a, Mode * b);
+Mode * Mode_clone(Mode * self);
+void Mode_delete(Mode * self, Bool * call_free);
+U64 * Mode_size(void);
+
 Mode *mode_resolve(Str *name);
 Bool *mode_is_lib(Mode *m);
 Bool *mode_is_lib_output(Mode *m);
