@@ -5,5 +5,5 @@ greet := func(name: Str) returns Str {
 }
 
 test_greet := test() {
-    test_expect(__LOC__, greet("World").eq("Hello, World!"), "greet works")
+    expect(__LOC__, greet("World").eq("Hello, World!"), "greet works")
 }

@@ -5,8 +5,8 @@ Color := enum { Red, Green, Blue }
 
 test_basic_enum := test() {
     c := Color.Red
-    test_expect(__LOC__, c.eq(Color.Red), "Red eq Red")
-    test_expect(__LOC__, c.eq(Color.Green).not(), "Red neq Green")
+    expect(__LOC__, c.eq(Color.Red), "Red eq Red")
+    expect(__LOC__, c.eq(Color.Green).not(), "Red neq Green")
 }
 
 test_to_str := test() {
@@ -25,8 +25,8 @@ is_red := func(c: Color) returns Bool {
 }
 
 test_func_params := test() {
-    test_expect(__LOC__, is_red(Color.Red), "func: is_red(Red)")
-    test_expect(__LOC__, is_red(Color.Blue).not(), "func: is_red(Blue)")
+    expect(__LOC__, is_red(Color.Red), "func: is_red(Red)")
+    expect(__LOC__, is_red(Color.Blue).not(), "func: is_red(Blue)")
 }
 
 # enum with namespace section
@@ -41,8 +41,8 @@ Direction := enum {
 }
 
 test_namespace := test() {
-    test_expect(__LOC__, Direction.Up.is_vertical(), "Up is vertical")
-    test_expect(__LOC__, Direction.Left.is_vertical().not(), "Left not vertical")
+    expect(__LOC__, Direction.Up.is_vertical(), "Up is vertical")
+    expect(__LOC__, Direction.Left.is_vertical().not(), "Left not vertical")
 }
 
 # --- payload enums ---
@@ -54,10 +54,10 @@ test_payload_construction := test() {
     t2 := Token.Eof
     t3 := Token.Name("hello")
 
-    test_expect(__LOC__, t.is_Num(), "Num is_Num")
-    test_expect(__LOC__, t.is_Eof().not(), "Num not is_Eof")
-    test_expect(__LOC__, t2.is_Eof(), "Eof is_Eof")
-    test_expect(__LOC__, t3.is_Name(), "Name is_Name")
+    expect(__LOC__, t.is_Num(), "Num is_Num")
+    expect(__LOC__, t.is_Eof().not(), "Num not is_Eof")
+    expect(__LOC__, t2.is_Eof(), "Eof is_Eof")
+    expect(__LOC__, t3.is_Name(), "Name is_Name")
 }
 
 test_payload_get := test() {
@@ -75,10 +75,10 @@ test_payload_to_str := test() {
 
 test_payload_eq := test() {
     t := Token.Num(42)
-    test_expect(__LOC__, t.eq(Token.Num(42)), "Num(42) eq Num(42)")
-    test_expect(__LOC__, t.eq(Token.Num(99)).not(), "Num(42) neq Num(99)")
-    test_expect(__LOC__, t.eq(Token.Eof).not(), "Num neq Eof")
-    test_expect(__LOC__, Token.Eof.eq(Token.Eof), "Eof eq Eof")
+    expect(__LOC__, t.eq(Token.Num(42)), "Num(42) eq Num(42)")
+    expect(__LOC__, t.eq(Token.Num(99)).not(), "Num(42) neq Num(99)")
+    expect(__LOC__, t.eq(Token.Eof).not(), "Num neq Eof")
+    expect(__LOC__, Token.Eof.eq(Token.Eof), "Eof eq Eof")
 }
 
 test_payload_clone := test() {
@@ -96,13 +96,13 @@ Painted := struct {
 
 test_simple_enum_field := test() {
     p := Painted(color = Color.Blue, label = "sky")
-    test_expect(__LOC__, p.color.eq(Color.Blue), "simple enum field read")
+    expect(__LOC__, p.color.eq(Color.Blue), "simple enum field read")
     assert_eq_str(__LOC__, p.label, "sky")
 }
 
 test_simple_enum_field_default := test() {
     p := Painted()
-    test_expect(__LOC__, p.color.eq(Color.Red), "simple enum field default")
+    expect(__LOC__, p.color.eq(Color.Red), "simple enum field default")
 }
 
 get_tag_name := func(tok: Token) returns Str {
@@ -130,8 +130,8 @@ Shape := enum { Dot: Point, Line: Str, Empty }
 
 test_struct_payload := test() {
     s := Shape.Dot(Point(x = 3, y = 4))
-    test_expect(__LOC__, s.is_Dot(), "Dot is_Dot")
-    test_expect(__LOC__, s.is_Empty().not(), "Dot not is_Empty")
+    expect(__LOC__, s.is_Dot(), "Dot is_Dot")
+    expect(__LOC__, s.is_Empty().not(), "Dot not is_Empty")
     p := s.get_Dot()
     assert_eq(__LOC__, p.x, 3)
     assert_eq(__LOC__, p.y, 4)
@@ -141,9 +141,9 @@ test_struct_payload_eq := test() {
     s1 := Shape.Dot(Point(x = 1, y = 2))
     s2 := Shape.Dot(Point(x = 1, y = 2))
     s3 := Shape.Dot(Point(x = 9, y = 9))
-    test_expect(__LOC__, s1.eq(s2), "same Dot eq")
-    test_expect(__LOC__, s1.eq(s3).not(), "diff Dot neq")
-    test_expect(__LOC__, s1.eq(Shape.Empty).not(), "Dot neq Empty")
+    expect(__LOC__, s1.eq(s2), "same Dot eq")
+    expect(__LOC__, s1.eq(s3).not(), "diff Dot neq")
+    expect(__LOC__, s1.eq(Shape.Empty).not(), "Dot neq Empty")
 }
 
 test_struct_payload_clone := test() {
@@ -174,7 +174,7 @@ Container := struct { mut name := ""; mut kind := Kind.C }
 test_payload_enum_field := test() {
     c := Container(name = "test", kind = Kind.A(Data(x = 3, y = 4)))
     assert_eq_str(__LOC__, c.kind.to_str(), "A(3,4)")
-    test_expect(__LOC__, c.kind.is_A(), "kind.is_A()")
+    expect(__LOC__, c.kind.is_A(), "kind.is_A()")
     d := c.kind.get_A()
     assert_eq(__LOC__, d.x, 3)
     assert_eq(__LOC__, d.y, 4)
@@ -183,21 +183,21 @@ test_payload_enum_field := test() {
 
 test_payload_enum_field_b := test() {
     c := Container(name = "test", kind = Kind.B(42))
-    test_expect(__LOC__, c.kind.is_B(), "kind.is_B()")
-    test_expect(__LOC__, c.kind.is_A().not(), "kind not is_A()")
+    expect(__LOC__, c.kind.is_B(), "kind.is_B()")
+    expect(__LOC__, c.kind.is_A().not(), "kind not is_A()")
     assert_eq(__LOC__, c.kind.get_B(), 42)
 }
 
 test_payload_enum_field_default := test() {
     c := Container()
-    test_expect(__LOC__, c.kind.is_C(), "default kind.is_C()")
+    expect(__LOC__, c.kind.is_C(), "default kind.is_C()")
 }
 
 test_payload_enum_field_mut := test() {
     mut c := Container(name = "test", kind = Kind.C)
-    test_expect(__LOC__, c.kind.is_C(), "initially C")
+    expect(__LOC__, c.kind.is_C(), "initially C")
     c.kind = Kind.A(Data(x = 7, y = 8))
-    test_expect(__LOC__, c.kind.is_A(), "after set: is_A()")
+    expect(__LOC__, c.kind.is_A(), "after set: is_A()")
     d := c.kind.get_A()
     assert_eq(__LOC__, d.x, 7)
     assert_eq(__LOC__, d.y, 8)

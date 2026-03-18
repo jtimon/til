@@ -403,19 +403,17 @@ UNREACHABLE := proc(loc_str: Str) {
     panic(loc_str, "unreachable")
 }
 
-assertm := func(loc_str: Str, cond: Bool, parts: ..Str) returns Bool {
+assert := func(loc_str: Str, cond: Bool) returns Bool {
     if cond.not() {
-        panic(loc_str, "assert failed: ", format(..parts))
+        panic(loc_str, "assert failed")
     }
     return true
 }
 
-assert := func(loc_str: Str, cond: Bool) returns Bool {
-    return assertm(loc_str, cond)
-}
-
-test_expect := proc(loc_str: Str, cond: Bool, parts: ..Str) {
-    assertm(loc_str, cond, ..parts)
+expect := proc(loc_str: Str, cond: Bool, parts: ..Str) {
+    if cond.not() {
+        panic(loc_str, "assert failed: ", format(..parts))
+    }
 }
 
 assert_eq := proc(loc_str: Str, a: I64, b: I64) {
