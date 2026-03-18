@@ -76,66 +76,71 @@ Mode * mode_resolve(Str * name) {
     Str_delete(_t3061, &(Bool){1});
     Array_set(_va54, &(U64){_t3062}, _t3063);
     ;
-    Str *_t3064 = Str_lit("src/self/modes.til:45:11", 24ULL);
+    Str *_t3064 = Str_lit("src/self/modes.til:35:11", 24ULL);
     (void)_t3064;
     panic(_t3064, _va54);
     Str_delete(_t3064, &(Bool){1});
-    return MODE_SCRIPT;
+    Str *_t3065 = Str_lit("script", 6ULL);
+    (void)_t3065;
+    Mode *fallback = Map_get(core_modes, _t3065);
+    (void)fallback;
+    Str_delete(_t3065, &(Bool){1});
+    return fallback;
 }
 
 Bool * mode_is_lib(Mode * m) {
     (void)m;
-    Str *_t3065 = Str_lit("lib", 3ULL);
-    (void)_t3065;
-    Str *_t3066 = Str_lit("liba", 4ULL);
+    Str *_t3066 = Str_lit("lib", 3ULL);
     (void)_t3066;
-    Bool _t3067; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3065); _t3067 = *_hp; free(_hp); }
+    Str *_t3067 = Str_lit("liba", 4ULL);
     (void)_t3067;
-    Str_delete(_t3065, &(Bool){1});
     Bool _t3068; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3066); _t3068 = *_hp; free(_hp); }
     (void)_t3068;
     Str_delete(_t3066, &(Bool){1});
-    Bool _t3069 = Bool_or(_t3067, _t3068);
+    Bool _t3069; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3067); _t3069 = *_hp; free(_hp); }
     (void)_t3069;
+    Str_delete(_t3067, &(Bool){1});
+    Bool _t3070 = Bool_or(_t3068, _t3069);
+    (void)_t3070;
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t3069; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t3070; return _r; }
 }
 
 Bool * mode_is_lib_output(Mode * m) {
     (void)m;
-    Str *_t3070 = Str_lit("lib", 3ULL);
-    (void)_t3070;
-    Str *_t3071 = Str_lit("liba", 4ULL);
+    Str *_t3071 = Str_lit("lib", 3ULL);
     (void)_t3071;
-    Bool _t3072; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3070); _t3072 = *_hp; free(_hp); }
+    Str *_t3072 = Str_lit("liba", 4ULL);
     (void)_t3072;
-    Str_delete(_t3070, &(Bool){1});
     Bool _t3073; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3071); _t3073 = *_hp; free(_hp); }
     (void)_t3073;
     Str_delete(_t3071, &(Bool){1});
-    Str *_t3074 = Str_lit("pure", 4ULL);
+    Bool _t3074; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3072); _t3074 = *_hp; free(_hp); }
     (void)_t3074;
-    Bool _t3075 = Bool_or(_t3072, _t3073);
+    Str_delete(_t3072, &(Bool){1});
+    Str *_t3075 = Str_lit("pure", 4ULL);
     (void)_t3075;
-    ;
-    ;
-    Bool _t3076; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3074); _t3076 = *_hp; free(_hp); }
+    Bool _t3076 = Bool_or(_t3073, _t3074);
     (void)_t3076;
-    Str_delete(_t3074, &(Bool){1});
-    Str *_t3077 = Str_lit("pura", 4ULL);
+    ;
+    ;
+    Bool _t3077; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3075); _t3077 = *_hp; free(_hp); }
     (void)_t3077;
-    Bool _t3078 = Bool_or(_t3075, _t3076);
+    Str_delete(_t3075, &(Bool){1});
+    Str *_t3078 = Str_lit("pura", 4ULL);
     (void)_t3078;
-    ;
-    ;
-    Bool _t3079; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3077); _t3079 = *_hp; free(_hp); }
+    Bool _t3079 = Bool_or(_t3076, _t3077);
     (void)_t3079;
-    Str_delete(_t3077, &(Bool){1});
-    Bool _t3080 = Bool_or(_t3078, _t3079);
+    ;
+    ;
+    Bool _t3080; { Bool *_hp = (Bool *)Str_eq(&m->name, _t3078); _t3080 = *_hp; free(_hp); }
     (void)_t3080;
+    Str_delete(_t3078, &(Bool){1});
+    Bool _t3081 = Bool_or(_t3079, _t3080);
+    (void)_t3081;
     ;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t3080; return _r; }
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t3081; return _r; }
 }
 

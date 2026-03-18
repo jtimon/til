@@ -27,23 +27,14 @@ core_modes := {
     "liba":   Mode(name = "liba", decls_only = true, debug_prints = true),
 }
 
-// Convenience constants for comparisons
-ref MODE_SCRIPT : Mode = core_modes.get("script")
-ref MODE_CLI    : Mode = core_modes.get("cli")
-ref MODE_GUI    : Mode = core_modes.get("gui")
-ref MODE_TEST   : Mode = core_modes.get("test")
-ref MODE_PURE   : Mode = core_modes.get("pure")
-ref MODE_PURA   : Mode = core_modes.get("pura")
-ref MODE_LIB    : Mode = core_modes.get("lib")
-ref MODE_LIBA   : Mode = core_modes.get("liba")
-
 mode_resolve := func(name: Str) returns ref Mode {
     if core_modes.has(name) {
         ref m : Mode = core_modes.get(name)
         return m
     }
     panic(__LOC__, "unknown mode '".concat(name).concat("'"))
-    return MODE_SCRIPT
+    ref fallback : Mode = core_modes.get("script")
+    return fallback
 }
 
 mode_is_lib := func(m: Mode) returns Bool {
