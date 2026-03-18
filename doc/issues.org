@@ -162,6 +162,15 @@
     Fix: builder must emit all function bodies from imported modules.
     Until fixed, bootstrap/ast.c must stay in SRCS.
 
+*** TODO Replace modes.c with generated modes.til
+    modes.til is translating in til_core. All mode bridge functions
+    removed. Mode fields visible in til.til via ext_struct.
+    Blocker: generated modes.c uses runtime-initialized Map for
+    mode constants. First-pass binary links it but never calls
+    init. modes.c has compile-time globals that need no init.
+    Blocked on #70 (precomp for struct constants) or first-pass
+    init mechanism.
+
 *** TODO Makefile: ~til build src/til.til~ instead of two-pass gcc
     Once builder emits imported function bodies, ~compile_c()~ can
     build til.til directly. Makefile switches from:
@@ -435,7 +444,26 @@
      ~interpret_v~ deleted, ~til_interpret~ (unused) deleted.
 
    Remaining semantic blocker:
-   - check/expect_token signatures: ~TokenType_tag~ → ~TokenType *~. ~100 sites (#85).
+   - check/expect_token signatures: ~TokenType_tag~ → ~TokenType *~. ~100 sites (#85). DONE.
+
+   Also done (bridge elimination):
+   - DONE til.til calls tokenize/parse directly (lexer clones token text)
+   - DONE 8 pipeline passthroughs removed (init_declarations, type_check, etc.)
+   - DONE expr_null/expr_is_null eliminated (no null modes, default script)
+   - DONE expr_set_core replaced with direct field access
+   - DONE Mode fields visible in ext_struct, direct field access
+   - DONE Mode helpers moved from bridge to modes.c, then 13 dead getters removed
+   - DONE Bool types fixed (bool→Bool, I64→U32 line/col)
+   - DONE const removed from Mode * (matches generated code, see #70)
+   - DONE modes.til translating in til_core
+   - DONE typer fix: Map/Set literal size() typed U64 not I64
+
+   Blocker for modes.c → modes.til swap:
+   - Generated modes.c needs runtime init (Map of modes). First-pass
+     binary links generated code but never calls the init function.
+     modes.c has compile-time initialized globals that work without init.
+     Blocked on #70 (precomp for struct constants) or a different
+     approach to first-pass init.
 
    Already bikeshedding (tolerable):
    - println via Array vs printf/fprintf
