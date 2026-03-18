@@ -104,7 +104,7 @@ Expr *parse_fn_signature(Parser *p, U32 line, U32 col) {
     sig->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     sig->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     sig->data.data.FuncDef.param_shallows = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-    sig->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); sig->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
     { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); sig->data.data.FuncDef.param_fn_sigs = *_vp; free(_vp); }
     sig->data.data.FuncDef.return_type = return_type ? *return_type : (Str){0};
     sig->data.data.FuncDef.variadic_index = -1;
@@ -139,7 +139,7 @@ Expr *parse_func_def(Parser *p) {
     Vec ptypes; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); ptypes = *_vp; free(_vp); }
     Vec pmuts; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); pmuts = *_vp; free(_vp); }
     Vec powns; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); powns = *_vp; free(_vp); }
-    Vec pdefs; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); pdefs = *_vp; free(_vp); }
+    Map pdefs; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); pdefs = *_mp; free(_mp); }
     Vec pshallows; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); pshallows = *_vp; free(_vp); }
     Vec pfnsigs; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); pfnsigs = *_vp; free(_vp); }
     I32 variadic_index = -1;
@@ -252,7 +252,7 @@ Expr *parse_func_def(Parser *p) {
                     p->path.c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
             exit(1);
         }
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = def_val; Vec_push(&pdefs, _p); }
+        if (def_val) { Str *_k = Str_clone(nm); Map_set(&pdefs, _k, def_val); }
         if (check(p, &(TokenType){TokenType_TAG_Comma})) advance(p);
     }
     expect_token(p, &(TokenType){TokenType_TAG_RParen});
@@ -283,7 +283,7 @@ Expr *parse_func_def(Parser *p) {
     move(&def->data.data.FuncDef.param_owns, &powns, sizeof(Vec));
     move(&def->data.data.FuncDef.param_shallows, &pshallows, sizeof(Vec));
     move(&def->data.data.FuncDef.param_fn_sigs, &pfnsigs, sizeof(Vec));
-    move(&def->data.data.FuncDef.param_defaults, &pdefs, sizeof(Vec));
+    move(&def->data.data.FuncDef.param_defaults, &pdefs, sizeof(Map));
     def->data.data.FuncDef.return_type = return_type ? *return_type : (Str){0};
     def->data.data.FuncDef.return_is_ref = return_is_ref;
     def->data.data.FuncDef.return_is_shallow = return_is_shallow;
@@ -690,7 +690,7 @@ Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
                 def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.param_shallows = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); def->data.data.FuncDef.param_fn_sigs = *_vp; free(_vp); }
-                def->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(np); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
                 def->data.data.FuncDef.return_type = (Str){0};
                 def->data.data.FuncDef.variadic_index = -1;
                 def->data.data.FuncDef.kwargs_index = -1;

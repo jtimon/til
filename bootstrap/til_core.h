@@ -2,6 +2,7 @@
 #include "til_decls.h"
 
 #include "til_vec.h"
+#include "til_map.h"
 #include "til_str.h"
 
 typedef struct StructDef {
@@ -46,7 +47,7 @@ typedef struct FunctionDef {
     Vec param_shallows;
     Vec param_fn_sigs;
     U32 nparam;
-    Vec param_defaults;
+    Map param_defaults;
     Str return_type;
     I32 variadic_index;
     I32 kwargs_index;

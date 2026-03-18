@@ -54,6 +54,22 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
    4. ~make clean && make test~ again — both passes match
    5. Commit everything together: .til + C + bootstrap
 
+** Changing struct layouts (field types in core.til)
+
+   When a struct field type changes in core.til (e.g. Vec → Map),
+   BOTH .til and C code must change together. Pass 1 uses the old
+   bootstrap struct layout, so C code using the new type won't compile.
+
+   Correct workflow:
+   1. Change .til files AND C files together
+   2. ~make til_core~ — regenerates bootstrap with new struct layout
+      (uses bin/til_bootstrap from the PREVIOUS build, before ~make clean~)
+   3. ~make clean && make test~ — pass 1 uses new bootstrap, matches C code
+
+   IMPORTANT: do NOT run ~make clean~ before ~make til_core~. Clean
+   deletes the binary needed to regenerate bootstrap. If you forget,
+   use ~make rescue~ to recover (see Recovery targets).
+
 ** Removing bridge functions or changing signatures
 
    When a function is removed from src/c/ that the old bootstrap
@@ -77,6 +93,19 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
 
    - ~make revert_boot~ — restore bootstrap/ from last commit
    - ~make rescue~ — build compiler from previous commit's bootstrap
+
+   ~make rescue~ is needed when pass 1 can't compile because bootstrap/
+   is out of sync with the current C code. This happens when:
+   - You forgot to run ~make til_core~ before ~make~ after changing
+     .til files that affect struct layouts or signatures
+   - You ran ~make clean~ while bootstrap/ was already regenerated
+     but not yet committed (clean deletes bin/* so you lose the binary
+     that could regenerate bootstrap again)
+
+   Recovery workflow:
+   1. ~make rescue~ → builds ~tmp/rescue/til~ from last commit's sources
+   2. ~make til_core TIL=tmp/rescue/til~ → regenerates bootstrap
+   3. ~make clean && make test~ — pass 1 now uses the regenerated bootstrap
 
 ** Rules
 

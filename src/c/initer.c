@@ -402,7 +402,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         *((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *sname;
         func_def->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
         func_def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-        func_def->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
         func_def->data.data.FuncDef.return_type = *sname;
         func_def->data.data.FuncDef.variadic_index = -1;
         func_def->data.data.FuncDef.kwargs_index = -1;
@@ -533,8 +533,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         proc_def->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
         proc_def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
         (*(Bool*)Vec_get(&proc_def->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) = true;
-        proc_def->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-        (*(Expr**)Vec_get(&proc_def->data.data.FuncDef.param_defaults, &(U64){(U64)(1)})) = default_true;
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); proc_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+        { Str *_k = Str_clone(&(Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT}); Expr *_v = Expr_clone(default_true); Map_set(&proc_def->data.data.FuncDef.param_defaults, _k, _v); }
         proc_def->data.data.FuncDef.return_type = (Str){0};
         proc_def->data.data.FuncDef.variadic_index = -1;
         proc_def->data.data.FuncDef.kwargs_index = -1;
@@ -625,7 +625,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *(Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
                     fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                     fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-                    fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
                     fdef->data.data.FuncDef.return_type = *ename;
                     fdef->data.data.FuncDef.variadic_index = -1;
                     fdef->data.data.FuncDef.kwargs_index = -1;
@@ -645,7 +645,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); fdef->data.data.FuncDef.param_types = *_v; free(_v); }
                     { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); fdef->data.data.FuncDef.param_muts = *_v; free(_v); }
                     { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); fdef->data.data.FuncDef.param_owns = *_v; free(_v); }
-                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(I64)}); fdef->data.data.FuncDef.param_defaults = *_v; free(_v); }
+                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
                     fdef->data.data.FuncDef.return_type = *ename;
                     fdef->data.data.FuncDef.variadic_index = -1;
                     fdef->data.data.FuncDef.kwargs_index = -1;
@@ -672,7 +672,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
                 fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-                fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+                { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
                 fdef->data.data.FuncDef.return_type = *(Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
                 fdef->data.data.FuncDef.variadic_index = -1;
                 fdef->data.data.FuncDef.kwargs_index = -1;
@@ -698,7 +698,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
             fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
             fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -850,7 +850,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(1)})) = *ename;
             fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
             fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -956,7 +956,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
             fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
             fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = *ename;
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -1009,8 +1009,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
             fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
             (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) = true;
-            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-            (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(1)})) = default_true;
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            { Str *_k = Str_clone(&(Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT}); Expr *_v = Expr_clone(default_true); Map_set(&fdef->data.data.FuncDef.param_defaults, _k, _v); }
             fdef->data.data.FuncDef.return_type = (Str){0};
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -1148,7 +1148,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             *((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(0)})) = *ename;
             fdef->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
             fdef->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(1); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-            fdef->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(1); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -1226,7 +1226,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); func_def->data.data.FuncDef.param_types = *_v; free(_v); }
         { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); func_def->data.data.FuncDef.param_muts = *_v; free(_v); }
         { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); func_def->data.data.FuncDef.param_owns = *_v; free(_v); }
-        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"I64", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(I64)}); func_def->data.data.FuncDef.param_defaults = *_v; free(_v); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
         func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT};
         func_def->data.data.FuncDef.variadic_index = -1;
         func_def->data.data.FuncDef.kwargs_index = -1;
@@ -1304,7 +1304,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             *((Str*)Vec_get(&fd->data.data.FuncDef.param_types, &(U64){(U64)(1)})) = *sname; \
             fd->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
             fd->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
-            fd->data.data.FuncDef.param_defaults = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(void*)}); for (U32 _i = 0; _i < (U32)(2); _i++) { void* *_z = calloc(1, sizeof(void*)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; }); \
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fd->data.data.FuncDef.param_defaults = *_mp; free(_mp); } \
             fd->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}; \
             fd->data.data.FuncDef.variadic_index = -1; \
             fd->data.data.FuncDef.kwargs_index = -1; \

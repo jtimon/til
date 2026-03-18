@@ -98,7 +98,6 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
         fd.param_names.push(own "")
         fd.param_owns.push(own false)
         fd.param_shallows.push(own false)
-        fd.param_defaults.push(own 0.sub(1))
         fd.param_fn_sigs.push(own 0.sub(1))
     }
     fd.param_types = ptypes
@@ -225,7 +224,6 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         if fd.variadic_index.neq(0.sub(1).to_i32()).and(is_variadic.not()).and(has_default.eq(0.sub(1))) {
             panic(__LOC__, "positional param not allowed after variadic")
         }
-        fd.param_defaults.push(own has_default)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
@@ -691,7 +689,6 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                     ffd.param_muts.push(own false)
                     ffd.param_owns.push(own false)
                     ffd.param_shallows.push(own false)
-                    ffd.param_defaults.push(own 0.sub(1))
                     ffd.param_fn_sigs.push(own 0.sub(1))
                 }
                 ffd.param_names = pnames

@@ -58,38 +58,29 @@ test: bin/til_bootstrap bin/til/test_runner bin/til/plot bin/til/tests
 # --- bootstrap regeneration ---
 
 til_core:
-	@bin/til_bootstrap translate src/self/ast.til
-	@cp gen/til/ast.c bootstrap/ast.c
-	@cp gen/til/ast.h bootstrap/ast.h
-	@cp gen/til/ast_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/til/ast_*.h bootstrap/ 2>/dev/null || true
-	@bin/til_bootstrap translate src/self/parser.til
-	@cp gen/til/parser.c bootstrap/parser.c
-	@cp gen/til/parser.h bootstrap/parser.h
-	@cp gen/til/parser_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/til/parser_*.h bootstrap/ 2>/dev/null || true
-	@bin/til_bootstrap translate src/self/modes.til
-	@cp gen/til/modes.c bootstrap/modes.c
-	@cp gen/til/modes.h bootstrap/modes.h
-	@cp gen/til/modes_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/til/modes_*.h bootstrap/ 2>/dev/null || true
-	@bin/til_bootstrap translate src/til.til
-	@cp gen/til/til.c bootstrap/til.c
-	@cp gen/til/til_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/til/til_*.h bootstrap/ 2>/dev/null || true
+	@$(or $(TIL),bin/til_bootstrap) translate src/self/modes.til
+	@cp gen/til/modes*.c gen/til/modes*.h bootstrap/ 2>/dev/null || true
+	@cp gen/til/ast*.c gen/til/ast*.h bootstrap/ 2>/dev/null || true
+	@cp gen/til/lexer*.c gen/til/lexer*.h bootstrap/ 2>/dev/null || true
+	@cp gen/til/parser*.c gen/til/parser*.h bootstrap/ 2>/dev/null || true
+	@$(or $(TIL),bin/til_bootstrap) translate src/til.til
+	@cp gen/til/til*.c gen/til/til*.h bootstrap/ 2>/dev/null || true
 
 self_diff: bin/til_bootstrap
 	@$(MAKE) til_core
 	@bin/til_bootstrap run scripts/self_diff.til
 
-# --- rescue: build compiler from previous commit's bootstrap ---
+# --- rescue: build compiler entirely from last commit's sources ---
 
 rescue: $(RAYLIB_LIB) lib/libffi/.built
-	@mkdir -p tmp/rescue
-	@for f in $$(git ls-tree --name-only HEAD~1 bootstrap/ 2>/dev/null); do \
-		git show "HEAD~1:$$f" > "tmp/rescue/$$(basename $$f)" 2>/dev/null || true; \
+	@mkdir -p tmp/rescue/bootstrap tmp/rescue/src/c
+	@for f in $$(git ls-tree --name-only HEAD bootstrap/ 2>/dev/null); do \
+		git show "HEAD:$$f" > "tmp/rescue/$$f" 2>/dev/null || true; \
 	done
-	cc $(CC_FLAGS) $(filter-out bootstrap/%,$(SRCS)) tmp/rescue/*.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o tmp/rescue/til
+	@for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
+		git show "HEAD:$$f" > "tmp/rescue/$$f" 2>/dev/null || true; \
+	done
+	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c -Itmp/rescue/bootstrap tmp/rescue/src/c/*.c tmp/rescue/bootstrap/modes.c tmp/rescue/bootstrap/til.c -Wl,--allow-multiple-definition $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o tmp/rescue/til
 	@echo "Rescue compiler: tmp/rescue/til"
 
 # --- debug/asan targets ---

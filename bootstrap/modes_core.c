@@ -43,7 +43,7 @@ FunctionDef * FunctionDef_clone(FunctionDef * self) {
     { Vec *_ca = Vec_clone(&self->param_shallows); _t40->param_shallows = *_ca; free(_ca); }
     { Vec *_ca = Vec_clone(&self->param_fn_sigs); _t40->param_fn_sigs = *_ca; free(_ca); }
     _t40->nparam = _t35;
-    { Vec *_ca = Vec_clone(&self->param_defaults); _t40->param_defaults = *_ca; free(_ca); }
+    { Map *_ca = Map_clone(&self->param_defaults); _t40->param_defaults = *_ca; free(_ca); }
     { Str *_ca = Str_clone(&self->return_type); _t40->return_type = *_ca; free(_ca); }
     _t40->variadic_index = _t36;
     _t40->kwargs_index = _t37;
@@ -96,7 +96,7 @@ void FunctionDef_delete(FunctionDef * self, Bool * call_free) {
     ;
     Bool _t49 = 0;
     (void)_t49;
-    Vec_delete(&self->param_defaults, &(Bool){_t49});
+    Map_delete(&self->param_defaults, &(Bool){_t49});
     ;
     Bool _t50 = 0;
     (void)_t50;

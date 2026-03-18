@@ -248,24 +248,6 @@ typedef struct TypeScope {
 } TypeScope;
 
 
-typedef struct FunctionDef {
-    FuncType func_type;
-    Vec param_names;
-    Vec param_types;
-    Vec param_muts;
-    Vec param_owns;
-    Vec param_shallows;
-    Vec param_fn_sigs;
-    U32 nparam;
-    Vec param_defaults;
-    Str return_type;
-    I32 variadic_index;
-    I32 kwargs_index;
-    Bool return_is_ref;
-    Bool return_is_shallow;
-} FunctionDef;
-
-
 typedef struct Array {
     U8 *data;
     U64 cap;
@@ -293,6 +275,24 @@ typedef struct Set {
     U64 elem_size;
     Str elem_type;
 } Set;
+
+
+typedef struct FunctionDef {
+    FuncType func_type;
+    Vec param_names;
+    Vec param_types;
+    Vec param_muts;
+    Vec param_owns;
+    Vec param_shallows;
+    Vec param_fn_sigs;
+    U32 nparam;
+    Map param_defaults;
+    Str return_type;
+    I32 variadic_index;
+    I32 kwargs_index;
+    Bool return_is_ref;
+    Bool return_is_shallow;
+} FunctionDef;
 
 
 struct ExprData {

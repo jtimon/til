@@ -466,9 +466,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 // Fill defaults for missing args
                 for (U32 i = 0; i < np; i++) {
                     if (!new_args[i]) {
-                        if (ns_func->data.data.FuncDef.param_defaults.count > 0 &&
-                            (*(Expr**)Vec_get(&ns_func->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
-                            new_args[i] = Expr_clone((*(Expr**)Vec_get(&ns_func->data.data.FuncDef.param_defaults, &(U64){(U64)(i)})));
+                        Str *_pn = (Str*)Vec_get(&ns_func->data.data.FuncDef.param_names, &(U64){(U64)(i)});
+                        if (*Map_has(&ns_func->data.data.FuncDef.param_defaults, _pn)) {
+                            new_args[i] = Expr_clone((Expr*)Map_get(&ns_func->data.data.FuncDef.param_defaults, _pn));
                         } else {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
@@ -753,9 +753,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if ((I32)i == vi) continue; // variadic param handled separately
                 if ((I32)i == kwi) continue; // kwargs param handled separately
                 if (!new_args[i]) {
-                    if (fdef->data.data.FuncDef.param_defaults.count > 0 &&
-                        (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
-                        new_args[i] = Expr_clone((*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)})));
+                    Str *_pn = (Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(i)});
+                    if (*Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
+                        new_args[i] = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
                     } else {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",

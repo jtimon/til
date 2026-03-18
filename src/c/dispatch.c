@@ -310,9 +310,9 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
         U32 nparam = fdef->data.data.FuncDef.nparam;
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
-            if (fdef->data.data.FuncDef.param_defaults.count > 0 &&
-                (*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)}))) {
-                Expr *def_arg = Expr_clone((*(Expr**)Vec_get(&fdef->data.data.FuncDef.param_defaults, &(U64){(U64)(i)})));
+            Str *_pn = (Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(i)});
+            if (*Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
+                Expr *def_arg = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
                 Vec_push(&fake_call.children, def_arg);
             }
         }
