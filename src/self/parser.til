@@ -59,7 +59,7 @@ peek_col := func(p: Parser) returns U32 { return peek(p).col }
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
 // Returns a synthetic FuncDef Expr with param_types and return_type,
 // or null Expr if not followed by '(' (bare "Fn" type).
-parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Expr {
+parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) returns Expr {
     if check(p, TokenType.LParen).not() {
         return Expr.new(ExprData.Body, 0, 0, "") // null sentinel
     }
@@ -349,7 +349,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
 }
 
 // parse_call: identifier name already consumed, current token is '('
-parse_call := proc(mut p: Parser, name: Str, call_line: U32, call_col: U32) returns Expr {
+parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow call_col: U32) returns Expr {
     advance(p) // consume '('
 
     mut call := Expr.new(ExprData.FCall, call_line, call_col, p.path)

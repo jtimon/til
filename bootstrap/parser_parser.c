@@ -270,7 +270,7 @@ U32 * peek_col(Parser * p) {
     { U32 *_r = malloc(sizeof(U32)); *_r = peek(p)->col; return _r; }
 }
 
-Expr * parse_fn_signature(Parser * p, U32 * line, U32 * col) {
+Expr * parse_fn_signature(Parser * p, U32 line, U32 col) {
     (void)p;
     (void)line;
     (void)col;
@@ -598,7 +598,7 @@ Expr * parse_fn_signature(Parser * p, U32 * line, U32 * col) {
     ExprData *_t3195 = ExprData_FuncDef(fd);
     (void)_t3195;
     FunctionDef_delete(fd, &(Bool){1});
-    Expr *sig = Expr_new(_t3195, DEREF(line), DEREF(col), &p->path);
+    Expr *sig = Expr_new(_t3195, line, col, &p->path);
     (void)sig;
     ExprData_delete(_t3195, &(Bool){1});
     Token_delete(_t3155, &(Bool){1});
@@ -1266,7 +1266,7 @@ Expr * parse_func_def(Parser * p) {
             (void)_t3322;
             U32 _t3323; { U32 *_hp = (U32 *)peek_col(p); _t3323 = *_hp; free(_hp); }
             (void)_t3323;
-            Expr *sig = parse_fn_signature(p, &(U32){_t3322}, &(U32){_t3323});
+            Expr *sig = parse_fn_signature(p, _t3322, _t3323);
             (void)sig;
             ;
             ;
@@ -1848,21 +1848,21 @@ Expr * parse_enum_def(Parser * p) {
     return def;
 }
 
-Expr * parse_call(Parser * p, Str * name, U32 * call_line, U32 * call_col) {
+Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col) {
     (void)p;
     (void)name;
     (void)call_line;
     (void)call_col;
     Token *_t3519 = advance(p);
     (void)_t3519;
-    Expr *call = Expr_new(ExprData_FCall(), DEREF(call_line), DEREF(call_col), &p->path);
+    Expr *call = Expr_new(ExprData_FCall(), call_line, call_col, &p->path);
     (void)call;
     Str *_t3520 = Str_clone(name);
     (void)_t3520;
     ExprData *_t3521 = ExprData_Ident(_t3520);
     (void)_t3521;
     Str_delete(_t3520, &(Bool){1});
-    Expr *callee = Expr_new(_t3521, DEREF(call_line), DEREF(call_col), &p->path);
+    Expr *callee = Expr_new(_t3521, call_line, call_col, &p->path);
     (void)callee;
     ExprData_delete(_t3521, &(Bool){1});
     Expr_add_child(call, callee);
@@ -2405,7 +2405,7 @@ Expr * parse_expression(Parser * p) {
                         Bool _t3604 = check(p, TokenType_LParen());
                         (void)_t3604;
                         if (_t3604) {
-                            e = parse_call(p, name, &(U32){t_line}, &(U32){t_col});
+                            e = parse_call(p, name, t_line, t_col);
                             Bool _t3601 = 1;
                             (void)_t3601;
                             e_set = _t3601;
@@ -3183,7 +3183,7 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
         (void)_t3889;
         Str_delete(_t3888, &(Bool){1});
         if (_t3889) {
-            Expr *sig = parse_fn_signature(p, &(U32){t_line}, &(U32){t_col});
+            Expr *sig = parse_fn_signature(p, t_line, t_col);
             (void)sig;
             U32 _t3791 = 0;
             (void)_t3791;
@@ -3892,7 +3892,7 @@ Expr * parse_statement_ident(Parser * p, Bool * is_mut, Bool * is_own) {
     Bool _t3953 = check(p, TokenType_LParen());
     (void)_t3953;
     if (_t3953) {
-        Expr *_t3948 = parse_call(p, name, &(U32){t_line}, &(U32){t_col});
+        Expr *_t3948 = parse_call(p, name, t_line, t_col);
         (void)_t3948;
         ;
         Str_delete(name, &(Bool){1});
