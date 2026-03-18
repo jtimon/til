@@ -999,18 +999,17 @@ void UNREACHABLE(Str * loc_str) {
     panic(loc_str, _va2);
 }
 
-Bool * assertm(Str * loc_str, Bool * cond, Array * parts) {
+Bool * assert(Str * loc_str, Bool * cond) {
     (void)loc_str;
     (void)cond;
-    (void)parts;
-    Bool _t366 = Bool_not(DEREF(cond));
-    (void)_t366;
-    if (_t366) {
+    Bool _t364 = Bool_not(DEREF(cond));
+    (void)_t364;
+    if (_t364) {
         Str *_t359 = Str_lit("Str", 3ULL);
         (void)_t359;
         U64 _t360; { U64 *_hp = (U64 *)Str_size(); _t360 = *_hp; free(_hp); }
         (void)_t360;
-        U64 _t361 = 2;
+        U64 _t361 = 1;
         (void)_t361;
         Array *_va3 = Array_new(_t359, &(U64){_t360}, &(U64){_t361});
         (void)_va3;
@@ -1019,52 +1018,50 @@ Bool * assertm(Str * loc_str, Bool * cond, Array * parts) {
         ;
         U64 _t362 = 0;
         (void)_t362;
-        Str *_t363 = Str_lit("assert failed: ", 15ULL);
+        Str *_t363 = Str_lit("assert failed", 13ULL);
         (void)_t363;
         Array_set(_va3, &(U64){_t362}, _t363);
-        ;
-        U64 _t364 = 1;
-        (void)_t364;
-        Str *_t365 = format(parts);
-        (void)_t365;
-        Array_set(_va3, &(U64){_t364}, _t365);
         ;
         panic(loc_str, _va3);
     }
     ;
-    Bool _t367 = 1;
-    (void)_t367;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t367; return _r; }
+    Bool _t365 = 1;
+    (void)_t365;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t365; return _r; }
 }
 
-Bool * assert(Str * loc_str, Bool * cond) {
-    (void)loc_str;
-    (void)cond;
-    Str *_t368 = Str_lit("Str", 3ULL);
-    (void)_t368;
-    U64 _t369; { U64 *_hp = (U64 *)Str_size(); _t369 = *_hp; free(_hp); }
-    (void)_t369;
-    U64 _t370 = 0;
-    (void)_t370;
-    Array *_va4 = Array_new(_t368, &(U64){_t369}, &(U64){_t370});
-    (void)_va4;
-    Str_delete(_t368, &(Bool){1});
-    ;
-    ;
-    Bool _t371; { Bool *_hp = (Bool *)assertm(loc_str, cond, _va4); _t371 = *_hp; free(_hp); }
-    (void)_t371;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t371; return _r; }
-}
-
-void test_expect(Str * loc_str, Bool * cond, Array * parts) {
+void expect(Str * loc_str, Bool * cond, Array * parts) {
     (void)loc_str;
     (void)cond;
     (void)parts;
-    Array *_t372 = Array_clone(parts);
-    (void)_t372;
-    Array_delete(parts, &(Bool){1});
-    Bool _t373; { Bool *_hp = (Bool *)assertm(loc_str, cond, _t372); _t373 = *_hp; free(_hp); }
+    Bool _t373 = Bool_not(DEREF(cond));
     (void)_t373;
+    if (_t373) {
+        Str *_t366 = Str_lit("Str", 3ULL);
+        (void)_t366;
+        U64 _t367; { U64 *_hp = (U64 *)Str_size(); _t367 = *_hp; free(_hp); }
+        (void)_t367;
+        U64 _t368 = 2;
+        (void)_t368;
+        Array *_va4 = Array_new(_t366, &(U64){_t367}, &(U64){_t368});
+        (void)_va4;
+        Str_delete(_t366, &(Bool){1});
+        ;
+        ;
+        U64 _t369 = 0;
+        (void)_t369;
+        Str *_t370 = Str_lit("assert failed: ", 15ULL);
+        (void)_t370;
+        Array_set(_va4, &(U64){_t369}, _t370);
+        ;
+        U64 _t371 = 1;
+        (void)_t371;
+        Str *_t372 = format(parts);
+        (void)_t372;
+        Array_set(_va4, &(U64){_t371}, _t372);
+        ;
+        panic(loc_str, _va4);
+    }
     ;
 }
 
