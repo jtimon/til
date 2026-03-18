@@ -28,7 +28,7 @@ check := func(p: Parser, type: TokenType) returns shallow Bool {
     return peek(p).type.eq(type)
 }
 
-expect_token := proc(mut p: Parser, type: TokenType) returns Token {
+expect_token := proc(mut p: Parser, type: TokenType) returns ref Token {
     ref t : Token = peek(p)
     if t.type.eq(type).not() {
         panic(__LOC__, p.path, ":", t.line.to_str(), ":", t.col.to_str(),

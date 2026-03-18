@@ -357,7 +357,6 @@ Expr * parse_fn_signature(Parser * p, U32 line, U32 col) {
     }
     Token *_t3153 = expect_token(p, TokenType_RParen());
     (void)_t3153;
-    Token_delete(_t3153, &(Bool){1});
     Str *return_type = Str_lit("", 0ULL);
     (void)return_type;
     Bool _t3154 = check(p, TokenType_KwReturns());
@@ -597,7 +596,6 @@ Expr * parse_fn_signature(Parser * p, U32 line, U32 col) {
     Expr *sig = Expr_new(_t3193, line, col, &p->path);
     (void)sig;
     ExprData_delete(_t3193, &(Bool){1});
-    Token_delete(_t3153, &(Bool){1});
     return sig;
 }
 
@@ -638,8 +636,6 @@ Expr * parse_block(Parser * p) {
     }
     Token *_t3202 = expect_token(p, TokenType_RBrace());
     (void)_t3202;
-    Token_delete(_t3202, &(Bool){1});
-    Token_delete(_t3202, &(Bool){1});
     return body;
 }
 
@@ -723,7 +719,6 @@ Expr * parse_func_def(Parser * p) {
     }
     Token *_t3409 = expect_token(p, TokenType_LParen());
     (void)_t3409;
-    Token_delete(_t3409, &(Bool){1});
     Str *_t3410 = Str_lit("Str", 3ULL);
     (void)_t3410;
     U64 _t3411; { U64 *_hp = (U64 *)Str_size(); _t3411 = *_hp; free(_hp); }
@@ -904,7 +899,6 @@ Expr * parse_func_def(Parser * p) {
         } else {
             Token *_t3316 = expect_token(p, TokenType_Colon());
             (void)_t3316;
-            Token_delete(_t3316, &(Bool){1});
             Bool _t3317 = check(p, TokenType_DotDotDot());
             (void)_t3317;
             if (_t3317) {
@@ -1386,7 +1380,6 @@ Expr * parse_func_def(Parser * p) {
     }
     Token *_t3437 = expect_token(p, TokenType_RParen());
     (void)_t3437;
-    Token_delete(_t3437, &(Bool){1});
     Bool _t3438 = check(p, TokenType_KwReturns());
     (void)_t3438;
     if (_t3438) {
@@ -1430,7 +1423,6 @@ Expr * parse_func_def(Parser * p) {
     if (_t3440) {
         Token *_t3370 = expect_token(p, TokenType_LBrace());
         (void)_t3370;
-        Token_delete(_t3370, &(Bool){1});
         Expr *_t3371 = parse_block(p);
         (void)_t3371;
         Expr_add_child(def, _t3371);
@@ -1572,8 +1564,6 @@ Expr * parse_func_def(Parser * p) {
         ;
     }
     Vec_delete(def_exprs, &(Bool){1});
-    Token_delete(_t3409, &(Bool){1});
-    Token_delete(_t3437, &(Bool){1});
     return def;
 }
 
@@ -1598,7 +1588,6 @@ Expr * parse_struct_def(Parser * p) {
     ;
     Token *_t3456 = expect_token(p, TokenType_LBrace());
     (void)_t3456;
-    Token_delete(_t3456, &(Bool){1});
     U32 _t3457 = peek_line(p);
     (void)_t3457;
     U32 _t3458 = peek_col(p);
@@ -1637,12 +1626,10 @@ Expr * parse_struct_def(Parser * p) {
             (void)_t3442;
             Token *_t3443 = expect_token(p, TokenType_Colon());
             (void)_t3443;
-            Token_delete(_t3443, &(Bool){1});
             Bool _t3444 = 1;
             (void)_t3444;
             in_namespace = _t3444;
             ;
-            Token_delete(_t3443, &(Bool){1});
             ;
             continue;
         }
@@ -1676,10 +1663,7 @@ Expr * parse_struct_def(Parser * p) {
     ;
     Token *_t3459 = expect_token(p, TokenType_RBrace());
     (void)_t3459;
-    Token_delete(_t3459, &(Bool){1});
     Expr_add_child(def, body);
-    Token_delete(_t3456, &(Bool){1});
-    Token_delete(_t3459, &(Bool){1});
     return def;
 }
 
@@ -1697,7 +1681,6 @@ Expr * parse_enum_def(Parser * p) {
     ;
     Token *_t3484 = expect_token(p, TokenType_LBrace());
     (void)_t3484;
-    Token_delete(_t3484, &(Bool){1});
     U32 _t3485 = peek_line(p);
     (void)_t3485;
     U32 _t3486 = peek_col(p);
@@ -1736,12 +1719,10 @@ Expr * parse_enum_def(Parser * p) {
             (void)_t3461;
             Token *_t3462 = expect_token(p, TokenType_Colon());
             (void)_t3462;
-            Token_delete(_t3462, &(Bool){1});
             Bool _t3463 = 1;
             (void)_t3463;
             in_namespace = _t3463;
             ;
-            Token_delete(_t3462, &(Bool){1});
             ;
             continue;
         }
@@ -1837,10 +1818,7 @@ Expr * parse_enum_def(Parser * p) {
     ;
     Token *_t3487 = expect_token(p, TokenType_RBrace());
     (void)_t3487;
-    Token_delete(_t3487, &(Bool){1});
     Expr_add_child(def, body);
-    Token_delete(_t3484, &(Bool){1});
-    Token_delete(_t3487, &(Bool){1});
     return def;
 }
 
@@ -2001,8 +1979,6 @@ Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col) {
     }
     Token *_t3521 = expect_token(p, TokenType_RParen());
     (void)_t3521;
-    Token_delete(_t3521, &(Bool){1});
-    Token_delete(_t3521, &(Bool){1});
     return call;
 }
 
@@ -2580,7 +2556,6 @@ Expr * parse_expression(Parser * p) {
                 Expr_add_child(e, _t3623);
                 Token *_t3624 = expect_token(p, TokenType_Colon());
                 (void)_t3624;
-                Token_delete(_t3624, &(Bool){1});
                 Expr *_t3625 = parse_expression(p);
                 (void)_t3625;
                 Expr_add_child(e, _t3625);
@@ -2638,7 +2613,6 @@ Expr * parse_expression(Parser * p) {
         ;
         Token *_t3642 = expect_token(p, TokenType_RBrace());
         (void)_t3642;
-        Token_delete(_t3642, &(Bool){1});
         Bool _t3643 = 1;
         (void)_t3643;
         e_set = _t3643;
@@ -2870,7 +2844,6 @@ Expr * parse_expression(Parser * p) {
             }
             Token *_t3694 = expect_token(p, TokenType_RParen());
             (void)_t3694;
-            Token_delete(_t3694, &(Bool){1});
             e = Expr_clone(mcall);
             Expr_delete(mcall, &(Bool){1});
         } else {
@@ -3019,10 +2992,8 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
             (void)sig;
             Token *_t3776 = expect_token(p, TokenType_Eq());
             (void)_t3776;
-            Token_delete(_t3776, &(Bool){1});
             Token *_t3777 = expect_token(p, TokenType_LParen());
             (void)_t3777;
-            Token_delete(_t3777, &(Bool){1});
             Bool _t3778; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&sig->data); _t3778 = *_hp; free(_hp); }
             (void)_t3778;
             if (_t3778) {
@@ -3087,7 +3058,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
                         if (_t3772) {
                             Token *_t3761 = expect_token(p, TokenType_Comma());
                             (void)_t3761;
-                            Token_delete(_t3761, &(Bool){1});
                         }
                         ;
                         Str *pn = expect_text(p, TokenType_Ident());
@@ -3113,10 +3083,8 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
             ;
             Token *_t3780 = expect_token(p, TokenType_RParen());
             (void)_t3780;
-            Token_delete(_t3780, &(Bool){1});
             Token *_t3781 = expect_token(p, TokenType_LBrace());
             (void)_t3781;
-            Token_delete(_t3781, &(Bool){1});
             Expr *_t3782 = parse_block(p);
             (void)_t3782;
             Expr_add_child(sig, _t3782);
@@ -3157,10 +3125,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
             (void)decl;
             ExprData_delete(_t3789, &(Bool){1});
             Expr_add_child(decl, sig);
-            Token_delete(_t3776, &(Bool){1});
-            Token_delete(_t3777, &(Bool){1});
-            Token_delete(_t3780, &(Bool){1});
-            Token_delete(_t3781, &(Bool){1});
             ;
             ;
             Str_delete(name, &(Bool){1});
@@ -3205,7 +3169,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
         ;
         Token *_t3890 = expect_token(p, TokenType_Eq());
         (void)_t3890;
-        Token_delete(_t3890, &(Bool){1});
         Bool _t3891 = check(p, TokenType_LParen());
         (void)_t3891;
         if (_t3891) {
@@ -3295,7 +3258,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
             if (is_fsf) {
                 Token *_t3832 = expect_token(p, TokenType_LParen());
                 (void)_t3832;
-                Token_delete(_t3832, &(Bool){1});
                 Str *_t3833 = Str_lit("Str", 3ULL);
                 (void)_t3833;
                 U64 _t3834; { U64 *_hp = (U64 *)Str_size(); _t3834 = *_hp; free(_hp); }
@@ -3329,10 +3291,8 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
                 }
                 Token *_t3835 = expect_token(p, TokenType_RParen());
                 (void)_t3835;
-                Token_delete(_t3835, &(Bool){1});
                 Token *_t3836 = expect_token(p, TokenType_LBrace());
                 (void)_t3836;
-                Token_delete(_t3836, &(Bool){1});
                 Expr *body = parse_block(p);
                 (void)body;
                 Str *_t3837 = Str_lit("Str", 3ULL);
@@ -3574,11 +3534,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
                 (void)decl;
                 ExprData_delete(_t3877, &(Bool){1});
                 Expr_add_child(decl, fdef);
-                Token_delete(_t3832, &(Bool){1});
-                Token_delete(_t3835, &(Bool){1});
-                Token_delete(_t3836, &(Bool){1});
                 ;
-                Token_delete(_t3890, &(Bool){1});
                 ;
                 Str_delete(type_name, &(Bool){1});
                 ;
@@ -3630,7 +3586,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
         Expr *_t3899 = parse_expression(p);
         (void)_t3899;
         Expr_add_child(decl, _t3899);
-        Token_delete(_t3890, &(Bool){1});
         ;
         Str_delete(name, &(Bool){1});
         ;
@@ -3831,8 +3786,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
             }
             Token *_t3937 = expect_token(p, TokenType_RParen());
             (void)_t3937;
-            Token_delete(_t3937, &(Bool){1});
-            Token_delete(_t3937, &(Bool){1});
             ;
             ;
             Str_delete(last_field, &(Bool){1});
@@ -3849,7 +3802,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
         ;
         Token *_t3941 = expect_token(p, TokenType_Eq());
         (void)_t3941;
-        Token_delete(_t3941, &(Bool){1});
         ExprData *_t3942 = ExprData_FieldAssign(last_field);
         (void)_t3942;
         Str_delete(last_field, &(Bool){1});
@@ -3863,7 +3815,6 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
         Expr *_t3944 = parse_expression(p);
         (void)_t3944;
         Expr_add_child(fa, _t3944);
-        Token_delete(_t3941, &(Bool){1});
         ;
         Str_delete(name, &(Bool){1});
         ;
@@ -4079,11 +4030,9 @@ Expr * parse_statement(Parser * p) {
             { Str *_fa = expect_text(p, TokenType_Ident()); dd->explicit_type = *_fa; free(_fa); }
             Token *_t3985 = expect_token(p, TokenType_Eq());
             (void)_t3985;
-            Token_delete(_t3985, &(Bool){1});
         } else {
             Token *_t3986 = expect_token(p, TokenType_ColonEq());
             (void)_t3986;
-            Token_delete(_t3986, &(Bool){1});
         }
         ;
         ExprData *_t3996 = ExprData_Decl(dd);
@@ -4167,7 +4116,6 @@ Expr * parse_statement(Parser * p) {
         Expr_add_child(node, _t4017);
         Token *_t4018 = expect_token(p, TokenType_LBrace());
         (void)_t4018;
-        Token_delete(_t4018, &(Bool){1});
         Expr *_t4019 = parse_block(p);
         (void)_t4019;
         Expr_add_child(node, _t4019);
@@ -4194,7 +4142,6 @@ Expr * parse_statement(Parser * p) {
             } else {
                 Token *_t4012 = expect_token(p, TokenType_LBrace());
                 (void)_t4012;
-                Token_delete(_t4012, &(Bool){1});
                 Expr *_t4013 = parse_block(p);
                 (void)_t4013;
                 Expr_add_child(node, _t4013);
@@ -4202,7 +4149,6 @@ Expr * parse_statement(Parser * p) {
             ;
         }
         ;
-        Token_delete(_t4018, &(Bool){1});
         ;
         ;
         ;
@@ -4263,11 +4209,9 @@ Expr * parse_statement(Parser * p) {
         Expr_add_child(node, _t4025);
         Token *_t4026 = expect_token(p, TokenType_LBrace());
         (void)_t4026;
-        Token_delete(_t4026, &(Bool){1});
         Expr *_t4027 = parse_block(p);
         (void)_t4027;
         Expr_add_child(node, _t4027);
-        Token_delete(_t4026, &(Bool){1});
         ;
         ;
         ;
@@ -4304,18 +4248,14 @@ Expr * parse_statement(Parser * p) {
         ;
         Token *_t4032 = expect_token(p, TokenType_KwIn());
         (void)_t4032;
-        Token_delete(_t4032, &(Bool){1});
         Expr *_t4033 = parse_expression(p);
         (void)_t4033;
         Expr_add_child(node, _t4033);
         Token *_t4034 = expect_token(p, TokenType_LBrace());
         (void)_t4034;
-        Token_delete(_t4034, &(Bool){1});
         Expr *_t4035 = parse_block(p);
         (void)_t4035;
         Expr_add_child(node, _t4035);
-        Token_delete(_t4032, &(Bool){1});
-        Token_delete(_t4034, &(Bool){1});
         ;
         ;
         ;
@@ -4334,7 +4274,6 @@ Expr * parse_statement(Parser * p) {
         Expr_add_child(node, _t4060);
         Token *_t4061 = expect_token(p, TokenType_LBrace());
         (void)_t4061;
-        Token_delete(_t4061, &(Bool){1});
         while (1) {
             Bool _t4047 = check(p, TokenType_RBrace());
             (void)_t4047;
@@ -4358,7 +4297,6 @@ Expr * parse_statement(Parser * p) {
             ;
             Token *_t4051 = expect_token(p, TokenType_KwCase());
             (void)_t4051;
-            Token_delete(_t4051, &(Bool){1});
             U32 _t4052 = peek_line(p);
             (void)_t4052;
             U32 _t4053 = peek_col(p);
@@ -4380,7 +4318,6 @@ Expr * parse_statement(Parser * p) {
             ;
             Token *_t4056 = expect_token(p, TokenType_Colon());
             (void)_t4056;
-            Token_delete(_t4056, &(Bool){1});
             U32 _t4057 = peek_line(p);
             (void)_t4057;
             U32 _t4058 = peek_col(p);
@@ -4428,9 +4365,6 @@ Expr * parse_statement(Parser * p) {
         }
         Token *_t4062 = expect_token(p, TokenType_RBrace());
         (void)_t4062;
-        Token_delete(_t4062, &(Bool){1});
-        Token_delete(_t4061, &(Bool){1});
-        Token_delete(_t4062, &(Bool){1});
         ;
         ;
         ;
@@ -4778,7 +4712,6 @@ Expr * parse(Vec * tokens, Str * path, Str * mode_out) {
         } else {
             Token *_t4160 = expect_token(p, TokenType_Ident());
             (void)_t4160;
-            Token_delete(_t4160, &(Bool){1});
         }
         ;
     }
