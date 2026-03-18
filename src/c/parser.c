@@ -961,25 +961,25 @@ Expr *parse_statement(Parser *p) {
     }
 }
 
-static Str *_last_parsed_mode = NULL;
+static Str _last_parsed_mode;
 
 Str *parser_get_mode(void) {
-    return _last_parsed_mode ? _last_parsed_mode : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    return &_last_parsed_mode;
 }
 
-Expr *parse(Vec *tokens, Str *path, Str **mode_out) {
+Expr *parse(Vec *tokens, Str *path, Str *mode_out) {
     Parser p = {*tokens, 0, *path};
 
     // Parse optional mode declaration
-    _last_parsed_mode = NULL;
-    if (mode_out) *mode_out = NULL;
+    _last_parsed_mode = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
+    if (mode_out) *mode_out = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     if (check(&p, TokenType_TAG_KwMode)) {
         advance(&p); // consume 'mode'
         // Accept TOK_IDENT or TOK_TEST (test is both a keyword and a mode name)
         Token *mode_name = (check(&p, TokenType_TAG_Ident) || check(&p, TokenType_TAG_KwTest))
             ? advance(&p) : expect_token(&p, TokenType_TAG_Ident);
-        if (mode_out) *mode_out = tok_str(mode_name);
-        _last_parsed_mode = tok_str(mode_name);
+        if (mode_out) *mode_out = *tok_str(mode_name);
+        _last_parsed_mode = *tok_str(mode_name);
     }
 
     // Parse body (top-level statements until EOF)

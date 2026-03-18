@@ -21,7 +21,7 @@
 // --- Tokenize/Parse wrappers (avoid output params) ---
 
 static Vec *_tok_vec;
-static Str *_parse_mode;
+static Str _parse_mode;
 
 Vec *til_tokenize(Str *source, Str *path) {
     // Clone inputs: tokenizer creates Str views (CAP_VIEW) into source buffer,
@@ -32,11 +32,11 @@ Vec *til_tokenize(Str *source, Str *path) {
 }
 
 Expr *til_parse(Vec *tokens, Str *path) {
-    _parse_mode = NULL;
+    _parse_mode = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     // Clone path: parser stores Str* in Parser struct and propagates to AST nodes.
     return parse(tokens, Str_clone(path), &_parse_mode);
 }
-Str *til_parse_mode(void) { return _parse_mode ? _parse_mode : Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}); }
+Str *til_parse_mode(void) { return Str_clone(&_parse_mode); }
 
 // --- Expr field accessors ---
 
