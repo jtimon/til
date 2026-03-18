@@ -18,14 +18,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-// --- Tokenize/Parse wrappers ---
-
-// DEAD: kept for first-pass bootstrap compat, remove after regeneration
-static Vec *_tok_vec;
-Vec *til_tokenize(Str *source, Str *path) {
-    _tok_vec = tokenize(Str_clone(source), Str_clone(path));
-    return _tok_vec;
-}
+// --- Parse wrapper ---
 
 static Str _parse_mode;
 
