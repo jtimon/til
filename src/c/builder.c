@@ -1060,15 +1060,6 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 emit_ctor_fields(f, "_r", rv, depth);
                 emit_indent(f, depth);
                 fprintf(f, "return _r; }\n");
-            } else if (rv->data.tag == ExprData_TAG_FieldAccess && !rv->is_own_field &&
-                       !rv->is_ns_field && rv->til_type.tag != TilType_TAG_Dynamic) {
-                // Inline field value — must clone to heap pointer for return
-                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
-                    ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
-                    : c_type_name(rv->til_type, &rv->struct_name);
-                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
-                emit_expr(f, rv, depth);
-                fprintf(f, "; return _r; }\n");
             } else if (current_fdef && current_fdef->data.data.FuncDef.return_is_shallow) {
                 // Shallow-return function — return value directly
                 if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {
@@ -1080,6 +1071,15 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     emit_deref(f, rv, depth);
                     fprintf(f, ";\n");
                 }
+            } else if (rv->data.tag == ExprData_TAG_FieldAccess && !rv->is_own_field &&
+                       !rv->is_ns_field && rv->til_type.tag != TilType_TAG_Dynamic) {
+                // Inline field value — must clone to heap pointer for return
+                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                    ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
+                    : c_type_name(rv->til_type, &rv->struct_name);
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = ", ctype, ctype);
+                emit_expr(f, rv, depth);
+                fprintf(f, "; return _r; }\n");
             } else if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {
                 // returns shallow: box value return into heap pointer
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)

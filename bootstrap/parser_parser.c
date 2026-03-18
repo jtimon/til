@@ -258,12 +258,12 @@ Str * expect_text(Parser * p, TokenType * type) {
 
 U32 peek_line(Parser * p) {
     (void)p;
-    { U32 *_r = malloc(sizeof(U32)); *_r = peek(p)->line; return _r; }
+    return peek(p)->line;
 }
 
 U32 peek_col(Parser * p) {
     (void)p;
-    { U32 *_r = malloc(sizeof(U32)); *_r = peek(p)->col; return _r; }
+    return peek(p)->col;
 }
 
 Expr * parse_fn_signature(Parser * p, U32 line, U32 col) {
