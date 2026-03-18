@@ -11,7 +11,7 @@ typedef struct {
     Token *tokens;
     U32 count;
     U32 pos;
-    Str *path;
+    Str path;
 } Parser;
 
 Token *peek(Parser *p) {
@@ -33,7 +33,7 @@ Token *expect(Parser *p, TokenType_tag type) {
     if (t->type.tag != type) {
         TokenType tt = {type};
         fprintf(stderr, "%s:%u:%u: parse error: expected '%s', found '%.*s'\n",
-                p->path->c_str, t->line, t->col,
+                p->path.c_str, t->line, t->col,
                 tok_name(&tt)->c_str,
                 (int)t->text.count, (const char *)t->text.c_str);
         exit(1);
@@ -55,7 +55,7 @@ Expr *parse_expression(Parser *p);
 
 // parse_block: expects '{' already consumed, reads statements until '}'
 Expr *parse_block(Parser *p) {
-    Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, p->path);
+    Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
     while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
         Expr_add_child(body, parse_statement(p));
     }
@@ -96,7 +96,7 @@ Expr *parse_fn_signature(Parser *p, I64 line, I64 col) {
     }
 
     // Build synthetic func_def
-    Expr *sig = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, p->path);
+    Expr *sig = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, &p->path);
     sig->data.data.FuncDef.func_type = return_type ? (FuncType){FuncType_TAG_Func} : (FuncType){FuncType_TAG_Proc};
     U32 np_sig = ptypes.count;
     sig->data.data.FuncDef.nparam = np_sig;
@@ -130,7 +130,7 @@ Expr *parse_func_def(Parser *p) {
     case TokenType_TAG_KwExtProc:  ft = (FuncType){FuncType_TAG_ExtProc}; break;
     default:
         fprintf(stderr, "%s:%u:%u: parse error: expected function keyword\n",
-                p->path->c_str, kw->line, kw->col);
+                p->path.c_str, kw->line, kw->col);
         exit(1);
     }
 
@@ -177,17 +177,17 @@ Expr *parse_func_def(Parser *p) {
                 advance(p); // consume '...'
                 if (is_own || is_mut || is_shallow) {
                     fprintf(stderr, "%s:%u:%u: parse error: kwargs parameter '%.*s' cannot be own/mut/shallow\n",
-                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                            p->path.c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (kwargs_index >= 0) {
                     fprintf(stderr, "%s:%u:%u: parse error: only one kwargs parameter is allowed\n",
-                            p->path->c_str, pname->line, pname->col);
+                            p->path.c_str, pname->line, pname->col);
                     exit(1);
                 }
                 if (variadic_index >= 0) {
                     fprintf(stderr, "%s:%u:%u: parse error: cannot combine variadic and kwargs in the same function\n",
-                            p->path->c_str, pname->line, pname->col);
+                            p->path.c_str, pname->line, pname->col);
                     exit(1);
                 }
                 kwargs_index = pnames.count;
@@ -198,27 +198,27 @@ Expr *parse_func_def(Parser *p) {
                 advance(p); // consume '..'
                 if (is_own) {
                     fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'own' (implicit)\n",
-                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                            p->path.c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (is_mut) {
                     fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'mut'\n",
-                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                            p->path.c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (is_shallow) {
                     fprintf(stderr, "%s:%u:%u: parse error: variadic parameter '%.*s' cannot be 'shallow'\n",
-                            p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                            p->path.c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
                     exit(1);
                 }
                 if (variadic_index >= 0) {
                     fprintf(stderr, "%s:%u:%u: parse error: only one variadic parameter is allowed\n",
-                            p->path->c_str, pname->line, pname->col);
+                            p->path.c_str, pname->line, pname->col);
                     exit(1);
                 }
                 if (kwargs_index >= 0) {
                     fprintf(stderr, "%s:%u:%u: parse error: cannot combine variadic and kwargs in the same function\n",
-                            p->path->c_str, pname->line, pname->col);
+                            p->path.c_str, pname->line, pname->col);
                     exit(1);
                 }
                 variadic_index = pnames.count;
@@ -251,7 +251,7 @@ Expr *parse_func_def(Parser *p) {
         }
         if (variadic_index >= 0 && !is_this_variadic && !def_val) {
             fprintf(stderr, "%s:%u:%u: parse error: positional parameter '%.*s' not allowed after variadic\n",
-                    p->path->c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
+                    p->path.c_str, pname->line, pname->col, (int)pname->text.count, (const char *)pname->text.c_str);
             exit(1);
         }
         { Expr **_p = malloc(sizeof(Expr *)); *_p = def_val; Vec_push(&pdefs, _p); }
@@ -276,7 +276,7 @@ Expr *parse_func_def(Parser *p) {
         return_type = tok_str(rt);
     }
 
-    Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, kw->line, kw->col, p->path);
+    Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, kw->line, kw->col, &p->path);
     def->data.data.FuncDef.func_type = ft;
     def->data.data.FuncDef.nparam = pnames.count;
     def->data.data.FuncDef.param_names = pnames; pnames = (Vec){0};
@@ -299,7 +299,7 @@ Expr *parse_func_def(Parser *p) {
         // Bodyless = FuncSig type definition (only for func/proc)
         if (ft.tag != FuncType_TAG_Func && ft.tag != FuncType_TAG_Proc) {
             fprintf(stderr, "%s:%u:%u: parse error: %s requires a body\n",
-                    p->path->c_str, kw->line, kw->col,
+                    p->path.c_str, kw->line, kw->col,
                     ft.tag == FuncType_TAG_Test ? "test" : "ext_func/ext_proc");
             exit(1);
         }
@@ -312,11 +312,11 @@ Expr *parse_func_def(Parser *p) {
 Expr *parse_struct_def(Parser *p) {
     Token *kw = advance(p); // consume 'struct' or 'ext_struct'
     bool is_ext = (kw->type.tag == TokenType_TAG_KwExtStruct);
-    Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_StructDef}, kw->line, kw->col, p->path);
+    Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_StructDef}, kw->line, kw->col, &p->path);
     def->is_ext = is_ext;
     expect(p, TokenType_TAG_LBrace);
     // Parse struct body with namespace: support
-    Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, p->path);
+    Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
     I32 in_namespace = 0;
     while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
         if (check(p, TokenType_TAG_KwNamespace)) {
@@ -340,9 +340,9 @@ Expr *parse_struct_def(Parser *p) {
 // parse_enum_def: current token is 'enum'
 Expr *parse_enum_def(Parser *p) {
     Token *kw = advance(p); // consume 'enum'
-    Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_EnumDef}, kw->line, kw->col, p->path);
+    Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_EnumDef}, kw->line, kw->col, &p->path);
     expect(p, TokenType_TAG_LBrace);
-    Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, p->path);
+    Expr *body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
     I32 in_namespace = 0;
     while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
         if (check(p, TokenType_TAG_KwNamespace)) {
@@ -360,7 +360,7 @@ Expr *parse_enum_def(Parser *p) {
         } else {
             // Variant: bare identifier or Variant: Type, comma-separated
             Token *name = expect(p, TokenType_TAG_Ident);
-            Expr *variant = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, name->line, name->col, p->path);
+            Expr *variant = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, name->line, name->col, &p->path);
             variant->data.data.Decl.name = *tok_str(name);
             if (check(p, TokenType_TAG_Colon)) {
                 advance(p);
@@ -380,10 +380,10 @@ Expr *parse_enum_def(Parser *p) {
 Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
     advance(p); // consume '('
 
-    Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, p->path);
+    Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, &p->path);
 
     // first child is the callee identifier
-    Expr *callee = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, p->path);
+    Expr *callee = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, &p->path);
     callee->data.data.Ident = *name;
     Expr_add_child(call, callee);
 
@@ -394,7 +394,7 @@ Expr *parse_call(Parser *p, Str *name, I64 line, I64 col) {
             p->tokens[p->pos + 1].type.tag == TokenType_TAG_Eq) {
             Token *aname = advance(p); // consume ident
             advance(p); // consume '='
-            Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, p->path);
+            Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, &p->path);
             na->data.data.NamedArg = *tok_str(aname);
             Expr_add_child(na, parse_expression(p));
             Expr_add_child(call, na);
@@ -428,11 +428,11 @@ Expr *parse_expression(Parser *p) {
 
     if (t->type.tag == TokenType_TAG_StringTok) {
         advance(p);
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, t->line, t->col, p->path);
+        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, t->line, t->col, &p->path);
         e->data.data.LiteralStr = *tok_str(t);
     } else if (t->type.tag == TokenType_TAG_Number) {
         advance(p);
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, p->path);
+        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, &p->path);
         e->data.data.LiteralNum = *tok_str(t);
     } else if (t->type.tag == TokenType_TAG_Char) {
         advance(p);
@@ -451,18 +451,18 @@ Expr *parse_expression(Parser *p) {
         } else {
             byte_val = (U8)ch[0];
         }
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, p->path);
+        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, &p->path);
         char buf[4];
         snprintf(buf, sizeof(buf), "%u", byte_val);
         e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         e->til_type = (TilType){TilType_TAG_U8};
     } else if (t->type.tag == TokenType_TAG_KwTrue || t->type.tag == TokenType_TAG_KwFalse) {
         advance(p);
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, t->line, t->col, p->path);
+        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, t->line, t->col, &p->path);
         e->data.data.LiteralBool = *tok_str(t);
     } else if (t->type.tag == TokenType_TAG_KwNull) {
         advance(p);
-        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNull}, t->line, t->col, p->path);
+        e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNull}, t->line, t->col, &p->path);
     } else if (t->type.tag == TokenType_TAG_Ident) {
         advance(p);
         Str *name = tok_str(t);
@@ -470,25 +470,25 @@ Expr *parse_expression(Parser *p) {
         if ((name->count == 7 && memcmp(name->c_str, "__LOC__", 7) == 0)) {
             char loc[32];
             snprintf(loc, sizeof(loc), ":%u:%u", t->line, t->col);
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, t->line, t->col, p->path);
-            e->data.data.LiteralStr = *Str_concat(p->path, Str_clone(&(Str){.c_str = (U8*)(loc), .count = (U64)strlen((const char*)(loc)), .cap = CAP_VIEW}));
+            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, t->line, t->col, &p->path);
+            e->data.data.LiteralStr = *Str_concat(&p->path, Str_clone(&(Str){.c_str = (U8*)(loc), .count = (U64)strlen((const char*)(loc)), .cap = CAP_VIEW}));
         } else if ((name->count == 8 && memcmp(name->c_str, "__FILE__", 8) == 0)) {
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, t->line, t->col, p->path);
-            e->data.data.LiteralStr = *Str_clone(p->path);
+            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, t->line, t->col, &p->path);
+            e->data.data.LiteralStr = *Str_clone(&p->path);
         } else if ((name->count == 8 && memcmp(name->c_str, "__LINE__", 8) == 0)) {
             char buf[24];
             snprintf(buf, sizeof(buf), "%u", t->line);
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, p->path);
+            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, &p->path);
             e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         } else if ((name->count == 7 && memcmp(name->c_str, "__COL__", 7) == 0)) {
             char buf[24];
             snprintf(buf, sizeof(buf), "%u", t->col);
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, p->path);
+            e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, t->line, t->col, &p->path);
             e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         } else if (check(p, TokenType_TAG_LParen)) {
             e = parse_call(p, name, t->line, t->col);
         } else {
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, t->line, t->col, p->path);
+            e = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, t->line, t->col, &p->path);
             e->data.data.Ident = *name;
         }
     } else if (t->type.tag == TokenType_TAG_KwFunc || t->type.tag == TokenType_TAG_KwProc || t->type.tag == TokenType_TAG_KwTest ||
@@ -503,7 +503,7 @@ Expr *parse_expression(Parser *p) {
         Expr *first = parse_expression(p);
         if (check(p, TokenType_TAG_Colon)) {
             // Map literal: {key: val, ...}
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_MapLit}, t->line, t->col, p->path);
+            e = Expr_new(&(ExprData){.tag = ExprData_TAG_MapLit}, t->line, t->col, &p->path);
             Expr_add_child(e, first);
             advance(p); // consume ':'
             Expr_add_child(e, parse_expression(p));
@@ -516,7 +516,7 @@ Expr *parse_expression(Parser *p) {
             }
         } else {
             // Set literal: {val, val, ...}
-            e = Expr_new(&(ExprData){.tag = ExprData_TAG_SetLit}, t->line, t->col, p->path);
+            e = Expr_new(&(ExprData){.tag = ExprData_TAG_SetLit}, t->line, t->col, &p->path);
             Expr_add_child(e, first);
             if (check(p, TokenType_TAG_Comma)) advance(p);
             while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
@@ -527,7 +527,7 @@ Expr *parse_expression(Parser *p) {
         expect(p, TokenType_TAG_RBrace);
     } else {
         fprintf(stderr, "%s:%u:%u: parse error: unexpected token '%.*s'\n",
-                p->path->c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
+                p->path.c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
         exit(1);
     }
 
@@ -538,17 +538,17 @@ Expr *parse_expression(Parser *p) {
         if (check(p, TokenType_TAG_LParen)) {
             // Method call: expr.method(args)
             advance(p); // consume '('
-            Expr *callee = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, field->line, field->col, p->path);
+            Expr *callee = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, field->line, field->col, &p->path);
             callee->data.data.FieldAccess = *tok_str(field);
             Expr_add_child(callee, e);
-            Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, field->line, field->col, p->path);
+            Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, field->line, field->col, &p->path);
             Expr_add_child(call, callee);
             while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
                 if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->count &&
                     p->tokens[p->pos + 1].type.tag == TokenType_TAG_Eq) {
                     Token *aname = advance(p);
                     advance(p);
-                    Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, p->path);
+                    Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, &p->path);
                     na->data.data.NamedArg = *tok_str(aname);
                     Expr_add_child(na, parse_expression(p));
                     Expr_add_child(call, na);
@@ -567,7 +567,7 @@ Expr *parse_expression(Parser *p) {
             expect(p, TokenType_TAG_RParen);
             e = call;
         } else {
-            Expr *access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, field->line, field->col, p->path);
+            Expr *access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, field->line, field->col, &p->path);
             access->data.data.FieldAccess = *tok_str(field);
             Expr_add_child(access, e);
             e = access;
@@ -578,12 +578,12 @@ Expr *parse_expression(Parser *p) {
         Token *dt = &p->tokens[p->pos];
         advance(p); // consume '..'
         Expr *rhs = parse_expression(p);
-        Expr *range_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, dt->line, dt->col, p->path);
+        Expr *range_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, dt->line, dt->col, &p->path);
         range_ident->data.data.Ident = (Str){.c_str = (U8*)"Range", .count = 5, .cap = CAP_LIT};
-        Expr *new_access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, dt->line, dt->col, p->path);
+        Expr *new_access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, dt->line, dt->col, &p->path);
         new_access->data.data.FieldAccess = (Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_access, range_ident);
-        Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, dt->line, dt->col, p->path);
+        Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, dt->line, dt->col, &p->path);
         Expr_add_child(call, new_access);
         Expr_add_child(call, e);
         Expr_add_child(call, rhs);
@@ -600,7 +600,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     // Declaration: name := value (inferred type)
     if (check(p, TokenType_TAG_ColonEq)) {
         advance(p); // consume :=
-        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, p->path);
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, &p->path);
         decl->data.data.Decl.name = *name;
         decl->data.data.Decl.explicit_type = (Str){0};
         decl->data.data.Decl.is_mut = is_mut;
@@ -630,7 +630,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
             expect(p, TokenType_TAG_LBrace);
             Expr_add_child(sig, parse_block(p));
             // Wrap in ExprData_TAG_Decl — same AST as FuncDef form
-            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, p->path);
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, &p->path);
             decl->data.data.Decl.name = *name;
             decl->data.data.Decl.explicit_type = (Str){0};
             decl->data.data.Decl.is_mut = is_mut;
@@ -682,7 +682,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
                 expect(p, TokenType_TAG_LBrace);
                 Expr *body = parse_block(p);
                 // Build incomplete ExprData_TAG_FuncDef (types filled by initer)
-                Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, t->line, t->col, p->path);
+                Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, t->line, t->col, &p->path);
                 U32 np = pnames.count;
                 def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func}; // placeholder
                 def->data.data.FuncDef.nparam = np;
@@ -698,7 +698,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
                 def->data.data.FuncDef.kwargs_index = -1;
                 Expr_add_child(def, body);
                 // Wrap in ExprData_TAG_Decl with explicit_type (initer fills types)
-                Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, p->path);
+                Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, &p->path);
                 decl->data.data.Decl.name = *name;
                 decl->data.data.Decl.explicit_type = *type_name;
                 decl->data.data.Decl.is_mut = is_mut;
@@ -708,7 +708,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
             }
         }
 
-        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, p->path);
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, &p->path);
         decl->data.data.Decl.name = *name;
         decl->data.data.Decl.explicit_type = *type_name;
         decl->data.data.Decl.fn_sig = fn_sig;
@@ -721,7 +721,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     // Field assignment or method call: name.field = value  or  name.method(args)
     if (check(p, TokenType_TAG_Dot)) {
         // Build the field access chain
-        Expr *obj = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, t->line, t->col, p->path);
+        Expr *obj = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, t->line, t->col, &p->path);
         obj->data.data.Ident = *name;
         Token *last_field = NULL;
         while (check(p, TokenType_TAG_Dot)) {
@@ -729,7 +729,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
             last_field = expect(p, TokenType_TAG_Ident);
             if (check(p, TokenType_TAG_Dot)) {
                 // More dots coming — this is an intermediate access
-                Expr *access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, last_field->line, last_field->col, p->path);
+                Expr *access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, last_field->line, last_field->col, &p->path);
                 access->data.data.FieldAccess = *tok_str(last_field);
                 Expr_add_child(access, obj);
                 obj = access;
@@ -738,17 +738,17 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         // Method call: name.method(args)
         if (check(p, TokenType_TAG_LParen)) {
             advance(p); // consume '('
-            Expr *callee = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, last_field->line, last_field->col, p->path);
+            Expr *callee = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, last_field->line, last_field->col, &p->path);
             callee->data.data.FieldAccess = *tok_str(last_field);
             Expr_add_child(callee, obj);
-            Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, last_field->line, last_field->col, p->path);
+            Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, last_field->line, last_field->col, &p->path);
             Expr_add_child(call, callee);
             while (!check(p, TokenType_TAG_RParen) && !check(p, TokenType_TAG_Eof)) {
                 if (check(p, TokenType_TAG_Ident) && p->pos + 1 < p->count &&
                     p->tokens[p->pos + 1].type.tag == TokenType_TAG_Eq) {
                     Token *aname = advance(p);
                     advance(p);
-                    Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, p->path);
+                    Expr *na = Expr_new(&(ExprData){.tag = ExprData_TAG_NamedArg}, aname->line, aname->col, &p->path);
                     na->data.data.NamedArg = *tok_str(aname);
                     Expr_add_child(na, parse_expression(p));
                     Expr_add_child(call, na);
@@ -769,7 +769,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
         }
         // Field assignment
         expect(p, TokenType_TAG_Eq);
-        Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAssign}, t->line, t->col, p->path);
+        Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAssign}, t->line, t->col, &p->path);
         fa->data.data.FieldAssign = *tok_str(last_field);
         Expr_add_child(fa, obj);
         Expr_add_child(fa, parse_expression(p));
@@ -779,7 +779,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     // Assignment: name = value
     if (check(p, TokenType_TAG_Eq)) {
         advance(p); // consume =
-        Expr *assign = Expr_new(&(ExprData){.tag = ExprData_TAG_Assign}, t->line, t->col, p->path);
+        Expr *assign = Expr_new(&(ExprData){.tag = ExprData_TAG_Assign}, t->line, t->col, &p->path);
         assign->data.data.Assign = *name;
         Expr_add_child(assign, parse_expression(p));
         return assign;
@@ -791,7 +791,7 @@ Expr *parse_statement_ident(Parser *p, I32 is_mut, I32 is_own) {
     }
 
     fprintf(stderr, "%s:%u:%u: parse error: expected ':=', ':', '=' or '(' after identifier '%s'\n",
-            p->path->c_str, t->line, t->col, name->c_str);
+            p->path.c_str, t->line, t->col, name->c_str);
     exit(1);
 }
 
@@ -810,7 +810,7 @@ Expr *parse_statement(Parser *p) {
         }
         Token *ident = expect(p, TokenType_TAG_Ident);
         Str *name = tok_str(ident);
-        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, ident->line, ident->col, p->path);
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, ident->line, ident->col, &p->path);
         decl->data.data.Decl.name = *name;
         decl->data.data.Decl.is_ref = true;
         if (ref_mut) decl->data.data.Decl.is_mut = true;
@@ -834,7 +834,7 @@ Expr *parse_statement(Parser *p) {
     }
     case TokenType_TAG_KwReturn: {
         advance(p);
-        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, t->line, t->col, p->path);
+        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, t->line, t->col, &p->path);
         // If next token looks like a value, parse it
         if (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
             Expr_add_child(ret, parse_expression(p));
@@ -843,7 +843,7 @@ Expr *parse_statement(Parser *p) {
     }
     case TokenType_TAG_KwIf: {
         advance(p); // consume 'if'
-        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, t->line, t->col, p->path);
+        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, t->line, t->col, &p->path);
         Expr_add_child(node, parse_expression(p)); // condition
         expect(p, TokenType_TAG_LBrace);
         Expr_add_child(node, parse_block(p));       // then body
@@ -851,7 +851,7 @@ Expr *parse_statement(Parser *p) {
             advance(p); // consume 'else'
             if (check(p, TokenType_TAG_KwIf)) {
                 // else if → else { if ... }
-                Expr *else_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, p->path);
+                Expr *else_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
                 Expr_add_child(else_body, parse_statement(p));
                 Expr_add_child(node, else_body);
             } else {
@@ -873,7 +873,7 @@ Expr *parse_statement(Parser *p) {
     }
     case TokenType_TAG_KwWhile: {
         advance(p); // consume 'while'
-        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_While}, t->line, t->col, p->path);
+        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_While}, t->line, t->col, &p->path);
         Expr_add_child(node, parse_expression(p)); // condition
         expect(p, TokenType_TAG_LBrace);
         Expr_add_child(node, parse_block(p));       // body
@@ -882,7 +882,7 @@ Expr *parse_statement(Parser *p) {
     case TokenType_TAG_KwFor: {
         advance(p); // consume 'for'
         Token *ident = expect(p, TokenType_TAG_Ident);
-        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_ForIn}, ident->line, ident->col, p->path);
+        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_ForIn}, ident->line, ident->col, &p->path);
         node->data.data.ForIn = *tok_str(ident);
         if (check(p, TokenType_TAG_Colon)) {
             advance(p); // consume ':'
@@ -897,17 +897,17 @@ Expr *parse_statement(Parser *p) {
     }
     case TokenType_TAG_KwSwitch: {
         advance(p); // consume 'switch'
-        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_Switch}, t->line, t->col, p->path);
+        Expr *node = Expr_new(&(ExprData){.tag = ExprData_TAG_Switch}, t->line, t->col, &p->path);
         Expr_add_child(node, parse_expression(p)); // switch expression
         expect(p, TokenType_TAG_LBrace);
         while (!check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
             expect(p, TokenType_TAG_KwCase);
-            Expr *cn = Expr_new(&(ExprData){.tag = ExprData_TAG_Case}, peek(p)->line, peek(p)->col, p->path);
+            Expr *cn = Expr_new(&(ExprData){.tag = ExprData_TAG_Case}, peek(p)->line, peek(p)->col, &p->path);
             if (!check(p, TokenType_TAG_Colon)) {
                 Expr_add_child(cn, parse_expression(p)); // match value
             }
             expect(p, TokenType_TAG_Colon);
-            Expr *cb = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, p->path);
+            Expr *cb = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, peek(p)->line, peek(p)->col, &p->path);
             while (!check(p, TokenType_TAG_KwCase) && !check(p, TokenType_TAG_RBrace) && !check(p, TokenType_TAG_Eof)) {
                 Expr_add_child(cb, parse_statement(p));
             }
@@ -933,7 +933,7 @@ Expr *parse_statement(Parser *p) {
             if (own_mut) {
                 // We consumed 'mut' but it's not a declaration — error
                 fprintf(stderr, "%s:%u:%u: parse error: expected identifier after 'own mut'\n",
-                        p->path->c_str, t->line, t->col);
+                        p->path.c_str, t->line, t->col);
                 exit(1);
             }
         }
@@ -949,15 +949,15 @@ Expr *parse_statement(Parser *p) {
     }
     case TokenType_TAG_KwBreak: {
         advance(p);
-        return Expr_new(&(ExprData){.tag = ExprData_TAG_Break}, t->line, t->col, p->path);
+        return Expr_new(&(ExprData){.tag = ExprData_TAG_Break}, t->line, t->col, &p->path);
     }
     case TokenType_TAG_KwContinue: {
         advance(p);
-        return Expr_new(&(ExprData){.tag = ExprData_TAG_Continue}, t->line, t->col, p->path);
+        return Expr_new(&(ExprData){.tag = ExprData_TAG_Continue}, t->line, t->col, &p->path);
     }
     default:
         fprintf(stderr, "%s:%u:%u: parse error: expected statement, found '%.*s'\n",
-                p->path->c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
+                p->path.c_str, t->line, t->col, (int)t->text.count, (const char *)t->text.c_str);
         exit(1);
     }
 }
@@ -969,7 +969,7 @@ Str *parser_get_mode(void) {
 }
 
 Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out) {
-    Parser p = {tokens, count, 0, path};
+    Parser p = {tokens, count, 0, *path};
 
     // Parse optional mode declaration
     _last_parsed_mode = NULL;
@@ -984,7 +984,7 @@ Expr *parse(Token *tokens, U32 count, Str *path, Str **mode_out) {
     }
 
     // Parse body (top-level statements until EOF)
-    Expr *root = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, 1, 1, p.path);
+    Expr *root = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, 1, 1, &p.path);
     while (!check(&p, TokenType_TAG_Eof)) {
         Expr_add_child(root, parse_statement(&p));
     }
