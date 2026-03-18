@@ -1166,7 +1166,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         et_str->til_type = (TilType){TilType_TAG_Struct};
         et_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, et_str);
-        Expr *esz = make_ns_call(elem_type, "size", (TilType){TilType_TAG_I64}, NULL, set_lit);
+        Expr *esz = make_ns_call(elem_type, "size", (TilType){TilType_TAG_U64}, NULL, set_lit);
         Expr_add_child(new_call, esz);
 
         Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, stmt->line, stmt->col, path);
@@ -1286,7 +1286,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         kt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, kt_str);
         // Arg 2: KeyType.size()
-        Expr *ksz = make_ns_call(key_type, "size", (TilType){TilType_TAG_I64}, NULL, map_lit);
+        Expr *ksz = make_ns_call(key_type, "size", (TilType){TilType_TAG_U64}, NULL, map_lit);
         Expr_add_child(new_call, ksz);
         // Arg 3: val_type string
         Expr *vt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
@@ -1295,7 +1295,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         vt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, vt_str);
         // Arg 4: ValType.size()
-        Expr *vsz = make_ns_call(val_type, "size", (TilType){TilType_TAG_I64}, NULL, map_lit);
+        Expr *vsz = make_ns_call(val_type, "size", (TilType){TilType_TAG_U64}, NULL, map_lit);
         Expr_add_child(new_call, vsz);
 
         // Build declaration node (mut, so .set can work)
