@@ -25,7 +25,7 @@ advance := proc(mut p: Parser) returns ref Token {
     return t
 }
 
-check := func(p: Parser, type: TokenType) returns Bool {
+check := func(p: Parser, type: TokenType) returns shallow Bool {
     return peek(p).type.eq(type)
 }
 
