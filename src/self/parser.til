@@ -444,6 +444,11 @@ parse_expression := proc(mut p: Parser) returns Expr {
         e = Expr.new(ExprData.LiteralBool(t.text.clone()), t_line, t_col, p.path)
         e_set = true
     }
+    if e_set.not().and(t.type.eq(TokenType.KwNull)) {
+        advance(p)
+        e = Expr.new(ExprData.LiteralNull, t_line, t_col, p.path)
+        e_set = true
+    }
     if e_set.not().and(t.type.eq(TokenType.Ident)) {
         advance(p)
         name := t.text.clone()
@@ -844,7 +849,8 @@ parse_statement := proc(mut p: Parser) returns Expr {
         return node
     }
     if t.type.eq(TokenType.StringTok).or(t.type.eq(TokenType.Number))
-        .or(t.type.eq(TokenType.KwTrue)).or(t.type.eq(TokenType.KwFalse)) {
+        .or(t.type.eq(TokenType.KwTrue)).or(t.type.eq(TokenType.KwFalse))
+        .or(t.type.eq(TokenType.KwNull)) {
         return parse_expression(p)
     }
     if t.type.eq(TokenType.LBrace) {

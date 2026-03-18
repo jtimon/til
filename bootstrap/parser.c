@@ -576,13 +576,13 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t4172;
-static I64 *_t4173;
-static I64 *_t4174;
+static I64 *_t4179;
+static I64 *_t4180;
+static I64 *_t4181;
 static U64 *CAP_LIT;
-static I64 *_t4175;
-static I64 *_t4176;
-static I64 *_t4177;
+static I64 *_t4182;
+static I64 *_t4183;
+static I64 *_t4184;
 static U64 *CAP_VIEW;
 
 FuncType *FuncType_Func() {
@@ -9754,25 +9754,25 @@ Bool dyn_has_cmp(Str *type_name) {
 
 __attribute__((constructor))
 static void _til_lib_init(void) {
-    _t4172 = malloc(sizeof(I64));
-    *_t4172 = 0;
-    (void)_t4172;
-    _t4173 = malloc(sizeof(I64));
-    *_t4173 = 1;
-    (void)_t4173;
-    _t4174 = malloc(sizeof(I64)); *_t4174 = I64_sub(DEREF(_t4172), DEREF(_t4173));
-    (void)_t4174;
-    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t4174));
+    _t4179 = malloc(sizeof(I64));
+    *_t4179 = 0;
+    (void)_t4179;
+    _t4180 = malloc(sizeof(I64));
+    *_t4180 = 1;
+    (void)_t4180;
+    _t4181 = malloc(sizeof(I64)); *_t4181 = I64_sub(DEREF(_t4179), DEREF(_t4180));
+    (void)_t4181;
+    CAP_LIT = malloc(sizeof(U64)); *CAP_LIT = I64_to_u64(DEREF(_t4181));
     (void)CAP_LIT;
-    _t4175 = malloc(sizeof(I64));
-    *_t4175 = 0;
-    (void)_t4175;
-    _t4176 = malloc(sizeof(I64));
-    *_t4176 = 2;
-    (void)_t4176;
-    _t4177 = malloc(sizeof(I64)); *_t4177 = I64_sub(DEREF(_t4175), DEREF(_t4176));
-    (void)_t4177;
-    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t4177));
+    _t4182 = malloc(sizeof(I64));
+    *_t4182 = 0;
+    (void)_t4182;
+    _t4183 = malloc(sizeof(I64));
+    *_t4183 = 2;
+    (void)_t4183;
+    _t4184 = malloc(sizeof(I64)); *_t4184 = I64_sub(DEREF(_t4182), DEREF(_t4183));
+    (void)_t4184;
+    CAP_VIEW = malloc(sizeof(U64)); *CAP_VIEW = I64_to_u64(DEREF(_t4184));
     (void)CAP_VIEW;
 }
 
