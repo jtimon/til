@@ -98,8 +98,8 @@ Expr *parse_fn_signature(Parser *p, U32 line, U32 col) {
     sig->data.data.FuncDef.func_type = return_type ? (FuncType){FuncType_TAG_Func} : (FuncType){FuncType_TAG_Proc};
     U32 np_sig = ptypes.count;
     sig->data.data.FuncDef.nparam = np_sig;
-    sig->data.data.FuncDef.param_types = ptypes; ptypes = (Vec){0};
-    sig->data.data.FuncDef.param_muts = pmuts; pmuts = (Vec){0};
+    move(&sig->data.data.FuncDef.param_types, &ptypes, sizeof(Vec));
+    move(&sig->data.data.FuncDef.param_muts, &pmuts, sizeof(Vec));
     // Allocate empty arrays for required fields
     sig->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     sig->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
@@ -277,13 +277,13 @@ Expr *parse_func_def(Parser *p) {
     Expr *def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, kw->line, kw->col, &p->path);
     def->data.data.FuncDef.func_type = ft;
     def->data.data.FuncDef.nparam = pnames.count;
-    def->data.data.FuncDef.param_names = pnames; pnames = (Vec){0};
-    def->data.data.FuncDef.param_types = ptypes; ptypes = (Vec){0};
-    def->data.data.FuncDef.param_muts = pmuts; pmuts = (Vec){0};
-    def->data.data.FuncDef.param_owns = powns; powns = (Vec){0};
-    def->data.data.FuncDef.param_shallows = pshallows; pshallows = (Vec){0};
-    def->data.data.FuncDef.param_fn_sigs = pfnsigs; pfnsigs = (Vec){0};
-    def->data.data.FuncDef.param_defaults = pdefs; pdefs = (Vec){0};
+    move(&def->data.data.FuncDef.param_names, &pnames, sizeof(Vec));
+    move(&def->data.data.FuncDef.param_types, &ptypes, sizeof(Vec));
+    move(&def->data.data.FuncDef.param_muts, &pmuts, sizeof(Vec));
+    move(&def->data.data.FuncDef.param_owns, &powns, sizeof(Vec));
+    move(&def->data.data.FuncDef.param_shallows, &pshallows, sizeof(Vec));
+    move(&def->data.data.FuncDef.param_fn_sigs, &pfnsigs, sizeof(Vec));
+    move(&def->data.data.FuncDef.param_defaults, &pdefs, sizeof(Vec));
     def->data.data.FuncDef.return_type = return_type ? *return_type : (Str){0};
     def->data.data.FuncDef.return_is_ref = return_is_ref;
     def->data.data.FuncDef.return_is_shallow = return_is_shallow;
@@ -684,7 +684,7 @@ Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
                 U32 np = pnames.count;
                 def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func}; // placeholder
                 def->data.data.FuncDef.nparam = np;
-                def->data.data.FuncDef.param_names = pnames; pnames = (Vec){0};
+                move(&def->data.data.FuncDef.param_names, &pnames, sizeof(Vec));
                 def->data.data.FuncDef.param_types = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
