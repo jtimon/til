@@ -1,5 +1,5 @@
 #include "dispatch.h"
-#include "../../bootstrap/modes.h"
+#include "../../bootstrap/ast.h"
 #include "builder.h"
 #include "pre70.h"
 #include "ext.h"

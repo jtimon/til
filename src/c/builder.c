@@ -1,5 +1,5 @@
 #include "builder.h"
-#include "../../bootstrap/modes.h"
+#include "../../bootstrap/ast.h"
 #include "pre70.h"
 #include <stdio.h>
 #include <stdlib.h>

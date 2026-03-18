@@ -2,8 +2,8 @@
 
 all: bin/til_bootstrap
 
-SRCS := $(wildcard src/c/*.c) bootstrap/modes.c
-HDRS := $(wildcard src/c/*.h) bootstrap/modes.h
+SRCS := $(wildcard src/c/*.c) bootstrap/ast.c
+HDRS := $(wildcard src/c/*.h) bootstrap/ast.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 CC_FLAGS := -Wall -Wextra -Werror -g -Isrc -Isrc/c -Ibootstrap
@@ -27,8 +27,8 @@ lib/libffi/.built:
 # Pass 1: gcc from committed bootstrap → compiler
 # til_core: compiler regenerates bootstrap/ from .til sources
 # Pass 2: gcc from regenerated bootstrap → final compiler
-# bootstrap/modes.c in SRCS ensures linking always succeeds: modes.til
-# imports ast.til (mode lib, no scavenging), so modes.c has all functions.
+# bootstrap/ast.c in SRCS ensures linking always succeeds: ast.til is
+# mode lib (no scavenging), so ast.c always has all function bodies.
 
 bin/til_bootstrap: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin
@@ -55,12 +55,11 @@ test: bin/til_bootstrap bin/til/test_runner bin/til/plot bin/til/tests
 # --- bootstrap regeneration ---
 
 til_core:
-	@bin/til_bootstrap translate src/self/modes.til
-	@cp gen/til/modes.c bootstrap/modes.c
-	@cp gen/til/modes.h bootstrap/modes.h
-	@cp gen/til/modes_*.c bootstrap/ 2>/dev/null || true
-	@cp gen/til/modes_*.h bootstrap/ 2>/dev/null || true
-	@for h in bootstrap/modes_*.h; do echo "#include \"$$(basename $$h)\"" >> bootstrap/modes.h; done
+	@bin/til_bootstrap translate src/self/ast.til
+	@cp gen/til/ast.c bootstrap/ast.c
+	@cp gen/til/ast.h bootstrap/ast.h
+	@cp gen/til/ast_*.c bootstrap/ 2>/dev/null || true
+	@cp gen/til/ast_*.h bootstrap/ 2>/dev/null || true
 	@bin/til_bootstrap translate src/self/parser.til
 	@cp gen/til/parser.c bootstrap/parser.c
 	@cp gen/til/parser.h bootstrap/parser.h

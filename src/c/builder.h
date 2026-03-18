@@ -1,7 +1,8 @@
 #ifndef TIL_BUILDER_H
 #define TIL_BUILDER_H
 
-#include "../../bootstrap/modes.h"
+#include "../../bootstrap/ast.h"
+#include "modes.h"
 
 // Generate C source code from a parsed program.
 // Writes the generated C to `c_output_path`.
