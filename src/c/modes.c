@@ -27,22 +27,9 @@ const Mode *mode_resolve(Str *name) {
     return NULL;
 }
 
-Bool Mode_eq(const Mode *a, const Mode *b) { return a == b; }
-const Mode *mode_script(void) { return &MODE_SCRIPT; }
-const Mode *mode_cli(void)    { return &MODE_CLI; }
-const Mode *mode_gui(void)    { return &MODE_GUI; }
-const Mode *mode_test(void)   { return &MODE_TEST; }
-const Mode *mode_pure(void)   { return &MODE_PURE; }
-const Mode *mode_pura(void)   { return &MODE_PURA; }
-const Mode *mode_lib(void)    { return &MODE_LIB; }
-const Mode *mode_liba(void)   { return &MODE_LIBA; }
+// Bridge-only functions (Mode_eq, mode_script/cli/etc getters,
+// mode_name, mode_auto_import) removed — only til_bridge.c uses them.
 
-Str *mode_name(const Mode *m) {
-    return m ? Str_clone((Str *)&m->name) : Str_clone(&STR_EMPTY);
-}
-Str *mode_auto_import(const Mode *m) {
-    return m ? Str_clone((Str *)&m->auto_import) : Str_clone(&STR_EMPTY);
-}
 Bool mode_is_lib(const Mode *m) {
     return m && (m == &MODE_LIB || m == &MODE_LIBA);
 }
