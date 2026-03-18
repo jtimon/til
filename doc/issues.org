@@ -162,14 +162,24 @@
     Fix: builder must emit all function bodies from imported modules.
     Until fixed, bootstrap/ast.c must stay in SRCS.
 
-*** TODO Replace modes.c with generated modes.til
-    modes.til is translating in til_core. All mode bridge functions
-    removed. Mode fields visible in til.til via ext_struct.
-    Blocker: generated modes.c uses runtime-initialized Map for
-    mode constants. First-pass binary links it but never calls
-    init. modes.c has compile-time globals that need no init.
-    Blocked on #70 (precomp for struct constants) or first-pass
-    init mechanism.
+*** DONE Replace modes.c with generated modes.til
+    src/c/modes.c+h deleted. bootstrap/modes.c (generated from
+    modes.til) is now in SRCS as the bootstrap facade. All C files
+    include bootstrap/modes.h directly.
+
+    What was done:
+    - Mode fields visible in til.til ext_struct (not opaque)
+    - til.til accesses fields directly (cur_mode.name, etc.)
+    - All mode bridge functions eliminated (mode_eq, mode_none,
+      mode_test/pure/pura, mode_name, mode_auto_import)
+    - Default mode is script (no null modes)
+    - mode_is_lib/mode_is_lib_output return Bool * (match generated)
+    - Builder fix: emit FCall nodes in lib init (Map_set was dropped)
+    - Builder fix: --allow-multiple-definition for compile_lib
+    - Typer fix: Map/Set literal size() typed U64 not I64
+    - Compatibility commit verified before swap
+    - modes.til is the permanent facade — future modules change
+      its import, SRCS stays bootstrap/modes.c
 
 *** TODO Makefile: ~til build src/til.til~ instead of two-pass gcc
     Once builder emits imported function bodies, ~compile_c()~ can
@@ -496,12 +506,7 @@
    - DONE modes.til translating in til_core
    - DONE typer fix: Map/Set literal size() typed U64 not I64
 
-   Blocker for modes.c → modes.til swap:
-   - Generated modes.c needs runtime init (Map of modes). First-pass
-     binary links generated code but never calls the init function.
-     modes.c has compile-time initialized globals that work without init.
-     Blocked on #70 (precomp for struct constants) or a different
-     approach to first-pass init.
+   DONE: modes.c → modes.til swap complete. See #77 for details.
 
    Already bikeshedding (tolerable):
    - println via Array vs printf/fprintf
