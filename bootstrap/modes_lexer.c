@@ -17,6 +17,31 @@ Token * Token_clone(Token * self) {
     return _t1600;
 }
 
+void Token_delete(Token * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    Bool _t1601 = 0;
+    (void)_t1601;
+    TokenType_delete(&self->type, &(Bool){_t1601});
+    ;
+    Bool _t1602 = 0;
+    (void)_t1602;
+    Str_delete(&self->text, &(Bool){_t1602});
+    ;
+    Bool _t1603 = 0;
+    (void)_t1603;
+    U32_delete(&self->line, &(Bool){_t1603});
+    ;
+    Bool _t1604 = 0;
+    (void)_t1604;
+    U32_delete(&self->col, &(Bool){_t1604});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U64 *Token_size(void) {
     U64 *r = malloc(sizeof(U64));
     *r = (U64)sizeof(Token);

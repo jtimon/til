@@ -25,6 +25,39 @@ Mode * Mode_clone(Mode * self) {
     return _t3046;
 }
 
+void Mode_delete(Mode * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    Bool _t3047 = 0;
+    (void)_t3047;
+    Str_delete(&self->name, &(Bool){_t3047});
+    ;
+    Bool _t3048 = 0;
+    (void)_t3048;
+    Bool_delete(&self->needs_main, &(Bool){_t3048});
+    ;
+    Bool _t3049 = 0;
+    (void)_t3049;
+    Bool_delete(&self->decls_only, &(Bool){_t3049});
+    ;
+    Bool _t3050 = 0;
+    (void)_t3050;
+    Str_delete(&self->auto_import, &(Bool){_t3050});
+    ;
+    Bool _t3051 = 0;
+    (void)_t3051;
+    Bool_delete(&self->is_pure, &(Bool){_t3051});
+    ;
+    Bool _t3052 = 0;
+    (void)_t3052;
+    Bool_delete(&self->debug_prints, &(Bool){_t3052});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U64 *Mode_size(void) {
     U64 *r = malloc(sizeof(U64));
     *r = (U64)sizeof(Mode);
@@ -36,6 +69,15 @@ TypeScope * TypeScope_clone(TypeScope * self) {
     TypeScope *_t3054 = malloc(sizeof(TypeScope));
     (void)_t3054;
     return _t3054;
+}
+
+void TypeScope_delete(TypeScope * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
 }
 
 U64 *TypeScope_size(void) {

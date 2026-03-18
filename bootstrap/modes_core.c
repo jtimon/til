@@ -7,6 +7,15 @@ EnumDef * EnumDef_clone(EnumDef * self) {
     return _t0;
 }
 
+void EnumDef_delete(EnumDef * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U64 *EnumDef_size(void) {
     U64 *r = malloc(sizeof(U64));
     *r = (U64)sizeof(EnumDef);
@@ -47,6 +56,71 @@ FunctionDef * FunctionDef_clone(FunctionDef * self) {
     ;
     ;
     return _t40;
+}
+
+void FunctionDef_delete(FunctionDef * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    Bool _t41 = 0;
+    (void)_t41;
+    FuncType_delete(&self->func_type, &(Bool){_t41});
+    ;
+    Bool _t42 = 0;
+    (void)_t42;
+    Vec_delete(&self->param_names, &(Bool){_t42});
+    ;
+    Bool _t43 = 0;
+    (void)_t43;
+    Vec_delete(&self->param_types, &(Bool){_t43});
+    ;
+    Bool _t44 = 0;
+    (void)_t44;
+    Vec_delete(&self->param_muts, &(Bool){_t44});
+    ;
+    Bool _t45 = 0;
+    (void)_t45;
+    Vec_delete(&self->param_owns, &(Bool){_t45});
+    ;
+    Bool _t46 = 0;
+    (void)_t46;
+    Vec_delete(&self->param_shallows, &(Bool){_t46});
+    ;
+    Bool _t47 = 0;
+    (void)_t47;
+    Vec_delete(&self->param_fn_sigs, &(Bool){_t47});
+    ;
+    Bool _t48 = 0;
+    (void)_t48;
+    U32_delete(&self->nparam, &(Bool){_t48});
+    ;
+    Bool _t49 = 0;
+    (void)_t49;
+    Vec_delete(&self->param_defaults, &(Bool){_t49});
+    ;
+    Bool _t50 = 0;
+    (void)_t50;
+    Str_delete(&self->return_type, &(Bool){_t50});
+    ;
+    Bool _t51 = 0;
+    (void)_t51;
+    I32_delete(&self->variadic_index, &(Bool){_t51});
+    ;
+    Bool _t52 = 0;
+    (void)_t52;
+    I32_delete(&self->kwargs_index, &(Bool){_t52});
+    ;
+    Bool _t53 = 0;
+    (void)_t53;
+    Bool_delete(&self->return_is_ref, &(Bool){_t53});
+    ;
+    Bool _t54 = 0;
+    (void)_t54;
+    Bool_delete(&self->return_is_shallow, &(Bool){_t54});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
 }
 
 U64 *FunctionDef_size(void) {

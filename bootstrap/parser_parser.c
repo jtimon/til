@@ -13,6 +13,27 @@ Parser * Parser_clone(Parser * self) {
     return _t3043;
 }
 
+void Parser_delete(Parser * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    Bool _t3044 = 0;
+    (void)_t3044;
+    Vec_delete(&self->tokens, &(Bool){_t3044});
+    ;
+    Bool _t3045 = 0;
+    (void)_t3045;
+    U64_delete(&self->pos, &(Bool){_t3045});
+    ;
+    Bool _t3046 = 0;
+    (void)_t3046;
+    Str_delete(&self->path, &(Bool){_t3046});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U64 *Parser_size(void) {
     U64 *r = malloc(sizeof(U64));
     *r = (U64)sizeof(Parser);

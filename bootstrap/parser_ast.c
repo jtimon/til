@@ -401,6 +401,47 @@ Declaration * Declaration_clone(Declaration * self) {
     return _t2328;
 }
 
+void Declaration_delete(Declaration * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    Bool _t2329 = 0;
+    (void)_t2329;
+    Str_delete(&self->name, &(Bool){_t2329});
+    ;
+    Bool _t2330 = 0;
+    (void)_t2330;
+    Str_delete(&self->explicit_type, &(Bool){_t2330});
+    ;
+    Bool _t2331 = 0;
+    (void)_t2331;
+    Bool_delete(&self->is_mut, &(Bool){_t2331});
+    ;
+    Bool _t2332 = 0;
+    (void)_t2332;
+    Bool_delete(&self->is_namespace, &(Bool){_t2332});
+    ;
+    Bool _t2333 = 0;
+    (void)_t2333;
+    Bool_delete(&self->is_ref, &(Bool){_t2333});
+    ;
+    Bool _t2334 = 0;
+    (void)_t2334;
+    Bool_delete(&self->is_own, &(Bool){_t2334});
+    ;
+    Bool _t2335 = 0;
+    (void)_t2335;
+    I32_delete(&self->field_offset, &(Bool){_t2335});
+    ;
+    Bool _t2336 = 0;
+    (void)_t2336;
+    I32_delete(&self->field_size, &(Bool){_t2336});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U64 *Declaration_size(void) {
     U64 *r = malloc(sizeof(U64));
     *r = (U64)sizeof(Declaration);
@@ -724,6 +765,95 @@ Expr * Expr_clone(Expr * self) {
     (void)_t2718;
     Vec_delete(new_children, &(Bool){1});
     return _t2718;
+}
+
+void Expr_delete(Expr * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    Bool _t2719 = 0;
+    (void)_t2719;
+    ExprData_delete(&self->data, &(Bool){_t2719});
+    ;
+    Bool _t2720 = 0;
+    (void)_t2720;
+    TilType_delete(&self->til_type, &(Bool){_t2720});
+    ;
+    Bool _t2721 = 0;
+    (void)_t2721;
+    Str_delete(&self->struct_name, &(Bool){_t2721});
+    ;
+    Bool _t2722 = 0;
+    (void)_t2722;
+    Bool_delete(&self->is_own_arg, &(Bool){_t2722});
+    ;
+    Bool _t2723 = 0;
+    (void)_t2723;
+    Bool_delete(&self->is_splat, &(Bool){_t2723});
+    ;
+    Bool _t2724 = 0;
+    (void)_t2724;
+    Bool_delete(&self->is_own_field, &(Bool){_t2724});
+    ;
+    Bool _t2725 = 0;
+    (void)_t2725;
+    Bool_delete(&self->is_ref_field, &(Bool){_t2725});
+    ;
+    Bool _t2726 = 0;
+    (void)_t2726;
+    Bool_delete(&self->is_ns_field, &(Bool){_t2726});
+    ;
+    Bool _t2727 = 0;
+    (void)_t2727;
+    Bool_delete(&self->is_ext, &(Bool){_t2727});
+    ;
+    Bool _t2728 = 0;
+    (void)_t2728;
+    Bool_delete(&self->is_core, &(Bool){_t2728});
+    ;
+    Bool _t2729 = 0;
+    (void)_t2729;
+    Bool_delete(&self->save_old_delete, &(Bool){_t2729});
+    ;
+    Bool _t2730 = 0;
+    (void)_t2730;
+    I32_delete(&self->total_struct_size, &(Bool){_t2730});
+    ;
+    Bool _t2731 = 0;
+    (void)_t2731;
+    I32_delete(&self->variadic_index, &(Bool){_t2731});
+    ;
+    Bool _t2732 = 0;
+    (void)_t2732;
+    U32_delete(&self->variadic_count, &(Bool){_t2732});
+    ;
+    Bool _t2733 = 0;
+    (void)_t2733;
+    I32_delete(&self->kwargs_index, &(Bool){_t2733});
+    ;
+    Bool _t2734 = 0;
+    (void)_t2734;
+    U32_delete(&self->kwargs_count, &(Bool){_t2734});
+    ;
+    Bool _t2735 = 0;
+    (void)_t2735;
+    Vec_delete(&self->children, &(Bool){_t2735});
+    ;
+    Bool _t2736 = 0;
+    (void)_t2736;
+    U32_delete(&self->line, &(Bool){_t2736});
+    ;
+    Bool _t2737 = 0;
+    (void)_t2737;
+    U32_delete(&self->col, &(Bool){_t2737});
+    ;
+    Bool _t2738 = 0;
+    (void)_t2738;
+    Str_delete(&self->path, &(Bool){_t2738});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
 }
 
 U64 *Expr_size(void) {

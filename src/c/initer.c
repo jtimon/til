@@ -520,7 +520,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
 
         Expr *proc_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-        proc_def->is_core = true; // auto-generated, not user code
+        // Note: is_core NOT set — auto-generated delete goes to per-module
+        // file (same as clone), not to main file
         proc_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
         proc_def->data.data.FuncDef.nparam = 2;
         proc_def->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
@@ -995,7 +996,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
             default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            fdef->is_core = true; // auto-generated, not user code
+            // Note: is_core NOT set — auto-generated delete goes to per-module
+            // file (same as clone), not to main file
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
             fdef->data.data.FuncDef.nparam = 2;
             fdef->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(2); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });

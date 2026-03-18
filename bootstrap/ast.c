@@ -564,15 +564,6 @@ static I64 *_t3046;
 static I64 *_t3047;
 static U64 *CAP_VIEW;
 
-void EnumDef_delete(EnumDef * self, Bool * call_free) {
-    (void)self;
-    (void)call_free;
-    if (!self) return;
-    if (DEREF(call_free)) {
-        free(self);
-    }
-}
-
 FuncType *FuncType_Func() {
     FuncType *r = malloc(sizeof(FuncType));
     *r = (FuncType){ .tag = FuncType_TAG_Func };
@@ -823,71 +814,6 @@ Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b) {
 Str * FunctionDef_to_str(FunctionDef * self) {
     (void)self;
     { Str *_r = malloc(sizeof(Str)); *_r = self->return_type; return _r; }
-}
-
-void FunctionDef_delete(FunctionDef * self, Bool * call_free) {
-    (void)self;
-    (void)call_free;
-    if (!self) return;
-    Bool _t41 = 0;
-    (void)_t41;
-    FuncType_delete(&self->func_type, &(Bool){_t41});
-    ;
-    Bool _t42 = 0;
-    (void)_t42;
-    Vec_delete(&self->param_names, &(Bool){_t42});
-    ;
-    Bool _t43 = 0;
-    (void)_t43;
-    Vec_delete(&self->param_types, &(Bool){_t43});
-    ;
-    Bool _t44 = 0;
-    (void)_t44;
-    Vec_delete(&self->param_muts, &(Bool){_t44});
-    ;
-    Bool _t45 = 0;
-    (void)_t45;
-    Vec_delete(&self->param_owns, &(Bool){_t45});
-    ;
-    Bool _t46 = 0;
-    (void)_t46;
-    Vec_delete(&self->param_shallows, &(Bool){_t46});
-    ;
-    Bool _t47 = 0;
-    (void)_t47;
-    Vec_delete(&self->param_fn_sigs, &(Bool){_t47});
-    ;
-    Bool _t48 = 0;
-    (void)_t48;
-    U32_delete(&self->nparam, &(Bool){_t48});
-    ;
-    Bool _t49 = 0;
-    (void)_t49;
-    Vec_delete(&self->param_defaults, &(Bool){_t49});
-    ;
-    Bool _t50 = 0;
-    (void)_t50;
-    Str_delete(&self->return_type, &(Bool){_t50});
-    ;
-    Bool _t51 = 0;
-    (void)_t51;
-    I32_delete(&self->variadic_index, &(Bool){_t51});
-    ;
-    Bool _t52 = 0;
-    (void)_t52;
-    I32_delete(&self->kwargs_index, &(Bool){_t52});
-    ;
-    Bool _t53 = 0;
-    (void)_t53;
-    Bool_delete(&self->return_is_ref, &(Bool){_t53});
-    ;
-    Bool _t54 = 0;
-    (void)_t54;
-    Bool_delete(&self->return_is_shallow, &(Bool){_t54});
-    ;
-    if (DEREF(call_free)) {
-        free(self);
-    }
 }
 
 Str * U8_to_str(U8 * val) {
@@ -7518,31 +7444,6 @@ U64 *TokenType_size(void) {
 }
 
 
-void Token_delete(Token * self, Bool * call_free) {
-    (void)self;
-    (void)call_free;
-    if (!self) return;
-    Bool _t1601 = 0;
-    (void)_t1601;
-    TokenType_delete(&self->type, &(Bool){_t1601});
-    ;
-    Bool _t1602 = 0;
-    (void)_t1602;
-    Str_delete(&self->text, &(Bool){_t1602});
-    ;
-    Bool _t1603 = 0;
-    (void)_t1603;
-    U32_delete(&self->line, &(Bool){_t1603});
-    ;
-    Bool _t1604 = 0;
-    (void)_t1604;
-    U32_delete(&self->col, &(Bool){_t1604});
-    ;
-    if (DEREF(call_free)) {
-        free(self);
-    }
-}
-
 TilType *TilType_Unknown() {
     TilType *r = malloc(sizeof(TilType));
     *r = (TilType){ .tag = TilType_TAG_Unknown };
@@ -8166,47 +8067,6 @@ U64 *TilType_size(void) {
     return r;
 }
 
-
-void Declaration_delete(Declaration * self, Bool * call_free) {
-    (void)self;
-    (void)call_free;
-    if (!self) return;
-    Bool _t2329 = 0;
-    (void)_t2329;
-    Str_delete(&self->name, &(Bool){_t2329});
-    ;
-    Bool _t2330 = 0;
-    (void)_t2330;
-    Str_delete(&self->explicit_type, &(Bool){_t2330});
-    ;
-    Bool _t2331 = 0;
-    (void)_t2331;
-    Bool_delete(&self->is_mut, &(Bool){_t2331});
-    ;
-    Bool _t2332 = 0;
-    (void)_t2332;
-    Bool_delete(&self->is_namespace, &(Bool){_t2332});
-    ;
-    Bool _t2333 = 0;
-    (void)_t2333;
-    Bool_delete(&self->is_ref, &(Bool){_t2333});
-    ;
-    Bool _t2334 = 0;
-    (void)_t2334;
-    Bool_delete(&self->is_own, &(Bool){_t2334});
-    ;
-    Bool _t2335 = 0;
-    (void)_t2335;
-    I32_delete(&self->field_offset, &(Bool){_t2335});
-    ;
-    Bool _t2336 = 0;
-    (void)_t2336;
-    I32_delete(&self->field_size, &(Bool){_t2336});
-    ;
-    if (DEREF(call_free)) {
-        free(self);
-    }
-}
 
 ExprData *ExprData_Body() {
     ExprData *r = malloc(sizeof(ExprData));
@@ -9771,95 +9631,6 @@ U64 *ExprData_size(void) {
     return r;
 }
 
-
-void Expr_delete(Expr * self, Bool * call_free) {
-    (void)self;
-    (void)call_free;
-    if (!self) return;
-    Bool _t2719 = 0;
-    (void)_t2719;
-    ExprData_delete(&self->data, &(Bool){_t2719});
-    ;
-    Bool _t2720 = 0;
-    (void)_t2720;
-    TilType_delete(&self->til_type, &(Bool){_t2720});
-    ;
-    Bool _t2721 = 0;
-    (void)_t2721;
-    Str_delete(&self->struct_name, &(Bool){_t2721});
-    ;
-    Bool _t2722 = 0;
-    (void)_t2722;
-    Bool_delete(&self->is_own_arg, &(Bool){_t2722});
-    ;
-    Bool _t2723 = 0;
-    (void)_t2723;
-    Bool_delete(&self->is_splat, &(Bool){_t2723});
-    ;
-    Bool _t2724 = 0;
-    (void)_t2724;
-    Bool_delete(&self->is_own_field, &(Bool){_t2724});
-    ;
-    Bool _t2725 = 0;
-    (void)_t2725;
-    Bool_delete(&self->is_ref_field, &(Bool){_t2725});
-    ;
-    Bool _t2726 = 0;
-    (void)_t2726;
-    Bool_delete(&self->is_ns_field, &(Bool){_t2726});
-    ;
-    Bool _t2727 = 0;
-    (void)_t2727;
-    Bool_delete(&self->is_ext, &(Bool){_t2727});
-    ;
-    Bool _t2728 = 0;
-    (void)_t2728;
-    Bool_delete(&self->is_core, &(Bool){_t2728});
-    ;
-    Bool _t2729 = 0;
-    (void)_t2729;
-    Bool_delete(&self->save_old_delete, &(Bool){_t2729});
-    ;
-    Bool _t2730 = 0;
-    (void)_t2730;
-    I32_delete(&self->total_struct_size, &(Bool){_t2730});
-    ;
-    Bool _t2731 = 0;
-    (void)_t2731;
-    I32_delete(&self->variadic_index, &(Bool){_t2731});
-    ;
-    Bool _t2732 = 0;
-    (void)_t2732;
-    U32_delete(&self->variadic_count, &(Bool){_t2732});
-    ;
-    Bool _t2733 = 0;
-    (void)_t2733;
-    I32_delete(&self->kwargs_index, &(Bool){_t2733});
-    ;
-    Bool _t2734 = 0;
-    (void)_t2734;
-    U32_delete(&self->kwargs_count, &(Bool){_t2734});
-    ;
-    Bool _t2735 = 0;
-    (void)_t2735;
-    Vec_delete(&self->children, &(Bool){_t2735});
-    ;
-    Bool _t2736 = 0;
-    (void)_t2736;
-    U32_delete(&self->line, &(Bool){_t2736});
-    ;
-    Bool _t2737 = 0;
-    (void)_t2737;
-    U32_delete(&self->col, &(Bool){_t2737});
-    ;
-    Bool _t2738 = 0;
-    (void)_t2738;
-    Str_delete(&self->path, &(Bool){_t2738});
-    ;
-    if (DEREF(call_free)) {
-        free(self);
-    }
-}
 
 #include "ast_core.c"
 #include "ast_array.c"
