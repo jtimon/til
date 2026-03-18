@@ -97,6 +97,7 @@ bin/til_bootstrap_dbg: $(SRCS) $(HDRS) bootstrap/til.c $(RAYLIB_LIB) lib/libffi/
 
 revert_boot:
 	git checkout HEAD bootstrap/
+	git clean -fd bootstrap/
 
 clean:
 	rm -rf bin/* tmp/rescue
