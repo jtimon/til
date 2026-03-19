@@ -89,10 +89,6 @@ til_bin_dir := ext_func() returns Str {}
 til_realpath := ext_func(path: Str) returns Str {}
 til_str_left := ext_func(s: Str, shallow n: U64) returns Str {}
 til_system := ext_func(cmd: Str) returns shallow I32 {}
-til_set_new := ext_func() returns Set {}
-til_set_has := ext_func(s: Set, str: Str) returns shallow Bool {}
-til_set_add := ext_proc(s: Set, str: Str) {}
-til_set_free := ext_proc(s: Set) {}
 
 // --- Translated ctil.c functions ---
 
@@ -140,10 +136,10 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
 
         // Dedup (also handles circular imports — files are added to
         // resolved_set when they start processing)
-        if til_set_has(resolved_set, abs) {
+        if Set.has(resolved_set, abs) {
             continue
         }
-        til_set_add(resolved_set, abs)
+        Set.add(resolved_set, own abs.clone())
 
         // Load, lex, parse the imported file
         source := readfile(abs)
@@ -254,7 +250,7 @@ main := proc(args: ..Str) {
     ext_c_path := bin_dir.concat("/src/c/ext.c")
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
-    resolved := til_set_new()
+    resolved := Set.new("Str", Str.size())
     resolve_stack := expr_vec_new()
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
@@ -266,7 +262,7 @@ main := proc(args: ..Str) {
             last_slash = last_slash.sub(1)
         }
         user_dir = til_str_left(abs_path, last_slash)
-        til_set_add(resolved, abs_path)
+        Set.add(resolved, own abs_path.clone())
     }
 
     // Load core.til
@@ -278,10 +274,10 @@ main := proc(args: ..Str) {
     mut skip_core := false
     core_abs := til_realpath(core_path)
     if core_abs.len().gt(0) {
-        if til_set_has(resolved, core_abs) {
+        if Set.has(resolved, core_abs) {
             skip_core = true
         }
-        til_set_add(resolved, core_abs)
+        Set.add(resolved, own core_abs.clone())
     }
 
     // Resolve core imports

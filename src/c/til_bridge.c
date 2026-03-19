@@ -125,27 +125,6 @@ I32 til_system(Str *cmd) {
     return 1;
 }
 
-// Set operations (bridge for Str set)
-
-Set *til_set_new(void) {
-    Set *s = malloc(sizeof(Set));
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); *s = *_sp; free(_sp); }
-    return s;
-}
-
-Bool til_set_has(Set *s, Str *str) {
-    return *Set_has(s, str);
-}
-
-void til_set_add(Set *s, Str *str) {
-    // Clone: scavenger may free the original Str while the set still references it
-    { Str *_p = Str_clone(str); Set_add(s, _p); }
-}
-
-void til_set_free(Set *s) {
-    Set_delete(s, &(Bool){0});
-    free(s);
-}
 
 // Derive project root by searching upward from binary location for src/core/core.til
 Str *til_bin_dir(void) {

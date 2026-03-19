@@ -1,4 +1,4 @@
-.PHONY: all clean test til_core revert_boot self_diff rescue bisect
+.PHONY: all clean test til_core revert_boot rescue bisect
 
 all: bin/til_bootstrap
 
@@ -63,9 +63,6 @@ til_core:
 	@$(or $(TIL),bin/til_bootstrap) translate src/til.til
 	@cp gen/til/til*.c gen/til/til*.h bootstrap/ 2>/dev/null || true
 
-self_diff: bin/til_bootstrap
-	@$(MAKE) til_core
-	@bin/til_bootstrap run scripts/self_diff.til
 
 # --- rescue: build compiler entirely from last commit's sources ---
 
