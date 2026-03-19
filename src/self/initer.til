@@ -1,3 +1,21 @@
 mode lib
 
 import("parser.til")
+
+TypeBinding := struct {
+    ref mut name : Str = NULL
+    mut type := TilType.Unknown
+    mut is_proc : I32 = 0.sub(1).to_i32()
+    mut is_mut := false
+    mut line : U32 = 0
+    mut col : U32 = 0
+    mut is_param := false
+    mut is_own := false
+    mut is_ref := false
+    mut is_alias := false
+    ref mut struct_def : Expr = NULL
+    ref mut func_def : Expr = NULL
+    mut is_builtin := false
+    mut is_ext := false
+    ref mut struct_name : Str = NULL
+}

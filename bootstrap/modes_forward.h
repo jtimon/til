@@ -144,6 +144,7 @@ typedef enum {
 typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef struct Parser Parser;
+typedef struct TypeBinding TypeBinding;
 typedef struct Mode Mode;
 
 typedef struct StructDef {
@@ -249,6 +250,25 @@ typedef struct Parser {
     Str path;
     Vec fn_sig_decls;
 } Parser;
+
+
+typedef struct TypeBinding {
+    Str *name;
+    TilType type;
+    I32 is_proc;
+    Bool is_mut;
+    U32 line;
+    U32 col;
+    Bool is_param;
+    Bool is_own;
+    Bool is_ref;
+    Bool is_alias;
+    Expr *struct_def;
+    Expr *func_def;
+    Bool is_builtin;
+    Bool is_ext;
+    Str *struct_name;
+} TypeBinding;
 
 
 typedef struct Mode {
@@ -517,6 +537,9 @@ Expr * parse_expression(Parser * p);
 Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own);
 Expr * parse_statement(Parser * p);
 Expr * parse(Vec * tokens, Str * path, Str * mode_out);
+TypeBinding * TypeBinding_clone(TypeBinding * self);
+void TypeBinding_delete(TypeBinding * self, Bool * call_free);
+U64 * TypeBinding_size(void);
 Bool * Mode_eq(Mode * a, Mode * b);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);

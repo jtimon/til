@@ -144,5 +144,6 @@ typedef enum {
 typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef struct Parser Parser;
+typedef struct TypeBinding TypeBinding;
 typedef struct Mode Mode;
 

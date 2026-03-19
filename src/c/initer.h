@@ -4,24 +4,7 @@
 #include "../../bootstrap/modes.h"
 
 // --- Type scope (tracks variable types across phases) ---
-
-typedef struct {
-    Str *name;
-    TilType type;
-    I32 is_proc; // -1 = not a function, 0 = func, 1 = proc
-    Bool is_mut;
-    U32 line;
-    U32 col;
-    Bool is_param; // 1 if this is a function parameter
-    Bool is_own;   // 1 if this is an 'own' parameter
-    Bool is_ref;   // 1 if this is a 'ref' declaration (borrowed, no delete)
-    Bool is_alias; // 1 if this is an auto-alias (implicit ref, not explicit)
-    Expr *struct_def; // non-NULL if this is a struct type definition
-    Expr *func_def;   // non-NULL if this is a func/proc definition
-    Bool is_builtin;   // 1 if this is a builtin type (I64, Str, Bool, etc.)
-    Bool is_ext;       // 1 if this is an ext_struct
-    Str *struct_name; // for variables of struct type: which struct
-} TypeBinding;
+// TypeBinding is defined in initer.til (generated into bootstrap headers)
 
 typedef struct TypeScope TypeScope;
 struct TypeScope {
