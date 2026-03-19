@@ -2275,7 +2275,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 rhs->data.tag == ExprData_TAG_EnumDef) continue;
             if (stmt->data.data.Decl.is_ref) continue;
             const char *ctype = c_type_name(stmt->til_type, &rhs->struct_name);
-            fprintf(f, "static %s *%s;\n", ctype, stmt->data.data.Decl.name.c_str);
+            fprintf(f, "%s *%s;\n", ctype, stmt->data.data.Decl.name.c_str);
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         fprintf(f, "\n");

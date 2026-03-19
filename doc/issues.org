@@ -165,47 +165,42 @@
   Goal: til.til imports self-hosted modules directly instead of link_c,
   and Makefile uses ~til build src/til.til~ instead of two-pass gcc.
 
-*** DONE import("self/ast.til") instead of link_c("bootstrap/ast.c")
-    til.til now uses ~import("self/ast.til")~ and gets real Expr/Token
-    struct definitions instead of opaque ~ext_struct~ placeholders.
-    Bridge functions kept for now (work unchanged with real types).
-    bootstrap/ast.c still in SRCS (provides implementations for C modules).
+*** DONE til.til imports self-hosted modules
+    til.til now does ~import("self/modes.til")~ which pulls in the full
+    chain: modes → initer → parser → lexer (+ core/ast auto-prepended).
+    Real types (Expr, Mode, TypeScope, etc.) replace ext_struct stubs.
 
-*** TODO Builder: emit imported function bodies in per-module .c files
-    Builder currently skips user-written function bodies from imported
-    modules in per-module emission. Only auto-generated functions
-    (clone/size) are emitted to ~til_ast.c~. User-written namespace
-    functions (Expr_child, Expr_new, etc.) are missing entirely.
-    Fix: builder must emit all function bodies from imported modules.
-    Until fixed, bootstrap/ast.c must stay in SRCS.
+*** DONE Bridge reduction: til_set_* replaced with native Set ops
+    til.til uses Set.new/Set.has/Set.add directly. til_set_* removed
+    from til_bridge.c. self_diff target and script also removed.
 
-*** DONE Replace modes.c with generated modes.til
-    src/c/modes.c+h deleted. bootstrap/modes.c (generated from
-    modes.til) is now in SRCS as the bootstrap facade. All C files
-    include bootstrap/modes.h directly.
-
-    What was done:
-    - Mode fields visible in til.til ext_struct (not opaque)
-    - til.til accesses fields directly (cur_mode.name, etc.)
-    - All mode bridge functions eliminated (mode_eq, mode_none,
-      mode_test/pure/pura, mode_name, mode_auto_import)
-    - Default mode is script (no null modes)
-    - mode_is_lib/mode_is_lib_output return Bool * (match generated)
-    - Builder fix: emit FCall nodes in lib init (Map_set was dropped)
-    - Builder fix: --allow-multiple-definition for compile_lib
-    - Typer fix: Map/Set literal size() typed U64 not I64
-    - Compatibility commit verified before swap
-    - modes.til is the permanent facade — future modules change
-      its import, SRCS stays bootstrap/modes.c
+*** TODO Bridge reduction: remaining bridges
+    Still using bridge functions for:
+    - expr_vec_new/push/get/count → native Vec ops (needs #91 first,
+      see blocker below)
+    - expr_get_tag/child/nchildren/str_val → direct Expr field access
+    - expr_swap_children → direct children assignment
+    - NODE_* I32 constants → ExprData enum methods
+    - til_parse/til_parse_mode → direct parse() call
+    - mode_resolve/mode_is_lib → already til funcs, just drop ext_func
 
 *** TODO Makefile: ~til build src/til.til~ instead of two-pass gcc
-    Once builder emits imported function bodies, ~compile_c()~ can
-    build til.til directly. Makefile switches from:
-      ~gcc $(SRCS) bootstrap/til.c → bin/til_bootstrap~
-    to:
-      ~bin/til_bootstrap build src/til.til -o bin/til_bootstrap~
-    forward.h conflict already fixed (src/c/ files skip it).
-    bootstrap/ast.c drops from SRCS (implementations in til_ast.c).
+    ~til build~ generates C and compiles. Currently blocked by:
+
+    1. *Module-level variable conflict*: builder emits module-level
+       vars as ~static~ and initializes them in both ~_til_lib_init~
+       (constructor, for ~mode lib~ modules) and ~main()~ (for the
+       entry point). With ~--allow-multiple-definition~, separate
+       translation units each get their own ~static~ copy — works.
+       But monolithic compilation (single TU via ~#include~) causes
+       ~main()~ to reinitialize vars already populated by the
+       constructor (e.g. ~core_modes~ gets overwritten with empty Map).
+
+    2. *Fix needed in builder.c*: either skip reinitializing imported
+       module vars in ~main()~, or don't use constructors at all
+       (call init explicitly). Related to #89 (monolithic compilation).
+
+    Workaround: keep gcc two-pass build for now.
 
 ** OPEN #73 Replace #ifndef guards with #pragma once
   All 13 hand-written headers in src/c/ use ~#ifndef/#define/#endif~
