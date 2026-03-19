@@ -8,6 +8,7 @@ typedef struct Parser {
     Vec tokens;
     U64 pos;
     Str path;
+    Vec fn_sig_decls;
 } Parser;
 
 
@@ -21,7 +22,7 @@ Token * expect_token(Parser * p, TokenType * type);
 Str * expect_text(Parser * p, TokenType * type);
 U32 peek_line(Parser * p);
 U32 peek_col(Parser * p);
-Expr * parse_fn_signature(Parser * p, U32 line, U32 col);
+Str * parse_fn_signature(Parser * p, U32 line, U32 col);
 Expr * parse_block(Parser * p);
 Expr * parse_func_def(Parser * p);
 Expr * parse_struct_def(Parser * p);

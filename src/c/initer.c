@@ -1394,7 +1394,6 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     (*(Bool*)Vec_get(&def->data.data.FuncDef.param_owns, &(U64){(U64)(j)})) = (*(Bool*)Vec_get(&sig->data.data.FuncDef.param_owns, &(U64){(U64)(j)}));
                     (*(Bool*)Vec_get(&def->data.data.FuncDef.param_shallows, &(U64){(U64)(j)})) = (*(Bool*)Vec_get(&sig->data.data.FuncDef.param_shallows, &(U64){(U64)(j)}));
                 }
-                def->data.data.FuncDef.param_fn_sigs = sig->data.data.FuncDef.param_fn_sigs;
                 def->data.data.FuncDef.return_type = sig->data.data.FuncDef.return_type;
                 def->data.data.FuncDef.return_is_ref = sig->data.data.FuncDef.return_is_ref;
                 def->data.data.FuncDef.return_is_shallow = sig->data.data.FuncDef.return_is_shallow;

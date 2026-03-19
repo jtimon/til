@@ -277,7 +277,6 @@ typedef struct FunctionDef {
     Vec param_muts;
     Vec param_owns;
     Vec param_shallows;
-    Vec param_fn_sigs;
     U32 nparam;
     Map param_defaults;
     Str return_type;

@@ -11,6 +11,7 @@ typedef struct {
     Vec tokens;
     U64 pos;
     Str path;
+    Vec fn_sig_decls; // synthetic Decls for anonymous Fn signatures
 } Parser;
 
 Token *peek(Parser *p) {
@@ -62,9 +63,10 @@ Expr *parse_block(Parser *p) {
 }
 
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
-// Returns a synthetic ExprData_TAG_FuncDef Expr with param_types and return_type,
-// or NULL if not followed by '(' (bare "Fn" type).
-Expr *parse_fn_signature(Parser *p, U32 line, U32 col) {
+// Generates a synthetic type name (e.g. "_Fn_I64_I64_ret_Bool"), creates a
+// bodyless FuncDef Decl, stores it in p->fn_sig_decls, and returns the name.
+// Returns NULL if not followed by '(' (bare "Fn" type).
+Str *parse_fn_signature(Parser *p, U32 line, U32 col) {
     if (!check(p, &(TokenType){TokenType_TAG_LParen})) return NULL;
     advance(p); // consume '('
 
@@ -93,26 +95,44 @@ Expr *parse_fn_signature(Parser *p, U32 line, U32 col) {
         return_type = tok_str(rt);
     }
 
-    // Build synthetic func_def
+    // Build synthetic name: _Fn_[mut_]T1_[mut_]T2_ret_R or _Fn_[mut_]T1_[mut_]T2
+    Str *name = Str_with_capacity(&(U64){64});
+    Str_push_str(name, &(Str){.c_str = (U8*)"_Fn", .count = 3, .cap = CAP_LIT});
+    for (U32 i = 0; i < ptypes.count; i++) {
+        Str_push_str(name, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
+        if (*(Bool*)Vec_get(&pmuts, &(U64){(U64)i}))
+            Str_push_str(name, &(Str){.c_str = (U8*)"mut_", .count = 4, .cap = CAP_LIT});
+        Str_push_str(name, (Str*)Vec_get(&ptypes, &(U64){(U64)i}));
+    }
+    if (return_type) {
+        Str_push_str(name, &(Str){.c_str = (U8*)"_ret_", .count = 5, .cap = CAP_LIT});
+        Str_push_str(name, return_type);
+    }
+
+    // Build synthetic func_def (bodyless — same as named FuncSig types)
     Expr *sig = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, &p->path);
     sig->data.data.FuncDef.func_type = return_type ? (FuncType){FuncType_TAG_Func} : (FuncType){FuncType_TAG_Proc};
     U32 np_sig = ptypes.count;
     sig->data.data.FuncDef.nparam = np_sig;
     move(&sig->data.data.FuncDef.param_types, &ptypes, sizeof(Vec));
     move(&sig->data.data.FuncDef.param_muts, &pmuts, sizeof(Vec));
-    // Allocate empty arrays for required fields
     sig->data.data.FuncDef.param_names = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Str *_z = calloc(1, sizeof(Str)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     sig->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     sig->data.data.FuncDef.param_shallows = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np_sig); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); sig->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); sig->data.data.FuncDef.param_fn_sigs = *_vp; free(_vp); }
     sig->data.data.FuncDef.return_type = return_type ? *return_type : (Str){0};
     sig->data.data.FuncDef.variadic_index = -1;
     sig->data.data.FuncDef.kwargs_index = -1;
     sig->data.data.FuncDef.return_is_ref = 0;
     sig->data.data.FuncDef.return_is_shallow = 0;
-    // No body — this is just a type signature
-    return sig;
+
+    // Wrap in Decl and store for later emission
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, &p->path);
+    decl->data.data.Decl.name = *Str_clone(name);
+    Expr_add_child(decl, sig);
+    { Expr **_p = malloc(sizeof(Expr *)); *_p = decl; Vec_push(&p->fn_sig_decls, _p); }
+
+    return name;
 }
 
 // parse_func_def: current token is func/proc/etc
@@ -141,7 +161,6 @@ Expr *parse_func_def(Parser *p) {
     Vec powns; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); powns = *_vp; free(_vp); }
     Map pdefs; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); pdefs = *_mp; free(_mp); }
     Vec pshallows; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); pshallows = *_vp; free(_vp); }
-    Vec pfnsigs; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); pfnsigs = *_vp; free(_vp); }
     I32 variadic_index = -1;
     I32 kwargs_index = -1;
     while (!check(p, &(TokenType){TokenType_TAG_RParen}) && !check(p, &(TokenType){TokenType_TAG_Eof})) {
@@ -231,16 +250,15 @@ Expr *parse_func_def(Parser *p) {
             }
         }
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
-        Expr *fn_sig = NULL;
         if ((tp->count == 2 && memcmp(tp->c_str, "Fn", 2) == 0)) {
-            fn_sig = parse_fn_signature(p, pname->line, pname->col);
+            Str *syn_name = parse_fn_signature(p, pname->line, pname->col);
+            if (syn_name) tp = syn_name; // replace "Fn" with synthetic type name
         }
         { Str *_p = malloc(sizeof(Str)); *_p = *nm; Vec_push(&pnames, _p); }
         { Str *_p = malloc(sizeof(Str)); *_p = *tp; Vec_push(&ptypes, _p); }
         { Bool *_p = malloc(sizeof(Bool)); *_p = is_mut; Vec_push(&pmuts, _p); }
         { Bool *_p = malloc(sizeof(Bool)); *_p = is_own; Vec_push(&powns, _p); }
         { Bool *_p = malloc(sizeof(Bool)); *_p = is_shallow; Vec_push(&pshallows, _p); }
-        { Expr **_p = malloc(sizeof(Expr *)); *_p = fn_sig; Vec_push(&pfnsigs, _p); }
         // Optional default value: name: Type = expr
         Expr *def_val = NULL;
         if (check(p, &(TokenType){TokenType_TAG_Eq})) {
@@ -282,7 +300,6 @@ Expr *parse_func_def(Parser *p) {
     move(&def->data.data.FuncDef.param_muts, &pmuts, sizeof(Vec));
     move(&def->data.data.FuncDef.param_owns, &powns, sizeof(Vec));
     move(&def->data.data.FuncDef.param_shallows, &pshallows, sizeof(Vec));
-    move(&def->data.data.FuncDef.param_fn_sigs, &pfnsigs, sizeof(Vec));
     move(&def->data.data.FuncDef.param_defaults, &pdefs, sizeof(Map));
     def->data.data.FuncDef.return_type = return_type ? *return_type : (Str){0};
     def->data.data.FuncDef.return_is_ref = return_is_ref;
@@ -641,9 +658,9 @@ Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
         Str *type_name = tok_str(type_tok);
         advance(p); // consume type name
         // If type is Fn, parse optional Fn(T1, T2) returns T signature
-        Expr *fn_sig = NULL;
         if ((type_name->count == 2 && memcmp(type_name->c_str, "Fn", 2) == 0)) {
-            fn_sig = parse_fn_signature(p, type_tok->line, type_tok->col);
+            Str *syn_name = parse_fn_signature(p, type_tok->line, type_tok->col);
+            if (syn_name) type_name = syn_name;
         }
         expect_token(p, &(TokenType){TokenType_TAG_Eq}); // consume =
 
@@ -689,7 +706,6 @@ Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
                 def->data.data.FuncDef.param_muts = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.param_owns = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
                 def->data.data.FuncDef.param_shallows = ({ Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Bool)}); for (U32 _i = 0; _i < (U32)(np); _i++) { Bool *_z = calloc(1, sizeof(Bool)); Vec_push(_v, _z); } Vec _r = *_v; free(_v); _r; });
-                { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); def->data.data.FuncDef.param_fn_sigs = *_vp; free(_vp); }
                 { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
                 def->data.data.FuncDef.return_type = (Str){0};
                 def->data.data.FuncDef.variadic_index = -1;
@@ -709,7 +725,6 @@ Expr *parse_statement_ident(Parser *p, Bool is_mut, Bool is_own) {
         Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, t->line, t->col, &p->path);
         decl->data.data.Decl.name = *name;
         decl->data.data.Decl.explicit_type = *type_name;
-        decl->data.data.Decl.fn_sig = fn_sig;
         decl->data.data.Decl.is_mut = is_mut;
         decl->data.data.Decl.is_own = is_own;
         Expr_add_child(decl, parse_expression(p));
@@ -967,7 +982,8 @@ Str *parser_get_mode(void) {
 }
 
 Expr *parse(Vec *tokens, Str *path, Str *mode_out) {
-    Parser p = {*tokens, 0, *path};
+    Parser p = {*tokens, 0, *path, {0}};
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); p.fn_sig_decls = *_vp; free(_vp); }
 
     // Parse optional mode declaration
     _last_parsed_mode = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
@@ -985,6 +1001,10 @@ Expr *parse(Vec *tokens, Str *path, Str *mode_out) {
     Expr *root = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, 1, 1, &p.path);
     while (!check(&p, &(TokenType){TokenType_TAG_Eof})) {
         Expr_add_child(root, parse_statement(&p));
+    }
+    // Append synthetic Fn type declarations (initer registers them before typer runs)
+    for (U32 i = 0; i < p.fn_sig_decls.count; i++) {
+        Expr_add_child(root, *(Expr**)Vec_get(&p.fn_sig_decls, &(U64){(U64)i}));
     }
 
     return root;

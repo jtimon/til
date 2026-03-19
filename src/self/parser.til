@@ -8,6 +8,7 @@ Parser := struct {
     mut tokens := Vec.new("Token", Token.size())
     mut pos : U64 = 0
     mut path := ""
+    mut fn_sig_decls := Vec.new("Expr", Expr.size())
 }
 
 peek := func(p: Parser) returns ref Token {
@@ -55,11 +56,12 @@ peek_col := func(p: Parser) returns shallow U32 { return peek(p).col }
 // --- Parsing functions ---
 
 // parse_fn_signature: parse Fn(T1, T2, ...) returns T after "Fn" has been consumed.
-// Returns a synthetic FuncDef Expr with param_types and return_type,
-// or null Expr if not followed by '(' (bare "Fn" type).
-parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) returns Expr {
+// Generates a synthetic type name (e.g. "_Fn_I64_I64_ret_Bool"), creates a
+// bodyless FuncDef Decl, stores it in p.fn_sig_decls, and returns the name.
+// Returns "" if not followed by '(' (bare "Fn" type).
+parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) returns Str {
     if check(p, TokenType.LParen).not() {
-        return Expr.new(ExprData.Body, 0, 0, "") // null sentinel
+        return ""
     }
     advance(p) // consume '('
 
@@ -83,7 +85,21 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
         return_type = expect_text(p, TokenType.Ident)
     }
 
-    // Build synthetic func_def
+    // Build synthetic name: _Fn_[mut_]T1_[mut_]T2_ret_R
+    mut name := "_Fn"
+    for i in 0..ptypes.len() {
+        name = name.concat("_")
+        ref m : Bool = pmuts.get(i)
+        if m { name = name.concat("mut_") }
+        ref t : Str = ptypes.get(i)
+        name = name.concat(t)
+    }
+    if return_type.len().gt(0) {
+        name = name.concat("_ret_")
+        name = name.concat(return_type)
+    }
+
+    // Build synthetic func_def (bodyless — same as named FuncSig types)
     mut fd := FunctionDef()
     if return_type.len().gt(0) { fd.func_type = FuncType.Func }
     else { fd.func_type = FuncType.Proc }
@@ -92,20 +108,22 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
     fd.return_is_shallow = false
     fd.variadic_index = 0.sub(1).to_i32()
     fd.kwargs_index = 0.sub(1).to_i32()
-    // Fill param_names with empty strings (no names in signatures)
     for _ in 0..ptypes.len() {
         fd.param_names.push(own "")
         fd.param_owns.push(own false)
         fd.param_shallows.push(own false)
-        fd.param_fn_sigs.push(own 0.sub(1))
     }
     fd.param_types = ptypes
     fd.param_muts = pmuts
-
     fd.nparam = fd.param_types.len().to_i64().to_u32()
     mut sig := Expr.new(ExprData.FuncDef(fd), line, col, p.path)
-    // No body — this is just a type signature
-    return sig
+
+    // Wrap in Decl and store for later emission
+    mut decl := Expr.new(ExprData.Decl(Declaration(name = name.clone())), line, col, p.path)
+    Expr.add_child(decl, own sig)
+    p.fn_sig_decls.push(own decl)
+
+    return name
 }
 
 // parse_block: expects '{' already consumed, reads statements until '}'
@@ -138,7 +156,6 @@ parse_func_def := proc(mut p: Parser) returns Expr {
 
     mut fd := FunctionDef()
     fd.func_type = ft
-    mut def_exprs := Vec.new("Expr", Expr.size())
 
     while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
         mut is_shallow := false
@@ -195,14 +212,9 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         }
 
         // If type is Fn, try to parse Fn(T1, T2) returns T signature
-        mut fn_sig_idx := 0.sub(1)
         if tp.eq("Fn") {
-            mut sig := parse_fn_signature(p, peek_line(p), peek_col(p))
-            // Check if we got a real signature (not the null sentinel)
-            if sig.line.neq(0) {
-                fn_sig_idx = def_exprs.len().to_i64()
-                def_exprs.push(own sig)
-            }
+            syn_name := parse_fn_signature(p, peek_line(p), peek_col(p))
+            if syn_name.len().gt(0) { tp = syn_name }
         }
 
         // Optional default value (before push(own nm) consumes nm)
@@ -222,7 +234,6 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         fd.param_muts.push(own is_mut)
         fd.param_owns.push(own is_own)
         fd.param_shallows.push(own is_shallow)
-        fd.param_fn_sigs.push(own fn_sig_idx)
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
@@ -252,12 +263,6 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             panic(__LOC__, p.path, ":", kw_line.to_str(), ":", kw_col.to_str(),
                 ": ", func_type_name(ft), " requires a body")
         }
-    }
-
-    // Append default value expressions as additional children
-    for i in 0..def_exprs.len() {
-        ref de : Expr = def_exprs.get(i)
-        Expr.add_child(def, own de.clone())
     }
 
     return def
@@ -632,15 +637,12 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             return decl
         }
 
-        type_name := expect_text(p, TokenType.Ident)
+        mut type_name := expect_text(p, TokenType.Ident)
 
         // If type is Fn, parse optional Fn(T1, T2) returns T signature
-        mut fn_sig_idx := 0.sub(1)
         if type_name.eq("Fn") {
-            mut sig := parse_fn_signature(p, t_line, t_col)
-            if sig.line.neq(0) {
-                fn_sig_idx = 0 // placeholder — will be stored as child
-            }
+            syn_name := parse_fn_signature(p, t_line, t_col)
+            if syn_name.len().gt(0) { type_name = syn_name }
         }
 
         expect_token(p, TokenType.Eq)
@@ -688,7 +690,6 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                     ffd.param_muts.push(own false)
                     ffd.param_owns.push(own false)
                     ffd.param_shallows.push(own false)
-                    ffd.param_fn_sigs.push(own 0.sub(1))
                 }
                 ffd.param_names = pnames
                 ffd.nparam = np.to_i64().to_u32()
@@ -967,6 +968,11 @@ parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
     mut root := Expr.new(ExprData.Body, 1, 1, p.path)
     while check(p, TokenType.Eof).not() {
         Expr.add_child(root, own parse_statement(p))
+    }
+    // Append synthetic Fn type declarations (initer registers them before typer runs)
+    for i in 0..p.fn_sig_decls.len() {
+        ref d : Expr = p.fn_sig_decls.get(i)
+        Expr.add_child(root, own d.clone())
     }
     return root
 }

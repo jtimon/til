@@ -192,15 +192,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         TypeBinding *pb = tscope_find(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})));
                         if (pb) pb->struct_name = ptn;
                     }
-                    // For Fn-typed params with signature, propagate func_def
-                    if (pt.tag == TilType_TAG_FuncPtr && e->data.data.FuncDef.param_fn_sigs.count > 0 &&
-                        (*(Expr**)Vec_get(&e->data.data.FuncDef.param_fn_sigs, &(U64){(U64)(i)}))) {
-                        TypeBinding *pb = tscope_find(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})));
-                        if (pb) pb->func_def = (*(Expr**)Vec_get(&e->data.data.FuncDef.param_fn_sigs, &(U64){(U64)(i)}));
-                    }
-                    // For named FuncSig params (no inline sig), resolve from outer scope
-                    if (pt.tag == TilType_TAG_FuncPtr &&
-                        !(e->data.data.FuncDef.param_fn_sigs.count > 0 && (*(Expr**)Vec_get(&e->data.data.FuncDef.param_fn_sigs, &(U64){(U64)(i)})))) {
+                    // For Fn-typed params, resolve func_def by type name from scope
+                    if (pt.tag == TilType_TAG_FuncPtr) {
                         TypeBinding *fsb = tscope_find(scope, ptn);
                         if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
                             TypeBinding *pb = tscope_find(func_scope, ((Str*)Vec_get(&e->data.data.FuncDef.param_names, &(U64){(U64)(i)})));
