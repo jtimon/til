@@ -1,6 +1,6 @@
 mode lib
 
-import("parser.til")
+import("initer.til")
 
 Mode := struct {
     mut name := ""
