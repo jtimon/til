@@ -17,27 +17,6 @@
 
   Workaround: use ~Type.delete(own p)~ instead of ~own p.delete()~.
 
-** OPEN #87 ~priv~ keyword for private declarations
-  :DEPENDENCIES: #86
-  Everything in til is public by default. Add ~priv~ keyword to
-  mark declarations as module-private (not visible to importers).
-
-  #+begin_src til
-  priv helper := func(x: I64) returns I64 { x.mul(2) }
-  do_thing := func(x: I64) returns I64 { helper(x).add(1) }
-  #+end_src
-
-  Importing this module gives access to ~do_thing~ but not ~helper~.
-
-  Depends on #86 (unused declarations): private functions that are
-  only called internally would trigger unused errors without proper
-  visibility tracking. The typer needs to know that ~priv~ functions
-  are "used" if called within their own module.
-
-  Like Rust's ~pub~ but inverted — til defaults to public, you opt
-  into private. Simpler for small programs (everything just works),
-  explicit when you need encapsulation.
-
 ** OPEN #86 Typer error for unused declarations
   Unused variables, function parameters, and imports should be
   type errors — not warnings. til has no warnings, only errors.
@@ -237,7 +216,6 @@
 
   Reproduce: ~bin/ctil run tmp/hello_pure.til~ with any pure-mode file.
   Interpreter also fails (~undefined variable 'I64'~ in str.til:3).
-
 
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
@@ -720,6 +698,27 @@
   interpreted, til compiled — all must produce identical results.
 
 * [0/19] Post
+** OPEN #87 ~priv~ keyword for private declarations
+  :DEPENDENCIES: #86
+  Everything in til is public by default. Add ~priv~ keyword to
+  mark declarations as module-private (not visible to importers).
+
+  #+begin_src til
+  priv helper := func(x: I64) returns I64 { x.mul(2) }
+  do_thing := func(x: I64) returns I64 { helper(x).add(1) }
+  #+end_src
+
+  Importing this module gives access to ~do_thing~ but not ~helper~.
+
+  Depends on #86 (unused declarations): private functions that are
+  only called internally would trigger unused errors without proper
+  visibility tracking. The typer needs to know that ~priv~ functions
+  are "used" if called within their own module.
+
+  Like Rust's ~pub~ but inverted — til defaults to public, you opt
+  into private. Simpler for small programs (everything just works),
+  explicit when you need encapsulation.
+
 ** OPEN #81 UPtr type alias for pointer-sized integers
   :DEPENDENCIES: #79 #25
   ~UPtr := U64~ on 64-bit platforms, ~UPtr := U32~ on 32-bit.
