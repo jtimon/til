@@ -110,6 +110,7 @@
     (e.g. ExprData)
 
 ** OPEN #80 USize type alias for container sizes
+  :DEPENDENCIES: #79
   ~USize~ — semantic type for container sizes: Vec count/cap, Str
   count/cap, Array cap, Map/Set internals. Currently all use U64.
 
@@ -121,19 +122,46 @@
   USize is about "how many elements" (user's choice), UPtr is about
   "how big is an address" (platform's choice).
 
-  Phase 1 (pre, Linux only):
-  1. Create ~src/core/aliases.til~ with ~USize := U64~, imported by core.til
-  2. Replace U64 → USize in core.til containers (Str, Vec, Array, Map, Set)
-  3. Replace U64 → USize in C modules simultaneously (single commit,
-     same bootstrap philosophy — .til + C + bootstrap all at once)
-  4. Then switch alias to ~USize := U32~ — everything gets smaller/faster.
-     The alias approach avoids the bootstrap chicken-and-egg that blocked
-     the ~wip_u32~ branch (tried U32 directly, precomp returned wrong types).
+*** Implementation plan
 
-  Phase 2 (post, depends on #25): USize maps to platform native pointer
-  size — U64 on x86_64/arm64, U32 on x86/arm32. Initially just
-  Linux 64 vs 32. Cross-platform builds (rstil showed gcc handles most
-  targets, clang for mac, wine for windows testing from linux).
+    Sub-step 1a: Create aliases
+    - ~src/core/aliases.til~: ~USize := U64~, imported by core.til
+    - ~src/c/aliases.h~: ~typedef U64 USize;~
+
+    Sub-step 1b: Replace U64 → USize in core containers (~55 sites)
+    - vec.til (6): count, cap, elem_size + new/len/get params
+    - str.til (~15): count, cap + len/get/substr/with_capacity params
+      (CAP_LIT/CAP_VIEW stay U64 — sentinel values, not sizes)
+    - map.til (~11): count, cap, key_size, val_size + new/len params
+    - set.til (~10): count, cap, elem_size + new/len params
+    - array.til (~6): cap, elem_size + new/len/get/set params
+    - tuple.til (~7): total_size, cap + push/get/len params
+
+    Sub-step 2: Switch ~USize := U32~ (real savings)
+    - Container fields shrink 8→4 bytes each
+    - C modules need U64→USize in struct access
+
+    Sub-step 3: Replace U32 size fields with USize
+    - nparam (U32), variadic_index (I32), etc. → USize
+    - Eliminates ~.to_i64().to_u32()~ conversion chains
+
+*** Conversion cleanup opportunities (identified)
+    When container sizes use USize matching field types:
+    - ~.len().to_i64()~ — hundreds of test assertions
+    - ~.to_i64().to_u64()~ — parser Vec access (7 sites)
+    - ~.len().to_i64().to_u32()~ — nparam assignments (5 sites)
+    - ~-1.to_i32()~ — variadic/kwargs sentinels (16 sites)
+
+*** Blocker: #79 type aliases incomplete
+    Primitive aliases (USize := U64) break the interpreter and FFI
+    dispatch. The alias name "USize" propagates through the system
+    as a string, and subsystems that dispatch on type names (FFI CIF
+    building, dyn_call, interpreter value handling) don't recognize it.
+
+    #79 must fully resolve aliases: erase alias names from the AST
+    after typer runs. Currently only resolves in struct_name and
+    function param/return types. Needs resolution in ALL type name
+    contexts (FFI dispatch, dyn_call, interpreter, builder).
 
   Reference: ~wip_u32~ branch has prior work on the U32 migration.
 
