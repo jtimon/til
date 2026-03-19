@@ -50,9 +50,7 @@ U32 expr_nchildren(Expr *e) { return e ? e->children.count : 0; }
 void expr_swap_children(Expr *e, Vec *new_children) {
     Vec_delete(&e->children, &(Bool){0});
     e->children = *new_children;
-    new_children->data = NULL;
-    new_children->count = 0;
-    new_children->cap = 0;
+    memset(new_children, 0, sizeof(Vec));
 }
 
 // Create new Vec for collecting Expr values (elem_size = sizeof(Expr))
