@@ -83,6 +83,26 @@ static Bool literal_in_range(const char *val_str, TilType target) {
     }
 }
 
+// Can 'from' be implicitly widened to 'to' without precision loss?
+// U8→U16/U32/U64/I16/I32/I64, U16→U32/U64/I32/I64, U32→U64/I64,
+// I16→I32/I64, I32→I64.  No signed→unsigned, no narrowing.
+static Bool can_implicit_widen(TilType from, TilType to) {
+    if (from.tag == to.tag) return 0;
+    switch (from.tag) {
+        case TilType_TAG_U8:
+            return to.tag == TilType_TAG_I16 || to.tag == TilType_TAG_I32 ||
+                   to.tag == TilType_TAG_I64 || to.tag == TilType_TAG_U32 ||
+                   to.tag == TilType_TAG_U64;
+        case TilType_TAG_I16:
+            return to.tag == TilType_TAG_I32 || to.tag == TilType_TAG_I64;
+        case TilType_TAG_U32:
+            return to.tag == TilType_TAG_U64 || to.tag == TilType_TAG_I64;
+        case TilType_TAG_I32:
+            return to.tag == TilType_TAG_I64;
+        default: return 0;
+    }
+}
+
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     switch (e->data.tag) {
     case ExprData_TAG_LiteralStr:
@@ -514,6 +534,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                     arg->til_type = ptype; continue;
                 }
+                if (can_implicit_widen(arg->til_type, ptype)) {
+                    arg->til_type = ptype; continue;
+                }
                 if (arg->til_type.tag != ptype.tag) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
@@ -831,6 +854,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                  arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
                         type_error(arg, buf);
                     }
+                    arg->til_type = ptype; ci++; continue;
+                }
+                if (can_implicit_widen(arg->til_type, ptype)) {
                     arg->til_type = ptype; ci++; continue;
                 }
                 if (arg->til_type.tag != ptype.tag) {

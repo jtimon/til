@@ -45,6 +45,58 @@ static void ns_set(Str *sname, Str *fname, Value val) {
     { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(val)); memcpy(_v, &val, sizeof(val)); Map_set(&ns_fields, _k, _v); }
 }
 
+// --- Implicit numeric widening ---
+// Extract raw integer from a numeric Value and re-create as target type.
+// Returns the original value unchanged if no widening applies.
+static Value widen_numeric(Value v, Str *ptype) {
+    if (!ptype || ptype->count == 0) return v;
+    // Extract source value as I64/U64
+    I64 ival = 0; U64 uval = 0; int is_unsigned = 0;
+    switch (v.type) {
+        case VAL_U8:  uval = *v.u8; is_unsigned = 1; break;
+        case VAL_I16: ival = *v.i16; break;
+        case VAL_I32: ival = *v.i32; break;
+        case VAL_U32: uval = *v.u32; is_unsigned = 1; break;
+        default: return v;
+    }
+    if (!is_unsigned) uval = (U64)ival;
+    else ival = (I64)uval;
+    // Check target type and widen
+    if (ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0) {
+        free(v.i64); return val_i64(is_unsigned ? (I64)uval : ival);
+    }
+    if (ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0) {
+        free(v.i64); return val_u64(uval);
+    }
+    if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v.type == VAL_U8) {
+        free(v.u8); return val_u32((I64)uval);
+    }
+    if (ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0) {
+        if (v.type == VAL_U8) { free(v.u8); return val_i32(ival); }
+        if (v.type == VAL_I16) { free(v.i16); return val_i32(ival); }
+    }
+    if (ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0 && v.type == VAL_U8) {
+        free(v.u8); return val_i16(ival);
+    }
+    return v;
+}
+
+// Check if a Value's type doesn't match the target ptype and would need widening
+static Bool needs_widen(Value v, Str *ptype) {
+    if (!ptype || ptype->count == 0) return 0;
+    switch (v.type) {
+        case VAL_U8:
+            return !(ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0);
+        case VAL_I16:
+            return !(ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0);
+        case VAL_I32:
+            return !(ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0);
+        case VAL_U32:
+            return !(ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0);
+        default: return 0;
+    }
+}
+
 // --- Scope / environment ---
 
 Scope *scope_new(Scope *parent) {
@@ -529,6 +581,11 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
+                    arg = widen_numeric(arg, ptype);
+                    scope_set_owned(call_scope, &_ipi->name, arg);
+                } else if (needs_widen(arg_cell->val, &_ipi->ptype)) {
+                    Value arg = clone_value(arg_cell->val);
+                    arg = widen_numeric(arg, &_ipi->ptype);
                     scope_set_owned(call_scope, &_ipi->name, arg);
                 } else {
                     scope_set_borrowed(call_scope, &_ipi->name, arg_cell);
@@ -559,6 +616,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
                 }
+                arg = widen_numeric(arg, &_ipi->ptype);
                 scope_set_owned(call_scope, &_ipi->name, arg);
             }
         }
@@ -658,12 +716,20 @@ Value eval_call(Scope *scope, Expr *e) {
     U32 nparam = func_def->data.data.FuncDef.nparam;
     for (U32 i = 0; i < nparam; i++) {
         Expr *arg_expr = Expr_child(e, &(I64){(I64)(i + 1)});
+        Param *_rpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)});
         if (arg_expr->data.tag == ExprData_TAG_Ident) {
             Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
-            scope_set_borrowed(call_scope, &((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)}))->name, arg_cell);
+            if (needs_widen(arg_cell->val, &_rpi->ptype)) {
+                Value arg = clone_value(arg_cell->val);
+                arg = widen_numeric(arg, &_rpi->ptype);
+                scope_set_owned(call_scope, &_rpi->name, arg);
+            } else {
+                scope_set_borrowed(call_scope, &_rpi->name, arg_cell);
+            }
         } else {
             Value arg = eval_expr(scope, arg_expr);
-            scope_set_owned(call_scope, &((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)}))->name, arg);
+            arg = widen_numeric(arg, &_rpi->ptype);
+            scope_set_owned(call_scope, &_rpi->name, arg);
         }
     }
 

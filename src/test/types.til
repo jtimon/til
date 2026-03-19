@@ -49,6 +49,20 @@ test_explicit_types := test() {
     assert_eq(__LOC__, types_double(5), 10)
 }
 
+takes_u64 := func(shallow n: U64) returns shallow U64 { return n }
+takes_i64 := func(shallow n: I64) returns shallow I64 { return n }
+
+test_implicit_widen := test() {
+    // U32 → U64 widening
+    a : U32 = 42
+    assert_eq_str(__LOC__, takes_u64(a).to_i64().to_str(), "42")
+    // U32 → I64 widening
+    assert_eq(__LOC__, takes_i64(a), 42)
+    // U8 → U64 widening
+    b : U8 = 200
+    assert_eq_str(__LOC__, takes_u64(b).to_i64().to_str(), "200")
+}
+
 test_format := test() {
     assert_eq_str(__LOC__, "hello".concat(" world"), "hello world")
     assert_eq_str(__LOC__, format("a", "b", "c"), "abc")

@@ -210,18 +210,12 @@
     ~a : I32 = 0.sub(1)~ should work without explicit ~.to_i32()~.
     The typer sees the target type is I32, so literal ~0~ and ~.sub()~
     resolve to I32 operations. No manual conversion needed.
-    Related to #67 (literal coercion in for-in ranges).
+    Related to #67 (fixed: implicit numeric widening in for-in ranges).
 
 *** Phase 2: Negative literal syntax
     Support ~-111~ as syntax for negative numbers. Parser produces it.
     Simplest implementation: desugar ~-N~ to ~0.sub(N)~.
     Later: optimize to direct negative literal in codegen.
-
-** OPEN #67 For-in range should coerce literal 0 to match the end type
-  ~for i in 0..count~ where ~count~ is U32 fails with type mismatch
-  because ~0~ is I64 and the range expects matching types. Should either
-  coerce the literal ~0~ to U32, or accept mixed integer types in ranges.
-  Workaround: ~for i in 0..count.to_i64().to_u64()~ (ugly).
 
 ** OPEN #64 Builder: pure/lib/pura/liba modes emit I64* instead of I64
   The ~is_lib~ codepath in builder.c causes scalar types to be emitted as
