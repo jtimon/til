@@ -433,8 +433,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
 
         Expr *proc_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-        // Note: is_core NOT set — auto-generated delete goes to per-module
-        // file (same as clone), not to main file
+        proc_def->is_core = stmt->is_core;
         proc_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
         proc_def->data.data.FuncDef.nparam = 2;
         { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); proc_def->data.data.FuncDef.params = *_v; free(_v); }
@@ -460,6 +459,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         decl->data.data.Decl.is_namespace = true;
         decl->data.data.Decl.is_mut = false;
         decl->data.data.Decl.explicit_type = (Str){0};
+        decl->is_core = stmt->is_core;
         Expr_add_child(decl, proc_def);
 
         // Add to struct body
@@ -903,8 +903,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
             default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            // Note: is_core NOT set — auto-generated delete goes to per-module
-            // file (same as clone), not to main file
+            fdef->is_core = stmt->is_core;
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fdef->data.data.FuncDef.nparam = 2;
             { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
@@ -926,6 +925,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
             decl->data.data.Decl.name = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
             decl->data.data.Decl.is_namespace = true;
+            decl->is_core = stmt->is_core;
             Expr_add_child(decl, fdef);
             Expr_add_child(body, decl);
         }
