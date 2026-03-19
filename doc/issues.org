@@ -1,10 +1,26 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 91
+# NEXT_ISSUE: 92
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
+  Vec/Map/Set currently dispatch clone/delete by type name string via
+  ~dyn_call~, which does a linear scan of if/memcmp chains every time.
+  Instead, store clone/delete function pointers as fields in the
+  container struct. ~Vec.new("Str", Str.size())~ would resolve the
+  function pointers once (from the type name), then all subsequent
+  clone/delete calls go through the stored pointers directly.
+
+  Benefits:
+  - Much faster: direct function call vs N string comparisons
+  - Eliminates the "unknown type for delete" failure mode
+  - Simpler generated code (no dyn_call dispatch functions needed)
+
+  Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
+  (it's useful for other things), but containers no longer use it.
+
 ** OPEN #89 Revert to monolithic compilation (remove per-library scavenging)
   The modular ~compile_lib~ / per-library scavenging was partly for
   ~make self_diff~ (no longer needed with the incremental #39 method)
