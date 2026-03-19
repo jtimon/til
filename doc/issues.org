@@ -238,47 +238,6 @@
   Reproduce: ~bin/ctil run tmp/hello_pure.til~ with any pure-mode file.
   Interpreter also fails (~undefined variable 'I64'~ in str.til:3).
 
-** OPEN #62 Investigate: ctil-i slower than til-i — til.til divergence?
-  ctil-i (C interpreter) is slower than til-i (self-hosting interpreter
-  built by the builder). This is counterintuitive — the C interpreter
-  should be faster since it avoids the translate-to-C-then-compile step.
-
-  Primary suspect: til.til is not an exact faithful port of ctil.c.
-  Divergences in the til reimplementation may explain the performance
-  difference — til.til may be doing less work, skipping steps, or
-  structuring the pipeline differently.
-
-  Secondary hypothesis: precomp. When ctil compiles til.til into the
-  til-i binary, precomp runs on til.til's own code — folding constants
-  and precalculating things in the compiler itself. ctil.c is hand-written
-  C and never gets this optimization applied to its own code.
-
-  c2til.org violations found in til.til (compared against ctil.c):
-
-  Missing cleanup (til.til skips all of these, ctil.c does them):
-  - [ ] No tscope_free(scope) after type checking (ctil.c:508)
-  - [ ] No expr_free(ast) at end of main (ctil.c:643)
-  - [ ] No free(source) at end of main (ctil.c:644)
-  - [ ] No Set_delete/Vec_delete for resolved/resolve_stack (ctil.c:425-426)
-  - [ ] No Vec_delete for core_imports after resolve (ctil.c:373)
-  - [ ] No Vec_delete for sub_imports in resolve_imports (ctil.c:134)
-  - [ ] No Vec_delete for imports after user resolve (ctil.c:421)
-
-  Missing logic:
-  - [ ] resolve_imports: never pushes to or pops from stack (ctil.c:103,143)
-  - [ ] init_declarations: return value not checked, no error exit (ctil.c:496-504)
-  - [ ] user_argv passed as NULL to til_interpret (ctil.c:556 passes real argv)
-
-  Unnecessary bridge functions (should use native til types per c2til.org):
-  - [ ] til_set_new/til_set_has/til_set_add/til_set_free — should be
-        Set.new("Str", Str.size()), .has(), .add(), .delete()
-  - [ ] expr_vec_new/expr_vec_push/expr_vec_get/expr_vec_count —
-        wrapping Vec ops that could use native Vec API if Expr weren't opaque
-
-  The missing cleanup is the most likely performance cause: expr_free
-  recursively walks the entire merged AST (core.til + imports + user),
-  tscope_free walks the type scope tree. ctil.c pays this cost before
-  returning; til.til just exits and the OS reclaims everything.
 
 ** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack

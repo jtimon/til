@@ -1,0 +1,6 @@
+# Cancelled issues — no longer relevant.
+
+** CANCELLED #62 Investigate: ctil-i slower than til-i — til.til divergence?
+  ctil.c was replaced by til.til (#12). The performance comparison
+  between ctil-i and til-i is no longer relevant since ctil.c no
+  longer exists.
