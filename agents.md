@@ -22,6 +22,11 @@ Always run `make test` and verify all tests pass before committing.
 Use `systemd-run --user --scope -p MemoryMax=64G make test` to limit memory
 usage during tests (prevents OOM from memory leaks killing the system).
 
+Prefer `make test` over `make clean && make test`. `make` detects
+changed deps and rebuilds automatically. `make clean` is rarely needed
+and destroys the binary that `make til_core` requires. See doc/self.org
+for the bootstrap build workflow.
+
 ## Build & Run
 
 - `make` — build bin/til_bootstrap (also regenerates bootstrap/)

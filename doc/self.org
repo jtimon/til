@@ -38,37 +38,43 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
 
 ** Making changes to .til files only
 
-   Just run ~make clean && make test~. The two-pass build handles it:
+   Just run ~make test~. The two-pass build handles it:
    - First cc uses committed bootstrap → works
    - til_core regenerates bootstrap with current .til
    - Second cc uses new bootstrap → final binary
    - Commit everything: .til files + regenerated bootstrap/
+
+   ~make clean~ is not needed — ~make~ detects changed .til deps
+   and rebuilds automatically.
 
 ** Changing C files that call bootstrap functions
 
    If you rename or change a function in .til that C code calls
    (e.g. ~split~ → ~Str_split~):
    1. Change the .til files first (the source of truth)
-   2. ~make clean && make test~ — regenerates bootstrap with new names
+   2. ~make test~ — regenerates bootstrap with new names
    3. Now change the C files to use the new names
-   4. ~make clean && make test~ again — both passes match
+   4. ~make test~ again — both passes match
    5. Commit everything together: .til + C + bootstrap
 
-** Changing struct layouts (field types in core.til)
+** Changing .til and C files together
 
-   When a struct field type changes in core.til (e.g. Vec → Map),
-   BOTH .til and C code must change together. Pass 1 uses the old
-   bootstrap struct layout, so C code using the new type won't compile.
+   When .til and C code must change together (struct layout changes,
+   builder codegen changes, or any case where the old bootstrap is
+   incompatible with the new C code):
 
    Correct workflow:
    1. Change .til files AND C files together
-   2. ~make til_core~ — regenerates bootstrap with new struct layout
-      (uses bin/til_bootstrap from the PREVIOUS build, before ~make clean~)
-   3. ~make clean && make test~ — pass 1 uses new bootstrap, matches C code
+   2. ~make til_core~ — regenerates bootstrap using the existing
+      bin/til_bootstrap from the previous build
+   3. ~make test~ — both passes now use the same regenerated bootstrap
 
-   IMPORTANT: do NOT run ~make clean~ before ~make til_core~. Clean
-   deletes the binary needed to regenerate bootstrap. If you forget,
-   use ~make rescue~ to recover (see Recovery targets).
+   Do NOT run ~make clean~ in this workflow. ~make clean~ destroys
+   the binary needed by ~make til_core~. ~make test~ alone is
+   sufficient — ~make~ detects changed deps and rebuilds.
+
+   If you accidentally ran ~make clean~ and lost the binary, use
+   ~make rescue~ to recover (see Recovery targets).
 
 ** Removing bridge functions or changing signatures
 
@@ -92,20 +98,30 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
 ** Recovery targets
 
    - ~make revert_boot~ — restore bootstrap/ from last commit
-   - ~make rescue~ — build compiler from previous commit's bootstrap
+   - ~make rescue~ — build compiler from last commit's sources
 
-   ~make rescue~ is needed when pass 1 can't compile because bootstrap/
-   is out of sync with the current C code. This happens when:
-   - You forgot to run ~make til_core~ before ~make~ after changing
-     .til files that affect struct layouts or signatures
-   - You ran ~make clean~ while bootstrap/ was already regenerated
-     but not yet committed (clean deletes bin/* so you lose the binary
-     that could regenerate bootstrap again)
+   ~make rescue~ is needed when you accidentally ran ~make clean~
+   before ~make til_core~ and lost the binary. It builds a compiler
+   from the last commit's sources (both bootstrap/ and src/c/).
 
    Recovery workflow:
    1. ~make rescue~ → builds ~tmp/rescue/til~ from last commit's sources
    2. ~make til_core TIL=tmp/rescue/til~ → regenerates bootstrap
-   3. ~make clean && make test~ — pass 1 now uses the regenerated bootstrap
+   3. ~make test~
+
+** When to use ~make clean~
+
+   ~make clean~ is rarely needed. Prefer ~make test~ for normal
+   development — it's faster and preserves the binary for ~til_core~.
+
+   Use ~make clean~ only when:
+   - Switching branches (stale object files)
+   - Wanting a fully fresh build to verify from scratch
+   - After ~make test~ passes and before committing, to verify
+     that ~make test~ works from a clean state (optional)
+
+   NEVER run ~make clean~ before ~make til_core~. It destroys the
+   binary that ~til_core~ needs.
 
 ** Rules
 
@@ -113,7 +129,8 @@ and recovery. For self-hosting progress tracking, see #39 in doc/issues.org.
      in bootstrap/, fix the .til sources or src/c/ instead.
    - Always commit .til changes + regenerated bootstrap together.
    - The committed bootstrap must be compatible with committed C source.
-   - ~make clean && make test~ from a fresh clone must always work.
+   - ~make test~ from a fresh clone must always work.
+   - Prefer ~make test~ over ~make clean && make test~ during development.
 
 ** Limitations while C modules remain (#39)
 
