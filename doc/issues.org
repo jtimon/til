@@ -1,10 +1,20 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 89
+# NEXT_ISSUE: 91
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #89 Revert to monolithic compilation (remove per-library scavenging)
+  The modular ~compile_lib~ / per-library scavenging was partly for
+  ~make self_diff~ (no longer needed with the incremental #39 method)
+  and partly for a hypothetical multi-library scenario. The complexity
+  isn't justified — monolithic compilation is simpler and faster.
+
+  Remove ~compile_lib~, ~mode lib~ scavenging, per-module .c/.h file
+  splitting. One translation unit per ~til build~ invocation. The
+  ~self_diff~ Makefile target and script can also be removed.
+
 ** OPEN #88 UFCS with ~own~ first arg: ~own p.delete()~ rejected by typer
   ~own p.delete()~ is rejected with "argument for 'own' parameter 'self'
   must be marked 'own'". The parser sets ~is_own_arg~ on the primary
@@ -719,6 +729,15 @@
   interpreted, til compiled — all must produce identical results.
 
 * [0/19] Post
+** OPEN #90 Til libraries: avoid symbol conflicts between independent libs
+  When two til libraries are linked into the same C program, they both
+  define Vec, Map, Str, etc. from core.til. With ~--allow-multiple-definition~
+  this works but is fragile. Proper solution: compile core.til into a
+  shared ~libcoretil.a~ that all til libraries link against, or use
+  namespaced symbols (e.g. ~_til_Vec_push~). Not urgent — current
+  approach works for the compiler itself. Only matters when til is used
+  as a library language by external C programs.
+
 ** OPEN #87 ~priv~ keyword for private declarations
   :DEPENDENCIES: #86
   Everything in til is public by default. Add ~priv~ keyword to
