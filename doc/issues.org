@@ -206,16 +206,40 @@
 ** OPEN #68 Negative literal support
   Two phases:
 
-*** Phase 1: Type-directed literal coercion
+*** DONE Phase 2: Negative literal syntax
+    Support ~-111~ as syntax for negative numbers. Parser produces it.
+    Implementation: desugar ~-N~ to ~0.sub(N)~ in parser.til (lines 417-436).
+    Commit: 20b4ee7.
+
+*** TODO Phase 1: Type-directed literal coercion
     ~a : I32 = 0.sub(1)~ should work without explicit ~.to_i32()~.
     The typer sees the target type is I32, so literal ~0~ and ~.sub()~
     resolve to I32 operations. No manual conversion needed.
     Related to #67 (fixed: implicit numeric widening in for-in ranges).
 
-*** Phase 2: Negative literal syntax
-    Support ~-111~ as syntax for negative numbers. Parser produces it.
-    Simplest implementation: desugar ~-N~ to ~0.sub(N)~.
-    Later: optimize to direct negative literal in codegen.
+    Currently ~a : I32 = -1~ fails because ~-1~ desugars to ~0.sub(1)~,
+    ~0~ defaults to I64, so ~.sub()~ resolves to ~I64.sub()~ returning I64,
+    which mismatches I32. Workaround: ~a : I32 = 0.sub(1).to_i32()~.
+
+**** Implementation options
+     Two places need changes in typer.c:
+
+     1. ~infer_expr~ LiteralNum case (line ~92): currently overwrites any
+        type that isn't U8 with I64. Must preserve pre-coerced numeric types.
+
+     2. Decl handler (line ~2598): must pre-coerce literals before
+        ~infer_expr~ on the RHS.
+
+***** Option A: Targeted pattern match (simple cases only)
+      Before ~infer_expr~ on RHS, detect ~FCall > FieldAccess > LiteralNum~
+      pattern and pre-coerce the receiver literal. Handles ~a : I32 = -1~
+      and ~a : I32 = 0.sub(1)~ but NOT chained calls like ~a : I32 = -34.add(-35)~
+      because the outermost receiver is an FCall, not a LiteralNum.
+
+***** Option B: Recursive pre-coercion (general)
+      Walk the entire RHS expression tree, pre-coercing all LiteralNum nodes
+      to the declared type. Handles chained method calls and nested negatives
+      like ~a : I32 = -34.add(-35)~. Broader but more invasive.
 
 ** OPEN #64 Builder: pure/lib/pura/liba modes emit I64* instead of I64
   The ~is_lib~ codepath in builder.c causes scalar types to be emitted as
