@@ -414,6 +414,26 @@ parse_expression := proc(mut p: Parser) returns Expr {
         e = Expr.new(ExprData.LiteralNum(t.text.clone()), t_line, t_col, p.path)
         e_set = true
     }
+    // Negative number: -N desugars to 0.sub(N)
+    if e_set.not().and(t.type.eq(TokenType.Minus)) {
+        if p.pos.add(1).lt(p.tokens.len()) {
+            ref next_tok : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
+            if next_tok.type.eq(TokenType.Number) {
+                advance(p) // consume '-'
+                ref num_tok : Token = advance(p) // consume number
+                // Build: 0.sub(N)
+                mut zero := Expr.new(ExprData.LiteralNum("0".clone()), t_line, t_col, p.path)
+                mut sub_access := Expr.new(ExprData.FieldAccess("sub".clone()), t_line, t_col, p.path)
+                Expr.add_child(sub_access, own zero)
+                mut sub_call := Expr.new(ExprData.FCall, t_line, t_col, p.path)
+                Expr.add_child(sub_call, own sub_access)
+                mut num_arg := Expr.new(ExprData.LiteralNum(num_tok.text.clone()), t_line, t_col, p.path)
+                Expr.add_child(sub_call, own num_arg)
+                e = sub_call
+                e_set = true
+            }
+        }
+    }
     if e_set.not().and(t.type.eq(TokenType.Char)) {
         advance(p)
         // Parse char literal to byte value
