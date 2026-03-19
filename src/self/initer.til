@@ -19,3 +19,8 @@ TypeBinding := struct {
     mut is_ext := false
     ref mut struct_name : Str = NULL
 }
+
+TypeScope := struct {
+    mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
+    ref mut parent : TypeScope = NULL
+}

@@ -2,6 +2,7 @@
 #include "modes_decls.h"
 
 #include "modes_ast.h"
+#include "modes_map.h"
 
 typedef struct TypeBinding {
     Str *name;
@@ -22,6 +23,15 @@ typedef struct TypeBinding {
 } TypeBinding;
 
 
+typedef struct TypeScope {
+    Map bindings;
+    TypeScope *parent;
+} TypeScope;
+
+
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U64 * TypeBinding_size(void);
+TypeScope * TypeScope_clone(TypeScope * self);
+void TypeScope_delete(TypeScope * self, Bool * call_free);
+U64 * TypeScope_size(void);

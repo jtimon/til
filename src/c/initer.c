@@ -19,10 +19,8 @@ void tscope_free(TypeScope *s) {
     free(s);
 }
 
-// --- FFI clone/delete for TypeScope and Mode ---
+// --- FFI clone/delete for Mode ---
 
-TypeScope *TypeScope_clone(TypeScope *s) { return s; }
-void TypeScope_delete(TypeScope *s, Bool *call_free) { (void)s; (void)call_free; }
 Mode *Mode_clone(Mode *m) { return m; }
 void Mode_delete(Mode *m, Bool *call_free) { (void)m; (void)call_free; }
 

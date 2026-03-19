@@ -105,3 +105,31 @@ U64 *TypeBinding_size(void) {
     return r;
 }
 
+TypeScope * TypeScope_clone(TypeScope * self) {
+    (void)self;
+    TypeScope *_t4195 = malloc(sizeof(TypeScope));
+    { Map *_ca = Map_clone(&self->bindings); _t4195->bindings = *_ca; free(_ca); }
+    _t4195->parent = self->parent;
+    (void)_t4195;
+    return _t4195;
+}
+
+void TypeScope_delete(TypeScope * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    Bool _t4196 = 0;
+    (void)_t4196;
+    Map_delete(&self->bindings, &(Bool){_t4196});
+    ;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
+U64 *TypeScope_size(void) {
+    U64 *r = malloc(sizeof(U64));
+    *r = (U64)sizeof(TypeScope);
+    return r;
+}
+

@@ -3,14 +3,7 @@
 
 #include "../../bootstrap/modes.h"
 
-// --- Type scope (tracks variable types across phases) ---
-// TypeBinding is defined in initer.til (generated into bootstrap headers)
-
-typedef struct TypeScope TypeScope;
-struct TypeScope {
-    Map bindings; // Str* name → TypeBinding
-    TypeScope *parent;
-};
+// TypeBinding and TypeScope are defined in initer.til (generated into bootstrap headers)
 
 // Scope operations
 TypeScope *tscope_new(TypeScope *parent);

@@ -145,6 +145,7 @@ typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef struct Parser Parser;
 typedef struct TypeBinding TypeBinding;
+typedef struct TypeScope TypeScope;
 typedef struct Mode Mode;
 
 typedef struct StructDef {
@@ -365,6 +366,12 @@ typedef struct Expr {
 } Expr;
 
 
+typedef struct TypeScope {
+    Map bindings;
+    TypeScope *parent;
+} TypeScope;
+
+
 EnumDef * EnumDef_clone(EnumDef * self);
 void EnumDef_delete(EnumDef * self, Bool * call_free);
 U64 * EnumDef_size(void);
@@ -540,6 +547,9 @@ Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U64 * TypeBinding_size(void);
+TypeScope * TypeScope_clone(TypeScope * self);
+void TypeScope_delete(TypeScope * self, Bool * call_free);
+U64 * TypeScope_size(void);
 Bool * Mode_eq(Mode * a, Mode * b);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
