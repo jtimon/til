@@ -96,7 +96,7 @@ test_clone := proc() {
 
 test_delete := proc() {
     p := Pair(a=1, b=2)
-    own p.delete()
+    Pair.delete(own p)
 }
 
 // Regular struct used as ext_func arg/return
