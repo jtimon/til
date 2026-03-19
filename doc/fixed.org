@@ -164,6 +164,29 @@
   containers, alias arithmetic/comparison, alias in struct fields,
   alias in struct with methods (simulates #80 container use case).
 
+* FIXED #22 Operator syntax: desugar operators to method calls
+  Implemented operator desugaring as a pure parser transform in parser.til.
+  Binary operators are rewritten to method call AST nodes before downstream
+  passes see them.
+
+  Operator → method mapping:
+  - Comparison: < → lt, <= → lte, > → gt, >= → gte, == → eq, != → neq
+  - Arithmetic: + → add, - → sub, * → mul, / → div, % → mod
+
+  Precedence (low to high): comparison, additive (+/-), multiplicative (*/%),
+  with grouping parentheses (expr) to override.
+
+  Implementation: recursive descent with one function per precedence level
+  (parse_primary → parse_multiplicative → parse_additive → parse_comparison
+  → parse_expression). Added Percent token to lexer for %. Added grouping
+  parentheses support. Negative literals (-N from #68) handled in
+  parse_primary with priority over binary subtraction.
+
+  Tests: 5 new test functions in src/test/operators.til covering arithmetic,
+  comparison, precedence, variables, and mixed operator/method usage.
+
+  Note: bootstrap regeneration required — source changes in parser.til and
+  lexer.til take effect after ~make~ regenerates the bootstrap.
 
 * FIXED #73 Replace #ifndef guards with #pragma once
   All src/c/ headers now use ~#pragma once~ instead of

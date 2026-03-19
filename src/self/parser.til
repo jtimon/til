@@ -394,8 +394,18 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
     return call
 }
 
-// parse_expression
-parse_expression := proc(mut p: Parser) returns Expr {
+// make_binop_call: helper to desugar a OP b → a.method(b)
+make_binop_call := proc(lhs: Expr, method: Str, shallow op_line: U32, shallow op_col: U32, path: Str, rhs: Expr) returns Expr {
+    mut callee := Expr.new(ExprData.FieldAccess(method), op_line, op_col, path)
+    Expr.add_child(callee, own lhs.clone())
+    mut call := Expr.new(ExprData.FCall, op_line, op_col, path)
+    Expr.add_child(call, own callee)
+    Expr.add_child(call, own rhs.clone())
+    return call
+}
+
+// parse_primary: literals, identifiers, calls, field access, grouping parens
+parse_primary := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
     ref t : Token = peek(p)
@@ -529,6 +539,13 @@ parse_expression := proc(mut p: Parser) returns Expr {
         expect_token(p, TokenType.RBrace)
         e_set = true
     }
+    // Grouping parentheses: (expr)
+    if e_set.not().and(t.type.eq(TokenType.LParen)) {
+        advance(p) // consume '('
+        e = parse_expression(p)
+        expect_token(p, TokenType.RParen)
+        e_set = true
+    }
 
     if e_set.not() {
         panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
@@ -581,7 +598,64 @@ parse_expression := proc(mut p: Parser) returns Expr {
             e = access
         }
     }
+    return e
+}
 
+// parse_multiplicative: * / % (highest precedence binary operators)
+parse_multiplicative := proc(mut p: Parser) returns Expr {
+    mut e := parse_primary(p)
+    while check(p, TokenType.Star).or(check(p, TokenType.Slash)).or(check(p, TokenType.Percent)) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        ref op : Token = advance(p)
+        mut method := "mul"
+        if op.type.eq(TokenType.Slash) { method = "div" }
+        if op.type.eq(TokenType.Percent) { method = "mod" }
+        mut rhs := parse_primary(p)
+        e = make_binop_call(e, method, op_line, op_col, p.path, rhs)
+    }
+    return e
+}
+
+// parse_additive: + - (medium precedence)
+parse_additive := proc(mut p: Parser) returns Expr {
+    mut e := parse_multiplicative(p)
+    while check(p, TokenType.Plus).or(check(p, TokenType.Minus)) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        ref op : Token = advance(p)
+        mut method := "add"
+        if op.type.eq(TokenType.Minus) { method = "sub" }
+        mut rhs := parse_multiplicative(p)
+        e = make_binop_call(e, method, op_line, op_col, p.path, rhs)
+    }
+    return e
+}
+
+// parse_comparison: == != < <= > >= (lowest precedence binary operators)
+parse_comparison := proc(mut p: Parser) returns Expr {
+    mut e := parse_additive(p)
+    while check(p, TokenType.EqEq).or(check(p, TokenType.Neq))
+        .or(check(p, TokenType.Lt)).or(check(p, TokenType.LtEq))
+        .or(check(p, TokenType.Gt)).or(check(p, TokenType.GtEq)) {
+        op_line := peek_line(p)
+        op_col := peek_col(p)
+        ref op : Token = advance(p)
+        mut method := "eq"
+        if op.type.eq(TokenType.Neq) { method = "neq" }
+        else if op.type.eq(TokenType.Lt) { method = "lt" }
+        else if op.type.eq(TokenType.LtEq) { method = "lte" }
+        else if op.type.eq(TokenType.Gt) { method = "gt" }
+        else if op.type.eq(TokenType.GtEq) { method = "gte" }
+        mut rhs := parse_additive(p)
+        e = make_binop_call(e, method, op_line, op_col, p.path, rhs)
+    }
+    return e
+}
+
+// parse_expression: top-level expression (comparison + range)
+parse_expression := proc(mut p: Parser) returns Expr {
+    mut e := parse_comparison(p)
     // Range expression: e..rhs → Range.new(e, rhs)
     if check(p, TokenType.DotDot) {
         dt_line := peek_line(p)
@@ -597,7 +671,6 @@ parse_expression := proc(mut p: Parser) returns Expr {
         rcall.add_child(own rhs)
         e = rcall
     }
-
     return e
 }
 
@@ -859,7 +932,8 @@ parse_statement := proc(mut p: Parser) returns Expr {
     }
     if t.type.eq(TokenType.StringTok).or(t.type.eq(TokenType.Number))
         .or(t.type.eq(TokenType.KwTrue)).or(t.type.eq(TokenType.KwFalse))
-        .or(t.type.eq(TokenType.KwNull)) {
+        .or(t.type.eq(TokenType.KwNull)).or(t.type.eq(TokenType.LParen))
+        .or(t.type.eq(TokenType.Minus)) {
         return parse_expression(p)
     }
     if t.type.eq(TokenType.LBrace) {
