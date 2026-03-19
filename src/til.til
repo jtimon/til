@@ -1,6 +1,9 @@
 mode cli
 
-// Link C modules
+// Import self-hosted modules (gives real types: Expr, Mode, TypeScope, etc.)
+import("self/modes.til")
+
+// Link C modules (not yet self-hosted)
 link_c("src/c/initer.c")
 link_c("src/c/typer.c")
 link_c("src/c/interpreter.c")
@@ -12,17 +15,6 @@ link_c("src/c/ext.c")
 link_c("src/c/til_bridge.c")
 link("dl")
 link("ffi")
-
-// --- C types (accessed only through bridge functions) ---
-Mode := ext_struct {
-    mut name := ""
-    mut needs_main := false
-    mut decls_only := false
-    mut auto_import := ""
-    mut is_pure := false
-    mut debug_prints := false
-}
-TypeScope := ext_struct {}
 
 // --- NodeTypeTag constants (matching C enum values) ---
 NODE_BODY : I32 = 0

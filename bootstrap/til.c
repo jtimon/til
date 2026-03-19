@@ -12,6 +12,10 @@
 #include "til_vec.h"
 #include "til_tuple.h"
 #include "til_ast.h"
+#include "til_lexer.h"
+#include "til_parser.h"
+#include "til_initer.h"
+#include "til_modes.h"
 #include "til_til.h"
 
 #include "ext.h"
@@ -260,12 +264,119 @@ void ast_print(Expr * e, U32 indent);
 Bool * enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
-Mode * Mode_clone(Mode * self);
-void Mode_delete(Mode * self, Bool * call_free);
-U64 * Mode_size(void);
+Bool * TokenType_is_Eof(TokenType * self);
+Bool * TokenType_is_LParen(TokenType * self);
+Bool * TokenType_is_RParen(TokenType * self);
+Bool * TokenType_is_LBrace(TokenType * self);
+Bool * TokenType_is_RBrace(TokenType * self);
+Bool * TokenType_is_LBracket(TokenType * self);
+Bool * TokenType_is_RBracket(TokenType * self);
+Bool * TokenType_is_Comma(TokenType * self);
+Bool * TokenType_is_Colon(TokenType * self);
+Bool * TokenType_is_Question(TokenType * self);
+Bool * TokenType_is_Bang(TokenType * self);
+Bool * TokenType_is_Minus(TokenType * self);
+Bool * TokenType_is_Plus(TokenType * self);
+Bool * TokenType_is_Star(TokenType * self);
+Bool * TokenType_is_Slash(TokenType * self);
+Bool * TokenType_is_Dot(TokenType * self);
+Bool * TokenType_is_DotDot(TokenType * self);
+Bool * TokenType_is_DotDotDot(TokenType * self);
+Bool * TokenType_is_Eq(TokenType * self);
+Bool * TokenType_is_EqEq(TokenType * self);
+Bool * TokenType_is_Neq(TokenType * self);
+Bool * TokenType_is_Lt(TokenType * self);
+Bool * TokenType_is_LtEq(TokenType * self);
+Bool * TokenType_is_Gt(TokenType * self);
+Bool * TokenType_is_GtEq(TokenType * self);
+Bool * TokenType_is_ColonEq(TokenType * self);
+Bool * TokenType_is_Ident(TokenType * self);
+Bool * TokenType_is_StringTok(TokenType * self);
+Bool * TokenType_is_Number(TokenType * self);
+Bool * TokenType_is_Char(TokenType * self);
+Bool * TokenType_is_KwMode(TokenType * self);
+Bool * TokenType_is_KwMut(TokenType * self);
+Bool * TokenType_is_KwOwn(TokenType * self);
+Bool * TokenType_is_KwRef(TokenType * self);
+Bool * TokenType_is_KwShallow(TokenType * self);
+Bool * TokenType_is_KwStruct(TokenType * self);
+Bool * TokenType_is_KwExtStruct(TokenType * self);
+Bool * TokenType_is_KwEnum(TokenType * self);
+Bool * TokenType_is_KwNamespace(TokenType * self);
+Bool * TokenType_is_KwFunc(TokenType * self);
+Bool * TokenType_is_KwProc(TokenType * self);
+Bool * TokenType_is_KwTest(TokenType * self);
+Bool * TokenType_is_KwMacro(TokenType * self);
+Bool * TokenType_is_KwExtFunc(TokenType * self);
+Bool * TokenType_is_KwExtProc(TokenType * self);
+Bool * TokenType_is_KwReturns(TokenType * self);
+Bool * TokenType_is_KwThrows(TokenType * self);
+Bool * TokenType_is_KwIf(TokenType * self);
+Bool * TokenType_is_KwElse(TokenType * self);
+Bool * TokenType_is_KwWhile(TokenType * self);
+Bool * TokenType_is_KwFor(TokenType * self);
+Bool * TokenType_is_KwIn(TokenType * self);
+Bool * TokenType_is_KwSwitch(TokenType * self);
+Bool * TokenType_is_KwMatch(TokenType * self);
+Bool * TokenType_is_KwCase(TokenType * self);
+Bool * TokenType_is_KwDefault(TokenType * self);
+Bool * TokenType_is_KwReturn(TokenType * self);
+Bool * TokenType_is_KwThrow(TokenType * self);
+Bool * TokenType_is_KwCatch(TokenType * self);
+Bool * TokenType_is_KwBreak(TokenType * self);
+Bool * TokenType_is_KwContinue(TokenType * self);
+Bool * TokenType_is_KwDefer(TokenType * self);
+Bool * TokenType_is_KwTrue(TokenType * self);
+Bool * TokenType_is_KwFalse(TokenType * self);
+Bool * TokenType_is_KwNull(TokenType * self);
+Bool * TokenType_is_Error(TokenType * self);
+Bool * TokenType_eq(TokenType * self, TokenType * other);
+TokenType * TokenType_clone(TokenType * self);
+void TokenType_delete(TokenType * self, Bool * call_free);
+Str * TokenType_to_str(TokenType * self);
+U64 * TokenType_size(void);
+Token * Token_clone(Token * self);
+void Token_delete(Token * self, Bool * call_free);
+U64 * Token_size(void);
+Bool * is_digit(U8 * c);
+Bool * is_alpha(U8 * c);
+Bool * is_alnum(U8 * c);
+Str * tok_name(TokenType * type);
+TokenType * lookup_keyword(Str * word);
+Vec * tokenize(Str * src, Str * path);
+Parser * Parser_clone(Parser * self);
+void Parser_delete(Parser * self, Bool * call_free);
+U64 * Parser_size(void);
+Token * peek(Parser * p);
+Token * advance(Parser * p);
+Bool check(Parser * p, TokenType * type);
+Token * expect_token(Parser * p, TokenType * type);
+Str * expect_text(Parser * p, TokenType * type);
+U32 peek_line(Parser * p);
+U32 peek_col(Parser * p);
+Str * parse_fn_signature(Parser * p, U32 line, U32 col);
+Expr * parse_block(Parser * p);
+Expr * parse_func_def(Parser * p);
+Expr * parse_struct_def(Parser * p);
+Expr * parse_enum_def(Parser * p);
+Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col);
+Expr * parse_expression(Parser * p);
+Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own);
+Expr * parse_statement(Parser * p);
+Expr * parse(Vec * tokens, Str * path, Str * mode_out);
+TypeBinding * TypeBinding_clone(TypeBinding * self);
+void TypeBinding_delete(TypeBinding * self, Bool * call_free);
+U64 * TypeBinding_size(void);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U64 * TypeScope_size(void);
+Bool * Mode_eq(Mode * a, Mode * b);
+Mode * Mode_clone(Mode * self);
+void Mode_delete(Mode * self, Bool * call_free);
+U64 * Mode_size(void);
+Mode * mode_resolve(Str * name);
+Bool * mode_is_lib(Mode * m);
+Bool * mode_is_lib_output(Mode * m);
 Vec * extract_imports(void * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, void * resolved_set, void * stack, void * merged, Str * lib_dir);
 void usage(void);
@@ -357,6 +468,73 @@ Bool * ExprData_is_Switch(ExprData *);
 ExprData *ExprData_Switch();
 Bool * ExprData_is_Case(ExprData *);
 ExprData *ExprData_Case();
+Bool * TokenType_eq(TokenType *, TokenType *);
+TokenType *TokenType_Eof();
+TokenType *TokenType_LParen();
+TokenType *TokenType_RParen();
+TokenType *TokenType_LBrace();
+TokenType *TokenType_RBrace();
+TokenType *TokenType_LBracket();
+TokenType *TokenType_RBracket();
+TokenType *TokenType_Comma();
+TokenType *TokenType_Colon();
+TokenType *TokenType_Question();
+TokenType *TokenType_Bang();
+TokenType *TokenType_Minus();
+TokenType *TokenType_Plus();
+TokenType *TokenType_Star();
+TokenType *TokenType_Slash();
+TokenType *TokenType_Dot();
+TokenType *TokenType_DotDot();
+TokenType *TokenType_DotDotDot();
+TokenType *TokenType_Eq();
+TokenType *TokenType_EqEq();
+TokenType *TokenType_Neq();
+TokenType *TokenType_Lt();
+TokenType *TokenType_LtEq();
+TokenType *TokenType_Gt();
+TokenType *TokenType_GtEq();
+TokenType *TokenType_ColonEq();
+TokenType *TokenType_Ident();
+TokenType *TokenType_StringTok();
+TokenType *TokenType_Number();
+TokenType *TokenType_Char();
+TokenType *TokenType_KwMode();
+TokenType *TokenType_KwMut();
+TokenType *TokenType_KwOwn();
+TokenType *TokenType_KwRef();
+TokenType *TokenType_KwShallow();
+TokenType *TokenType_KwStruct();
+TokenType *TokenType_KwExtStruct();
+TokenType *TokenType_KwEnum();
+TokenType *TokenType_KwNamespace();
+TokenType *TokenType_KwFunc();
+TokenType *TokenType_KwProc();
+TokenType *TokenType_KwTest();
+TokenType *TokenType_KwMacro();
+TokenType *TokenType_KwExtFunc();
+TokenType *TokenType_KwExtProc();
+TokenType *TokenType_KwReturns();
+TokenType *TokenType_KwThrows();
+TokenType *TokenType_KwIf();
+TokenType *TokenType_KwElse();
+TokenType *TokenType_KwWhile();
+TokenType *TokenType_KwFor();
+TokenType *TokenType_KwIn();
+TokenType *TokenType_KwSwitch();
+TokenType *TokenType_KwMatch();
+TokenType *TokenType_KwCase();
+TokenType *TokenType_KwDefault();
+TokenType *TokenType_KwReturn();
+TokenType *TokenType_KwThrow();
+TokenType *TokenType_KwCatch();
+TokenType *TokenType_KwBreak();
+TokenType *TokenType_KwContinue();
+TokenType *TokenType_KwDefer();
+TokenType *TokenType_KwTrue();
+TokenType *TokenType_KwFalse();
+TokenType *TokenType_KwNull();
+TokenType *TokenType_Error();
 
 void dyn_call_delete(Str *type_name, void *val, void *arg2);
 void *dyn_call_clone(Str *type_name, void *val);
@@ -380,14 +558,67 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t2722;
-static I64 *_t2723;
-static I64 *_t2724;
+static I64 *_t4820;
+static I64 *_t4821;
+static I64 *_t4822;
 static U64 *CAP_LIT;
-static I64 *_t2725;
-static I64 *_t2726;
-static I64 *_t2727;
+static I64 *_t4823;
+static I64 *_t4824;
+static I64 *_t4825;
 static U64 *CAP_VIEW;
+static Str *_t4826;
+static U64 *_t4827;
+static Str *_t4828;
+static U64 *_t4829;
+static Map *core_modes;
+static Bool *_t4830;
+static Bool *_t4831;
+static Bool *_t4832;
+static Bool *_t4833;
+static Str *_t4834;
+static Mode *_t4835;
+static Bool *_t4836;
+static Bool *_t4837;
+static Bool *_t4838;
+static Bool *_t4839;
+static Str *_t4840;
+static Mode *_t4841;
+static Bool *_t4842;
+static Bool *_t4843;
+static Bool *_t4844;
+static Bool *_t4845;
+static Str *_t4846;
+static Mode *_t4847;
+static Bool *_t4848;
+static Bool *_t4849;
+static Bool *_t4850;
+static Bool *_t4851;
+static Str *_t4852;
+static Mode *_t4853;
+static Bool *_t4854;
+static Bool *_t4855;
+static Bool *_t4856;
+static Bool *_t4857;
+static Str *_t4858;
+static Mode *_t4859;
+static Bool *_t4860;
+static Bool *_t4861;
+static Bool *_t4862;
+static Bool *_t4863;
+static Str *_t4864;
+static Mode *_t4865;
+static Bool *_t4866;
+static Bool *_t4867;
+static Bool *_t4868;
+static Bool *_t4869;
+static Str *_t4870;
+static Mode *_t4871;
+static Bool *_t4872;
+static Bool *_t4873;
+static Bool *_t4874;
+static Bool *_t4875;
+static Str *_t4876;
+static Mode *_t4877;
 static I32 *NODE_BODY;
 static I32 *NODE_LITERAL_STR;
 static I32 *NODE_LITERAL_NUM;
@@ -7475,6 +7706,2345 @@ Expr * Expr_clone(Expr * self) {
     return _t1791;
 }
 
+TokenType *TokenType_Eof() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Eof };
+    return r;
+}
+TokenType *TokenType_LParen() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_LParen };
+    return r;
+}
+TokenType *TokenType_RParen() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_RParen };
+    return r;
+}
+TokenType *TokenType_LBrace() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_LBrace };
+    return r;
+}
+TokenType *TokenType_RBrace() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_RBrace };
+    return r;
+}
+TokenType *TokenType_LBracket() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_LBracket };
+    return r;
+}
+TokenType *TokenType_RBracket() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_RBracket };
+    return r;
+}
+TokenType *TokenType_Comma() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Comma };
+    return r;
+}
+TokenType *TokenType_Colon() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Colon };
+    return r;
+}
+TokenType *TokenType_Question() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Question };
+    return r;
+}
+TokenType *TokenType_Bang() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Bang };
+    return r;
+}
+TokenType *TokenType_Minus() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Minus };
+    return r;
+}
+TokenType *TokenType_Plus() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Plus };
+    return r;
+}
+TokenType *TokenType_Star() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Star };
+    return r;
+}
+TokenType *TokenType_Slash() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Slash };
+    return r;
+}
+TokenType *TokenType_Dot() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Dot };
+    return r;
+}
+TokenType *TokenType_DotDot() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_DotDot };
+    return r;
+}
+TokenType *TokenType_DotDotDot() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_DotDotDot };
+    return r;
+}
+TokenType *TokenType_Eq() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Eq };
+    return r;
+}
+TokenType *TokenType_EqEq() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_EqEq };
+    return r;
+}
+TokenType *TokenType_Neq() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Neq };
+    return r;
+}
+TokenType *TokenType_Lt() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Lt };
+    return r;
+}
+TokenType *TokenType_LtEq() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_LtEq };
+    return r;
+}
+TokenType *TokenType_Gt() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Gt };
+    return r;
+}
+TokenType *TokenType_GtEq() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_GtEq };
+    return r;
+}
+TokenType *TokenType_ColonEq() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_ColonEq };
+    return r;
+}
+TokenType *TokenType_Ident() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Ident };
+    return r;
+}
+TokenType *TokenType_StringTok() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_StringTok };
+    return r;
+}
+TokenType *TokenType_Number() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Number };
+    return r;
+}
+TokenType *TokenType_Char() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Char };
+    return r;
+}
+TokenType *TokenType_KwMode() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwMode };
+    return r;
+}
+TokenType *TokenType_KwMut() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwMut };
+    return r;
+}
+TokenType *TokenType_KwOwn() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwOwn };
+    return r;
+}
+TokenType *TokenType_KwRef() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwRef };
+    return r;
+}
+TokenType *TokenType_KwShallow() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwShallow };
+    return r;
+}
+TokenType *TokenType_KwStruct() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwStruct };
+    return r;
+}
+TokenType *TokenType_KwExtStruct() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwExtStruct };
+    return r;
+}
+TokenType *TokenType_KwEnum() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwEnum };
+    return r;
+}
+TokenType *TokenType_KwNamespace() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwNamespace };
+    return r;
+}
+TokenType *TokenType_KwFunc() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwFunc };
+    return r;
+}
+TokenType *TokenType_KwProc() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwProc };
+    return r;
+}
+TokenType *TokenType_KwTest() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwTest };
+    return r;
+}
+TokenType *TokenType_KwMacro() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwMacro };
+    return r;
+}
+TokenType *TokenType_KwExtFunc() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwExtFunc };
+    return r;
+}
+TokenType *TokenType_KwExtProc() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwExtProc };
+    return r;
+}
+TokenType *TokenType_KwReturns() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwReturns };
+    return r;
+}
+TokenType *TokenType_KwThrows() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwThrows };
+    return r;
+}
+TokenType *TokenType_KwIf() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwIf };
+    return r;
+}
+TokenType *TokenType_KwElse() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwElse };
+    return r;
+}
+TokenType *TokenType_KwWhile() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwWhile };
+    return r;
+}
+TokenType *TokenType_KwFor() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwFor };
+    return r;
+}
+TokenType *TokenType_KwIn() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwIn };
+    return r;
+}
+TokenType *TokenType_KwSwitch() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwSwitch };
+    return r;
+}
+TokenType *TokenType_KwMatch() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwMatch };
+    return r;
+}
+TokenType *TokenType_KwCase() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwCase };
+    return r;
+}
+TokenType *TokenType_KwDefault() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwDefault };
+    return r;
+}
+TokenType *TokenType_KwReturn() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwReturn };
+    return r;
+}
+TokenType *TokenType_KwThrow() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwThrow };
+    return r;
+}
+TokenType *TokenType_KwCatch() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwCatch };
+    return r;
+}
+TokenType *TokenType_KwBreak() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwBreak };
+    return r;
+}
+TokenType *TokenType_KwContinue() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwContinue };
+    return r;
+}
+TokenType *TokenType_KwDefer() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwDefer };
+    return r;
+}
+TokenType *TokenType_KwTrue() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwTrue };
+    return r;
+}
+TokenType *TokenType_KwFalse() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwFalse };
+    return r;
+}
+TokenType *TokenType_KwNull() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_KwNull };
+    return r;
+}
+TokenType *TokenType_Error() {
+    TokenType *r = malloc(sizeof(TokenType));
+    *r = (TokenType){ .tag = TokenType_TAG_Error };
+    return r;
+}
+Bool *TokenType_is_Eof(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Eof);
+    return r;
+}
+Bool *TokenType_is_LParen(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_LParen);
+    return r;
+}
+Bool *TokenType_is_RParen(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_RParen);
+    return r;
+}
+Bool *TokenType_is_LBrace(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_LBrace);
+    return r;
+}
+Bool *TokenType_is_RBrace(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_RBrace);
+    return r;
+}
+Bool *TokenType_is_LBracket(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_LBracket);
+    return r;
+}
+Bool *TokenType_is_RBracket(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_RBracket);
+    return r;
+}
+Bool *TokenType_is_Comma(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Comma);
+    return r;
+}
+Bool *TokenType_is_Colon(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Colon);
+    return r;
+}
+Bool *TokenType_is_Question(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Question);
+    return r;
+}
+Bool *TokenType_is_Bang(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Bang);
+    return r;
+}
+Bool *TokenType_is_Minus(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Minus);
+    return r;
+}
+Bool *TokenType_is_Plus(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Plus);
+    return r;
+}
+Bool *TokenType_is_Star(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Star);
+    return r;
+}
+Bool *TokenType_is_Slash(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Slash);
+    return r;
+}
+Bool *TokenType_is_Dot(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Dot);
+    return r;
+}
+Bool *TokenType_is_DotDot(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_DotDot);
+    return r;
+}
+Bool *TokenType_is_DotDotDot(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_DotDotDot);
+    return r;
+}
+Bool *TokenType_is_Eq(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Eq);
+    return r;
+}
+Bool *TokenType_is_EqEq(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_EqEq);
+    return r;
+}
+Bool *TokenType_is_Neq(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Neq);
+    return r;
+}
+Bool *TokenType_is_Lt(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Lt);
+    return r;
+}
+Bool *TokenType_is_LtEq(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_LtEq);
+    return r;
+}
+Bool *TokenType_is_Gt(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Gt);
+    return r;
+}
+Bool *TokenType_is_GtEq(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_GtEq);
+    return r;
+}
+Bool *TokenType_is_ColonEq(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_ColonEq);
+    return r;
+}
+Bool *TokenType_is_Ident(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Ident);
+    return r;
+}
+Bool *TokenType_is_StringTok(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_StringTok);
+    return r;
+}
+Bool *TokenType_is_Number(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Number);
+    return r;
+}
+Bool *TokenType_is_Char(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Char);
+    return r;
+}
+Bool *TokenType_is_KwMode(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwMode);
+    return r;
+}
+Bool *TokenType_is_KwMut(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwMut);
+    return r;
+}
+Bool *TokenType_is_KwOwn(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwOwn);
+    return r;
+}
+Bool *TokenType_is_KwRef(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwRef);
+    return r;
+}
+Bool *TokenType_is_KwShallow(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwShallow);
+    return r;
+}
+Bool *TokenType_is_KwStruct(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwStruct);
+    return r;
+}
+Bool *TokenType_is_KwExtStruct(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwExtStruct);
+    return r;
+}
+Bool *TokenType_is_KwEnum(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwEnum);
+    return r;
+}
+Bool *TokenType_is_KwNamespace(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwNamespace);
+    return r;
+}
+Bool *TokenType_is_KwFunc(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwFunc);
+    return r;
+}
+Bool *TokenType_is_KwProc(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwProc);
+    return r;
+}
+Bool *TokenType_is_KwTest(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwTest);
+    return r;
+}
+Bool *TokenType_is_KwMacro(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwMacro);
+    return r;
+}
+Bool *TokenType_is_KwExtFunc(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwExtFunc);
+    return r;
+}
+Bool *TokenType_is_KwExtProc(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwExtProc);
+    return r;
+}
+Bool *TokenType_is_KwReturns(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwReturns);
+    return r;
+}
+Bool *TokenType_is_KwThrows(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwThrows);
+    return r;
+}
+Bool *TokenType_is_KwIf(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwIf);
+    return r;
+}
+Bool *TokenType_is_KwElse(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwElse);
+    return r;
+}
+Bool *TokenType_is_KwWhile(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwWhile);
+    return r;
+}
+Bool *TokenType_is_KwFor(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwFor);
+    return r;
+}
+Bool *TokenType_is_KwIn(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwIn);
+    return r;
+}
+Bool *TokenType_is_KwSwitch(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwSwitch);
+    return r;
+}
+Bool *TokenType_is_KwMatch(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwMatch);
+    return r;
+}
+Bool *TokenType_is_KwCase(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwCase);
+    return r;
+}
+Bool *TokenType_is_KwDefault(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwDefault);
+    return r;
+}
+Bool *TokenType_is_KwReturn(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwReturn);
+    return r;
+}
+Bool *TokenType_is_KwThrow(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwThrow);
+    return r;
+}
+Bool *TokenType_is_KwCatch(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwCatch);
+    return r;
+}
+Bool *TokenType_is_KwBreak(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwBreak);
+    return r;
+}
+Bool *TokenType_is_KwContinue(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwContinue);
+    return r;
+}
+Bool *TokenType_is_KwDefer(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwDefer);
+    return r;
+}
+Bool *TokenType_is_KwTrue(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwTrue);
+    return r;
+}
+Bool *TokenType_is_KwFalse(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwFalse);
+    return r;
+}
+Bool *TokenType_is_KwNull(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_KwNull);
+    return r;
+}
+Bool *TokenType_is_Error(TokenType *self) {
+    Bool *r = malloc(sizeof(Bool));
+    *r = (self->tag == TokenType_TAG_Error);
+    return r;
+}
+Bool * TokenType_eq(TokenType * self, TokenType * other) {
+    (void)self;
+    (void)other;
+    Bool _t2181; { Bool *_hp = (Bool *)TokenType_is_Eof(self); _t2181 = *_hp; free(_hp); }
+    (void)_t2181;
+    if (_t2181) {
+        Bool _t2115; { Bool *_hp = (Bool *)TokenType_is_Eof(other); _t2115 = *_hp; free(_hp); }
+        (void)_t2115;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2115; return _r; }
+    }
+    ;
+    Bool _t2182; { Bool *_hp = (Bool *)TokenType_is_LParen(self); _t2182 = *_hp; free(_hp); }
+    (void)_t2182;
+    if (_t2182) {
+        Bool _t2116; { Bool *_hp = (Bool *)TokenType_is_LParen(other); _t2116 = *_hp; free(_hp); }
+        (void)_t2116;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2116; return _r; }
+    }
+    ;
+    Bool _t2183; { Bool *_hp = (Bool *)TokenType_is_RParen(self); _t2183 = *_hp; free(_hp); }
+    (void)_t2183;
+    if (_t2183) {
+        Bool _t2117; { Bool *_hp = (Bool *)TokenType_is_RParen(other); _t2117 = *_hp; free(_hp); }
+        (void)_t2117;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2117; return _r; }
+    }
+    ;
+    Bool _t2184; { Bool *_hp = (Bool *)TokenType_is_LBrace(self); _t2184 = *_hp; free(_hp); }
+    (void)_t2184;
+    if (_t2184) {
+        Bool _t2118; { Bool *_hp = (Bool *)TokenType_is_LBrace(other); _t2118 = *_hp; free(_hp); }
+        (void)_t2118;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2118; return _r; }
+    }
+    ;
+    Bool _t2185; { Bool *_hp = (Bool *)TokenType_is_RBrace(self); _t2185 = *_hp; free(_hp); }
+    (void)_t2185;
+    if (_t2185) {
+        Bool _t2119; { Bool *_hp = (Bool *)TokenType_is_RBrace(other); _t2119 = *_hp; free(_hp); }
+        (void)_t2119;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2119; return _r; }
+    }
+    ;
+    Bool _t2186; { Bool *_hp = (Bool *)TokenType_is_LBracket(self); _t2186 = *_hp; free(_hp); }
+    (void)_t2186;
+    if (_t2186) {
+        Bool _t2120; { Bool *_hp = (Bool *)TokenType_is_LBracket(other); _t2120 = *_hp; free(_hp); }
+        (void)_t2120;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2120; return _r; }
+    }
+    ;
+    Bool _t2187; { Bool *_hp = (Bool *)TokenType_is_RBracket(self); _t2187 = *_hp; free(_hp); }
+    (void)_t2187;
+    if (_t2187) {
+        Bool _t2121; { Bool *_hp = (Bool *)TokenType_is_RBracket(other); _t2121 = *_hp; free(_hp); }
+        (void)_t2121;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2121; return _r; }
+    }
+    ;
+    Bool _t2188; { Bool *_hp = (Bool *)TokenType_is_Comma(self); _t2188 = *_hp; free(_hp); }
+    (void)_t2188;
+    if (_t2188) {
+        Bool _t2122; { Bool *_hp = (Bool *)TokenType_is_Comma(other); _t2122 = *_hp; free(_hp); }
+        (void)_t2122;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2122; return _r; }
+    }
+    ;
+    Bool _t2189; { Bool *_hp = (Bool *)TokenType_is_Colon(self); _t2189 = *_hp; free(_hp); }
+    (void)_t2189;
+    if (_t2189) {
+        Bool _t2123; { Bool *_hp = (Bool *)TokenType_is_Colon(other); _t2123 = *_hp; free(_hp); }
+        (void)_t2123;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2123; return _r; }
+    }
+    ;
+    Bool _t2190; { Bool *_hp = (Bool *)TokenType_is_Question(self); _t2190 = *_hp; free(_hp); }
+    (void)_t2190;
+    if (_t2190) {
+        Bool _t2124; { Bool *_hp = (Bool *)TokenType_is_Question(other); _t2124 = *_hp; free(_hp); }
+        (void)_t2124;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2124; return _r; }
+    }
+    ;
+    Bool _t2191; { Bool *_hp = (Bool *)TokenType_is_Bang(self); _t2191 = *_hp; free(_hp); }
+    (void)_t2191;
+    if (_t2191) {
+        Bool _t2125; { Bool *_hp = (Bool *)TokenType_is_Bang(other); _t2125 = *_hp; free(_hp); }
+        (void)_t2125;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2125; return _r; }
+    }
+    ;
+    Bool _t2192; { Bool *_hp = (Bool *)TokenType_is_Minus(self); _t2192 = *_hp; free(_hp); }
+    (void)_t2192;
+    if (_t2192) {
+        Bool _t2126; { Bool *_hp = (Bool *)TokenType_is_Minus(other); _t2126 = *_hp; free(_hp); }
+        (void)_t2126;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2126; return _r; }
+    }
+    ;
+    Bool _t2193; { Bool *_hp = (Bool *)TokenType_is_Plus(self); _t2193 = *_hp; free(_hp); }
+    (void)_t2193;
+    if (_t2193) {
+        Bool _t2127; { Bool *_hp = (Bool *)TokenType_is_Plus(other); _t2127 = *_hp; free(_hp); }
+        (void)_t2127;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2127; return _r; }
+    }
+    ;
+    Bool _t2194; { Bool *_hp = (Bool *)TokenType_is_Star(self); _t2194 = *_hp; free(_hp); }
+    (void)_t2194;
+    if (_t2194) {
+        Bool _t2128; { Bool *_hp = (Bool *)TokenType_is_Star(other); _t2128 = *_hp; free(_hp); }
+        (void)_t2128;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2128; return _r; }
+    }
+    ;
+    Bool _t2195; { Bool *_hp = (Bool *)TokenType_is_Slash(self); _t2195 = *_hp; free(_hp); }
+    (void)_t2195;
+    if (_t2195) {
+        Bool _t2129; { Bool *_hp = (Bool *)TokenType_is_Slash(other); _t2129 = *_hp; free(_hp); }
+        (void)_t2129;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2129; return _r; }
+    }
+    ;
+    Bool _t2196; { Bool *_hp = (Bool *)TokenType_is_Dot(self); _t2196 = *_hp; free(_hp); }
+    (void)_t2196;
+    if (_t2196) {
+        Bool _t2130; { Bool *_hp = (Bool *)TokenType_is_Dot(other); _t2130 = *_hp; free(_hp); }
+        (void)_t2130;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2130; return _r; }
+    }
+    ;
+    Bool _t2197; { Bool *_hp = (Bool *)TokenType_is_DotDot(self); _t2197 = *_hp; free(_hp); }
+    (void)_t2197;
+    if (_t2197) {
+        Bool _t2131; { Bool *_hp = (Bool *)TokenType_is_DotDot(other); _t2131 = *_hp; free(_hp); }
+        (void)_t2131;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2131; return _r; }
+    }
+    ;
+    Bool _t2198; { Bool *_hp = (Bool *)TokenType_is_DotDotDot(self); _t2198 = *_hp; free(_hp); }
+    (void)_t2198;
+    if (_t2198) {
+        Bool _t2132; { Bool *_hp = (Bool *)TokenType_is_DotDotDot(other); _t2132 = *_hp; free(_hp); }
+        (void)_t2132;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2132; return _r; }
+    }
+    ;
+    Bool _t2199; { Bool *_hp = (Bool *)TokenType_is_Eq(self); _t2199 = *_hp; free(_hp); }
+    (void)_t2199;
+    if (_t2199) {
+        Bool _t2133; { Bool *_hp = (Bool *)TokenType_is_Eq(other); _t2133 = *_hp; free(_hp); }
+        (void)_t2133;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2133; return _r; }
+    }
+    ;
+    Bool _t2200; { Bool *_hp = (Bool *)TokenType_is_EqEq(self); _t2200 = *_hp; free(_hp); }
+    (void)_t2200;
+    if (_t2200) {
+        Bool _t2134; { Bool *_hp = (Bool *)TokenType_is_EqEq(other); _t2134 = *_hp; free(_hp); }
+        (void)_t2134;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2134; return _r; }
+    }
+    ;
+    Bool _t2201; { Bool *_hp = (Bool *)TokenType_is_Neq(self); _t2201 = *_hp; free(_hp); }
+    (void)_t2201;
+    if (_t2201) {
+        Bool _t2135; { Bool *_hp = (Bool *)TokenType_is_Neq(other); _t2135 = *_hp; free(_hp); }
+        (void)_t2135;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2135; return _r; }
+    }
+    ;
+    Bool _t2202; { Bool *_hp = (Bool *)TokenType_is_Lt(self); _t2202 = *_hp; free(_hp); }
+    (void)_t2202;
+    if (_t2202) {
+        Bool _t2136; { Bool *_hp = (Bool *)TokenType_is_Lt(other); _t2136 = *_hp; free(_hp); }
+        (void)_t2136;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2136; return _r; }
+    }
+    ;
+    Bool _t2203; { Bool *_hp = (Bool *)TokenType_is_LtEq(self); _t2203 = *_hp; free(_hp); }
+    (void)_t2203;
+    if (_t2203) {
+        Bool _t2137; { Bool *_hp = (Bool *)TokenType_is_LtEq(other); _t2137 = *_hp; free(_hp); }
+        (void)_t2137;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2137; return _r; }
+    }
+    ;
+    Bool _t2204; { Bool *_hp = (Bool *)TokenType_is_Gt(self); _t2204 = *_hp; free(_hp); }
+    (void)_t2204;
+    if (_t2204) {
+        Bool _t2138; { Bool *_hp = (Bool *)TokenType_is_Gt(other); _t2138 = *_hp; free(_hp); }
+        (void)_t2138;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2138; return _r; }
+    }
+    ;
+    Bool _t2205; { Bool *_hp = (Bool *)TokenType_is_GtEq(self); _t2205 = *_hp; free(_hp); }
+    (void)_t2205;
+    if (_t2205) {
+        Bool _t2139; { Bool *_hp = (Bool *)TokenType_is_GtEq(other); _t2139 = *_hp; free(_hp); }
+        (void)_t2139;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2139; return _r; }
+    }
+    ;
+    Bool _t2206; { Bool *_hp = (Bool *)TokenType_is_ColonEq(self); _t2206 = *_hp; free(_hp); }
+    (void)_t2206;
+    if (_t2206) {
+        Bool _t2140; { Bool *_hp = (Bool *)TokenType_is_ColonEq(other); _t2140 = *_hp; free(_hp); }
+        (void)_t2140;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2140; return _r; }
+    }
+    ;
+    Bool _t2207; { Bool *_hp = (Bool *)TokenType_is_Ident(self); _t2207 = *_hp; free(_hp); }
+    (void)_t2207;
+    if (_t2207) {
+        Bool _t2141; { Bool *_hp = (Bool *)TokenType_is_Ident(other); _t2141 = *_hp; free(_hp); }
+        (void)_t2141;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2141; return _r; }
+    }
+    ;
+    Bool _t2208; { Bool *_hp = (Bool *)TokenType_is_StringTok(self); _t2208 = *_hp; free(_hp); }
+    (void)_t2208;
+    if (_t2208) {
+        Bool _t2142; { Bool *_hp = (Bool *)TokenType_is_StringTok(other); _t2142 = *_hp; free(_hp); }
+        (void)_t2142;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2142; return _r; }
+    }
+    ;
+    Bool _t2209; { Bool *_hp = (Bool *)TokenType_is_Number(self); _t2209 = *_hp; free(_hp); }
+    (void)_t2209;
+    if (_t2209) {
+        Bool _t2143; { Bool *_hp = (Bool *)TokenType_is_Number(other); _t2143 = *_hp; free(_hp); }
+        (void)_t2143;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2143; return _r; }
+    }
+    ;
+    Bool _t2210; { Bool *_hp = (Bool *)TokenType_is_Char(self); _t2210 = *_hp; free(_hp); }
+    (void)_t2210;
+    if (_t2210) {
+        Bool _t2144; { Bool *_hp = (Bool *)TokenType_is_Char(other); _t2144 = *_hp; free(_hp); }
+        (void)_t2144;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2144; return _r; }
+    }
+    ;
+    Bool _t2211; { Bool *_hp = (Bool *)TokenType_is_KwMode(self); _t2211 = *_hp; free(_hp); }
+    (void)_t2211;
+    if (_t2211) {
+        Bool _t2145; { Bool *_hp = (Bool *)TokenType_is_KwMode(other); _t2145 = *_hp; free(_hp); }
+        (void)_t2145;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2145; return _r; }
+    }
+    ;
+    Bool _t2212; { Bool *_hp = (Bool *)TokenType_is_KwMut(self); _t2212 = *_hp; free(_hp); }
+    (void)_t2212;
+    if (_t2212) {
+        Bool _t2146; { Bool *_hp = (Bool *)TokenType_is_KwMut(other); _t2146 = *_hp; free(_hp); }
+        (void)_t2146;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2146; return _r; }
+    }
+    ;
+    Bool _t2213; { Bool *_hp = (Bool *)TokenType_is_KwOwn(self); _t2213 = *_hp; free(_hp); }
+    (void)_t2213;
+    if (_t2213) {
+        Bool _t2147; { Bool *_hp = (Bool *)TokenType_is_KwOwn(other); _t2147 = *_hp; free(_hp); }
+        (void)_t2147;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2147; return _r; }
+    }
+    ;
+    Bool _t2214; { Bool *_hp = (Bool *)TokenType_is_KwRef(self); _t2214 = *_hp; free(_hp); }
+    (void)_t2214;
+    if (_t2214) {
+        Bool _t2148; { Bool *_hp = (Bool *)TokenType_is_KwRef(other); _t2148 = *_hp; free(_hp); }
+        (void)_t2148;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2148; return _r; }
+    }
+    ;
+    Bool _t2215; { Bool *_hp = (Bool *)TokenType_is_KwShallow(self); _t2215 = *_hp; free(_hp); }
+    (void)_t2215;
+    if (_t2215) {
+        Bool _t2149; { Bool *_hp = (Bool *)TokenType_is_KwShallow(other); _t2149 = *_hp; free(_hp); }
+        (void)_t2149;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2149; return _r; }
+    }
+    ;
+    Bool _t2216; { Bool *_hp = (Bool *)TokenType_is_KwStruct(self); _t2216 = *_hp; free(_hp); }
+    (void)_t2216;
+    if (_t2216) {
+        Bool _t2150; { Bool *_hp = (Bool *)TokenType_is_KwStruct(other); _t2150 = *_hp; free(_hp); }
+        (void)_t2150;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2150; return _r; }
+    }
+    ;
+    Bool _t2217; { Bool *_hp = (Bool *)TokenType_is_KwExtStruct(self); _t2217 = *_hp; free(_hp); }
+    (void)_t2217;
+    if (_t2217) {
+        Bool _t2151; { Bool *_hp = (Bool *)TokenType_is_KwExtStruct(other); _t2151 = *_hp; free(_hp); }
+        (void)_t2151;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2151; return _r; }
+    }
+    ;
+    Bool _t2218; { Bool *_hp = (Bool *)TokenType_is_KwEnum(self); _t2218 = *_hp; free(_hp); }
+    (void)_t2218;
+    if (_t2218) {
+        Bool _t2152; { Bool *_hp = (Bool *)TokenType_is_KwEnum(other); _t2152 = *_hp; free(_hp); }
+        (void)_t2152;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2152; return _r; }
+    }
+    ;
+    Bool _t2219; { Bool *_hp = (Bool *)TokenType_is_KwNamespace(self); _t2219 = *_hp; free(_hp); }
+    (void)_t2219;
+    if (_t2219) {
+        Bool _t2153; { Bool *_hp = (Bool *)TokenType_is_KwNamespace(other); _t2153 = *_hp; free(_hp); }
+        (void)_t2153;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2153; return _r; }
+    }
+    ;
+    Bool _t2220; { Bool *_hp = (Bool *)TokenType_is_KwFunc(self); _t2220 = *_hp; free(_hp); }
+    (void)_t2220;
+    if (_t2220) {
+        Bool _t2154; { Bool *_hp = (Bool *)TokenType_is_KwFunc(other); _t2154 = *_hp; free(_hp); }
+        (void)_t2154;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2154; return _r; }
+    }
+    ;
+    Bool _t2221; { Bool *_hp = (Bool *)TokenType_is_KwProc(self); _t2221 = *_hp; free(_hp); }
+    (void)_t2221;
+    if (_t2221) {
+        Bool _t2155; { Bool *_hp = (Bool *)TokenType_is_KwProc(other); _t2155 = *_hp; free(_hp); }
+        (void)_t2155;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2155; return _r; }
+    }
+    ;
+    Bool _t2222; { Bool *_hp = (Bool *)TokenType_is_KwTest(self); _t2222 = *_hp; free(_hp); }
+    (void)_t2222;
+    if (_t2222) {
+        Bool _t2156; { Bool *_hp = (Bool *)TokenType_is_KwTest(other); _t2156 = *_hp; free(_hp); }
+        (void)_t2156;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2156; return _r; }
+    }
+    ;
+    Bool _t2223; { Bool *_hp = (Bool *)TokenType_is_KwMacro(self); _t2223 = *_hp; free(_hp); }
+    (void)_t2223;
+    if (_t2223) {
+        Bool _t2157; { Bool *_hp = (Bool *)TokenType_is_KwMacro(other); _t2157 = *_hp; free(_hp); }
+        (void)_t2157;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2157; return _r; }
+    }
+    ;
+    Bool _t2224; { Bool *_hp = (Bool *)TokenType_is_KwExtFunc(self); _t2224 = *_hp; free(_hp); }
+    (void)_t2224;
+    if (_t2224) {
+        Bool _t2158; { Bool *_hp = (Bool *)TokenType_is_KwExtFunc(other); _t2158 = *_hp; free(_hp); }
+        (void)_t2158;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2158; return _r; }
+    }
+    ;
+    Bool _t2225; { Bool *_hp = (Bool *)TokenType_is_KwExtProc(self); _t2225 = *_hp; free(_hp); }
+    (void)_t2225;
+    if (_t2225) {
+        Bool _t2159; { Bool *_hp = (Bool *)TokenType_is_KwExtProc(other); _t2159 = *_hp; free(_hp); }
+        (void)_t2159;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2159; return _r; }
+    }
+    ;
+    Bool _t2226; { Bool *_hp = (Bool *)TokenType_is_KwReturns(self); _t2226 = *_hp; free(_hp); }
+    (void)_t2226;
+    if (_t2226) {
+        Bool _t2160; { Bool *_hp = (Bool *)TokenType_is_KwReturns(other); _t2160 = *_hp; free(_hp); }
+        (void)_t2160;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2160; return _r; }
+    }
+    ;
+    Bool _t2227; { Bool *_hp = (Bool *)TokenType_is_KwThrows(self); _t2227 = *_hp; free(_hp); }
+    (void)_t2227;
+    if (_t2227) {
+        Bool _t2161; { Bool *_hp = (Bool *)TokenType_is_KwThrows(other); _t2161 = *_hp; free(_hp); }
+        (void)_t2161;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2161; return _r; }
+    }
+    ;
+    Bool _t2228; { Bool *_hp = (Bool *)TokenType_is_KwIf(self); _t2228 = *_hp; free(_hp); }
+    (void)_t2228;
+    if (_t2228) {
+        Bool _t2162; { Bool *_hp = (Bool *)TokenType_is_KwIf(other); _t2162 = *_hp; free(_hp); }
+        (void)_t2162;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2162; return _r; }
+    }
+    ;
+    Bool _t2229; { Bool *_hp = (Bool *)TokenType_is_KwElse(self); _t2229 = *_hp; free(_hp); }
+    (void)_t2229;
+    if (_t2229) {
+        Bool _t2163; { Bool *_hp = (Bool *)TokenType_is_KwElse(other); _t2163 = *_hp; free(_hp); }
+        (void)_t2163;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2163; return _r; }
+    }
+    ;
+    Bool _t2230; { Bool *_hp = (Bool *)TokenType_is_KwWhile(self); _t2230 = *_hp; free(_hp); }
+    (void)_t2230;
+    if (_t2230) {
+        Bool _t2164; { Bool *_hp = (Bool *)TokenType_is_KwWhile(other); _t2164 = *_hp; free(_hp); }
+        (void)_t2164;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2164; return _r; }
+    }
+    ;
+    Bool _t2231; { Bool *_hp = (Bool *)TokenType_is_KwFor(self); _t2231 = *_hp; free(_hp); }
+    (void)_t2231;
+    if (_t2231) {
+        Bool _t2165; { Bool *_hp = (Bool *)TokenType_is_KwFor(other); _t2165 = *_hp; free(_hp); }
+        (void)_t2165;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2165; return _r; }
+    }
+    ;
+    Bool _t2232; { Bool *_hp = (Bool *)TokenType_is_KwIn(self); _t2232 = *_hp; free(_hp); }
+    (void)_t2232;
+    if (_t2232) {
+        Bool _t2166; { Bool *_hp = (Bool *)TokenType_is_KwIn(other); _t2166 = *_hp; free(_hp); }
+        (void)_t2166;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2166; return _r; }
+    }
+    ;
+    Bool _t2233; { Bool *_hp = (Bool *)TokenType_is_KwSwitch(self); _t2233 = *_hp; free(_hp); }
+    (void)_t2233;
+    if (_t2233) {
+        Bool _t2167; { Bool *_hp = (Bool *)TokenType_is_KwSwitch(other); _t2167 = *_hp; free(_hp); }
+        (void)_t2167;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2167; return _r; }
+    }
+    ;
+    Bool _t2234; { Bool *_hp = (Bool *)TokenType_is_KwMatch(self); _t2234 = *_hp; free(_hp); }
+    (void)_t2234;
+    if (_t2234) {
+        Bool _t2168; { Bool *_hp = (Bool *)TokenType_is_KwMatch(other); _t2168 = *_hp; free(_hp); }
+        (void)_t2168;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2168; return _r; }
+    }
+    ;
+    Bool _t2235; { Bool *_hp = (Bool *)TokenType_is_KwCase(self); _t2235 = *_hp; free(_hp); }
+    (void)_t2235;
+    if (_t2235) {
+        Bool _t2169; { Bool *_hp = (Bool *)TokenType_is_KwCase(other); _t2169 = *_hp; free(_hp); }
+        (void)_t2169;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2169; return _r; }
+    }
+    ;
+    Bool _t2236; { Bool *_hp = (Bool *)TokenType_is_KwDefault(self); _t2236 = *_hp; free(_hp); }
+    (void)_t2236;
+    if (_t2236) {
+        Bool _t2170; { Bool *_hp = (Bool *)TokenType_is_KwDefault(other); _t2170 = *_hp; free(_hp); }
+        (void)_t2170;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2170; return _r; }
+    }
+    ;
+    Bool _t2237; { Bool *_hp = (Bool *)TokenType_is_KwReturn(self); _t2237 = *_hp; free(_hp); }
+    (void)_t2237;
+    if (_t2237) {
+        Bool _t2171; { Bool *_hp = (Bool *)TokenType_is_KwReturn(other); _t2171 = *_hp; free(_hp); }
+        (void)_t2171;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2171; return _r; }
+    }
+    ;
+    Bool _t2238; { Bool *_hp = (Bool *)TokenType_is_KwThrow(self); _t2238 = *_hp; free(_hp); }
+    (void)_t2238;
+    if (_t2238) {
+        Bool _t2172; { Bool *_hp = (Bool *)TokenType_is_KwThrow(other); _t2172 = *_hp; free(_hp); }
+        (void)_t2172;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2172; return _r; }
+    }
+    ;
+    Bool _t2239; { Bool *_hp = (Bool *)TokenType_is_KwCatch(self); _t2239 = *_hp; free(_hp); }
+    (void)_t2239;
+    if (_t2239) {
+        Bool _t2173; { Bool *_hp = (Bool *)TokenType_is_KwCatch(other); _t2173 = *_hp; free(_hp); }
+        (void)_t2173;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2173; return _r; }
+    }
+    ;
+    Bool _t2240; { Bool *_hp = (Bool *)TokenType_is_KwBreak(self); _t2240 = *_hp; free(_hp); }
+    (void)_t2240;
+    if (_t2240) {
+        Bool _t2174; { Bool *_hp = (Bool *)TokenType_is_KwBreak(other); _t2174 = *_hp; free(_hp); }
+        (void)_t2174;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2174; return _r; }
+    }
+    ;
+    Bool _t2241; { Bool *_hp = (Bool *)TokenType_is_KwContinue(self); _t2241 = *_hp; free(_hp); }
+    (void)_t2241;
+    if (_t2241) {
+        Bool _t2175; { Bool *_hp = (Bool *)TokenType_is_KwContinue(other); _t2175 = *_hp; free(_hp); }
+        (void)_t2175;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2175; return _r; }
+    }
+    ;
+    Bool _t2242; { Bool *_hp = (Bool *)TokenType_is_KwDefer(self); _t2242 = *_hp; free(_hp); }
+    (void)_t2242;
+    if (_t2242) {
+        Bool _t2176; { Bool *_hp = (Bool *)TokenType_is_KwDefer(other); _t2176 = *_hp; free(_hp); }
+        (void)_t2176;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2176; return _r; }
+    }
+    ;
+    Bool _t2243; { Bool *_hp = (Bool *)TokenType_is_KwTrue(self); _t2243 = *_hp; free(_hp); }
+    (void)_t2243;
+    if (_t2243) {
+        Bool _t2177; { Bool *_hp = (Bool *)TokenType_is_KwTrue(other); _t2177 = *_hp; free(_hp); }
+        (void)_t2177;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2177; return _r; }
+    }
+    ;
+    Bool _t2244; { Bool *_hp = (Bool *)TokenType_is_KwFalse(self); _t2244 = *_hp; free(_hp); }
+    (void)_t2244;
+    if (_t2244) {
+        Bool _t2178; { Bool *_hp = (Bool *)TokenType_is_KwFalse(other); _t2178 = *_hp; free(_hp); }
+        (void)_t2178;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2178; return _r; }
+    }
+    ;
+    Bool _t2245; { Bool *_hp = (Bool *)TokenType_is_KwNull(self); _t2245 = *_hp; free(_hp); }
+    (void)_t2245;
+    if (_t2245) {
+        Bool _t2179; { Bool *_hp = (Bool *)TokenType_is_KwNull(other); _t2179 = *_hp; free(_hp); }
+        (void)_t2179;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2179; return _r; }
+    }
+    ;
+    Bool _t2246; { Bool *_hp = (Bool *)TokenType_is_Error(self); _t2246 = *_hp; free(_hp); }
+    (void)_t2246;
+    if (_t2246) {
+        Bool _t2180; { Bool *_hp = (Bool *)TokenType_is_Error(other); _t2180 = *_hp; free(_hp); }
+        (void)_t2180;
+        ;
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2180; return _r; }
+    }
+    ;
+    Bool _t2247 = 0;
+    (void)_t2247;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2247; return _r; }
+}
+
+TokenType * TokenType_clone(TokenType * self) {
+    (void)self;
+    Bool _t2248; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eof()); _t2248 = *_hp; free(_hp); }
+    (void)_t2248;
+    if (_t2248) {
+        ;
+        return TokenType_Eof();
+    }
+    ;
+    Bool _t2249; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LParen()); _t2249 = *_hp; free(_hp); }
+    (void)_t2249;
+    if (_t2249) {
+        ;
+        return TokenType_LParen();
+    }
+    ;
+    Bool _t2250; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RParen()); _t2250 = *_hp; free(_hp); }
+    (void)_t2250;
+    if (_t2250) {
+        ;
+        return TokenType_RParen();
+    }
+    ;
+    Bool _t2251; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBrace()); _t2251 = *_hp; free(_hp); }
+    (void)_t2251;
+    if (_t2251) {
+        ;
+        return TokenType_LBrace();
+    }
+    ;
+    Bool _t2252; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBrace()); _t2252 = *_hp; free(_hp); }
+    (void)_t2252;
+    if (_t2252) {
+        ;
+        return TokenType_RBrace();
+    }
+    ;
+    Bool _t2253; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBracket()); _t2253 = *_hp; free(_hp); }
+    (void)_t2253;
+    if (_t2253) {
+        ;
+        return TokenType_LBracket();
+    }
+    ;
+    Bool _t2254; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBracket()); _t2254 = *_hp; free(_hp); }
+    (void)_t2254;
+    if (_t2254) {
+        ;
+        return TokenType_RBracket();
+    }
+    ;
+    Bool _t2255; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Comma()); _t2255 = *_hp; free(_hp); }
+    (void)_t2255;
+    if (_t2255) {
+        ;
+        return TokenType_Comma();
+    }
+    ;
+    Bool _t2256; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Colon()); _t2256 = *_hp; free(_hp); }
+    (void)_t2256;
+    if (_t2256) {
+        ;
+        return TokenType_Colon();
+    }
+    ;
+    Bool _t2257; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Question()); _t2257 = *_hp; free(_hp); }
+    (void)_t2257;
+    if (_t2257) {
+        ;
+        return TokenType_Question();
+    }
+    ;
+    Bool _t2258; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Bang()); _t2258 = *_hp; free(_hp); }
+    (void)_t2258;
+    if (_t2258) {
+        ;
+        return TokenType_Bang();
+    }
+    ;
+    Bool _t2259; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Minus()); _t2259 = *_hp; free(_hp); }
+    (void)_t2259;
+    if (_t2259) {
+        ;
+        return TokenType_Minus();
+    }
+    ;
+    Bool _t2260; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Plus()); _t2260 = *_hp; free(_hp); }
+    (void)_t2260;
+    if (_t2260) {
+        ;
+        return TokenType_Plus();
+    }
+    ;
+    Bool _t2261; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Star()); _t2261 = *_hp; free(_hp); }
+    (void)_t2261;
+    if (_t2261) {
+        ;
+        return TokenType_Star();
+    }
+    ;
+    Bool _t2262; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Slash()); _t2262 = *_hp; free(_hp); }
+    (void)_t2262;
+    if (_t2262) {
+        ;
+        return TokenType_Slash();
+    }
+    ;
+    Bool _t2263; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Dot()); _t2263 = *_hp; free(_hp); }
+    (void)_t2263;
+    if (_t2263) {
+        ;
+        return TokenType_Dot();
+    }
+    ;
+    Bool _t2264; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDot()); _t2264 = *_hp; free(_hp); }
+    (void)_t2264;
+    if (_t2264) {
+        ;
+        return TokenType_DotDot();
+    }
+    ;
+    Bool _t2265; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDotDot()); _t2265 = *_hp; free(_hp); }
+    (void)_t2265;
+    if (_t2265) {
+        ;
+        return TokenType_DotDotDot();
+    }
+    ;
+    Bool _t2266; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eq()); _t2266 = *_hp; free(_hp); }
+    (void)_t2266;
+    if (_t2266) {
+        ;
+        return TokenType_Eq();
+    }
+    ;
+    Bool _t2267; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_EqEq()); _t2267 = *_hp; free(_hp); }
+    (void)_t2267;
+    if (_t2267) {
+        ;
+        return TokenType_EqEq();
+    }
+    ;
+    Bool _t2268; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Neq()); _t2268 = *_hp; free(_hp); }
+    (void)_t2268;
+    if (_t2268) {
+        ;
+        return TokenType_Neq();
+    }
+    ;
+    Bool _t2269; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Lt()); _t2269 = *_hp; free(_hp); }
+    (void)_t2269;
+    if (_t2269) {
+        ;
+        return TokenType_Lt();
+    }
+    ;
+    Bool _t2270; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LtEq()); _t2270 = *_hp; free(_hp); }
+    (void)_t2270;
+    if (_t2270) {
+        ;
+        return TokenType_LtEq();
+    }
+    ;
+    Bool _t2271; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Gt()); _t2271 = *_hp; free(_hp); }
+    (void)_t2271;
+    if (_t2271) {
+        ;
+        return TokenType_Gt();
+    }
+    ;
+    Bool _t2272; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_GtEq()); _t2272 = *_hp; free(_hp); }
+    (void)_t2272;
+    if (_t2272) {
+        ;
+        return TokenType_GtEq();
+    }
+    ;
+    Bool _t2273; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_ColonEq()); _t2273 = *_hp; free(_hp); }
+    (void)_t2273;
+    if (_t2273) {
+        ;
+        return TokenType_ColonEq();
+    }
+    ;
+    Bool _t2274; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Ident()); _t2274 = *_hp; free(_hp); }
+    (void)_t2274;
+    if (_t2274) {
+        ;
+        return TokenType_Ident();
+    }
+    ;
+    Bool _t2275; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_StringTok()); _t2275 = *_hp; free(_hp); }
+    (void)_t2275;
+    if (_t2275) {
+        ;
+        return TokenType_StringTok();
+    }
+    ;
+    Bool _t2276; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Number()); _t2276 = *_hp; free(_hp); }
+    (void)_t2276;
+    if (_t2276) {
+        ;
+        return TokenType_Number();
+    }
+    ;
+    Bool _t2277; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Char()); _t2277 = *_hp; free(_hp); }
+    (void)_t2277;
+    if (_t2277) {
+        ;
+        return TokenType_Char();
+    }
+    ;
+    Bool _t2278; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMode()); _t2278 = *_hp; free(_hp); }
+    (void)_t2278;
+    if (_t2278) {
+        ;
+        return TokenType_KwMode();
+    }
+    ;
+    Bool _t2279; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMut()); _t2279 = *_hp; free(_hp); }
+    (void)_t2279;
+    if (_t2279) {
+        ;
+        return TokenType_KwMut();
+    }
+    ;
+    Bool _t2280; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwOwn()); _t2280 = *_hp; free(_hp); }
+    (void)_t2280;
+    if (_t2280) {
+        ;
+        return TokenType_KwOwn();
+    }
+    ;
+    Bool _t2281; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwRef()); _t2281 = *_hp; free(_hp); }
+    (void)_t2281;
+    if (_t2281) {
+        ;
+        return TokenType_KwRef();
+    }
+    ;
+    Bool _t2282; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwShallow()); _t2282 = *_hp; free(_hp); }
+    (void)_t2282;
+    if (_t2282) {
+        ;
+        return TokenType_KwShallow();
+    }
+    ;
+    Bool _t2283; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwStruct()); _t2283 = *_hp; free(_hp); }
+    (void)_t2283;
+    if (_t2283) {
+        ;
+        return TokenType_KwStruct();
+    }
+    ;
+    Bool _t2284; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtStruct()); _t2284 = *_hp; free(_hp); }
+    (void)_t2284;
+    if (_t2284) {
+        ;
+        return TokenType_KwExtStruct();
+    }
+    ;
+    Bool _t2285; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwEnum()); _t2285 = *_hp; free(_hp); }
+    (void)_t2285;
+    if (_t2285) {
+        ;
+        return TokenType_KwEnum();
+    }
+    ;
+    Bool _t2286; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNamespace()); _t2286 = *_hp; free(_hp); }
+    (void)_t2286;
+    if (_t2286) {
+        ;
+        return TokenType_KwNamespace();
+    }
+    ;
+    Bool _t2287; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFunc()); _t2287 = *_hp; free(_hp); }
+    (void)_t2287;
+    if (_t2287) {
+        ;
+        return TokenType_KwFunc();
+    }
+    ;
+    Bool _t2288; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwProc()); _t2288 = *_hp; free(_hp); }
+    (void)_t2288;
+    if (_t2288) {
+        ;
+        return TokenType_KwProc();
+    }
+    ;
+    Bool _t2289; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTest()); _t2289 = *_hp; free(_hp); }
+    (void)_t2289;
+    if (_t2289) {
+        ;
+        return TokenType_KwTest();
+    }
+    ;
+    Bool _t2290; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMacro()); _t2290 = *_hp; free(_hp); }
+    (void)_t2290;
+    if (_t2290) {
+        ;
+        return TokenType_KwMacro();
+    }
+    ;
+    Bool _t2291; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtFunc()); _t2291 = *_hp; free(_hp); }
+    (void)_t2291;
+    if (_t2291) {
+        ;
+        return TokenType_KwExtFunc();
+    }
+    ;
+    Bool _t2292; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtProc()); _t2292 = *_hp; free(_hp); }
+    (void)_t2292;
+    if (_t2292) {
+        ;
+        return TokenType_KwExtProc();
+    }
+    ;
+    Bool _t2293; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturns()); _t2293 = *_hp; free(_hp); }
+    (void)_t2293;
+    if (_t2293) {
+        ;
+        return TokenType_KwReturns();
+    }
+    ;
+    Bool _t2294; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrows()); _t2294 = *_hp; free(_hp); }
+    (void)_t2294;
+    if (_t2294) {
+        ;
+        return TokenType_KwThrows();
+    }
+    ;
+    Bool _t2295; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIf()); _t2295 = *_hp; free(_hp); }
+    (void)_t2295;
+    if (_t2295) {
+        ;
+        return TokenType_KwIf();
+    }
+    ;
+    Bool _t2296; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwElse()); _t2296 = *_hp; free(_hp); }
+    (void)_t2296;
+    if (_t2296) {
+        ;
+        return TokenType_KwElse();
+    }
+    ;
+    Bool _t2297; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwWhile()); _t2297 = *_hp; free(_hp); }
+    (void)_t2297;
+    if (_t2297) {
+        ;
+        return TokenType_KwWhile();
+    }
+    ;
+    Bool _t2298; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFor()); _t2298 = *_hp; free(_hp); }
+    (void)_t2298;
+    if (_t2298) {
+        ;
+        return TokenType_KwFor();
+    }
+    ;
+    Bool _t2299; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIn()); _t2299 = *_hp; free(_hp); }
+    (void)_t2299;
+    if (_t2299) {
+        ;
+        return TokenType_KwIn();
+    }
+    ;
+    Bool _t2300; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwSwitch()); _t2300 = *_hp; free(_hp); }
+    (void)_t2300;
+    if (_t2300) {
+        ;
+        return TokenType_KwSwitch();
+    }
+    ;
+    Bool _t2301; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMatch()); _t2301 = *_hp; free(_hp); }
+    (void)_t2301;
+    if (_t2301) {
+        ;
+        return TokenType_KwMatch();
+    }
+    ;
+    Bool _t2302; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCase()); _t2302 = *_hp; free(_hp); }
+    (void)_t2302;
+    if (_t2302) {
+        ;
+        return TokenType_KwCase();
+    }
+    ;
+    Bool _t2303; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefault()); _t2303 = *_hp; free(_hp); }
+    (void)_t2303;
+    if (_t2303) {
+        ;
+        return TokenType_KwDefault();
+    }
+    ;
+    Bool _t2304; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturn()); _t2304 = *_hp; free(_hp); }
+    (void)_t2304;
+    if (_t2304) {
+        ;
+        return TokenType_KwReturn();
+    }
+    ;
+    Bool _t2305; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrow()); _t2305 = *_hp; free(_hp); }
+    (void)_t2305;
+    if (_t2305) {
+        ;
+        return TokenType_KwThrow();
+    }
+    ;
+    Bool _t2306; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCatch()); _t2306 = *_hp; free(_hp); }
+    (void)_t2306;
+    if (_t2306) {
+        ;
+        return TokenType_KwCatch();
+    }
+    ;
+    Bool _t2307; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwBreak()); _t2307 = *_hp; free(_hp); }
+    (void)_t2307;
+    if (_t2307) {
+        ;
+        return TokenType_KwBreak();
+    }
+    ;
+    Bool _t2308; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwContinue()); _t2308 = *_hp; free(_hp); }
+    (void)_t2308;
+    if (_t2308) {
+        ;
+        return TokenType_KwContinue();
+    }
+    ;
+    Bool _t2309; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefer()); _t2309 = *_hp; free(_hp); }
+    (void)_t2309;
+    if (_t2309) {
+        ;
+        return TokenType_KwDefer();
+    }
+    ;
+    Bool _t2310; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTrue()); _t2310 = *_hp; free(_hp); }
+    (void)_t2310;
+    if (_t2310) {
+        ;
+        return TokenType_KwTrue();
+    }
+    ;
+    Bool _t2311; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFalse()); _t2311 = *_hp; free(_hp); }
+    (void)_t2311;
+    if (_t2311) {
+        ;
+        return TokenType_KwFalse();
+    }
+    ;
+    Bool _t2312; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNull()); _t2312 = *_hp; free(_hp); }
+    (void)_t2312;
+    if (_t2312) {
+        ;
+        return TokenType_KwNull();
+    }
+    ;
+    return TokenType_Error();
+}
+
+void TokenType_delete(TokenType * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
+Str * TokenType_to_str(TokenType * self) {
+    (void)self;
+    Bool _t2379; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eof()); _t2379 = *_hp; free(_hp); }
+    (void)_t2379;
+    if (_t2379) {
+        Str *_t2313 = Str_lit("Eof", 3ULL);
+        (void)_t2313;
+        ;
+        return _t2313;
+    }
+    ;
+    Bool _t2380; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LParen()); _t2380 = *_hp; free(_hp); }
+    (void)_t2380;
+    if (_t2380) {
+        Str *_t2314 = Str_lit("LParen", 6ULL);
+        (void)_t2314;
+        ;
+        return _t2314;
+    }
+    ;
+    Bool _t2381; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RParen()); _t2381 = *_hp; free(_hp); }
+    (void)_t2381;
+    if (_t2381) {
+        Str *_t2315 = Str_lit("RParen", 6ULL);
+        (void)_t2315;
+        ;
+        return _t2315;
+    }
+    ;
+    Bool _t2382; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBrace()); _t2382 = *_hp; free(_hp); }
+    (void)_t2382;
+    if (_t2382) {
+        Str *_t2316 = Str_lit("LBrace", 6ULL);
+        (void)_t2316;
+        ;
+        return _t2316;
+    }
+    ;
+    Bool _t2383; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBrace()); _t2383 = *_hp; free(_hp); }
+    (void)_t2383;
+    if (_t2383) {
+        Str *_t2317 = Str_lit("RBrace", 6ULL);
+        (void)_t2317;
+        ;
+        return _t2317;
+    }
+    ;
+    Bool _t2384; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LBracket()); _t2384 = *_hp; free(_hp); }
+    (void)_t2384;
+    if (_t2384) {
+        Str *_t2318 = Str_lit("LBracket", 8ULL);
+        (void)_t2318;
+        ;
+        return _t2318;
+    }
+    ;
+    Bool _t2385; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_RBracket()); _t2385 = *_hp; free(_hp); }
+    (void)_t2385;
+    if (_t2385) {
+        Str *_t2319 = Str_lit("RBracket", 8ULL);
+        (void)_t2319;
+        ;
+        return _t2319;
+    }
+    ;
+    Bool _t2386; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Comma()); _t2386 = *_hp; free(_hp); }
+    (void)_t2386;
+    if (_t2386) {
+        Str *_t2320 = Str_lit("Comma", 5ULL);
+        (void)_t2320;
+        ;
+        return _t2320;
+    }
+    ;
+    Bool _t2387; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Colon()); _t2387 = *_hp; free(_hp); }
+    (void)_t2387;
+    if (_t2387) {
+        Str *_t2321 = Str_lit("Colon", 5ULL);
+        (void)_t2321;
+        ;
+        return _t2321;
+    }
+    ;
+    Bool _t2388; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Question()); _t2388 = *_hp; free(_hp); }
+    (void)_t2388;
+    if (_t2388) {
+        Str *_t2322 = Str_lit("Question", 8ULL);
+        (void)_t2322;
+        ;
+        return _t2322;
+    }
+    ;
+    Bool _t2389; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Bang()); _t2389 = *_hp; free(_hp); }
+    (void)_t2389;
+    if (_t2389) {
+        Str *_t2323 = Str_lit("Bang", 4ULL);
+        (void)_t2323;
+        ;
+        return _t2323;
+    }
+    ;
+    Bool _t2390; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Minus()); _t2390 = *_hp; free(_hp); }
+    (void)_t2390;
+    if (_t2390) {
+        Str *_t2324 = Str_lit("Minus", 5ULL);
+        (void)_t2324;
+        ;
+        return _t2324;
+    }
+    ;
+    Bool _t2391; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Plus()); _t2391 = *_hp; free(_hp); }
+    (void)_t2391;
+    if (_t2391) {
+        Str *_t2325 = Str_lit("Plus", 4ULL);
+        (void)_t2325;
+        ;
+        return _t2325;
+    }
+    ;
+    Bool _t2392; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Star()); _t2392 = *_hp; free(_hp); }
+    (void)_t2392;
+    if (_t2392) {
+        Str *_t2326 = Str_lit("Star", 4ULL);
+        (void)_t2326;
+        ;
+        return _t2326;
+    }
+    ;
+    Bool _t2393; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Slash()); _t2393 = *_hp; free(_hp); }
+    (void)_t2393;
+    if (_t2393) {
+        Str *_t2327 = Str_lit("Slash", 5ULL);
+        (void)_t2327;
+        ;
+        return _t2327;
+    }
+    ;
+    Bool _t2394; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Dot()); _t2394 = *_hp; free(_hp); }
+    (void)_t2394;
+    if (_t2394) {
+        Str *_t2328 = Str_lit("Dot", 3ULL);
+        (void)_t2328;
+        ;
+        return _t2328;
+    }
+    ;
+    Bool _t2395; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDot()); _t2395 = *_hp; free(_hp); }
+    (void)_t2395;
+    if (_t2395) {
+        Str *_t2329 = Str_lit("DotDot", 6ULL);
+        (void)_t2329;
+        ;
+        return _t2329;
+    }
+    ;
+    Bool _t2396; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_DotDotDot()); _t2396 = *_hp; free(_hp); }
+    (void)_t2396;
+    if (_t2396) {
+        Str *_t2330 = Str_lit("DotDotDot", 9ULL);
+        (void)_t2330;
+        ;
+        return _t2330;
+    }
+    ;
+    Bool _t2397; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Eq()); _t2397 = *_hp; free(_hp); }
+    (void)_t2397;
+    if (_t2397) {
+        Str *_t2331 = Str_lit("Eq", 2ULL);
+        (void)_t2331;
+        ;
+        return _t2331;
+    }
+    ;
+    Bool _t2398; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_EqEq()); _t2398 = *_hp; free(_hp); }
+    (void)_t2398;
+    if (_t2398) {
+        Str *_t2332 = Str_lit("EqEq", 4ULL);
+        (void)_t2332;
+        ;
+        return _t2332;
+    }
+    ;
+    Bool _t2399; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Neq()); _t2399 = *_hp; free(_hp); }
+    (void)_t2399;
+    if (_t2399) {
+        Str *_t2333 = Str_lit("Neq", 3ULL);
+        (void)_t2333;
+        ;
+        return _t2333;
+    }
+    ;
+    Bool _t2400; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Lt()); _t2400 = *_hp; free(_hp); }
+    (void)_t2400;
+    if (_t2400) {
+        Str *_t2334 = Str_lit("Lt", 2ULL);
+        (void)_t2334;
+        ;
+        return _t2334;
+    }
+    ;
+    Bool _t2401; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_LtEq()); _t2401 = *_hp; free(_hp); }
+    (void)_t2401;
+    if (_t2401) {
+        Str *_t2335 = Str_lit("LtEq", 4ULL);
+        (void)_t2335;
+        ;
+        return _t2335;
+    }
+    ;
+    Bool _t2402; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Gt()); _t2402 = *_hp; free(_hp); }
+    (void)_t2402;
+    if (_t2402) {
+        Str *_t2336 = Str_lit("Gt", 2ULL);
+        (void)_t2336;
+        ;
+        return _t2336;
+    }
+    ;
+    Bool _t2403; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_GtEq()); _t2403 = *_hp; free(_hp); }
+    (void)_t2403;
+    if (_t2403) {
+        Str *_t2337 = Str_lit("GtEq", 4ULL);
+        (void)_t2337;
+        ;
+        return _t2337;
+    }
+    ;
+    Bool _t2404; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_ColonEq()); _t2404 = *_hp; free(_hp); }
+    (void)_t2404;
+    if (_t2404) {
+        Str *_t2338 = Str_lit("ColonEq", 7ULL);
+        (void)_t2338;
+        ;
+        return _t2338;
+    }
+    ;
+    Bool _t2405; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Ident()); _t2405 = *_hp; free(_hp); }
+    (void)_t2405;
+    if (_t2405) {
+        Str *_t2339 = Str_lit("Ident", 5ULL);
+        (void)_t2339;
+        ;
+        return _t2339;
+    }
+    ;
+    Bool _t2406; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_StringTok()); _t2406 = *_hp; free(_hp); }
+    (void)_t2406;
+    if (_t2406) {
+        Str *_t2340 = Str_lit("StringTok", 9ULL);
+        (void)_t2340;
+        ;
+        return _t2340;
+    }
+    ;
+    Bool _t2407; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Number()); _t2407 = *_hp; free(_hp); }
+    (void)_t2407;
+    if (_t2407) {
+        Str *_t2341 = Str_lit("Number", 6ULL);
+        (void)_t2341;
+        ;
+        return _t2341;
+    }
+    ;
+    Bool _t2408; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Char()); _t2408 = *_hp; free(_hp); }
+    (void)_t2408;
+    if (_t2408) {
+        Str *_t2342 = Str_lit("Char", 4ULL);
+        (void)_t2342;
+        ;
+        return _t2342;
+    }
+    ;
+    Bool _t2409; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMode()); _t2409 = *_hp; free(_hp); }
+    (void)_t2409;
+    if (_t2409) {
+        Str *_t2343 = Str_lit("KwMode", 6ULL);
+        (void)_t2343;
+        ;
+        return _t2343;
+    }
+    ;
+    Bool _t2410; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMut()); _t2410 = *_hp; free(_hp); }
+    (void)_t2410;
+    if (_t2410) {
+        Str *_t2344 = Str_lit("KwMut", 5ULL);
+        (void)_t2344;
+        ;
+        return _t2344;
+    }
+    ;
+    Bool _t2411; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwOwn()); _t2411 = *_hp; free(_hp); }
+    (void)_t2411;
+    if (_t2411) {
+        Str *_t2345 = Str_lit("KwOwn", 5ULL);
+        (void)_t2345;
+        ;
+        return _t2345;
+    }
+    ;
+    Bool _t2412; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwRef()); _t2412 = *_hp; free(_hp); }
+    (void)_t2412;
+    if (_t2412) {
+        Str *_t2346 = Str_lit("KwRef", 5ULL);
+        (void)_t2346;
+        ;
+        return _t2346;
+    }
+    ;
+    Bool _t2413; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwShallow()); _t2413 = *_hp; free(_hp); }
+    (void)_t2413;
+    if (_t2413) {
+        Str *_t2347 = Str_lit("KwShallow", 9ULL);
+        (void)_t2347;
+        ;
+        return _t2347;
+    }
+    ;
+    Bool _t2414; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwStruct()); _t2414 = *_hp; free(_hp); }
+    (void)_t2414;
+    if (_t2414) {
+        Str *_t2348 = Str_lit("KwStruct", 8ULL);
+        (void)_t2348;
+        ;
+        return _t2348;
+    }
+    ;
+    Bool _t2415; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtStruct()); _t2415 = *_hp; free(_hp); }
+    (void)_t2415;
+    if (_t2415) {
+        Str *_t2349 = Str_lit("KwExtStruct", 11ULL);
+        (void)_t2349;
+        ;
+        return _t2349;
+    }
+    ;
+    Bool _t2416; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwEnum()); _t2416 = *_hp; free(_hp); }
+    (void)_t2416;
+    if (_t2416) {
+        Str *_t2350 = Str_lit("KwEnum", 6ULL);
+        (void)_t2350;
+        ;
+        return _t2350;
+    }
+    ;
+    Bool _t2417; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNamespace()); _t2417 = *_hp; free(_hp); }
+    (void)_t2417;
+    if (_t2417) {
+        Str *_t2351 = Str_lit("KwNamespace", 11ULL);
+        (void)_t2351;
+        ;
+        return _t2351;
+    }
+    ;
+    Bool _t2418; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFunc()); _t2418 = *_hp; free(_hp); }
+    (void)_t2418;
+    if (_t2418) {
+        Str *_t2352 = Str_lit("KwFunc", 6ULL);
+        (void)_t2352;
+        ;
+        return _t2352;
+    }
+    ;
+    Bool _t2419; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwProc()); _t2419 = *_hp; free(_hp); }
+    (void)_t2419;
+    if (_t2419) {
+        Str *_t2353 = Str_lit("KwProc", 6ULL);
+        (void)_t2353;
+        ;
+        return _t2353;
+    }
+    ;
+    Bool _t2420; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTest()); _t2420 = *_hp; free(_hp); }
+    (void)_t2420;
+    if (_t2420) {
+        Str *_t2354 = Str_lit("KwTest", 6ULL);
+        (void)_t2354;
+        ;
+        return _t2354;
+    }
+    ;
+    Bool _t2421; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMacro()); _t2421 = *_hp; free(_hp); }
+    (void)_t2421;
+    if (_t2421) {
+        Str *_t2355 = Str_lit("KwMacro", 7ULL);
+        (void)_t2355;
+        ;
+        return _t2355;
+    }
+    ;
+    Bool _t2422; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtFunc()); _t2422 = *_hp; free(_hp); }
+    (void)_t2422;
+    if (_t2422) {
+        Str *_t2356 = Str_lit("KwExtFunc", 9ULL);
+        (void)_t2356;
+        ;
+        return _t2356;
+    }
+    ;
+    Bool _t2423; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwExtProc()); _t2423 = *_hp; free(_hp); }
+    (void)_t2423;
+    if (_t2423) {
+        Str *_t2357 = Str_lit("KwExtProc", 9ULL);
+        (void)_t2357;
+        ;
+        return _t2357;
+    }
+    ;
+    Bool _t2424; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturns()); _t2424 = *_hp; free(_hp); }
+    (void)_t2424;
+    if (_t2424) {
+        Str *_t2358 = Str_lit("KwReturns", 9ULL);
+        (void)_t2358;
+        ;
+        return _t2358;
+    }
+    ;
+    Bool _t2425; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrows()); _t2425 = *_hp; free(_hp); }
+    (void)_t2425;
+    if (_t2425) {
+        Str *_t2359 = Str_lit("KwThrows", 8ULL);
+        (void)_t2359;
+        ;
+        return _t2359;
+    }
+    ;
+    Bool _t2426; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIf()); _t2426 = *_hp; free(_hp); }
+    (void)_t2426;
+    if (_t2426) {
+        Str *_t2360 = Str_lit("KwIf", 4ULL);
+        (void)_t2360;
+        ;
+        return _t2360;
+    }
+    ;
+    Bool _t2427; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwElse()); _t2427 = *_hp; free(_hp); }
+    (void)_t2427;
+    if (_t2427) {
+        Str *_t2361 = Str_lit("KwElse", 6ULL);
+        (void)_t2361;
+        ;
+        return _t2361;
+    }
+    ;
+    Bool _t2428; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwWhile()); _t2428 = *_hp; free(_hp); }
+    (void)_t2428;
+    if (_t2428) {
+        Str *_t2362 = Str_lit("KwWhile", 7ULL);
+        (void)_t2362;
+        ;
+        return _t2362;
+    }
+    ;
+    Bool _t2429; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFor()); _t2429 = *_hp; free(_hp); }
+    (void)_t2429;
+    if (_t2429) {
+        Str *_t2363 = Str_lit("KwFor", 5ULL);
+        (void)_t2363;
+        ;
+        return _t2363;
+    }
+    ;
+    Bool _t2430; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwIn()); _t2430 = *_hp; free(_hp); }
+    (void)_t2430;
+    if (_t2430) {
+        Str *_t2364 = Str_lit("KwIn", 4ULL);
+        (void)_t2364;
+        ;
+        return _t2364;
+    }
+    ;
+    Bool _t2431; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwSwitch()); _t2431 = *_hp; free(_hp); }
+    (void)_t2431;
+    if (_t2431) {
+        Str *_t2365 = Str_lit("KwSwitch", 8ULL);
+        (void)_t2365;
+        ;
+        return _t2365;
+    }
+    ;
+    Bool _t2432; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwMatch()); _t2432 = *_hp; free(_hp); }
+    (void)_t2432;
+    if (_t2432) {
+        Str *_t2366 = Str_lit("KwMatch", 7ULL);
+        (void)_t2366;
+        ;
+        return _t2366;
+    }
+    ;
+    Bool _t2433; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCase()); _t2433 = *_hp; free(_hp); }
+    (void)_t2433;
+    if (_t2433) {
+        Str *_t2367 = Str_lit("KwCase", 6ULL);
+        (void)_t2367;
+        ;
+        return _t2367;
+    }
+    ;
+    Bool _t2434; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefault()); _t2434 = *_hp; free(_hp); }
+    (void)_t2434;
+    if (_t2434) {
+        Str *_t2368 = Str_lit("KwDefault", 9ULL);
+        (void)_t2368;
+        ;
+        return _t2368;
+    }
+    ;
+    Bool _t2435; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwReturn()); _t2435 = *_hp; free(_hp); }
+    (void)_t2435;
+    if (_t2435) {
+        Str *_t2369 = Str_lit("KwReturn", 8ULL);
+        (void)_t2369;
+        ;
+        return _t2369;
+    }
+    ;
+    Bool _t2436; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwThrow()); _t2436 = *_hp; free(_hp); }
+    (void)_t2436;
+    if (_t2436) {
+        Str *_t2370 = Str_lit("KwThrow", 7ULL);
+        (void)_t2370;
+        ;
+        return _t2370;
+    }
+    ;
+    Bool _t2437; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwCatch()); _t2437 = *_hp; free(_hp); }
+    (void)_t2437;
+    if (_t2437) {
+        Str *_t2371 = Str_lit("KwCatch", 7ULL);
+        (void)_t2371;
+        ;
+        return _t2371;
+    }
+    ;
+    Bool _t2438; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwBreak()); _t2438 = *_hp; free(_hp); }
+    (void)_t2438;
+    if (_t2438) {
+        Str *_t2372 = Str_lit("KwBreak", 7ULL);
+        (void)_t2372;
+        ;
+        return _t2372;
+    }
+    ;
+    Bool _t2439; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwContinue()); _t2439 = *_hp; free(_hp); }
+    (void)_t2439;
+    if (_t2439) {
+        Str *_t2373 = Str_lit("KwContinue", 10ULL);
+        (void)_t2373;
+        ;
+        return _t2373;
+    }
+    ;
+    Bool _t2440; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwDefer()); _t2440 = *_hp; free(_hp); }
+    (void)_t2440;
+    if (_t2440) {
+        Str *_t2374 = Str_lit("KwDefer", 7ULL);
+        (void)_t2374;
+        ;
+        return _t2374;
+    }
+    ;
+    Bool _t2441; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwTrue()); _t2441 = *_hp; free(_hp); }
+    (void)_t2441;
+    if (_t2441) {
+        Str *_t2375 = Str_lit("KwTrue", 6ULL);
+        (void)_t2375;
+        ;
+        return _t2375;
+    }
+    ;
+    Bool _t2442; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwFalse()); _t2442 = *_hp; free(_hp); }
+    (void)_t2442;
+    if (_t2442) {
+        Str *_t2376 = Str_lit("KwFalse", 7ULL);
+        (void)_t2376;
+        ;
+        return _t2376;
+    }
+    ;
+    Bool _t2443; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_KwNull()); _t2443 = *_hp; free(_hp); }
+    (void)_t2443;
+    if (_t2443) {
+        Str *_t2377 = Str_lit("KwNull", 6ULL);
+        (void)_t2377;
+        ;
+        return _t2377;
+    }
+    ;
+    Bool _t2444; { Bool *_hp = (Bool *)TokenType_eq(self, TokenType_Error()); _t2444 = *_hp; free(_hp); }
+    (void)_t2444;
+    if (_t2444) {
+        Str *_t2378 = Str_lit("Error", 5ULL);
+        (void)_t2378;
+        ;
+        return _t2378;
+    }
+    ;
+    Str *_t2445 = Str_lit("unknown", 7ULL);
+    (void)_t2445;
+    return _t2445;
+}
+
+U64 *TokenType_size(void) {
+    U64 *r = malloc(sizeof(U64));
+    *r = (U64)sizeof(TokenType);
+    return r;
+}
+
+
 #include "til_core.c"
 #include "til_array.c"
 #include "til_map.c"
@@ -7483,6 +10053,10 @@ Expr * Expr_clone(Expr * self) {
 #include "til_vec.c"
 #include "til_tuple.c"
 #include "til_ast.c"
+#include "til_lexer.c"
+#include "til_parser.c"
+#include "til_initer.c"
+#include "til_modes.c"
 #include "til_til.c"
 
 void dyn_call_delete(Str *type_name, void *val, void *arg2) {
@@ -7509,8 +10083,12 @@ void dyn_call_delete(Str *type_name, void *val, void *arg2) {
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) { FunctionDef_delete(val, arg2); return; }
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "ExprData", 8ULL) == 0) { ExprData_delete(val, arg2); return; }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) { Expr_delete(val, arg2); return; }
-    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) { Mode_delete(val, arg2); return; }
+    if (type_name->count == 9ULL && memcmp(type_name->c_str, "TokenType", 9ULL) == 0) { TokenType_delete(val, arg2); return; }
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) { Token_delete(val, arg2); return; }
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "Parser", 6ULL) == 0) { Parser_delete(val, arg2); return; }
+    if (type_name->count == 11ULL && memcmp(type_name->c_str, "TypeBinding", 11ULL) == 0) { TypeBinding_delete(val, arg2); return; }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0) { TypeScope_delete(val, arg2); return; }
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) { Mode_delete(val, arg2); return; }
     fprintf(stderr, "dyn_call: unknown type for delete\n");
     exit(1);
 }
@@ -7539,8 +10117,12 @@ void *dyn_call_clone(Str *type_name, void *val) {
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) return (void *)FunctionDef_clone(val);
     if (type_name->count == 8ULL && memcmp(type_name->c_str, "ExprData", 8ULL) == 0) return (void *)ExprData_clone(val);
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) return (void *)Expr_clone(val);
-    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) return (void *)Mode_clone(val);
+    if (type_name->count == 9ULL && memcmp(type_name->c_str, "TokenType", 9ULL) == 0) return (void *)TokenType_clone(val);
+    if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) return (void *)Token_clone(val);
+    if (type_name->count == 6ULL && memcmp(type_name->c_str, "Parser", 6ULL) == 0) return (void *)Parser_clone(val);
+    if (type_name->count == 11ULL && memcmp(type_name->c_str, "TypeBinding", 11ULL) == 0) return (void *)TypeBinding_clone(val);
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0) return (void *)TypeScope_clone(val);
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) return (void *)Mode_clone(val);
     fprintf(stderr, "dyn_call: unknown type for clone\n");
     exit(1);
 }

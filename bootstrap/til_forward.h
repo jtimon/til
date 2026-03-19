@@ -73,8 +73,80 @@ typedef enum {
 } ExprData_tag;
 typedef struct ExprData ExprData;
 typedef struct Expr Expr;
-typedef struct Mode Mode;
+typedef enum {
+    TokenType_TAG_Eof,
+    TokenType_TAG_LParen,
+    TokenType_TAG_RParen,
+    TokenType_TAG_LBrace,
+    TokenType_TAG_RBrace,
+    TokenType_TAG_LBracket,
+    TokenType_TAG_RBracket,
+    TokenType_TAG_Comma,
+    TokenType_TAG_Colon,
+    TokenType_TAG_Question,
+    TokenType_TAG_Bang,
+    TokenType_TAG_Minus,
+    TokenType_TAG_Plus,
+    TokenType_TAG_Star,
+    TokenType_TAG_Slash,
+    TokenType_TAG_Dot,
+    TokenType_TAG_DotDot,
+    TokenType_TAG_DotDotDot,
+    TokenType_TAG_Eq,
+    TokenType_TAG_EqEq,
+    TokenType_TAG_Neq,
+    TokenType_TAG_Lt,
+    TokenType_TAG_LtEq,
+    TokenType_TAG_Gt,
+    TokenType_TAG_GtEq,
+    TokenType_TAG_ColonEq,
+    TokenType_TAG_Ident,
+    TokenType_TAG_StringTok,
+    TokenType_TAG_Number,
+    TokenType_TAG_Char,
+    TokenType_TAG_KwMode,
+    TokenType_TAG_KwMut,
+    TokenType_TAG_KwOwn,
+    TokenType_TAG_KwRef,
+    TokenType_TAG_KwShallow,
+    TokenType_TAG_KwStruct,
+    TokenType_TAG_KwExtStruct,
+    TokenType_TAG_KwEnum,
+    TokenType_TAG_KwNamespace,
+    TokenType_TAG_KwFunc,
+    TokenType_TAG_KwProc,
+    TokenType_TAG_KwTest,
+    TokenType_TAG_KwMacro,
+    TokenType_TAG_KwExtFunc,
+    TokenType_TAG_KwExtProc,
+    TokenType_TAG_KwReturns,
+    TokenType_TAG_KwThrows,
+    TokenType_TAG_KwIf,
+    TokenType_TAG_KwElse,
+    TokenType_TAG_KwWhile,
+    TokenType_TAG_KwFor,
+    TokenType_TAG_KwIn,
+    TokenType_TAG_KwSwitch,
+    TokenType_TAG_KwMatch,
+    TokenType_TAG_KwCase,
+    TokenType_TAG_KwDefault,
+    TokenType_TAG_KwReturn,
+    TokenType_TAG_KwThrow,
+    TokenType_TAG_KwCatch,
+    TokenType_TAG_KwBreak,
+    TokenType_TAG_KwContinue,
+    TokenType_TAG_KwDefer,
+    TokenType_TAG_KwTrue,
+    TokenType_TAG_KwFalse,
+    TokenType_TAG_KwNull,
+    TokenType_TAG_Error
+} TokenType_tag;
+typedef struct TokenType TokenType;
+typedef struct Token Token;
+typedef struct Parser Parser;
+typedef struct TypeBinding TypeBinding;
 typedef struct TypeScope TypeScope;
+typedef struct Mode Mode;
 
 typedef struct StructDef {
     char _;
@@ -161,6 +233,45 @@ typedef struct Param {
 } Param;
 
 
+struct TokenType {
+    TokenType_tag tag;
+};
+
+typedef struct Token {
+    TokenType type;
+    Str text;
+    U32 line;
+    U32 col;
+} Token;
+
+
+typedef struct Parser {
+    Vec tokens;
+    U64 pos;
+    Str path;
+    Vec fn_sig_decls;
+} Parser;
+
+
+typedef struct TypeBinding {
+    Str *name;
+    TilType type;
+    I32 is_proc;
+    Bool is_mut;
+    U32 line;
+    U32 col;
+    Bool is_param;
+    Bool is_own;
+    Bool is_ref;
+    Bool is_alias;
+    Expr *struct_def;
+    Expr *func_def;
+    Bool is_builtin;
+    Bool is_ext;
+    Str *struct_name;
+} TypeBinding;
+
+
 typedef struct Mode {
     Str name;
     Bool needs_main;
@@ -169,11 +280,6 @@ typedef struct Mode {
     Bool is_pure;
     Bool debug_prints;
 } Mode;
-
-
-typedef struct TypeScope {
-    char _;
-} TypeScope;
 
 
 typedef struct Array {
@@ -258,6 +364,12 @@ typedef struct Expr {
     U32 col;
     Str path;
 } Expr;
+
+
+typedef struct TypeScope {
+    Map bindings;
+    TypeScope *parent;
+} TypeScope;
 
 
 EnumDef * EnumDef_clone(EnumDef * self);
@@ -398,15 +510,123 @@ void ast_print(Expr * e, U32 indent);
 Bool * enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
-Mode * Mode_clone(Mode * self);
-void Mode_delete(Mode * self, Bool * call_free);
-U64 * Mode_size(void);
+Bool * TokenType_eq(TokenType * self, TokenType * other);
+TokenType * TokenType_clone(TokenType * self);
+void TokenType_delete(TokenType * self, Bool * call_free);
+Str * TokenType_to_str(TokenType * self);
+U64 * TokenType_size(void);
+Token * Token_clone(Token * self);
+void Token_delete(Token * self, Bool * call_free);
+U64 * Token_size(void);
+Bool * is_digit(U8 * c);
+Bool * is_alpha(U8 * c);
+Bool * is_alnum(U8 * c);
+Str * tok_name(TokenType * type);
+TokenType * lookup_keyword(Str * word);
+Vec * tokenize(Str * src, Str * path);
+Parser * Parser_clone(Parser * self);
+void Parser_delete(Parser * self, Bool * call_free);
+U64 * Parser_size(void);
+Token * peek(Parser * p);
+Token * advance(Parser * p);
+Bool check(Parser * p, TokenType * type);
+Token * expect_token(Parser * p, TokenType * type);
+Str * expect_text(Parser * p, TokenType * type);
+U32 peek_line(Parser * p);
+U32 peek_col(Parser * p);
+Str * parse_fn_signature(Parser * p, U32 line, U32 col);
+Expr * parse_block(Parser * p);
+Expr * parse_func_def(Parser * p);
+Expr * parse_struct_def(Parser * p);
+Expr * parse_enum_def(Parser * p);
+Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col);
+Expr * parse_expression(Parser * p);
+Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own);
+Expr * parse_statement(Parser * p);
+Expr * parse(Vec * tokens, Str * path, Str * mode_out);
+TypeBinding * TypeBinding_clone(TypeBinding * self);
+void TypeBinding_delete(TypeBinding * self, Bool * call_free);
+U64 * TypeBinding_size(void);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U64 * TypeScope_size(void);
+Bool * Mode_eq(Mode * a, Mode * b);
+Mode * Mode_clone(Mode * self);
+void Mode_delete(Mode * self, Bool * call_free);
+U64 * Mode_size(void);
+Mode * mode_resolve(Str * name);
+Bool * mode_is_lib(Mode * m);
+Bool * mode_is_lib_output(Mode * m);
 Vec * extract_imports(void * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, void * resolved_set, void * stack, void * merged, Str * lib_dir);
 void usage(void);
 void mark_core(Expr * e);
 void main(Array * args);
+Bool * TokenType_eq(TokenType *, TokenType *);
+TokenType *TokenType_Eof();
+TokenType *TokenType_LParen();
+TokenType *TokenType_RParen();
+TokenType *TokenType_LBrace();
+TokenType *TokenType_RBrace();
+TokenType *TokenType_LBracket();
+TokenType *TokenType_RBracket();
+TokenType *TokenType_Comma();
+TokenType *TokenType_Colon();
+TokenType *TokenType_Question();
+TokenType *TokenType_Bang();
+TokenType *TokenType_Minus();
+TokenType *TokenType_Plus();
+TokenType *TokenType_Star();
+TokenType *TokenType_Slash();
+TokenType *TokenType_Dot();
+TokenType *TokenType_DotDot();
+TokenType *TokenType_DotDotDot();
+TokenType *TokenType_Eq();
+TokenType *TokenType_EqEq();
+TokenType *TokenType_Neq();
+TokenType *TokenType_Lt();
+TokenType *TokenType_LtEq();
+TokenType *TokenType_Gt();
+TokenType *TokenType_GtEq();
+TokenType *TokenType_ColonEq();
+TokenType *TokenType_Ident();
+TokenType *TokenType_StringTok();
+TokenType *TokenType_Number();
+TokenType *TokenType_Char();
+TokenType *TokenType_KwMode();
+TokenType *TokenType_KwMut();
+TokenType *TokenType_KwOwn();
+TokenType *TokenType_KwRef();
+TokenType *TokenType_KwShallow();
+TokenType *TokenType_KwStruct();
+TokenType *TokenType_KwExtStruct();
+TokenType *TokenType_KwEnum();
+TokenType *TokenType_KwNamespace();
+TokenType *TokenType_KwFunc();
+TokenType *TokenType_KwProc();
+TokenType *TokenType_KwTest();
+TokenType *TokenType_KwMacro();
+TokenType *TokenType_KwExtFunc();
+TokenType *TokenType_KwExtProc();
+TokenType *TokenType_KwReturns();
+TokenType *TokenType_KwThrows();
+TokenType *TokenType_KwIf();
+TokenType *TokenType_KwElse();
+TokenType *TokenType_KwWhile();
+TokenType *TokenType_KwFor();
+TokenType *TokenType_KwIn();
+TokenType *TokenType_KwSwitch();
+TokenType *TokenType_KwMatch();
+TokenType *TokenType_KwCase();
+TokenType *TokenType_KwDefault();
+TokenType *TokenType_KwReturn();
+TokenType *TokenType_KwThrow();
+TokenType *TokenType_KwCatch();
+TokenType *TokenType_KwBreak();
+TokenType *TokenType_KwContinue();
+TokenType *TokenType_KwDefer();
+TokenType *TokenType_KwTrue();
+TokenType *TokenType_KwFalse();
+TokenType *TokenType_KwNull();
+TokenType *TokenType_Error();
 
