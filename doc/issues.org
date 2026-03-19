@@ -1,30 +1,16 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 93
+# NEXT_ISSUE: 94
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
-** WIP #79 Type aliases: incomplete for primitive aliases
-  Struct/enum aliases work (Point2 := Point). Primitive aliases
-  (USize := U64) break interpreter and FFI — the alias name
-  propagates as a string and subsystems don't recognize it.
+** OPEN #93 Local struct, enum, and function definitions
+  Struct, enum, and function definitions inside function bodies don't
+  work — the builder emits them at file scope but the generated C
+  references them before their declaration. Currently all type
+  definitions must be at top level.
 
-  What works:
-  - Struct aliases (Point2 := Point) — typer resolves struct_name
-  - FuncSig aliases (Callback := BinaryOp) — typer resolves
-  - Function param/return type aliases — typer resolves ptype/return_type
-
-  What doesn't work:
-  - Primitive aliases used in core type definitions (USize in Vec fields)
-  - FFI dispatch: builds CIF from type name, "USize" not registered
-  - dyn_call: dispatches clone/delete by name, "USize" unknown
-  - Interpreter: value handling by type name, "USize" unrecognized
-
-  Proposed fix: make alias a reference to the same TypeBinding in the
-  scope. ~tscope_set("USize", ...)~ copies the SAME binding data as
-  "U64". Any lookup for "USize" returns identical type info — same
-  type tag, same FFI descriptor, everything. No AST rewriting needed.
 
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via

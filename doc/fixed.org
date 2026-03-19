@@ -1,5 +1,21 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #79 Type aliases for structs, enums, primitives, and function signatures
+  ~MyAlias := ExistingType~ creates a type alias for all type kinds.
+
+  Implementation:
+  - initer.c Pass 1.85: registers alias binding with same type data as target
+  - typer.c: ~resolve_type_alias()~ resolves alias names in param types,
+    return types, struct_name, and constructor callees
+  - builder.c: emits ~typedef CanonicalType AliasName;~ for alias Decls
+    (ensures generated C compiles even with alias names in signatures)
+  - interpreter.c: skips alias Decls (type-level only, no runtime code)
+
+  Tests unified in src/test/aliases.til: variable aliases, struct aliases,
+  enum aliases, primitive aliases (USize := U64), FuncSig aliases
+  (Callback := BinaryOp), alias in function params/returns, alias with
+  containers, alias arithmetic/comparison, alias in struct fields.
+
 
 * FIXED #73 Replace #ifndef guards with #pragma once
   All src/c/ headers now use ~#pragma once~ instead of

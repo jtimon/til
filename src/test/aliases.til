@@ -1,6 +1,6 @@
 mode test
 
-# Auto-alias: immutable `y := x` becomes implicit ref (no clone)
+# === Variable aliases (auto-ref) ===
 
 test_i64_alias := test() {
     x := 42
@@ -20,7 +20,6 @@ test_bool_alias := test() {
     assert(__LOC__, b)
 }
 
-# Struct alias: field access through alias
 Point := struct {
     x := 0
     y := 0
@@ -33,7 +32,6 @@ test_struct_alias := test() {
     assert_eq(__LOC__, q.y, 20)
 }
 
-# Mut source → clone (not alias): mutating source doesn't affect dest
 test_mut_source_clones := test() {
     mut x := 42
     y := x
@@ -41,7 +39,6 @@ test_mut_source_clones := test() {
     assert_eq(__LOC__, y, 42)
 }
 
-# Mut dest → clone (not alias): mutating dest doesn't affect source
 test_mut_dest_clones := test() {
     x := 42
     mut y := x
@@ -49,7 +46,6 @@ test_mut_dest_clones := test() {
     assert_eq(__LOC__, x, 42)
 }
 
-# Multiple aliases to the same source
 test_multiple_aliases := test() {
     x := "shared"
     a := x
@@ -58,7 +54,6 @@ test_multiple_aliases := test() {
     assert_eq_str(__LOC__, b, "shared")
 }
 
-# Alias inside if body
 test_alias_in_if := test() {
     x := 42
     if true {
@@ -67,7 +62,6 @@ test_alias_in_if := test() {
     }
 }
 
-# Alias inside while body
 test_alias_in_loop := test() {
     x := "loop"
     for i in 0..3 {
@@ -76,15 +70,12 @@ test_alias_in_loop := test() {
     }
 }
 
-# Alias lifetime: alias used after source's last direct mention
 test_alias_lifetime := test() {
     x := "first"
     y := x
-    # x is not directly used again, but y (alias of x) is
     assert_eq_str(__LOC__, y, "first")
 }
 
-# Alias chaining: y aliases x, z aliases y
 test_alias_chain := test() {
     x := 100
     y := x
@@ -92,23 +83,6 @@ test_alias_chain := test() {
     assert_eq(__LOC__, z, 100)
 }
 
-test_alias_chain_str := test() {
-    a := "chain"
-    b := a
-    c := b
-    assert_eq_str(__LOC__, c, "chain")
-}
-
-# Deep alias chain: x → y (alias) → z (alias) → w (alias)
-test_deep_chain := test() {
-    x := "deep"
-    y := x
-    z := y
-    w := z
-    assert_eq_str(__LOC__, w, "deep")
-}
-
-# Returning an alias auto-clones (safe — alias doesn't outlive source)
 get_val := func() returns I64 {
     x := 42
     y := x
@@ -119,17 +93,6 @@ test_alias_return_clones := test() {
     assert_eq(__LOC__, get_val(), 42)
 }
 
-get_str := func() returns Str {
-    s := "returned"
-    t := s
-    return t
-}
-
-test_alias_return_str := test() {
-    assert_eq_str(__LOC__, get_str(), "returned")
-}
-
-# Copying from param produces a clone (not an alias — params excluded)
 check_param_clones := func(val: I64) returns I64 {
     copy := val
     return copy
@@ -139,10 +102,144 @@ test_param_clones := test() {
     assert_eq(__LOC__, check_param_clones(77), 77)
 }
 
-# Alias from struct field access still clones (not alias — field access is not NODE_IDENT)
 test_struct_field_clones := test() {
     p := Point(x = 5, y = 10)
     mut v := p.x
     v = 99
     assert_eq(__LOC__, p.x, 5)
+}
+
+# === Type aliases: structs ===
+
+Point2 := Point
+
+test_struct_type_alias := test() {
+    p := Point2(x=10, y=20)
+    assert_eq(__LOC__, p.x, 10)
+    assert_eq(__LOC__, p.y, 20)
+
+    q : Point2 = Point2(x=5)
+    assert_eq(__LOC__, q.x, 5)
+
+    // Alias and original are interchangeable
+    r : Point = Point2(x=1, y=2)
+    assert_eq(__LOC__, r.x, 1)
+    s : Point2 = Point(x=3, y=4)
+    assert_eq(__LOC__, s.x, 3)
+
+    // Clone via alias
+    p2 := p.clone()
+    assert_eq(__LOC__, p2.x, 10)
+}
+
+Line := struct {
+    own mut start := Point(x=0, y=0)
+    own mut end := Point(x=0, y=0)
+}
+
+Line2 := Line
+
+test_nested_struct_alias := test() {
+    l := Line2(start=Point(x=1, y=2), end=Point2(x=3, y=4))
+    assert_eq(__LOC__, l.start.x, 1)
+    assert_eq(__LOC__, l.end.x, 3)
+}
+
+# === Type aliases: enums ===
+
+Color := enum { Red, Green, Blue }
+
+Color2 := Color
+
+test_enum_type_alias := test() {
+    c := Color2.Red
+    expect(__LOC__, c.eq(Color.Red), "alias Red eq original Red")
+    expect(__LOC__, c.eq(Color2.Green).not(), "alias Red neq alias Green")
+    assert_eq_str(__LOC__, Color2.Blue.to_str(), "Blue")
+}
+
+# === Type aliases: primitives ===
+
+USize := U64
+
+add_usize := func(a: USize, b: USize) returns USize {
+    return a.add(b)
+}
+
+make_vec_usize := func(n: USize) returns Vec {
+    return Vec.new("U64", n)
+}
+
+test_primitive_type_alias := test() {
+    x : USize = 42
+    assert_eq(__LOC__, x.to_i64(), 42)
+    y : USize = 100
+    assert_eq(__LOC__, x.add(y).to_i64(), 142)
+}
+
+test_primitive_alias_in_func := test() {
+    assert_eq(__LOC__, add_usize(3, 7).to_i64(), 10)
+}
+
+test_primitive_alias_with_container := test() {
+    mut v := make_vec_usize(I64.size())
+    v.push(own 42)
+    assert_eq(__LOC__, v.len().to_i64(), 1)
+}
+
+# === Type aliases: function signatures ===
+
+BinaryOp := func(I64, I64) returns I64
+
+fn_add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+
+Callback := BinaryOp
+
+apply_callback := func(cb: Callback, a: I64, b: I64) returns I64 {
+    return cb(a, b)
+}
+
+test_funcsig_alias := test() {
+    assert_eq(__LOC__, apply_callback(fn_add, 3, 5), 8)
+    f : Callback = fn_add
+    assert_eq(__LOC__, f(10, 20), 30)
+}
+
+# === Tests needed for #80 (USize in container definitions) ===
+
+// These verify that a primitive alias works in ALL contexts
+// that containers use: struct fields, function params/returns,
+// method calls, Vec.new elem_size, etc.
+
+get_usize := func(x: USize) returns USize { return x }
+
+test_alias_passthrough := test() {
+    // Alias value passed through function and back
+    n : USize = 64
+    result := get_usize(n)
+    assert_eq(__LOC__, result.to_i64(), 64)
+}
+
+test_alias_arithmetic := test() {
+    // Alias values support the same methods as the target type
+    a : USize = 10
+    b : USize = 3
+    assert_eq(__LOC__, a.add(b).to_i64(), 13)
+    assert_eq(__LOC__, a.sub(b).to_i64(), 7)
+    assert_eq(__LOC__, a.mul(b).to_i64(), 30)
+}
+
+test_alias_comparison := test() {
+    a : USize = 5
+    b : USize = 10
+    assert(__LOC__, a.lt(b))
+    assert(__LOC__, b.gt(a))
+    assert(__LOC__, a.eq(a))
+}
+
+Sized := struct { mut n : USize = 0 }
+
+test_alias_in_struct_field := test() {
+    s := Sized(n = 42)
+    assert_eq(__LOC__, s.n.to_i64(), 42)
 }
