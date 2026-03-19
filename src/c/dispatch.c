@@ -310,7 +310,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
         U32 nparam = fdef->data.data.FuncDef.nparam;
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
-            Str *_pn = (Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(i)});
+            Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)}))->name;
             if (*Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
                 Expr *def_arg = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
                 Vec_push(&fake_call.children, def_arg);
@@ -935,8 +935,9 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     bool *pshallows = NULL;
     bool has_shallow = false;
     for (U32 k = 0; k < np; k++) {
-        if (fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(k)}))) {
-            atypes[k] = shallow_ffi_type(((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(k)})));
+        Param *_pk = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(k)});
+        if (_pk->is_shallow) {
+            atypes[k] = shallow_ffi_type(&_pk->ptype);
             has_shallow = true;
         } else {
             atypes[k] = &ffi_type_pointer;
@@ -945,7 +946,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     if (has_shallow) {
         pshallows = malloc(sizeof(bool) * np);
         for (U32 k = 0; k < np; k++)
-            pshallows[k] = fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(k)}));
+            pshallows[k] = ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(k)}))->is_shallow;
     }
     bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
     FFIEntry entry = {

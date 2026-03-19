@@ -207,7 +207,6 @@
   include guards. Bootstrap uses ~#pragma once~. Replace all with
   ~#pragma once~ for consistency. Supported by gcc, clang, msvc.
 
-
 ** OPEN #68 Negative literal support
   Two phases:
 

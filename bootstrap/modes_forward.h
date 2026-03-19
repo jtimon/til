@@ -42,6 +42,7 @@ typedef enum {
     FuncType_TAG_ExtProc
 } FuncType_tag;
 typedef struct FuncType FuncType;
+typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef enum {
     ExprData_TAG_Body,
@@ -221,6 +222,15 @@ struct FuncType {
     FuncType_tag tag;
 };
 
+typedef struct Param {
+    Str name;
+    Str ptype;
+    Bool is_mut;
+    Bool is_own;
+    Bool is_shallow;
+} Param;
+
+
 struct TokenType {
     TokenType_tag tag;
 };
@@ -282,11 +292,7 @@ typedef struct Set {
 
 typedef struct FunctionDef {
     FuncType func_type;
-    Vec param_names;
-    Vec param_types;
-    Vec param_muts;
-    Vec param_owns;
-    Vec param_shallows;
+    Vec params;
     U32 nparam;
     Map param_defaults;
     Str return_type;
@@ -448,6 +454,9 @@ FuncType * FuncType_clone(FuncType * self);
 void FuncType_delete(FuncType * self, Bool * call_free);
 Str * FuncType_to_str(FuncType * self);
 U64 * FuncType_size(void);
+Param * Param_clone(Param * self);
+void Param_delete(Param * self, Bool * call_free);
+U64 * Param_size(void);
 Bool * FunctionDef_eq(FunctionDef * a, FunctionDef * b);
 Str * FunctionDef_to_str(FunctionDef * self);
 FunctionDef * FunctionDef_clone(FunctionDef * self);

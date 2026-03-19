@@ -56,14 +56,19 @@ FuncType := enum {
     Func, Proc, Test, Macro, ExtFunc, ExtProc,
 }
 
+// --- Param struct ---
+Param := struct {
+    mut name := ""
+    mut ptype := ""
+    mut is_mut := false
+    mut is_own := false
+    mut is_shallow := false
+}
+
 // --- FunctionDef struct ---
 FunctionDef := struct {
     mut func_type := FuncType.Func
-    mut param_names := Vec.new("Str", Str.size())
-    mut param_types := Vec.new("Str", Str.size())
-    mut param_muts := Vec.new("Bool", Bool.size())
-    mut param_owns := Vec.new("Bool", Bool.size())
-    mut param_shallows := Vec.new("Bool", Bool.size())
+    mut params := Vec.new("Param", Param.size())
     mut nparam : U32 = 0
     mut param_defaults := Map.new("Str", Str.size(), "Expr", Expr.size())
     mut return_type := ""

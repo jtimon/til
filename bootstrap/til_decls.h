@@ -42,6 +42,7 @@ typedef enum {
     FuncType_TAG_ExtProc
 } FuncType_tag;
 typedef struct FuncType FuncType;
+typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef enum {
     ExprData_TAG_Body,

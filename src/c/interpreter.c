@@ -484,8 +484,8 @@ Value eval_call(Scope *scope, Expr *e) {
 
         // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
         if (func_def->data.data.FuncDef.nparam > 0 &&
-            func_def->data.data.FuncDef.param_owns.count > 0 &&
-            (*(Bool*)Vec_get(&func_def->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) &&
+            func_def->data.data.FuncDef.params.count > 0 &&
+            ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(0)}))->is_own &&
             e->children.count > 1 && Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident) {
             Cell *fc = scope_get(scope, &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident);
             if (fc && fc->val.type == VAL_NONE) return val_none();
@@ -501,12 +501,13 @@ Value eval_call(Scope *scope, Expr *e) {
 
         Scope *call_scope = scope_new(scope);
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
+            Param *_ipi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)});
             Expr *arg_expr = Expr_child(e, &(I64){(I64)(i + 1)});
             if (arg_expr->data.tag == ExprData_TAG_Ident) {
                 Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
                 // Reinterpret VAL_PTR based on param type
-                if (arg_cell->val.type == VAL_PTR && ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)}))) {
-                    Str *ptype = ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)}));
+                if (arg_cell->val.type == VAL_PTR && _ipi->ptype.count > 0) {
+                    Str *ptype = &_ipi->ptype;
                     Value arg = arg_cell->val;
                     if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
                         Str *sp = (Str *)arg.ptr;
@@ -528,15 +529,15 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
-                    scope_set_owned(call_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), arg);
+                    scope_set_owned(call_scope, &_ipi->name, arg);
                 } else {
-                    scope_set_borrowed(call_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), arg_cell);
+                    scope_set_borrowed(call_scope, &_ipi->name, arg_cell);
                 }
             } else {
                 Value arg = eval_expr(scope,arg_expr);
                 // Reinterpret VAL_PTR based on param type (same as ref decl)
-                if (arg.type == VAL_PTR && ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)}))) {
-                    Str *ptype = ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)}));
+                if (arg.type == VAL_PTR && _ipi->ptype.count > 0) {
+                    Str *ptype = &_ipi->ptype;
                     if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
                         Str *sp = (Str *)arg.ptr;
                         arg = make_str_value_own((char *)sp->c_str, sp->count);
@@ -558,7 +559,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
                 }
-                scope_set_owned(call_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), arg);
+                scope_set_owned(call_scope, &_ipi->name, arg);
             }
         }
         has_return = 0;
@@ -637,8 +638,8 @@ Value eval_call(Scope *scope, Expr *e) {
 
     // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
     if (func_def->data.data.FuncDef.nparam > 0 &&
-        func_def->data.data.FuncDef.param_owns.count > 0 &&
-        (*(Bool*)Vec_get(&func_def->data.data.FuncDef.param_owns, &(U64){(U64)(0)})) &&
+        func_def->data.data.FuncDef.params.count > 0 &&
+        ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(0)}))->is_own &&
         e->children.count > 1 && Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident) {
         Cell *fc = scope_get(scope, &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident);
         if (fc && fc->val.type == VAL_NONE) return val_none();
@@ -659,10 +660,10 @@ Value eval_call(Scope *scope, Expr *e) {
         Expr *arg_expr = Expr_child(e, &(I64){(I64)(i + 1)});
         if (arg_expr->data.tag == ExprData_TAG_Ident) {
             Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
-            scope_set_borrowed(call_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), arg_cell);
+            scope_set_borrowed(call_scope, &((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)}))->name, arg_cell);
         } else {
             Value arg = eval_expr(scope, arg_expr);
-            scope_set_owned(call_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), arg);
+            scope_set_owned(call_scope, &((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)}))->name, arg);
         }
     }
 
@@ -1284,13 +1285,15 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
                     U32 va_count = user_argc - fixed;
-                    Value arr = build_argv_array(user_argv, argi, va_count, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(vi)})));
-                    scope_set_owned(main_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), arr);
+                    Param *_mpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)});
+                    Value arr = build_argv_array(user_argv, argi, va_count, &((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(vi)}))->ptype);
+                    scope_set_owned(main_scope, &_mpi->name, arr);
                     argi += va_count;
                 } else {
+                    Param *_mpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)});
                     Str *arg_s = (Str *)Vec_get(user_argv, &(U64){(U64)argi});
-                    Value v = parse_cli_arg((char *)arg_s->c_str, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
-                    scope_set_owned(main_scope, ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)})), v);
+                    Value v = parse_cli_arg((char *)arg_s->c_str, &_mpi->ptype);
+                    scope_set_owned(main_scope, &_mpi->name, v);
                     argi++;
                 }
             }

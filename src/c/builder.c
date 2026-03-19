@@ -184,10 +184,10 @@ static void check_fcall_mut_args(Expr *e) {
                 if (allocated) Str_delete(callee, &(Bool){1});
             }
         }
-        if (fdef && fdef->data.data.FuncDef.param_muts.count > 0) {
+        if (fdef && fdef->data.data.FuncDef.params.count > 0) {
             for (U32 a = 1; a < e->children.count; a++) {
                 U32 pi = a - 1;
-                if (pi < fdef->data.data.FuncDef.nparam && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_muts, &(U64){(U64)(pi)}))) {
+                if (pi < fdef->data.data.FuncDef.nparam && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(pi)}))->is_mut) {
                     Expr *arg = Expr_child(e, &(I64){(I64)(a)});
                     if (arg->data.tag == ExprData_TAG_Ident) {
                         Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
@@ -252,9 +252,9 @@ static Bool is_scalar_type(TilType t) {
 static Bool is_shallow_param(const char *name) {
     if (!current_fdef) return 0;
     for (U32 i = 0; i < current_fdef->data.data.FuncDef.nparam; i++) {
-        if (current_fdef->data.data.FuncDef.param_shallows.count > 0 &&
-            (*(Bool*)Vec_get(&current_fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(i)})) &&
-            strcmp((const char *)((Str*)Vec_get(&current_fdef->data.data.FuncDef.param_names, &(U64){(U64)(i)}))->c_str, name) == 0)
+        Param *_spi = (Param*)Vec_get(&current_fdef->data.data.FuncDef.params, &(U64){(U64)(i)});
+        if (_spi->is_shallow &&
+            strcmp((const char *)_spi->name.c_str, name) == 0)
             return 1;
     }
     return 0;
@@ -315,7 +315,7 @@ static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
     if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
-    return fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(arg_index)}));
+    return fdef->data.data.FuncDef.params.count > 0 && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(arg_index)}))->is_shallow;
 }
 
 // Map til function names to C symbol names (handles stdlib collisions)
@@ -641,13 +641,16 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
                 ptype = "Array *";
             } else if ((I32)i == fkwi) {
                 ptype = "Map *";
-            } else if (fdef->data.data.FuncDef.param_shallows.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_shallows, &(U64){(U64)(i)}))) {
-                ptype = type_name_to_c_value(((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
             } else {
-                ptype = type_name_to_c(((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
+                Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)});
+                if (_epi->is_shallow) {
+                    ptype = type_name_to_c_value(&_epi->ptype);
+                } else {
+                    ptype = type_name_to_c(&_epi->ptype);
+                }
             }
             if (with_names)
-                fprintf(f, "%s %s", ptype, ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(i)}))->c_str);
+                fprintf(f, "%s %s", ptype, ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)}))->name.c_str);
             else
                 fprintf(f, "%s", ptype);
         }
@@ -1216,8 +1219,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
             // Parse and bind each param
             I32 argi = 1; // argv[0] is program name, skip it
             for (U32 i = 0; i < nparam; i++) {
-                Str *pname = ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)}));
-                Str *ptype = ((Str*)Vec_get(&func_def->data.data.FuncDef.param_types, &(U64){(U64)(i)}));
+                Param *_bpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)});
+                Str *pname = &_bpi->name;
+                Str *ptype = &_bpi->ptype;
                 if ((I32)i == vi) {
                     // Build Array[T] from remaining args
                     const char *et = (const char *)ptype->c_str;
@@ -1309,12 +1313,12 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++)
-            fprintf(f, "    (void)%s;\n", ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){(U64)(i)}))->c_str);
+            fprintf(f, "    (void)%s;\n", ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)}))->name.c_str);
         // NULL guard for struct delete methods (self may be NULL)
         if (name->count > 7 && memcmp(name->c_str + name->count - 7, "_delete", 7) == 0 &&
             func_def->data.data.FuncDef.nparam >= 1 &&
-            ((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){0}))->count == 4 &&
-            memcmp(((Str*)Vec_get(&func_def->data.data.FuncDef.param_names, &(U64){0}))->c_str, "self", 4) == 0)
+            ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){0}))->name.count == 4 &&
+            memcmp(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){0}))->name.c_str, "self", 4) == 0)
             fprintf(f, "    if (!self) return;\n");
         in_func_def = 1;
         current_fdef = func_def;
@@ -2392,13 +2396,13 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 if (!method_fdef) continue;
                 // Build arg expressions with shallow dereference where needed
                 char arg1[64], arg2_str[64];
-                Vec *ps = &method_fdef->data.data.FuncDef.param_shallows;
-                if (ps->count > 0 && (*(Bool*)Vec_get(ps, &(U64){(U64)(0)})))
+                Vec *ps = &method_fdef->data.data.FuncDef.params;
+                if (ps->count > 0 && ((Param*)Vec_get(ps, &(U64){(U64)(0)}))->is_shallow)
                     snprintf(arg1, sizeof(arg1), "*(%s *)val", tname->c_str);
                 else
                     snprintf(arg1, sizeof(arg1), "val");
                 if (info->nargs == 2) {
-                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && (*(Bool*)Vec_get(ps, &(U64){(U64)(1)})))
+                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && ((Param*)Vec_get(ps, &(U64){(U64)(1)}))->is_shallow)
                         snprintf(arg2_str, sizeof(arg2_str), "*(%s *)arg2", tname->c_str);
                     else
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
@@ -3223,10 +3227,10 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    if (fdef->data.data.FuncDef.param_owns.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
+                    Param *_sp = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)});
+                    if (_sp->is_own)
                         fprintf(f, "own ");
-                    fprintf(f, "%s: %s", ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
-                            ((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
+                    fprintf(f, "%s: %s", _sp->name.c_str, _sp->ptype.c_str);
                 }
                 fprintf(f, ")");
                 if (fdef->data.data.FuncDef.return_type.count > 0) {
@@ -3265,10 +3269,10 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    if (fdef->data.data.FuncDef.param_owns.count > 0 && (*(Bool*)Vec_get(&fdef->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
+                    Param *_ep = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)});
+                    if (_ep->is_own)
                         fprintf(f, "own ");
-                    fprintf(f, "%s: %s", ((Str*)Vec_get(&fdef->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
-                            ((Str*)Vec_get(&fdef->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
+                    fprintf(f, "%s: %s", _ep->name.c_str, _ep->ptype.c_str);
                 }
                 fprintf(f, ")");
                 if (fdef->data.data.FuncDef.return_type.count > 0) {
@@ -3289,16 +3293,16 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             fprintf(f, "%s := %s(", name->c_str, kw);
             for (U32 p = 0; p < rhs->data.data.FuncDef.nparam; p++) {
                 if (p > 0) fprintf(f, ", ");
-                if (rhs->data.data.FuncDef.param_owns.count > 0 && (*(Bool*)Vec_get(&rhs->data.data.FuncDef.param_owns, &(U64){(U64)(p)})))
+                Param *_fp = (Param*)Vec_get(&rhs->data.data.FuncDef.params, &(U64){(U64)(p)});
+                if (_fp->is_own)
                     fprintf(f, "own ");
                 I32 vi = rhs->data.data.FuncDef.variadic_index;
                 I32 kwi = rhs->data.data.FuncDef.kwargs_index;
                 if ((I32)p == vi) fprintf(f, "..");
                 if ((I32)p == kwi) {
-                    fprintf(f, "%s: ...", ((Str*)Vec_get(&rhs->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str);
+                    fprintf(f, "%s: ...", _fp->name.c_str);
                 } else {
-                    fprintf(f, "%s: %s", ((Str*)Vec_get(&rhs->data.data.FuncDef.param_names, &(U64){(U64)(p)}))->c_str,
-                            ((Str*)Vec_get(&rhs->data.data.FuncDef.param_types, &(U64){(U64)(p)}))->c_str);
+                    fprintf(f, "%s: %s", _fp->name.c_str, _fp->ptype.c_str);
                 }
             }
             fprintf(f, ")");

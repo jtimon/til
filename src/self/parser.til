@@ -108,14 +108,12 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
     fd.return_is_shallow = false
     fd.variadic_index = 0.sub(1).to_i32()
     fd.kwargs_index = 0.sub(1).to_i32()
-    for _ in 0..ptypes.len() {
-        fd.param_names.push(own "")
-        fd.param_owns.push(own false)
-        fd.param_shallows.push(own false)
+    for i in 0..ptypes.len() {
+        ref t : Str = ptypes.get(i)
+        ref m : Bool = pmuts.get(i)
+        fd.params.push(own Param(name = "", ptype = t.clone(), is_mut = m))
     }
-    fd.param_types = ptypes
-    fd.param_muts = pmuts
-    fd.nparam = fd.param_types.len().to_i64().to_u32()
+    fd.nparam = fd.params.len().to_i64().to_u32()
     mut sig := Expr.new(ExprData.FuncDef(fd), line, col, p.path)
 
     // Wrap in Decl and store for later emission
@@ -188,7 +186,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if fd.variadic_index.neq(0.sub(1).to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
-                fd.kwargs_index = fd.param_names.len().to_i64().to_i32()
+                fd.kwargs_index = fd.params.len().to_i64().to_i32()
                 is_own = true // kwargs Map is owned by callee
                 nm = pname.clone()
                 tp = "Map"
@@ -201,7 +199,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if fd.kwargs_index.neq(0.sub(1).to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
-                fd.variadic_index = fd.param_names.len().to_i64().to_i32()
+                fd.variadic_index = fd.params.len().to_i64().to_i32()
                 is_variadic = true
                 tp = expect_text(p, TokenType.Ident)
                 nm = pname.clone()
@@ -229,11 +227,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             panic(__LOC__, "positional param not allowed after variadic")
         }
 
-        fd.param_names.push(own nm)
-        fd.param_types.push(own tp)
-        fd.param_muts.push(own is_mut)
-        fd.param_owns.push(own is_own)
-        fd.param_shallows.push(own is_shallow)
+        fd.params.push(own Param(name = nm, ptype = tp, is_mut = is_mut, is_own = is_own, is_shallow = is_shallow))
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
@@ -251,7 +245,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         fd.return_type = expect_text(p, TokenType.Ident)
     }
 
-    fd.nparam = fd.param_names.len().to_i64().to_u32()
+    fd.nparam = fd.params.len().to_i64().to_u32()
     mut def := Expr.new(ExprData.FuncDef(fd), kw_line, kw_col, p.path)
 
     if check(p, TokenType.LBrace) {
@@ -617,12 +611,12 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             if sig.data.is_FuncDef() {
                 mut sfd := sig.data.get_FuncDef()
                 mut new_names := Vec.new("Str", Str.size())
-                for pi in 0..sfd.param_names.len() {
+                for pi in 0..sfd.params.len() {
                     if pi.gt(0) { expect_token(p, TokenType.Comma) }
                     pn := expect_text(p, TokenType.Ident)
-                    new_names.push(own pn)
+                    ref pp : Param = sfd.params.get(pi)
+                    pp.name = pn
                 }
-                sfd.param_names = new_names
                 sig.data = ExprData.FuncDef(sfd)
             }
             if check(p, TokenType.Comma) { advance(p) } // trailing comma
@@ -685,13 +679,10 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                 ffd.variadic_index = 0.sub(1).to_i32()
                 ffd.kwargs_index = 0.sub(1).to_i32()
                 np := pnames.len()
-                for _ in 0..np {
-                    ffd.param_types.push(own "")
-                    ffd.param_muts.push(own false)
-                    ffd.param_owns.push(own false)
-                    ffd.param_shallows.push(own false)
+                for i in 0..np {
+                    ref pn : Str = pnames.get(i)
+                    ffd.params.push(own Param(name = pn.clone()))
                 }
-                ffd.param_names = pnames
                 ffd.nparam = np.to_i64().to_u32()
                 mut fdef := Expr.new(ExprData.FuncDef(ffd), t_line, t_col, p.path)
                 Expr.add_child(fdef, own body)

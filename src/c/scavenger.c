@@ -85,8 +85,9 @@ static void collect_refs(Expr *e, Vec *refs) {
         U32 np = e->data.data.FuncDef.nparam;
         I32 fvi = e->data.data.FuncDef.variadic_index;
         for (U32 i = 0; i < np; i++) {
-            if (((Str*)Vec_get(&e->data.data.FuncDef.param_types, &(U64){(U64)(i)})))
-                vec_push_str(refs, ((Str*)Vec_get(&e->data.data.FuncDef.param_types, &(U64){(U64)(i)})));
+            Param *_sp = (Param*)Vec_get(&e->data.data.FuncDef.params, &(U64){(U64)(i)});
+            if (_sp->ptype.count > 0)
+                vec_push_str(refs, &_sp->ptype);
         }
         if (fvi >= 0) {
             // Variadic param uses Array internally
