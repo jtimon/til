@@ -1,5 +1,9 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #73 Replace #ifndef guards with #pragma once
+  All src/c/ headers now use ~#pragma once~ instead of
+  ~#ifndef/#define/#endif~ guards, matching bootstrap convention.
+
 * FIXED #12 Self-hosting: eliminate ctil.c, use only til.til
   src/ctil.c deleted. til.til (src/til.til) is now the sole compiler
   entry point. The compiler binary is bin/til_bootstrap, built via

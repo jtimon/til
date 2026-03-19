@@ -1,5 +1,4 @@
-#ifndef TIL_TYPER_H
-#define TIL_TYPER_H
+#pragma once
 
 #include "initer.h"
 
@@ -8,4 +7,3 @@
 // Returns 0 on success, non-zero if type errors were found.
 I32 type_check(Expr *program, TypeScope *scope, Mode *mode);
 
-#endif

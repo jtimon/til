@@ -1,5 +1,4 @@
-#ifndef TIL_INTERPRETER_H
-#define TIL_INTERPRETER_H
+#pragma once
 
 #include "../../bootstrap/modes.h"
 #include <stdlib.h>
@@ -133,4 +132,3 @@ Expr *find_field_decl(Expr *struct_def, Str *fname);
 // Write a Value into flat buffer at a field decl's offset
 void write_field(StructInstance *inst, Expr *fdecl, Value val);
 
-#endif

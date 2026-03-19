@@ -1,5 +1,4 @@
-#ifndef TIL_EXT_H
-#define TIL_EXT_H
+#pragma once
 
 #include "aliases.h"
 
@@ -207,4 +206,3 @@ I64 file_mtime(Str *path);
 I64 clock_ms(void);
 I64 get_thread_count(void);
 
-#endif

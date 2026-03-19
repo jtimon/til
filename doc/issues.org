@@ -202,10 +202,6 @@
 
     Workaround: keep gcc two-pass build for now.
 
-** OPEN #73 Replace #ifndef guards with #pragma once
-  All 13 hand-written headers in src/c/ use ~#ifndef/#define/#endif~
-  include guards. Bootstrap uses ~#pragma once~. Replace all with
-  ~#pragma once~ for consistency. Supported by gcc, clang, msvc.
 
 ** OPEN #68 Negative literal support
   Two phases:

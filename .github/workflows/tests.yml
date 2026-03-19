@@ -13,10 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
       - name: Create test tmp directory
         run: mkdir -p tmp
-      - name: Build
-        run: make
-      - name: Run tests
-        run: make test
+      - name: Build and run tests (headless)
+        run: make test_headless

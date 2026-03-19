@@ -1,5 +1,4 @@
-#ifndef TIL_BUILDER_H
-#define TIL_BUILDER_H
+#pragma once
 
 #include "../../bootstrap/modes.h"
 
@@ -24,4 +23,3 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
 // Compile a generated C file to shared (.so) and static (.a) libraries.
 I32 compile_lib(Str *c_path, Str *lib_name, Str *ext_c_path, Str *user_c_path, Str *link_flags);
 
-#endif

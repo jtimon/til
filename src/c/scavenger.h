@@ -1,5 +1,4 @@
-#ifndef TIL_SCAVENGER_H
-#define TIL_SCAVENGER_H
+#pragma once
 
 #include "../../bootstrap/modes.h"
 
@@ -8,4 +7,3 @@
 // top-level executable statements.
 void scavenge(Expr *program, Mode *mode, Bool run_tests);
 
-#endif

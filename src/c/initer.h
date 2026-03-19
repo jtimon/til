@@ -1,5 +1,4 @@
-#ifndef TIL_INITER_H
-#define TIL_INITER_H
+#pragma once
 
 #include "../../bootstrap/modes.h"
 
@@ -22,4 +21,3 @@ I32 init_declarations(Expr *program, TypeScope *scope);
 // Move Vec buffer out (returns data pointer, zeroes Vec)
 void *Vec_take(Vec *v);
 
-#endif

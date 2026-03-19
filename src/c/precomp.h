@@ -1,5 +1,4 @@
-#ifndef TIL_PRECOMP_H
-#define TIL_PRECOMP_H
+#pragma once
 
 #include "../../bootstrap/modes.h"
 
@@ -7,4 +6,3 @@
 // Runs after type_check, before scavenge.
 void precomp(Expr *program);
 
-#endif

@@ -1,5 +1,4 @@
-#ifndef ALIASES_H
-#define ALIASES_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -14,4 +13,3 @@ typedef unsigned char U8;
 typedef float F32;
 typedef bool Bool;
 
-#endif

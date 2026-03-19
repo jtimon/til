@@ -1,4 +1,4 @@
-.PHONY: all clean test til_core revert_boot rescue bisect
+.PHONY: all clean test test_headless til_core revert_boot rescue bisect
 
 all: bin/til_bootstrap
 
@@ -54,6 +54,9 @@ bin/til/tests: bin/til_bootstrap $(CORE) $(SELF) src/tests.til
 
 test: bin/til_bootstrap bin/til/test_runner bin/til/plot bin/til/tests
 	@bin/til/tests $(if $(J),-j$(J))
+
+test_headless: bin/til_bootstrap bin/til/test_runner bin/til/plot bin/til/tests
+	@xvfb-run --auto-servernum bin/til/tests $(if $(J),-j$(J))
 
 # --- bootstrap regeneration ---
 

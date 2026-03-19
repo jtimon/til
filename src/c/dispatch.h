@@ -1,5 +1,4 @@
-#ifndef TIL_DISPATCH_H
-#define TIL_DISPATCH_H
+#pragma once
 
 #include "interpreter.h"
 
@@ -17,4 +16,3 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
 I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags);
 void ffi_cleanup(void);
 
-#endif
