@@ -2,18 +2,18 @@ mode lib
 
 Vec := struct {
     own mut data : U8 = 0
-    mut count : U64 = 0
-    mut cap : U64 = 0
-    elem_size : U64 = 0
+    mut count : USize = 0
+    mut cap : USize = 0
+    elem_size : USize = 0
     elem_type := ""
 
 namespace:
-    new := func(elem_type: Str, elem_size: U64) returns Vec {
+    new := func(elem_type: Str, elem_size: USize) returns Vec {
         return Vec(data = malloc(elem_size), cap = 1,
                    elem_size = elem_size, elem_type = elem_type)
     }
 
-    len := func(self: Vec) returns U64 { return self.count }
+    len := func(self: Vec) returns USize { return self.count }
 
     push := proc(mut self: Vec, own val: Dynamic) {
         if self.count.eq(self.cap) {
@@ -26,7 +26,7 @@ namespace:
         self.count = self.count.add(1)
     }
 
-    get := func(self: Vec, i: U64) returns ref Dynamic {
+    get := func(self: Vec, i: USize) returns ref Dynamic {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.get: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
         }

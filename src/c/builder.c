@@ -853,9 +853,9 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
                     e->data.data.Decl.name.c_str);
         } else if (e->til_type.tag == TilType_TAG_None && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-            // Type alias: emit typedef so alias name is valid in generated C
-            fprintf(f, "typedef %s %s;\n",
-                    Expr_child(e, &(I64){(I64)(0)})->data.data.Ident.c_str, e->data.data.Decl.name.c_str);
+            // Type alias: typer resolves all references to canonical name,
+            // so no typedef needed in generated C
+            ;
         } else {
             if (e->data.data.Decl.is_ref) {
                 const char *ctype = c_type_name(e->til_type, &Expr_child(e, &(I64){(I64)(0)})->struct_name);

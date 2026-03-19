@@ -10089,7 +10089,7 @@ Bool dyn_has_cmp(Str *type_name) {
 
 __attribute__((constructor))
 static void _til_lib_init(void) {
-    _t4251 = malloc(sizeof(I64));
+        _t4251 = malloc(sizeof(I64));
     *_t4251 = 0;
     (void)_t4251;
     _t4252 = malloc(sizeof(I64));

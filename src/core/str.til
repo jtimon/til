@@ -5,13 +5,13 @@ CAP_VIEW : U64 = -2.to_u64()
 
 Str := struct {
     own mut c_str : U8 = 0
-    mut count : U64 = 0
-    mut cap : U64 = 0
+    mut count : USize = 0
+    mut cap : USize = 0
 
 namespace:
-    len := func(self: Str) returns U64 { return self.count }
+    len := func(self: Str) returns USize { return self.count }
 
-    get := func(self: Str, i: U64) returns ref U8 {
+    get := func(self: Str, i: USize) returns ref U8 {
         if i.gte(self.count) {
             panic(__LOC__, "Str.get: index out of bounds")
         }
@@ -19,7 +19,7 @@ namespace:
     }
 
     // Unchecked byte access — caller must ensure i < self.len()
-    byte_at := func(self: Str, i: U64) returns ref U8 {
+    byte_at := func(self: Str, i: USize) returns ref U8 {
         return ptr_add(self.c_str, i)
     }
 
@@ -44,7 +44,7 @@ namespace:
         return Str(c_str = new_data, count = new_len, cap = new_len)
     }
 
-    with_capacity := func(n: U64) returns Str {
+    with_capacity := func(n: USize) returns Str {
         own buf : U8 = malloc(n.add(1))
         memset(buf, 0, 1)
         return Str(c_str = buf, count = 0, cap = n)
@@ -77,7 +77,7 @@ namespace:
 
     to_str := func(val: Str) returns Str { return val.clone() }
 
-    substr := func(s: Str, start: U64, n: U64) returns Str {
+    substr := func(s: Str, start: USize, n: USize) returns Str {
         mut st := start
         mut ln := n
         if st.gt(s.count) { st = s.count }
@@ -177,7 +177,7 @@ namespace:
         return result
     }
 
-    get_char := func(self: Str, i: U64) returns Str {
+    get_char := func(self: Str, i: USize) returns Str {
         return self.substr(i, 1)
     }
 
