@@ -1,16 +1,5 @@
 # Fixed issues moved from issues.org.
 
-* FIXED #79 Type aliases for structs, enums, primitives, and function signatures
-  ~MyAlias := ExistingType~ creates a type alias when ExistingType is
-  a known struct, enum, primitive, or FuncSig type. Tests in
-  structs.til, enums.til, fn_ptr.til, misc.til.
-
-  Extra fix needed: typer didn't resolve aliases in function parameter
-  types or return types. Functions using alias types (e.g. ~func(a: USize)~)
-  emitted the alias name in generated C without a typedef. Fixed by
-  resolving aliases in-place on ~param.ptype~ and ~return_type~ during
-  FuncDef type-checking. Added tests for function params/returns with
-  aliases.
 
 * FIXED #73 Replace #ifndef guards with #pragma once
   All src/c/ headers now use ~#pragma once~ instead of
