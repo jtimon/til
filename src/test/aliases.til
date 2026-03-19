@@ -243,3 +243,21 @@ test_alias_in_struct_field := test() {
     s := Sized(n = 42)
     assert_eq(__LOC__, s.n.to_i64(), 42)
 }
+
+# === Alias in struct with methods (simulates #80 container use case) ===
+
+MySize := U64
+
+MyVec := struct {
+    mut count : MySize = 0
+    namespace:
+    len := func(self: MyVec) returns MySize { return self.count }
+    inc := proc(mut self: MyVec) { self.count = self.count.add(1) }
+}
+
+test_alias_in_struct_methods := test() {
+    mut v := MyVec()
+    v.inc()
+    v.inc()
+    assert_eq(__LOC__, v.len().to_i64(), 2)
+}

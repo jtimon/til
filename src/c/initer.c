@@ -175,6 +175,14 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                 // Store resolved type for interpreter's read_field
                 if (ftype->count > 0) field->data.data.Decl.explicit_type = *ftype;
             }
+            // Resolve type alias (e.g. USize → U64) for both size computation and interpreter
+            {
+                TypeBinding *ab = tscope_find(scope, ftype);
+                if (ab && ab->is_type_alias && ab->alias_target) {
+                    ftype = ab->alias_target;
+                    field->data.data.Decl.explicit_type = *ftype;
+                }
+            }
             if (ftype->count == 0) { fsz = 8; falign = 8; } // fallback
             else if ((ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0))  { fsz = 8; falign = 8; }
             else if ((ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0))   { fsz = 1; falign = 1; }

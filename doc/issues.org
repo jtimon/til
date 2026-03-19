@@ -159,17 +159,6 @@
     - ~.len().to_i64().to_u32()~ — nparam assignments (5 sites)
     - ~-1.to_i32()~ — variadic/kwargs sentinels (16 sites)
 
-*** Blocker: #79 type aliases incomplete
-    Primitive aliases (USize := U64) break the interpreter and FFI
-    dispatch. The alias name "USize" propagates through the system
-    as a string, and subsystems that dispatch on type names (FFI CIF
-    building, dyn_call, interpreter value handling) don't recognize it.
-
-    #79 must fully resolve aliases: erase alias names from the AST
-    after typer runs. Currently only resolves in struct_name and
-    function param/return types. Needs resolution in ALL type name
-    contexts (FFI dispatch, dyn_call, interpreter, builder).
-
   Reference: ~wip_u32~ branch has prior work on the U32 migration.
 
 ** WIP #77 til.til: import self-hosted modules, use ~til build~ in Makefile
