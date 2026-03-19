@@ -852,6 +852,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "/* %s %s defined above */\n",
                     Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
                     e->data.data.Decl.name.c_str);
+        } else if (e->til_type.tag == TilType_TAG_None && Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
+            // Type alias: Name := ExistingType — no C code needed (alias resolved at type level)
+            fprintf(f, "/* type alias %s = %s */\n",
+                    e->data.data.Decl.name.c_str, Expr_child(e, &(I64){(I64)(0)})->data.data.Ident.c_str);
         } else {
             if (e->data.data.Decl.is_ref) {
                 const char *ctype = c_type_name(e->til_type, &Expr_child(e, &(I64){(I64)(0)})->struct_name);
@@ -1212,6 +1216,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
                 Expr *rhs = Expr_child(gs, &(I64){(I64)(0)});
                 if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
                     rhs->data.tag == ExprData_TAG_EnumDef) continue;
+                if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
                 emit_stmt(f, gs, 1);
             }
         }
@@ -1690,6 +1695,16 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) {
             Str *n = &stmt->data.data.Decl.name;
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
+        }
+        // FuncSig type aliases: Callback := BinaryOp (Decl where RHS is Ident, til_type=None,
+        // and RHS refers to a FuncSig)
+        if (stmt->data.tag == ExprData_TAG_Decl && stmt->til_type.tag == TilType_TAG_None &&
+            Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
+            Str *rhs_name = &Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident;
+            if (*Set_has(&funcsig_names, rhs_name)) {
+                Str *n = &stmt->data.data.Decl.name;
+                { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
+            }
         }
     }
     FILE *f = fopen((const char *)c_output_path->c_str, "w");
@@ -2273,6 +2288,8 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
             if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
                 rhs->data.tag == ExprData_TAG_EnumDef) continue;
+            // Skip type aliases (til_type=None, RHS is Ident referring to a type)
+            if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
             if (stmt->data.data.Decl.is_ref) continue;
             const char *ctype = c_type_name(stmt->til_type, &rhs->struct_name);
             fprintf(f, "static %s *%s;\n", ctype, stmt->data.data.Decl.name.c_str);
@@ -2566,6 +2583,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Expr *rhs = Expr_child(gs, &(I64){(I64)(0)});
                 if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
                     rhs->data.tag == ExprData_TAG_EnumDef) continue;
+                if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
                 emit_stmt(f, gs, 1);
             }
         }

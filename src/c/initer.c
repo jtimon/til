@@ -47,7 +47,7 @@ void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut,
         return;
     }
     Str *name_copy = Str_clone(name);
-    TypeBinding nb = {name_copy, type, is_proc, is_mut, line, col, is_param, is_own, 0, 0, NULL, NULL, 0, 0, NULL};
+    TypeBinding nb = {name_copy, type, is_proc, is_mut, line, col, is_param, is_own, 0, 0, 0, NULL, NULL, NULL, 0, 0, NULL};
     { Str *_k = Str_clone(name); void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
 }
 
@@ -93,10 +93,12 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     // FunctionDef: regular struct (like Str), not builtin
     if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0))     return (TilType){TilType_TAG_Dynamic};
     if (scope) {
+        // Check for builtin aliases first (e.g. USize := U64 has struct_def but type is U64)
+        TypeBinding *b = tscope_find(scope, name);
+        if (b && b->is_builtin && b->struct_def) return b->type;
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
         // Named FuncSig type (bodyless func/proc)
-        TypeBinding *b = tscope_find(scope, name);
         if (b && b->func_def && b->func_def->children.count == 0)
             return (TilType){TilType_TAG_FuncPtr};
     }
@@ -1155,6 +1157,38 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         Vec_delete(&variant_names, &(Bool){0});
         Vec_delete(&variant_types, &(Bool){0});
+    }
+
+    // Pass 1.85: register type aliases (Name := ExistingType where RHS is a known type name)
+    // Must run after Pass 1 (structs), Pass 1.1 (FuncSigs), and Pass 1.8 (enums)
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+        if (rhs->data.tag != ExprData_TAG_Ident) continue;
+        // RHS is a simple identifier — check if it refers to a known type
+        Str *target_name = &rhs->data.data.Ident;
+        TypeBinding *target = tscope_find(scope, target_name);
+        if (!target) continue;
+        // Must be a type definition: struct_def (struct/enum) or builtin or funcSig
+        if (!target->struct_def && !target->is_builtin &&
+            !(target->func_def && target->func_def->children.count == 0)) continue;
+        // Already registered (e.g. by Pass 1 or 1.1) — skip
+        if (tscope_find(scope, &stmt->data.data.Decl.name)) continue;
+        // Register alias with same type info as target
+        tscope_set(scope, &stmt->data.data.Decl.name, target->type, target->is_proc, 0,
+                   stmt->line, stmt->col, 0, 0);
+        TypeBinding *ab = tscope_find(scope, &stmt->data.data.Decl.name);
+        if (ab) {
+            ab->struct_def = target->struct_def;
+            ab->func_def = target->func_def;
+            ab->is_builtin = target->is_builtin;
+            ab->is_ext = target->is_ext;
+            ab->is_type_alias = 1;
+            // Resolve canonical name: if target is itself an alias, follow the chain
+            ab->alias_target = target->alias_target ? target->alias_target : target_name;
+            if (target->struct_name) ab->struct_name = target->struct_name;
+        }
     }
 
     // Pass 1.9: compute flat struct layout (field offsets and sizes)

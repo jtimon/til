@@ -263,6 +263,8 @@ typedef struct TypeBinding {
     Bool is_own;
     Bool is_ref;
     Bool is_alias;
+    Bool is_type_alias;
+    Str *alias_target;
     Expr *struct_def;
     Expr *func_def;
     Bool is_builtin;

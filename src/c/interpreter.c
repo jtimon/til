@@ -661,7 +661,8 @@ Value eval_call(Scope *scope, Expr *e) {
         Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
 
         StructInstance *inst = malloc(sizeof(StructInstance));
-        inst->struct_name = name;   // borrowed from AST
+        // Use typer's resolved struct_name (handles aliases like Point2 → Point)
+        inst->struct_name = (e->struct_name.count > 0) ? &e->struct_name : name;
         inst->struct_def = sdef;
         inst->borrowed = 0;
         inst->data = calloc(1, sdef->total_struct_size);
@@ -860,6 +861,10 @@ static void eval_body(Scope *scope, Expr *body) {
         switch (stmt->data.tag) {
         case ExprData_TAG_Decl: {
             Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+            // Skip type aliases (already pre-registered; typer sets til_type=None, RHS is Ident)
+            if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) {
+                break;
+            }
             if (stmt->data.data.Decl.is_ref && rhs->data.tag == ExprData_TAG_Ident) {
                 // Ref decl from ident: borrow the same cell (no move, no free)
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
@@ -1280,8 +1285,47 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
         }
     }
 
+    // Pre-register type aliases (Name := ExistingType where RHS is Ident and is a type)
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (stmt->til_type.tag != TilType_TAG_None) continue; // type defs have None
+        Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+        if (rhs->data.tag != ExprData_TAG_Ident) continue;
+        Cell *src = scope_get(global, &rhs->data.data.Ident);
+        if (src && src->val.type == VAL_FUNC &&
+            (src->val.func->data.tag == ExprData_TAG_StructDef ||
+             src->val.func->data.tag == ExprData_TAG_EnumDef)) {
+            Value val = {.type = VAL_FUNC, .func = src->val.func};
+            scope_set_owned(global, &stmt->data.data.Decl.name, val);
+        }
+    }
+
     // Initialize namespace fields for all structs
     interpreter_init_ns(global, program);
+
+    // Copy namespace entries for type aliases
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (stmt->til_type.tag != TilType_TAG_None) continue;
+        Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+        if (rhs->data.tag != ExprData_TAG_Ident) continue;
+        Str *alias_name = &stmt->data.data.Decl.name;
+        Str *target_name = &rhs->data.data.Ident;
+        Cell *tc = scope_get(global, target_name);
+        if (!tc || tc->val.type != VAL_FUNC) continue;
+        Expr *sdef = tc->val.func;
+        if (sdef->data.tag != ExprData_TAG_StructDef && sdef->data.tag != ExprData_TAG_EnumDef) continue;
+        Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+        for (U32 j = 0; j < body->children.count; j++) {
+            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            if (field->data.data.Decl.is_namespace) {
+                Value *v = ns_get(target_name, &field->data.data.Decl.name);
+                if (v) ns_set(alias_name, &field->data.data.Decl.name, *v);
+            }
+        }
+    }
 
     // Evaluate top-level declarations
     eval_body(global, program);

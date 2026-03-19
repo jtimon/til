@@ -296,3 +296,39 @@ test_field_reassign := test() {
     bob.name = "Charlie"
     assert_eq_str(__LOC__, bob.name, "Charlie")
 }
+
+# --- type aliases ---
+
+Point2 := Point
+
+test_struct_type_alias := test() {
+    # Construct via alias
+    p := Point2(x=10, y=20)
+    assert_eq(__LOC__, p.x, 10)
+    assert_eq(__LOC__, p.y, 20)
+
+    # Explicit type annotation with alias
+    q : Point2 = Point2(x=5)
+    assert_eq(__LOC__, q.x, 5)
+    assert_eq(__LOC__, q.y, 0)
+
+    # Alias and original are interchangeable
+    r : Point = Point2(x=1, y=2)
+    assert_eq(__LOC__, r.x, 1)
+    s : Point2 = Point(x=3, y=4)
+    assert_eq(__LOC__, s.x, 3)
+
+    # Clone via alias
+    p2 := p.clone()
+    assert_eq(__LOC__, p2.x, 10)
+    p.x = 99
+    assert_eq(__LOC__, p2.x, 10)
+}
+
+Line2 := Line
+
+test_nested_struct_alias := test() {
+    l := Line2(start=Point(x=1, y=2), end=Point2(x=3, y=4))
+    assert_eq(__LOC__, l.start.x, 1)
+    assert_eq(__LOC__, l.end.x, 3)
+}

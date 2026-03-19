@@ -45,6 +45,24 @@ test_namespace := test() {
     expect(__LOC__, Direction.Left.is_vertical().not(), "Left not vertical")
 }
 
+# --- type aliases ---
+
+Color2 := Color
+
+test_enum_type_alias := test() {
+    c := Color2.Red
+    expect(__LOC__, c.eq(Color.Red), "alias Red eq original Red")
+    expect(__LOC__, c.eq(Color2.Green).not(), "alias Red neq alias Green")
+    assert_eq_str(__LOC__, Color2.Blue.to_str(), "Blue")
+}
+
+Direction2 := Direction
+
+test_enum_alias_namespace := test() {
+    expect(__LOC__, Direction2.Up.is_vertical(), "alias Up is vertical")
+    expect(__LOC__, Direction2.Left.is_vertical().not(), "alias Left not vertical")
+}
+
 # --- payload enums ---
 
 Token := enum { Num: I64, Name: Str, Eof }

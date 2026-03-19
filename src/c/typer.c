@@ -34,14 +34,25 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
     if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0))     return (TilType){TilType_TAG_Dynamic};
     // Check scope for user-defined struct/enum types
     if (scope) {
+        // Check for builtin aliases first (e.g. USize := U64 has struct_def but type is U64)
+        TypeBinding *b = tscope_find(scope, name);
+        if (b && b->is_builtin && b->struct_def) return b->type;
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
         // Named FuncSig type (bodyless func/proc)
-        TypeBinding *b = tscope_find(scope, name);
         if (b && b->func_def && b->func_def->children.count == 0)
             return (TilType){TilType_TAG_FuncPtr};
     }
     return (TilType){TilType_TAG_Unknown};
+}
+
+// Resolve a type name through alias chains to the canonical name.
+// E.g. if Point2 := Point, resolve_type_alias(scope, "Point2") returns "Point".
+// Returns the input name if it's not an alias.
+static Str *resolve_type_alias(TypeScope *scope, Str *name) {
+    TypeBinding *b = tscope_find(scope, name);
+    if (b && b->is_type_alias && b->alias_target) return b->alias_target;
+    return name;
 }
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
@@ -141,7 +152,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Struct type names: allow field access for namespace fields
         TypeBinding *ib = tscope_find(scope, &e->data.data.Ident);
         if (ib && ib->struct_def) {
-            e->struct_name = e->data.data.Ident;
+            e->struct_name = *resolve_type_alias(scope, &e->data.data.Ident);
         }
         break;
     }
@@ -598,6 +609,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Resolve callee
         Str _name_val = Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
         Str *name = &_name_val;
+        // Resolve type alias for struct constructors (Point2 → Point)
+        Str *resolved_name = resolve_type_alias(scope, name);
+        if (resolved_name != name) {
+            // Rewrite callee Ident to canonical name so builder emits correct constructor
+            Expr_child(e, &(I64){(I64)(0)})->data.data.Ident = *resolved_name;
+            _name_val = *resolved_name;
+        }
         // Struct instantiation: Point() or Point(x=1, y=2)
         Expr *sdef = tscope_get_struct(scope, name);
         if (sdef) {
@@ -705,7 +723,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
               }
             }
             e->til_type = (TilType){TilType_TAG_Struct};
-            e->struct_name = *name;
+            e->struct_name = *resolve_type_alias(scope, name);
             break;
         }
         // Desugar named/optional args for user-defined functions (skip core builtins)
@@ -2704,6 +2722,14 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
                 break;
             }
+            // Type alias: Decl where RHS is Ident referring to a type (already registered by initer)
+            if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
+                TypeBinding *alias_b = tscope_find(scope, &stmt->data.data.Decl.name);
+                if (alias_b && alias_b->is_type_alias) {
+                    stmt->til_type = (TilType){TilType_TAG_None};
+                    break;
+                }
+            }
             if (stmt->data.data.Decl.explicit_type.count > 0) {
                 Str *etn = &stmt->data.data.Decl.explicit_type;
                 TilType declared = type_from_name(etn, scope);
@@ -2737,7 +2763,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     type_error(stmt, buf);
                 } else if ((declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) &&
                            (Expr_child(stmt, &(I64){(I64)(0)})->struct_name.count > 0) &&
-                           !*Str_eq(etn, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name)) {
+                           !*Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(I64){(I64)(0)})->struct_name)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                              stmt->data.data.Decl.name.c_str, etn->c_str, Expr_child(stmt, &(I64){(I64)(0)})->struct_name.c_str);
@@ -2746,9 +2772,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 stmt->til_type = declared;
                 // Narrow Dynamic RHS to declared type
                 narrow_dynamic(Expr_child(stmt, &(I64){(I64)(0)}), declared, etn);
-                // For struct/enum types, propagate struct_name from explicit type
+                // For struct/enum types, propagate struct_name from explicit type (resolved through aliases)
                 if (declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) {
-                    Expr_child(stmt, &(I64){(I64)(0)})->struct_name = *etn;
+                    Expr_child(stmt, &(I64){(I64)(0)})->struct_name = *resolve_type_alias(scope, etn);
                 }
             } else {
                 stmt->til_type = Expr_child(stmt, &(I64){(I64)(0)})->til_type;
