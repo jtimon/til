@@ -3,10 +3,10 @@ mode test
 test_loc_directives := test() {
     // __LOC__ returns "file:line:col" string
     loc := __LOC__
-    expect(__LOC__, loc.find("misc.til").neq(0.sub(1)), "__LOC__ contains filename")
+    expect(__LOC__, loc.find("misc.til").neq(-1), "__LOC__ contains filename")
 
     // __FILE__ returns file path string
-    expect(__LOC__, __FILE__.find("misc.til").neq(0.sub(1)), "__FILE__ contains filename")
+    expect(__LOC__, __FILE__.find("misc.til").neq(-1), "__FILE__ contains filename")
 
     // __LINE__ returns I64
     line := __LINE__
@@ -42,21 +42,21 @@ test_dyn_has_method := test() {
 }
 
 test_cmp := test() {
-    assert_eq(__LOC__, I64.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, I64.cmp(1, 2), -1)
     assert_eq(__LOC__, I64.cmp(5, 5), 0)
     assert_eq(__LOC__, I64.cmp(3, 1), 1)
-    assert_eq(__LOC__, U8.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, U8.cmp(1, 2), -1)
     assert_eq(__LOC__, U8.cmp(5, 5), 0)
     assert_eq(__LOC__, U8.cmp(3, 1), 1)
     assert_eq(__LOC__, Bool.cmp(false, false), 0)
     assert_eq(__LOC__, Bool.cmp(true, true), 0)
-    assert_eq(__LOC__, Bool.cmp(false, true), 0.sub(1))
+    assert_eq(__LOC__, Bool.cmp(false, true), -1)
     assert_eq(__LOC__, Bool.cmp(true, false), 1)
-    assert_eq(__LOC__, Str.cmp("abc", "abd"), 0.sub(1))
+    assert_eq(__LOC__, Str.cmp("abc", "abd"), -1)
     assert_eq(__LOC__, Str.cmp("hello", "hello"), 0)
     assert_eq(__LOC__, Str.cmp("b", "a"), 1)
     assert_eq(__LOC__, Str.cmp("ab", "a"), 1)
-    assert_eq(__LOC__, Str.cmp("a", "ab"), 0.sub(1))
+    assert_eq(__LOC__, Str.cmp("a", "ab"), -1)
 }
 
 // variadic args
@@ -115,8 +115,8 @@ test_i16 := test() {
     assert_eq(__LOC__, a.mod(b).to_i64(), 16)
 
     // Negative values
-    c : I16 = 100.neg().to_i16()
-    assert_eq(__LOC__, c.to_i64(), 100.neg())
+    c : I16 = -100.to_i16()
+    assert_eq(__LOC__, c.to_i64(), -100)
     assert_eq(__LOC__, c.neg().to_i64(), 100)
     assert_eq(__LOC__, c.add(a).to_i64(), 0)
 
@@ -131,7 +131,7 @@ test_i16 := test() {
 
     // to_str
     assert_eq_str(__LOC__, 12345.to_i16().to_str(), "12345")
-    assert_eq_str(__LOC__, 100.neg().to_i16().to_str(), "-100")
+    assert_eq_str(__LOC__, -100.to_i16().to_str(), "-100")
 
     // size
     assert_eq(__LOC__, I16.size().to_i64(), 2)
@@ -147,8 +147,8 @@ test_i32 := test() {
     assert_eq(__LOC__, a.mod(b).to_i64(), 16)
 
     // Negative
-    c : I32 = 100.neg().to_i32()
-    assert_eq(__LOC__, c.to_i64(), 100.neg())
+    c : I32 = -100.to_i32()
+    assert_eq(__LOC__, c.to_i64(), -100)
     assert_eq(__LOC__, c.neg().to_i64(), 100)
 
     // Comparisons
@@ -160,7 +160,7 @@ test_i32 := test() {
 
     // to_str
     assert_eq_str(__LOC__, 12345.to_i32().to_str(), "12345")
-    assert_eq_str(__LOC__, 100.neg().to_i32().to_str(), "-100")
+    assert_eq_str(__LOC__, -100.to_i32().to_str(), "-100")
 
     // size
     assert_eq(__LOC__, I32.size().to_i64(), 4)
@@ -237,9 +237,9 @@ test_switch_i64 := test() {
     // Default case
     switch 99 {
     case 1: result = 10
-    case: result = 0.sub(1)
+    case: result = -1
     }
-    assert_eq(__LOC__, result, 0.sub(1))
+    assert_eq(__LOC__, result, -1)
 }
 
 test_switch_str := test() {
@@ -418,8 +418,8 @@ test_switch_payload := test() {
     mut result := 0
     switch Token.Num(42) {
     case Token.Num(value): result = value
-    case Token.Name(s): result = 0.sub(1)
-    case Token.Eof: result = 0.sub(2)
+    case Token.Name(s): result = -1
+    case Token.Eof: result = -2
     }
     assert_eq(__LOC__, result, 42)
 }

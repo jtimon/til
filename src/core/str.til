@@ -1,7 +1,7 @@
 mode lib
 
-CAP_LIT : U64 = 0.sub(1).to_u64()
-CAP_VIEW : U64 = 0.sub(2).to_u64()
+CAP_LIT : U64 = -1.to_u64()
+CAP_VIEW : U64 = -2.to_u64()
 
 Str := struct {
     own mut c_str : U8 = 0
@@ -126,8 +126,8 @@ namespace:
     }
 
     find := func(self: Str, needle: Str) returns I64 {
-        if needle.count.eq(0) { return 0.sub(1) }
-        if needle.count.gt(self.count) { return 0.sub(1) }
+        if needle.count.eq(0) { return -1 }
+        if needle.count.gt(self.count) { return -1 }
         for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
             for j in 0..needle.count {
@@ -137,13 +137,13 @@ namespace:
             }
             if found { return i.to_i64() }
         }
-        return 0.sub(1)
+        return -1
     }
 
     rfind := func(self: Str, needle: Str) returns I64 {
-        if needle.count.eq(0) { return 0.sub(1) }
-        if needle.count.gt(self.count) { return 0.sub(1) }
-        mut last := 0.sub(1)
+        if needle.count.eq(0) { return -1 }
+        if needle.count.gt(self.count) { return -1 }
+        mut last := -1
         for i in 0..self.count.sub(needle.count).add(1) {
             mut found := true
             for j in 0..needle.count {
@@ -163,7 +163,7 @@ namespace:
         while start.lte(self.count.sub(from.count)) {
             rest := self.substr(start, self.count.sub(start))
             pos := rest.find(from)
-            if pos.eq(0.sub(1)) {
+            if pos.eq(-1) {
                 result = result.concat(rest)
                 return result
             }

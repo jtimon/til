@@ -106,8 +106,8 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
     fd.return_type = return_type
     fd.return_is_ref = false
     fd.return_is_shallow = false
-    fd.variadic_index = 0.sub(1).to_i32()
-    fd.kwargs_index = 0.sub(1).to_i32()
+    fd.variadic_index = -1.to_i32()
+    fd.kwargs_index = -1.to_i32()
     for i in 0..ptypes.len() {
         ref t : Str = ptypes.get(i)
         ref m : Bool = pmuts.get(i)
@@ -180,10 +180,10 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                     panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
                         ": kwargs parameter cannot be own/mut/shallow")
                 }
-                if fd.kwargs_index.neq(0.sub(1).to_i32()) {
+                if fd.kwargs_index.neq(-1.to_i32()) {
                     panic(__LOC__, "only one kwargs parameter is allowed")
                 }
-                if fd.variadic_index.neq(0.sub(1).to_i32()) {
+                if fd.variadic_index.neq(-1.to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
                 fd.kwargs_index = fd.params.len().to_i64().to_i32()
@@ -195,8 +195,8 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 if is_own { panic(__LOC__, "variadic param cannot be 'own'") }
                 if is_mut { panic(__LOC__, "variadic param cannot be 'mut'") }
                 if is_shallow { panic(__LOC__, "variadic param cannot be 'shallow'") }
-                if fd.variadic_index.neq(0.sub(1).to_i32()) { panic(__LOC__, "only one variadic param allowed") }
-                if fd.kwargs_index.neq(0.sub(1).to_i32()) {
+                if fd.variadic_index.neq(-1.to_i32()) { panic(__LOC__, "only one variadic param allowed") }
+                if fd.kwargs_index.neq(-1.to_i32()) {
                     panic(__LOC__, "cannot combine variadic and kwargs in the same function")
                 }
                 fd.variadic_index = fd.params.len().to_i64().to_i32()
@@ -223,7 +223,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
             fd.param_defaults.set(own nm.clone(), own def_expr)
             has_default = true
         }
-        if fd.variadic_index.neq(0.sub(1).to_i32()).and(is_variadic.not()).and(has_default.not()) {
+        if fd.variadic_index.neq(-1.to_i32()).and(is_variadic.not()).and(has_default.not()) {
             panic(__LOC__, "positional param not allowed after variadic")
         }
 
@@ -696,8 +696,8 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                 // Build incomplete FuncDef (types filled by initer)
                 mut ffd := FunctionDef()
                 ffd.func_type = FuncType.Func // placeholder
-                ffd.variadic_index = 0.sub(1).to_i32()
-                ffd.kwargs_index = 0.sub(1).to_i32()
+                ffd.variadic_index = -1.to_i32()
+                ffd.kwargs_index = -1.to_i32()
                 np := pnames.len()
                 for i in 0..np {
                     ref pn : Str = pnames.get(i)
@@ -935,7 +935,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
         // own expression (call-site ownership marker)
         mut expr := parse_expression(p)
         // Walk down to the primary (leftmost leaf) to set is_own_arg
-        mut primary_idx := 0.sub(1)
+        mut primary_idx := -1
         // Find the deepest child[0] that is FCALL or FIELD_ACCESS
         mut cur := expr
         while cur.children.len().gt(0).and(

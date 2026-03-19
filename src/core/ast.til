@@ -72,8 +72,8 @@ FunctionDef := struct {
     mut nparam : U32 = 0
     mut param_defaults := Map.new("Str", Str.size(), "Expr", Expr.size())
     mut return_type := ""
-    mut variadic_index : I32 = 0.sub(1).to_i32()
-    mut kwargs_index : I32 = 0.sub(1).to_i32()
+    mut variadic_index : I32 = -1.to_i32()
+    mut kwargs_index : I32 = -1.to_i32()
     mut return_is_ref := false
     mut return_is_shallow := false
     namespace:
@@ -126,9 +126,9 @@ Expr := struct {
     mut is_core := false
     mut save_old_delete := false
     mut total_struct_size : I32 = 0
-    mut variadic_index : I32 = 0.sub(1).to_i32()
+    mut variadic_index : I32 = -1.to_i32()
     mut variadic_count : U32 = 0
-    mut kwargs_index : I32 = 0.sub(1).to_i32()
+    mut kwargs_index : I32 = -1.to_i32()
     mut kwargs_count : U32 = 0
     ref mut fn_sig : Expr = NULL
     mut children := Vec.new("", Expr.size())
@@ -293,7 +293,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
             }
         }
     }
-    return 0.sub(1).to_i32()
+    return -1.to_i32()
 }
 
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {

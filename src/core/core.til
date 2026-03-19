@@ -255,7 +255,7 @@ namespace:
     eq := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
     cmp := func(a: Bool, b: Bool) returns I64 {
         if a.eq(b) { return 0 }
-        if b { return 0.sub(1) }
+        if b { return -1 }
         return 1
     }
     clone := ext_func(val: Bool) returns shallow Bool {}
@@ -338,7 +338,7 @@ get_thread_count := ext_func() returns shallow I64 {}
 wait_cmd := proc(pid: I64) returns I64 {
     while true {
         status := check_cmd_status(pid)
-        if status.neq(0.sub(1)) { return status }
+        if status.neq(-1) { return status }
         sleep(50)
     }
 }

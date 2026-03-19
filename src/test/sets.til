@@ -2,7 +2,7 @@ mode test
 
 test_i64_set := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(__LOC__, I64.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, I64.cmp(1, 2), -1)
     assert_eq(__LOC__, 1.clone(), 1)
 
     s := Set.new("I64", I64.size())
@@ -22,7 +22,7 @@ test_i64_set := test() {
 
 test_str_set := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(__LOC__, Str.cmp("a", "b"), 0.sub(1))
+    assert_eq(__LOC__, Str.cmp("a", "b"), -1)
     assert_eq_str(__LOC__, "hi".clone(), "hi")
 
     ss := Set.new("Str", Str.size())
@@ -42,7 +42,7 @@ test_str_set := test() {
 
 test_set_literal_i64 := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(__LOC__, I64.cmp(1, 2), 0.sub(1))
+    assert_eq(__LOC__, I64.cmp(1, 2), -1)
     assert_eq(__LOC__, 1.clone(), 1)
 
     s := {3, 1, 2}
@@ -55,7 +55,7 @@ test_set_literal_i64 := test() {
 
 test_set_literal_str := test() {
     // TODO(#15): dummy references so scavenger keeps cmp/clone/delete methods
-    assert_eq(__LOC__, Str.cmp("a", "b"), 0.sub(1))
+    assert_eq(__LOC__, Str.cmp("a", "b"), -1)
     assert_eq_str(__LOC__, "hi".clone(), "hi")
 
     s := {"apple", "banana", "cherry"}

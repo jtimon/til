@@ -12,7 +12,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     mut start : U64 = 0
     while start.lte(haystack.len().sub(needle.len())) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
-        if pos.eq(0.sub(1)) { return count }
+        if pos.eq(-1) { return count }
         count = count.add(1)
         start = start.add(pos.to_u64()).add(needle.len())
     }
@@ -230,7 +230,7 @@ run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
             ref slot : Slot = slots.get(i)
             if slot.pid.gt(0) {
                 status := check_cmd_status(slot.pid)
-                if status.neq(0.sub(1)) {
+                if status.neq(-1) {
                     ref t : Test = tests.get(slot.test_idx)
                     runner_out := readfile(t.outfile)
 

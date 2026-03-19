@@ -38,7 +38,7 @@ test_basic_fn_ptr := test() {
 test_pass_fn_as_arg := test() {
     assert_eq(__LOC__, apply(fn_double, 5), 10)
     assert_eq(__LOC__, apply(fn_double, 3), 6)
-    assert_eq(__LOC__, apply(fn_negate, 7), 0.sub(7))
+    assert_eq(__LOC__, apply(fn_negate, 7), -7)
 }
 
 test_pass_fn_two_args := test() {
@@ -92,7 +92,7 @@ apply_unary := func(op: UnaryOp, x: I64) returns I64 {
 
 test_funcsig_unary := test() {
     assert_eq(__LOC__, apply_unary(fn_double, 7), 14)
-    assert_eq(__LOC__, apply_unary(fn_negate, 5), 0.sub(5))
+    assert_eq(__LOC__, apply_unary(fn_negate, 5), -5)
 }
 
 Mutator := proc(mut I64)
@@ -123,7 +123,7 @@ greet_sig : proc(mut I64) = (x) {
 
 test_funcsig_form_basic := test() {
     assert_eq(__LOC__, sum_sig(3, 5), 8)
-    assert_eq(__LOC__, negate_sig(7), 0.sub(7))
+    assert_eq(__LOC__, negate_sig(7), -7)
 }
 
 test_funcsig_form_proc := test() {
@@ -154,7 +154,7 @@ greet_named : Mutator = (x) {
 
 test_named_funcsig_form := test() {
     assert_eq(__LOC__, sum_named(3, 5), 8)
-    assert_eq(__LOC__, negate_named(7), 0.sub(7))
+    assert_eq(__LOC__, negate_named(7), -7)
     assert_eq(__LOC__, apply_binop(sum_named, 4, 6), 10)
 }
 

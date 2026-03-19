@@ -117,9 +117,9 @@ lang_str := func(lang_idx: I64, label_idx: I64) returns ref Str {
 
 acc_text := func(acc: I64) returns Str {
     if acc.eq(1) { return "#" }
-    if acc.eq(0.sub(1)) { return "b" }
+    if acc.eq(-1) { return "b" }
     if acc.eq(2) { return "##" }
-    if acc.eq(0.sub(2)) { return "bb" }
+    if acc.eq(-2) { return "bb" }
     return ""
 }
 
@@ -144,7 +144,7 @@ draw_note := proc(dni: I64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: A
 
     // Ledger lines
     if staff_pos.lt(0) {
-        mut lp := 0.sub(2)
+        mut lp := -2
         while lp.gte(staff_pos) {
             lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
             draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
@@ -219,7 +219,7 @@ recompute_scale := proc(sel_diatonic: I64, sel_accidental: I64, sel_mode: I64,
         ref nat_ref : I64 = NATURALS.get(diat_pos.to_u64())
         mut acc := chrom_mod.sub(nat_ref)
         if acc.gt(6) { acc = acc.sub(12) }
-        if acc.lt(0.sub(6)) { acc = acc.add(12) }
+        if acc.lt(-6) { acc = acc.add(12) }
         sc_acc.set(k, own acc)
 
         // Frequency
@@ -316,7 +316,7 @@ main := proc() {
     mut playing := false
     mut play_idx := 0
     mut play_timer := 0
-    mut clicked_note := 0.sub(1)
+    mut clicked_note := -1
     mut clicked_timer := 0
 
     while window_should_close().not() {
@@ -334,7 +334,7 @@ main := proc() {
                 if col.gte(0).and(col.lt(7)).and(row.gte(0)).and(row.lt(3)).and(mx.gte(MARGIN)) {
                     sel_diatonic = col
                     if row.eq(0) {
-                        sel_accidental = 0.sub(1)
+                        sel_accidental = -1
                     } else {
                         if row.eq(1) {
                             sel_accidental = 0
@@ -398,7 +398,7 @@ main := proc() {
         if clicked_note.gte(0) {
             clicked_timer = clicked_timer.sub(dt)
             if clicked_timer.lte(0) {
-                clicked_note = 0.sub(1)
+                clicked_note = -1
             }
         }
 
@@ -432,7 +432,7 @@ main := proc() {
                 mut bg := 50
                 mut bb := 50
                 mut acc_match := 0
-                if row.eq(0) { acc_match = 0.sub(1) }
+                if row.eq(0) { acc_match = -1 }
                 if row.eq(1) { acc_match = 0 }
                 if row.eq(2) { acc_match = 1 }
                 if col.to_i64().eq(sel_diatonic).and(acc_match.eq(sel_accidental)) {
@@ -530,7 +530,7 @@ main := proc() {
         }
 
         // Piano roll
-        mut active_chrom := 0.sub(1)
+        mut active_chrom := -1
         mut active_oct := 0
         if clicked_note.gte(0) {
             ref ac : I64 = sc_chrom.get(clicked_note.to_u64())

@@ -77,8 +77,8 @@ gen_captures := proc(mut board: Array, idx: I64, side: I64,
 
     // Directions: men move in 2 diagonal forward directions, kings in all 4
     // Red (side=1) moves up (dr=-1), Black (side=2) moves down (dr=+1)
-    DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
-    DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
+    DIAG_R := array("I64", -1, -1, 1, 1)
+    DIAG_C := array("I64", -1, 1, -1, 1)
 
     for di in 0..4 {
         // Men can only capture forward... actually in standard checkers
@@ -117,8 +117,8 @@ gen_simple_moves := proc(mut board: Array, idx: I64, side: I64,
     c := idx.mod(8)
     mut count := 0
 
-    DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
-    DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
+    DIAG_R := array("I64", -1, -1, 1, 1)
+    DIAG_C := array("I64", -1, 1, -1, 1)
 
     for di in 0..4 {
         ref dr : I64 = DIAG_R.get(di)
@@ -129,7 +129,7 @@ gen_simple_moves := proc(mut board: Array, idx: I64, side: I64,
         if is_king(piece) {
             allowed = true
         } else {
-            if side.eq(1).and(dr.eq(0.sub(1))) { allowed = true }
+            if side.eq(1).and(dr.eq(-1)) { allowed = true }
             if side.eq(2).and(dr.eq(1)) { allowed = true }
         }
 
@@ -297,7 +297,7 @@ checkers_ab := proc(mut board: Array, side: I64, depth: I64,
 
                     mut child := Array.new("I64", 8, 64)
                     copy_board(child, board)
-                    execute_move(child, i.to_i64(), dest_val, 0.sub(1))
+                    execute_move(child, i.to_i64(), dest_val, -1)
 
                     opp := 3.sub(side)
                     score := 0.sub(checkers_ab(child, opp, depth.sub(1),
@@ -331,7 +331,7 @@ main := proc() {
 
     // Game state
     mut turn := 1           // 1=red, 2=black
-    mut selected := 0.sub(1)
+    mut selected := -1
     mut valid_moves := Array.new("I64", 8, 64)
     mut valid_jumped := Array.new("I64", 8, 64)
     mut valid_count := 0
@@ -339,7 +339,7 @@ main := proc() {
     mut vs_ai := 0          // 0=menu, 1=two player, 2=vs AI (player=red)
     mut ai_timer := 0
     mut must_capture := false
-    mut multi_jump_idx := 0.sub(1)  // piece doing multi-jump chain (-1=none)
+    mut multi_jump_idx := -1  // piece doing multi-jump chain (-1=none)
     mut red_caps := 0
     mut black_caps := 0
 
@@ -371,13 +371,13 @@ main := proc() {
                     board.set(i, own init_p.clone())
                 }
                 turn = 1
-                selected = 0.sub(1)
+                selected = -1
                 valid_count = 0
                 game_over = 0
                 vs_ai = 0
                 ai_timer = 0
                 must_capture = false
-                multi_jump_idx = 0.sub(1)
+                multi_jump_idx = -1
                 red_caps = 0
                 black_caps = 0
             }
@@ -431,18 +431,18 @@ main := proc() {
                             if more.gt(0).and(was_promoted.not()) {
                                 multi_jump_idx = bd_val
                             } else {
-                                multi_jump_idx = 0.sub(1)
+                                multi_jump_idx = -1
                                 turn = 1
-                                selected = 0.sub(1)
+                                selected = -1
                                 valid_count = 0
                                 if has_legal_moves(board, 1, tmp_moves, tmp_jumped).not() {
                                     game_over = 2
                                 }
                             }
                         } else {
-                            multi_jump_idx = 0.sub(1)
+                            multi_jump_idx = -1
                             turn = 1
-                            selected = 0.sub(1)
+                            selected = -1
                             valid_count = 0
                         }
                     } else {
@@ -473,7 +473,7 @@ main := proc() {
                                         ref md : I64 = tmp_moves.get(mj)
                                         ai_pieces.set(ai_total.to_u64(), own ai.to_i64().clone())
                                         ai_dests.set(ai_total.to_u64(), own md.clone())
-                                        ai_jumps.set(ai_total.to_u64(), own 0.sub(1))
+                                        ai_jumps.set(ai_total.to_u64(), own -1)
                                         ai_total = ai_total.add(1)
                                     }
                                 }
@@ -530,7 +530,7 @@ main := proc() {
                                     multi_jump_idx = to_val
                                 } else {
                                     turn = 1
-                                    selected = 0.sub(1)
+                                    selected = -1
                                     valid_count = 0
                                     if has_legal_moves(board, 1, tmp_moves, tmp_jumped).not() {
                                         game_over = 2
@@ -538,7 +538,7 @@ main := proc() {
                                 }
                             } else {
                                 turn = 1
-                                selected = 0.sub(1)
+                                selected = -1
                                 valid_count = 0
                                 if has_legal_moves(board, 1, tmp_moves, tmp_jumped).not() {
                                     game_over = 2
@@ -605,10 +605,10 @@ main := proc() {
                                             valid_count = more
                                         } else {
                                             // End of chain
-                                            multi_jump_idx = 0.sub(1)
+                                            multi_jump_idx = -1
                                             opp := 3.sub(turn)
                                             turn = opp
-                                            selected = 0.sub(1)
+                                            selected = -1
                                             valid_count = 0
                                             if has_legal_moves(board, turn, tmp_moves, tmp_jumped).not() {
                                                 if turn.eq(1) { game_over = 2 }
@@ -623,7 +623,7 @@ main := proc() {
                             if selected.gte(0) {
                                 // Check if click is a valid move destination
                                 mut is_valid := false
-                                mut found_ji := 0.sub(1)
+                                mut found_ji := -1
                                 for vi in 0..valid_count.to_u64() {
                                     ref vm : I64 = valid_moves.get(vi)
                                     if vm.eq(click_idx) {
@@ -634,7 +634,7 @@ main := proc() {
 
                                 if is_valid {
                                     // Execute the move
-                                    mut jmp_val := 0.sub(1)
+                                    mut jmp_val := -1
                                     if must_capture {
                                         ref jm : I64 = valid_jumped.get(found_ji.to_u64())
                                         jmp_val = jm.clone()
@@ -665,9 +665,9 @@ main := proc() {
                                         } else {
                                             opp := 3.sub(turn)
                                             turn = opp
-                                            selected = 0.sub(1)
+                                            selected = -1
                                             valid_count = 0
-                                            multi_jump_idx = 0.sub(1)
+                                            multi_jump_idx = -1
                                             if has_legal_moves(board, turn, tmp_moves, tmp_jumped).not() {
                                                 if turn.eq(1) { game_over = 2 }
                                                 else { game_over = 1 }
@@ -676,9 +676,9 @@ main := proc() {
                                     } else {
                                         opp := 3.sub(turn)
                                         turn = opp
-                                        selected = 0.sub(1)
+                                        selected = -1
                                         valid_count = 0
-                                        multi_jump_idx = 0.sub(1)
+                                        multi_jump_idx = -1
                                         if has_legal_moves(board, turn, tmp_moves, tmp_jumped).not() {
                                             if turn.eq(1) { game_over = 2 }
                                             else { game_over = 1 }
@@ -695,7 +695,7 @@ main := proc() {
                                             valid_count = gen_simple_moves(board, click_idx, turn, valid_moves)
                                         }
                                     } else {
-                                        selected = 0.sub(1)
+                                        selected = -1
                                         valid_count = 0
                                     }
                                 }

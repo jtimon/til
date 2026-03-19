@@ -72,8 +72,8 @@ copy_board := proc(mut dst: Array, mut src: Array) {
 is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool {
     // Check knight attacks
     mut ki := 0
-    KN_DR := array("I64", 0.sub(2), 0.sub(2), 0.sub(1), 0.sub(1), 1, 1, 2, 2)
-    KN_DC := array("I64", 0.sub(1), 1, 0.sub(2), 2, 0.sub(2), 2, 0.sub(1), 1)
+    KN_DR := array("I64", -2, -2, -1, -1, 1, 1, 2, 2)
+    KN_DC := array("I64", -1, 1, -2, 2, -2, 2, -1, 1)
     while ki.lt(8) {
         ref dr : I64 = KN_DR.get(ki.to_u64())
         ref dc : I64 = KN_DC.get(ki.to_u64())
@@ -88,9 +88,9 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     }
 
     // Check king attacks (adjacent squares)
-    mut kki := 0.sub(1)
+    mut kki := -1
     while kki.lte(1) {
-        mut kkj := 0.sub(1)
+        mut kkj := -1
         while kkj.lte(1) {
             if kki.eq(0).and(kkj.eq(0)).not() {
                 nr := r.add(kki)
@@ -109,7 +109,7 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     // Check pawn attacks
     pawn_piece := by_side.mul(6).add(1)
     // White pawns attack upward (row decreases), black downward (row increases)
-    mut pawn_dr := 0.sub(1)
+    mut pawn_dr := -1
     if by_side.eq(1) { pawn_dr = 1 }
     // Pawn attacks from the pawn's position, so a pawn on (r+pawn_dr, c+-1) attacks (r,c)
     // But we want: is square (r,c) attacked by a pawn?
@@ -129,8 +129,8 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     }
 
     // Check rook/queen attacks (straight lines)
-    DIRS_R := array("I64", 0.sub(1), 1, 0, 0)
-    DIRS_C := array("I64", 0, 0, 0.sub(1), 1)
+    DIRS_R := array("I64", -1, 1, 0, 0)
+    DIRS_C := array("I64", 0, 0, -1, 1)
     mut di := 0
     while di.lt(4) {
         ref sdr : I64 = DIRS_R.get(di.to_u64())
@@ -156,8 +156,8 @@ is_attacked := func(mut board: Array, r: I64, c: I64, by_side: I64) returns Bool
     }
 
     // Check bishop/queen attacks (diagonals)
-    DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
-    DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
+    DIAG_R := array("I64", -1, -1, 1, 1)
+    DIAG_C := array("I64", -1, 1, -1, 1)
     mut bi := 0
     while bi.lt(4) {
         ref bdr : I64 = DIAG_R.get(bi.to_u64())
@@ -193,7 +193,7 @@ find_king := func(mut board: Array, side: I64) returns I64 {
         if p.eq(king_piece) { return i }
         i = i.add(1)
     }
-    return 0.sub(1)
+    return -1
 }
 
 // Check if side is in check
@@ -244,7 +244,7 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 
     if pt.eq(1) {
         // Pawn
-        mut dir := 0.sub(1)
+        mut dir := -1
         mut start_row := 6
         if side.eq(1) {
             dir = 1
@@ -276,7 +276,7 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 
         // Captures (diagonal)
         if nr.gte(0).and(nr.lt(8)) {
-            mut cap_dc := 0.sub(1)
+            mut cap_dc := -1
             while cap_dc.lte(1) {
                 nc := c.add(cap_dc)
                 if nc.gte(0).and(nc.lt(8)).and(cap_dc.neq(0)) {
@@ -321,8 +321,8 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 
     if pt.eq(2) {
         // Knight
-        KN_DR := array("I64", 0.sub(2), 0.sub(2), 0.sub(1), 0.sub(1), 1, 1, 2, 2)
-        KN_DC := array("I64", 0.sub(1), 1, 0.sub(2), 2, 0.sub(2), 2, 0.sub(1), 1)
+        KN_DR := array("I64", -2, -2, -1, -1, 1, 1, 2, 2)
+        KN_DC := array("I64", -1, 1, -2, 2, -2, 2, -1, 1)
         mut ki := 0
         while ki.lt(8) {
             ref dr : I64 = KN_DR.get(ki.to_u64())
@@ -344,8 +344,8 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 
     if pt.eq(3).or(pt.eq(5)) {
         // Bishop or Queen (diagonals)
-        DIAG_R := array("I64", 0.sub(1), 0.sub(1), 1, 1)
-        DIAG_C := array("I64", 0.sub(1), 1, 0.sub(1), 1)
+        DIAG_R := array("I64", -1, -1, 1, 1)
+        DIAG_C := array("I64", -1, 1, -1, 1)
         mut di := 0
         while di.lt(4) {
             ref sdr : I64 = DIAG_R.get(di.to_u64())
@@ -381,8 +381,8 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 
     if pt.eq(4).or(pt.eq(5)) {
         // Rook or Queen (straight lines)
-        DIRS_R := array("I64", 0.sub(1), 1, 0, 0)
-        DIRS_C := array("I64", 0, 0, 0.sub(1), 1)
+        DIRS_R := array("I64", -1, 1, 0, 0)
+        DIRS_C := array("I64", 0, 0, -1, 1)
         mut di := 0
         while di.lt(4) {
             ref sdr : I64 = DIRS_R.get(di.to_u64())
@@ -417,9 +417,9 @@ gen_moves := proc(mut board: Array, mut tmp: Array, idx: I64, side: I64,
 
     if pt.eq(6) {
         // King
-        mut kki := 0.sub(1)
+        mut kki := -1
         while kki.lte(1) {
-            mut kkj := 0.sub(1)
+            mut kkj := -1
             while kkj.lte(1) {
                 if kki.eq(0).and(kkj.eq(0)).not() {
                     nr := r.add(kki)
@@ -517,7 +517,7 @@ execute_move := proc(mut board: Array, from: I64, to: I64, side: I64,
     from_c := from.mod(8)
     to_r := to.div(8)
     to_c := to.mod(8)
-    mut new_ep := 0.sub(1)
+    mut new_ep := -1
 
     cf_off := side.mul(3)
     if mpt.eq(6) {
@@ -685,10 +685,10 @@ main := proc() {
 
     // Game state
     mut turn := 0       // 0=white, 1=black
-    mut selected := 0.sub(1) // selected square index (-1 = none)
+    mut selected := -1 // selected square index (-1 = none)
     mut game_over := 0  // 0=playing, 1=checkmate, 2=stalemate
-    mut winner := 0.sub(1)
-    mut ep_col := 0.sub(1)   // en passant target column (-1 = none)
+    mut winner := -1
+    mut ep_col := -1   // en passant target column (-1 = none)
     mut vs_ai := 0      // 0=menu, 1=two player, 2=vs AI (player is white)
     mut ai_timer := 0
 
@@ -741,11 +741,11 @@ main := proc() {
                     i = i.add(1)
                 }
                 turn = 0
-                selected = 0.sub(1)
+                selected = -1
                 valid_count = 0
                 game_over = 0
-                winner = 0.sub(1)
-                ep_col = 0.sub(1)
+                winner = -1
+                ep_col = -1
                 vs_ai = 0
                 ai_timer = 0
             }
@@ -817,7 +817,7 @@ main := proc() {
 
                         // Switch turn
                         turn = 0
-                        selected = 0.sub(1)
+                        selected = -1
                         valid_count = 0
 
                         // Check for checkmate/stalemate
@@ -925,13 +925,13 @@ main := proc() {
                                 if mpt.eq(1).and(to_r.sub(from_r).abs().eq(2)) {
                                     ep_col = from_c
                                 } else {
-                                    ep_col = 0.sub(1)
+                                    ep_col = -1
                                 }
 
                                 // Switch turn
                                 opp := 1.sub(turn)
                                 turn = opp
-                                selected = 0.sub(1)
+                                selected = -1
                                 valid_count = 0
 
                                 // Check for checkmate/stalemate
@@ -950,7 +950,7 @@ main := proc() {
                                     selected = click_idx
                                     valid_count = gen_moves(board, tmp_board, click_idx, turn, valid_moves, ep_col, castle_flags)
                                 } else {
-                                    selected = 0.sub(1)
+                                    selected = -1
                                     valid_count = 0
                                 }
                             }

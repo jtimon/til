@@ -26,9 +26,9 @@ main := proc() {
     // P2 state
     mut body2 := Array.new("I64", 8, max_len.to_u64())
     mut snake_len2 := 3
-    mut dx2 := 0.sub(1)
+    mut dx2 := -1
     mut dy2 := 0
-    mut next_dx2 := 0.sub(1)
+    mut next_dx2 := -1
     mut next_dy2 := 0
 
     mut frame := 0
@@ -65,9 +65,9 @@ main := proc() {
                 body.set(2, own p1y.mul(cols).add(center_x.sub(2)))
                 // P2: lower third, going left
                 p2y := rows.mul(2).div(3)
-                dx2 = 0.sub(1)
+                dx2 = -1
                 dy2 = 0
-                next_dx2 = 0.sub(1)
+                next_dx2 = -1
                 next_dy2 = 0
                 snake_len2 = 3
                 body2.set(0, own p2y.mul(cols).add(center_x))
@@ -114,23 +114,23 @@ main := proc() {
             if is_key_pressed(87).or(two_player.not().and(is_key_pressed(265))) {
                 if dy.eq(1).not() {
                     next_dx = 0
-                    next_dy = 0.sub(1)
+                    next_dy = -1
                 }
             }
             if is_key_pressed(83).or(two_player.not().and(is_key_pressed(264))) {
-                if dy.eq(0.sub(1)).not() {
+                if dy.eq(-1).not() {
                     next_dx = 0
                     next_dy = 1
                 }
             }
             if is_key_pressed(65).or(two_player.not().and(is_key_pressed(263))) {
                 if dx.eq(1).not() {
-                    next_dx = 0.sub(1)
+                    next_dx = -1
                     next_dy = 0
                 }
             }
             if is_key_pressed(68).or(two_player.not().and(is_key_pressed(262))) {
-                if dx.eq(0.sub(1)).not() {
+                if dx.eq(-1).not() {
                     next_dx = 1
                     next_dy = 0
                 }
@@ -141,23 +141,23 @@ main := proc() {
                 if is_key_pressed(265) {
                     if dy2.eq(1).not() {
                         next_dx2 = 0
-                        next_dy2 = 0.sub(1)
+                        next_dy2 = -1
                     }
                 }
                 if is_key_pressed(264) {
-                    if dy2.eq(0.sub(1)).not() {
+                    if dy2.eq(-1).not() {
                         next_dx2 = 0
                         next_dy2 = 1
                     }
                 }
                 if is_key_pressed(263) {
                     if dx2.eq(1).not() {
-                        next_dx2 = 0.sub(1)
+                        next_dx2 = -1
                         next_dy2 = 0
                     }
                 }
                 if is_key_pressed(262) {
-                    if dx2.eq(0.sub(1)).not() {
+                    if dx2.eq(-1).not() {
                         next_dx2 = 1
                         next_dy2 = 0
                     }

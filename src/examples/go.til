@@ -235,7 +235,7 @@ try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
 
     // Must be empty
     ref cur : I64 = tmp.get(idx.to_u64())
-    if cur.neq(0) { return 0.sub(1) }
+    if cur.neq(0) { return -1 }
 
     // Place stone
     tmp.set(idx.to_u64(), own color.clone())
@@ -310,13 +310,13 @@ try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     if own_libs.eq(0) {
         // Suicide — undo placement (caller's tmp is now dirty, but that's OK
         // because caller will discard it)
-        return 0.sub(1)
+        return -1
     }
 
     // Check ko
     if has_ko {
         if boards_equal(tmp, ko_board, total) {
-            return 0.sub(1)
+            return -1
         }
     }
 
@@ -527,7 +527,7 @@ main := proc() {
     mut black_score := 0
     mut white_score := 0
     mut ai_timer := 0
-    mut last_move := 0.sub(1)
+    mut last_move := -1
     mut has_ko := false
     mut move_num := 0
 
@@ -564,7 +564,7 @@ main := proc() {
                     black_score = 0
                     white_score = 0
                     ai_timer = 0
-                    last_move = 0.sub(1)
+                    last_move = -1
                     has_ko = false
                     move_num = 0
                 }
@@ -601,7 +601,7 @@ main := proc() {
                         if board_size.lte(9) { go_depth = GO_DEPTH_SMALL }
 
                         // Try each empty intersection, evaluate with alpha-beta
-                        mut best_move := 0.sub(1)
+                        mut best_move := -1
                         mut best_score := 0.sub(AB_INF)
                         mut ai_moved := false
 
@@ -641,7 +641,7 @@ main := proc() {
                             // AI passes
                             pass_count = pass_count.add(1)
                             has_ko = false
-                            last_move = 0.sub(1)
+                            last_move = -1
                             turn = 1
                             if pass_count.gte(2) {
                                 game_over = true
@@ -663,7 +663,7 @@ main := proc() {
                         if is_key_pressed(80) {
                             pass_count = pass_count.add(1)
                             has_ko = false
-                            last_move = 0.sub(1)
+                            last_move = -1
                             if turn.eq(1) { turn = 2 } else { turn = 1 }
                             if pass_count.gte(2) {
                                 game_over = true

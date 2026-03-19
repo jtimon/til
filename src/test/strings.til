@@ -84,9 +84,9 @@ test_find := test() {
     assert_eq(__LOC__, "hello world".find("world"), 6)
     assert_eq(__LOC__, "hello".find("ell"), 1)
     assert_eq(__LOC__, "hello".find("hello"), 0)
-    assert_eq(__LOC__, "hello".find("xyz"), 0.sub(1))
-    assert_eq(__LOC__, "hello".find(""), 0.sub(1))
-    assert_eq(__LOC__, "".find("a"), 0.sub(1))
+    assert_eq(__LOC__, "hello".find("xyz"), -1)
+    assert_eq(__LOC__, "hello".find(""), -1)
+    assert_eq(__LOC__, "".find("a"), -1)
     assert_eq(__LOC__, "aaa".find("a"), 0)
     assert_eq(__LOC__, "abcabc".find("bc"), 1)
 }
@@ -95,8 +95,8 @@ test_rfind := test() {
     assert_eq(__LOC__, "abcabc".rfind("bc"), 4)
     assert_eq(__LOC__, "abcabc".rfind("a"), 3)
     assert_eq(__LOC__, "hello".rfind("ell"), 1)
-    assert_eq(__LOC__, "hello".rfind("xyz"), 0.sub(1))
-    assert_eq(__LOC__, "hello".rfind(""), 0.sub(1))
+    assert_eq(__LOC__, "hello".rfind("xyz"), -1)
+    assert_eq(__LOC__, "hello".rfind(""), -1)
     assert_eq(__LOC__, "aaa".rfind("a"), 2)
 }
 
@@ -140,8 +140,8 @@ test_to_i64 := test() {
     assert_eq(__LOC__, "42".to_i64(), 42)
     assert_eq(__LOC__, "0".to_i64(), 0)
     assert_eq(__LOC__, "123456".to_i64(), 123456)
-    assert_eq(__LOC__, "-7".to_i64(), 0.sub(7))
-    assert_eq(__LOC__, "-100".to_i64(), 0.sub(100))
+    assert_eq(__LOC__, "-7".to_i64(), -7)
+    assert_eq(__LOC__, "-100".to_i64(), -100)
 }
 
 test_split := test() {

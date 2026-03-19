@@ -116,7 +116,7 @@ main := proc() {
             mx := get_mouse_x()
             my := get_mouse_y()
             if my.gte(PIANO_Y) {
-                mut mouse_note := 0.sub(1)
+                mut mouse_note := -1
                 // Check black keys first (they're on top)
                 if my.lt(PIANO_Y.add(BLACK_H)) {
                     for oct in 0..3 {
@@ -157,7 +157,7 @@ main := proc() {
                 // Add note event
                 ev_note.set(ev_head.to_u64(), own i.to_i64().clone())
                 ev_start.set(ev_head.to_u64(), own timer.clone())
-                ev_end.set(ev_head.to_u64(), own 0.sub(1))
+                ev_end.set(ev_head.to_u64(), own -1)
                 ev_head = ev_head.add(1).mod(MAX_NOTES)
                 if ev_count.lt(MAX_NOTES) {
                     ev_count = ev_count.add(1)
@@ -172,7 +172,7 @@ main := proc() {
                     idx := ev_head.sub(1).sub(j.to_i64()).add(MAX_NOTES).mod(MAX_NOTES)
                     ref en : I64 = ev_note.get(idx.to_u64())
                     ref ee : I64 = ev_end.get(idx.to_u64())
-                    if en.eq(i.to_i64()).and(ee.eq(0.sub(1))) {
+                    if en.eq(i.to_i64()).and(ee.eq(-1)) {
                         ev_end.set(idx.to_u64(), own timer.clone())
                         break
                     }

@@ -1236,7 +1236,7 @@ Expr * parse_func_def(Parser * p) {
                         (void)_t3310;
                         Array_set(_va63, &(U64){_t3309}, _t3310);
                         ;
-                        Str *_t3311 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:198:69", 64ULL);
+                        Str *_t3311 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:198:63", 64ULL);
                         (void)_t3311;
                         panic(_t3311, _va63);
                         Str_delete(_t3311, &(Bool){1});
