@@ -1,5 +1,10 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #79 Type aliases for structs, enums, primitives, and function signatures
+  ~MyAlias := ExistingType~ creates a type alias when ExistingType is
+  a known struct, enum, primitive, or FuncSig type. Tests in
+  structs.til, enums.til, fn_ptr.til, misc.til.
+
 * FIXED #73 Replace #ifndef guards with #pragma once
   All src/c/ headers now use ~#pragma once~ instead of
   ~#ifndef/#define/#endif~ guards, matching bootstrap convention.
