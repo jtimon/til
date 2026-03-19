@@ -362,13 +362,17 @@
 
     One ~_til_lib_init~ constructor, one header chain, no collisions.
 
-*** General approach (per module)
-    1. ~make self_diff~ → read the diff
-    2. Classify each difference: *semantic/interface* vs *bikeshedding*
-    3. Fix semantic/interface differences one at a time
-    4. Compatibility commit: copy generated per-module .c into src/c/
-    5. Swap commit: delete src/c/ file, switch SRCS + includes
-    6. Repeat for next module
+*** General approach (per module) — incremental method
+    1. Create empty ~XX.til~ with ~mode lib~ and ~import~ of previous module
+    2. Wire it into ~modes.til~ import chain
+    3. Move structs/enums from ~XX.h~ to ~XX.til~ one at a time
+    4. Move functions from ~XX.c~ to ~XX.til~ one at a time
+    5. Each migration is a small commit with ~make clean && make test~
+    6. When ~XX.c~ is empty, delete it
+
+    This replaces the previous big-bang approach (write whole .til,
+    align, compatibility commit, swap). No pressure to finish a module
+    in one session — work can be interleaved with other tasks.
 
 *** Compatibility commit pattern (step 4)
     Before the actual swap, verify the generated code is compatible
@@ -448,6 +452,23 @@
    - Stale bootstrap/ast* and bootstrap/lexer* files removed
    - own UFCS tests fixed (#88)
    - Bridge: til.til no longer link_c's parser.c
+
+*** WIP Step 6: Replace C initer with til (incremental)
+   New approach: instead of writing the whole .til module, aligning it,
+   and doing a big swap, add an empty initer.til to the import chain
+   and migrate structs/functions one at a time. Each migration is a
+   small, testable commit. When initer.c is empty, delete it.
+
+   Import chain: ~modes.til → initer.til → parser.til → lexer.til~
+
+   Done:
+   - TypeBinding struct moved to initer.til
+   - TypeScope struct moved to initer.til
+   - Auto-generated clone/delete replaces hand-written no-ops
+
+   Remaining: all functions still in initer.c. Functions use nullable
+   pointers (~TypeScope *parent~, ~TypeBinding *b~ with NULL checks)
+   which need thought for til translation.
 
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from
