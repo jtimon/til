@@ -1,0 +1,262 @@
+# Auto-generated methods (initer.c)
+#
+# The initer auto-generates namespace methods for structs and enums
+# when the user hasn't defined them. All generation is skipped if the
+# method already exists in the namespace: section.
+#
+# Source of truth: src/c/initer.c
+
+* Structs
+
+** clone := func(val: T) returns T
+   Deep-copies all instance fields. ref fields are copied as pointers
+   (shared). own fields are cloned recursively. FuncPtr fields are
+   copied directly (no clone). Skipped for core ext_structs (C side
+   provides clone).
+
+** delete := proc(own self: T, call_free: Bool = true)
+   Frees all instance fields. own fields call Type.delete(field, true).
+   Non-own compound fields call Type.delete(field, false) (cleanup
+   without freeing the pointer). ref and FuncPtr fields are skipped.
+   Calls free(own self) when call_free is true.
+
+** size := func() returns U64
+   Returns the struct's total_struct_size (computed from field layout
+   with alignment padding). Skipped for core ext_structs (they define
+   size in core.til). For enums: 4 bytes (simple) or 8 bytes (payload).
+
+* Enums
+
+** eq := func(self: E, other: E) returns Bool
+   Tag comparison. For payload variants, also compares payloads via
+   their type's eq method. FuncPtr payloads use tag-only comparison.
+
+** clone := func(self: E) returns E
+   Payload variants: clone the payload via get_Variant + constructor.
+   Simple variants: copy via eq check + constructor.
+
+** delete := proc(own self: E, call_free: Bool = true)
+   Calls free(own self) if call_free. Payload cleanup handled by free.
+
+** to_str := func(self: E) returns Str
+   Returns variant name as string. Payload variants append the
+   payload's to_str in parens: "Variant(payload)". FuncPtr payloads
+   use "Variant(func)".
+
+* Derived from cmp (structs and enums)
+
+  If a type has ~cmp := func(a: T, b: T) returns I64~, the following
+  are auto-generated (each skipped if already defined):
+
+** eq(a, b)  → a.cmp(b).eq(0)
+** neq(a, b) → a.eq(b).not()
+** lt(a, b)  → a.cmp(b).eq(-1)
+** gt(a, b)  → a.cmp(b).eq(1)
+** lte(a, b) → a.gt(b).not()
+** gte(a, b) → a.lt(b).not()
+
+* Derived from add+sub+unity (planned, #94)
+
+  If a type has ~add~ and ~unity~, auto-generate (if missing):
+** inc(mut self) → self = self.add(self.unity())
+
+  If a type has ~sub~ and ~unity~, auto-generate (if missing):
+** dec(mut self) → self = self.sub(self.unity())
+
+  Numeric ext_structs define their own inc/dec directly (C's ++/--).
+
+* Rangeable types (planned, #94)
+
+  A type is "rangeable" if it can be used with ~for i in a..b~.
+  Range is a collection with ~len~/~get~, same interface as Vec.
+
+  Required methods on the element type:
+
+  | Method | Used for                        | Can come from      |
+  |--------+---------------------------------+--------------------|
+  | ~inc~  | ascending iteration + counting  | add + unity (auto) |
+  | ~dec~  | descending iteration + counting | sub + unity (auto) |
+  | ~lte~  | direction check + stop condition| cmp (auto)         |
+
+  ~lte~ can come from ~cmp~ (auto-generated). ~inc~/~dec~ can come
+  from ~add~/~sub~ + ~unity~ (auto-generated). Or all can be defined
+  directly.
+
+  Range.new computes direction and count at construction:
+  - ~ascending~: ~start.lte(end)~
+  - ~count~: clone start, inc/dec toward end counting steps (O(n))
+  The count is stored as U64 and returned by ~len()~.
+
+  All numeric builtins (I64, U8, I16, I32, U32, U64) are rangeable
+  — they have all the required methods.
+
+** Example: builtin range
+
+   #+begin_src til
+   // I64 range (default for literals)
+   for i in 0..5 { ... }
+
+   // U32 range (inferred from count's type)
+   count : U32 = 10
+   for i in 0..count { ... }
+   #+end_src
+
+** Example: user-defined rangeable type (Vec2)
+
+   #+begin_src til
+   Vec2 := struct {
+       mut x : I64 = 0
+       mut y : I64 = 0
+   namespace:
+       add := func(a: Vec2, b: Vec2) returns Vec2 {
+           return Vec2(x = a.x.add(b.x), y = a.y.add(b.y))
+       }
+       sub := func(a: Vec2, b: Vec2) returns Vec2 {
+           return Vec2(x = a.x.sub(b.x), y = a.y.sub(b.y))
+       }
+       unity := func(self: Vec2) returns Vec2 { return Vec2(x = 1, y = 1) }
+       cmp := func(a: Vec2, b: Vec2) returns I64 {
+           // lexicographic ordering
+           if a.x.lt(b.x) { return -1 }
+           if a.x.gt(b.x) { return 1 }
+           return a.y.cmp(b.y)
+       }
+       to_str := func(self: Vec2) returns Str { return self.x.to_str() }
+   }
+   // Auto-generated from cmp: eq, neq, lt, gt, lte, gte
+   // Auto-generated from add/sub + unity: inc, dec
+   // Rangeable: has inc, dec, lte ✓
+
+   // Ascending: (0,0) → (1,1) → (2,2), count=3
+   test_range_vec2_ascending := test() {
+       mut sum := 0
+       for v : Vec2 in Vec2(x=0, y=0)..Vec2(x=3, y=3) {
+           sum = sum.add(v.x).add(v.y)
+       }
+       // (0,0)→0, (1,1)→2, (2,2)→4, total=6
+       assert_eq(__LOC__, sum, 6)
+   }
+
+   // Descending: (3,3) → (2,2) → (1,1), count=3
+   test_range_vec2_descending := test() {
+       mut sum := 0
+       for v : Vec2 in Vec2(x=3, y=3)..Vec2(x=0, y=0) {
+           sum = sum.add(v.x).add(v.y)
+       }
+       // (3,3)→6, (2,2)→4, (1,1)→2, total=12
+       assert_eq(__LOC__, sum, 12)
+   }
+   #+end_src
+
+** Range struct
+
+   Range stores its element dynamically and iterates via ~dyn_call~.
+   It implements the same ~len~/~get~ interface as Vec.
+
+   #+begin_src til
+   Range := struct {
+       mut len_val : U64 = 0
+       mut ascending := true
+       mut elem_type := ""
+       mut elem_size : USize = 0
+       own mut elem : U8 = 0    // current iteration value (raw bytes)
+
+   namespace:
+       new := proc(elem_type: Str, elem_size: USize,
+                   own start: Dynamic, own end: Dynamic) returns Range {
+           // Direction: start.lte(end)
+           ref asc : Bool = dyn_call_ret(elem_type, "lte", 2, start, end)
+
+           // Count steps by cloning start and inc/dec-ing toward end
+           mut count : U64 = 0
+           own tmp : Dynamic = dyn_call_ret(elem_type, "clone", 1, start)
+           if asc {
+               while dyn_call_ret(elem_type, "lt", 2, tmp, end) {
+                   dyn_call(elem_type, "inc", 1, tmp)
+                   count = count.add(1)
+               }
+           } else {
+               while dyn_call_ret(elem_type, "gt", 2, tmp, end) {
+                   dyn_call(elem_type, "dec", 1, tmp)
+                   count = count.add(1)
+               }
+           }
+           dyn_call(elem_type, "delete", 2, tmp, false)
+           free(own tmp)
+
+           // Store start as initial value
+           own buf : U8 = malloc(elem_size)
+           memcpy(buf, start, elem_size)
+           free(own start)
+           dyn_call(elem_type, "delete", 2, end, false)
+           free(own end)
+
+           return Range(len_val = count, ascending = asc,
+                        elem_type = elem_type.clone(), elem_size = elem_size,
+                        elem = buf)
+       }
+
+       len := func(self: Range) returns U64 { return self.len_val }
+
+       get := func(self: Range, shallow i: U64) returns ref Dynamic {
+           // i=0: return elem as-is (initialized to start)
+           // i>0: inc/dec before returning
+           if i.gt(0) {
+               if self.ascending {
+                   dyn_call(self.elem_type, "inc", 1, self.elem)
+               } else {
+                   dyn_call(self.elem_type, "dec", 1, self.elem)
+               }
+           }
+           return self.elem
+       }
+
+       clone := func(self: Range) returns Range {
+           own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, self.elem)
+           own buf : U8 = malloc(self.elem_size)
+           memcpy(buf, cloned, self.elem_size)
+           free(own cloned)
+           return Range(len_val = self.len_val, ascending = self.ascending,
+                        elem_type = self.elem_type.clone(),
+                        elem_size = self.elem_size, elem = buf)
+       }
+
+       delete := proc(own self: Range, call_free: Bool = true) {
+           dyn_call(self.elem_type, "delete", 2, self.elem, false)
+           free(own self.elem)
+           Str.delete(own self.elem_type, false)
+           if call_free { free(own self) }
+       }
+   }
+   #+end_src
+
+** Range element type inference
+
+   The typer infers the element type from the ~..~ operands:
+   - ~0..5~ → both literals → I64
+   - ~0..count~ where count : U32 → U32 (non-literal wins)
+   - ~0..v.len()~ where len returns USize → USize
+   - ~for i : I32 in -5..5~ → explicit annotation overrides
+
+   The typer transforms ~Range.new(start, end)~ to include type info:
+   ~Range.new("I64", I64.size(), own start, own end)~
+
+** Non-rangeable types
+
+   A type with ~inc~/~dec~ but no ~cmp~ (or ~lte~) cannot be used
+   with ~..~ ranges because direction and count can't be computed.
+   The type can still use inc/dec directly.
+
+   #+begin_src til
+   Counter := struct {
+       mut val : I64 = 0
+   namespace:
+       add := func(a: Counter, b: Counter) returns Counter {
+           return Counter(val = a.val.add(b.val))
+       }
+       unity := func(self: Counter) returns Counter { return Counter(val = 1) }
+   }
+   // Gets inc auto-generated (from add + unity)
+   // No cmp → no lte → NOT rangeable
+   // Can still call c.inc() directly
+   #+end_src
