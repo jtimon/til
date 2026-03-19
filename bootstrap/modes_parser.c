@@ -1,4 +1,4 @@
-#include "parser_parser.h"
+#include "modes_parser.h"
 
 Parser * Parser_clone(Parser * self) {
     (void)self;
@@ -176,7 +176,7 @@ Token * expect_token(Parser * p, TokenType * type) {
         (void)_t3079;
         Array_set(_va54, &(U64){_t3078}, _t3079);
         ;
-        Str *_t3080 = Str_lit("src/self/parser.til:34:15", 25ULL);
+        Str *_t3080 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:34:15", 63ULL);
         (void)_t3080;
         panic(_t3080, _va54);
         Str_delete(_t3080, &(Bool){1});
@@ -269,7 +269,7 @@ Str * expect_text(Parser * p, TokenType * type) {
         (void)_t3106;
         Array_set(_va55, &(U64){_t3105}, _t3106);
         ;
-        Str *_t3107 = Str_lit("src/self/parser.til:44:15", 25ULL);
+        Str *_t3107 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:44:15", 63ULL);
         (void)_t3107;
         panic(_t3107, _va55);
         Str_delete(_t3107, &(Bool){1});
@@ -824,7 +824,7 @@ Expr * parse_func_def(Parser * p) {
                                 (void)_t3227;
                                 Array_set(_va56, &(U64){_t3226}, _t3227);
                                 ;
-                                Str *_t3228 = Str_lit("src/self/parser.til:152:17", 26ULL);
+                                Str *_t3228 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:152:17", 64ULL);
                                 (void)_t3228;
                                 panic(_t3228, _va56);
                                 Str_delete(_t3228, &(Bool){1});
@@ -1079,7 +1079,7 @@ Expr * parse_func_def(Parser * p) {
                     (void)_t3258;
                     Array_set(_va57, &(U64){_t3257}, _t3258);
                     ;
-                    Str *_t3259 = Str_lit("src/self/parser.til:182:27", 26ULL);
+                    Str *_t3259 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:182:27", 64ULL);
                     (void)_t3259;
                     panic(_t3259, _va57);
                     Str_delete(_t3259, &(Bool){1});
@@ -1117,7 +1117,7 @@ Expr * parse_func_def(Parser * p) {
                     (void)_t3264;
                     Array_set(_va58, &(U64){_t3263}, _t3264);
                     ;
-                    Str *_t3265 = Str_lit("src/self/parser.til:186:27", 26ULL);
+                    Str *_t3265 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:186:27", 64ULL);
                     (void)_t3265;
                     panic(_t3265, _va58);
                     Str_delete(_t3265, &(Bool){1});
@@ -1155,7 +1155,7 @@ Expr * parse_func_def(Parser * p) {
                     (void)_t3270;
                     Array_set(_va59, &(U64){_t3269}, _t3270);
                     ;
-                    Str *_t3271 = Str_lit("src/self/parser.til:189:27", 26ULL);
+                    Str *_t3271 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:189:27", 64ULL);
                     (void)_t3271;
                     panic(_t3271, _va59);
                     Str_delete(_t3271, &(Bool){1});
@@ -1201,7 +1201,7 @@ Expr * parse_func_def(Parser * p) {
                         (void)_t3293;
                         Array_set(_va60, &(U64){_t3292}, _t3293);
                         ;
-                        Str *_t3294 = Str_lit("src/self/parser.til:197:35", 26ULL);
+                        Str *_t3294 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:197:35", 64ULL);
                         (void)_t3294;
                         panic(_t3294, _va60);
                         Str_delete(_t3294, &(Bool){1});
@@ -1224,7 +1224,7 @@ Expr * parse_func_def(Parser * p) {
                         (void)_t3299;
                         Array_set(_va61, &(U64){_t3298}, _t3299);
                         ;
-                        Str *_t3300 = Str_lit("src/self/parser.til:198:35", 26ULL);
+                        Str *_t3300 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:198:35", 64ULL);
                         (void)_t3300;
                         panic(_t3300, _va61);
                         Str_delete(_t3300, &(Bool){1});
@@ -1247,7 +1247,7 @@ Expr * parse_func_def(Parser * p) {
                         (void)_t3305;
                         Array_set(_va62, &(U64){_t3304}, _t3305);
                         ;
-                        Str *_t3306 = Str_lit("src/self/parser.til:199:39", 26ULL);
+                        Str *_t3306 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:199:39", 64ULL);
                         (void)_t3306;
                         panic(_t3306, _va62);
                         Str_delete(_t3306, &(Bool){1});
@@ -1284,7 +1284,7 @@ Expr * parse_func_def(Parser * p) {
                         (void)_t3311;
                         Array_set(_va63, &(U64){_t3310}, _t3311);
                         ;
-                        Str *_t3312 = Str_lit("src/self/parser.til:200:69", 26ULL);
+                        Str *_t3312 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:200:69", 64ULL);
                         (void)_t3312;
                         panic(_t3312, _va63);
                         Str_delete(_t3312, &(Bool){1});
@@ -1322,7 +1322,7 @@ Expr * parse_func_def(Parser * p) {
                         (void)_t3317;
                         Array_set(_va64, &(U64){_t3316}, _t3317);
                         ;
-                        Str *_t3318 = Str_lit("src/self/parser.til:202:27", 26ULL);
+                        Str *_t3318 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:202:27", 64ULL);
                         (void)_t3318;
                         panic(_t3318, _va64);
                         Str_delete(_t3318, &(Bool){1});
@@ -1447,7 +1447,7 @@ Expr * parse_func_def(Parser * p) {
             (void)_t3349;
             Array_set(_va65, &(U64){_t3348}, _t3349);
             ;
-            Str *_t3350 = Str_lit("src/self/parser.til:229:19", 26ULL);
+            Str *_t3350 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:229:19", 64ULL);
             (void)_t3350;
             panic(_t3350, _va65);
             Str_delete(_t3350, &(Bool){1});
@@ -1599,7 +1599,7 @@ Expr * parse_func_def(Parser * p) {
             (void)_t3401;
             Array_set(_va66, &(U64){_t3400}, _t3401);
             ;
-            Str *_t3402 = Str_lit("src/self/parser.til:263:19", 26ULL);
+            Str *_t3402 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:263:19", 64ULL);
             (void)_t3402;
             panic(_t3402, _va66);
             Str_delete(_t3402, &(Bool){1});
@@ -2746,7 +2746,7 @@ Expr * parse_expression(Parser * p) {
         (void)_t3664;
         Array_set(_va68, &(U64){_t3663}, _t3664);
         ;
-        Str *_t3665 = Str_lit("src/self/parser.til:522:15", 26ULL);
+        Str *_t3665 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:522:15", 64ULL);
         (void)_t3665;
         panic(_t3665, _va68);
         Str_delete(_t3665, &(Bool){1});
@@ -3962,7 +3962,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
     (void)_t3972;
     Array_set(_va69, &(U64){_t3971}, _t3972);
     ;
-    Str *_t3973 = Str_lit("src/self/parser.til:786:11", 26ULL);
+    Str *_t3973 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:786:11", 64ULL);
     (void)_t3973;
     panic(_t3973, _va69);
     Str_delete(_t3973, &(Bool){1});
@@ -4553,7 +4553,7 @@ Expr * parse_statement(Parser * p) {
                 (void)_t4091;
                 Array_set(_va70, &(U64){_t4090}, _t4091);
                 ;
-                Str *_t4092 = Str_lit("src/self/parser.til:920:23", 26ULL);
+                Str *_t4092 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:920:23", 64ULL);
                 (void)_t4092;
                 panic(_t4092, _va70);
                 Str_delete(_t4092, &(Bool){1});
@@ -4708,7 +4708,7 @@ Expr * parse_statement(Parser * p) {
     (void)_t4153;
     Array_set(_va71, &(U64){_t4152}, _t4153);
     ;
-    Str *_t4154 = Str_lit("src/self/parser.til:947:11", 26ULL);
+    Str *_t4154 = Str_lit("/home/jt/sync/data_common/code/jt/til/src/self/parser.til:947:11", 64ULL);
     (void)_t4154;
     panic(_t4154, _va71);
     Str_delete(_t4154, &(Bool){1});

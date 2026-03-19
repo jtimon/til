@@ -416,11 +416,12 @@
     modes.til is the top of the import chain — it imports the next
     module down, which imports the next, etc:
 
-    ~modes.til → parser.til → ast.til → lexer.til → core.til~
+    ~modes.til → parser.til → lexer.til~ (+ core.til auto-prepended,
+    which imports ast.til)
 
     When a new module is ported (e.g. initer), change modes.til's
     import to point to it: ~import("initer.til")~ (initer imports
-    parser, parser imports ast, etc.). SRCS stays the same —
+    parser, parser imports lexer, etc.). SRCS stays the same —
     always ~bootstrap/modes.c~, no Makefile changes.
 
     One ~_til_lib_init~ constructor, one header chain, no collisions.
@@ -494,45 +495,23 @@
    - Vec_take moved to initer.h declaration
    - #76 fixed: shallow Vec_clone corrupted struct defaults
 
-*** WIP Step 5: Replace C parser with til-compiled parser
-   Diff: 5586 lines (~make self_diff~). Mostly bikeshedding.
-   parser.c functions already non-static. count/pos already U32.
+*** DONE Step 5: Replace C parser with til-compiled parser
+   parser.til is now part of the modes.til import chain.
+   src/c/parser.c and src/c/parser.h deleted.
 
-   Completed semantic blockers:
-   - DONE Parser path: ~Str *path~ → ~Str path~ (value). ~80 sites.
-   - DONE Parser tokens: ~Token *tokens~ → ~Vec tokens~. peek/advance
-     use Vec_get. parse() takes ~Vec *~, count removed.
-     Bridge: ~til_tokenize~ returns ~Vec *~, ~til_tok_count~ deleted.
-   - DONE parse() mode_out: ~Str **~ → ~Str *~ (mutable reference).
-     Empty Str = no mode. ~_last_parsed_mode~ is value, not pointer.
-   - DONE expect renamed to expect_token (matches parser.c).
-
-   Also done (beyond parser, same unification pass):
-   - DONE interpret(): ~U32 argc, char **argv~ → ~Vec *argv~.
-     ~interpret_v~ deleted, ~til_interpret~ (unused) deleted.
-
-   Remaining semantic blocker:
-   - check/expect_token signatures: ~TokenType_tag~ → ~TokenType *~. ~100 sites (#85). DONE.
-
-   Also done (bridge elimination):
-   - DONE til.til calls tokenize/parse directly (lexer clones token text)
-   - DONE 8 pipeline passthroughs removed (init_declarations, type_check, etc.)
-   - DONE expr_null/expr_is_null eliminated (no null modes, default script)
-   - DONE expr_set_core replaced with direct field access
-   - DONE Mode fields visible in ext_struct, direct field access
-   - DONE Mode helpers moved from bridge to modes.c, then 13 dead getters removed
-   - DONE Bool types fixed (bool→Bool, I64→U32 line/col)
-   - DONE const removed from Mode * (matches generated code, see #70)
-   - DONE modes.til translating in til_core
-   - DONE typer fix: Map/Set literal size() typed U64 not I64
-
-   DONE: modes.c → modes.til swap complete. See #77 for details.
-
-   Already bikeshedding (tolerable):
-   - println via Array vs printf/fprintf
-   - Hoisted temps, (void) casts
-   - Bool_not(x) vs !x
-   - TokenType_eq() vs tag == comparison
+   Semantic blockers fixed:
+   - Parser path/tokens/mode_out signatures aligned
+   - check/expect_token signatures aligned (#85)
+   - shallow Bool/U32 annotations for return types and params
+   - expect_token returns ref Token, pos U32→U64, count removed
+   - nparam set in all FuncDef creation sites
+   - NULL keyword handling (KwNull/LiteralNull)
+   - param_defaults Vec → Map<Str, Expr> (eliminates NULL sentinels)
+   - param_fn_sigs eliminated (synthetic type names for anonymous Fn)
+   - ast.til moved to src/core/ (Expr.size() available in FunctionDef)
+   - Stale bootstrap/ast* and bootstrap/lexer* files removed
+   - own UFCS tests fixed (#88)
+   - Bridge: til.til no longer link_c's parser.c
 
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from

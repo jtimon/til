@@ -142,5 +142,6 @@ typedef enum {
 } TokenType_tag;
 typedef struct TokenType TokenType;
 typedef struct Token Token;
+typedef struct Parser Parser;
 typedef struct Mode Mode;
 

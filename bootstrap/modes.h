@@ -141,6 +141,7 @@ typedef enum {
 } TokenType_tag;
 typedef struct TokenType TokenType;
 typedef struct Token Token;
+typedef struct Parser Parser;
 typedef struct Mode Mode;
 
 typedef struct StructDef {
@@ -229,6 +230,14 @@ typedef struct Token {
     U32 line;
     U32 col;
 } Token;
+
+
+typedef struct Parser {
+    Vec tokens;
+    U64 pos;
+    Str path;
+    Vec fn_sig_decls;
+} Parser;
 
 
 typedef struct Mode {
@@ -478,6 +487,26 @@ Bool * is_alnum(U8 * c);
 Str * tok_name(TokenType * type);
 TokenType * lookup_keyword(Str * word);
 Vec * tokenize(Str * src, Str * path);
+Parser * Parser_clone(Parser * self);
+void Parser_delete(Parser * self, Bool * call_free);
+U64 * Parser_size(void);
+Token * peek(Parser * p);
+Token * advance(Parser * p);
+Bool check(Parser * p, TokenType * type);
+Token * expect_token(Parser * p, TokenType * type);
+Str * expect_text(Parser * p, TokenType * type);
+U32 peek_line(Parser * p);
+U32 peek_col(Parser * p);
+Str * parse_fn_signature(Parser * p, U32 line, U32 col);
+Expr * parse_block(Parser * p);
+Expr * parse_func_def(Parser * p);
+Expr * parse_struct_def(Parser * p);
+Expr * parse_enum_def(Parser * p);
+Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col);
+Expr * parse_expression(Parser * p);
+Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own);
+Expr * parse_statement(Parser * p);
+Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 Bool * Mode_eq(Mode * a, Mode * b);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);

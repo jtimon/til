@@ -1,7 +1,6 @@
 mode cli
 
 // Link C modules
-link_c("src/c/parser.c")
 link_c("src/c/initer.c")
 link_c("src/c/typer.c")
 link_c("src/c/interpreter.c")

@@ -1,8 +1,8 @@
 #pragma once
-#include "parser_decls.h"
+#include "modes_decls.h"
 
-#include "parser_vec.h"
-#include "parser_str.h"
+#include "modes_vec.h"
+#include "modes_str.h"
 
 typedef struct Parser {
     Vec tokens;
