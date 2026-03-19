@@ -519,9 +519,23 @@ test_shallow := test() {
 
 USize := U64
 
+add_usize := func(a: USize, b: USize) returns USize {
+    return a.add(b)
+}
+
+make_vec_usize := func(n: USize) returns Vec {
+    return Vec.new("U64", n)
+}
+
 test_primitive_type_alias := test() {
     x : USize = 42
     assert_eq(__LOC__, x.to_i64(), 42)
     y : USize = 100
     assert_eq(__LOC__, x.add(y).to_i64(), 142)
+    // Alias in function params and return type
+    assert_eq(__LOC__, add_usize(3, 7).to_i64(), 10)
+    // Alias used with container
+    mut v := make_vec_usize(I64.size())
+    v.push(own 42)
+    assert_eq(__LOC__, v.len().to_i64(), 1)
 }

@@ -181,9 +181,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             if (current_mode && current_mode->is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
                 type_error(e, "proc not allowed in pure mode");
             TypeScope *func_scope = tscope_new(scope);
+            // Resolve return type alias
+            if (e->data.data.FuncDef.return_type.count > 0)
+                e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
             // Bind parameters
             for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
                 Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(U64){(U64)(i)});
+                _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
                 Str *ptn = &_pi->ptype;
                 TilType pt = type_from_name(ptn, scope);
                 if (pt.tag == TilType_TAG_Unknown) {
