@@ -33,8 +33,6 @@ I64 I64_mod(I64 a, I64 b) { return (b == 0) ? 0 : a % b; }
 I64 I64_and(I64 a, I64 b) { return a & b; }
 I64 I64_or(I64 a, I64 b) { return a | b; }
 I64 I64_xor(I64 a, I64 b) { return a ^ b; }
-I64 I64_inc(I64 a) { return a + 1; }
-I64 I64_dec(I64 a) { return a - 1; }
 
 // I64 comparisons
 Bool I64_eq(I64 a, I64 b) { return a == b; }
@@ -50,8 +48,6 @@ U8 U8_mod(U8 a, U8 b) { return (b == 0) ? 0 : (U8)(a % b); }
 U8 U8_and(U8 a, U8 b) { return a & b; }
 U8 U8_or(U8 a, U8 b) { return a | b; }
 U8 U8_xor(U8 a, U8 b) { return a ^ b; }
-U8 U8_inc(U8 a) { return a + 1; }
-U8 U8_dec(U8 a) { return a - 1; }
 
 // U8 comparisons
 Bool U8_eq(U8 a, U8 b) { return a == b; }
@@ -82,8 +78,6 @@ I16 I16_mod(I16 a, I16 b) { return (b == 0) ? 0 : (I16)(a % b); }
 I16 I16_and(I16 a, I16 b) { return a & b; }
 I16 I16_or(I16 a, I16 b) { return a | b; }
 I16 I16_xor(I16 a, I16 b) { return a ^ b; }
-I16 I16_inc(I16 a) { return a + 1; }
-I16 I16_dec(I16 a) { return a - 1; }
 
 // I16 comparisons
 Bool I16_eq(I16 a, I16 b) { return a == b; }
@@ -119,8 +113,6 @@ I32 I32_mod(I32 a, I32 b) { return (b == 0) ? 0 : a % b; }
 I32 I32_and(I32 a, I32 b) { return a & b; }
 I32 I32_or(I32 a, I32 b) { return a | b; }
 I32 I32_xor(I32 a, I32 b) { return a ^ b; }
-I32 I32_inc(I32 a) { return a + 1; }
-I32 I32_dec(I32 a) { return a - 1; }
 
 // I32 comparisons
 Bool I32_eq(I32 a, I32 b) { return a == b; }
@@ -189,8 +181,6 @@ U32 U32_mod(U32 a, U32 b) { return (b == 0) ? 0 : a % b; }
 U32 U32_and(U32 a, U32 b) { return a & b; }
 U32 U32_or(U32 a, U32 b) { return a | b; }
 U32 U32_xor(U32 a, U32 b) { return a ^ b; }
-U32 U32_inc(U32 a) { return a + 1; }
-U32 U32_dec(U32 a) { return a - 1; }
 
 // U32 comparisons
 Bool U32_eq(U32 a, U32 b) { return a == b; }
@@ -215,8 +205,6 @@ U64 U64_mod(U64 a, U64 b) { return (b == 0) ? 0 : a % b; }
 U64 U64_and(U64 a, U64 b) { return a & b; }
 U64 U64_or(U64 a, U64 b) { return a | b; }
 U64 U64_xor(U64 a, U64 b) { return a ^ b; }
-U64 U64_inc(U64 a) { return a + 1; }
-U64 U64_dec(U64 a) { return a - 1; }
 
 // U64 comparisons
 Bool U64_eq(U64 a, U64 b) { return a == b; }

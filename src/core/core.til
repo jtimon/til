@@ -24,8 +24,9 @@ namespace:
     mul := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     div := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     mod := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    inc := ext_func(shallow a: U8) returns shallow U8 {}
-    dec := ext_func(shallow a: U8) returns shallow U8 {}
+    inc := proc(mut self: U8) { self = self.add(1) }
+    dec := proc(mut self: U8) { self = self.sub(1) }
+    unity := func(self: U8) returns U8 { return 1.to_u8() }
     eq := ext_func(shallow a: U8, shallow b: U8) returns shallow Bool {}
     cmp := ext_func(shallow a: U8, shallow b: U8) returns shallow I64 {}
     and := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
@@ -47,8 +48,9 @@ namespace:
     mul := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     div := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     mod := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
-    inc := ext_func(shallow a: I16) returns shallow I16 {}
-    dec := ext_func(shallow a: I16) returns shallow I16 {}
+    inc := proc(mut self: I16) { self = self.add(1) }
+    dec := proc(mut self: I16) { self = self.sub(1) }
+    unity := func(self: I16) returns I16 { return 1.to_i16() }
     eq := ext_func(shallow a: I16, shallow b: I16) returns shallow Bool {}
     cmp := ext_func(shallow a: I16, shallow b: I16) returns shallow I64 {}
     neg := func(a: I16) returns I16 { return 0.sub(a.to_i64()).to_i16() }
@@ -72,8 +74,9 @@ namespace:
     mul := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     div := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     mod := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    inc := ext_func(shallow a: I32) returns shallow I32 {}
-    dec := ext_func(shallow a: I32) returns shallow I32 {}
+    inc := proc(mut self: I32) { self = self.add(1) }
+    dec := proc(mut self: I32) { self = self.sub(1) }
+    unity := func(self: I32) returns I32 { return 1.to_i32() }
     eq := ext_func(shallow a: I32, shallow b: I32) returns shallow Bool {}
     cmp := ext_func(shallow a: I32, shallow b: I32) returns shallow I64 {}
     neg := func(a: I32) returns I32 { return 0.sub(a.to_i64()).to_i32() }
@@ -116,8 +119,9 @@ namespace:
     mul := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     div := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     mod := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    inc := ext_func(shallow a: U32) returns shallow U32 {}
-    dec := ext_func(shallow a: U32) returns shallow U32 {}
+    inc := proc(mut self: U32) { self = self.add(1) }
+    dec := proc(mut self: U32) { self = self.sub(1) }
+    unity := func(self: U32) returns U32 { return 1.to_u32() }
     eq := ext_func(shallow a: U32, shallow b: U32) returns shallow Bool {}
     cmp := ext_func(shallow a: U32, shallow b: U32) returns shallow I64 {}
     and := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
@@ -144,8 +148,9 @@ namespace:
     mul := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     div := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     mod := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
-    inc := ext_func(shallow a: U64) returns shallow U64 {}
-    dec := ext_func(shallow a: U64) returns shallow U64 {}
+    inc := proc(mut self: U64) { self = self.add(1) }
+    dec := proc(mut self: U64) { self = self.sub(1) }
+    unity := func(self: U64) returns U64 { return 1.to_u64() }
     eq := ext_func(shallow a: U64, shallow b: U64) returns shallow Bool {}
     cmp := ext_func(shallow a: U64, shallow b: U64) returns shallow I64 {}
     and := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
@@ -205,8 +210,9 @@ namespace:
     mul := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     div := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     mod := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
-    inc := ext_func(shallow a: I64) returns shallow I64 {}
-    dec := ext_func(shallow a: I64) returns shallow I64 {}
+    inc := proc(mut self: I64) { self = self.add(1) }
+    dec := proc(mut self: I64) { self = self.sub(1) }
+    unity := func(self: I64) returns I64 { return 1 }
     eq := ext_func(shallow a: I64, shallow b: I64) returns shallow Bool {}
     cmp := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     neg := func(a: I64) returns I64 { return 0.sub(a) }
