@@ -9,10 +9,9 @@ Set := struct {
 
 namespace:
     new := func(elem_type: Str, elem_size: USize) returns Set {
-        if elem_type.is_empty().not() {
-            if dyn_has_method(elem_type, "cmp").not() {
-                panic(__LOC__, "Set.new: type ", elem_type, " must implement cmp")
-            }
+        if elem_type.is_empty() { panic(__LOC__, "Set.new: elem_type required") }
+        if dyn_has_method(elem_type, "cmp").not() {
+            panic(__LOC__, "Set.new: type ", elem_type, " must implement cmp")
         }
         return Set(data = malloc(elem_size), cap = 1,
                    elem_size = elem_size, elem_type = elem_type)

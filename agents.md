@@ -12,6 +12,13 @@ When the user tells you to do something, DO IT. Do not analyze the order. Do not
 
 When the user says "show me the code", use the Read tool to show the actual code. Do not paraphrase it, do not explain it, do not summarize it. Show the code.
 
+## Debugging
+
+When a build or test fails, READ THE ERROR MESSAGE. Do not guess what
+the error might be. Do not retry without reading. Do not revert changes
+hoping the error goes away. Read the actual error output (from
+tmp/build.log or tmp/test.log), understand what it says, THEN fix it.
+
 ## File Editing
 
 ALWAYS read a file before writing or editing it. No exceptions. If you haven't read it in this conversation, read it first. The Edit tool will error if you don't, but don't rely on that — make it a habit.

@@ -8,6 +8,7 @@ Array := struct {
 
 namespace:
     new := func(elem_type: Str, elem_size: USize, cap: USize) returns Array {
+        if elem_type.is_empty() { panic(__LOC__, "Array.new: elem_type required") }
         return Array(data = calloc(cap, elem_size), cap = cap,
                      elem_size = elem_size, elem_type = elem_type)
     }

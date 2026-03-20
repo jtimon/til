@@ -12,10 +12,9 @@ Map := struct {
 
 namespace:
     new := func(key_type: Str, key_size: USize, val_type: Str, val_size: USize) returns Map {
-        if key_type.is_empty().not() {
-            if dyn_has_method(key_type, "cmp").not() {
-                panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
-            }
+        if key_type.is_empty() { panic(__LOC__, "Map.new: key_type required") }
+        if dyn_has_method(key_type, "cmp").not() {
+            panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
         }
         return Map(key_data = malloc(key_size), val_data = malloc(val_size),
                    cap = 1, key_size = key_size, key_type = key_type,
