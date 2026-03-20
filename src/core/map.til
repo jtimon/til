@@ -9,6 +9,11 @@ Map := struct {
     key_type := ""
     val_size : USize = 0
     val_type := ""
+    key_clone : CloneFn = default_clone
+    key_delete : DeleteFn = default_delete
+    key_cmp : CmpFn = default_cmp
+    val_clone : CloneFn = default_clone
+    val_delete : DeleteFn = default_delete
 
 namespace:
     new := func(key_type: Str, key_size: USize, val_type: Str, val_size: USize) returns Map {
@@ -16,9 +21,22 @@ namespace:
         if dyn_has_method(key_type, "cmp").not() {
             panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
         }
+        if val_type.is_empty() {
+            return Map(key_data = malloc(key_size), val_data = malloc(val_size),
+                       cap = 1, key_size = key_size, key_type = key_type,
+                       val_size = val_size, val_type = val_type,
+                       key_clone = dyn_fn(key_type, "clone"),
+                       key_delete = dyn_fn(key_type, "delete"),
+                       key_cmp = dyn_fn(key_type, "cmp"))
+        }
         return Map(key_data = malloc(key_size), val_data = malloc(val_size),
                    cap = 1, key_size = key_size, key_type = key_type,
-                   val_size = val_size, val_type = val_type)
+                   val_size = val_size, val_type = val_type,
+                   key_clone = dyn_fn(key_type, "clone"),
+                   key_delete = dyn_fn(key_type, "delete"),
+                   key_cmp = dyn_fn(key_type, "cmp"),
+                   val_clone = dyn_fn(val_type, "clone"),
+                   val_delete = dyn_fn(val_type, "delete"))
     }
 
     len := func(self: Map) returns USize { return self.count }
@@ -28,7 +46,7 @@ namespace:
         mut hi := self.count
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = dyn_call_ret(self.key_type, "cmp", 2,
+            own c : I64 = self.key_cmp(
                           ptr_add(self.key_data, mid.mul(self.key_size)), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -44,7 +62,7 @@ namespace:
         mut hi := self.count
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = dyn_call_ret(self.key_type, "cmp", 2,
+            own c : I64 = self.key_cmp(
                           ptr_add(self.key_data, mid.mul(self.key_size)), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -62,7 +80,7 @@ namespace:
         mut found := false
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = dyn_call_ret(self.key_type, "cmp", 2,
+            own c : I64 = self.key_cmp(
                           ptr_add(self.key_data, mid.mul(self.key_size)), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -72,11 +90,11 @@ namespace:
         }
         if found {
             if self.key_type.is_empty().not() {
-                dyn_call(self.key_type, "delete", 2, key, false)
+                self.key_delete(key, false)
             }
             free(own key)
             if self.val_type.is_empty().not() {
-                dyn_call(self.val_type, "delete", 2,
+                self.val_delete(
                           ptr_add(self.val_data, lo.mul(self.val_size)), false)
             }
             memcpy(ptr_add(self.val_data, lo.mul(self.val_size)), val, self.val_size)
@@ -105,13 +123,13 @@ namespace:
     delete := proc(own self: Map, call_free: Bool = true) {
         if self.key_type.is_empty().not() {
             for i in 0..self.count {
-                dyn_call(self.key_type, "delete", 2,
+                self.key_delete(
                           ptr_add(self.key_data, i.mul(self.key_size)), false)
             }
         }
         if self.val_type.is_empty().not() {
             for i in 0..self.count {
-                dyn_call(self.val_type, "delete", 2,
+                self.val_delete(
                           ptr_add(self.val_data, i.mul(self.val_size)), false)
             }
         }
@@ -130,11 +148,11 @@ namespace:
         own new_keys : U8 = malloc(self.cap.mul(self.key_size))
         own new_vals : U8 = malloc(self.cap.mul(self.val_size))
         for i in 0..self.count {
-            own ck : Dynamic = dyn_call_ret(self.key_type, "clone", 1,
+            own ck : Dynamic = self.key_clone(
                      ptr_add(self.key_data, i.mul(self.key_size)))
             memcpy(ptr_add(new_keys, i.mul(self.key_size)), ck, self.key_size)
             free(own ck)
-            own cv : Dynamic = dyn_call_ret(self.val_type, "clone", 1,
+            own cv : Dynamic = self.val_clone(
                      ptr_add(self.val_data, i.mul(self.val_size)))
             memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
             free(own cv)
@@ -142,6 +160,9 @@ namespace:
         return Map(key_data = new_keys, val_data = new_vals,
                    count = self.count, cap = self.cap,
                    key_size = self.key_size, key_type = self.key_type,
-                   val_size = self.val_size, val_type = self.val_type)
+                   val_size = self.val_size, val_type = self.val_type,
+                   key_clone = self.key_clone, key_delete = self.key_delete,
+                   key_cmp = self.key_cmp,
+                   val_clone = self.val_clone, val_delete = self.val_delete)
     }
 }

@@ -458,6 +458,13 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u64(count));
     write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u64(elem_size));
     write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
+    // Populate FuncPtr fields (#91)
+    Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
+    Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
+    Value *clone_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"clone", .count = 5});
+    Value *delete_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"delete", .count = 6});
+    if (clone_fn) write_field(si, find_field_decl(cached_array_def, &fn_ec), *clone_fn);
+    if (delete_fn) write_field(si, find_field_decl(cached_array_def, &fn_ed), *delete_fn);
 
     r->type = VAL_STRUCT;
     r->instance = si;
@@ -509,6 +516,13 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u64(cap));
     write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u64(elem_size));
     write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
+    // Populate FuncPtr fields (#91)
+    Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
+    Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
+    Value *clone_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"clone", .count = 5});
+    Value *delete_fn = ns_get(type_name, &(Str){.c_str = (U8 *)"delete", .count = 6});
+    if (clone_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ec), *clone_fn);
+    if (delete_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ed), *delete_fn);
 
     r->type = VAL_STRUCT;
     r->instance = si;

@@ -1292,6 +1292,13 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
     write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u64(count));
     write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u64(esz));
+    // Populate FuncPtr fields (#91)
+    Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
+    Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
+    Value *clone_fn = ns_get(elem_type, &(Str){.c_str = (U8 *)"clone", .count = 5});
+    Value *delete_fn = ns_get(elem_type, &(Str){.c_str = (U8 *)"delete", .count = 6});
+    if (clone_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ec), *clone_fn);
+    if (delete_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ed), *delete_fn);
     write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)elem_type->c_str, elem_type->count));
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }

@@ -193,6 +193,8 @@ typedef struct Vec {
     U64 cap;
     U64 elem_size;
     Str elem_type;
+    void * elem_clone;
+    void * elem_delete;
 } Vec;
 
 
@@ -323,6 +325,8 @@ typedef struct Array {
     U64 cap;
     U64 elem_size;
     Str elem_type;
+    void * elem_clone;
+    void * elem_delete;
 } Array;
 
 
@@ -335,6 +339,11 @@ typedef struct Map {
     Str key_type;
     U64 val_size;
     Str val_type;
+    void * key_clone;
+    void * key_delete;
+    void * key_cmp;
+    void * val_clone;
+    void * val_delete;
 } Map;
 
 
@@ -344,6 +353,9 @@ typedef struct Set {
     U64 cap;
     U64 elem_size;
     Str elem_type;
+    void * elem_clone;
+    void * elem_delete;
+    void * elem_cmp;
 } Set;
 
 

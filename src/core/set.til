@@ -6,6 +6,9 @@ Set := struct {
     mut cap : USize = 0
     elem_size : USize = 0
     elem_type := ""
+    elem_clone : CloneFn = default_clone
+    elem_delete : DeleteFn = default_delete
+    elem_cmp : CmpFn = default_cmp
 
 namespace:
     new := func(elem_type: Str, elem_size: USize) returns Set {
@@ -14,7 +17,10 @@ namespace:
             panic(__LOC__, "Set.new: type ", elem_type, " must implement cmp")
         }
         return Set(data = malloc(elem_size), cap = 1,
-                   elem_size = elem_size, elem_type = elem_type)
+                   elem_size = elem_size, elem_type = elem_type,
+                   elem_clone = dyn_fn(elem_type, "clone"),
+                   elem_delete = dyn_fn(elem_type, "delete"),
+                   elem_cmp = dyn_fn(elem_type, "cmp"))
     }
 
     len := func(self: Set) returns USize { return self.count }
@@ -24,7 +30,7 @@ namespace:
         mut hi := self.count
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = dyn_call_ret(self.elem_type, "cmp", 2,
+            own c : I64 = self.elem_cmp(
                           ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -41,7 +47,7 @@ namespace:
         mut found := false
         while lo.lt(hi) {
             own mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = dyn_call_ret(self.elem_type, "cmp", 2,
+            own c : I64 = self.elem_cmp(
                           ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -51,7 +57,7 @@ namespace:
         }
         if found {
             if self.elem_type.is_empty().not() {
-                dyn_call(self.elem_type, "delete", 2, val, false)
+                self.elem_delete(val, false)
             }
             free(own val)
         } else {
@@ -72,7 +78,7 @@ namespace:
     delete := proc(own self: Set, call_free: Bool = true) {
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {
-                dyn_call(self.elem_type, "delete", 2,
+                self.elem_delete(
                           ptr_add(self.data, i.mul(self.elem_size)), false)
             }
         }
@@ -86,12 +92,14 @@ namespace:
     clone := func(self: Set) returns Set {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.count {
-            own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1,
+            own cloned : Dynamic = self.elem_clone(
                          ptr_add(self.data, i.mul(self.elem_size)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
         }
         return Set(data = new_data, count = self.count, cap = self.cap,
-                   elem_size = self.elem_size, elem_type = self.elem_type)
+                   elem_size = self.elem_size, elem_type = self.elem_type,
+                   elem_clone = self.elem_clone, elem_delete = self.elem_delete,
+                   elem_cmp = self.elem_cmp)
     }
 }

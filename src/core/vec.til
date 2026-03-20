@@ -6,11 +6,19 @@ Vec := struct {
     mut cap : USize = 0
     elem_size : USize = 0
     elem_type := ""
+    elem_clone : CloneFn = default_clone
+    elem_delete : DeleteFn = default_delete
 
 namespace:
     new := func(elem_type: Str, elem_size: USize) returns Vec {
+        if elem_type.is_empty() {
+            return Vec(data = malloc(elem_size), cap = 1,
+                       elem_size = elem_size, elem_type = elem_type)
+        }
         return Vec(data = malloc(elem_size), cap = 1,
-                   elem_size = elem_size, elem_type = elem_type)
+                   elem_size = elem_size, elem_type = elem_type,
+                   elem_clone = dyn_fn(elem_type, "clone"),
+                   elem_delete = dyn_fn(elem_type, "delete"))
     }
 
     len := func(self: Vec) returns USize { return self.count }
@@ -36,7 +44,7 @@ namespace:
     delete := proc(own self: Vec, call_free: Bool = true) {
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {
-                dyn_call(self.elem_type, "delete", 2, ptr_add(self.data, i.mul(self.elem_size)), false)
+                self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
             }
         }
         free(own self.data)
@@ -50,7 +58,7 @@ namespace:
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {
-                own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, ptr_add(self.data, i.mul(self.elem_size)))
+                own cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
                 memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
                 free(own cloned)
             }
@@ -58,7 +66,8 @@ namespace:
             memcpy(new_data, self.data, self.count.mul(self.elem_size))
         }
         return Vec(data = new_data, count = self.count, cap = self.cap,
-                   elem_size = self.elem_size, elem_type = self.elem_type)
+                   elem_size = self.elem_size, elem_type = self.elem_type,
+                   elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 }
 

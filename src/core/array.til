@@ -5,12 +5,16 @@ Array := struct {
     cap : USize = 0
     elem_size : USize = 0
     elem_type := ""
+    elem_clone : CloneFn = default_clone
+    elem_delete : DeleteFn = default_delete
 
 namespace:
     new := func(elem_type: Str, elem_size: USize, cap: USize) returns Array {
         if elem_type.is_empty() { panic(__LOC__, "Array.new: elem_type required") }
         return Array(data = calloc(cap, elem_size), cap = cap,
-                     elem_size = elem_size, elem_type = elem_type)
+                     elem_size = elem_size, elem_type = elem_type,
+                     elem_clone = dyn_fn(elem_type, "clone"),
+                     elem_delete = dyn_fn(elem_type, "delete"))
     }
 
     len := func(self: Array) returns USize { return self.cap }
@@ -28,14 +32,14 @@ namespace:
             panic(__LOC__, "Array.set: index ", i.to_str(),
                   " out of bounds (len ", self.cap.to_str(), ")")
         }
-        dyn_call(self.elem_type, "delete", 2, ptr_add(self.data, i.mul(self.elem_size)), false)
+        self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
         memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
         free(own val)
     }
 
     delete := proc(own self: Array, call_free: Bool = true) {
         for i in 0..self.cap {
-            dyn_call(self.elem_type, "delete", 2, ptr_add(self.data, i.mul(self.elem_size)), false)
+            self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
         }
         free(own self.data)
         Str.delete(own self.elem_type, false)
@@ -45,11 +49,12 @@ namespace:
     clone := func(self: Array) returns Array {
         own new_data : U8 = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.cap {
-            own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, ptr_add(self.data, i.mul(self.elem_size)))
+            own cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
         }
         return Array(data = new_data, cap = self.cap,
-                     elem_size = self.elem_size, elem_type = self.elem_type)
+                     elem_size = self.elem_size, elem_type = self.elem_type,
+                     elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 }

@@ -166,16 +166,22 @@
   - Builder indirect call codegen uses fn_sig for shallow detection
   - AlphaBeta refactoring (all 3 games) as proof of function pointer
     pattern on structs
+  - Interpreter blocker FIXED: FuncPtr field calls for ext_funcs
+  - FuncPtr fields added to Vec, Array, Set, Map in core.til
+  - Constructors resolve fn ptrs via ~dyn_fn~ (with is_empty guards
+    for empty elem_type/val_type)
+  - ~dyn_call~ replaced with direct field calls in delete/clone/cmp
+  - C-side handlers (~h_array~, ~h_vec~, ~build_argv_array~) populate
+    FuncPtr fields via ~ns_get~
+  - FuncPtr fields propagated in clone returns
 
-  Blocker (FIXED): interpreter now handles FuncPtr field calls for
-  ext_funcs. When ~eval_call~ sees a FuncPtr-typed FieldAccess callee
-  holding an ext_func, it reverse-looks-up the Expr* in ~ns_fields~ to
-  find the real flat name (e.g. ~I64_add~) instead of building a wrong
-  name from the field access context (e.g. ~Holder_op~).
+  Tuple still uses ~dyn_call~ (per-element types, different pattern).
 
-  Remaining: add FuncPtr fields to Vec/Map/Set/Array in core.til,
-  populate them via ~dyn_fn~ in constructors, replace ~dyn_call~ usage
-  in container methods with direct field calls.
+  Performance: no measurable improvement. The dyn_call string matching
+  overhead was replaced by larger struct sizes (Vec +16 bytes, Map +40,
+  Set +24, Array +16) which increase memory pressure and cache misses.
+  The tradeoff is roughly neutral — fewer comparisons but more bytes
+  per container instance throughout the program.
 
   No performance improvement observed — the dyn_call string matching
   overhead was apparently not a bottleneck in the test suite. The
