@@ -80,12 +80,6 @@
 
   Design documented in ~doc/auto.org~.
 
-** OPEN #93 Local struct, enum, and function definitions
-  Struct, enum, and function definitions inside function bodies don't
-  work — the builder emits them at file scope but the generated C
-  references them before their declaration. Currently all type
-  definitions must be at top level.
-
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
@@ -923,6 +917,12 @@
   interpreted, til compiled — all must produce identical results.
 
 * [0/19] Post
+** OPEN #93 Local struct, enum, and function definitions
+  Struct, enum, and function definitions inside function bodies don't
+  work — the builder emits them at file scope but the generated C
+  references them before their declaration. Currently all type
+  definitions must be at top level.
+
 ** OPEN #92 Bundle GL headers and linker scripts (zero apt deps)
   Bundle Mesa/Khronos GL headers (~lib/gl/include/~) and GNU ld linker
   scripts (~lib/system/libGL.so~, ~lib/system/libX11.so~) so that
