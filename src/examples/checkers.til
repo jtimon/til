@@ -215,13 +215,26 @@ count_pieces := func(mut board: Array, side: I64) returns I64 {
     return count
 }
 
-// Checkers evaluation relative to side (1=red, 2=black)
-// Man=1, King=3
-// Piece encoding: 0=empty, 1=red man, 2=red king, 3=black man, 4=black king
-checkers_eval := func(mut board: Array, side: I64) returns I64 {
+// Pack checkers state into Board: cells[0..63] + side
+// Layout: 64 * 8 bytes for cells + 8 bytes for side = 520 bytes
+checkers_pack := proc(mut b: Board, mut cells: Array, side: I64) {
+    memcpy(b.data.data, cells.data, 512)
+    memcpy(ptr_add(b.data.data, 512), side, 8)
+}
+
+checkers_unpack_side := func(b: Board) returns I64 {
+    ref s : I64 = ptr_add(b.data.data, 512)
+    return s.clone()
+}
+
+// Heuristic: material count relative to side
+checkers_heuristic : Heuristic = (b) {
+    ref cb : Board = b
+    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
+    side := checkers_unpack_side(cb)
     mut score := 0
     for i in 0..64 {
-        ref p : I64 = board.get(i)
+        ref p : I64 = cells.get(i)
         if p.eq(1) { score = score.add(1) }
         if p.eq(2) { score = score.add(3) }
         if p.eq(3) { score = score.sub(1) }
@@ -231,92 +244,68 @@ checkers_eval := func(mut board: Array, side: I64) returns I64 {
     return score
 }
 
-// Alpha-beta negamax search for checkers
-checkers_ab := proc(mut board: Array, side: I64, depth: I64,
-                     alpha: I64, beta: I64) returns I64 {
-    if depth.eq(0) {
-        return checkers_eval(board, side)
+// Recursively expand capture chains. Adds complete-turn boards to result.
+expand_jumps := proc(mut cells: Array, piece_pos: I64, side: I64,
+                      mut result: Vec, mut tmp_m: Array, mut tmp_j: Array) {
+    mc := gen_captures(cells, piece_pos, side, tmp_m, tmp_j)
+    if mc.eq(0) {
+        opp := 3.sub(side)
+        mut b := Board()
+        checkers_pack(b, cells, opp)
+        result.push(own b)
+        return
     }
+    for j in 0..mc.to_u64() {
+        ref dest : I64 = tmp_m.get(j)
+        ref jmp : I64 = tmp_j.get(j)
+        mut child := Array.new("I64", 8, 64)
+        copy_board(child, cells)
+        new_piece := execute_move(child, piece_pos, dest.clone(), jmp.clone())
+        ref orig : I64 = cells.get(piece_pos.to_u64())
+        mut was_promoted := false
+        if orig.eq(1).and(new_piece.eq(2)) { was_promoted = true }
+        if orig.eq(3).and(new_piece.eq(4)) { was_promoted = true }
+        if was_promoted {
+            opp := 3.sub(side)
+            mut b := Board()
+            checkers_pack(b, child, opp)
+            result.push(own b)
+        } else {
+            expand_jumps(child, dest.clone(), side, result, tmp_m, tmp_j)
+        }
+    }
+}
 
-    mut tmp_moves := Array.new("I64", 8, 64)
-    mut tmp_jumped := Array.new("I64", 8, 64)
-    mut best := 0.sub(AB_INF)
-    mut a := alpha
-    mut has_moves := false
-
-    // Check if captures are mandatory
-    must_capture := has_any_captures(board, side, tmp_moves, tmp_jumped)
-
+// Next boards: generate all complete turns (multi-jumps expanded)
+checkers_next_boards : NextBoardsFn = (b) {
+    ref cb : Board = b
+    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
+    side := checkers_unpack_side(cb)
+    result := Vec.new("Board", Board.size())
+    mut tmp_m := Array.new("I64", 8, 64)
+    mut tmp_j := Array.new("I64", 8, 64)
+    must_cap := has_any_captures(cells, side, tmp_m, tmp_j)
     for i in 0..64 {
-        ref p : I64 = board.get(i)
+        ref p : I64 = cells.get(i)
         if is_side(p, side) {
-            if must_capture {
-                mc := gen_captures(board, i.to_i64(), side, tmp_moves, tmp_jumped)
-                for j in 0..mc.to_u64() {
-                    ref dest : I64 = tmp_moves.get(j)
-                    ref jmp : I64 = tmp_jumped.get(j)
-                    dest_val := dest.clone()
-                    jmp_val := jmp.clone()
-                    has_moves = true
-
-                    mut child := Array.new("I64", 8, 64)
-                    copy_board(child, board)
-                    new_piece := execute_move(child, i.to_i64(), dest_val, jmp_val)
-
-                    // Check for multi-jump (same piece, must continue capturing)
-                    mut child_moves := Array.new("I64", 8, 64)
-                    mut child_jumped := Array.new("I64", 8, 64)
-                    more_caps := gen_captures(child, dest_val, side, child_moves, child_jumped)
-
-                    // If the piece was just promoted to king, no more jumps
-                    ref orig : I64 = board.get(i)
-                    mut was_promoted := false
-                    if orig.eq(1).and(new_piece.eq(2)) { was_promoted = true }
-                    if orig.eq(3).and(new_piece.eq(4)) { was_promoted = true }
-
-                    mut score := 0
-                    if more_caps.gt(0).and(was_promoted.not()) {
-                        // Continue jumping - evaluate from same side perspective
-                        score = checkers_ab(child, side, depth.sub(1), a, beta)
-                    } else {
-                        opp := 3.sub(side)
-                        score = 0.sub(checkers_ab(child, opp, depth.sub(1),
-                                       0.sub(beta), 0.sub(a)))
-                    }
-
-                    if score.gt(best) { best = score }
-                    if score.gt(a) { a = score }
-                    if a.gte(beta) { return best }
-                }
+            if must_cap {
+                expand_jumps(cells, i.to_i64(), side, result, tmp_m, tmp_j)
             } else {
-                mc := gen_simple_moves(board, i.to_i64(), side, tmp_moves)
+                mc := gen_simple_moves(cells, i.to_i64(), side, tmp_m)
                 for j in 0..mc.to_u64() {
-                    ref dest : I64 = tmp_moves.get(j)
-                    dest_val := dest.clone()
-                    has_moves = true
-
+                    ref dest : I64 = tmp_m.get(j)
                     mut child := Array.new("I64", 8, 64)
-                    copy_board(child, board)
-                    execute_move(child, i.to_i64(), dest_val, -1)
-
+                    copy_board(child, cells)
+                    execute_move(child, i.to_i64(), dest.clone(), -1)
                     opp := 3.sub(side)
-                    score := 0.sub(checkers_ab(child, opp, depth.sub(1),
-                                   0.sub(beta), 0.sub(a)))
-
-                    if score.gt(best) { best = score }
-                    if score.gt(a) { a = score }
-                    if a.gte(beta) { return best }
+                    mut nb := Board()
+                    checkers_pack(nb, child, opp)
+                    result.push(own nb)
                 }
             }
         }
     }
-
-    if has_moves.not() {
-        // No legal moves = loss
-        return 0.sub(AB_INF)
-    }
-
-    return best
+    return result
 }
 
 CHECKERS_DEPTH := 5
@@ -405,7 +394,10 @@ main := proc() {
                                 mut child := Array.new("I64", 8, 64)
                                 copy_board(child, board)
                                 execute_move(child, multi_jump_idx, dest.clone(), jmp.clone())
-                                score := 0.sub(checkers_ab(child, 1, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
+                                mut child_b := Board()
+                                checkers_pack(child_b, child, 1)
+                                ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards)
+                                score := 0.sub(AlphaBeta.search(ai, child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
                                 if score.gt(best_score) {
                                     best_score = score
                                     best_j = mj.to_i64()
@@ -496,7 +488,10 @@ main := proc() {
                                 copy_board(child, board)
                                 execute_move(child, from_val, to_val, jmp_val)
 
-                                score := 0.sub(checkers_ab(child, 1, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
+                                mut child_b := Board()
+                                checkers_pack(child_b, child, 1)
+                                ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards)
+                                score := 0.sub(AlphaBeta.search(ai, child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
 
                                 if score.gt(best_score) {
                                     best_score = score
