@@ -567,11 +567,13 @@ Bool * Bool_gte(Bool * a, Bool * b) {
 void println(Array * parts) {
     (void)parts;
     {
+        Array *_fc267 = Array_clone(parts);
+        (void)_fc267;
         U64 *_fi267 = malloc(sizeof(U64));
         *_fi267 = 0;
         (void)_fi267;
         while (1) {
-            U64 _t269; { U64 *_hp = (U64 *)Array_len(parts); _t269 = *_hp; free(_hp); }
+            U64 _t269; { U64 *_hp = (U64 *)Array_len(_fc267); _t269 = *_hp; free(_hp); }
             (void)_t269;
             Bool _wcond268; { Bool *_hp = (Bool *)U64_lt(_fi267, &(U64){_t269}); _wcond268 = *_hp; free(_hp); }
             (void)_wcond268;
@@ -582,7 +584,7 @@ void println(Array * parts) {
                 break;
             }
             ;
-            Str *s = Array_get(parts, _fi267);
+            Str *s = Array_get(_fc267, _fi267);
             (void)s;
             U64 _t270 = 1;
             (void)_t270;
@@ -593,6 +595,7 @@ void println(Array * parts) {
             ;
             print_single(s);
         }
+        Array_delete(_fc267, &(Bool){1});
         U64_delete(_fi267, &(Bool){1});
     }
     Array_delete(parts, &(Bool){1});
@@ -602,11 +605,13 @@ void println(Array * parts) {
 void print(Array * parts) {
     (void)parts;
     {
+        Array *_fc272 = Array_clone(parts);
+        (void)_fc272;
         U64 *_fi272 = malloc(sizeof(U64));
         *_fi272 = 0;
         (void)_fi272;
         while (1) {
-            U64 _t274; { U64 *_hp = (U64 *)Array_len(parts); _t274 = *_hp; free(_hp); }
+            U64 _t274; { U64 *_hp = (U64 *)Array_len(_fc272); _t274 = *_hp; free(_hp); }
             (void)_t274;
             Bool _wcond273; { Bool *_hp = (Bool *)U64_lt(_fi272, &(U64){_t274}); _wcond273 = *_hp; free(_hp); }
             (void)_wcond273;
@@ -617,7 +622,7 @@ void print(Array * parts) {
                 break;
             }
             ;
-            Str *s = Array_get(parts, _fi272);
+            Str *s = Array_get(_fc272, _fi272);
             (void)s;
             U64 _t275 = 1;
             (void)_t275;
@@ -628,6 +633,7 @@ void print(Array * parts) {
             ;
             print_single(s);
         }
+        Array_delete(_fc272, &(Bool){1});
         U64_delete(_fi272, &(Bool){1});
     }
     Array_delete(parts, &(Bool){1});
@@ -638,11 +644,13 @@ Str * format(Array * parts) {
     U64 total = 0;
     (void)total;
     {
+        Array *_fc277 = Array_clone(parts);
+        (void)_fc277;
         U64 *_fi277 = malloc(sizeof(U64));
         *_fi277 = 0;
         (void)_fi277;
         while (1) {
-            U64 _t279; { U64 *_hp = (U64 *)Array_len(parts); _t279 = *_hp; free(_hp); }
+            U64 _t279; { U64 *_hp = (U64 *)Array_len(_fc277); _t279 = *_hp; free(_hp); }
             (void)_t279;
             Bool _wcond278; { Bool *_hp = (Bool *)U64_lt(_fi277, &(U64){_t279}); _wcond278 = *_hp; free(_hp); }
             (void)_wcond278;
@@ -653,7 +661,7 @@ Str * format(Array * parts) {
                 break;
             }
             ;
-            Str *s = Array_get(parts, _fi277);
+            Str *s = Array_get(_fc277, _fi277);
             (void)s;
             U64 _t280 = 1;
             (void)_t280;
@@ -670,6 +678,7 @@ Str * format(Array * parts) {
             total = _t283;
             ;
         }
+        Array_delete(_fc277, &(Bool){1});
         U64_delete(_fi277, &(Bool){1});
     }
     U8 *buf = malloc(total);
@@ -678,11 +687,13 @@ Str * format(Array * parts) {
     *offset = 0;
     (void)offset;
     {
+        Array *_fc284 = Array_clone(parts);
+        (void)_fc284;
         U64 *_fi284 = malloc(sizeof(U64));
         *_fi284 = 0;
         (void)_fi284;
         while (1) {
-            U64 _t286; { U64 *_hp = (U64 *)Array_len(parts); _t286 = *_hp; free(_hp); }
+            U64 _t286; { U64 *_hp = (U64 *)Array_len(_fc284); _t286 = *_hp; free(_hp); }
             (void)_t286;
             Bool _wcond285; { Bool *_hp = (Bool *)U64_lt(_fi284, &(U64){_t286}); _wcond285 = *_hp; free(_hp); }
             (void)_wcond285;
@@ -693,7 +704,7 @@ Str * format(Array * parts) {
                 break;
             }
             ;
-            Str *s = Array_get(parts, _fi284);
+            Str *s = Array_get(_fc284, _fi284);
             (void)s;
             U64 _t287 = 1;
             (void)_t287;
@@ -716,6 +727,7 @@ Str * format(Array * parts) {
             *offset = _t292;
             ;
         }
+        Array_delete(_fc284, &(Bool){1});
         U64_delete(_fi284, &(Bool){1});
     }
     U64_delete(offset, &(Bool){1});

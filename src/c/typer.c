@@ -3437,13 +3437,26 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             I32 col = stmt->col;
             Str *path = &stmt->path;
 
-            // Unique index variable name
-            char idx_buf[32];
-            snprintf(idx_buf, sizeof(idx_buf), "_fi%d", hoist_counter++);
+            // Unique variable names
+            int counter = hoist_counter++;
+            char col_buf[32], idx_buf[32];
+            snprintf(col_buf, sizeof(col_buf), "_fc%d", counter);
+            snprintf(idx_buf, sizeof(idx_buf), "_fi%d", counter);
+            Str *col_name = Str_clone(&(Str){.c_str = (U8*)(col_buf), .count = (U64)strlen((const char*)(col_buf)), .cap = CAP_VIEW});
             Str *idx_name = Str_clone(&(Str){.c_str = (U8*)(idx_buf), .count = (U64)strlen((const char*)(idx_buf)), .cap = CAP_VIEW});
 
             // Outer block (anonymous scope)
             Expr *block = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+
+            // _fcN := iterable  (hoist iterable into temp, evaluated once)
+            Expr *col_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            col_decl->data.data.Decl.name = *col_name;
+            col_decl->data.data.Decl.is_mut = false;
+            col_decl->data.data.Decl.is_namespace = false;
+            col_decl->data.data.Decl.is_ref = false;
+            col_decl->data.data.Decl.is_own = false;
+            Expr_add_child(col_decl, Expr_clone(iter));
+            Expr_add_child(block, col_decl);
 
             // mut _fiN : IdxType = 0
             Expr *idx_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
@@ -3461,11 +3474,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // while _fiN.lt(collection.len()) { ... }
             Expr *while_node = Expr_new(&(ExprData){.tag = ExprData_TAG_While}, line, col, path);
 
-            // Condition: _fiN.lt(collection.len())
-            // Build: collection.len() → ExprData_TAG_FCall(ExprData_TAG_FieldAccess(iter_clone, "len"))
+            // Condition: _fiN.lt(_fcN.len())
+            Expr *col_ident_len = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            col_ident_len->data.data.Ident = *col_name;
             Expr *iter_len = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
             iter_len->data.data.FieldAccess = (Str){.c_str = (U8*)"len", .count = 3, .cap = CAP_LIT};
-            Expr_add_child(iter_len, Expr_clone(iter));
+            Expr_add_child(iter_len, col_ident_len);
             Expr *len_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
             Expr_add_child(len_call, iter_len);
 
@@ -3493,10 +3507,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             elem_decl->data.data.Decl.is_namespace = false;
             elem_decl->data.data.Decl.is_own = false;
 
-            // collection.get(_fiN) → ExprData_TAG_FCall(ExprData_TAG_FieldAccess(iter_clone, "get"), idx_ident)
+            // _fcN.get(_fiN)
+            Expr *col_ident_get = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            col_ident_get->data.data.Ident = *col_name;
             Expr *iter_get = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
             iter_get->data.data.FieldAccess = (Str){.c_str = (U8*)"get", .count = 3, .cap = CAP_LIT};
-            Expr_add_child(iter_get, Expr_clone(iter));
+            Expr_add_child(iter_get, col_ident_get);
             Expr *idx_ident_get = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
             idx_ident_get->data.data.Ident = *idx_name;
             Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
