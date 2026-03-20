@@ -1,1 +1,11 @@
 mode lib
+
+LocalInfo := struct {
+    ref mut name : Str = NULL
+    mut type := TilType.Unknown
+    ref mut struct_name : Str = NULL
+    mut decl_index : I32 = 0
+    mut last_use : I32 = 0
+    mut own_transfer : I32 = -1.to_i32()
+    mut skip_delete := false
+}

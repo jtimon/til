@@ -146,5 +146,6 @@ typedef struct Token Token;
 typedef struct Parser Parser;
 typedef struct TypeBinding TypeBinding;
 typedef struct TypeScope TypeScope;
+typedef struct LocalInfo LocalInfo;
 typedef struct Mode Mode;
 

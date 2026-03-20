@@ -2341,15 +2341,7 @@ static Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
     return 0;
 }
 
-typedef struct {
-    Str *name;
-    TilType type;
-    Str *struct_name;
-    I32 decl_index;
-    I32 last_use;
-    I32 own_transfer;  // index of stmt that transfers ownership, -1 if none
-    Bool skip_delete;  // don't ASAP-delete (globals, captured vars)
-} LocalInfo;
+// LocalInfo defined in typer.til (generated into bootstrap headers)
 
 // Check if any alias (ref decl sourced from 'name') is used in expr
 static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {

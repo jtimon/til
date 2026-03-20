@@ -146,6 +146,7 @@ typedef struct Token Token;
 typedef struct Parser Parser;
 typedef struct TypeBinding TypeBinding;
 typedef struct TypeScope TypeScope;
+typedef struct LocalInfo LocalInfo;
 typedef struct Mode Mode;
 
 typedef struct StructDef {
@@ -272,6 +273,17 @@ typedef struct TypeBinding {
     Bool is_ext;
     Str *struct_name;
 } TypeBinding;
+
+
+typedef struct LocalInfo {
+    Str *name;
+    TilType type;
+    Str *struct_name;
+    I32 decl_index;
+    I32 last_use;
+    I32 own_transfer;
+    Bool skip_delete;
+} LocalInfo;
 
 
 typedef struct Mode {
@@ -555,6 +567,9 @@ U64 * TypeBinding_size(void);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U64 * TypeScope_size(void);
+LocalInfo * LocalInfo_clone(LocalInfo * self);
+void LocalInfo_delete(LocalInfo * self, Bool * call_free);
+U64 * LocalInfo_size(void);
 Bool * Mode_eq(Mode * a, Mode * b);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
