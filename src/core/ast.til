@@ -157,7 +157,7 @@ Expr := struct {
     child_count := func(parent: Expr) returns I64 {
         return parent.children.len()
     }
-    new := proc(data: ExprData, shallow line: U32, shallow col: U32, path: Str) returns Expr {
+    new := func(data: ExprData, shallow line: U32, shallow col: U32, path: Str) returns Expr {
         return Expr(data = data, line = line, col = col, path = path)
     }
     clone := func(self: Expr) returns Expr {
