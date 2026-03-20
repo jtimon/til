@@ -492,6 +492,37 @@ Value eval_call(Scope *scope, Expr *e) {
             exit(1);
         }
         Expr *func_def = fn_val.func;
+        // FuncPtr field: stored function may be ext_func from another type.
+        // Find the real flat name by reverse-looking-up the Expr* in ns_fields.
+        if (callee_expr->til_type.tag == TilType_TAG_FuncPtr) {
+            FuncType fp_fft = func_def->data.data.FuncDef.func_type;
+            if (fp_fft.tag == FuncType_TAG_ExtFunc || fp_fft.tag == FuncType_TAG_ExtProc) {
+                // Search ns_keys for the entry whose Value.func matches func_def
+                for (U32 ki = 0; ki < ns_keys.count; ki++) {
+                    Str *qn = *(Str **)Vec_get(&ns_keys, &(U64){(U64)(ki)});
+                    if (!*Map_has(&ns_fields, qn)) continue;
+                    Value *nsv = Map_get(&ns_fields, qn);
+                    if (nsv->type == VAL_FUNC && nsv->func == func_def) {
+                        // qn is "Type.method" — build flat name "Type_method"
+                        static char fp_flat_buf[256];
+                        memcpy(fp_flat_buf, qn->c_str, qn->count);
+                        fp_flat_buf[qn->count] = '\0';
+                        for (U64 fi = 0; fi < qn->count; fi++)
+                            if (fp_flat_buf[fi] == '.') fp_flat_buf[fi] = '_';
+                        Str fp_flat = {.c_str = (U8 *)fp_flat_buf, .count = qn->count};
+                        Expr orig_callee = *Expr_child(e, &(I64){(I64)(0)});
+                        Expr flat_ident = orig_callee;
+                        flat_ident.data.tag = ExprData_TAG_Ident;
+                        flat_ident.data.data.Ident = fp_flat;
+                        memcpy(Vec_get(&e->children, &(U64){(U64)(0)}), &flat_ident, sizeof(Expr));
+                        Value result = eval_call(scope, e);
+                        memcpy(Vec_get(&e->children, &(U64){(U64)(0)}), &orig_callee, sizeof(Expr));
+                        return result;
+                    }
+                }
+            }
+            // Non-ext FuncPtr: fall through to regular func body call below
+        }
         // Direct ext_func namespace method — dispatch by flat name
         FuncType fft = func_def->data.data.FuncDef.func_type;
         if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
