@@ -72,9 +72,63 @@
   Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
   Instead, store clone/delete function pointers as fields in the
-  container struct. ~Vec.new("Str", Str.size())~ would resolve the
-  function pointers once (from the type name), then all subsequent
-  clone/delete calls go through the stored pointers directly.
+  container struct. ~Vec.new("Str", Str.size())~ resolves the function
+  pointers once at construction, then all subsequent clone/delete calls
+  go through the stored pointers directly.
+
+  Proven pattern: ~AlphaBeta~ struct in ~src/lib/alphabeta.til~ uses
+  the same function-pointer-on-struct approach — ~h~ and ~nexts~ fields
+  called via ~self.h(board)~ and ~self.nexts(board)~. All three game
+  examples (checkers, chess, go) use it successfully.
+
+  Design:
+
+  New ext_func to resolve function pointers from type name + method:
+  : dyn_get_fn_ptr := ext_func(type_name: Str, method: Str) returns Dynamic {}
+
+  Vec struct gains function pointer fields:
+  #+begin_src til
+  Vec := struct {
+      own mut data : U8 = 0
+      mut count : USize = 0
+      mut cap : USize = 0
+      elem_size : USize = 0
+      elem_type := ""
+      elem_clone : func(Dynamic) returns Dynamic = default_clone
+      elem_delete : proc(Dynamic, Bool) = default_delete
+  }
+  #+end_src
+
+  Vec.new resolves pointers once at construction:
+  #+begin_src til
+  new := func(elem_type: Str, elem_size: USize) returns Vec {
+      return Vec(
+          data = malloc(elem_size),
+          cap = 1,
+          elem_size = elem_size,
+          elem_type = elem_type,
+          elem_clone = dyn_get_fn_ptr(elem_type, "clone"),
+          elem_delete = dyn_get_fn_ptr(elem_type, "delete"),
+      )
+  }
+  #+end_src
+
+  Container methods use the fields directly:
+  #+begin_src til
+  // Before (dyn_call):
+  dyn_call(self.elem_type, "delete", 2, ptr_add(...), false)
+  own cloned : Dynamic = dyn_call_ret(self.elem_type, "clone", 1, ptr_add(...))
+
+  // After (function pointer):
+  self.elem_delete(ptr_add(...), false)
+  own cloned : Dynamic = self.elem_clone(ptr_add(...))
+  #+end_src
+
+  Same pattern for Map (key_clone, key_delete, key_cmp, val_clone,
+  val_delete), Set (elem_clone, elem_delete, elem_cmp), Array, Tuple.
+
+  No workarounds for syntax issues — if function pointers on structs
+  don't work for some case, fix the blocker first, then come back.
 
   Benefits:
   - Much faster: direct function call vs N string comparisons
