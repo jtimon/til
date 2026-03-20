@@ -1,5 +1,11 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #98 Allow funcs without return type
+  Removed the "func must declare a return type" restriction from
+  typer.c. Funcs can now be void (like procs) while keeping the
+  purity guarantee (no side effects). Macros still require a return
+  type.
+
 * FIXED #89 Revert to monolithic compilation (remove per-module file splitting)
   Removed per-module .c/.h emission from builder.c (#74). All struct/enum
   defs, function declarations, and function bodies now go into a single .c

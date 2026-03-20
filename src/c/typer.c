@@ -239,10 +239,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
             infer_body(func_scope, Expr_child(e, &(I64){(I64)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref);
-            // Check: func/macro must have a return type
-            if ((is_func || is_macro) && (e->data.data.FuncDef.return_type).count == 0) {
-                type_error(e, is_macro ? "macro must declare a return type"
-                                             : "func must declare a return type");
+            // Check: macro must have a return type (funcs allowed without)
+            if (is_macro && (e->data.data.FuncDef.return_type).count == 0) {
+                type_error(e, "macro must declare a return type");
             }
             // Validate ref returns: every return value must be a param or ref variable
             if (e->data.data.FuncDef.return_is_ref) {

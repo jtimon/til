@@ -38,10 +38,6 @@ bad_func := func(x: I64) returns I64 {
     return x
 }
 
-// func must declare a return type
-no_ret := func(x: I64) {
-    return x
-}
 
 // cannot assign to immutable variable
 immut := 42

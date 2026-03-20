@@ -375,7 +375,7 @@ main := proc(args: ..Str) {
                TIL.concat(" run src/examples/ffi/ext_module.til"))
 
     // === 1 typer errors test ===
-    add_count(tests, "typer_errors", "typer", "type error:", 52,
+    add_count(tests, "typer_errors", "typer", "type error:", 51,
               TIL.concat(" interpret src/test/typer_errors.til"))
 
     // === 24 CLI tests (12 cases × interpret + run) ===

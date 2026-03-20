@@ -32,14 +32,6 @@
   builder.c, etc.) would need to go through ~new~ instead of
   hardcoded construction. Big refactor — needs full analysis.
 
-** OPEN #98 Reconsider "funcs must return" requirement
-  Funcs currently require a return type. This forces functions like
-  ~Array.set~ to be procs even though they call no ext_procs — just
-  because they don't return anything. This cascades: any function
-  calling Array.set must also be a proc. Explore allowing funcs
-  without return types (void funcs). Would reduce unnecessary
-  proc contamination and enable more pure function chains.
-
 ** OPEN #97 Negative identifier expressions: -MY_CONST, -x
   Parser only supports negative literals (~-42~), not negative
   identifiers (~-AB_INF~, ~-x~). Workaround: ~0.sub(AB_INF)~.
