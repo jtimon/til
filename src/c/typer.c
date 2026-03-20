@@ -298,6 +298,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 ? tscope_find(scope, &obj->data.data.Ident) : NULL;
             Bool obj_is_type = (tb && tb->struct_def);
 
+            Bool ufcs_desugared = 0; // #88: true if UFCS rewrote instance.method → Type.method(instance)
             if (!obj_is_type) {
                 // UFCS: instance.method(args) -> Type.method(instance, args)
                 Str *type_name = NULL;
@@ -407,6 +408,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     break;
                 }
                 // Desugar: rewrite AST to Type.method(instance, args)
+                ufcs_desugared = 1; // #88
                 Expr *instance = Expr_clone(obj); // clone before fa->children overwrite
                 Expr *type_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, obj->line, obj->col, &obj->path);
                 type_ident->data.data.Ident = *type_name;
@@ -566,6 +568,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     type_error(arg, buf);
                 }
             }
+            // #88: own p.delete() — propagate own from FieldAccess callee to UFCS-inserted first arg
+            if (ufcs_desugared && Expr_child(e, &(I64){(I64)(0)})->is_own_arg && e->children.count > 1) {
+                Expr_child(e, &(I64){(I64)(1)})->is_own_arg = 1;
+            }
             // Validate 'own' markers on arguments
             {
                 U32 np = ns_func->data.data.FuncDef.nparam;
@@ -575,10 +581,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         Bool pown = _pp->is_own;
                         if (pown && !Expr_child(e, &(I64){(I64)(i)})->is_own_arg) {
                             char buf[128];
-                            snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own' [tag=%d own=%d]",
-                                     _pp->name.c_str,
-                                     Expr_child(e, &(I64){(I64)(i)})->data.tag,
-                                     Expr_child(e, &(I64){(I64)(i)})->is_own_arg);
+                            snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
+                                     _pp->name.c_str);
                             type_error(Expr_child(e, &(I64){(I64)(i)}), buf);
                         } else if (!pown && Expr_child(e, &(I64){(I64)(i)})->is_own_arg) {
                             char buf[128];

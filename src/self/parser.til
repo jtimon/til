@@ -944,6 +944,14 @@ parse_statement := proc(mut p: Parser) returns Expr {
             cur = ch
         }
         cur.is_own_arg = true
+        // Also mark the FCall/FieldAccess chain so the typer can propagate
+        // through UFCS desugaring (#88)
+        if expr.data.is_FCall().and(expr.children.len().gt(0)) {
+            ref callee : Expr = expr.children.get(0)
+            if callee.data.is_FieldAccess() {
+                callee.is_own_arg = true
+            }
+        }
         return expr
     }
     if t.type.eq(TokenType.KwBreak) {

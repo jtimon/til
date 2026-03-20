@@ -1,5 +1,11 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #88 UFCS with ~own~ first arg: ~own p.delete()~
+  Parser now marks ~is_own_arg~ on the FieldAccess callee for
+  statement-level ~own expr.method()~. Typer propagates it to the
+  UFCS-inserted first arg after desugaring. ~own p.delete()~ now
+  correctly desugars to ~Point.delete(own p)~.
+
 * FIXED #98 Allow funcs without return type
   Removed the "func must declare a return type" restriction from
   typer.c. Funcs can now be void (like procs) while keeping the
