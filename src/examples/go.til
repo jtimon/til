@@ -323,13 +323,51 @@ try_place := proc(mut tmp: Array, mut visited: Array, mut lib_seen: Array,
     return captured
 }
 
-// Go stone count evaluation relative to side (1=black, 2=white)
-go_eval := func(mut board: Array, total: I64, side: I64) returns I64 {
+// Pack go state into Board.data
+// Fixed layout: cells[MAX_CELLS*8] + side[8] + size[8] + has_ko[8] + ko_board[MAX_CELLS*8]
+GO_OFF_SIDE := MAX_CELLS.mul(8)
+GO_OFF_SIZE := MAX_CELLS.mul(8).add(8)
+GO_OFF_HAS_KO := MAX_CELLS.mul(8).add(16)
+GO_OFF_KO := MAX_CELLS.mul(8).add(24)
+
+go_pack := proc(mut b: Board, mut cells: Array, side: I64, size: I64,
+                 mut ko_board: Array, has_ko: Bool) {
+    total := size.mul(size)
+    memcpy(b.data.data, cells.data, total.mul(8).to_u64())
+    memcpy(ptr_add(b.data.data, GO_OFF_SIDE.to_u64()), side, 8)
+    memcpy(ptr_add(b.data.data, GO_OFF_SIZE.to_u64()), size, 8)
+    mut has_ko_i := 0
+    if has_ko { has_ko_i = 1 }
+    memcpy(ptr_add(b.data.data, GO_OFF_HAS_KO.to_u64()), has_ko_i, 8)
+    memcpy(ptr_add(b.data.data, GO_OFF_KO.to_u64()), ko_board.data, total.mul(8).to_u64())
+}
+
+go_unpack_side := func(b: Board) returns I64 {
+    ref s : I64 = ptr_add(b.data.data, GO_OFF_SIDE.to_u64())
+    return s.clone()
+}
+
+go_unpack_size := func(b: Board) returns I64 {
+    ref s : I64 = ptr_add(b.data.data, GO_OFF_SIZE.to_u64())
+    return s.clone()
+}
+
+go_unpack_has_ko := func(b: Board) returns Bool {
+    ref v : I64 = ptr_add(b.data.data, GO_OFF_HAS_KO.to_u64())
+    return v.eq(1)
+}
+
+go_heuristic : Heuristic = (b) {
+    ref gb : Board = b
+    size := go_unpack_size(gb)
+    total := size.mul(size)
+    side := go_unpack_side(gb)
+    cells := Array(data = gb.data.data, cap = total.to_u64(), elem_size = 8, elem_type = "I64")
     opp := 3.sub(side)
     mut score := 0
     mut i := 0
     while i.lt(total) {
-        ref p : I64 = board.get(i.to_u64())
+        ref p : I64 = cells.get(i.to_u64())
         if p.eq(side) { score = score.add(1) }
         if p.eq(opp) { score = score.sub(1) }
         i = i.add(1)
@@ -337,51 +375,40 @@ go_eval := func(mut board: Array, total: I64, side: I64) returns I64 {
     return score
 }
 
-// Alpha-beta negamax search for Go
-// Returns score relative to `side` (positive = good for side)
-go_ab := proc(mut board: Array, side: I64, size: I64, depth: I64,
-               alpha: I64, beta: I64, mut ko_board: Array, has_ko: Bool) returns I64 {
+go_next_boards : NextBoardsFn = (b) {
+    ref gb : Board = b
+    size := go_unpack_size(gb)
     total := size.mul(size)
-    if depth.eq(0) {
-        return go_eval(board, total, side)
-    }
-
-    mut best := 0.sub(AB_INF)
-    mut a := alpha
-    mut found_move := false
-
+    side := go_unpack_side(gb)
+    has_ko := go_unpack_has_ko(gb)
+    cells := Array(data = gb.data.data, cap = total.to_u64(), elem_size = 8, elem_type = "I64")
+    ko_cells := Array(data = ptr_add(gb.data.data, GO_OFF_KO.to_u64()), cap = total.to_u64(), elem_size = 8, elem_type = "I64")
+    result := Vec.new("Board", Board.size())
     mut i := 0
     while i.lt(total) {
-        ref p : I64 = board.get(i.to_u64())
+        ref p : I64 = cells.get(i.to_u64())
         if p.eq(0) {
             mut child := Array.new("I64", 8, MAX_CELLS.to_u64())
-            copy_board(child, board, total)
+            copy_board(child, cells, total)
             mut child_vis := Array.new("I64", 8, MAX_CELLS.to_u64())
             mut child_lib := Array.new("I64", 8, MAX_CELLS.to_u64())
             mut child_stk := Vec.new("I64", 8)
-            cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_board, has_ko)
+            cap := try_place(child, child_vis, child_lib, child_stk, i, size, side, ko_cells, has_ko)
             if cap.gte(0) {
-                found_move = true
                 opp := 3.sub(side)
-                score := 0.sub(go_ab(child, opp, size, depth.sub(1),
-                               0.sub(beta), 0.sub(a), board, true))
-                if score.gt(best) { best = score }
-                if score.gt(a) { a = score }
-                if a.gte(beta) { return best }
+                mut nb := Board()
+                go_pack(nb, child, opp, size, cells, true)
+                result.push(own nb)
             }
         }
         i = i.add(1)
     }
-
-    if found_move.not() {
-        return go_eval(board, total, side)
-    }
-
-    return best
+    return result
 }
 
 GO_DEPTH_SMALL := 2
 GO_DEPTH_LARGE := 1
+ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards)
 
 // Score the game using Chinese rules (area scoring)
 // Returns black_score * 10000 + white_score
@@ -605,24 +632,25 @@ main := proc() {
                         mut best_score := 0.sub(AB_INF)
                         mut ai_moved := false
 
-                        mut ai := 0
-                        while ai.lt(total) {
-                            ref ap : I64 = board.get(ai.to_u64())
+                        mut sq := 0
+                        while sq.lt(total) {
+                            ref ap : I64 = board.get(sq.to_u64())
                             if ap.eq(0) {
                                 copy_board(tmp_board, board, total)
-                                cap := try_place(tmp_board, visited, lib_seen, stk, ai, board_size, 2, ko_board, has_ko)
+                                cap := try_place(tmp_board, visited, lib_seen, stk, sq, board_size, 2, ko_board, has_ko)
                                 if cap.gte(0) {
-                                    // Legal move: evaluate with alpha-beta
-                                    score := 0.sub(go_ab(tmp_board, 1, board_size, go_depth,
-                                                   0.sub(AB_INF), AB_INF, board, true))
+                                    mut child_b := Board()
+                                    go_pack(child_b, tmp_board, 1, board_size, board, true)
+                                    score := 0.sub(ai.search(child_b, go_depth,
+                                                   0.sub(AB_INF), AB_INF))
                                     if score.gt(best_score).or(best_move.lt(0)) {
                                         best_score = score
-                                        best_move = ai
+                                        best_move = sq
                                     }
                                     ai_moved = true
                                 }
                             }
-                            ai = ai.add(1)
+                            sq = sq.add(1)
                         }
 
                         if ai_moved {
