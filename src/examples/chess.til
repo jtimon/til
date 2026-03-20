@@ -583,13 +583,10 @@ copy_cf := proc(mut dst: Array, mut src: Array) {
     }
 }
 
-// Heuristic function type: evaluates board position for a side
-Heuristic := func(mut Array, I64) returns I64
-
 // Chess material evaluation relative to side (0=white, 1=black)
 // Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=10
 // Piece encoding: 1-6 white (P,N,B,R,Q,K), 7-12 black
-chess_eval : Heuristic = (board, side) {
+chess_eval := func(mut board: Array, side: I64) returns I64 {
     WEIGHTS := array("I64", 0, 1, 3, 3, 5, 10, 0)
     mut score := 0
     mut i := 0

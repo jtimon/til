@@ -1,6 +1,36 @@
 mode lib
 
-// Alpha-beta pruning utilities for board game AI
-// Each game provides its own eval function and search loop.
+// Alpha-beta pruning with function pointer callbacks.
+// Games pass their own heuristic and next_boards via AlphaBeta struct.
 
 AB_INF := 100000
+
+Board := Dynamic
+Heuristic := func(Board) returns I64
+NextBoardsFn := func(Board) returns Vec
+
+default_heuristic : Heuristic = (board) { return 0 }
+default_next_boards : NextBoardsFn = (board) { return Vec.new("Dynamic", 8) }
+
+AlphaBeta := struct {
+    mut heuristic : Heuristic = default_heuristic
+    mut next_boards : NextBoardsFn = default_next_boards
+namespace:
+    search := proc(self: AlphaBeta, board: Board, depth: I64,
+                    alpha: I64, beta: I64) returns I64 {
+        children := self.next_boards(board)
+        if depth.eq(0).or(children.len().eq(0)) {
+            return self.heuristic(board)
+        }
+        mut best := 0.sub(AB_INF)
+        mut a := alpha
+        for child : Board in children {
+            score := 0.sub(AlphaBeta.search(self, child, depth.sub(1),
+                           0.sub(beta), 0.sub(a)))
+            if score.gt(best) { best = score }
+            if score.gt(a) { a = score }
+            if a.gte(beta) { return best }
+        }
+        return best
+    }
+}
