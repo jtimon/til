@@ -147,5 +147,6 @@ typedef struct Parser Parser;
 typedef struct TypeBinding TypeBinding;
 typedef struct TypeScope TypeScope;
 typedef struct LocalInfo LocalInfo;
+typedef struct ExtStr ExtStr;
 typedef struct Mode Mode;
 

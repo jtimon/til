@@ -25,7 +25,7 @@ static I64 *I64_new(I64 val) { I64 *p = malloc(sizeof(I64)); *p = val; return p;
 
 // Codegen Str layout (matches ext.h Str: {U8 *data, U64 count, U64 cap})
 // Distinct from compiler-internal Str (str.h: {char *c_str, U64 count, U64 cap})
-typedef struct { U8 *data; U64 count; U64 cap; } ExtStr;
+// ExtStr defined in dispatch.til (generated into bootstrap/modes.h)
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 

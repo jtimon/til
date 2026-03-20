@@ -1,1 +1,7 @@
 mode lib
+
+ExtStr := struct {
+    ref mut data : U8 = NULL
+    mut count : U64 = 0
+    mut cap : U64 = 0
+}
