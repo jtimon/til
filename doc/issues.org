@@ -1,10 +1,29 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 95
+# NEXT_ISSUE: 97
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #96 Audit multiple passes in initer and other phases
+  The initer has many sub-passes (1.5, 1.6, 1.7, 1.9, 1.95, etc.)
+  iterating over the full AST each time. Explore whether some passes
+  can be merged, whether the ordering constraints are necessary, and
+  whether other phases (typer, builder) have similar multi-pass
+  patterns worth consolidating.
+
+** OPEN #95 Audit C macros in compiler for til translation
+  Explore C preprocessor macros across the compiler C sources
+  (initer.c, builder.c, typer.c, etc.) to understand which ones:
+  - Can be replaced with til functions/macros when self-hosting
+  - Are useful temporarily for AST construction (e.g. MK, ID, ACC
+    in initer.c pass 1.95)
+  - Could cause issues during C→til translation
+
+  Example: initer.c pass 1.95 uses ~MK~, ~ID~, ~NUM~, ~ACC~, ~CALL0~,
+  ~CALL1~, ~RET~, ~CMP_EQ~, ~NEG1~, ~GEN_CMP_FUNC~ for building
+  comparison method AST nodes inline.
+
 ** OPEN #94 Generic Range: support any type with inc/dec
   Range currently hardcodes U64 for start/end/get/len. Should work
   with any type that has ~inc~ and ~dec~ defined.
