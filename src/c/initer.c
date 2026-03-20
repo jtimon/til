@@ -522,14 +522,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr_add_child(if_node, then_body);
         Expr_add_child(proc_body, if_node);
 
-        // proc def: delete(own self: Type, call_free: Bool = true)
+        // func def: delete(own self: Type, call_free: Bool = true)
         Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
         default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
 
         Expr *proc_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
         // Note: is_core NOT set — auto-generated delete goes to per-module
         // file (same as clone), not to main file
-        proc_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
+        proc_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
         proc_def->data.data.FuncDef.nparam = 2;
         { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); proc_def->data.data.FuncDef.params = *_v; free(_v); }
         { Param *_p = calloc(1, sizeof(Param));
@@ -548,7 +548,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         proc_def->data.data.FuncDef.kwargs_index = -1;
         Expr_add_child(proc_def, proc_body);
 
-        // delete := proc(...)  (namespace decl)
+        // delete := func(...)  (namespace decl)
         Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
         decl->data.data.Decl.name = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
         decl->data.data.Decl.is_namespace = true;
@@ -972,7 +972,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         }
 
         // Auto-generate delete for all enums (same pattern):
-        // delete := proc(own self: E, call_free: Bool = true) {
+        // delete := func(own self: E, call_free: Bool = true) {
         //     if call_free { free(own self) }
         // }
         // free() builtin handles payload cleanup for VAL_ENUM
@@ -1000,7 +1000,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             // Note: is_core NOT set — auto-generated delete goes to per-module
             // file (same as clone), not to main file
-            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
+            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fdef->data.data.FuncDef.nparam = 2;
             { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));

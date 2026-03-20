@@ -33,7 +33,7 @@ namespace:
     or := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     xor := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     clone := ext_func(val: U8) returns shallow U8 {}
-    delete := ext_proc(own self: U8, call_free: Bool = true) {}
+    delete := ext_func(own self: U8, call_free: Bool = true) {}
     size := func() returns U64 { return 1 }
 }
 
@@ -59,7 +59,7 @@ namespace:
     or := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     xor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     clone := ext_func(val: I16) returns shallow I16 {}
-    delete := ext_proc(own self: I16, call_free: Bool = true) {}
+    delete := ext_func(own self: I16, call_free: Bool = true) {}
     size := func() returns U64 { return 2 }
 }
 
@@ -85,7 +85,7 @@ namespace:
     or := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     xor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     clone := ext_func(val: I32) returns shallow I32 {}
-    delete := ext_proc(own self: I32, call_free: Bool = true) {}
+    delete := ext_func(own self: I32, call_free: Bool = true) {}
     size := func() returns U64 { return 4 }
 }
 
@@ -104,7 +104,7 @@ namespace:
     eq := ext_func(shallow a: F32, shallow b: F32) returns shallow Bool {}
     cmp := ext_func(shallow a: F32, shallow b: F32) returns shallow I64 {}
     clone := ext_func(val: F32) returns shallow F32 {}
-    delete := ext_proc(own self: F32, call_free: Bool = true) {}
+    delete := ext_func(own self: F32, call_free: Bool = true) {}
     size := func() returns U64 { return 4 }
 }
 
@@ -128,7 +128,7 @@ namespace:
     or := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     xor := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     clone := ext_func(val: U32) returns shallow U32 {}
-    delete := ext_proc(own self: U32, call_free: Bool = true) {}
+    delete := ext_func(own self: U32, call_free: Bool = true) {}
     size := func() returns U64 { return 4 }
 }
 
@@ -157,7 +157,7 @@ namespace:
     or := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     xor := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     clone := ext_func(val: U64) returns shallow U64 {}
-    delete := ext_proc(own self: U64, call_free: Bool = true) {}
+    delete := ext_func(own self: U64, call_free: Bool = true) {}
     size := func() returns U64 { return 8 }
 }
 
@@ -221,7 +221,7 @@ namespace:
     or := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     xor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     clone := ext_func(val: I64) returns shallow I64 {}
-    delete := ext_proc(own self: I64, call_free: Bool = true) {}
+    delete := ext_func(own self: I64, call_free: Bool = true) {}
     size := func() returns U64 { return 8 }
 }
 
@@ -250,7 +250,7 @@ namespace:
         return Range(start = val.start, end = val.end)
     }
 
-    delete := proc(own self: Range, call_free: Bool = true) {
+    delete := func(own self: Range, call_free: Bool = true) {
         if call_free { free(own self) }
     }
 }
@@ -267,7 +267,7 @@ namespace:
         return 1
     }
     clone := ext_func(val: Bool) returns shallow Bool {}
-    delete := ext_proc(own self: Bool, call_free: Bool = true) {}
+    delete := ext_func(own self: Bool, call_free: Bool = true) {}
     size := func() returns U64 { return 1 }
 }
 
@@ -320,7 +320,7 @@ dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 
 // Default function pointer values for container struct fields
 CloneFn := func(Dynamic) returns Dynamic
-DeleteFn := proc(Dynamic, Bool)
+DeleteFn := func(Dynamic, Bool)
 CmpFn := func(Dynamic, Dynamic) returns I64
 default_clone : CloneFn = (v) { return v }
 default_delete : DeleteFn = (v, cf) { }
@@ -329,7 +329,7 @@ dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
 array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
 
-swap := proc(a: Dynamic, b: Dynamic, shallow size: U64) {
+swap := func(a: Dynamic, b: Dynamic, shallow size: U64) {
     own tmp : U8 = malloc(size)
     memcpy(tmp, a, size)
     memcpy(a, b, size)

@@ -23,7 +23,7 @@ namespace:
 
     len := func(self: Vec) returns USize { return self.count }
 
-    push := proc(mut self: Vec, own val: Dynamic) {
+    push := func(mut self: Vec, own val: Dynamic) {
         if self.count.eq(self.cap) {
             new_cap := self.cap.mul(2)
             self.data = realloc(own self.data, new_cap.mul(self.elem_size))
@@ -41,7 +41,7 @@ namespace:
         return ptr_add(self.data, i.mul(self.elem_size))
     }
 
-    delete := proc(own self: Vec, call_free: Bool = true) {
+    delete := func(own self: Vec, call_free: Bool = true) {
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)

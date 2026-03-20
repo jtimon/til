@@ -50,7 +50,7 @@ namespace:
         return Str(c_str = buf, count = 0, cap = n)
     }
 
-    push_str := proc(mut self: Str, s: Str) {
+    push_str := func(mut self: Str, s: Str) {
         if self.cap.gte(CAP_VIEW) {
             panic(__LOC__, "Str.push_str: cannot mutate a string view or literal")
         }
@@ -70,7 +70,7 @@ namespace:
         return Str(c_str = new_data, count = val.count, cap = val.count)
     }
 
-    delete := proc(own self: Str, call_free: Bool = true) {
+    delete := func(own self: Str, call_free: Bool = true) {
         if self.cap.lt(CAP_VIEW) { free(own self.c_str) }
         if call_free { free(own self) }
     }

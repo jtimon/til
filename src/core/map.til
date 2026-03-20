@@ -74,7 +74,7 @@ namespace:
         return ptr_add(self.val_data, 0)
     }
 
-    set := proc(mut self: Map, own key: Dynamic, own val: Dynamic) {
+    set := func(mut self: Map, own key: Dynamic, own val: Dynamic) {
         mut lo : USize = 0
         mut hi := self.count
         mut found := false
@@ -120,7 +120,7 @@ namespace:
         }
     }
 
-    delete := proc(own self: Map, call_free: Bool = true) {
+    delete := func(own self: Map, call_free: Bool = true) {
         if self.key_type.is_empty().not() {
             for i in 0..self.count {
                 self.key_delete(

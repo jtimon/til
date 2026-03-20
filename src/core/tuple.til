@@ -14,7 +14,7 @@ namespace:
 
     len := func(self: Tuple) returns USize { return self.type_names.len() }
 
-    push := proc(mut self: Tuple, elem_type: Str, elem_size: USize, own val: Dynamic) {
+    push := func(mut self: Tuple, elem_type: Str, elem_size: USize, own val: Dynamic) {
         new_total := self.total_size.add(elem_size)
         if new_total.gt(self.cap) {
             mut new_cap := self.cap.mul(2)
@@ -51,7 +51,7 @@ namespace:
         return self.type_sizes.get(i)
     }
 
-    delete := proc(own self: Tuple, call_free: Bool = true) {
+    delete := func(own self: Tuple, call_free: Bool = true) {
         mut offset : USize = 0
         for i in 0..self.type_names.len() {
             ref tn : Str = self.type_names.get(i)

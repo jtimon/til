@@ -41,7 +41,7 @@ namespace:
         return false
     }
 
-    add := proc(mut self: Set, own val: Dynamic) {
+    add := func(mut self: Set, own val: Dynamic) {
         mut lo : USize = 0
         mut hi := self.count
         mut found := false
@@ -75,7 +75,7 @@ namespace:
         }
     }
 
-    delete := proc(own self: Set, call_free: Bool = true) {
+    delete := func(own self: Set, call_free: Bool = true) {
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {
                 self.elem_delete(
