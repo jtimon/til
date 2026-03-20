@@ -16,7 +16,7 @@ static Set funcsig_names; // names of FuncSig type definitions (bodyless func/pr
 static Bool has_funcsig_names;
 
 // Collect unique array/vec builtin type names from AST
-typedef struct { Str *type_name; I32 is_vec; } CollectionInfo;
+// CollectionInfo defined in builder.til
 
 static void collect_collection_builtins(Expr *e, Vec *infos) {
     if (!e) return;
@@ -42,7 +42,7 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
 }
 
 // Collect unique dyn_call method literals from AST
-typedef struct { Str *method; I32 nargs; Bool returns; } DynCallInfo;
+// DynCallInfo defined in builder.til
 
 static Bool is_dyn_call_name(Str *name, Bool *returns) {
     if ((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0))     { *returns = 0; return 1; }
@@ -66,7 +66,7 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
                 DynCallInfo *existing = Vec_get(methods, &(U64){(U64)(i)});
                 if (*Str_eq(existing->method, method)) return;
             }
-            DynCallInfo info = {method, nargs, returns};
+            DynCallInfo info = {.method = method, .nargs = nargs, .has_return = returns};
             { DynCallInfo *_p = malloc(sizeof(DynCallInfo)); *_p = info; Vec_push(methods, _p); }
         }
     }
@@ -2240,7 +2240,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
-            if (info->returns) {
+            if (info->has_return) {
                 if (info->nargs == 1)
                     fprintf(f, "void *dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
                 else
@@ -2426,7 +2426,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
             Str *method = info->method;
-            const char *ret_type = info->returns ? "void *" : "void ";
+            const char *ret_type = info->has_return ? "void *" : "void ";
             if (info->nargs == 1)
                 fprintf(f, "%sdyn_call_%s(Str *type_name, void *val) {\n", ret_type, method->c_str);
             else
@@ -2466,23 +2466,23 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
                 }
                 Bool ret_shallow = method_fdef->data.data.FuncDef.return_is_shallow;
-                const char *ret_ctype = (info->returns && ret_shallow && method_fdef->data.data.FuncDef.return_type.count > 0)
+                const char *ret_ctype = (info->has_return && ret_shallow && method_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&method_fdef->data.data.FuncDef.return_type) : NULL;
                 if (info->nargs == 2) {
-                    if (info->returns && ret_shallow)
+                    if (info->has_return && ret_shallow)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s, %s); return _r; }\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1, arg2_str);
-                    else if (info->returns)
+                    else if (info->has_return)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return (void *)%s_%s(%s, %s);\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                     else
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s_%s(%s, %s); return; }\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1, arg2_str);
                 } else {
-                    if (info->returns && ret_shallow)
+                    if (info->has_return && ret_shallow)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) { %s *_r = malloc(sizeof(%s)); *_r = %s_%s(%s); return _r; }\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, ret_ctype, ret_ctype, tname->c_str, method->c_str, arg1);
-                    else if (info->returns)
+                    else if (info->has_return)
                         fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return (void *)%s_%s(%s);\n",
                                 (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str, arg1);
                     else

@@ -147,6 +147,8 @@ typedef struct Parser Parser;
 typedef struct TypeBinding TypeBinding;
 typedef struct TypeScope TypeScope;
 typedef struct LocalInfo LocalInfo;
+typedef struct CollectionInfo CollectionInfo;
+typedef struct DynCallInfo DynCallInfo;
 typedef struct ExtStr ExtStr;
 typedef struct Mode Mode;
 
@@ -285,6 +287,19 @@ typedef struct LocalInfo {
     I32 own_transfer;
     Bool skip_delete;
 } LocalInfo;
+
+
+typedef struct CollectionInfo {
+    Str *type_name;
+    I32 is_vec;
+} CollectionInfo;
+
+
+typedef struct DynCallInfo {
+    Str *method;
+    I32 nargs;
+    Bool has_return;
+} DynCallInfo;
 
 
 typedef struct ExtStr {
@@ -578,6 +593,12 @@ U64 * TypeScope_size(void);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U64 * LocalInfo_size(void);
+CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
+void CollectionInfo_delete(CollectionInfo * self, Bool * call_free);
+U64 * CollectionInfo_size(void);
+DynCallInfo * DynCallInfo_clone(DynCallInfo * self);
+void DynCallInfo_delete(DynCallInfo * self, Bool * call_free);
+U64 * DynCallInfo_size(void);
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
 U64 * ExtStr_size(void);

@@ -16,6 +16,7 @@
 #include "til_parser.h"
 #include "til_initer.h"
 #include "til_typer.h"
+#include "til_builder.h"
 #include "til_dispatch.h"
 #include "til_modes.h"
 #include "til_til.h"
@@ -395,6 +396,12 @@ U64 * TypeScope_size(void);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U64 * LocalInfo_size(void);
+CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
+void CollectionInfo_delete(CollectionInfo * self, Bool * call_free);
+U64 * CollectionInfo_size(void);
+DynCallInfo * DynCallInfo_clone(DynCallInfo * self);
+void DynCallInfo_delete(DynCallInfo * self, Bool * call_free);
+U64 * DynCallInfo_size(void);
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
 U64 * ExtStr_size(void);
@@ -587,67 +594,67 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t4762;
-static I64 *_t4763;
-static I64 *_t4764;
+static I64 *_t4770;
+static I64 *_t4771;
+static I64 *_t4772;
 static U64 *CAP_LIT;
-static I64 *_t4765;
-static I64 *_t4766;
-static I64 *_t4767;
+static I64 *_t4773;
+static I64 *_t4774;
+static I64 *_t4775;
 static U64 *CAP_VIEW;
-static Str *_t4768;
-static U64 *_t4769;
-static Str *_t4770;
-static U64 *_t4771;
-static Map *core_modes;
-static Bool *_t4772;
-static Bool *_t4773;
-static Bool *_t4774;
-static Bool *_t4775;
 static Str *_t4776;
-static Mode *_t4777;
-static Bool *_t4778;
-static Bool *_t4779;
+static U64 *_t4777;
+static Str *_t4778;
+static U64 *_t4779;
+static Map *core_modes;
 static Bool *_t4780;
 static Bool *_t4781;
-static Str *_t4782;
-static Mode *_t4783;
-static Bool *_t4784;
-static Bool *_t4785;
+static Bool *_t4782;
+static Bool *_t4783;
+static Str *_t4784;
+static Mode *_t4785;
 static Bool *_t4786;
 static Bool *_t4787;
-static Str *_t4788;
-static Mode *_t4789;
-static Bool *_t4790;
-static Bool *_t4791;
+static Bool *_t4788;
+static Bool *_t4789;
+static Str *_t4790;
+static Mode *_t4791;
 static Bool *_t4792;
 static Bool *_t4793;
-static Str *_t4794;
-static Mode *_t4795;
-static Bool *_t4796;
-static Bool *_t4797;
+static Bool *_t4794;
+static Bool *_t4795;
+static Str *_t4796;
+static Mode *_t4797;
 static Bool *_t4798;
 static Bool *_t4799;
-static Str *_t4800;
-static Mode *_t4801;
-static Bool *_t4802;
-static Bool *_t4803;
+static Bool *_t4800;
+static Bool *_t4801;
+static Str *_t4802;
+static Mode *_t4803;
 static Bool *_t4804;
 static Bool *_t4805;
-static Str *_t4806;
-static Mode *_t4807;
-static Bool *_t4808;
-static Bool *_t4809;
+static Bool *_t4806;
+static Bool *_t4807;
+static Str *_t4808;
+static Mode *_t4809;
 static Bool *_t4810;
 static Bool *_t4811;
-static Str *_t4812;
-static Mode *_t4813;
-static Bool *_t4814;
-static Bool *_t4815;
+static Bool *_t4812;
+static Bool *_t4813;
+static Str *_t4814;
+static Mode *_t4815;
 static Bool *_t4816;
 static Bool *_t4817;
-static Str *_t4818;
-static Mode *_t4819;
+static Bool *_t4818;
+static Bool *_t4819;
+static Str *_t4820;
+static Mode *_t4821;
+static Bool *_t4822;
+static Bool *_t4823;
+static Bool *_t4824;
+static Bool *_t4825;
+static Str *_t4826;
+static Mode *_t4827;
 static I32 *NODE_BODY;
 static I32 *NODE_LITERAL_STR;
 static I32 *NODE_LITERAL_NUM;
@@ -10171,6 +10178,7 @@ U64 *TokenType_size(void) {
 #include "til_parser.c"
 #include "til_initer.c"
 #include "til_typer.c"
+#include "til_builder.c"
 #include "til_dispatch.c"
 #include "til_modes.c"
 #include "til_til.c"
@@ -10205,6 +10213,8 @@ void dyn_call_delete(Str *type_name, void *val, void *arg2) {
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "TypeBinding", 11ULL) == 0) { TypeBinding_delete(val, arg2); return; }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0) { TypeScope_delete(val, arg2); return; }
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "LocalInfo", 9ULL) == 0) { LocalInfo_delete(val, arg2); return; }
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "CollectionInfo", 14ULL) == 0) { CollectionInfo_delete(val, arg2); return; }
+    if (type_name->count == 11ULL && memcmp(type_name->c_str, "DynCallInfo", 11ULL) == 0) { DynCallInfo_delete(val, arg2); return; }
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "ExtStr", 6ULL) == 0) { ExtStr_delete(val, arg2); return; }
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) { Mode_delete(val, arg2); return; }
     fprintf(stderr, "dyn_call: unknown type for delete\n");
@@ -10241,6 +10251,8 @@ void *dyn_call_clone(Str *type_name, void *val) {
     if (type_name->count == 11ULL && memcmp(type_name->c_str, "TypeBinding", 11ULL) == 0) return (void *)TypeBinding_clone(val);
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0) return (void *)TypeScope_clone(val);
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "LocalInfo", 9ULL) == 0) return (void *)LocalInfo_clone(val);
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "CollectionInfo", 14ULL) == 0) return (void *)CollectionInfo_clone(val);
+    if (type_name->count == 11ULL && memcmp(type_name->c_str, "DynCallInfo", 11ULL) == 0) return (void *)DynCallInfo_clone(val);
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "ExtStr", 6ULL) == 0) return (void *)ExtStr_clone(val);
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) return (void *)Mode_clone(val);
     fprintf(stderr, "dyn_call: unknown type for clone\n");
@@ -11003,6 +11015,12 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "LocalInfo", 9ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)LocalInfo_clone;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "LocalInfo", 9ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)LocalInfo_delete;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "LocalInfo", 9ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)LocalInfo_size;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "CollectionInfo", 14ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)CollectionInfo_clone;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "CollectionInfo", 14ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)CollectionInfo_delete;
+    if (type_name->count == 14ULL && memcmp(type_name->c_str, "CollectionInfo", 14ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)CollectionInfo_size;
+    if (type_name->count == 11ULL && memcmp(type_name->c_str, "DynCallInfo", 11ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)DynCallInfo_clone;
+    if (type_name->count == 11ULL && memcmp(type_name->c_str, "DynCallInfo", 11ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)DynCallInfo_delete;
+    if (type_name->count == 11ULL && memcmp(type_name->c_str, "DynCallInfo", 11ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)DynCallInfo_size;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "ExtStr", 6ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)ExtStr_clone;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "ExtStr", 6ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)ExtStr_delete;
     if (type_name->count == 6ULL && memcmp(type_name->c_str, "ExtStr", 6ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)ExtStr_size;

@@ -1,1 +1,12 @@
 mode lib
+
+CollectionInfo := struct {
+    ref mut type_name : Str = NULL
+    mut is_vec : I32 = 0
+}
+
+DynCallInfo := struct {
+    ref mut method : Str = NULL
+    mut nargs : I32 = 1
+    mut has_return := false
+}
