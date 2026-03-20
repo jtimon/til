@@ -1,30 +1,36 @@
 mode lib
 
 // Alpha-beta pruning with function pointer callbacks.
-// Games pass their own heuristic and next_boards via AlphaBeta struct.
+// Games pass their own h and nexts via AlphaBeta struct.
+// Board is a generic data blob — each game defines its own layout.
 
 AB_INF := 100000
+MAX_BOARD := 4096
 
-Board := Dynamic
-Heuristic := func(Board) returns I64
-NextBoardsFn := func(Board) returns Vec
+Heuristic := func(Dynamic) returns I64
+NextBoardsFn := proc(Dynamic) returns Vec
 
 default_heuristic : Heuristic = (board) { return 0 }
-default_next_boards : NextBoardsFn = (board) { return Vec.new("Dynamic", 8) }
+default_next_boards : NextBoardsFn = (board) { return Vec.new("Board", Board.size()) }
+
+Board := struct {
+    mut data := Array.new("U8", 1, MAX_BOARD.to_u64())
+}
 
 AlphaBeta := struct {
-    mut heuristic : Heuristic = default_heuristic
-    mut next_boards : NextBoardsFn = default_next_boards
+    mut h : Heuristic = default_heuristic
+    mut nexts : NextBoardsFn = default_next_boards
 namespace:
     search := proc(self: AlphaBeta, board: Board, depth: I64,
                     alpha: I64, beta: I64) returns I64 {
-        children := self.next_boards(board)
+        children := self.nexts(board)
         if depth.eq(0).or(children.len().eq(0)) {
-            return self.heuristic(board)
+            return self.h(board)
         }
         mut best := 0.sub(AB_INF)
         mut a := alpha
-        for child : Board in children {
+        for i in 0..children.len() {
+            ref child : Board = children.get(i)
             score := 0.sub(AlphaBeta.search(self, child, depth.sub(1),
                            0.sub(beta), 0.sub(a)))
             if score.gt(best) { best = score }
