@@ -1667,14 +1667,6 @@ I32 build_forward_header(Expr *program, Str *fwd_path);
 static void emit_header_forward_decls(FILE *f, Expr *program);
 
 // Derive basename from absolute path: "/abs/path/to/str.til" → "str"
-static Str *path_basename_no_ext(Str *path) {
-    I64 slash = *Str_rfind(path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-    I64 dot = *Str_rfind(path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-    U64 start = slash >= 0 ? (U64)(slash + 1) : 0;
-    U64 end = (dot > slash) ? (U64)dot : path->count;
-    return Str_clone(Str_substr(path, &start, &(U64){end - start}));
-}
-
 I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     (void)path;
 
@@ -1766,121 +1758,14 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
 
     Bool is_script = !mode || !mode->decls_only;
 
-    // === Per-module .h emission (#74) ===
-    // Each source .til file gets its own .h with struct/enum defs + function declarations.
-    // Main .c #includes them all.
-    Str *h_main_basename;
+    // === Monolithic .h emission (#89: reverted per-module splitting from #74) ===
+    // Single .h file with forward decls, struct/enum defs, and function declarations.
     {
-        I64 h_out_slash = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        Str *h_out_dir = h_out_slash >= 0 ? Str_substr(c_output_path, &(U64){0}, &(U64){(U64)(h_out_slash + 1)}) : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-        h_out_dir = Str_clone(h_out_dir);
-        h_main_basename = path_basename_no_ext(c_output_path);
-        Str *h_mod_prefix = Str_concat(Str_concat(h_out_dir, h_main_basename), &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
+        FILE *hf = f;  // emit directly into main .c
+        fprintf(hf, "#include \"aliases.h\"\n#include <stdbool.h>\n\n");
+        emit_header_forward_decls(hf, program);
 
-        // Build type_name → module_basename map
-        Map type_to_mod; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str)}); type_to_mod = *_mp; free(_mp); }
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl &&
-                (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
-                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
-                Str *bn = path_basename_no_ext(&stmt->path);
-                { Str *_k = Str_clone(&stmt->data.data.Decl.name); Str *_v = Str_clone(bn); Map_set(&type_to_mod, _k, _v); }
-            }
-        }
-
-        // Generate shared forward declarations file ({prefix}_decls.h)
-        {
-            Str *decls_path = Str_concat(Str_concat(h_out_dir, h_main_basename), &(Str){.c_str = (U8*)"_decls.h", .count = 8, .cap = CAP_LIT});
-            FILE *df = fopen((const char *)decls_path->c_str, "w");
-            if (df) {
-                fprintf(df, "#pragma once\n#include \"aliases.h\"\n#include <stdbool.h>\n\n");
-                emit_header_forward_decls(df, program);
-                fclose(df);
-            }
-        }
-
-        // Open per-module .h files
-        Map mod_h_files; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(FILE *)}); mod_h_files = *_mp; free(_mp); }
-        Vec mod_h_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); mod_h_names = *_vp; free(_vp); }
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl) continue;
-            Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
-            if (rhs->data.tag != ExprData_TAG_StructDef && rhs->data.tag != ExprData_TAG_EnumDef && rhs->data.tag != ExprData_TAG_FuncDef) continue;
-            if (rhs->data.tag == ExprData_TAG_FuncDef) {
-                FuncType fft2 = rhs->data.data.FuncDef.func_type;
-                if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
-                if (rhs->children.count == 0) continue;
-            }
-            Str *bn = path_basename_no_ext(&stmt->path);
-            if (!*Map_has(&mod_h_files, bn)) {
-                Str *mod_path = Str_concat(Str_concat(h_mod_prefix, bn), &(Str){.c_str = (U8*)".h", .count = 2, .cap = CAP_LIT});
-                FILE *mh = fopen((const char *)mod_path->c_str, "w");
-                if (mh) {
-                    { FILE **_p = malloc(sizeof(FILE *)); *_p = mh; Map_set(&mod_h_files, Str_clone(bn), _p); }
-                    { Str *_p = Str_clone(bn); Vec_push(&mod_h_names, _p); }
-                }
-            }
-        }
-
-        // Write .h preambles: pragma once, aliases, stdbool, forward decls, cross-module includes
-        for (U32 mi = 0; mi < mod_h_names.count; mi++) {
-            Str *mod = (Str *)Vec_get(&mod_h_names, &(U64){(U64)(mi)});
-            FILE *mh = *(FILE **)Map_get(&mod_h_files, mod);
-            fprintf(mh, "#pragma once\n#include \"%s_decls.h\"\n\n", h_main_basename->c_str);
-            // Cross-module #includes for inline field deps
-            Set cross_deps; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); cross_deps = *_sp; free(_sp); }
-            for (U32 i = 0; i < program->children.count; i++) {
-                Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-                if (stmt->data.tag != ExprData_TAG_Decl) continue;
-                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
-                if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
-                Str *my_mod = path_basename_no_ext(&stmt->path);
-                if (!(*Str_eq(my_mod, mod))) continue;
-                if (def->data.tag == ExprData_TAG_StructDef) {
-                    Expr *body = Expr_child(def, &(I64){(I64)(0)});
-                    for (U32 fi = 0; fi < body->children.count; fi++) {
-                        Expr *field = Expr_child(body, &(I64){(I64)(fi)});
-                        if (field->data.data.Decl.is_namespace) continue;
-                        if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
-                            (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
-                            Expr_child(field, &(I64){(I64)(0)})->struct_name.count > 0) {
-                            Str *dep_type = &Expr_child(field, &(I64){(I64)(0)})->struct_name;
-                            if (*Map_has(&type_to_mod, dep_type)) {
-                                Str *dep_mod = (Str *)Map_get(&type_to_mod, dep_type);
-                                if (!(*Str_eq(mod, dep_mod)) && !*Set_has(&cross_deps, dep_mod)) {
-                                    { Str *_p = Str_clone(dep_mod); Set_add(&cross_deps, _p); }
-                                    fprintf(mh, "#include \"%s_%s.h\"\n", h_main_basename->c_str, dep_mod->c_str);
-                                }
-                            }
-                        }
-                    }
-                } else if (def->data.tag == ExprData_TAG_EnumDef) {
-                    Expr *body = Expr_child(def, &(I64){(I64)(0)});
-                    for (U32 fi = 0; fi < body->children.count; fi++) {
-                        Expr *v = Expr_child(body, &(I64){(I64)(fi)});
-                        if (v->data.data.Decl.is_namespace) continue;
-                        if (v->data.data.Decl.explicit_type.count > 0 &&
-                            !is_primitive_type(&v->data.data.Decl.explicit_type) &&
-                            !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
-                            Str *dep_type = &v->data.data.Decl.explicit_type;
-                            if (*Map_has(&type_to_mod, dep_type)) {
-                                Str *dep_mod = (Str *)Map_get(&type_to_mod, dep_type);
-                                if (!(*Str_eq(mod, dep_mod)) && !*Set_has(&cross_deps, dep_mod)) {
-                                    { Str *_p = Str_clone(dep_mod); Set_add(&cross_deps, _p); }
-                                    fprintf(mh, "#include \"%s_%s.h\"\n", h_main_basename->c_str, dep_mod->c_str);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            fprintf(mh, "\n");
-            Set_delete(&cross_deps, &(Bool){0});
-        }
-
-        // Topo-sort struct/enum defs → per-module .h files
+        // Topo-sort struct/enum defs into header
         {
             Vec to_emit_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(U32)}); to_emit_mh = *_vp; free(_vp); }
             for (U32 i = 0; i < program->children.count; i++) {
@@ -1945,31 +1830,29 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
 
                     if (!deps_ok) continue;
 
-                    Str *tmod = (Str *)Map_get(&type_to_mod, name);
-                    FILE *mh = *(FILE **)Map_get(&mod_h_files, tmod);
                     if (def->data.tag == ExprData_TAG_StructDef) {
-                        emit_struct_typedef(mh, name, def);
-                        fprintf(mh, "\n");
+                        emit_struct_typedef(hf, name, def);
+                        fprintf(hf, "\n");
                     } else {
                         Str *ename = name;
                         Expr *ebody = Expr_child(def, &(I64){(I64)(0)});
                         Bool hp = *enum_has_payloads(def);
-                        fprintf(mh, "struct %s {\n", ename->c_str);
-                        fprintf(mh, "    %s_tag tag;\n", ename->c_str);
+                        fprintf(hf, "struct %s {\n", ename->c_str);
+                        fprintf(hf, "    %s_tag tag;\n", ename->c_str);
                         if (hp) {
-                            fprintf(mh, "    union {\n");
+                            fprintf(hf, "    union {\n");
                             for (U32 j = 0; j < ebody->children.count; j++) {
                                 Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
                                 if (v->data.data.Decl.is_namespace) continue;
                                 if (v->data.data.Decl.explicit_type.count > 0) {
-                                    fprintf(mh, "        %s %s;\n",
+                                    fprintf(hf, "        %s %s;\n",
                                             type_name_to_c_value(&v->data.data.Decl.explicit_type),
                                             v->data.data.Decl.name.c_str);
                                 }
                             }
-                            fprintf(mh, "    } data;\n");
+                            fprintf(hf, "    } data;\n");
                         }
-                        fprintf(mh, "};\n\n");
+                        fprintf(hf, "};\n\n");
                     }
                     { Str *_p = Str_clone(name); Set_add(&emitted_mh, _p); }
                     done_mh[ei] = 1;
@@ -1982,31 +1865,29 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         U32 idx = *(U32 *)Vec_get(&to_emit_mh, &(U64){(U64)(ei)});
                         Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
                         Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
-                        Str *tmod = (Str *)Map_get(&type_to_mod, &stmt->data.data.Decl.name);
-                        FILE *mh = *(FILE **)Map_get(&mod_h_files, tmod);
                         if (def->data.tag == ExprData_TAG_StructDef) {
-                            emit_struct_typedef(mh, &stmt->data.data.Decl.name, def);
-                            fprintf(mh, "\n");
+                            emit_struct_typedef(hf, &stmt->data.data.Decl.name, def);
+                            fprintf(hf, "\n");
                         } else {
                             Str *ename = &stmt->data.data.Decl.name;
                             Expr *ebody = Expr_child(def, &(I64){(I64)(0)});
                             Bool hp = *enum_has_payloads(def);
-                            fprintf(mh, "struct %s {\n", ename->c_str);
-                            fprintf(mh, "    %s_tag tag;\n", ename->c_str);
+                            fprintf(hf, "struct %s {\n", ename->c_str);
+                            fprintf(hf, "    %s_tag tag;\n", ename->c_str);
                             if (hp) {
-                                fprintf(mh, "    union {\n");
+                                fprintf(hf, "    union {\n");
                                 for (U32 j = 0; j < ebody->children.count; j++) {
                                     Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
                                     if (v->data.data.Decl.is_namespace) continue;
                                     if (v->data.data.Decl.explicit_type.count > 0) {
-                                        fprintf(mh, "        %s %s;\n",
+                                        fprintf(hf, "        %s %s;\n",
                                                 type_name_to_c_value(&v->data.data.Decl.explicit_type),
                                                 v->data.data.Decl.name.c_str);
                                     }
                                 }
-                                fprintf(mh, "    } data;\n");
+                                fprintf(hf, "    } data;\n");
                             }
-                            fprintf(mh, "};\n\n");
+                            fprintf(hf, "};\n\n");
                         }
                     }
                     break;
@@ -2017,15 +1898,13 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Set_delete(&emitted_mh, &(Bool){0});
         }
 
-        // Emit function declarations to per-module .h files
+        // Emit function declarations to header
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
             if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
                                              Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
                 Str *sname = &stmt->data.data.Decl.name;
                 if (is_scalar_method_type(sname)) continue;
-                Str *tmod = (Str *)Map_get(&type_to_mod, sname);
-                FILE *mh = *(FILE **)Map_get(&mod_h_files, tmod);
                 Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *field = Expr_child(body, &(I64){(I64)(j)});
@@ -2039,9 +1918,9 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         ret = fdef->data.data.FuncDef.return_is_shallow
                             ? type_name_to_c_value(&fdef->data.data.FuncDef.return_type)
                             : type_name_to_c(&fdef->data.data.FuncDef.return_type);
-                    fprintf(mh, "%s %s_%s(", ret, sname->c_str, field->data.data.Decl.name.c_str);
-                    emit_param_list(mh, fdef, 1);
-                    fprintf(mh, ");\n");
+                    fprintf(hf, "%s %s_%s(", ret, sname->c_str, field->data.data.Decl.name.c_str);
+                    emit_param_list(hf, fdef, 1);
+                    fprintf(hf, ");\n");
                 }
             } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
                 Expr *func_def = Expr_child(stmt, &(I64){(I64)(0)});
@@ -2051,17 +1930,14 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Str *fname = &stmt->data.data.Decl.name;
                 Bool fis_main = mode && mode->needs_main && (fname->count == 4 && memcmp(fname->c_str, "main", 4) == 0);
                 if (fis_main) continue;
-                Str *bn = path_basename_no_ext(&stmt->path);
-                if (!*Map_has(&mod_h_files, bn)) continue;
-                FILE *mh = *(FILE **)Map_get(&mod_h_files, bn);
                 const char *ret = "void";
                 if (func_def->data.data.FuncDef.return_type.count > 0)
                     ret = func_def->data.data.FuncDef.return_is_shallow
                         ? type_name_to_c_value(&func_def->data.data.FuncDef.return_type)
                         : type_name_to_c(&func_def->data.data.FuncDef.return_type);
-                fprintf(mh, "%s %s(", ret, func_to_c(&stmt->data.data.Decl.name));
-                emit_param_list(mh, func_def, 1);
-                fprintf(mh, ");\n");
+                fprintf(hf, "%s %s(", ret, func_to_c(&stmt->data.data.Decl.name));
+                emit_param_list(hf, func_def, 1);
+                fprintf(hf, ");\n");
             }
         }
         // Enum auto-helper declarations
@@ -2070,8 +1946,6 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             if (stmt->is_core) continue;
             if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
                 Str *sname = &stmt->data.data.Decl.name;
-                Str *tmod = (Str *)Map_get(&type_to_mod, sname);
-                FILE *mh = *(FILE **)Map_get(&mod_h_files, tmod);
                 Bool hp = *enum_has_payloads(Expr_child(stmt, &(I64){(I64)(0)}));
                 Expr *ebody = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){0});
                 Expr *eq_fdef = NULL;
@@ -2084,39 +1958,29 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     }
                 }
                 const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
-                fprintf(mh, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
+                fprintf(hf, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
                 const char *is_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
                 for (U32 j = 0; j < ebody->children.count; j++) {
                     Expr *v = Expr_child(ebody, &(I64){(I64)(j)});
                     if (v->data.data.Decl.is_namespace) continue;
                     if (hp) {
-                        fprintf(mh, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
+                        fprintf(hf, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                     }
                     if (v->data.data.Decl.explicit_type.count > 0) {
-                        fprintf(mh, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
+                        fprintf(hf, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
                                 v->data.data.Decl.name.c_str, type_name_to_c(&v->data.data.Decl.explicit_type));
-                        fprintf(mh, "%s %s_get_%s(%s *);\n",
+                        fprintf(hf, "%s %s_get_%s(%s *);\n",
                                 type_name_to_c(&v->data.data.Decl.explicit_type),
                                 sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                     } else {
-                        fprintf(mh, "%s *%s_%s();\n", sname->c_str, sname->c_str,
+                        fprintf(hf, "%s *%s_%s();\n", sname->c_str, sname->c_str,
                                 v->data.data.Decl.name.c_str);
                     }
                 }
             }
         }
 
-        // Close .h files and write #include lines to main .c
-        for (U32 mi = 0; mi < mod_h_names.count; mi++) {
-            Str *mod = (Str *)Vec_get(&mod_h_names, &(U64){(U64)(mi)});
-            FILE *mh = *(FILE **)Map_get(&mod_h_files, mod);
-            fclose(mh);
-            fprintf(f, "#include \"%s_%s.h\"\n", h_main_basename->c_str, mod->c_str);
-        }
-        fprintf(f, "\n");
-        Map_delete(&type_to_mod, &(Bool){0});
-        Map_delete(&mod_h_files, &(Bool){0});
-        Vec_delete(&mod_h_names, &(Bool){0});
+        // hf == f, no separate file to close
     }
     fprintf(f, "#include \"ext.h\"\n\n");
 
@@ -2297,7 +2161,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         Vec_delete(&coll_infos, &(Bool){0});
     }
 
-    // Struct/enum definitions now in per-module .h files (#74)
+    // Struct/enum definitions emitted in monolithic .h file above
 
     // Runtime NULL check for shallow deref
     fprintf(f, "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n");
@@ -2339,83 +2203,21 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         fprintf(f, "\n");
     }
 
-    // Emit function bodies split by source module (#74)
-    // Each source .til file gets its own .c with only its function bodies.
-    // The main file #includes them all.
-    {
-        // Derive output directory and prefix
-        I64 out_slash = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        Str *out_dir = out_slash >= 0 ? Str_substr(c_output_path, &(U64){0}, &(U64){(U64)(out_slash + 1)}) : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-        Str *main_basename = path_basename_no_ext(c_output_path);
-        // Per-module files go in same dir as main file, prefixed with main basename
-        // e.g. gen/c/lexer.c (main) → gen/c/lexer_str.c, gen/c/lexer_core.c
-        // This way bootstrap copy (cp gen/c/X.c bootstrap/X.c) works with relative includes
-        Str *mod_prefix = Str_concat(Str_concat(out_dir, main_basename), &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT});
-
-        // Collect unique basenames and open per-module files
-        Map mod_files; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(FILE *)}); mod_files = *_mp; free(_mp); }
-        Vec mod_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); mod_names = *_vp; free(_vp); }
-
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl) continue;
-            Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
-            if (rhs->data.tag != ExprData_TAG_StructDef && rhs->data.tag != ExprData_TAG_EnumDef && rhs->data.tag != ExprData_TAG_FuncDef) continue;
-            if (rhs->data.tag == ExprData_TAG_FuncDef) {
-                FuncType fft2 = rhs->data.data.FuncDef.func_type;
-                if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
-                if (rhs->children.count == 0) continue;
-            }
-            Str *bn = path_basename_no_ext(&stmt->path);
-            if (!*Map_has(&mod_files, bn)) {
-                Str *mod_path = Str_concat(Str_concat(mod_prefix, bn), &(Str){.c_str = (U8*)".c", .count = 2, .cap = CAP_LIT});
-                FILE *mf = fopen((const char *)mod_path->c_str, "w");
-                if (mf) {
-                    fprintf(mf, "#include \"%s_%s.h\"\n\n", h_main_basename->c_str, bn->c_str);
-                    { FILE **_p = malloc(sizeof(FILE *)); *_p = mf; Map_set(&mod_files, Str_clone(bn), _p); }
-                    { Str *_p = Str_clone(bn); Vec_push(&mod_names, _p); }
-                }
-            }
+    // Emit function bodies — all into main .c (#89: monolithic)
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
+            emit_struct_funcs(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), is_lib, 0);
+        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            emit_enum_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}));
+            fprintf(f, "\n");
+        } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            FuncType fft2 = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+            if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
+            if (Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) continue;
+            emit_func_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), mode, 0);
+            fprintf(f, "\n");
         }
-
-        // Loop 1: auto-generated functions → main file
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
-                emit_struct_funcs(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), is_lib, 1);
-            } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
-                emit_enum_def(f, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}));
-                fprintf(f, "\n");
-            }
-        }
-
-        // Loop 2: user-written functions → per-module files
-        for (U32 i = 0; i < program->children.count; i++) {
-            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-            Str *bn = path_basename_no_ext(&stmt->path);
-            FILE *mf = *Map_has(&mod_files, bn) ? *(FILE **)Map_get(&mod_files, bn) : f;
-            if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
-                emit_struct_funcs(mf, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), is_lib, 2);
-            } else if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                FuncType fft2 = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
-                if (fft2.tag == FuncType_TAG_ExtFunc || fft2.tag == FuncType_TAG_ExtProc) continue;
-                if (Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) continue;
-                emit_func_def(mf, &stmt->data.data.Decl.name, Expr_child(stmt, &(I64){(I64)(0)}), mode, 0);
-                fprintf(mf, "\n");
-            }
-        }
-
-        // Close per-module files and write #include lines into main file
-        for (U32 i = 0; i < mod_names.count; i++) {
-            Str *bn = (Str *)Vec_get(&mod_names, &(U64){(U64)(i)});
-            FILE *mf = *(FILE **)Map_get(&mod_files, bn);
-            fclose(mf);
-            // Write relative #include to main file
-            fprintf(f, "#include \"%s_%s.c\"\n", main_basename->c_str, bn->c_str);
-        }
-        fprintf(f, "\n");
-        Map_delete(&mod_files, &(Bool){0});
-        Vec_delete(&mod_names, &(Bool){0});
     }
 
     // Emit dyn_call dispatch function bodies

@@ -1,5 +1,17 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #89 Revert to monolithic compilation (remove per-module file splitting)
+  Removed per-module .c/.h emission from builder.c (#74). All struct/enum
+  defs, function declarations, and function bodies now go into a single .c
+  with forward declarations inlined. The ~mode lib~ .h (~modes.h~) is still
+  generated separately by ~build_header~.
+
+  ~bootstrap/~ dropped from 70 files to 6: ~modes.c~, ~modes.h~,
+  ~modes_forward.h~, ~til.c~, ~til.h~, ~til_forward.h~.
+
+  ~self_diff~ was already removed in 5d365ff18. ~compile_lib~ and
+  per-library scavenging remain (separate concern).
+
 * FIXED #79 Type aliases for structs, enums, primitives, and function signatures
   ~MyAlias := ExistingType~ creates a type alias for all type kinds.
 

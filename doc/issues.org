@@ -94,7 +94,6 @@
   references them before their declaration. Currently all type
   definitions must be at top level.
 
-
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
@@ -186,16 +185,6 @@
 
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
-
-** OPEN #89 Revert to monolithic compilation (remove per-library scavenging)
-  The modular ~compile_lib~ / per-library scavenging was partly for
-  ~make self_diff~ (no longer needed with the incremental #39 method)
-  and partly for a hypothetical multi-library scenario. The complexity
-  isn't justified — monolithic compilation is simpler and faster.
-
-  Remove ~compile_lib~, ~mode lib~ scavenging, per-module .c/.h file
-  splitting. One translation unit per ~til build~ invocation. The
-  ~self_diff~ Makefile target and script can also be removed.
 
 ** OPEN #88 UFCS with ~own~ first arg: ~own p.delete()~ rejected by typer
   ~own p.delete()~ is rejected with "argument for 'own' parameter 'self'
