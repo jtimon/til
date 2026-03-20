@@ -1,10 +1,32 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 100
+# NEXT_ISSUE: 101
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #100 Scalar Range: type-aware for-in for builtin integer types
+  Specialize the for-in desugaring in typer.c for Range when operand
+  types are builtin scalars (I64, U32, U64, I32, I16, U8). Instead of
+  going through generic Range.new/len/get, desugar directly to a
+  while loop with typed arithmetic:
+  - Infer T from operands (non-literal wins, both literals -> I64)
+  - ~len~ via T.distance(start, end)
+  - ~get~ via T.add(start, i) / T.sub(start, i)
+  - Loop variable typed as T (not U64)
+
+  Fixes:
+  - ~for i in -2..2~ (I64 range, negative values)
+  - ~for i in 0..count~ where count is U32/USize (loop var matches)
+  - Zero overhead vs old U64-only Range (no malloc, no dyn_fn)
+
+  Blocker for #80 Phase 2 (USize := U32).
+  Generic case (Vec2, custom types) deferred to #94.
+
+  Prep done on master:
+  - Commit 1: proc -> void func (delete, swap, push, set, add)
+  - Commit 2: distance method + IncFn/DistanceFn typedefs
+
 ** OPEN #79 Type aliases: FuncPtr forward declarations don't resolve aliases
   builder.c emits alias names (e.g. ~USize~) literally in FuncPtr
   typedef forward declarations instead of resolving to canonical type
@@ -62,29 +84,6 @@
   ~CALL1~, ~RET~, ~CMP_EQ~, ~NEG1~, ~GEN_CMP_FUNC~ for building
   comparison method AST nodes inline.
 
-** OPEN #94 Generic Range: support any type with inc/dec
-  :DEPENDENCIES: #91
-  Range currently hardcodes U64 for start/end/get/len. Should work
-  with any type that has ~inc~ and ~dec~ defined.
-
-  Currently ~for i in -2..2~ doesn't work because Range only takes U64.
-  ~for i in 0..count~ where count is U32/USize produces U64 loop
-  variables, causing type mismatches when indexing containers.
-
-  Blocker for #80 Phase 2 (USize := U32).
-
-  Done (on master):
-  - Step 1: pure til inc/dec/unity, removed ext_func inc/dec
-  - Step 2: auto-generate inc/dec from add+sub+unity in initer
-  - Step 3: hoist for-in iterable into temp variable (perf fix)
-
-  WIP (on wip_94 branch):
-  - Step 4: generic Range with dynamic element storage + typer
-    transforms. Compiled path works, interpreter regresses badly
-    due to O(n) dyn_call counting in Range.new. Needs #91 (function
-    pointers in containers) to eliminate FFI dispatch overhead.
-
-  Design documented in ~doc/auto.org~.
 
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
@@ -922,7 +921,29 @@
   (tests.til) runs four configurations: C interpreted, C compiled, til
   interpreted, til compiled — all must produce identical results.
 
-* [0/19] Post
+* [0/20] Post
+** OPEN #94 Generic Range: support any type with inc/dec
+  :DEPENDENCIES: #91, #100
+  Range with dynamic element storage and FuncPtr fields for operations.
+  Supports user-defined types like Vec2 with inc/dec/cmp/distance.
+
+  Design: Range stores elem as opaque bytes (own mut elem : U8),
+  with FuncPtr fields (IncFn, CmpFn, CloneFn, DeleteFn, DistanceFn)
+  initialized via dyn_fn in Range.new. len via distance (O(1)),
+  get via inc/dec on cursor.
+
+  Known blockers found during implementation attempt:
+  - Scavenger removes inc/dec/distance + Str from compiled programs
+  - Bootstrap slowdown: core lib for-in (Str.cmp etc) creates
+    heavyweight Range objects instead of simple U64 arithmetic
+  - Builder: Str struct ordering in generated C for pure-mode programs
+  - Interpreter: FuncPtr field calls with mut params may not mutate
+  - Typer: Range.new transform desugars NamedArgs before cloning
+    (inline struct constructors as range operands fail)
+  - #79: type aliases (USize) not resolved in FuncPtr forward decls
+
+  Design documented in ~doc/auto.org~. wip_94 branch has partial impl.
+
 ** OPEN #93 Local struct, enum, and function definitions
   Struct, enum, and function definitions inside function bodies don't
   work — the builder emits them at file scope but the generated C

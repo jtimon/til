@@ -106,6 +106,13 @@ real problem.
   `git checkout HEAD -- bootstrap/` — not git stash, not git reset.
 - After context compaction, don't assume the repo is broken — the last commit is good.
 
+## ASCII Only
+
+Use plain ASCII everywhere -- in .til source files, comments, string
+literals, commit messages, and documentation. No Unicode arrows,
+bullets, em-dashes, or fancy quotes. til's lexer cannot parse Unicode.
+Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
+
 ## Commits
 
 - Always include ALL modified files in commits, including generated files (bootstrap/)
