@@ -174,6 +174,63 @@
   whether other phases (typer, builder) have similar multi-pass
   patterns worth consolidating.
 
+*** Audit Results (2026-03-20)
+
+**** Initer: 10 full AST walks (src/c/initer.c:245-1511)
+
+  | Pass | Lines     | Purpose                                          |
+  |------+-----------+--------------------------------------------------|
+  |    1 | 248-285   | Register struct definitions                       |
+  |  1.1 | 287-298   | Pre-register bodyless func/proc as FuncSig aliases |
+  |  1.5 | 300-430   | Auto-generate clone() methods for structs         |
+  |  1.7 | 432-563   | Auto-generate delete() methods for structs        |
+  |  1.8 | 565-1168  | Register enums, generate variant constructors     |
+  | 1.85 | 1170-1200 | Register type aliases (Name := ExistingType)      |
+  |  1.9 | 1202-1204 | Compute flat struct layouts (field offsets/sizes)  |
+  | 1.92 | 1206-1274 | Auto-generate size() methods for structs/enums    |
+  | 1.95 | 1276-1448 | Auto-generate derived cmp/arithmetic methods      |
+  |    2 | 1450-1508 | Register all func/proc definitions                |
+
+  All 10 passes iterate the full program->children.count.
+
+**** Ordering constraints
+
+  - Pass 1 before 1.85 (struct types must exist for alias resolution)
+  - Pass 1.1 before 1.5/1.7 (FuncSig recognition in struct fields)
+  - Pass 1.8 before 1.85 (enums must be registered)
+  - Pass 1.9 before 1.92 (layout needed before size() generation)
+  - Pass 2 must be last (depends on all type registration)
+
+**** Merge candidates (10 walks -- 7)
+
+  - Pass 1 + 1.1: both register types, no interdependency (saves 1 walk)
+  - Pass 1.5 + 1.7: both generate struct methods, no interdependency (saves 1 walk)
+  - Pass 1.92 + 1.95: both synthesize derived methods, run 1.92 first in loop (saves 1 walk)
+
+**** Not mergeable
+
+  - Pass 1.8 (enums, 600 lines): depends on Pass 1, depended on by 1.85
+  - Pass 1.85: depends on 1, 1.1, 1.8 (documented at line 1171)
+  - Pass 1.9: must run after struct registration, before 1.92
+
+**** Other phases
+
+  | Phase     | File                  | Passes          | Merge opportunity |
+  |-----------+-----------------------+-----------------+-------------------|
+  | Typer     | src/c/typer.c:3559    | 1 (recursive)   | None needed       |
+  | Builder   | src/c/builder.c:1638  | 1 + setup walks | Minor             |
+  | Precomp   | src/c/precomp.c:270   | 2 (collect+run) | Minimal           |
+  | Scavenger | src/c/scavenger.c:137 | BFS worklist    | None needed       |
+
+  Only the initer has significant multi-pass overhead.
+
+** OPEN #95 Audit C macros in compiler for til translation
+  Explore C preprocessor macros across the compiler C sources
+  (initer.c, builder.c, typer.c, etc.) to understand which ones:
+  - Can be replaced with til functions/macros when self-hosting
+  - Are useful temporarily for AST construction (e.g. MK, ID, ACC
+    in initer.c pass 1.95)
+  - Could cause issues during C--til translation
 
 
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
