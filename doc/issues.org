@@ -605,6 +605,38 @@
     *Semantic/interface* (must fix): different data layouts, missing
     implementations, wrong signatures, callers using incompatible patterns.
 
+*** DONE Step 6: Empty til stubs for all remaining C modules
+    Created empty ~mode lib~ stubs imported from modes.til:
+    builder.til, dispatch.til, interpreter.til, precomp.til,
+    scavenger.til, typer.til. Ready for incremental migration.
+
+*** Current state of C modules
+    All modules except ext.c have functions only (no structs or
+    enums remaining in the C code — those are in til or headers).
+
+    | Module | Statics | Typedefs | Functions |
+    |--------+---------+----------+-----------|
+    | initer.c | 0 | 0 | ~12 |
+    | typer.c | 4 | 1 (LocalInfo) | ~40 |
+    | precomp.c | 3 | 0 | ~10 |
+    | scavenger.c | 1 | 0 | ~7 |
+    | interpreter.c | 6 | 6 (Value etc.) | ~20 |
+    | dispatch.c | 6 | 3 (DispatchFn etc.) | ~30 |
+    | builder.c | 8 | 2 (CollectionInfo etc.) | ~40 |
+    | til_bridge.c | 1 | 0 | ~8 (being removed #77) |
+
+*** Next: move typedefs/structs to til stubs
+    Move remaining typedefs from C to til, one commit per module.
+    Functions stay in C for now.
+
+    Commit order:
+    1. typer.til — LocalInfo struct
+    2. precomp.til — (no structs, just statics → skip or move statics)
+    3. scavenger.til — (no structs, just statics → skip or move statics)
+    4. dispatch.til — DispatchFn, FFIEntry, ExtStr
+    5. interpreter.til — Value, StructInstance, EnumInstance, Cell, Scope
+    6. builder.til — CollectionInfo, DynCallInfo
+
 *** DONE Step 4: Replace C ast with til-compiled ast
    Replaced src/c/ast.c with bootstrap/ast.c (generated from ast.til).
    Since ast.til imports lexer.til imports core.til, bootstrap/ast
