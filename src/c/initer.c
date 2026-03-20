@@ -1273,8 +1273,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr_add_child(body, decl);
     }
 
-    // Pass 1.95: auto-generate comparison methods from cmp
-    // Any struct/enum with cmp gets: eq, neq, lt, gt, lte, gte (if missing)
+    // Pass 1.95: auto-generate derived methods
+    // From cmp: eq, neq, lt, gt, lte, gte (if missing)
+    // From add+unity: inc (if missing). From sub+unity: dec (if missing)
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -1288,24 +1289,32 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *body = Expr_child(def, &(I64){(I64)(0)});
         Bool has_cmp = 0, has_eq = 0, has_neq = 0;
         Bool has_lt = 0, has_gt = 0, has_lte = 0, has_gte = 0;
+        Bool has_add = 0, has_sub = 0, has_unity = 0, has_inc = 0, has_dec = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *f = Expr_child(body, &(I64){(I64)(j)});
             if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
             if (f->children.count == 0 || Expr_child(f, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "cmp", 3) == 0)) has_cmp = 1;
-            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "eq", 2) == 0)) has_eq = 1;
-            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "neq", 3) == 0)) has_neq = 1;
-            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "lt", 2) == 0)) has_lt = 1;
-            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "gt", 2) == 0)) has_gt = 1;
-            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "lte", 3) == 0)) has_lte = 1;
-            if ((f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "gte", 3) == 0)) has_gte = 1;
+            Str *fn = &f->data.data.Decl.name;
+            if ((fn->count == 3 && memcmp(fn->c_str, "cmp", 3) == 0)) has_cmp = 1;
+            if ((fn->count == 2 && memcmp(fn->c_str, "eq", 2) == 0)) has_eq = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "neq", 3) == 0)) has_neq = 1;
+            if ((fn->count == 2 && memcmp(fn->c_str, "lt", 2) == 0)) has_lt = 1;
+            if ((fn->count == 2 && memcmp(fn->c_str, "gt", 2) == 0)) has_gt = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "lte", 3) == 0)) has_lte = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "gte", 3) == 0)) has_gte = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "add", 3) == 0)) has_add = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "sub", 3) == 0)) has_sub = 1;
+            if ((fn->count == 5 && memcmp(fn->c_str, "unity", 5) == 0)) has_unity = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "inc", 3) == 0)) has_inc = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "dec", 3) == 0)) has_dec = 1;
         }
-        if (!has_cmp) continue;
+        if (!has_cmp && !has_unity) continue;
 
         I32 line = stmt->line;
         I32 col = stmt->col;
         Str *path = &stmt->path;
 
+        if (has_cmp) {
         // Helper macros for building AST nodes inline
         #define MK(type) Expr_new(&(ExprData){.tag = type}, line, col, path)
         #define ID(s) ({ Expr *_e = MK(ExprData_TAG_Ident); _e->data.data.Ident = *Str_clone(&(Str){.c_str = (U8*)(s), .count = (U64)strlen((const char*)(s)), .cap = CAP_VIEW}); _e; })
@@ -1348,35 +1357,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr_add_child(body, dc); \
         } while(0)
 
-        // eq(a, b) → a.cmp(b).eq(0)
-        if (!has_eq) {
-            GEN_CMP_FUNC("eq", CMP_EQ(NUM("0")));
-        }
-
-        // lt(a, b) → a.cmp(b).eq(0.sub(1))
-        if (!has_lt) {
-            GEN_CMP_FUNC("lt", CMP_EQ(NEG1()));
-        }
-
-        // gt(a, b) → a.cmp(b).eq(1)
-        if (!has_gt) {
-            GEN_CMP_FUNC("gt", CMP_EQ(NUM("1")));
-        }
-
-        // neq(a, b) → a.eq(b).not()
-        if (!has_neq) {
-            GEN_CMP_FUNC("neq", RET(CALL0(ACC(CALL1(ACC(ID("a"), "eq"), ID("b")), "not"))));
-        }
-
-        // lte(a, b) → a.gt(b).not()
-        if (!has_lte) {
-            GEN_CMP_FUNC("lte", RET(CALL0(ACC(CALL1(ACC(ID("a"), "gt"), ID("b")), "not"))));
-        }
-
-        // gte(a, b) → a.lt(b).not()
-        if (!has_gte) {
-            GEN_CMP_FUNC("gte", RET(CALL0(ACC(CALL1(ACC(ID("a"), "lt"), ID("b")), "not"))));
-        }
+        if (!has_eq)  { GEN_CMP_FUNC("eq", CMP_EQ(NUM("0"))); }
+        if (!has_lt)  { GEN_CMP_FUNC("lt", CMP_EQ(NEG1())); }
+        if (!has_gt)  { GEN_CMP_FUNC("gt", CMP_EQ(NUM("1"))); }
+        if (!has_neq) { GEN_CMP_FUNC("neq", RET(CALL0(ACC(CALL1(ACC(ID("a"), "eq"), ID("b")), "not")))); }
+        if (!has_lte) { GEN_CMP_FUNC("lte", RET(CALL0(ACC(CALL1(ACC(ID("a"), "gt"), ID("b")), "not")))); }
+        if (!has_gte) { GEN_CMP_FUNC("gte", RET(CALL0(ACC(CALL1(ACC(ID("a"), "lt"), ID("b")), "not")))); }
 
         #undef MK
         #undef ID
@@ -1388,6 +1374,77 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         #undef CMP_EQ
         #undef NEG1
         #undef GEN_CMP_FUNC
+        } // end if (has_cmp)
+
+        // Auto-generate inc/dec from add/sub + unity
+        // inc(mut self: T) { self = self.add(self.unity()) }
+        // dec(mut self: T) { self = self.sub(self.unity()) }
+        for (int pass = 0; pass < 2; pass++) {
+            // pass 0 = inc (needs add), pass 1 = dec (needs sub)
+            const char *method = pass == 0 ? "inc" : "dec";
+            U64 method_len = pass == 0 ? 3 : 3;
+            const char *op = pass == 0 ? "add" : "sub";
+            U64 op_len = 3;
+            Bool already_has = pass == 0 ? has_inc : has_dec;
+            Bool has_op = pass == 0 ? has_add : has_sub;
+            if (already_has || !has_op || !has_unity) continue;
+
+            // self = self.OP(self.unity())
+            // Build: Assign("self", FCall(FieldAccess(Ident("self"), OP), FCall(FieldAccess(Ident("self"), "unity"))))
+            Expr *self1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self1->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+
+            Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+
+            Expr *self3 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self3->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+
+            // self.unity()
+            Expr *unity_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+            unity_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"unity", .count = 5, .cap = CAP_LIT};
+            Expr_add_child(unity_acc, self2);
+            Expr *unity_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr_add_child(unity_call, unity_acc);
+
+            // self.add(unity_call) or self.sub(unity_call)
+            Expr *op_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+            op_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)op, .count = op_len, .cap = CAP_VIEW});
+            Expr_add_child(op_acc, self1);
+            Expr *op_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr_add_child(op_call, op_acc);
+            Expr_add_child(op_call, unity_call);
+
+            // self = ...
+            Expr *assign = Expr_new(&(ExprData){.tag = ExprData_TAG_Assign}, line, col, path);
+            assign->data.data.Assign = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            Expr_add_child(assign, op_call);
+
+            Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+            Expr_add_child(proc_body, assign);
+
+            // proc(mut self: T) { ... }
+            Expr *fd = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+            fd->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
+            fd->data.data.FuncDef.nparam = 1;
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fd->data.data.FuncDef.params = *_v; free(_v); }
+            { Param *_p = calloc(1, sizeof(Param));
+              _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+              _p->ptype = *sname;
+              _p->is_mut = true;
+              Vec_push(&fd->data.data.FuncDef.params, _p); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fd->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            fd->data.data.FuncDef.return_type = (Str){0};
+            fd->data.data.FuncDef.variadic_index = -1;
+            fd->data.data.FuncDef.kwargs_index = -1;
+            Expr_add_child(fd, proc_body);
+
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            decl->data.data.Decl.name = *Str_clone(&(Str){.c_str = (U8*)method, .count = method_len, .cap = CAP_VIEW});
+            decl->data.data.Decl.is_namespace = true;
+            Expr_add_child(decl, fd);
+            Expr_add_child(body, decl);
+        }
     }
 
     // Pass 2: register all func/proc definitions
