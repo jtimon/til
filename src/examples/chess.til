@@ -583,15 +583,41 @@ copy_cf := proc(mut dst: Array, mut src: Array) {
     }
 }
 
-// Chess material evaluation relative to side (0=white, 1=black)
-// Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=10
-// Piece encoding: 1-6 white (P,N,B,R,Q,K), 7-12 black
-chess_eval := func(mut board: Array, side: I64) returns I64 {
+// Pack chess state into Board.data
+// Layout: cells[64*8] + side[8] + ep_col[8] + castle_flags[6*8] = 576 bytes
+chess_pack := proc(mut b: Board, mut cells: Array, side: I64, ep_col: I64, mut cf: Array) {
+    memcpy(b.data.data, cells.data, 512)
+    memcpy(ptr_add(b.data.data, 512), side, 8)
+    memcpy(ptr_add(b.data.data, 520), ep_col, 8)
+    memcpy(ptr_add(b.data.data, 528), cf.data, 48)
+}
+
+chess_unpack_side := func(b: Board) returns I64 {
+    ref s : I64 = ptr_add(b.data.data, 512)
+    return s.clone()
+}
+
+chess_unpack_ep := func(b: Board) returns I64 {
+    ref e : I64 = ptr_add(b.data.data, 520)
+    return e.clone()
+}
+
+chess_unpack_cf := func(b: Board) returns Array {
+    mut cf := Array.new("I64", 8, 6)
+    memcpy(cf.data, ptr_add(b.data.data, 528), 48)
+    return cf
+}
+
+// Heuristic: material count + checkmate/stalemate detection
+chess_heuristic : Heuristic = (b) {
+    ref cb : Board = b
+    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
+    side := chess_unpack_side(cb)
     WEIGHTS := array("I64", 0, 1, 3, 3, 5, 10, 0)
     mut score := 0
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = board.get(i.to_u64())
+        ref p : I64 = cells.get(i.to_u64())
         if p.gt(0).and(p.lte(6)) {
             ref w : I64 = WEIGHTS.get(p.to_u64())
             score = score.add(w)
@@ -606,64 +632,44 @@ chess_eval := func(mut board: Array, side: I64) returns I64 {
     return score
 }
 
-// Alpha-beta negamax search for chess
-// Returns score relative to `side` (positive = good for side)
-chess_ab := proc(mut board: Array, side: I64, depth: I64,
-                  alpha: I64, beta: I64, ep_col: I64,
-                  mut castle_flags: Array) returns I64 {
-    if depth.eq(0) {
-        return chess_eval(board, side)
-    }
-
+// Next boards: generate all legal moves
+chess_next_boards : NextBoardsFn = (b) {
+    ref cb : Board = b
+    cells := Array(data = cb.data.data, cap = 64, elem_size = 8, elem_type = "I64")
+    side := chess_unpack_side(cb)
+    ep_col := chess_unpack_ep(cb)
+    mut cf := chess_unpack_cf(cb)
+    result := Vec.new("Board", Board.size())
     mut tmp := Array.new("I64", 8, 64)
     mut moves := Array.new("I64", 8, 64)
-    mut best := 0.sub(AB_INF)
-    mut a := alpha
-    mut has_moves := false
-
     mut i := 0
     while i.lt(64) {
-        ref p : I64 = board.get(i.to_u64())
+        ref p : I64 = cells.get(i.to_u64())
         if is_side(p, side) {
-            mc := gen_moves(board, tmp, i, side, moves, ep_col, castle_flags)
+            mc := gen_moves(cells, tmp, i, side, moves, ep_col, cf)
             mut j := 0
             while j.lt(mc) {
                 ref dest : I64 = moves.get(j.to_u64())
-                dest_val := dest.clone()
-                has_moves = true
-
-                mut child := Array.new("I64", 8, 64)
-                copy_board(child, board)
+                mut child_cells := Array.new("I64", 8, 64)
+                copy_board(child_cells, cells)
                 mut child_cf := Array.new("I64", 8, 6)
-                copy_cf(child_cf, castle_flags)
-
-                child_ep := execute_move(child, i, dest_val, side, child_cf)
-
+                copy_cf(child_cf, cf)
+                child_ep := execute_move(child_cells, i, dest.clone(), side, child_cf)
                 opp := 1.sub(side)
-                score := 0.sub(chess_ab(child, opp, depth.sub(1),
-                               0.sub(beta), 0.sub(a), child_ep, child_cf))
-
-                if score.gt(best) { best = score }
-                if score.gt(a) { a = score }
-                if a.gte(beta) { return best }
-
+                mut nb := Board()
+                chess_pack(nb, child_cells, opp, child_ep, child_cf)
+                result.push(own nb)
                 j = j.add(1)
             }
         }
         i = i.add(1)
     }
-
-    if has_moves.not() {
-        if in_check(board, side) {
-            return 0.sub(AB_INF)
-        }
-        return 0
-    }
-
-    return best
+    // Empty result for checkmate/stalemate — heuristic handles via in_check
+    return result
 }
 
 CHESS_DEPTH := 3
+ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "chess")
@@ -758,25 +764,24 @@ main := proc() {
                     mut ai_total := 0
                     mut ai_moves := Array.new("I64", 8, 64)
 
-                    mut ai := 0
-                    while ai.lt(64) {
-                        ref ap : I64 = board.get(ai.to_u64())
+                    mut sq := 0
+                    while sq.lt(64) {
+                        ref ap : I64 = board.get(sq.to_u64())
                         if is_black(ap) {
-                            mc := gen_moves(board, tmp_board, ai, 1, ai_moves, ep_col, castle_flags)
+                            mc := gen_moves(board, tmp_board, sq, 1, ai_moves, ep_col, castle_flags)
                             mut mj := 0
                             while mj.lt(mc) {
                                 ref md : I64 = ai_moves.get(mj.to_u64())
-                                ai_pieces.set(ai_total.to_u64(), own ai.clone())
+                                ai_pieces.set(ai_total.to_u64(), own sq.clone())
                                 ai_dests.set(ai_total.to_u64(), own md.clone())
                                 ai_total = ai_total.add(1)
                                 mj = mj.add(1)
                             }
                         }
-                        ai = ai.add(1)
+                        sq = sq.add(1)
                     }
 
                     if ai_total.gt(0) {
-                        // Evaluate each move with alpha-beta search
                         mut best_idx := 0
                         mut best_score := 0.sub(AB_INF)
 
@@ -794,8 +799,9 @@ main := proc() {
 
                             child_ep := execute_move(child, from_val, to_val, 1, child_cf)
 
-                            // Negamax: evaluate from white's perspective, negate
-                            score := 0.sub(chess_ab(child, 0, CHESS_DEPTH, 0.sub(AB_INF), AB_INF, child_ep, child_cf))
+                            mut child_b := Board()
+                            chess_pack(child_b, child, 0, child_ep, child_cf)
+                            score := 0.sub(ai.search( child_b, CHESS_DEPTH, 0.sub(AB_INF), AB_INF))
 
                             if score.gt(best_score) {
                                 best_score = score

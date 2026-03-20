@@ -31,7 +31,7 @@ namespace:
         mut a := alpha
         for i in 0..children.len() {
             ref child : Board = children.get(i)
-            score := 0.sub(AlphaBeta.search(self, child, depth.sub(1),
+            score := 0.sub(self.search(child, depth.sub(1),
                            0.sub(beta), 0.sub(a)))
             if score.gt(best) { best = score }
             if score.gt(a) { a = score }

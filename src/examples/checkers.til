@@ -309,6 +309,7 @@ checkers_next_boards : NextBoardsFn = (b) {
 }
 
 CHECKERS_DEPTH := 5
+ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "checkers")
@@ -396,8 +397,7 @@ main := proc() {
                                 execute_move(child, multi_jump_idx, dest.clone(), jmp.clone())
                                 mut child_b := Board()
                                 checkers_pack(child_b, child, 1)
-                                ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards)
-                                score := 0.sub(AlphaBeta.search(ai, child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
+                                score := 0.sub(ai.search( child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
                                 if score.gt(best_score) {
                                     best_score = score
                                     best_j = mj.to_i64()
@@ -446,24 +446,24 @@ main := proc() {
 
                         ai_must_cap := has_any_captures(board, 2, tmp_moves, tmp_jumped)
 
-                        for ai in 0..64 {
-                            ref ap : I64 = board.get(ai)
+                        for sq in 0..64 {
+                            ref ap : I64 = board.get(sq)
                             if is_black(ap) {
                                 if ai_must_cap {
-                                    mc := gen_captures(board, ai.to_i64(), 2, tmp_moves, tmp_jumped)
+                                    mc := gen_captures(board, sq.to_i64(), 2, tmp_moves, tmp_jumped)
                                     for mj in 0..mc.to_u64() {
                                         ref md : I64 = tmp_moves.get(mj)
                                         ref jd : I64 = tmp_jumped.get(mj)
-                                        ai_pieces.set(ai_total.to_u64(), own ai.to_i64().clone())
+                                        ai_pieces.set(ai_total.to_u64(), own sq.to_i64().clone())
                                         ai_dests.set(ai_total.to_u64(), own md.clone())
                                         ai_jumps.set(ai_total.to_u64(), own jd.clone())
                                         ai_total = ai_total.add(1)
                                     }
                                 } else {
-                                    mc := gen_simple_moves(board, ai.to_i64(), 2, tmp_moves)
+                                    mc := gen_simple_moves(board, sq.to_i64(), 2, tmp_moves)
                                     for mj in 0..mc.to_u64() {
                                         ref md : I64 = tmp_moves.get(mj)
-                                        ai_pieces.set(ai_total.to_u64(), own ai.to_i64().clone())
+                                        ai_pieces.set(ai_total.to_u64(), own sq.to_i64().clone())
                                         ai_dests.set(ai_total.to_u64(), own md.clone())
                                         ai_jumps.set(ai_total.to_u64(), own -1)
                                         ai_total = ai_total.add(1)
@@ -490,8 +490,7 @@ main := proc() {
 
                                 mut child_b := Board()
                                 checkers_pack(child_b, child, 1)
-                                ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards)
-                                score := 0.sub(AlphaBeta.search(ai, child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
+                                score := 0.sub(ai.search( child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
 
                                 if score.gt(best_score) {
                                     best_score = score
