@@ -1,10 +1,37 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 99
+# NEXT_ISSUE: 100
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #99 Struct literals as auto-generated new method
+  Struct literal syntax ~MyStruct(x = 1, y = 2)~ is currently special
+  in the compiler. It should be an auto-generated ~new~ namespace
+  method in the initer, with all fields as optional named arguments
+  using the field defaults.
+
+  If the user defines their own ~new~, it overrides the auto-generated
+  one (same pattern as clone/delete/eq). This makes ~new~ explicit and
+  consistent — no special constructor syntax, just a regular method.
+
+  Motivation: structs with invariants (Vec, Map, Set, Str, Array) must
+  only be constructed through their ~new~ method. The raw struct literal
+  bypasses invariants — e.g. ~Vec(data = Str("x").c_str, cap = 69,
+  count = -300)~ compiles but is completely broken. When a struct
+  defines ~new~, the auto-generated constructor should be suppressed,
+  forcing all construction through ~new~.
+
+  Like Python's ~__init__~: ~Vec("Point", Point.size())~ implicitly
+  calls ~Vec.new("Point", Point.size())~. The struct name IS the
+  constructor. For simple structs, ~Point(x = 1, y = 2)~ calls the
+  auto-generated ~new~ with all fields as named args.
+
+  The initer would auto-generate ~new~ (like clone/delete/size/eq).
+  All struct literal syntax in the compiler (initer.c, typer.c,
+  builder.c, etc.) would need to go through ~new~ instead of
+  hardcoded construction. Big refactor — needs full analysis.
+
 ** OPEN #98 Reconsider "funcs must return" requirement
   Funcs currently require a return type. This forces functions like
   ~Array.set~ to be procs even though they call no ext_procs — just
