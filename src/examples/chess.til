@@ -668,8 +668,7 @@ chess_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-CHESS_DEPTH := 3
-ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards)
+ai := AlphaBeta(h = chess_heuristic, nexts = chess_next_boards, depth = 3)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "chess")
@@ -801,7 +800,7 @@ main := proc() {
 
                             mut child_b := Board()
                             chess_pack(child_b, child, 0, child_ep, child_cf)
-                            score := 0.sub(ai.search( child_b, CHESS_DEPTH, 0.sub(AB_INF), AB_INF))
+                            score := 0.sub(ai.search(child_b))
 
                             if score.gt(best_score) {
                                 best_score = score

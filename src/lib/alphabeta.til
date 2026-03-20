@@ -20,8 +20,12 @@ Board := struct {
 AlphaBeta := struct {
     mut h : Heuristic = default_heuristic
     mut nexts : NextBoardsFn = default_next_boards
+    mut depth := 3
 namespace:
-    search := proc(self: AlphaBeta, board: Board, depth: I64,
+    search := proc(self: AlphaBeta, board: Board) returns I64 {
+        return AlphaBeta.search_ab(self, board, self.depth, 0.sub(AB_INF), AB_INF)
+    }
+    search_ab := proc(self: AlphaBeta, board: Board, depth: I64,
                     alpha: I64, beta: I64) returns I64 {
         children := self.nexts(board)
         if depth.eq(0).or(children.len().eq(0)) {
@@ -31,7 +35,7 @@ namespace:
         mut a := alpha
         for i in 0..children.len() {
             ref child : Board = children.get(i)
-            score := 0.sub(self.search(child, depth.sub(1),
+            score := 0.sub(self.search_ab(child, depth.sub(1),
                            0.sub(beta), 0.sub(a)))
             if score.gt(best) { best = score }
             if score.gt(a) { a = score }

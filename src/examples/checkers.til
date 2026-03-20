@@ -308,8 +308,7 @@ checkers_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-CHECKERS_DEPTH := 5
-ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards)
+ai := AlphaBeta(h = checkers_heuristic, nexts = checkers_next_boards, depth = 5)
 
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "checkers")
@@ -397,7 +396,7 @@ main := proc() {
                                 execute_move(child, multi_jump_idx, dest.clone(), jmp.clone())
                                 mut child_b := Board()
                                 checkers_pack(child_b, child, 1)
-                                score := 0.sub(ai.search( child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
+                                score := 0.sub(ai.search(child_b))
                                 if score.gt(best_score) {
                                     best_score = score
                                     best_j = mj.to_i64()
@@ -490,7 +489,7 @@ main := proc() {
 
                                 mut child_b := Board()
                                 checkers_pack(child_b, child, 1)
-                                score := 0.sub(ai.search( child_b, CHECKERS_DEPTH, 0.sub(AB_INF), AB_INF))
+                                score := 0.sub(ai.search(child_b))
 
                                 if score.gt(best_score) {
                                     best_score = score

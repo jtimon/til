@@ -406,8 +406,6 @@ go_next_boards : NextBoardsFn = (b) {
     return result
 }
 
-GO_DEPTH_SMALL := 2
-GO_DEPTH_LARGE := 1
 ai := AlphaBeta(h = go_heuristic, nexts = go_next_boards)
 
 // Score the game using Chinese rules (area scoring)
@@ -623,10 +621,6 @@ main := proc() {
                     if ai_timer.gt(20) {
                         ai_timer = 0
 
-                        // Pick search depth based on board size
-                        mut go_depth := GO_DEPTH_LARGE
-                        if board_size.lte(9) { go_depth = GO_DEPTH_SMALL }
-
                         // Try each empty intersection, evaluate with alpha-beta
                         mut best_move := -1
                         mut best_score := 0.sub(AB_INF)
@@ -641,8 +635,7 @@ main := proc() {
                                 if cap.gte(0) {
                                     mut child_b := Board()
                                     go_pack(child_b, tmp_board, 1, board_size, board, true)
-                                    score := 0.sub(ai.search(child_b, go_depth,
-                                                   0.sub(AB_INF), AB_INF))
+                                    score := 0.sub(ai.search(child_b))
                                     if score.gt(best_score).or(best_move.lt(0)) {
                                         best_score = score
                                         best_move = sq
