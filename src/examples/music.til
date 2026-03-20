@@ -6,52 +6,52 @@ mode gui
 // Supports PT/ES/EN language and solfege/american notation
 
 // -- Layout: change only these two --
-WINDOW_WIDTH := 1920
-WINDOW_HEIGHT := 1080
-FPS := 320
+WINDOW_WIDTH : U64 = 1920
+WINDOW_HEIGHT : U64 = 1080
+FPS : U64 = 320
 
 // -- Derived metrics --
-MARGIN := WINDOW_WIDTH.div(48)
-BTN_W := WINDOW_WIDTH.sub(MARGIN.mul(2)).div(7)
-BTN_H := WINDOW_HEIGHT.div(22)
-GAP := WINDOW_HEIGHT.div(60)
-FONT := WINDOW_HEIGHT.div(38)
-FONT_SM := WINDOW_HEIGHT.div(45)
-PAD_X := BTN_W.div(25)
-PAD_Y := BTN_H.div(4)
+MARGIN : U64 = WINDOW_WIDTH.div(48)
+BTN_W : U64 = WINDOW_WIDTH.sub(MARGIN.mul(2)).div(7)
+BTN_H : U64 = WINDOW_HEIGHT.div(22)
+GAP : U64 = WINDOW_HEIGHT.div(60)
+FONT : U64 = WINDOW_HEIGHT.div(38)
+FONT_SM : U64 = WINDOW_HEIGHT.div(45)
+PAD_X : U64 = BTN_W.div(25)
+PAD_Y : U64 = BTN_H.div(4)
 
 // Row Y positions
-NOTE_ROW_Y := GAP
-MODE_ROW_Y := NOTE_ROW_Y.add(BTN_H.mul(3)).add(GAP)
-RADIO_ROW_Y := MODE_ROW_Y.add(BTN_H).add(GAP)
+NOTE_ROW_Y : U64 = GAP
+MODE_ROW_Y : U64 = NOTE_ROW_Y.add(BTN_H.mul(3)).add(GAP)
+RADIO_ROW_Y : U64 = MODE_ROW_Y.add(BTN_H).add(GAP)
 // Radio button sizes
-LANG_BTN_W := BTN_W.mul(2).div(5)
-NOTATION_BTN_W := BTN_W.mul(3).div(4)
-NOTATION_X := MARGIN.add(LANG_BTN_W.mul(3)).add(GAP.mul(2))
+LANG_BTN_W : U64 = BTN_W.mul(2).div(5)
+NOTATION_BTN_W : U64 = BTN_W.mul(3).div(4)
+NOTATION_X : U64 = MARGIN.add(LANG_BTN_W.mul(3)).add(GAP.mul(2))
 
 // Staff/pentagram
 // Staff pos range: -2 (do/C octave 0) to 11 (si/B octave 1)
-BUTTONS_END_Y := RADIO_ROW_Y.add(BTN_H)
-STAFF_SP := WINDOW_HEIGHT.div(30)
-NOTE_R := WINDOW_HEIGHT.div(68)
-STAFF_BASE_Y := BUTTONS_END_Y.add(GAP).add(NOTE_R).add(STAFF_SP.mul(11))
-STAFF_X := MARGIN.mul(3)
-STAFF_W := WINDOW_WIDTH.sub(STAFF_X.mul(2))
-NOTE_X0 := WINDOW_WIDTH.div(8)
-NOTE_DX := WINDOW_WIDTH.sub(NOTE_X0.mul(2)).div(7)
-LABEL_Y := STAFF_BASE_Y.add(STAFF_SP.mul(2)).add(NOTE_R).add(GAP)
+BUTTONS_END_Y : U64 = RADIO_ROW_Y.add(BTN_H)
+STAFF_SP : U64 = WINDOW_HEIGHT.div(30)
+NOTE_R : U64 = WINDOW_HEIGHT.div(68)
+STAFF_BASE_Y : U64 = BUTTONS_END_Y.add(GAP).add(NOTE_R).add(STAFF_SP.mul(11))
+STAFF_X : U64 = MARGIN.mul(3)
+STAFF_W : U64 = WINDOW_WIDTH.sub(STAFF_X.mul(2))
+NOTE_X0 : U64 = WINDOW_WIDTH.div(8)
+NOTE_DX : U64 = WINDOW_WIDTH.sub(NOTE_X0.mul(2)).div(7)
+LABEL_Y : U64 = STAFF_BASE_Y.add(STAFF_SP.mul(2)).add(NOTE_R).add(GAP)
 
 // Piano roll
-PIANO_Y := LABEL_Y.add(FONT_SM).add(GAP)
-WHITE_W := STAFF_W.div(15)
-WHITE_H := WINDOW_HEIGHT.div(8)
-BLACK_W := WHITE_W.div(2)
-BLACK_H := WHITE_H.mul(2).div(3)
-HINT_Y := PIANO_Y.add(WHITE_H).add(GAP)
+PIANO_Y : U64 = LABEL_Y.add(FONT_SM).add(GAP)
+WHITE_W : U64 = STAFF_W.div(15)
+WHITE_H : U64 = WINDOW_HEIGHT.div(8)
+BLACK_W : U64 = WHITE_W.div(2)
+BLACK_H : U64 = WHITE_H.mul(2).div(3)
+HINT_Y : U64 = PIANO_Y.add(WHITE_H).add(GAP)
 
 // Mode INTERVALS (7 modes x 7 steps = 49), brightest to darkest
 // Lidio, Jonico, Mixolidio, Dorico, Eolico, Frigio, Locrio
-INTERVALS := array("I64",
+INTERVALS := array("U64",
     2, 2, 2, 1, 2, 2, 1,
     2, 2, 1, 2, 2, 2, 1,
     2, 2, 1, 2, 2, 1, 2,
@@ -62,7 +62,7 @@ INTERVALS := array("I64",
 )
 
 // Diatonic to chromatic natural mapping: do=0 re=2 mi=4 fa=5 sol=7 la=9 si=11
-NATURALS := array("I64", 0, 2, 4, 5, 7, 9, 11)
+NATURALS := array("U64", 0, 2, 4, 5, 7, 9, 11)
 
 // Note name lookup arrays
 NAMES_SOL := array("Str", "Do", "Re", "Mi", "Fa", "Sol", "La", "Si")
@@ -72,13 +72,13 @@ NAMES_AME := array("Str", "C", "D", "E", "F", "G", "A", "B")
 TRIAD_SUFFIXES := array("Str", "-M", "-m", "-dim", "-aug")
 
 // Frequencies for chromatic notes C4..B4
-FREQS := array("I64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
+FREQS := array("U64", 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494)
 
 // Piano roll lookup arrays
 // Chromatic values of the 5 black keys
-BLACK_CHROMS := array("I64", 1, 3, 6, 8, 10)
+BLACK_CHROMS := array("U64", 1, 3, 6, 8, 10)
 // Black key sits after which white key index (0-based)
-BLACK_KEY_POS := array("I64", 0, 1, 3, 4, 5)
+BLACK_KEY_POS := array("U64", 0, 1, 3, 4, 5)
 
 // Language data: [name, mode0..mode6, notation0, notation1]
 LANG_PT := array("Str", "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "Frigio", "Locrio", "Solfejo", "Americano")
@@ -88,10 +88,10 @@ LANGS := array("Array", LANG_PT, LANG_ES, LANG_EN)
 
 // -- Helper functions --
 
-triad_type := func(mut sc_chrom: Array, ti: I64) returns I64 {
-    ref root_c : I64 = sc_chrom.get(ti.to_u64())
-    ref third_c : I64 = sc_chrom.get(ti.add(2).mod(7).to_u64())
-    ref fifth_c : I64 = sc_chrom.get(ti.add(4).mod(7).to_u64())
+triad_type := func(mut sc_chrom: Array, ti: U64) returns U64 {
+    ref root_c : I64 = sc_chrom.get(ti)
+    ref third_c : I64 = sc_chrom.get(ti.add(2).mod(7))
+    ref fifth_c : I64 = sc_chrom.get(ti.add(4).mod(7))
     i3 := third_c.sub(root_c).add(12).mod(12)
     i5 := fifth_c.sub(root_c).add(12).mod(12)
     if i3.eq(3).and(i5.eq(7)) { return 1 }
@@ -100,18 +100,18 @@ triad_type := func(mut sc_chrom: Array, ti: I64) returns I64 {
     return 0
 }
 
-note_name := func(diat_idx: I64, sel_notation: I64) returns ref Str {
+note_name := func(diat_idx: U64, sel_notation: U64) returns ref Str {
     if sel_notation.eq(0) {
-        ref s : Str = NAMES_SOL.get(diat_idx.to_u64())
+        ref s : Str = NAMES_SOL.get(diat_idx)
         return s
     }
-    ref a : Str = NAMES_AME.get(diat_idx.to_u64())
+    ref a : Str = NAMES_AME.get(diat_idx)
     return a
 }
 
-lang_str := func(lang_idx: I64, label_idx: I64) returns ref Str {
-    ref lang : Array = LANGS.get(lang_idx.to_u64())
-    ref s : Str = lang.get(label_idx.to_u64())
+lang_str := func(lang_idx: U64, label_idx: U64) returns ref Str {
+    ref lang : Array = LANGS.get(lang_idx)
+    ref s : Str = lang.get(label_idx)
     return s
 }
 
@@ -124,21 +124,21 @@ acc_text := func(acc: I64) returns Str {
 }
 
 staff_y := func(diat_idx: I64, octave: I64) returns I64 {
-    return STAFF_BASE_Y.sub(diat_idx.sub(2).add(octave.mul(7)).mul(STAFF_SP))
+    return STAFF_BASE_Y.to_i64().sub(diat_idx.sub(2).add(octave.mul(7)).mul(STAFF_SP.to_i64()))
 }
 
-start_scale := proc(mut playing: Bool, mut play_idx: I64, mut play_timer: I64) {
+start_scale := proc(mut playing: Bool, mut play_idx: U64, mut play_timer: I64) {
     playing = true
     play_idx = 0
     play_timer = 300
 }
 
-draw_note := proc(dni: I64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: Array,
-                   mut sc_triad: Array, playing: Bool, play_idx: I64,
-                   clicked_note: I64, sel_notation: I64, fnt: Font) {
-    dnx := NOTE_X0.add(dni.mul(NOTE_DX))
-    ref nd : I64 = sc_diat.get(dni.to_u64())
-    ref no : I64 = sc_oct.get(dni.to_u64())
+draw_note := proc(dni: U64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: Array,
+                   mut sc_triad: Array, playing: Bool, play_idx: U64,
+                   clicked_note: I64, sel_notation: U64, fnt: Font) {
+    dnx := NOTE_X0.add(dni.mul(NOTE_DX)).to_i64()
+    ref nd : I64 = sc_diat.get(dni)
+    ref no : I64 = sc_oct.get(dni)
     staff_pos := nd.sub(2).add(no.mul(7))
     dny := staff_y(nd, no)
 
@@ -146,69 +146,69 @@ draw_note := proc(dni: I64, mut sc_diat: Array, mut sc_oct: Array, mut sc_acc: A
     if staff_pos.lt(0) {
         mut lp := -2
         while lp.gte(staff_pos) {
-            lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
-            draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
+            lly := STAFF_BASE_Y.to_i64().sub(lp.mul(STAFF_SP.to_i64()))
+            draw_rectangle(dnx.sub(NOTE_R.to_i64().mul(2)), lly, NOTE_R.to_i64().mul(4), 2, 100, 100, 100, 255)
             lp = lp.sub(2)
         }
     }
     if staff_pos.gt(8) {
         mut lp := 10
         while lp.lte(staff_pos) {
-            lly := STAFF_BASE_Y.sub(lp.mul(STAFF_SP))
-            draw_rectangle(dnx.sub(NOTE_R.mul(2)), lly, NOTE_R.mul(4), 2, 100, 100, 100, 255)
+            lly := STAFF_BASE_Y.to_i64().sub(lp.mul(STAFF_SP.to_i64()))
+            draw_rectangle(dnx.sub(NOTE_R.to_i64().mul(2)), lly, NOTE_R.to_i64().mul(4), 2, 100, 100, 100, 255)
             lp = lp.add(2)
         }
     }
 
     // Note color
-    mut ncr := 255
-    mut ncg := 255
-    mut ncb := 0
+    mut ncr : U64 = 255
+    mut ncg : U64 = 255
+    mut ncb : U64 = 0
     if playing.and(play_idx.gt(dni)) {
         ncr = 100
         ncg = 100
         ncb = 0
     }
-    if clicked_note.eq(dni) {
+    if clicked_note.eq(dni.to_i64()) {
         ncr = 0
         ncg = 200
         ncb = 210
     }
 
-    draw_circle(dnx, dny, NOTE_R, ncr, ncg, ncb, 255)
+    draw_circle(dnx, dny, NOTE_R.to_i64(), ncr.to_i64(), ncg.to_i64(), ncb.to_i64(), 255)
 
     // Accidental text
-    ref na : I64 = sc_acc.get(dni.to_u64())
+    ref na : I64 = sc_acc.get(dni)
     if na.eq(0).not() {
         mut aw := NOTE_R
         if na.abs().eq(2) { aw = NOTE_R.mul(2) }
         at := acc_text(na)
-        draw_text_font(fnt, at, dnx.sub(FONT.add(aw)), dny.sub(FONT.div(2)), FONT, 1, 255, 255, 255, 255)
+        draw_text_font(fnt, at, dnx.sub(FONT.to_i64().add(aw.to_i64())), dny.sub(FONT.to_i64().div(2)), FONT.to_i64(), 1, 255, 255, 255, 255)
     }
 
     // Note name with inline triad label
-    ref nn_base : Str = note_name(nd, sel_notation)
+    ref nn_base : Str = note_name(nd.to_u64(), sel_notation)
     nn_acc := acc_text(na)
     mut nn := nn_base.concat(nn_acc)
     if dni.lt(7) {
-        ref trt2 : I64 = sc_triad.get(dni.to_u64())
-        ref tsuf : Str = TRIAD_SUFFIXES.get(trt2.to_u64())
+        ref trt2 : U64 = sc_triad.get(dni)
+        ref tsuf : Str = TRIAD_SUFFIXES.get(trt2)
         nn = nn.concat(tsuf)
     }
-    draw_text_font(fnt, nn, dnx.sub(NOTE_R), LABEL_Y, FONT_SM, 1, 180, 180, 180, 255)
+    draw_text_font(fnt, nn, dnx.sub(NOTE_R.to_i64()), LABEL_Y.to_i64(), FONT_SM.to_i64(), 1, 180, 180, 180, 255)
 }
 
-recompute_scale := proc(sel_diatonic: I64, sel_accidental: I64, sel_mode: I64,
+recompute_scale := proc(sel_diatonic: U64, sel_accidental: I64, sel_mode: U64,
                         mut sc_chrom: Array, mut sc_diat: Array, mut sc_oct: Array,
                         mut sc_acc: Array, mut sc_freq: Array, mut sc_triad: Array) {
-    ref nat_c : I64 = NATURALS.get(sel_diatonic.to_u64())
-    root_chromatic := nat_c.add(sel_accidental).add(12).mod(12)
+    ref nat_c : U64 = NATURALS.get(sel_diatonic)
+    root_chromatic := nat_c.to_i64().add(sel_accidental).add(12).mod(12)
     mut chrom_total := root_chromatic
-    mut diat_pos := sel_diatonic
+    mut diat_pos := sel_diatonic.to_i64()
     mut diat_oct := 0
-    mut prev_diat := sel_diatonic
+    mut prev_diat := sel_diatonic.to_i64()
 
-    for k in 0..8 {
+    for k : U64 in 0..8 {
         chrom_mod := chrom_total.mod(12)
         chrom_oct := chrom_total.div(12)
         sc_chrom.set(k, own chrom_mod.clone())
@@ -216,22 +216,22 @@ recompute_scale := proc(sel_diatonic: I64, sel_accidental: I64, sel_mode: I64,
         sc_oct.set(k, own diat_oct.clone())
 
         // Compute accidental
-        ref nat_ref : I64 = NATURALS.get(diat_pos.to_u64())
-        mut acc := chrom_mod.sub(nat_ref)
+        ref nat_ref : U64 = NATURALS.get(diat_pos.to_u64())
+        mut acc := chrom_mod.sub(nat_ref.to_i64())
         if acc.gt(6) { acc = acc.sub(12) }
         if acc.lt(-6) { acc = acc.add(12) }
         sc_acc.set(k, own acc)
 
         // Frequency
-        ref f : I64 = FREQS.get(chrom_mod.to_u64())
-        mut freq := f
+        ref f : U64 = FREQS.get(chrom_mod.to_u64())
+        mut freq := f.to_i64()
         if chrom_oct.gt(0) { freq = freq.mul(2) }
         sc_freq.set(k, own freq)
 
         // Next note
         if k.lt(7) {
-            ref step : I64 = INTERVALS.get(sel_mode.mul(7).to_u64().add(k))
-            chrom_total = chrom_total.add(step)
+            ref step : U64 = INTERVALS.get(sel_mode.mul(7).add(k))
+            chrom_total = chrom_total.add(step.to_i64())
             prev_diat = diat_pos
             diat_pos = diat_pos.add(1).mod(7)
             if diat_pos.lt(prev_diat) {
@@ -241,8 +241,8 @@ recompute_scale := proc(sel_diatonic: I64, sel_accidental: I64, sel_mode: I64,
     }
 
     // Compute triads for each degree
-    for ti in 0..7 {
-        sc_triad.set(ti, own triad_type(sc_chrom, ti.to_i64()))
+    for ti : U64 in 0..7 {
+        sc_triad.set(ti, own triad_type(sc_chrom, ti))
     }
 }
 
@@ -254,45 +254,45 @@ play_note := proc(freq: I64, mut clicked_note: I64, mut clicked_timer: I64, note
     }
 }
 
-draw_piano := proc(active_chrom: I64, active_oct: I64) {
+draw_piano := proc(active_chrom: I64, active_oct: U64) {
     // 2 octaves: 15 white keys (C4-B4, C5-B5, C6)
-    for i in 0..15 {
-        kx := STAFF_X.add(i.to_i64().mul(WHITE_W))
-        ref nat : I64 = NATURALS.get(i.mod(7))
-        key_oct := i.to_i64().div(7)
-        mut kr := 240
-        mut kg := 240
-        mut kb := 240
-        if active_chrom.gte(0).and(nat.eq(active_chrom)).and(key_oct.eq(active_oct)) {
+    for i : U64 in 0..15 {
+        kx := STAFF_X.add(i.mul(WHITE_W)).to_i64()
+        ref nat : U64 = NATURALS.get(i.mod(7))
+        key_oct := i.div(7)
+        mut kr : U64 = 240
+        mut kg : U64 = 240
+        mut kb : U64 = 240
+        if active_chrom.gte(0).and(nat.to_i64().eq(active_chrom)).and(key_oct.eq(active_oct)) {
             kr = 0
             kg = 200
             kb = 210
         }
-        draw_rectangle(kx, PIANO_Y, WHITE_W.sub(2), WHITE_H, kr, kg, kb, 255)
+        draw_rectangle(kx, PIANO_Y.to_i64(), WHITE_W.sub(2).to_i64(), WHITE_H.to_i64(), kr.to_i64(), kg.to_i64(), kb.to_i64(), 255)
     }
 
     // 10 black keys (5 per octave, 2 octaves)
-    for oct in 0..2 {
-        for j in 0..5 {
-            ref bpos : I64 = BLACK_KEY_POS.get(j)
-            ref bchrom : I64 = BLACK_CHROMS.get(j)
-            bx := STAFF_X.add(oct.to_i64().mul(7).add(bpos).add(1).mul(WHITE_W)).sub(BLACK_W.div(2))
-            mut br := 20
-            mut bg := 20
-            mut bb := 20
-            if active_chrom.gte(0).and(bchrom.eq(active_chrom)).and(oct.to_i64().eq(active_oct)) {
+    for oct : U64 in 0..2 {
+        for j : U64 in 0..5 {
+            ref bpos : U64 = BLACK_KEY_POS.get(j)
+            ref bchrom : U64 = BLACK_CHROMS.get(j)
+            bx := STAFF_X.add(oct.mul(7).add(bpos).add(1).mul(WHITE_W)).sub(BLACK_W.div(2)).to_i64()
+            mut br : U64 = 20
+            mut bg : U64 = 20
+            mut bb : U64 = 20
+            if active_chrom.gte(0).and(bchrom.to_i64().eq(active_chrom)).and(oct.eq(active_oct)) {
                 br = 0
                 bg = 150
                 bb = 155
             }
-            draw_rectangle(bx, PIANO_Y, BLACK_W, BLACK_H, br, bg, bb, 255)
+            draw_rectangle(bx, PIANO_Y.to_i64(), BLACK_W.to_i64(), BLACK_H.to_i64(), br.to_i64(), bg.to_i64(), bb.to_i64(), 255)
         }
     }
 }
 
 main := proc() {
-    init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music")
-    set_target_fps(FPS)
+    init_window(WINDOW_WIDTH.to_i64(), WINDOW_HEIGHT.to_i64(), "music")
+    set_target_fps(FPS.to_i64())
     init_audio_device()
 
     fnt := load_font("assets/DejaVuSans.ttf", 48)
@@ -304,17 +304,17 @@ main := proc() {
     mut sc_acc := Array.new("I64", 8, 8)
     mut sc_freq := Array.new("I64", 8, 8)
     // Triad types for 7 degrees: 0=M, 1=m, 2=dim, 3=aug
-    mut sc_triad := Array.new("I64", 8, 7)
+    mut sc_triad := Array.new("U64", 8, 7)
 
     // State
-    mut sel_diatonic := 0
+    mut sel_diatonic : U64 = 0
     mut sel_accidental := 0
-    mut sel_mode := 1
-    mut sel_lang := 0
-    mut sel_notation := 0
+    mut sel_mode : U64 = 1
+    mut sel_lang : U64 = 0
+    mut sel_notation : U64 = 0
     mut need_recompute := true
     mut playing := false
-    mut play_idx := 0
+    mut play_idx : U64 = 0
     mut play_timer := 0
     mut clicked_note := -1
     mut clicked_timer := 0
@@ -328,11 +328,11 @@ main := proc() {
             my := get_mouse_y()
 
             // Note buttons: 7 cols x 3 rows
-            if my.gte(NOTE_ROW_Y).and(my.lt(NOTE_ROW_Y.add(BTN_H.mul(3)))) {
-                col := mx.sub(MARGIN).div(BTN_W)
-                row := my.sub(NOTE_ROW_Y).div(BTN_H)
-                if col.gte(0).and(col.lt(7)).and(row.gte(0)).and(row.lt(3)).and(mx.gte(MARGIN)) {
-                    sel_diatonic = col
+            if my.gte(NOTE_ROW_Y.to_i64()).and(my.lt(NOTE_ROW_Y.add(BTN_H.mul(3)).to_i64())) {
+                col := mx.sub(MARGIN.to_i64()).div(BTN_W.to_i64())
+                row := my.sub(NOTE_ROW_Y.to_i64()).div(BTN_H.to_i64())
+                if col.gte(0).and(col.lt(7)).and(row.gte(0)).and(row.lt(3)).and(mx.gte(MARGIN.to_i64())) {
+                    sel_diatonic = col.to_u64()
                     if row.eq(0) {
                         sel_accidental = -1
                     } else {
@@ -348,38 +348,38 @@ main := proc() {
             }
 
             // Mode buttons: 7 cols x 1 row
-            if my.gte(MODE_ROW_Y).and(my.lt(MODE_ROW_Y.add(BTN_H))) {
-                col := mx.sub(MARGIN).div(BTN_W)
-                if col.gte(0).and(col.lt(7)).and(mx.gte(MARGIN)) {
-                    sel_mode = col
+            if my.gte(MODE_ROW_Y.to_i64()).and(my.lt(MODE_ROW_Y.add(BTN_H).to_i64())) {
+                col := mx.sub(MARGIN.to_i64()).div(BTN_W.to_i64())
+                if col.gte(0).and(col.lt(7)).and(mx.gte(MARGIN.to_i64())) {
+                    sel_mode = col.to_u64()
                     need_recompute = true
                     start_scale(playing, play_idx, play_timer)
                 }
             }
 
             // Radio buttons: lang (PT/ES/EN) + notation (sol/ame)
-            if my.gte(RADIO_ROW_Y).and(my.lt(RADIO_ROW_Y.add(BTN_H))) {
-                if mx.gte(MARGIN).and(mx.lt(MARGIN.add(LANG_BTN_W.mul(3)))) {
-                    lang_col := mx.sub(MARGIN).div(LANG_BTN_W)
+            if my.gte(RADIO_ROW_Y.to_i64()).and(my.lt(RADIO_ROW_Y.add(BTN_H).to_i64())) {
+                if mx.gte(MARGIN.to_i64()).and(mx.lt(MARGIN.add(LANG_BTN_W.mul(3)).to_i64())) {
+                    lang_col := mx.sub(MARGIN.to_i64()).div(LANG_BTN_W.to_i64())
                     if lang_col.gte(0).and(lang_col.lt(3)) {
-                        sel_lang = lang_col
+                        sel_lang = lang_col.to_u64()
                     }
                 }
-                if mx.gte(NOTATION_X).and(mx.lt(NOTATION_X.add(NOTATION_BTN_W.mul(2)))) {
-                    not_col := mx.sub(NOTATION_X).div(NOTATION_BTN_W)
+                if mx.gte(NOTATION_X.to_i64()).and(mx.lt(NOTATION_X.add(NOTATION_BTN_W.mul(2)).to_i64())) {
+                    not_col := mx.sub(NOTATION_X.to_i64()).div(NOTATION_BTN_W.to_i64())
                     if not_col.gte(0).and(not_col.lt(2)) {
-                        sel_notation = not_col
+                        sel_notation = not_col.to_u64()
                     }
                 }
             }
 
             // Click on pentagram notes
-            for ci in 0..8 {
+            for ci : U64 in 0..8 {
                 ref cd : I64 = sc_diat.get(ci)
                 ref co : I64 = sc_oct.get(ci)
-                cnx := NOTE_X0.add(ci.to_i64().mul(NOTE_DX))
+                cnx := NOTE_X0.add(ci.mul(NOTE_DX)).to_i64()
                 cny := staff_y(cd, co)
-                hit := NOTE_R.mul(3)
+                hit := NOTE_R.to_i64().mul(3)
                 if mx.sub(cnx).abs().lt(hit).and(my.sub(cny).abs().lt(hit)) {
                     ref cf : I64 = sc_freq.get(ci)
                     play_note(cf, clicked_note, clicked_timer, ci.to_i64())
@@ -408,8 +408,8 @@ main := proc() {
             if play_timer.gte(300) {
                 play_timer = 0
                 if play_idx.lt(8) {
-                    ref pf : I64 = sc_freq.get(play_idx.to_u64())
-                    play_note(pf, clicked_note, clicked_timer, play_idx)
+                    ref pf : I64 = sc_freq.get(play_idx)
+                    play_note(pf, clicked_note, clicked_timer, play_idx.to_i64())
                     play_idx = play_idx.add(1)
                 } else {
                     playing = false
@@ -422,76 +422,76 @@ main := proc() {
         clear_background(0, 0, 0, 255)
 
         // -- Note buttons (7 cols x 3 rows) --
-        for row in 0..3 {
-            for col in 0..7 {
-                bx := MARGIN.add(col.to_i64().mul(BTN_W))
-                by := NOTE_ROW_Y.add(row.to_i64().mul(BTN_H))
+        for row : U64 in 0..3 {
+            for col : U64 in 0..7 {
+                bx := MARGIN.add(col.mul(BTN_W)).to_i64()
+                by := NOTE_ROW_Y.add(row.mul(BTN_H)).to_i64()
 
                 // Highlight selected
-                mut br := 50
-                mut bg := 50
-                mut bb := 50
+                mut br : U64 = 50
+                mut bg : U64 = 50
+                mut bb : U64 = 50
                 mut acc_match := 0
                 if row.eq(0) { acc_match = -1 }
                 if row.eq(1) { acc_match = 0 }
                 if row.eq(2) { acc_match = 1 }
-                if col.to_i64().eq(sel_diatonic).and(acc_match.eq(sel_accidental)) {
+                if col.eq(sel_diatonic).and(acc_match.eq(sel_accidental)) {
                     br = 0
                     bg = 150
                     bb = 155
                 }
-                draw_rectangle(bx, by, BTN_W.sub(2), BTN_H.sub(2), br, bg, bb, 255)
+                draw_rectangle(bx, by, BTN_W.sub(2).to_i64(), BTN_H.sub(2).to_i64(), br.to_i64(), bg.to_i64(), bb.to_i64(), 255)
 
                 // Label
-                ref ln : Str = note_name(col.to_i64(), sel_notation)
+                ref ln : Str = note_name(col, sel_notation)
                 mut label := ln.clone()
                 if row.eq(0) { label = ln.concat("b") }
                 if row.eq(2) { label = ln.concat("#") }
-                draw_text_font(fnt, label, bx.add(PAD_X), by.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
+                draw_text_font(fnt, label, bx.add(PAD_X.to_i64()), by.add(PAD_Y.to_i64()), FONT.to_i64(), 1, 220, 220, 220, 255)
             }
         }
 
         // -- Mode buttons --
-        for mi in 0..7 {
-            mbx := MARGIN.add(mi.to_i64().mul(BTN_W))
-            mby := MODE_ROW_Y
+        for mi : U64 in 0..7 {
+            mbx := MARGIN.add(mi.mul(BTN_W)).to_i64()
+            mby := MODE_ROW_Y.to_i64()
 
-            mut mr := 50
-            mut mg := 50
-            mut mb := 50
-            if mi.to_i64().eq(sel_mode) {
+            mut mr : U64 = 50
+            mut mg : U64 = 50
+            mut mb : U64 = 50
+            if mi.eq(sel_mode) {
                 mr = 0
                 mg = 150
                 mb = 155
             }
-            draw_rectangle(mbx, mby, BTN_W.sub(2), BTN_H.sub(2), mr, mg, mb, 255)
+            draw_rectangle(mbx, mby, BTN_W.sub(2).to_i64(), BTN_H.sub(2).to_i64(), mr.to_i64(), mg.to_i64(), mb.to_i64(), 255)
 
-            ref mlabel : Str = lang_str(sel_lang, mi.to_i64().add(1))
-            draw_text_font(fnt, mlabel, mbx.add(PAD_X), mby.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
+            ref mlabel : Str = lang_str(sel_lang, mi.add(1))
+            draw_text_font(fnt, mlabel, mbx.add(PAD_X.to_i64()), mby.add(PAD_Y.to_i64()), FONT.to_i64(), 1, 220, 220, 220, 255)
         }
 
         // -- Radio buttons: lang + notation --
         // Lang: PT ES EN
-        for li in 0..3 {
-            lx := MARGIN.add(li.to_i64().mul(LANG_BTN_W))
-            mut lr := 40
-            mut lg := 40
-            mut lb := 40
-            if li.to_i64().eq(sel_lang) { lr = 0 ; lg = 150 ; lb = 155 }
-            draw_rectangle(lx, RADIO_ROW_Y, LANG_BTN_W.sub(2), BTN_H.sub(2), lr, lg, lb, 255)
-            ref ll : Str = lang_str(li.to_i64(), 0)
-            draw_text_font(fnt, ll, lx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
+        for li : U64 in 0..3 {
+            lx := MARGIN.add(li.mul(LANG_BTN_W)).to_i64()
+            mut lr : U64 = 40
+            mut lg : U64 = 40
+            mut lb : U64 = 40
+            if li.eq(sel_lang) { lr = 0 ; lg = 150 ; lb = 155 }
+            draw_rectangle(lx, RADIO_ROW_Y.to_i64(), LANG_BTN_W.sub(2).to_i64(), BTN_H.sub(2).to_i64(), lr.to_i64(), lg.to_i64(), lb.to_i64(), 255)
+            ref ll : Str = lang_str(li, 0)
+            draw_text_font(fnt, ll, lx.add(PAD_X.to_i64()), RADIO_ROW_Y.add(PAD_Y).to_i64(), FONT.to_i64(), 1, 220, 220, 220, 255)
         }
         // Notation: solfege / american
-        for ni in 0..2 {
-            nx := NOTATION_X.add(ni.to_i64().mul(NOTATION_BTN_W))
-            mut nr := 40
-            mut ng := 40
-            mut nb := 40
-            if ni.to_i64().eq(sel_notation) { nr = 0 ; ng = 150 ; nb = 155 }
-            draw_rectangle(nx, RADIO_ROW_Y, NOTATION_BTN_W.sub(2), BTN_H.sub(2), nr, ng, nb, 255)
-            ref nl : Str = lang_str(sel_lang, ni.to_i64().add(8))
-            draw_text_font(fnt, nl, nx.add(PAD_X), RADIO_ROW_Y.add(PAD_Y), FONT, 1, 220, 220, 220, 255)
+        for ni : U64 in 0..2 {
+            nx := NOTATION_X.add(ni.mul(NOTATION_BTN_W)).to_i64()
+            mut nr : U64 = 40
+            mut ng : U64 = 40
+            mut nb : U64 = 40
+            if ni.eq(sel_notation) { nr = 0 ; ng = 150 ; nb = 155 }
+            draw_rectangle(nx, RADIO_ROW_Y.to_i64(), NOTATION_BTN_W.sub(2).to_i64(), BTN_H.sub(2).to_i64(), nr.to_i64(), ng.to_i64(), nb.to_i64(), 255)
+            ref nl : Str = lang_str(sel_lang, ni.add(8))
+            draw_text_font(fnt, nl, nx.add(PAD_X.to_i64()), RADIO_ROW_Y.add(PAD_Y).to_i64(), FONT.to_i64(), 1, 220, 220, 220, 255)
         }
 
         // -- Pentagram --
@@ -499,50 +499,50 @@ main := proc() {
         // staff_pos for a note = diatonic_idx - 2 + octave*7
 
         // Draw 5 staff lines
-        for sli in 0..5 {
-            line_pos := sli.to_i64().mul(2)
-            ly := STAFF_BASE_Y.sub(line_pos.mul(STAFF_SP))
-            draw_rectangle(STAFF_X, ly, STAFF_W, 2, 100, 100, 100, 255)
+        for sli : U64 in 0..5 {
+            line_pos := sli.mul(2)
+            ly := STAFF_BASE_Y.sub(line_pos.mul(STAFF_SP)).to_i64()
+            draw_rectangle(STAFF_X.to_i64(), ly, STAFF_W.to_i64(), 2, 100, 100, 100, 255)
         }
 
         // Reference labels on both sides of staff (lines + spaces)
         // Positions 0-8 map to diatonic indices: 2,3,4,5,6,0,1,2,3
-        for ri in 0..9 {
-            ry := STAFF_BASE_Y.sub(ri.to_i64().mul(STAFF_SP))
+        for ri : U64 in 0..9 {
+            ry := STAFF_BASE_Y.sub(ri.mul(STAFF_SP)).to_i64()
             // Map staff position to diatonic index
-            rd := ri.to_i64().add(2).mod(7)
+            rd := ri.add(2).mod(7)
             ref rn : Str = note_name(rd, sel_notation)
             // Left side label
-            draw_text_font(fnt, rn, STAFF_X.sub(MARGIN.mul(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 1, 80, 80, 80, 255)
+            draw_text_font(fnt, rn, STAFF_X.to_i64().sub(MARGIN.to_i64().mul(2)), ry.sub(FONT_SM.to_i64().div(2)), FONT_SM.to_i64(), 1, 80, 80, 80, 255)
             // Right side label
-            draw_text_font(fnt, rn, STAFF_X.add(STAFF_W).add(MARGIN.div(2)), ry.sub(FONT_SM.div(2)), FONT_SM, 1, 80, 80, 80, 255)
+            draw_text_font(fnt, rn, STAFF_X.add(STAFF_W).add(MARGIN.div(2)).to_i64(), ry.sub(FONT_SM.to_i64().div(2)), FONT_SM.to_i64(), 1, 80, 80, 80, 255)
             // Tick marks for spaces (odd positions)
             if ri.mod(2).eq(1) {
-                draw_rectangle(STAFF_X.sub(NOTE_R.mul(2)), ry, NOTE_R.mul(2), 1, 60, 60, 60, 255)
-                draw_rectangle(STAFF_X.add(STAFF_W), ry, NOTE_R.mul(2), 1, 60, 60, 60, 255)
+                draw_rectangle(STAFF_X.sub(NOTE_R.mul(2)).to_i64(), ry, NOTE_R.mul(2).to_i64(), 1, 60, 60, 60, 255)
+                draw_rectangle(STAFF_X.add(STAFF_W).to_i64(), ry, NOTE_R.mul(2).to_i64(), 1, 60, 60, 60, 255)
             }
         }
 
         // Draw notes
-        for dni in 0..8 {
-            draw_note(dni.to_i64(), sc_diat, sc_oct, sc_acc, sc_triad,
+        for dni : U64 in 0..8 {
+            draw_note(dni, sc_diat, sc_oct, sc_acc, sc_triad,
                       playing, play_idx, clicked_note, sel_notation, fnt)
         }
 
         // Piano roll
         mut active_chrom := -1
-        mut active_oct := 0
+        mut active_oct : U64 = 0
         if clicked_note.gte(0) {
             ref ac : I64 = sc_chrom.get(clicked_note.to_u64())
             ref af : I64 = sc_freq.get(clicked_note.to_u64())
-            ref base_f : I64 = FREQS.get(ac.to_u64())
+            ref base_f : U64 = FREQS.get(ac.to_u64())
             active_chrom = ac
-            if af.gt(base_f) { active_oct = 1 }
+            if af.gt(base_f.to_i64()) { active_oct = 1 }
         }
         draw_piano(active_chrom, active_oct)
 
         // Hint
-        draw_text_font(fnt, "click note + mode to play scale", WINDOW_WIDTH.div(3), HINT_Y, FONT, 1, 80, 80, 80, 255)
+        draw_text_font(fnt, "click note + mode to play scale", WINDOW_WIDTH.div(3).to_i64(), HINT_Y.to_i64(), FONT.to_i64(), 1, 80, 80, 80, 255)
 
         end_drawing()
     }

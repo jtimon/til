@@ -3346,6 +3346,142 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
         case ExprData_TAG_ForIn: {
             // Validate iterable and desugar to while loop in anonymous scope
             Expr *iter = Expr_child(stmt, &(I64){(I64)(0)});
+
+            // #100: Detect Range.new(start, end) from parser's .. desugaring
+            // For scalar types, desugar directly to while loop with inc/dec
+            // instead of going through Range.new/len/get
+            if (iter->data.tag == ExprData_TAG_FCall &&
+                iter->children.count == 3 &&
+                Expr_child(iter, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                (Expr_child(iter, &(I64){(I64)(0)})->data.data.FieldAccess.count == 3 && memcmp(Expr_child(iter, &(I64){(I64)(0)})->data.data.FieldAccess.c_str, "new", 3) == 0) &&
+                Expr_child(Expr_child(iter, &(I64){(I64)(0)}), &(I64){0})->data.tag == ExprData_TAG_Ident &&
+                (Expr_child(Expr_child(iter, &(I64){(I64)(0)}), &(I64){0})->data.data.Ident.count == 5 && memcmp(Expr_child(Expr_child(iter, &(I64){(I64)(0)}), &(I64){0})->data.data.Ident.c_str, "Range", 5) == 0)) {
+                Expr *start_expr = Expr_child(iter, &(I64){(I64)(1)});
+                Expr *end_expr = Expr_child(iter, &(I64){(I64)(2)});
+                // Infer operand types to determine T
+                infer_expr(scope, start_expr, in_func);
+                infer_expr(scope, end_expr, in_func);
+                // T: non-literal wins, both literals -> I64
+                Str *elem_type = &stmt->struct_name; // explicit annotation
+                if (!elem_type || elem_type->count == 0) {
+                    Expr *type_src;
+                    if (start_expr->data.tag == ExprData_TAG_LiteralNum && end_expr->data.tag != ExprData_TAG_LiteralNum)
+                        type_src = end_expr;
+                    else if (end_expr->data.tag == ExprData_TAG_LiteralNum && start_expr->data.tag != ExprData_TAG_LiteralNum)
+                        type_src = start_expr;
+                    else
+                        type_src = start_expr; // both lit -> I64 (default)
+                    if ((type_src->til_type.tag == TilType_TAG_Struct || type_src->til_type.tag == TilType_TAG_Enum) &&
+                        type_src->struct_name.count > 0)
+                        elem_type = &type_src->struct_name;
+                    else
+                        elem_type = Str_clone(til_type_name_c(&type_src->til_type));
+                }
+
+                Str *var_name = &stmt->data.data.Ident;
+                Expr *for_body = Expr_child(stmt, &(I64){(I64)(1)});
+                I32 line = stmt->line, col = stmt->col;
+                Str *path = &stmt->path;
+                int counter = hoist_counter++;
+                char end_buf[32], cur_buf[32];
+                snprintf(end_buf, sizeof(end_buf), "_re%d", counter);
+                snprintf(cur_buf, sizeof(cur_buf), "_rc%d", counter);
+                Str *end_name = Str_clone(&(Str){.c_str = (U8*)(end_buf), .count = (U64)strlen((const char*)(end_buf)), .cap = CAP_VIEW});
+                Str *cur_name = Str_clone(&(Str){.c_str = (U8*)(cur_buf), .count = (U64)strlen((const char*)(cur_buf)), .cap = CAP_VIEW});
+
+                // Helper: build id(name)
+                #define RID(n) ({ Expr *_e = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path); _e->data.data.Ident = *(n); _e; })
+                // Helper: build a.method(b)
+                #define RCALL1(obj, meth, mlen, arg) ({ \
+                    Expr *_fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path); \
+                    _fa->data.data.FieldAccess = (Str){.c_str = (U8*)(meth), .count = (mlen), .cap = CAP_LIT}; \
+                    Expr_add_child(_fa, obj); \
+                    Expr *_fc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path); \
+                    Expr_add_child(_fc, _fa); Expr_add_child(_fc, arg); _fc; })
+                // Helper: build a.method()
+                #define RCALL0(obj, meth, mlen) ({ \
+                    Expr *_fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path); \
+                    _fa->data.data.FieldAccess = (Str){.c_str = (U8*)(meth), .count = (mlen), .cap = CAP_LIT}; \
+                    Expr_add_child(_fa, obj); \
+                    Expr *_fc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path); \
+                    Expr_add_child(_fc, _fa); _fc; })
+
+                // Outer block
+                Expr *block = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+
+                // _reN : T = end
+                Expr *end_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                end_decl->data.data.Decl.name = *end_name;
+                end_decl->data.data.Decl.explicit_type = *elem_type;
+                Expr_add_child(end_decl, Expr_clone(end_expr));
+                Expr_add_child(block, end_decl);
+
+                // mut _rcN : T = start
+                Expr *cur_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                cur_decl->data.data.Decl.name = *cur_name;
+                cur_decl->data.data.Decl.explicit_type = *elem_type;
+                cur_decl->data.data.Decl.is_mut = true;
+                Expr_add_child(cur_decl, Expr_clone(start_expr));
+                Expr_add_child(block, cur_decl);
+
+                // Build ascending while: while _rcN.lt(_reN) { i = _rcN; _rcN.inc(); body }
+                // Build descending while: while _rcN.gt(_reN) { i = _rcN; _rcN.dec(); body }
+                // Wrap in: if _rcN.lte(_reN) { asc_while } else { desc_while }
+                Expr *build_while_body(Str *var_name, Str *cur_name, const char *step, U64 step_len, Expr *for_body, I32 line, I32 col, Str *path, Str *elem_type) {
+                    Expr *wb = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+                    // i : T = _rcN
+                    Expr *vd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                    vd->data.data.Decl.name = *var_name;
+                    vd->data.data.Decl.explicit_type = *elem_type;
+                    Expr_add_child(vd, RID(cur_name));
+                    Expr_add_child(wb, vd);
+                    // _rcN.inc() or _rcN.dec()  -- before body for continue safety
+                    Expr_add_child(wb, RCALL0(RID(cur_name), step, step_len));
+                    // Copy body
+                    for (U32 bi = 0; bi < for_body->children.count; bi++)
+                        Expr_add_child(wb, Expr_clone(Expr_child(for_body, &(I64){(I64)(bi)})));
+                    return wb;
+                }
+
+                // Ascending while: while _rcN.lt(_reN) { ... }
+                Expr *asc_while = Expr_new(&(ExprData){.tag = ExprData_TAG_While}, line, col, path);
+                Expr_add_child(asc_while, RCALL1(RID(cur_name), "lt", 2, RID(end_name)));
+                Expr_add_child(asc_while, build_while_body(var_name, cur_name, "inc", 3, for_body, line, col, path, elem_type));
+
+                // Descending while: while _rcN.gt(_reN) { ... }
+                Expr *desc_while = Expr_new(&(ExprData){.tag = ExprData_TAG_While}, line, col, path);
+                Expr_add_child(desc_while, RCALL1(RID(cur_name), "gt", 2, RID(end_name)));
+                Expr_add_child(desc_while, build_while_body(var_name, cur_name, "dec", 3, for_body, line, col, path, elem_type));
+
+                // if _rcN.lte(_reN) { asc_while } else { desc_while }
+                Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+                Expr_add_child(if_node, RCALL1(RID(cur_name), "lte", 3, RID(end_name)));
+                Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+                Expr_add_child(then_body, asc_while);
+                Expr_add_child(if_node, then_body);
+                Expr *else_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+                Expr_add_child(else_body, desc_while);
+                Expr_add_child(if_node, else_body);
+                Expr_add_child(block, if_node);
+
+                #undef RID
+                #undef RCALL1
+                #undef RCALL0
+
+                // Replace ForIn with desugared block
+                {
+                    Expr *slot = (Expr*)Vec_get(&body->children, &(U64){(U64)(i)});
+                    *slot = *block;
+                    U64 sz = block->children.count * block->children.elem_size;
+                    slot->children.data = malloc(sz ? sz : 1);
+                    memcpy(slot->children.data, block->children.data, sz);
+                    slot->children.cap = block->children.count ? block->children.count : 1;
+                    block->children = (Vec){0};
+                }
+                i--; // re-visit to type-check
+                break;
+            }
+
             infer_expr(scope, iter, in_func);
 
             // Iterable must be a struct type

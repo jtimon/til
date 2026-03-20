@@ -1,5 +1,36 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #100 Scalar Range: type-aware for-in for builtin integer types
+  Specialized the for-in desugaring in typer.c for Range. When the
+  iterable is ~Range.new(start, end)~ (from ~..~ syntax), the typer
+  desugars directly to a while loop with inc/dec instead of going
+  through Range.new/len/get:
+
+  #+begin_src til
+  // for i in start..end desugars to:
+  {
+      _end : T = end
+      mut _cur : T = start
+      if _cur.lte(_end) {
+          while _cur.lt(_end) { i : T = _cur; _cur.inc(); body }
+      } else {
+          while _cur.gt(_end) { i : T = _cur; _cur.dec(); body }
+      }
+  }
+  #+end_src
+
+  Element type T inferred from operands: non-literal wins, both
+  literals default to I64. Zero overhead -- no Range allocation,
+  no dyn_fn, no FuncPtr dispatch.
+
+  Prep commits: proc -> void func (delete, swap, push, set, add),
+  distance method + IncFn/DistanceFn typedefs on all numeric types.
+
+  Updated piano.til and music.til with full type audit: constants
+  and loop vars use U64 where semantically non-negative.
+
+  Generic case (Vec2, custom types) deferred to #94 (post).
+
 * FIXED #88 UFCS with ~own~ first arg: ~own p.delete()~
   Parser now marks ~is_own_arg~ on the FieldAccess callee for
   statement-level ~own expr.method()~. Typer propagates it to the

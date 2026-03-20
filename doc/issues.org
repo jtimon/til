@@ -5,27 +5,6 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
-** OPEN #100 Scalar Range: type-aware for-in for builtin integer types
-  Specialize the for-in desugaring in typer.c for Range when operand
-  types are builtin scalars (I64, U32, U64, I32, I16, U8). Instead of
-  going through generic Range.new/len/get, desugar directly to a
-  while loop with typed arithmetic:
-  - Infer T from operands (non-literal wins, both literals -> I64)
-  - ~len~ via T.distance(start, end)
-  - ~get~ via T.add(start, i) / T.sub(start, i)
-  - Loop variable typed as T (not U64)
-
-  Fixes:
-  - ~for i in -2..2~ (I64 range, negative values)
-  - ~for i in 0..count~ where count is U32/USize (loop var matches)
-  - Zero overhead vs old U64-only Range (no malloc, no dyn_fn)
-
-  Blocker for #80 Phase 2 (USize := U32).
-  Generic case (Vec2, custom types) deferred to #94.
-
-  Prep done on master:
-  - Commit 1: proc -> void func (delete, swap, push, set, add)
-  - Commit 2: distance method + IncFn/DistanceFn typedefs
 
 ** OPEN #79 Type aliases: FuncPtr forward declarations don't resolve aliases
   builder.c emits alias names (e.g. ~USize~) literally in FuncPtr

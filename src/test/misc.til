@@ -313,7 +313,7 @@ test_switch_in_loop := test() {
     mut total := 0
     for i in 0..10 {
         switch i.mod(3) {
-        case 0: total = total.add(i.to_i64())
+        case 0: total = total.add(i)
         case 1: total = total.add(1)
         case: total = total.add(0)
         }

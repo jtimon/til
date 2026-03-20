@@ -93,7 +93,7 @@ test_for_in_scope := test() {
 test_range_ascending := test() {
     mut sum := 0
     for i in 0..5 {
-        sum = sum.add(i.to_i64())
+        sum = sum.add(i)
     }
     assert_eq(__LOC__, sum, 10)
 }
@@ -101,7 +101,7 @@ test_range_ascending := test() {
 test_range_descending := test() {
     mut sum := 0
     for i in 5..0 {
-        sum = sum.add(i.to_i64())
+        sum = sum.add(i)
     }
     assert_eq(__LOC__, sum, 15)
 }
@@ -117,7 +117,7 @@ test_range_empty := test() {
 test_range_single := test() {
     mut sum := 0
     for i in 0..1 {
-        sum = sum.add(i.to_i64())
+        sum = sum.add(i)
     }
     assert_eq(__LOC__, sum, 0)
 }
@@ -126,7 +126,7 @@ test_range_break := test() {
     mut last := 0
     for i in 0..100 {
         if i.eq(5) { break }
-        last = i.to_i64()
+        last = i
     }
     assert_eq(__LOC__, last, 4)
 }
@@ -136,7 +136,7 @@ test_range_continue := test() {
     mut sum := 0
     for i in 0..10 {
         if i.mod(2).neq(0) { continue }
-        sum = sum.add(i.to_i64())
+        sum = sum.add(i)
     }
     assert_eq(__LOC__, sum, 20)
 }
@@ -152,7 +152,7 @@ test_range_nested := test() {
 }
 
 test_range_u32_count := test() {
-    // Issue #67: for-in range should coerce U32 to U64
+    // #94: loop var is U32 (inferred from count), not U64
     count : U32 = 5
     mut sum := 0
     for i in 0..count {
@@ -165,6 +165,36 @@ test_range_u32_both := test() {
     // Both start and end as U32
     start : U32 = 1
     end : U32 = 4
+    mut sum := 0
+    for i in start..end {
+        sum = sum.add(i.to_i64())
+    }
+    assert_eq(__LOC__, sum, 6)
+}
+
+// #100: negative ranges (I64)
+test_range_negative := test() {
+    mut sum := 0
+    for i in -2..3 {
+        sum = sum.add(i)
+    }
+    // -2 + -1 + 0 + 1 + 2 = 0
+    assert_eq(__LOC__, sum, 0)
+}
+
+test_range_negative_desc := test() {
+    mut sum := 0
+    for i in 2..-3 {
+        sum = sum.add(i)
+    }
+    // 2 + 1 + 0 + -1 + -2 = 0
+    assert_eq(__LOC__, sum, 0)
+}
+
+// #100: I32 range
+test_range_i32 := test() {
+    start : I32 = 1
+    end : I32 = 4
     mut sum := 0
     for i in start..end {
         sum = sum.add(i.to_i64())
