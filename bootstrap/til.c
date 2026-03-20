@@ -553,6 +553,7 @@ TokenType *TokenType_Error();
 void dyn_call_delete(Str *type_name, void *val, void *arg2);
 void *dyn_call_clone(Str *type_name, void *val);
 void *dyn_call_cmp(Str *type_name, void *val, void *arg2);
+void *dyn_fn(Str *type_name, Str *method);
 
 Bool dyn_has_cmp(Str *type_name);
 
@@ -10237,6 +10238,85 @@ void *dyn_call_cmp(Str *type_name, void *val, void *arg2) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return (void *)Bool_cmp(val, arg2);
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return (void *)Str_cmp(val, arg2);
     fprintf(stderr, "dyn_call: unknown type for cmp\n");
+    exit(1);
+}
+
+void *dyn_fn(Str *type_name, Str *method) {
+    (void)type_name; (void)method;
+    if (method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) {
+        if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) return (void*)EnumDef_delete;
+        if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) return (void*)U8_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return (void*)I16_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) return (void*)I32_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) return (void*)F32_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) return (void*)U32_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) return (void*)U64_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return (void*)I64_delete;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) return (void*)Range_delete;
+        if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return (void*)Bool_delete;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) return (void*)Array_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0) return (void*)Map_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0) return (void*)Set_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return (void*)Str_delete;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0) return (void*)Vec_delete;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Tuple", 5ULL) == 0) return (void*)Tuple_delete;
+        if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0) return (void*)TilType_delete;
+        if (type_name->count == 11ULL && memcmp(type_name->c_str, "Declaration", 11ULL) == 0) return (void*)Declaration_delete;
+        if (type_name->count == 8ULL && memcmp(type_name->c_str, "FuncType", 8ULL) == 0) return (void*)FuncType_delete;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Param", 5ULL) == 0) return (void*)Param_delete;
+        if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) return (void*)FunctionDef_delete;
+        if (type_name->count == 8ULL && memcmp(type_name->c_str, "ExprData", 8ULL) == 0) return (void*)ExprData_delete;
+        if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) return (void*)Expr_delete;
+        if (type_name->count == 9ULL && memcmp(type_name->c_str, "TokenType", 9ULL) == 0) return (void*)TokenType_delete;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) return (void*)Token_delete;
+        if (type_name->count == 6ULL && memcmp(type_name->c_str, "Parser", 6ULL) == 0) return (void*)Parser_delete;
+        if (type_name->count == 11ULL && memcmp(type_name->c_str, "TypeBinding", 11ULL) == 0) return (void*)TypeBinding_delete;
+        if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0) return (void*)TypeScope_delete;
+        if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) return (void*)Mode_delete;
+    }
+    if (method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) {
+        if (type_name->count == 7ULL && memcmp(type_name->c_str, "EnumDef", 7ULL) == 0) return (void*)EnumDef_clone;
+        if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) return (void*)U8_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return (void*)I16_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) return (void*)I32_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) return (void*)F32_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) return (void*)U32_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) return (void*)U64_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return (void*)I64_clone;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Range", 5ULL) == 0) return (void*)Range_clone;
+        if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return (void*)Bool_clone;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0) return (void*)Array_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0) return (void*)Map_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0) return (void*)Set_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return (void*)Str_clone;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0) return (void*)Vec_clone;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Tuple", 5ULL) == 0) return (void*)Tuple_clone;
+        if (type_name->count == 7ULL && memcmp(type_name->c_str, "TilType", 7ULL) == 0) return (void*)TilType_clone;
+        if (type_name->count == 11ULL && memcmp(type_name->c_str, "Declaration", 11ULL) == 0) return (void*)Declaration_clone;
+        if (type_name->count == 8ULL && memcmp(type_name->c_str, "FuncType", 8ULL) == 0) return (void*)FuncType_clone;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Param", 5ULL) == 0) return (void*)Param_clone;
+        if (type_name->count == 11ULL && memcmp(type_name->c_str, "FunctionDef", 11ULL) == 0) return (void*)FunctionDef_clone;
+        if (type_name->count == 8ULL && memcmp(type_name->c_str, "ExprData", 8ULL) == 0) return (void*)ExprData_clone;
+        if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0) return (void*)Expr_clone;
+        if (type_name->count == 9ULL && memcmp(type_name->c_str, "TokenType", 9ULL) == 0) return (void*)TokenType_clone;
+        if (type_name->count == 5ULL && memcmp(type_name->c_str, "Token", 5ULL) == 0) return (void*)Token_clone;
+        if (type_name->count == 6ULL && memcmp(type_name->c_str, "Parser", 6ULL) == 0) return (void*)Parser_clone;
+        if (type_name->count == 11ULL && memcmp(type_name->c_str, "TypeBinding", 11ULL) == 0) return (void*)TypeBinding_clone;
+        if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0) return (void*)TypeScope_clone;
+        if (type_name->count == 4ULL && memcmp(type_name->c_str, "Mode", 4ULL) == 0) return (void*)Mode_clone;
+    }
+    if (method->count == 3ULL && memcmp(method->c_str, "cmp", 3ULL) == 0) {
+        if (type_name->count == 2ULL && memcmp(type_name->c_str, "U8", 2ULL) == 0) return (void*)U8_cmp;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I16", 3ULL) == 0) return (void*)I16_cmp;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I32", 3ULL) == 0) return (void*)I32_cmp;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "F32", 3ULL) == 0) return (void*)F32_cmp;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "U32", 3ULL) == 0) return (void*)U32_cmp;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "U64", 3ULL) == 0) return (void*)U64_cmp;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "I64", 3ULL) == 0) return (void*)I64_cmp;
+        if (type_name->count == 4ULL && memcmp(type_name->c_str, "Bool", 4ULL) == 0) return (void*)Bool_cmp;
+        if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0) return (void*)Str_cmp;
+    }
+    fprintf(stderr, "dyn_fn: unknown %s.%s\n", (char*)type_name->c_str, (char*)method->c_str);
     exit(1);
 }
 

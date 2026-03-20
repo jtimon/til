@@ -338,6 +338,23 @@ static Bool h_dyn_has_method(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
+// dyn_fn(type_name, "method") → function pointer
+static Bool h_dyn_fn(Scope *s, Expr *e, Value *r) {
+    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value method_val = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
+    Str _tn = str_view(type_name_val);
+    Str *type_name = &_tn;
+    Str _mn = str_view(method_val);
+    Str *method = &_mn;
+    Value *nsv = ns_get(type_name, method);
+    if (!nsv || nsv->type != VAL_FUNC) {
+        fprintf(stderr, "dyn_fn: unknown %s.%s\n", (char*)type_name->c_str, (char*)method->c_str);
+        exit(1);
+    }
+    *r = *nsv;
+    return 1;
+}
+
 // === Collection builtin handlers ===
 
 // Get raw pointer from a Value (for memcpy into Array/Vec data buffer)
@@ -674,6 +691,7 @@ static void dispatch_init(void) {
     REG("dyn_call", h_dyn_call);
     REG("dyn_call_ret", h_dyn_call);
     REG("dyn_has_method", h_dyn_has_method);
+    REG("dyn_fn", h_dyn_fn);
 
     // System primitives
     REG("readfile", h_readfile);

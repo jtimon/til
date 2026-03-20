@@ -316,6 +316,7 @@ memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: U64) {}
 dyn_call := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) {}
 dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic {}
+dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
 array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}

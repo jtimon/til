@@ -6,31 +6,31 @@
 <text x="65" y="194" text-anchor="end" font-size="11" fill="#333">82500</text>
 <text x="65" y="44" text-anchor="end" font-size="11" fill="#333">165000</text>
 <text x="15" y="190" text-anchor="middle" font-size="12" fill="#333" transform="rotate(-90 15 190)">ms</text>
-<polyline points="70,45 148,42 227,64 306,66 385,66 464,66 543,67 622,67 701,63 780,64" fill="none" stroke="#0072B2" stroke-width="2"/>
-<polyline points="70,62 148,61 227,78 306,79 385,81 464,79 543,79 622,79 701,78 780,80" fill="none" stroke="#CC79A7" stroke-width="2"/>
+<polyline points="70,42 148,64 227,66 306,66 385,66 464,67 543,67 622,63 701,64 780,64" fill="none" stroke="#0072B2" stroke-width="2"/>
+<polyline points="70,61 148,78 227,79 306,81 385,79 464,79 543,79 622,78 701,80 780,76" fill="none" stroke="#CC79A7" stroke-width="2"/>
 <polyline points="70,337 148,337 227,337 306,337 385,337 464,337 543,337 622,337 701,337 780,337" fill="none" stroke="#D55E00" stroke-width="2"/>
-<polyline points="70,303 148,303 227,305 306,305 385,305 464,305 543,305 622,305 701,305 780,305" fill="none" stroke="#009E73" stroke-width="2"/>
-<circle cx="70" cy="45" r="3" fill="#0072B2"/>
-<circle cx="70" cy="62" r="3" fill="#CC79A7"/>
+<polyline points="70,303 148,305 227,305 306,305 385,305 464,305 543,305 622,305 701,305 780,305" fill="none" stroke="#009E73" stroke-width="2"/>
+<circle cx="70" cy="42" r="3" fill="#0072B2"/>
+<circle cx="70" cy="61" r="3" fill="#CC79A7"/>
 <circle cx="70" cy="337" r="3" fill="#D55E00"/>
 <circle cx="70" cy="303" r="3" fill="#009E73"/>
-<circle cx="148" cy="42" r="3" fill="#0072B2"/>
-<circle cx="148" cy="61" r="3" fill="#CC79A7"/>
+<circle cx="148" cy="64" r="3" fill="#0072B2"/>
+<circle cx="148" cy="78" r="3" fill="#CC79A7"/>
 <circle cx="148" cy="337" r="3" fill="#D55E00"/>
-<circle cx="148" cy="303" r="3" fill="#009E73"/>
-<circle cx="227" cy="64" r="3" fill="#0072B2"/>
-<circle cx="227" cy="78" r="3" fill="#CC79A7"/>
+<circle cx="148" cy="305" r="3" fill="#009E73"/>
+<circle cx="227" cy="66" r="3" fill="#0072B2"/>
+<circle cx="227" cy="79" r="3" fill="#CC79A7"/>
 <circle cx="227" cy="337" r="3" fill="#D55E00"/>
 <circle cx="227" cy="305" r="3" fill="#009E73"/>
 <circle cx="306" cy="66" r="3" fill="#0072B2"/>
-<circle cx="306" cy="79" r="3" fill="#CC79A7"/>
+<circle cx="306" cy="81" r="3" fill="#CC79A7"/>
 <circle cx="306" cy="337" r="3" fill="#D55E00"/>
 <circle cx="306" cy="305" r="3" fill="#009E73"/>
 <circle cx="385" cy="66" r="3" fill="#0072B2"/>
-<circle cx="385" cy="81" r="3" fill="#CC79A7"/>
+<circle cx="385" cy="79" r="3" fill="#CC79A7"/>
 <circle cx="385" cy="337" r="3" fill="#D55E00"/>
 <circle cx="385" cy="305" r="3" fill="#009E73"/>
-<circle cx="464" cy="66" r="3" fill="#0072B2"/>
+<circle cx="464" cy="67" r="3" fill="#0072B2"/>
 <circle cx="464" cy="79" r="3" fill="#CC79A7"/>
 <circle cx="464" cy="337" r="3" fill="#D55E00"/>
 <circle cx="464" cy="305" r="3" fill="#009E73"/>
@@ -38,16 +38,16 @@
 <circle cx="543" cy="79" r="3" fill="#CC79A7"/>
 <circle cx="543" cy="337" r="3" fill="#D55E00"/>
 <circle cx="543" cy="305" r="3" fill="#009E73"/>
-<circle cx="622" cy="67" r="3" fill="#0072B2"/>
-<circle cx="622" cy="79" r="3" fill="#CC79A7"/>
+<circle cx="622" cy="63" r="3" fill="#0072B2"/>
+<circle cx="622" cy="78" r="3" fill="#CC79A7"/>
 <circle cx="622" cy="337" r="3" fill="#D55E00"/>
 <circle cx="622" cy="305" r="3" fill="#009E73"/>
-<circle cx="701" cy="63" r="3" fill="#0072B2"/>
-<circle cx="701" cy="78" r="3" fill="#CC79A7"/>
+<circle cx="701" cy="64" r="3" fill="#0072B2"/>
+<circle cx="701" cy="80" r="3" fill="#CC79A7"/>
 <circle cx="701" cy="337" r="3" fill="#D55E00"/>
 <circle cx="701" cy="305" r="3" fill="#009E73"/>
 <circle cx="780" cy="64" r="3" fill="#0072B2"/>
-<circle cx="780" cy="80" r="3" fill="#CC79A7"/>
+<circle cx="780" cy="76" r="3" fill="#CC79A7"/>
 <circle cx="780" cy="337" r="3" fill="#D55E00"/>
 <circle cx="780" cy="305" r="3" fill="#009E73"/>
 <circle cx="90" cy="20" r="4" fill="#0072B2"/>

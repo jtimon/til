@@ -900,7 +900,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         // dyn_call variants: method (2nd arg) must be a string literal
         if (((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0) || (name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0) ||
-             (name->count == 14 && memcmp(name->c_str, "dyn_has_method", 14) == 0)) &&
+             (name->count == 14 && memcmp(name->c_str, "dyn_has_method", 14) == 0) || (name->count == 6 && memcmp(name->c_str, "dyn_fn", 6) == 0)) &&
             e->children.count >= 3) {
             Expr *method_arg = Expr_child(e, &(I64){(I64)(2)});
             if (method_arg->data.tag != ExprData_TAG_LiteralStr) {
@@ -1914,7 +1914,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
     if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
         Str *cn = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
         is_dyn_call = (cn->count == 8 && memcmp(cn->c_str, "dyn_call", 8) == 0) || (cn->count == 12 && memcmp(cn->c_str, "dyn_call_ret", 12) == 0) ||
-                      (cn->count == 14 && memcmp(cn->c_str, "dyn_has_method", 14) == 0);
+                      (cn->count == 14 && memcmp(cn->c_str, "dyn_has_method", 14) == 0) || (cn->count == 6 && memcmp(cn->c_str, "dyn_fn", 6) == 0);
     }
     Bool is_array_vec = 0;
     if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
