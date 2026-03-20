@@ -24,22 +24,7 @@
   ~self_diff~ was already removed in 5d365ff18. ~compile_lib~ and
   per-library scavenging remain (separate concern).
 
-* FIXED #79 Type aliases for structs, enums, primitives, and function signatures
-  ~MyAlias := ExistingType~ creates a type alias for all type kinds.
-
-  Implementation:
-  - initer.c Pass 1.85: registers alias binding with same type data as target
-  - initer.c ~compute_struct_layout~: resolves aliases before field size
-    computation and updates ~explicit_type~ to canonical name (so
-    interpreter reads fields at correct offsets)
-  - typer.c: ~resolve_type_alias()~ resolves alias names in param types,
-    return types, struct_name, and constructor callees
-  - builder.c: emits ~typedef CanonicalType AliasName;~ in forward headers
-    (ensures generated C compiles even with alias names in signatures)
-  - interpreter.c: skips alias Decls (type-level only, no runtime code)
-
-  Tests unified in src/test/aliases.til: variable aliases, struct aliases,
-  enum aliases, primitive aliases (USize := U64), FuncSig aliases
+* REOPENED #79 Type aliases — moved back to issues.org (FuncPtr forward decls don't resolve)
   (Callback := BinaryOp), alias in function params/returns, alias with
   containers, alias arithmetic/comparison, alias in struct fields,
   alias in struct with methods (simulates #80 container use case).

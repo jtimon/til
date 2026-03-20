@@ -33,6 +33,12 @@ namespace:
     or := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     xor := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     clone := ext_func(val: U8) returns shallow U8 {}
+    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+        ref au : U8 = a
+        ref bu : U8 = b
+        if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
+        return au.sub(bu).to_i64().to_u64()
+    }
     delete := ext_func(own self: U8, call_free: Bool = true) {}
     size := func() returns U64 { return 1 }
 }
@@ -59,6 +65,12 @@ namespace:
     or := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     xor := ext_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     clone := ext_func(val: I16) returns shallow I16 {}
+    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+        ref au : I16 = a
+        ref bu : I16 = b
+        if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
+        return au.sub(bu).to_i64().to_u64()
+    }
     delete := ext_func(own self: I16, call_free: Bool = true) {}
     size := func() returns U64 { return 2 }
 }
@@ -85,6 +97,12 @@ namespace:
     or := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     xor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     clone := ext_func(val: I32) returns shallow I32 {}
+    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+        ref au : I32 = a
+        ref bu : I32 = b
+        if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
+        return au.sub(bu).to_i64().to_u64()
+    }
     delete := ext_func(own self: I32, call_free: Bool = true) {}
     size := func() returns U64 { return 4 }
 }
@@ -128,6 +146,12 @@ namespace:
     or := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     xor := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     clone := ext_func(val: U32) returns shallow U32 {}
+    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+        ref au : U32 = a
+        ref bu : U32 = b
+        if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
+        return au.sub(bu).to_i64().to_u64()
+    }
     delete := ext_func(own self: U32, call_free: Bool = true) {}
     size := func() returns U64 { return 4 }
 }
@@ -157,6 +181,12 @@ namespace:
     or := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     xor := ext_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     clone := ext_func(val: U64) returns shallow U64 {}
+    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+        ref au : U64 = a
+        ref bu : U64 = b
+        if au.lte(bu) { return bu.sub(au) }
+        return au.sub(bu)
+    }
     delete := ext_func(own self: U64, call_free: Bool = true) {}
     size := func() returns U64 { return 8 }
 }
@@ -221,6 +251,12 @@ namespace:
     or := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     xor := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     clone := ext_func(val: I64) returns shallow I64 {}
+    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
+        ref au : I64 = a
+        ref bu : I64 = b
+        if au.lte(bu) { return bu.sub(au).to_u64() }
+        return au.sub(bu).to_u64()
+    }
     delete := ext_func(own self: I64, call_free: Bool = true) {}
     size := func() returns U64 { return 8 }
 }
@@ -322,9 +358,13 @@ dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
 CloneFn := func(Dynamic) returns Dynamic
 DeleteFn := func(Dynamic, Bool)
 CmpFn := func(Dynamic, Dynamic) returns I64
+IncFn := func(Dynamic)
+DistanceFn := func(Dynamic, Dynamic) returns U64
 default_clone : CloneFn = (v) { return v }
 default_delete : DeleteFn = (v, cf) { }
 default_cmp : CmpFn = (a, b) { return 0 }
+default_inc : IncFn = (v) { }
+default_distance : DistanceFn = (a, b) { return 0 }
 dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
 array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}

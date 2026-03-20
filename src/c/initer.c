@@ -1425,7 +1425,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
             // proc(mut self: T) { ... }
             Expr *fd = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            fd->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Proc};
+            fd->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fd->data.data.FuncDef.nparam = 1;
             { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fd->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));

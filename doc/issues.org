@@ -5,6 +5,12 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #79 Type aliases: FuncPtr forward declarations don't resolve aliases
+  builder.c emits alias names (e.g. ~USize~) literally in FuncPtr
+  typedef forward declarations instead of resolving to canonical type
+  (~U64~). Regular function signatures resolve correctly. Reopened
+  from fixed — original fix missed this case.
+
 ** OPEN #99 Struct literals as auto-generated new method
   Struct literal syntax ~MyStruct(x = 1, y = 2)~ is currently special
   in the compiler. It should be an auto-generated ~new~ namespace

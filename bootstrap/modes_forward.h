@@ -436,6 +436,8 @@ Str * format(Array * parts);
 void * default_clone(void * v);
 void default_delete(void * v, Bool * cf);
 I64 * default_cmp(void * a, void * b);
+void default_inc(void * v);
+U64 * default_distance(void * a, void * b);
 void swap(void * a, void * b, U64 size);
 void move(void * dest, void * src, U64 size);
 I64 * wait_cmd(I64 * pid);
