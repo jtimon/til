@@ -47,7 +47,6 @@ typedef struct { Str *method; I32 nargs; Bool returns; } DynCallInfo;
 static Bool is_dyn_call_name(Str *name, Bool *returns) {
     if ((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0))     { *returns = 0; return 1; }
     if ((name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0)) { *returns = 1; return 1; }
-    if ((name->count == 6 && memcmp(name->c_str, "dyn_fn", 6) == 0))      { *returns = 1; return 1; }
     return 0;
 }
 
@@ -2462,39 +2461,35 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             fprintf(f, "    exit(1);\n");
             fprintf(f, "}\n\n");
         }
-        // Emit dyn_fn: single function returning function pointer
+        Vec_delete(&dyn_methods, &(Bool){0});
+    }
+
+    // Emit dyn_fn: single function returning function pointer for any Type.method
+    {
         fprintf(f, "void *dyn_fn(Str *type_name, Str *method) {\n    (void)type_name; (void)method;\n");
-        for (U32 m = 0; m < dyn_methods.count; m++) {
-            DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
-            Str *method = info->method;
-            fprintf(f, "    if (method->count == %lluULL && memcmp(method->c_str, \"%s\", %lluULL) == 0) {\n",
-                    (unsigned long long)method->count, method->c_str, (unsigned long long)method->count);
-            for (U32 i = 0; i < program->children.count; i++) {
-                Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-                if (stmt->data.tag != ExprData_TAG_Decl) continue;
-                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
-                if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
-                Str *tname = &stmt->data.data.Decl.name;
-                Expr *body = Expr_child(def, &(I64){(I64)(0)});
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *field = Expr_child(body, &(I64){(I64)(j)});
-                    if (field->data.data.Decl.is_namespace &&
-                        *Str_eq(&field->data.data.Decl.name, method) &&
-                        field->children.count > 0 &&
-                        Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                        fprintf(f, "        if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0) return (void*)%s_%s;\n",
-                                (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count, tname->c_str, method->c_str);
-                        break;
-                    }
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+            if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+            Str *tname = &stmt->data.data.Decl.name;
+            Expr *body = Expr_child(def, &(I64){(I64)(0)});
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (field->data.data.Decl.is_namespace &&
+                    field->children.count > 0 &&
+                    Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    Str *mname = &field->data.data.Decl.name;
+                    fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0 && method->count == %lluULL && memcmp(method->c_str, \"%s\", %lluULL) == 0) return (void*)%s_%s;\n",
+                            (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count,
+                            (unsigned long long)mname->count, mname->c_str, (unsigned long long)mname->count,
+                            tname->c_str, mname->c_str);
                 }
             }
-            fprintf(f, "    }\n");
         }
         fprintf(f, "    fprintf(stderr, \"dyn_fn: unknown %%s.%%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n");
         fprintf(f, "    exit(1);\n");
         fprintf(f, "}\n\n");
-
-        Vec_delete(&dyn_methods, &(Bool){0});
     }
 
     // Emit dyn_has_method dispatch function bodies
