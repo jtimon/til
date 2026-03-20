@@ -1,10 +1,15 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 97
+# NEXT_ISSUE: 98
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #97 Negative identifier expressions: -MY_CONST, -x
+  Parser only supports negative literals (~-42~), not negative
+  identifiers (~-AB_INF~, ~-x~). Workaround: ~0.sub(AB_INF)~.
+  Parser is fully in til now (parser.til), should be easy to fix.
+
 ** OPEN #96 Audit multiple passes in initer and other phases
   The initer has many sub-passes (1.5, 1.6, 1.7, 1.9, 1.95, etc.)
   iterating over the full AST each time. Explore whether some passes
