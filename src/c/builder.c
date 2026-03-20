@@ -358,7 +358,9 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         // Indirect call through FuncSig-typed struct field: h.on_click(3, 5)
         if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
             Expr_child(e, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_FuncPtr && e->fn_sig) {
-            // Same pattern as regular func ptr indirect call (line ~440)
+            // Use fn_sig to determine shallow params/return for correct cast
+            Expr *sig = e->fn_sig;
+            Bool ret_shallow = sig ? sig->data.data.FuncDef.return_is_shallow : 0;
             const char *ret_c = "void *";
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
                 e->til_type.tag != TilType_TAG_Dynamic) {
@@ -368,14 +370,20 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                     snprintf(ret_buf2, sizeof(ret_buf2), "%s", e->struct_name.c_str);
                     ret_c = ret_buf2;
                 }
-                static char ret_ptr_buf2[256];
-                snprintf(ret_ptr_buf2, sizeof(ret_ptr_buf2), "%s *", ret_c);
-                ret_c = ret_ptr_buf2;
+                if (!ret_shallow) {
+                    static char ret_ptr_buf2[256];
+                    snprintf(ret_ptr_buf2, sizeof(ret_ptr_buf2), "%s *", ret_c);
+                    ret_c = ret_ptr_buf2;
+                }
             }
             fprintf(f, "((%s (*)(", ret_c);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 Expr *arg = Expr_child(e, &(I64){(I64)(i)});
+                Bool arg_shallow = 0;
+                if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
+                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                }
                 const char *arg_c = "void *";
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
                     arg_c = til_type_to_c(arg->til_type);
@@ -384,9 +392,11 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                         snprintf(arg_buf2, sizeof(arg_buf2), "%s", arg->struct_name.c_str);
                         arg_c = arg_buf2;
                     }
-                    static char arg_ptr_buf2[256];
-                    snprintf(arg_ptr_buf2, sizeof(arg_ptr_buf2), "%s *", arg_c);
-                    arg_c = arg_ptr_buf2;
+                    if (!arg_shallow) {
+                        static char arg_ptr_buf2[256];
+                        snprintf(arg_ptr_buf2, sizeof(arg_ptr_buf2), "%s *", arg_c);
+                        arg_c = arg_ptr_buf2;
+                    }
                 }
                 fprintf(f, "%s", arg_c);
             }
@@ -396,7 +406,14 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "))(");
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
+                Bool arg_shallow = 0;
+                if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
+                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                }
+                if (arg_shallow)
+                    emit_deref(f, Expr_child(e, &(I64){(I64)(i)}), depth);
+                else
+                    emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
             break;
@@ -468,7 +485,9 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, " _sc%d; })", id);
         } else if (Expr_child(e, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_FuncPtr) {
             // Indirect call through function pointer variable
-            // Emit: ((ret_type (*)(param_types))fn_ptr)(args)
+            // Use fn_sig to determine shallow params/return for correct cast
+            Expr *sig = e->fn_sig;
+            Bool ret_shallow = sig ? sig->data.data.FuncDef.return_is_shallow : 0;
             const char *ret_c = "void *";
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
                 e->til_type.tag != TilType_TAG_Dynamic) {
@@ -478,15 +497,20 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                     snprintf(ret_buf, sizeof(ret_buf), "%s", e->struct_name.c_str);
                     ret_c = ret_buf;
                 }
-                // Return is a pointer (all til functions return pointers)
-                static char ret_ptr_buf[256];
-                snprintf(ret_ptr_buf, sizeof(ret_ptr_buf), "%s *", ret_c);
-                ret_c = ret_ptr_buf;
+                if (!ret_shallow) {
+                    static char ret_ptr_buf[256];
+                    snprintf(ret_ptr_buf, sizeof(ret_ptr_buf), "%s *", ret_c);
+                    ret_c = ret_ptr_buf;
+                }
             }
             fprintf(f, "((%s (*)(", ret_c);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 Expr *arg = Expr_child(e, &(I64){(I64)(i)});
+                Bool arg_shallow = 0;
+                if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
+                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                }
                 const char *arg_c = "void *";
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
                     arg_c = til_type_to_c(arg->til_type);
@@ -495,9 +519,11 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                         snprintf(arg_buf, sizeof(arg_buf), "%s", arg->struct_name.c_str);
                         arg_c = arg_buf;
                     }
-                    static char arg_ptr_buf[256];
-                    snprintf(arg_ptr_buf, sizeof(arg_ptr_buf), "%s *", arg_c);
-                    arg_c = arg_ptr_buf;
+                    if (!arg_shallow) {
+                        static char arg_ptr_buf[256];
+                        snprintf(arg_ptr_buf, sizeof(arg_ptr_buf), "%s *", arg_c);
+                        arg_c = arg_ptr_buf;
+                    }
                 }
                 fprintf(f, "%s", arg_c);
             }
@@ -505,7 +531,14 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "))%s)(", name->c_str);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
-                emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
+                Bool arg_shallow2 = 0;
+                if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
+                    arg_shallow2 = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                }
+                if (arg_shallow2)
+                    emit_deref(f, Expr_child(e, &(I64){(I64)(i)}), depth);
+                else
+                    emit_as_ptr(f, Expr_child(e, &(I64){(I64)(i)}), depth);
             }
             fprintf(f, ")");
         } else {
@@ -2464,8 +2497,72 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         Vec_delete(&dyn_methods, &(Bool){0});
     }
 
-    // Emit dyn_fn: single function returning function pointer for any Type.method
+    // Emit dyn_fn wrappers + dispatch
     {
+        // First emit wrapper functions that normalize calling convention
+        // Wrappers take (void*, ...) and deref shallow params, box shallow returns
+        for (U32 i = 0; i < program->children.count; i++) {
+            Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+            if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+            Str *tname = &stmt->data.data.Decl.name;
+            Expr *body = Expr_child(def, &(I64){(I64)(0)});
+            for (U32 j = 0; j < body->children.count; j++) {
+                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                if (!field->data.data.Decl.is_namespace || field->children.count == 0) continue;
+                if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                Str *mname = &field->data.data.Decl.name;
+                U32 np = fdef->data.data.FuncDef.nparam;
+                Bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
+                Str *ret_type = &fdef->data.data.FuncDef.return_type;
+                Bool has_return = ret_type->count > 0;
+                Bool any_shallow = ret_shallow;
+                for (U32 p = 0; p < np; p++) {
+                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)}))->is_shallow)
+                        any_shallow = 1;
+                }
+                if (!any_shallow) continue; // no wrapper needed
+                // void* Type_method_dyn(void *a, void *b) { ... }
+                if (has_return) {
+                    fprintf(f, "void *%s_%s_dyn(", tname->c_str, mname->c_str);
+                } else {
+                    fprintf(f, "void %s_%s_dyn(", tname->c_str, mname->c_str);
+                }
+                for (U32 p = 0; p < np; p++) {
+                    if (p > 0) fprintf(f, ", ");
+                    fprintf(f, "void *_a%d", p);
+                }
+                if (np == 0) fprintf(f, "void");
+                fprintf(f, ") {\n");
+                // Call real function with deref for shallow params
+                if (has_return && ret_shallow) {
+                    const char *rc = type_name_to_c_value(ret_type);
+                    fprintf(f, "    %s *_r = malloc(sizeof(%s)); *_r = %s_%s(", rc, rc, tname->c_str, mname->c_str);
+                } else if (has_return) {
+                    fprintf(f, "    return (void *)%s_%s(", tname->c_str, mname->c_str);
+                } else {
+                    fprintf(f, "    %s_%s(", tname->c_str, mname->c_str);
+                }
+                for (U32 p = 0; p < np; p++) {
+                    if (p > 0) fprintf(f, ", ");
+                    Param *param = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)});
+                    if (param->is_shallow) {
+                        const char *pc = type_name_to_c_value(&param->ptype);
+                        fprintf(f, "*(%s *)_a%d", pc, p);
+                    } else {
+                        fprintf(f, "_a%d", p);
+                    }
+                }
+                fprintf(f, ");");
+                if (has_return && ret_shallow) {
+                    fprintf(f, " return _r;");
+                }
+                fprintf(f, "\n}\n");
+            }
+        }
+        // Now emit dyn_fn dispatch returning wrappers (or raw for non-shallow)
         fprintf(f, "void *dyn_fn(Str *type_name, Str *method) {\n    (void)type_name; (void)method;\n");
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
@@ -2476,15 +2573,20 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             Expr *body = Expr_child(def, &(I64){(I64)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
                 Expr *field = Expr_child(body, &(I64){(I64)(j)});
-                if (field->data.data.Decl.is_namespace &&
-                    field->children.count > 0 &&
-                    Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                    Str *mname = &field->data.data.Decl.name;
-                    fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0 && method->count == %lluULL && memcmp(method->c_str, \"%s\", %lluULL) == 0) return (void*)%s_%s;\n",
-                            (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count,
-                            (unsigned long long)mname->count, mname->c_str, (unsigned long long)mname->count,
-                            tname->c_str, mname->c_str);
+                if (!field->data.data.Decl.is_namespace || field->children.count == 0) continue;
+                if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                Str *mname = &field->data.data.Decl.name;
+                Bool any_shallow = fdef->data.data.FuncDef.return_is_shallow;
+                for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
+                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)}))->is_shallow)
+                        any_shallow = 1;
                 }
+                const char *suffix = any_shallow ? "_dyn" : "";
+                fprintf(f, "    if (type_name->count == %lluULL && memcmp(type_name->c_str, \"%s\", %lluULL) == 0 && method->count == %lluULL && memcmp(method->c_str, \"%s\", %lluULL) == 0) return (void*)%s_%s%s;\n",
+                        (unsigned long long)tname->count, tname->c_str, (unsigned long long)tname->count,
+                        (unsigned long long)mname->count, mname->c_str, (unsigned long long)mname->count,
+                        tname->c_str, mname->c_str, suffix);
             }
         }
         fprintf(f, "    fprintf(stderr, \"dyn_fn: unknown %%s.%%s\\n\", (char*)type_name->c_str, (char*)method->c_str);\n");
