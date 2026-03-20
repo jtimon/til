@@ -157,8 +157,30 @@
   No workarounds for syntax issues — if function pointers on structs
   don't work for some case, fix the blocker first, then come back.
 
+  Done:
+  - ~dyn_fn~ ext_func: resolves function pointer by type+method name
+  - ~dyn_fn~ renamed from ~dyn_get_fn_ptr~ for brevity
+  - Builder generates ~dyn_fn~ dispatch (independent from dyn_call)
+  - Builder generates wrapper functions (~Type_method_dyn~) for methods
+    with shallow params/returns, fixing calling convention mismatch
+  - ~CloneFn~, ~DeleteFn~, ~CmpFn~ type aliases + defaults in core.til
+  - Builder indirect call codegen uses fn_sig for shallow detection
+  - AlphaBeta refactoring (all 3 games) as proof of function pointer
+    pattern on structs
+
+  Blocker: interpreter doesn't call ~dyn_fn~ results stored in struct
+  fields. ~read_field~ returns ~VAL_FUNC~ with the Expr* from ~ns_get~,
+  but the FCall handler resolves ~self.field(args)~ via UFCS as
+  ~Set_elem_cmp~ (namespace lookup) instead of indirect field call.
+  Compiled path works. Interpreter needs fix in field-access-as-callee
+  resolution when the field is a FuncPtr instance field.
+
+  No performance improvement observed — the dyn_call string matching
+  overhead was apparently not a bottleneck in the test suite. The
+  benefit may show in programs with heavy container operations.
+
   Benefits:
-  - Much faster: direct function call vs N string comparisons
+  - Direct function call vs N string comparisons (when interpreter fixed)
   - Eliminates the "unknown type for delete" failure mode
   - Simpler generated code (no dyn_call dispatch functions needed)
 
