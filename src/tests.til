@@ -14,7 +14,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
         count = count.add(1)
-        pos_u : USize = pos.to_u32()
+        pos_u : USize = pos.to_usize()
         start = start.add(pos_u).add(needle.len())
     }
     return count
@@ -67,7 +67,7 @@ parse_kv := func(line: Str, key: Str) returns I64 {
     needle := key.concat("=")
     pos := line.find(needle)
     if pos.lt(0) { return 0 }
-    pos_u : USize = pos.to_u32()
+    pos_u : USize = pos.to_usize()
     start := pos_u.add(needle.len())
     mut end := start
     while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) {
@@ -240,7 +240,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                     mut result_line := ""
                     result_pos := runner_out.rfind("RESULT ")
                     if result_pos.gte(0) {
-                        result_pos_u : USize = result_pos.to_u32()
+                        result_pos_u : USize = result_pos.to_usize()
                         result_line = runner_out.substr(result_pos_u,
                             runner_out.len().sub(result_pos_u))
                     }
@@ -304,14 +304,14 @@ main := proc(args: ..Str) {
     wall_start := clock_ms()
 
     // Parse args: -jN, -no-interp, -no-run
-    mut j : USize = get_thread_count().to_u32()
+    mut j : USize = get_thread_count().to_usize()
     mut en_interp := 1
     mut en_run := 1
     mut i : USize = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
         if arg.starts_with("-j") {
-            j = arg.substr(2, arg.len().sub(2)).to_i64().to_u32()
+            j = arg.substr(2, arg.len().sub(2)).to_i64().to_usize()
             if j.lt(1) { j = 1 }
         }
         if arg.eq("-no-interp") { en_interp = 0 }
@@ -526,7 +526,7 @@ main := proc(args: ..Str) {
 
     // --- Summary ---
 
-    total_passed := mode_passed.add(other_passed).add(plot_ok.to_u32())
+    total_passed := mode_passed.add(other_passed).add(plot_ok.to_usize())
     total_tests := mode_total.add(other_total).add(1)
 
     wall_ms := clock_ms().sub(wall_start)
@@ -594,7 +594,7 @@ main := proc(args: ..Str) {
         }
         if last_data_idx.gt(0) {
             ref last_data : Str = lines.get(last_data_idx)
-            last_commit := last_data.substr(0, last_data.find(",").to_u32())
+            last_commit := last_data.substr(0, last_data.find(",").to_usize())
             if last_commit.eq(commit) {
                 mut li : USize = 0
                 while li.lt(last_data_idx) {

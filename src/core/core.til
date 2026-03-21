@@ -233,6 +233,7 @@ namespace:
     to_i16 := ext_func(shallow val: I64) returns shallow I16 {}
     to_i32 := ext_func(shallow val: I64) returns shallow I32 {}
     to_u32 := ext_func(shallow val: I64) returns shallow U32 {}
+    to_usize := func(shallow val: I64) returns shallow USize { return val.to_u32() }
     to_u64 := ext_func(shallow val: I64) returns shallow U64 {}
     to_f32 := ext_func(shallow val: I64) returns shallow F32 {}
     add := ext_func(shallow a: I64, shallow b: I64) returns shallow I64 {}

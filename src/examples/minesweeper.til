@@ -14,7 +14,7 @@ main := proc() {
     set_target_fps(60)
 
     // State arrays
-    total_us : USize = total.to_u32()
+    total_us : USize = total.to_usize()
     mut mines := Array.new("I64", 8, total_us)
     mut counts := Array.new("I64", 8, total_us)
     mut state := Array.new("I64", 8, total_us)
@@ -34,7 +34,7 @@ main := proc() {
             // R = restart
             mut ri := 0
             while ri.lt(total) {
-                ri_u : USize = ri.to_u32()
+                ri_u : USize = ri.to_usize()
                 mines.set(ri_u, own 0)
                 counts.set(ri_u, own 0)
                 state.set(ri_u, own 0)
@@ -53,7 +53,7 @@ main := proc() {
                 my := get_mouse_y().sub(top_bar).div(cell)
                 if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
                     idx := my.mul(cols).add(mx)
-                    idx_u : USize = idx.to_u32()
+                    idx_u : USize = idx.to_usize()
                     ref st : I64 = state.get(idx_u)
                     if st.eq(0) {
                         if first_click {
@@ -62,7 +62,7 @@ main := proc() {
                             mut placed := 0
                             while placed.lt(num_mines) {
                                 pos := get_random_value(0, total.sub(1))
-                                pos_u : USize = pos.to_u32()
+                                pos_u : USize = pos.to_usize()
                                 ref m : I64 = mines.get(pos_u)
                                 if m.eq(0) {
                                     // Check not near first click
@@ -81,7 +81,7 @@ main := proc() {
                             // Compute neighbor counts
                             mut ci := 0
                             while ci.lt(total) {
-                                ci_u : USize = ci.to_u32()
+                                ci_u : USize = ci.to_usize()
                                 ref cm : I64 = mines.get(ci_u)
                                 if cm.eq(0) {
                                     cx := ci.mod(cols)
@@ -93,7 +93,7 @@ main := proc() {
                                         while nx.lte(cx.add(1)) {
                                             if nx.gte(0).and(nx.lt(cols)).and(ny.gte(0)).and(ny.lt(rows)) {
                                                 ni := ny.mul(cols).add(nx)
-                                                ni_u : USize = ni.to_u32()
+                                                ni_u : USize = ni.to_usize()
                                                 ref nm : I64 = mines.get(ni_u)
                                                 if nm.eq(1) {
                                                     cnt = cnt.add(1)
@@ -116,7 +116,7 @@ main := proc() {
                             // Reveal all mines
                             mut ri2 := 0
                             while ri2.lt(total) {
-                                ri2_u : USize = ri2.to_u32()
+                                ri2_u : USize = ri2.to_usize()
                                 ref rm : I64 = mines.get(ri2_u)
                                 if rm.eq(1) {
                                     state.set(ri2_u, own 1)
@@ -132,7 +132,7 @@ main := proc() {
                                 // Pop by reducing count manually
                                 stack.count = stack.count.sub(1)
 
-                                cur_u : USize = cur.to_u32()
+                                cur_u : USize = cur.to_usize()
                                 ref cur_st : I64 = state.get(cur_u)
                                 if cur_st.eq(0) {
                                     state.set(cur_u, own 1)
@@ -147,7 +147,7 @@ main := proc() {
                                             while px.lte(cur_x.add(1)) {
                                                 if px.gte(0).and(px.lt(cols)).and(py.gte(0)).and(py.lt(rows)) {
                                                     ni := py.mul(cols).add(px)
-                                                    ni_u : USize = ni.to_u32()
+                                                    ni_u : USize = ni.to_usize()
                                                     ref ns : I64 = state.get(ni_u)
                                                     if ns.eq(0) {
                                                         stack.push(own ni)
@@ -165,7 +165,7 @@ main := proc() {
                             mut revealed := 0
                             mut wi := 0
                             while wi.lt(total) {
-                                wi_u : USize = wi.to_u32()
+                                wi_u : USize = wi.to_usize()
                                 ref ws : I64 = state.get(wi_u)
                                 if ws.eq(1) {
                                     revealed = revealed.add(1)
@@ -186,7 +186,7 @@ main := proc() {
                 my := get_mouse_y().sub(top_bar).div(cell)
                 if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
                     idx := my.mul(cols).add(mx)
-                    idx_u : USize = idx.to_u32()
+                    idx_u : USize = idx.to_usize()
                     ref st : I64 = state.get(idx_u)
                     if st.eq(0) {
                         state.set(idx_u, own 2)
@@ -224,7 +224,7 @@ main := proc() {
             px := dx.mul(cell)
             py := dy.mul(cell).add(top_bar)
 
-            di_u : USize = di.to_u32()
+            di_u : USize = di.to_usize()
             ref ds : I64 = state.get(di_u)
             if ds.eq(0) {
                 // Hidden
