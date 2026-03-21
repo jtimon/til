@@ -1615,8 +1615,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             // Store payload inline (by value)
             if (is_primitive_type(vt)) {
                 fprintf(f, "    r->data.%s = *val;\n", vn->c_str);
-            } else if (is_funcsig_type(vt)) {
-                // FuncSig: store func pointer directly
+            } else if (is_funcsig_type(vt) ||
+                       (vt->count == 7 && memcmp(vt->c_str, "Dynamic", 7) == 0)) {
+                // FuncSig/Dynamic: store pointer directly
                 fprintf(f, "    r->data.%s = val;\n", vn->c_str);
             } else {
                 // Struct/enum: clone into inline storage
@@ -1653,8 +1654,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             if (is_primitive_type(vt)) {
                 fprintf(f, "    %s r = malloc(sizeof(%s)); *r = self->data.%s; return r;\n",
                         ptype, type_name_to_c_value(vt), vn->c_str);
-            } else if (is_funcsig_type(vt)) {
-                // FuncSig: return func pointer directly
+            } else if (is_funcsig_type(vt) ||
+                       (vt->count == 7 && memcmp(vt->c_str, "Dynamic", 7) == 0)) {
+                // FuncSig/Dynamic: return pointer directly
                 fprintf(f, "    return self->data.%s;\n", vn->c_str);
             } else {
                 // Struct/enum: clone from inline address

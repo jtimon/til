@@ -424,7 +424,7 @@ Value clone_value(Value v) {
                 tmp_val.tag = Value_TAG_Struct;
                 tmp_val.data.Struct.struct_name = ftype;
                 tmp_val.data.Struct.struct_def = nested;
-                tmp_val.data.Struct.data = (char *)src->data + foff;
+                tmp_val.data.Struct.data = (U8 *)src->data + foff;
                 tmp_val.data.Struct.borrowed = 1;
                 Value cloned = clone_value(tmp_val);
                 memcpy((char *)dst->data + foff, cloned.data.Struct.data, nested->total_struct_size);

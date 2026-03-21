@@ -146,6 +146,27 @@ typedef struct Parser Parser;
 typedef struct TypeBinding TypeBinding;
 typedef struct TypeScope TypeScope;
 typedef struct LocalInfo LocalInfo;
+typedef struct StructInstance StructInstance;
+typedef struct EnumInstance EnumInstance;
+typedef enum {
+    Value_TAG_None,
+    Value_TAG_Int,
+    Value_TAG_Byte,
+    Value_TAG_Short,
+    Value_TAG_Int32,
+    Value_TAG_Uint32,
+    Value_TAG_Uint64,
+    Value_TAG_Float,
+    Value_TAG_Boolean,
+    Value_TAG_Func,
+    Value_TAG_Struct,
+    Value_TAG_Enum,
+    Value_TAG_Ptr
+} Value_tag;
+typedef struct Value Value;
+typedef struct Cell Cell;
+typedef struct Binding Binding;
+typedef struct Scope Scope;
 typedef struct CollectionInfo CollectionInfo;
 typedef struct DynCallInfo DynCallInfo;
 typedef struct ExtStr ExtStr;
@@ -290,6 +311,51 @@ typedef struct LocalInfo {
 } LocalInfo;
 
 
+typedef struct StructInstance {
+    Str *struct_name;
+    Expr *struct_def;
+    U8 *data;
+    Bool borrowed;
+} StructInstance;
+
+
+typedef struct EnumInstance {
+    Str *enum_name;
+    I32 tag;
+    Value *payload;
+} EnumInstance;
+
+
+struct Value {
+    Value_tag tag;
+    union {
+        I64 Int;
+        U8 Byte;
+        I16 Short;
+        I32 Int32;
+        U32 Uint32;
+        U64 Uint64;
+        F32 Float;
+        Bool Boolean;
+        void * Func;
+        StructInstance Struct;
+        EnumInstance Enum;
+        void * Ptr;
+    } data;
+};
+
+typedef struct Cell {
+    Value val;
+} Cell;
+
+
+typedef struct Binding {
+    Str *name;
+    Cell *cell;
+    Bool cell_is_local;
+} Binding;
+
+
 typedef struct CollectionInfo {
     Str *type_name;
     I32 is_vec;
@@ -418,6 +484,12 @@ typedef struct TypeScope {
     Map bindings;
     TypeScope *parent;
 } TypeScope;
+
+
+typedef struct Scope {
+    Map bindings;
+    Scope *parent;
+} Scope;
 
 
 EnumDef * EnumDef_clone(EnumDef * self);
@@ -606,6 +678,30 @@ U32 * TypeScope_size(void);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);
+Bool StructInstance_eq(StructInstance * a, StructInstance * b);
+Str * StructInstance_to_str(StructInstance * self);
+StructInstance * StructInstance_clone(StructInstance * self);
+void StructInstance_delete(StructInstance * self, Bool * call_free);
+U32 * StructInstance_size(void);
+Bool EnumInstance_eq(EnumInstance * a, EnumInstance * b);
+Str * EnumInstance_to_str(EnumInstance * self);
+EnumInstance * EnumInstance_clone(EnumInstance * self);
+void EnumInstance_delete(EnumInstance * self, Bool * call_free);
+U32 * EnumInstance_size(void);
+Bool * Value_eq(Value * a, Value * b);
+Str * Value_to_str(Value * self);
+Value * Value_clone(Value * self);
+void Value_delete(Value * self, Bool * call_free);
+U32 * Value_size(void);
+Cell * Cell_clone(Cell * self);
+void Cell_delete(Cell * self, Bool * call_free);
+U32 * Cell_size(void);
+Binding * Binding_clone(Binding * self);
+void Binding_delete(Binding * self, Bool * call_free);
+U32 * Binding_size(void);
+Scope * Scope_clone(Scope * self);
+void Scope_delete(Scope * self, Bool * call_free);
+U32 * Scope_size(void);
 CollectionInfo * CollectionInfo_clone(CollectionInfo * self);
 void CollectionInfo_delete(CollectionInfo * self, Bool * call_free);
 U32 * CollectionInfo_size(void);
@@ -689,6 +785,45 @@ TokenType *TokenType_KwTrue();
 TokenType *TokenType_KwFalse();
 TokenType *TokenType_KwNull();
 TokenType *TokenType_Error();
+Bool * Value_eq(Value *, Value *);
+Bool * Value_is_None(Value *);
+Value *Value_None();
+Bool * Value_is_Int(Value *);
+Value *Value_Int(I64 *);
+I64 * Value_get_Int(Value *);
+Bool * Value_is_Byte(Value *);
+Value *Value_Byte(U8 *);
+U8 * Value_get_Byte(Value *);
+Bool * Value_is_Short(Value *);
+Value *Value_Short(I16 *);
+I16 * Value_get_Short(Value *);
+Bool * Value_is_Int32(Value *);
+Value *Value_Int32(I32 *);
+I32 * Value_get_Int32(Value *);
+Bool * Value_is_Uint32(Value *);
+Value *Value_Uint32(U32 *);
+U32 * Value_get_Uint32(Value *);
+Bool * Value_is_Uint64(Value *);
+Value *Value_Uint64(U64 *);
+U64 * Value_get_Uint64(Value *);
+Bool * Value_is_Float(Value *);
+Value *Value_Float(F32 *);
+F32 * Value_get_Float(Value *);
+Bool * Value_is_Boolean(Value *);
+Value *Value_Boolean(Bool *);
+Bool * Value_get_Boolean(Value *);
+Bool * Value_is_Func(Value *);
+Value *Value_Func(void *);
+void * Value_get_Func(Value *);
+Bool * Value_is_Struct(Value *);
+Value *Value_Struct(StructInstance *);
+StructInstance * Value_get_Struct(Value *);
+Bool * Value_is_Enum(Value *);
+Value *Value_Enum(EnumInstance *);
+EnumInstance * Value_get_Enum(Value *);
+Bool * Value_is_Ptr(Value *);
+Value *Value_Ptr(void *);
+void * Value_get_Ptr(Value *);
 
 #include "ext.h"
 

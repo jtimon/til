@@ -142,9 +142,9 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             if (ftype->count > 0 && !(ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0) && !(ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0) && !(ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) {
                 Expr *nested_def = tscope_get_struct(scope, ftype);
                 if (nested_def && !nested_def->is_ext) {
-                    // Skip recursive layout for self-referential own/ref fields
-                    if (nested_def != struct_def)
-                        compute_struct_layout(nested_def, scope);
+                    // Don't recurse — own/ref fields are pointer-sized regardless.
+                    // Avoids infinite recursion on indirect cycles (e.g. EnumInstance <-> Value).
+                    // Nested type's layout is computed when processed as a top-level definition.
                     field->data.data.Decl.field_struct_def = nested_def;
                 }
             }

@@ -7,58 +7,9 @@
 // If run_tests is true, ignores main/script body and runs all test functions.
 I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv);
 
-// --- Values ---
-
-typedef enum {
-    Value_TAG_None,
-    Value_TAG_Int,
-    Value_TAG_Byte,
-    Value_TAG_Short,
-    Value_TAG_Int32,
-    Value_TAG_Uint32,
-    Value_TAG_Uint64,
-    Value_TAG_Float,
-    Value_TAG_Boolean,
-    Value_TAG_Func,    // borrowed pointer to a func/proc AST node
-    Value_TAG_Struct,  // struct instance (including Str)
-    Value_TAG_Enum,    // enum instance (tagged union with optional payload)
-    Value_TAG_Ptr,     // raw buffer (Value array for malloc/ptr_add/memcpy)
-} Value_tag;
-
-typedef struct StructInstance StructInstance;
-typedef struct EnumInstance EnumInstance;
-typedef struct Value Value;
-
-struct StructInstance {
-    Str *struct_name;       // borrowed from AST (no alloc, no free)
-    Expr *struct_def;       // borrowed pointer to NODE_STRUCT_DEF
-    void *data;             // flat buffer, same layout as C struct
-    Bool borrowed;          // if true, data points into parent buffer -- don't free
-};
-
-struct EnumInstance {
-    Str *enum_name;
-    I32 tag;
-    Value *payload;         // heap-allocated (own), NULL for no-payload variants
-};
-
-struct Value {
-    Value_tag tag;
-    union {
-        I64 Int;
-        U8 Byte;
-        I16 Short;
-        I32 Int32;
-        U32 Uint32;
-        U64 Uint64;
-        F32 Float;
-        Bool Boolean;
-        void *Func;              // borrowed Expr* (cast when used)
-        StructInstance Struct;    // inline
-        EnumInstance Enum;        // inline
-        void *Ptr;
-    } data;
-};
+// --- Value constructors ---
+// Types (Value, StructInstance, EnumInstance, Cell, Binding, Scope)
+// are defined in interpreter.til and generated into bootstrap/modes.h.
 
 static inline Value val_none(void) {
     return (Value){.tag = Value_TAG_None};
@@ -80,27 +31,6 @@ static inline Value val_enum(Str *enum_name, I32 etag, Value payload) {
     *r.data.Enum.payload = payload;
     return r;
 }
-
-// --- Cells ---
-
-typedef struct Cell Cell;
-struct Cell {
-    Value val;
-};
-
-// --- Scope ---
-
-typedef struct {
-    Str *name;
-    Cell *cell;
-    Bool cell_is_local;
-} Binding;
-
-typedef struct Scope Scope;
-struct Scope {
-    Map bindings;
-    Scope *parent;
-};
 
 // Functions used by dispatch and precomp
 Value eval_expr(Scope *scope, Expr *e);
