@@ -626,6 +626,7 @@ static const char *type_name_to_c(Str *name) {
     if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return "I32 *";
     if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return "U32 *";
     if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return "U64 *";
+    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return "USize *";
     if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "F32 *";
     if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "Bool *";
     if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return "void *";
@@ -651,6 +652,7 @@ static const char *type_name_to_c_value(Str *name) {
     if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return "I32";
     if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return "U32";
     if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return "U64";
+    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return "USize";
     if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "F32";
     if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "Bool";
     if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))   return "void *"; // function pointer (opaque)
@@ -668,7 +670,8 @@ static const char *type_name_to_c_value(Str *name) {
 
 static Bool is_primitive_type(Str *name) {
     return (name->count == 3 && memcmp(name->c_str, "I64", 3) == 0) || (name->count == 2 && memcmp(name->c_str, "U8", 2) == 0) || (name->count == 3 && memcmp(name->c_str, "I16", 3) == 0) ||
-           (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
+           (name->count == 3 && memcmp(name->c_str, "I32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U32", 3) == 0) || (name->count == 3 && memcmp(name->c_str, "U64", 3) == 0) ||
+           (name->count == 5 && memcmp(name->c_str, "USize", 5) == 0) || (name->count == 3 && memcmp(name->c_str, "F32", 3) == 0) || (name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0);
 }
 
 static Bool is_funcsig_type(Str *name) {
@@ -1309,6 +1312,8 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
                         fprintf(f, "        U32 *_val = cli_parse_u32(argv[%d + _i]);\n", argi);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
                         fprintf(f, "        U64 *_val = cli_parse_u64(argv[%d + _i]);\n", argi);
+                    else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
+                        fprintf(f, "        USize *_val = (USize *)cli_parse_u64(argv[%d + _i]);\n", argi);
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         fprintf(f, "        Bool *_val = cli_parse_bool(argv[%d + _i]);\n", argi);
                     fprintf(f, "        Array_set(%s, &(USize){_idx}, _val);\n", pname->c_str);
@@ -1333,6 +1338,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
                     argi++;
                 } else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0)) {
                     fprintf(f, "    U64 *%s = cli_parse_u64(argv[%d]);\n", pname->c_str, argi);
+                    argi++;
+                } else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0)) {
+                    fprintf(f, "    USize *%s = (USize *)cli_parse_u64(argv[%d]);\n", pname->c_str, argi);
                     argi++;
                 } else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0)) {
                     fprintf(f, "    Bool *%s = cli_parse_bool(argv[%d]);\n", pname->c_str, argi);
@@ -2192,7 +2200,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     fprintf(f, "#define DEREF(p) (*(p ? p : (fprintf(stderr, \"panic: null deref\\n\"), exit(1), p)))\n");
 
     // String helper functions (after all struct typedefs so Str is complete)
-    fprintf(f, "#define TIL_CAP_LIT ULLONG_MAX\n");
+    fprintf(f, "#define TIL_CAP_LIT ((USize)-1)\n");
     fprintf(f, "Str *Str_lit(const char *s, unsigned long long len) {\n");
     fprintf(f, "    Str *r = malloc(sizeof(Str));\n");
     fprintf(f, "    r->c_str = (U8 *)s;\n");
