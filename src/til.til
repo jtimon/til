@@ -36,12 +36,12 @@ init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
 precomp := ext_proc(program: Expr) {}
 scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}
-til_interpret_v := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec) returns shallow I32 {}
+interpret := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, user_c: Str, ext_c: Str, link_flags: Str, user_argv: Vec) returns shallow I32 {}
 build := ext_func(ast: Expr, m: Mode, shallow run_tests: Bool, path: Str, c_path: Str) returns shallow I32 {}
 build_header := ext_func(ast: Expr, h_path: Str) returns shallow I32 {}
 build_til_binding := ext_func(ast: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
-til_compile_c := ext_func(c_path: Str, bin_path: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
-til_compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
+compile_c := ext_func(c_path: Str, bin_path: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
+compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c: Str, user_c: Str, lflags: Str) returns shallow I32 {}
 ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 
 // Utility
@@ -427,7 +427,7 @@ main := proc(args: ..Str) {
         if is_lib_mode.and(command.eq("interpret")) {
             panic(__LOC__, "cannot interpret a library — use translate or build")
         }
-        result = til_interpret_v(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
+        result = interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
                                 user_argv)
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
         if is_lib_mode.and(command.eq("run")) {
@@ -490,7 +490,7 @@ main := proc(args: ..Str) {
                 println("Generated: ".concat(til_path))
             }
             if result.eq(0).and(command.eq("build")) {
-                result = til_compile_lib(c_path, name, ext_c_path, user_c, lflags)
+                result = compile_lib(c_path, name, ext_c_path, user_c, lflags)
                 if result.eq(0) {
                     println("Generated: ".concat(c_path))
                     println("Generated: ".concat(h_path))
@@ -505,7 +505,7 @@ main := proc(args: ..Str) {
             println("Generated: ".concat(c_path))
         }
         if result.eq(0).and(do_lib.not()).and(command.eq("translate").not()) {
-            result = til_compile_c(c_path, bin_path, ext_c_path, user_c, lflags)
+            result = compile_c(c_path, bin_path, ext_c_path, user_c, lflags)
         }
         if result.eq(0).and(do_lib.not()).and(command.eq("run")) {
             // Build command with user args

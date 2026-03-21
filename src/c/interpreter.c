@@ -1331,6 +1331,8 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
 }
 
 I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv) {
+    if (user_c_path && user_c_path->count == 0) user_c_path = NULL;
+    if (link_flags && link_flags->count == 0) link_flags = NULL;
     U32 user_argc = user_argv ? (U32)user_argv->count : 0;
     // Initialize FFI: load user .c library (if provided) and auto-discover C functions
     I32 ffi_rc = ffi_init(program, user_c_path, ext_c_path, link_flags);

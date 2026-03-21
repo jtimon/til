@@ -19,28 +19,6 @@ void expr_swap_children(Expr *e, Vec *new_children) {
     memset(new_children, 0, sizeof(Vec));
 }
 
-// --- Pipeline wrappers ---
-
-I32 til_interpret_v(Expr *ast, Mode *mode, Bool run_tests,
-                    Str *path, Str *user_c, Str *ext_c, Str *link_flags,
-                    Vec *user_argv) {
-    if (user_c && user_c->count == 0) user_c = NULL;
-    if (link_flags && link_flags->count == 0) link_flags = NULL;
-    return interpret(ast, mode, run_tests, path, user_c, ext_c, link_flags, user_argv);
-}
-
-I32 til_compile_c(Str *c_path, Str *bin_path, Str *ext_c, Str *user_c, Str *lflags) {
-    if (user_c && user_c->count == 0) user_c = NULL;
-    if (lflags && lflags->count == 0) lflags = NULL;
-    return compile_c(c_path, bin_path, ext_c, user_c, lflags);
-}
-
-I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lflags) {
-    if (user_c && user_c->count == 0) user_c = NULL;
-    if (lflags && lflags->count == 0) lflags = NULL;
-    return compile_lib(c_path, lib_name, ext_c, user_c, lflags);
-}
-
 // --- Utility wrappers ---
 
 Str *til_realpath(Str *path) {

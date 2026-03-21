@@ -849,12 +849,12 @@ I32 init_declarations(Expr *, TypeScope *);
 I32 type_check(Expr *, TypeScope *, Mode *);
 void precomp(Expr *);
 void scavenge(Expr *, Mode *, Bool);
-I32 til_interpret_v(Expr *, Mode *, Bool, Str *, Str *, Str *, Str *, Vec *);
+I32 interpret(Expr *, Mode *, Bool, Str *, Str *, Str *, Str *, Vec *);
 I32 build(Expr *, Mode *, Bool, Str *, Str *);
 I32 build_header(Expr *, Str *);
 I32 build_til_binding(Expr *, Str *, Str *);
-I32 til_compile_c(Str *, Str *, Str *, Str *, Str *);
-I32 til_compile_lib(Str *, Str *, Str *, Str *, Str *);
+I32 compile_c(Str *, Str *, Str *, Str *, Str *);
+I32 compile_lib(Str *, Str *, Str *, Str *, Str *);
 void ast_print(Expr *, U32);
 Str * til_bin_dir(void);
 Str * til_realpath(Str *);
@@ -30149,7 +30149,7 @@ int main(int argc, char **argv) {
             Str_delete(_t4750, &(Bool){1});
         }
         ;
-        I32 _t4754 = til_interpret_v(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags, user_argv);
+        I32 _t4754 = interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags, user_argv);
         (void)_t4754;
         result = _t4754;
         ;
@@ -30547,7 +30547,7 @@ int main(int argc, char **argv) {
                 ;
                 ;
                 if (_t4859) {
-                    I32 _t4838 = til_compile_lib(c_path, name, ext_c_path, user_c, lflags);
+                    I32 _t4838 = compile_lib(c_path, name, ext_c_path, user_c, lflags);
                     (void)_t4838;
                     result = _t4838;
                     ;
@@ -30751,7 +30751,7 @@ int main(int argc, char **argv) {
             ;
             ;
             if (_t4917) {
-                I32 _t4866 = til_compile_c(c_path, bin_path, ext_c_path, user_c, lflags);
+                I32 _t4866 = compile_c(c_path, bin_path, ext_c_path, user_c, lflags);
                 (void)_t4866;
                 result = _t4866;
                 ;
