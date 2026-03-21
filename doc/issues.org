@@ -227,51 +227,6 @@
   - With-payload enum: ~struct { Tag tag; union { ... } data; }~
     (e.g. ExprData)
 
-** OPEN #80 USize type alias for container sizes
-  :DEPENDENCIES: #79
-  ~USize~ — semantic type for container sizes: Vec count/cap, Str
-  count/cap, Array cap, Map/Set internals. Currently all use U64.
-
-  Default ~USize := U32~ — 4 billion elements is enough for almost
-  everything, saves memory in every container. User-configurable via
-  compiler flag for programs that need larger containers.
-
-  Distinct from UPtr (#81) which is platform-determined pointer size.
-  USize is about "how many elements" (user's choice), UPtr is about
-  "how big is an address" (platform's choice).
-
-*** Implementation plan
-
-    Sub-step 1a: Create aliases
-    - ~src/core/aliases.til~: ~USize := U64~, imported by core.til
-    - ~src/c/aliases.h~: ~typedef U64 USize;~
-
-    Sub-step 1b: Replace U64 → USize in core containers (~55 sites)
-    - vec.til (6): count, cap, elem_size + new/len/get params
-    - str.til (~15): count, cap + len/get/substr/with_capacity params
-      (CAP_LIT/CAP_VIEW stay U64 — sentinel values, not sizes)
-    - map.til (~11): count, cap, key_size, val_size + new/len params
-    - set.til (~10): count, cap, elem_size + new/len params
-    - array.til (~6): cap, elem_size + new/len/get/set params
-    - tuple.til (~7): total_size, cap + push/get/len params
-
-    Sub-step 2: Switch ~USize := U32~ (real savings)
-    - Container fields shrink 8→4 bytes each
-    - C modules need U64→USize in struct access
-
-    Sub-step 3: Replace U32 size fields with USize
-    - nparam (U32), variadic_index (I32), etc. → USize
-    - Eliminates ~.to_i64().to_u32()~ conversion chains
-
-*** Conversion cleanup opportunities (identified)
-    When container sizes use USize matching field types:
-    - ~.len().to_i64()~ — hundreds of test assertions
-    - ~.to_i64().to_u64()~ — parser Vec access (7 sites)
-    - ~.len().to_i64().to_u32()~ — nparam assignments (5 sites)
-    - ~-1.to_i32()~ — variadic/kwargs sentinels (16 sites)
-
-  Reference: ~wip_u32~ branch has prior work on the U32 migration.
-
 ** WIP #77 til.til: import self-hosted modules, use ~til build~ in Makefile
   Goal: til.til imports self-hosted modules directly instead of link_c,
   and Makefile uses ~til build src/til.til~ instead of two-pass gcc.

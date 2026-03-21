@@ -1,5 +1,32 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #80 USize type alias for container sizes
+  Introduced ~USize~ as the semantic container-size type and completed
+  the flip from ~U64~ to ~U32~ across the self-hosted compiler,
+  runtime, core containers, and examples.
+
+  Landed work:
+  - core container fields and APIs now use ~USize~ for counts, caps,
+    element sizes, and indices
+  - C/runtime/codegen paths were made alias-aware so pass 1, bootstrap
+    regeneration, and pass 2 all agree on ~USize~
+  - committed bootstrap updated to match the new ~USize := U32~ world
+  - parser/AST size-count fields like ~nparam~, ~variadic_count~, and
+    ~kwargs_count~ now use ~USize~
+  - follow-up cleanup removed redundant conversion churn and added
+    ~to_usize()~ for semantic size/index casts
+
+  Special cases fixed during the migration:
+  - ~Tuple~ stores runtime type sizes as concrete ~U32~ values while
+    exposing them semantically as ~USize~
+  - string sentinels ~CAP_LIT~ and ~CAP_VIEW~ now use ~USize~
+  - ~make rescue~ was fixed to use rescue-local headers, so recovery
+    builds the last commit's compiler instead of leaking live headers
+
+  Validation:
+  - full self-hosting flow works with regenerated bootstrap
+  - ~make test_headless~ passes ~73/73~
+
 * FIXED #100 Scalar Range: type-aware for-in for builtin integer types
   Specialized the for-in desugaring in typer.c for Range. When the
   iterable is ~Range.new(start, end)~ (from ~..~ syntax), the typer
