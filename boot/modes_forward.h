@@ -675,6 +675,7 @@ Expr * parse(Vec * tokens, Str * path, Str * mode_out);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 * TypeBinding_size(void);
+TypeScope * TypeScope_new(TypeScope * parent);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 * TypeScope_size(void);

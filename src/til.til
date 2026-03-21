@@ -23,8 +23,6 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 
 
 // Pipeline
-tscope_new := ext_func(parent: TypeScope) returns TypeScope {}
-tscope_free := ext_proc(s: TypeScope) {}
 init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
 precomp := ext_proc(program: Expr) {}
@@ -358,7 +356,7 @@ main := proc(args: ..Str) {
     ast.swap_children(own kept)
 
     // Init phase: pre-scan declarations
-    scope := tscope_new(NULL)
+    scope := TypeScope()
     init_declarations(ast, scope)
 
     // Type checking

@@ -25,4 +25,8 @@ TypeBinding := struct {
 TypeScope := struct {
     mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
     ref mut parent : TypeScope = NULL
+    namespace:
+    new := func(parent: TypeScope) returns TypeScope {
+        return TypeScope(parent = parent)
+    }
 }

@@ -5,8 +5,6 @@
 // TypeBinding and TypeScope are defined in initer.til (generated into boot headers)
 
 // Scope operations
-TypeScope *tscope_new(TypeScope *parent);
-void tscope_free(TypeScope *s);
 void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
 TilType tscope_get(TypeScope *s, Str *name);
 I32 tscope_is_proc(TypeScope *s, Str *name);

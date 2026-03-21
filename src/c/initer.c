@@ -7,17 +7,7 @@
 
 // --- Type scope implementation ---
 
-TypeScope *tscope_new(TypeScope *parent) {
-    TypeScope *s = malloc(sizeof(TypeScope));
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(TypeBinding)}); s->bindings = *_mp; free(_mp); }
-    s->parent = parent;
-    return s;
-}
 
-void tscope_free(TypeScope *s) {
-    Map_delete(&s->bindings, &(Bool){0});
-    free(s);
-}
 
 // --- FFI clone/delete for Mode ---
 

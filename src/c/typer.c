@@ -210,7 +210,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Pure mode: reject user-declared procs (allow core procs)
             if (current_mode && current_mode->is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
                 type_error(e, "proc not allowed in pure mode");
-            TypeScope *func_scope = tscope_new(scope);
+            TypeScope *func_scope = TypeScope_new(scope);
             // Resolve return type alias
             if (e->data.data.FuncDef.return_type.count > 0)
                 e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
@@ -289,7 +289,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     if (!ok) type_error(s, "ref function must return a parameter or ref variable");
                 }
             }
-            tscope_free(func_scope);
+            TypeScope_delete(func_scope, &(Bool){1});
         }
         break;
     case ExprData_TAG_StructDef:
@@ -308,9 +308,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         // Type-check field declarations in a child scope so fields
         // don't leak into outer scope's locals for free-call insertion
-        TypeScope *inner = tscope_new(scope);
+        TypeScope *inner = TypeScope_new(scope);
         infer_body(inner, Expr_child(e, &(USize){(USize)(0)}), 0, 0, 0, 0);
-        tscope_free(inner);
+        TypeScope_delete(inner, &(Bool){1});
         break;
     }
     case ExprData_TAG_FCall: {
@@ -3072,21 +3072,21 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
             }
             {
-                TypeScope *then_scope = tscope_new(scope);
+                TypeScope *then_scope = TypeScope_new(scope);
                 infer_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, in_loop, returns_ref);
-                tscope_free(then_scope);
+                TypeScope_delete(then_scope, &(Bool){1});
             }
             if (stmt->children.count > 2) {
-                TypeScope *else_scope = tscope_new(scope);
+                TypeScope *else_scope = TypeScope_new(scope);
                 infer_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}), in_func, 1, in_loop, returns_ref);
-                tscope_free(else_scope);
+                TypeScope_delete(else_scope, &(Bool){1});
             }
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
         case ExprData_TAG_Body: {
-            TypeScope *block_scope = tscope_new(scope);
+            TypeScope *block_scope = TypeScope_new(scope);
             infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref);
-            tscope_free(block_scope);
+            TypeScope_delete(block_scope, &(Bool){1});
             break;
         }
         case ExprData_TAG_While:
@@ -3150,9 +3150,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *true_lit;
             }
             {
-                TypeScope *while_scope = tscope_new(scope);
+                TypeScope *while_scope = TypeScope_new(scope);
                 infer_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, 1, returns_ref);
-                tscope_free(while_scope);
+                TypeScope_delete(while_scope, &(Bool){1});
             }
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
