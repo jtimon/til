@@ -11,7 +11,7 @@ TIL := "bin/til_bootstrap"
 
 // Extract basename from path: "src/test/types.til" → "types"
 test_basename := func(path: Str) returns Str {
-    mut last_slash : U64 = 0
+    mut last_slash : USize = 0
     mut has_slash := 0
     for si in 0..path.len() {
         if path.get(si).eq('/') {
@@ -32,7 +32,7 @@ test_basename := func(path: Str) returns Str {
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
     mut count := 0
-    mut start : U64 = 0
+    mut start : USize = 0
     while start.lte(haystack.len().sub(needle.len())) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
@@ -170,7 +170,7 @@ main := proc(args: ..Str) {
         expected_exit := exit_str.to_i64()
 
         // Find "--" starting from index 3
-        mut dd : U64 = 3
+        mut dd : USize = 3
         while dd.lt(args.len()) {
             ref a : Str = args.get(dd)
             if a.eq("--") { break }
@@ -239,7 +239,7 @@ main := proc(args: ..Str) {
         expected_count := count_str.to_i64()
 
         // Find "--" starting from index 4
-        mut dd : U64 = 4
+        mut dd : USize = 4
         while dd.lt(args.len()) {
             ref a : Str = args.get(dd)
             if a.eq("--") { break }

@@ -9,7 +9,7 @@ GUI_TIMEOUT := "1"
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
     mut count := 0
-    mut start : U64 = 0
+    mut start : USize = 0
     while start.lte(haystack.len().sub(needle.len())) {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
@@ -35,7 +35,7 @@ ms_to_str := func(ms: I64) returns Str {
     return secs.to_str().concat(".").concat(frac_str).concat("s")
 }
 
-pad_right := func(s: Str, width: U64) returns Str {
+pad_right := func(s: Str, width: USize) returns Str {
     mut result := s.clone()
     while result.len().lt(width) {
         result = result.concat(" ")
@@ -44,7 +44,7 @@ pad_right := func(s: Str, width: U64) returns Str {
 }
 
 test_basename := func(path: Str) returns Str {
-    mut last_slash : U64 = 0
+    mut last_slash : USize = 0
     mut has_slash := 0
     for si in 0..path.len() {
         if path.get(si).eq('/') {
@@ -121,7 +121,7 @@ Test := struct {
 }
 
 Slot := struct {
-    mut test_idx : U64 = 0
+    mut test_idx : USize = 0
     mut pid := 0
     mut start_ms := 0
 }
@@ -199,12 +199,12 @@ add_cli_pair := proc(tests: Vec, name: Str, file: Str,
 
 // --- Blind parallel runner ---
 
-run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
-    mut next : U64 = 0
-    mut active : U64 = 0
+run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
+    mut next : USize = 0
+    mut active : USize = 0
 
     slots := Array.new("Slot", Slot.size(), j)
-    mut si : U64 = 0
+    mut si : USize = 0
     while si.lt(j) {
         slots.set(si, own Slot())
         si = si.add(1)
@@ -225,7 +225,7 @@ run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
 
     // Poll loop
     while active.gt(0) {
-        mut i : U64 = 0
+        mut i : USize = 0
         while i.lt(j) {
             ref slot : Slot = slots.get(i)
             if slot.pid.gt(0) {
@@ -262,7 +262,7 @@ run_all_parallel := proc(tests: Vec, j: U64, mut fail: I64) {
 
                     if status.neq(0) {
                         runner_lines := runner_out.split(NL)
-                        mut li : U64 = 0
+                        mut li : USize = 0
                         while li.lt(runner_lines.len()) {
                             ref ln : Str = runner_lines.get(li)
                             if ln.starts_with("FAIL").or(ln.starts_with("MISMATCH")) {
@@ -304,7 +304,7 @@ main := proc(args: ..Str) {
     mut j := get_thread_count().to_u64()
     mut en_interp := 1
     mut en_run := 1
-    mut i : U64 = 0
+    mut i : USize = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
         if arg.starts_with("-j") {
@@ -449,9 +449,9 @@ main := proc(args: ..Str) {
     mut total_interp_ms := 0
     mut total_compile_ms := 0
     mut total_run_ms := 0
-    mut mode_passed : U64 = 0
-    mut mode_total : U64 = 0
-    mut pi : U64 = 0
+    mut mode_passed : USize = 0
+    mut mode_total : USize = 0
+    mut pi : USize = 0
     while pi.lt(tests.len()) {
         ref t : Test = tests.get(pi)
         if t.kind.is_Mode() {
@@ -473,8 +473,8 @@ main := proc(args: ..Str) {
     mut typer_ms := 0
     mut cli_ms := 0
     mut build_ms := 0
-    mut other_passed : U64 = 0
-    mut other_total : U64 = 0
+    mut other_passed : USize = 0
+    mut other_total : USize = 0
     pi = 0
     while pi.lt(tests.len()) {
         ref t : Test = tests.get(pi)
@@ -555,7 +555,7 @@ main := proc(args: ..Str) {
     mut bench := Str.with_capacity(32768)
     bench.push_str("commit,file,interp_ms,compile_ms,run_ms,interp_ok,compile_ok,run_ok")
     bench.push_str(NL)
-    mut bi : U64 = 0
+    mut bi : USize = 0
     while bi.lt(tests.len()) {
         ref bt : Test = tests.get(bi)
         if bt.kind.is_Mode() {
@@ -593,7 +593,7 @@ main := proc(args: ..Str) {
             ref last_data : Str = lines.get(last_data_idx)
             last_commit := last_data.substr(0, last_data.find(",").to_u64())
             if last_commit.eq(commit) {
-                mut li : U64 = 0
+                mut li : USize = 0
                 while li.lt(last_data_idx) {
                     ref ln : Str = lines.get(li)
                     totals_content = totals_content.concat(ln).concat(NL)

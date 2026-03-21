@@ -36,7 +36,7 @@ Row := struct {
 parse_csv := proc(content: Str) returns Vec {
     rows := Vec.new("Row", Row.size())
     lines := content.split(NL)
-    mut i : U64 = 1 // skip header
+    mut i : USize = 1 // skip header
     while i.lt(lines.len()) {
         ref line : Str = lines.get(i)
         if line.is_empty() {
@@ -81,7 +81,7 @@ x_px := func(idx: I64, count: I64) returns I64 {
 // Build a polyline points string for one data series
 build_points := func(rows: Vec, series: Str, y_max: I64) returns Str {
     mut pts := ""
-    mut i : U64 = 0
+    mut i : USize = 0
     while i.lt(rows.len()) {
         ref row : Row = rows.get(i)
         mut val := 0
@@ -124,7 +124,7 @@ svg_polyline := func(points: Str, color: Str) returns Str {
 
 // Check if any row has nonzero data for a series
 series_has_data := func(rows: Vec, series: Str) returns Bool {
-    mut i : U64 = 0
+    mut i : USize = 0
     while i.lt(rows.len()) {
         ref row : Row = rows.get(i)
         mut val := 0
@@ -145,7 +145,7 @@ max_val := func(a: I64, b: I64) returns I64 {
 
 generate_svg := proc(rows: Vec, show_x_labels: Bool = true, show_y_labels: Bool = true) returns Str {
     mut y_max := 0
-    mut i : U64 = 0
+    mut i : USize = 0
     while i.lt(rows.len()) {
         ref row : Row = rows.get(i)
         y_max = max_val(y_max, row.interp_ms)
@@ -287,7 +287,7 @@ main := proc(args: ..Str) {
     ref svg_path : Str = args.get(1)
     mut last_n := 0
     mut show_x := true
-    mut i : U64 = 2
+    mut i : USize = 2
     while i.lt(args.len()) {
         ref a : Str = args.get(i)
         if a.eq("--no-x-labels") {
