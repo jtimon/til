@@ -630,6 +630,7 @@ void Expr_todo_error(Expr * self, Str * msg);
 void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
+void Expr_swap_children(Expr * self, Vec * new_children);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 * Expr_child_count(Expr * parent);
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
@@ -1064,6 +1065,7 @@ void Expr_todo_error(Expr * self, Str * msg);
 void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
+void Expr_swap_children(Expr * self, Vec * new_children);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 * Expr_child_count(Expr * parent);
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
@@ -11533,6 +11535,14 @@ void Expr_push_child_clone(Expr * self, Expr * child) {
     Expr *_t1851 = Expr_clone(child);
     (void)_t1851;
     Vec_push(&self->children, _t1851);
+}
+
+void Expr_swap_children(Expr * self, Vec * new_children) {
+    (void)self;
+    (void)new_children;
+    Vec_delete(&self->children, &(Bool){0});
+    { Vec *_fa = Vec_clone(new_children); self->children = *_fa; free(_fa); }
+    Vec_delete(new_children, &(Bool){1});
 }
 
 Expr * Expr_child(Expr * parent, U32 * i) {
@@ -28199,6 +28209,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 10ULL && memcmp(method->c_str, "lang_error", 10ULL) == 0) return (void*)Expr_lang_error;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "add_child", 9ULL) == 0) return (void*)Expr_add_child;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 16ULL && memcmp(method->c_str, "push_child_clone", 16ULL) == 0) return (void*)Expr_push_child_clone;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 13ULL && memcmp(method->c_str, "swap_children", 13ULL) == 0) return (void*)Expr_swap_children;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "child", 5ULL) == 0) return (void*)Expr_child;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "child_count", 11ULL) == 0) return (void*)Expr_child_count;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)Expr_new_dyn;

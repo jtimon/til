@@ -630,6 +630,7 @@ void Expr_todo_error(Expr * self, Str * msg);
 void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
+void Expr_swap_children(Expr * self, Vec * new_children);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 * Expr_child_count(Expr * parent);
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
@@ -839,7 +840,6 @@ void * Value_get_Ptr(Value *);
 #include "ext.h"
 
 Vec * tokenize(Str *, Str *);
-void expr_swap_children(Expr *, Vec *);
 Mode * mode_resolve(Str *);
 Bool * mode_is_lib(Mode *);
 Bool * mode_is_lib_output(Mode *);
@@ -1090,6 +1090,7 @@ void Expr_todo_error(Expr * self, Str * msg);
 void Expr_lang_error(Expr * self, Str * msg);
 void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
+void Expr_swap_children(Expr * self, Vec * new_children);
 Expr * Expr_child(Expr * parent, U32 * i);
 U32 * Expr_child_count(Expr * parent);
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
@@ -11564,6 +11565,14 @@ void Expr_push_child_clone(Expr * self, Expr * child) {
     Expr *_t1851 = Expr_clone(child);
     (void)_t1851;
     Vec_push(&self->children, _t1851);
+}
+
+void Expr_swap_children(Expr * self, Vec * new_children) {
+    (void)self;
+    (void)new_children;
+    Vec_delete(&self->children, &(Bool){0});
+    { Vec *_fa = Vec_clone(new_children); self->children = *_fa; free(_fa); }
+    Vec_delete(new_children, &(Bool){1});
 }
 
 Expr * Expr_child(Expr * parent, U32 * i) {
@@ -27696,8 +27705,7 @@ Vec * extract_imports(Expr * body) {
         ;
         ;
     }
-    expr_swap_children(body, kept);
-    Vec_delete(kept, &(Bool){1});
+    Expr_swap_children(body, kept);
     return paths;
 }
 
@@ -28724,7 +28732,7 @@ int main(int argc, char **argv) {
         (void)_t4551;
         Array_set(_va89, &(U32){_t4550}, _t4551);
         ;
-        Str *_t4552 = Str_lit("src/til.til:170:15", 18ULL);
+        Str *_t4552 = Str_lit("src/til.til:168:15", 18ULL);
         (void)_t4552;
         panic(_t4552, _va89);
         Str_delete(_t4552, &(Bool){1});
@@ -29106,7 +29114,7 @@ int main(int argc, char **argv) {
             (void)_t4600;
             Array_set(_va90, &(U32){_t4599}, _t4600);
             ;
-            Str *_t4601 = Str_lit("src/til.til:257:19", 18ULL);
+            Str *_t4601 = Str_lit("src/til.til:255:19", 18ULL);
             (void)_t4601;
             panic(_t4601, _va90);
             Str_delete(_t4601, &(Bool){1});
@@ -29180,7 +29188,7 @@ int main(int argc, char **argv) {
             Str_delete(_t4611, &(Bool){1});
             Array_set(_va91, &(U32){_t4612}, _t4613);
             ;
-            Str *_t4614 = Str_lit("src/til.til:271:19", 18ULL);
+            Str *_t4614 = Str_lit("src/til.til:269:19", 18ULL);
             (void)_t4614;
             panic(_t4614, _va91);
             Str_delete(_t4614, &(Bool){1});
@@ -29240,7 +29248,7 @@ int main(int argc, char **argv) {
             (void)_t4622;
             Array_set(_va92, &(U32){_t4621}, _t4622);
             ;
-            Str *_t4623 = Str_lit("src/til.til:285:19", 18ULL);
+            Str *_t4623 = Str_lit("src/til.til:283:19", 18ULL);
             (void)_t4623;
             panic(_t4623, _va92);
             Str_delete(_t4623, &(Bool){1});
@@ -29581,8 +29589,7 @@ int main(int argc, char **argv) {
         ;
         ;
     }
-    expr_swap_children(ast, merged);
-    Vec_delete(merged, &(Bool){1});
+    Expr_swap_children(ast, merged);
     Str *link_flags = Str_lit("", 0ULL);
     (void)link_flags;
     Str *link_c_paths = Str_lit("", 0ULL);
@@ -29848,8 +29855,7 @@ int main(int argc, char **argv) {
         ;
         ;
     }
-    expr_swap_children(ast, kept);
-    Vec_delete(kept, &(Bool){1});
+    Expr_swap_children(ast, kept);
     TypeScope *scope = tscope_new(NULL);
     (void)scope;
     I32 _t5001 = init_declarations(ast, scope);
@@ -29887,7 +29893,7 @@ int main(int argc, char **argv) {
         Str_delete(_t4720, &(Bool){1});
         Array_set(_va93, &(U32){_t4721}, _t4722);
         ;
-        Str *_t4723 = Str_lit("src/til.til:374:15", 18ULL);
+        Str *_t4723 = Str_lit("src/til.til:372:15", 18ULL);
         (void)_t4723;
         panic(_t4723, _va93);
         Str_delete(_t4723, &(Bool){1});
@@ -30143,7 +30149,7 @@ int main(int argc, char **argv) {
             (void)_t4749;
             Array_set(_va94, &(U32){_t4748}, _t4749);
             ;
-            Str *_t4750 = Str_lit("src/til.til:428:19", 18ULL);
+            Str *_t4750 = Str_lit("src/til.til:426:19", 18ULL);
             (void)_t4750;
             panic(_t4750, _va94);
             Str_delete(_t4750, &(Bool){1});
@@ -30204,7 +30210,7 @@ int main(int argc, char **argv) {
                 (void)_t4759;
                 Array_set(_va95, &(U32){_t4758}, _t4759);
                 ;
-                Str *_t4760 = Str_lit("src/til.til:434:19", 18ULL);
+                Str *_t4760 = Str_lit("src/til.til:432:19", 18ULL);
                 (void)_t4760;
                 panic(_t4760, _va95);
                 Str_delete(_t4760, &(Bool){1});
@@ -31693,6 +31699,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 10ULL && memcmp(method->c_str, "lang_error", 10ULL) == 0) return (void*)Expr_lang_error;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "add_child", 9ULL) == 0) return (void*)Expr_add_child;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 16ULL && memcmp(method->c_str, "push_child_clone", 16ULL) == 0) return (void*)Expr_push_child_clone;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 13ULL && memcmp(method->c_str, "swap_children", 13ULL) == 0) return (void*)Expr_swap_children;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "child", 5ULL) == 0) return (void*)Expr_child;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "child_count", 11ULL) == 0) return (void*)Expr_child_count;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)Expr_new_dyn;

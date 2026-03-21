@@ -12,7 +12,7 @@ link_c("src/c/precomp.c")
 link_c("src/c/scavenger.c")
 link_c("src/c/dispatch.c")
 link_c("src/c/ext.c")
-link_c("src/c/til_bridge.c")
+
 link("dl")
 link("ffi")
 
@@ -21,8 +21,6 @@ link("ffi")
 // Tokenize/Parse
 tokenize := ext_func(source: Str, path: Str) returns Vec {}
 
-// Expr helpers
-expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
 
 // Mode
 mode_resolve := ext_func(name: Str) returns Mode {}
@@ -81,7 +79,7 @@ extract_imports := proc(mut body: Expr) returns Vec {
             kept.push(own Expr.clone(stmt))
         }
     }
-    expr_swap_children(body, kept)
+    body.swap_children(own kept)
     return paths
 }
 
@@ -330,7 +328,7 @@ main := proc(args: ..Str) {
         merged.push(own Expr.clone(ch))
     }
 
-    expr_swap_children(ast, merged)
+    ast.swap_children(own merged)
 
     // Extract link() and link_c() directives
     mut link_flags := ""
@@ -362,7 +360,7 @@ main := proc(args: ..Str) {
             kept.push(own Expr.clone(stmt))
         }
     }
-    expr_swap_children(ast, kept)
+    ast.swap_children(own kept)
 
     // Init phase: pre-scan declarations
     scope := tscope_new(NULL)
