@@ -14,3 +14,6 @@ typedef float F32;
 typedef bool Bool;
 typedef U64 USize;  // container sizes (count, cap, elem_size) -- will become U32
 
+// During the USize migration, generated code should box size arguments using
+// the alias-facing ABI rather than the source expression's numeric type.
+#define USIZE_REF(x) ((void *)&(U64){(U64)(x)})

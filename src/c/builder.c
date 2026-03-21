@@ -109,6 +109,7 @@ static void emit_indent(FILE *f, U32 depth) {
 static void emit_deref(FILE *f, Expr *e, I32 depth);
 // Emit expression as a pointer: wraps values in &(type){val}
 static void emit_as_ptr(FILE *f, Expr *e, I32 depth);
+static void emit_usize_ref(FILE *f, Expr *e, I32 depth);
 
 // --- Forward declarations ---
 
@@ -318,6 +319,14 @@ static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
     return fdef->data.data.FuncDef.params.count > 0 && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)}))->is_shallow;
 }
 
+static Bool callee_param_is_usize(Str *callee_name, U32 arg_index) {
+    Expr *fdef = find_callee_fdef(callee_name);
+    if (!fdef) return 0;
+    if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
+    Param *param = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)});
+    return param->ptype.count == 5 && memcmp(param->ptype.c_str, "USize", 5) == 0;
+}
+
 // Map til function names to C symbol names (handles stdlib collisions)
 static const char *func_to_c(Str *name) {
     if ((name->count == 5 && memcmp(name->c_str, "sleep", 5) == 0)) return "sleep_ms";
@@ -430,6 +439,8 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 if (callee_param_is_shallow(flat_str, i - 1))
                     emit_deref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
+                else if (callee_param_is_usize(flat_str, i - 1))
+                    emit_usize_ref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
                 else
                     emit_as_ptr(f, Expr_child(e, &(USize){(USize)(i)}), depth);
             }
@@ -548,6 +559,8 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 if (callee_param_is_shallow(name, i - 1))
                     emit_deref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
+                else if (callee_param_is_usize(name, i - 1))
+                    emit_usize_ref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
                 else
                     emit_as_ptr(f, Expr_child(e, &(USize){(USize)(i)}), depth);
             }
@@ -780,6 +793,12 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
         emit_expr(f, e, depth);
         fprintf(f, "}");
     }
+}
+
+static void emit_usize_ref(FILE *f, Expr *e, I32 depth) {
+    fprintf(f, "USIZE_REF(");
+    emit_deref(f, e, depth);
+    fprintf(f, ")");
 }
 
 // Emit struct constructor field assignments into 'var' (already malloc'd).
@@ -1465,14 +1484,17 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib,
         if ((field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0) &&
             fdef->data.data.FuncDef.nparam == 0 &&
             (fdef->data.data.FuncDef.return_type).count > 0 &&
-            (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0)) {
+            ((fdef->data.data.FuncDef.return_type.count == 5 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "USize", 5) == 0) ||
+             (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U32", 3) == 0) ||
+             (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0))) {
+            const char *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
             if (fdef->data.data.FuncDef.return_is_shallow) {
-                fprintf(f, "U64 %s_size(void) {\n", name->c_str);
-                fprintf(f, "    return (U64)sizeof(%s);\n", name->c_str);
+                fprintf(f, "%s %s_size(void) {\n", ret_ctype, name->c_str);
+                fprintf(f, "    return (%s)sizeof(%s);\n", ret_ctype, name->c_str);
             } else {
-                fprintf(f, "U64 *%s_size(void) {\n", name->c_str);
-                fprintf(f, "    U64 *r = malloc(sizeof(U64));\n");
-                fprintf(f, "    *r = (U64)sizeof(%s);\n", name->c_str);
+                fprintf(f, "%s *%s_size(void) {\n", ret_ctype, name->c_str);
+                fprintf(f, "    %s *r = malloc(sizeof(%s));\n", ret_ctype, ret_ctype);
+                fprintf(f, "    *r = (%s)sizeof(%s);\n", ret_ctype, name->c_str);
                 fprintf(f, "    return r;\n");
             }
             fprintf(f, "}\n\n");
@@ -1641,14 +1663,17 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
         if ((field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0) &&
             fdef->data.data.FuncDef.nparam == 0 &&
             (fdef->data.data.FuncDef.return_type).count > 0 &&
-            (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0)) {
+            ((fdef->data.data.FuncDef.return_type.count == 5 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "USize", 5) == 0) ||
+             (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U32", 3) == 0) ||
+             (fdef->data.data.FuncDef.return_type.count == 3 && memcmp(fdef->data.data.FuncDef.return_type.c_str, "U64", 3) == 0))) {
+            const char *ret_ctype = type_name_to_c_value(&fdef->data.data.FuncDef.return_type);
             if (fdef->data.data.FuncDef.return_is_shallow) {
-                fprintf(f, "U64 %s_size(void) {\n", name->c_str);
-                fprintf(f, "    return (U64)sizeof(%s);\n", name->c_str);
+                fprintf(f, "%s %s_size(void) {\n", ret_ctype, name->c_str);
+                fprintf(f, "    return (%s)sizeof(%s);\n", ret_ctype, name->c_str);
             } else {
-                fprintf(f, "U64 *%s_size(void) {\n", name->c_str);
-                fprintf(f, "    U64 *r = malloc(sizeof(U64));\n");
-                fprintf(f, "    *r = (U64)sizeof(%s);\n", name->c_str);
+                fprintf(f, "%s *%s_size(void) {\n", ret_ctype, name->c_str);
+                fprintf(f, "    %s *r = malloc(sizeof(%s));\n", ret_ctype, ret_ctype);
+                fprintf(f, "    *r = (%s)sizeof(%s);\n", ret_ctype, name->c_str);
                 fprintf(f, "    return r;\n");
             }
             fprintf(f, "}\n\n");
