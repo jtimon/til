@@ -37,7 +37,7 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
         count = count.add(1)
-        start = start.add(pos.to_u64()).add(needle.len())
+        start = start.add(pos.to_u32()).add(needle.len())
     }
     return count
 }

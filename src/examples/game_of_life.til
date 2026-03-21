@@ -46,7 +46,7 @@ main := proc() {
             my := get_mouse_y().sub(bar_h).div(cell)
             if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
                 idx := my.mul(cols).add(mx)
-                idx_u : USize = idx.to_u64()
+                idx_u : USize = idx.to_u32()
                 ref val : I64 = grid.get(idx_u)
                 if val.eq(0) {
                     grid.set(idx_u, own 1)
@@ -89,7 +89,7 @@ main := proc() {
             px := dx.mul(cell)
             py := dy.mul(cell).add(bar_h)
 
-            di_u : USize = di.to_u64()
+            di_u : USize = di.to_u32()
             ref dv : I64 = grid.get(di_u)
             if dv.eq(1) {
                 draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 0, 200, 0, 255)

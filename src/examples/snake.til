@@ -16,7 +16,7 @@ main := proc() {
     center_y := rows.div(2)
 
     // P1 state
-    max_len_us : USize = max_len.to_u64()
+    max_len_us : USize = max_len.to_u32()
     mut body := Array.new("I64", 8, max_len_us)
     mut snake_len : USize = 3
     mut dx := 1

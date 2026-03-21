@@ -262,7 +262,7 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
 
     mut rows := Vec.new("Row", Row.size())
     if last_n.gt(0) {
-        mut last_n_us : USize = last_n.to_u64()
+        mut last_n_us : USize = last_n.to_u32()
         if all_rows.len().gt(last_n_us) {
             mut i : USize = all_rows.len().sub(last_n_us)
             while i.lt(all_rows.len()) {

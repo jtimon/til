@@ -1,7 +1,7 @@
 mode gui
 
 main := proc(args: ..Str) {
-    mut ai : U64 = 0
+    mut ai : USize = 0
     while ai.lt(args.len()) {
         ref a : Str = args.get(ai)
         if a.eq("--mute") {
@@ -47,7 +47,7 @@ main := proc(args: ..Str) {
             if timer.gte(gap) {
                 timer = 0
                 if note_idx.lt(num_notes) {
-                    ref freq : I64 = notes.get(note_idx.to_u64())
+                    ref freq : I64 = notes.get(note_idx.to_u32())
                     if freq.gt(0) {
                         play_tone(freq, note_dur)
                     }
@@ -67,7 +67,7 @@ main := proc(args: ..Str) {
 
         // Visualizer: bouncing bars for current note
         if note_idx.gt(0).and(note_idx.lte(num_notes)) {
-            ref cur_freq : I64 = notes.get(note_idx.sub(1).to_u64())
+            ref cur_freq : I64 = notes.get(note_idx.sub(1).to_u32())
             if cur_freq.gt(0) {
                 // Bar height proportional to frequency
                 bar_h := cur_freq.div(4)

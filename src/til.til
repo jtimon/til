@@ -480,7 +480,7 @@ main := proc(args: ..Str) {
         last_slash := path.rfind("/")
         mut basename := path
         if last_slash.gte(0) {
-            basename = path.substr(last_slash.add(1).to_u64(), path.len().sub(last_slash.to_u64()).sub(1))
+            basename = path.substr(last_slash.add(1).to_u32(), path.len().sub(last_slash.to_u32()).sub(1))
         }
 
         // Strip .til extension
@@ -503,9 +503,9 @@ main := proc(args: ..Str) {
             cp_slash := c_path.rfind("/")
             bp_slash := bin_path.rfind("/")
             mut cp_dir := "gen/til"
-            if cp_slash.gt(0) { cp_dir = c_path.substr(0, cp_slash.to_u64()) }
+            if cp_slash.gt(0) { cp_dir = c_path.substr(0, cp_slash.to_u32()) }
             mut bp_dir := "bin/til"
-            if bp_slash.gt(0) { bp_dir = bin_path.substr(0, bp_slash.to_u64()) }
+            if bp_slash.gt(0) { bp_dir = bin_path.substr(0, bp_slash.to_u32()) }
             til_system("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
         }
 

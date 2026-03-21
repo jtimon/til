@@ -90,6 +90,19 @@ static Bool is_numeric_type(TilType t) {
            t.tag == TilType_TAG_F32;
 }
 
+static Bool is_integral_numeric_type(TilType t) {
+    return t.tag == TilType_TAG_I64 || t.tag == TilType_TAG_U8 || t.tag == TilType_TAG_I16 ||
+           t.tag == TilType_TAG_I32 || t.tag == TilType_TAG_U32 || t.tag == TilType_TAG_U64;
+}
+
+static Bool is_usize_name(Str *name) {
+    return name && name->count == 5 && memcmp(name->c_str, "USize", 5) == 0;
+}
+
+static Bool can_implicit_usize_coerce(TilType from, TilType to, Str *to_name) {
+    return is_usize_name(to_name) && to.tag == TilType_TAG_U32 && is_integral_numeric_type(from);
+}
+
 static Bool literal_in_range(const char *val_str, TilType target) {
     long long val = strtoll(val_str, NULL, 10);
     switch (target.tag) {
@@ -567,7 +580,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                     arg->til_type = ptype; continue;
                 }
-                if (can_implicit_widen(arg->til_type, ptype)) {
+                if (can_implicit_widen(arg->til_type, ptype) ||
+                    can_implicit_usize_coerce(arg->til_type, ptype, ptype_name)) {
                     arg->til_type = ptype; continue;
                 }
                 if (arg->til_type.tag != ptype.tag) {
@@ -898,7 +912,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                     arg->til_type = ptype; ci++; continue;
                 }
-                if (can_implicit_widen(arg->til_type, ptype)) {
+                if (can_implicit_widen(arg->til_type, ptype) ||
+                    can_implicit_usize_coerce(arg->til_type, ptype, ptype_name)) {
                     arg->til_type = ptype; ci++; continue;
                 }
                 if (arg->til_type.tag != ptype.tag) {
@@ -2112,7 +2127,7 @@ static const char *type_to_name(TilType type, Str *struct_name) {
     }
 }
 
-static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Expr *src) {
+static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Bool arg_is_own, Bool call_free, Expr *src) {
     const char *tname = type_to_name(type, struct_name);
     if (!tname) return NULL;
     I32 line = src->line, col = src->col;
@@ -2135,14 +2150,14 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Exp
     arg->data.data.Ident = *var_name;
     arg->til_type = type;
     if (struct_name) arg->struct_name = *struct_name;
-    arg->is_own_arg = true;
+    arg->is_own_arg = arg_is_own;
     Expr_add_child(call, arg);
 
-    // call_free=true (ASAP delete should free the top-level allocation)
-    Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-    true_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
-    true_lit->til_type = (TilType){TilType_TAG_Bool};
-    Expr_add_child(call, true_lit);
+    Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+    cf_lit->data.data.LiteralBool = (call_free ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT}
+                                               : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
+    cf_lit->til_type = (TilType){TilType_TAG_Bool};
+    Expr_add_child(call, cf_lit);
 
     return call;
 }
@@ -2398,7 +2413,7 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool re
                     (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), live[j].name) ||
                      alias_used_in_expr(body, live[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
                 Expr *del = make_delete_call(
-                    live[j].name, live[j].type, live[j].struct_name, stmt);
+                    live[j].name, live[j].type, live[j].struct_name, true, true, stmt);
                 if (del) Vec_push(&new_ch, del);
             }
         }
@@ -2565,7 +2580,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < (I32)i &&
                     (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
             }
@@ -2613,7 +2628,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                         stmt->save_old_delete = true;
                         if (locals[j].struct_name) stmt->struct_name = *locals[j].struct_name;
                     } else {
-                        Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
+                        Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
                         if (del) Vec_push(&new_ch, del);
                     }
                 }
@@ -2630,12 +2645,12 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].skip_delete) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
                 // Never used after declaration: free immediately
                 if (locals[j].last_use == -1 && locals[j].decl_index == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, stmt);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
             }
@@ -2770,7 +2785,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
                     type_error(stmt, "null can only be assigned to 'ref' declarations");
-                } else if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
+                } else if (!can_implicit_usize_coerce(Expr_child(stmt, &(USize){(USize)(0)})->til_type, declared, etn) &&
+                           Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Dynamic) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
@@ -2786,6 +2802,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     type_error(stmt, buf);
                 }
                 stmt->til_type = declared;
+                if (can_implicit_usize_coerce(Expr_child(stmt, &(USize){(USize)(0)})->til_type, declared, etn))
+                    Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
                 // Narrow Dynamic RHS to declared type
                 narrow_dynamic(Expr_child(stmt, &(USize){(USize)(0)}), declared, etn);
                 // For struct/enum types, propagate struct_name from explicit type (resolved through aliases)

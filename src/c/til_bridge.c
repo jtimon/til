@@ -99,12 +99,12 @@ I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lf
 // Return owned copy of first n bytes of s (avoids CAP_VIEW + scavenger ordering issues)
 Str *til_str_left(Str *s, U64 n) {
     if (!s || n == 0) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    U64 len = (U64)s->count;
+    USize len = s->count;
     if (n > len) n = len;
     char *buf = malloc(n + 1);
     memcpy(buf, s->c_str, n);
     buf[n] = '\0';
-    Str *result = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+    Str *result = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
     free(buf);
     return result;
 }
@@ -112,7 +112,7 @@ Str *til_str_left(Str *s, U64 n) {
 Str *til_realpath(Str *path) {
     char *abs = realpath((const char *)path->c_str, NULL);
     if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(abs), .count = (U64)strlen((const char*)(abs)), .cap = CAP_VIEW});
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
     free(abs);
     return s;
 }
@@ -144,4 +144,3 @@ Str *til_bin_dir(void) {
     }
     return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
 }
-

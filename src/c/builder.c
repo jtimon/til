@@ -327,6 +327,13 @@ static Bool callee_param_is_usize(Str *callee_name, U32 arg_index) {
     return param->ptype.count == 5 && memcmp(param->ptype.c_str, "USize", 5) == 0;
 }
 
+static Bool callee_param_is_own(Str *callee_name, U32 arg_index) {
+    Expr *fdef = find_callee_fdef(callee_name);
+    if (!fdef) return 0;
+    if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
+    return ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)}))->is_own;
+}
+
 // Map til function names to C symbol names (handles stdlib collisions)
 static const char *func_to_c(Str *name) {
     if ((name->count == 5 && memcmp(name->c_str, "sleep", 5) == 0)) return "sleep_ms";
@@ -439,7 +446,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 if (callee_param_is_shallow(flat_str, i - 1))
                     emit_deref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
-                else if (callee_param_is_usize(flat_str, i - 1))
+                else if (callee_param_is_usize(flat_str, i - 1) && !callee_param_is_own(flat_str, i - 1))
                     emit_usize_ref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
                 else
                     emit_as_ptr(f, Expr_child(e, &(USize){(USize)(i)}), depth);
@@ -559,7 +566,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 if (callee_param_is_shallow(name, i - 1))
                     emit_deref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
-                else if (callee_param_is_usize(name, i - 1))
+                else if (callee_param_is_usize(name, i - 1) && !callee_param_is_own(name, i - 1))
                     emit_usize_ref(f, Expr_child(e, &(USize){(USize)(i)}), depth);
                 else
                     emit_as_ptr(f, Expr_child(e, &(USize){(USize)(i)}), depth);

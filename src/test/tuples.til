@@ -55,10 +55,10 @@ test_tuple_type_at := test() {
     assert_eq_str(__LOC__, tn0, "I64")
     assert_eq_str(__LOC__, tn1, "Str")
 
-    ref sz0 : U64 = t.size_at(0)
-    ref sz1 : U64 = t.size_at(1)
+    ref sz0 : USize = t.size_at(0)
+    ref sz1 : USize = t.size_at(1)
     assert_eq(__LOC__, sz0.to_i64(), 8)
-    assert_eq(__LOC__, sz1.to_i64(), 24)
+    assert_eq(__LOC__, sz1.to_i64(), 16)
 }
 
 test_tuple_clone := test() {

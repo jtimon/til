@@ -191,7 +191,7 @@ namespace:
     size := func() returns USize { return 8 }
 }
 
-USize := U64
+USize := U32
 
 I64 : StructDef = ext_struct {
 namespace:

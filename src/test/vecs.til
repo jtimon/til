@@ -51,7 +51,7 @@ test_vec_strings := test() {
 test_vec_size := test() {
     assert_eq(__LOC__, I64.size().to_i64(), 8)
     assert_eq(__LOC__, U8.size().to_i64(), 1)
-    assert_eq(__LOC__, Str.size().to_i64(), 24)
+    assert_eq(__LOC__, Str.size().to_i64(), 16)
     assert_eq(__LOC__, Bool.size().to_i64(), 1)
-    assert_eq(__LOC__, Vec.size().to_i64(), 72)
+    assert_eq(__LOC__, Vec.size().to_i64(), 56)
 }

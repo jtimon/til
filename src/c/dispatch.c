@@ -14,6 +14,46 @@ F32 F32_from_i64(I64 v);
 U32 U32_from_i64(I64 v);
 U64 U64_from_i64(I64 v);
 static I64 *I64_new(I64 val) { I64 *p = malloc(sizeof(I64)); *p = val; return p; }
+
+static I64 value_to_i64(Value v) {
+    switch (v.type) {
+        case VAL_I64:  return *v.i64;
+        case VAL_U8:   return *v.u8;
+        case VAL_I16:  return *v.i16;
+        case VAL_I32:  return *v.i32;
+        case VAL_U32:  return *v.u32;
+        case VAL_U64:  return (I64)*v.u64;
+        case VAL_BOOL: return *v.boolean ? 1 : 0;
+        default:       return 0;
+    }
+}
+
+static U64 value_to_u64(Value v) {
+    switch (v.type) {
+        case VAL_I64:  return (U64)*v.i64;
+        case VAL_U8:   return *v.u8;
+        case VAL_I16:  return (U64)*v.i16;
+        case VAL_I32:  return (U64)*v.i32;
+        case VAL_U32:  return *v.u32;
+        case VAL_U64:  return *v.u64;
+        case VAL_BOOL: return *v.boolean ? 1 : 0;
+        default:       return 0;
+    }
+}
+
+static F32 value_to_f32(Value v) {
+    switch (v.type) {
+        case VAL_I64:  return (F32)*v.i64;
+        case VAL_U8:   return (F32)*v.u8;
+        case VAL_I16:  return (F32)*v.i16;
+        case VAL_I32:  return (F32)*v.i32;
+        case VAL_U32:  return (F32)*v.u32;
+        case VAL_U64:  return (F32)*v.u64;
+        case VAL_F32:  return *v.f32;
+        case VAL_BOOL: return *v.boolean ? 1.0f : 0.0f;
+        default:       return 0.0f;
+    }
+}
 #include <stdlib.h>
 #include <string.h>
 #include <dlfcn.h>
@@ -64,7 +104,7 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
     if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
     if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
     if ((type_name->count == 3 && memcmp(type_name->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
-    if ((type_name->count == 5 && memcmp(type_name->c_str, "USize", 5) == 0)) return &ffi_type_uint64;
+    if ((type_name->count == 5 && memcmp(type_name->c_str, "USize", 5) == 0)) return &ffi_type_uint32;
     if ((type_name->count == 3 && memcmp(type_name->c_str, "F32", 3) == 0))  return &ffi_type_float;
     if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
     // Struct type: look up def and build ffi_type
@@ -87,7 +127,7 @@ static ffi_type *field_ffi_type(Expr *field) {
     if ((ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
     if ((ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
     if ((ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
-    if ((ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return &ffi_type_uint64;
+    if ((ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return &ffi_type_uint32;
     if ((ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return &ffi_type_float;
     if ((ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
     // Inline struct field
@@ -414,7 +454,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Value result = eval_call(s, &fake_call);
     Vec_delete(&fake_call.children, &(Bool){0});
     Vec_delete(&field_access.children, &(Bool){0});
-    return (I32)*result.u64;
+    return (I32)value_to_u64(result);
 }
 
 // array("I64", 1, 2, 3)
@@ -438,7 +478,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
                 // Deep-copy Str: copy flat bytes then strndup the data pointer
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
-                U64 slen = *(U64 *)((char *)data + i * elem_size + 8);
+                USize slen = *(USize *)((char *)data + i * elem_size + sizeof(U8 *));
                 *dp = strndup(*dp, slen);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
@@ -457,8 +497,8 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
     write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
-    write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u64(count));
-    write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u64(elem_size));
+    write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u32(count));
+    write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u32((U32)elem_size));
     write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
@@ -494,7 +534,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
             if (elem.type == VAL_STRUCT && (elem.instance->struct_name->count == 3 && memcmp(elem.instance->struct_name->c_str, "Str", 3) == 0)) {
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
-                U64 slen = *(U64 *)((char *)data + i * elem_size + 8);
+                USize slen = *(USize *)((char *)data + i * elem_size + sizeof(U8 *));
                 *dp = strndup(*dp, slen);
             } else {
                 memcpy((char *)data + i * elem_size, src, elem_size);
@@ -514,9 +554,9 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
     write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
-    write_field(si, find_field_decl(cached_vec_def, &fn_count), val_u64(count));
-    write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u64(cap));
-    write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u64(elem_size));
+    write_field(si, find_field_decl(cached_vec_def, &fn_count), val_u32(count));
+    write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u32(cap));
+    write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u32((U32)elem_size));
     write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
@@ -553,7 +593,7 @@ static void *val_to_ptr(Value v) {
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + *offset.u64};
+    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + value_to_u64(offset)};
     return 1;
 }
 
@@ -767,35 +807,29 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         fprintf(stderr, "panic: null deref\n");
                         exit(1);
                     }
-                    switch (v.type) {
-                        case VAL_I64:  *(I64 *)&args[i] = *v.i64; break;
-                        case VAL_U8:   *(U8 *)&args[i] = *v.u8; break;
-                        case VAL_I16:  *(I16 *)&args[i] = *v.i16; break;
-                        case VAL_I32:  *(I32 *)&args[i] = *v.i32; break;
-                        case VAL_U32:  *(U32 *)&args[i] = *v.u32; break;
-                        case VAL_U64:  *(U64 *)&args[i] = *v.u64; break;
-                        case VAL_F32:  *(F32 *)&args[i] = *v.f32; break;
-                        case VAL_BOOL: *(U8 *)&args[i] = *v.boolean ? 1 : 0; break;
-                        case VAL_PTR:
-                            // Dynamic/ptr arg to shallow param: dereference as expected type
-                            if (fe->arg_types[i] == &ffi_type_sint64)
-                                *(I64 *)&args[i] = *(I64 *)v.ptr;
-                            else if (fe->arg_types[i] == &ffi_type_uint8)
-                                *(U8 *)&args[i] = *(U8 *)v.ptr;
-                            else if (fe->arg_types[i] == &ffi_type_sint16)
-                                *(I16 *)&args[i] = *(I16 *)v.ptr;
-                            else if (fe->arg_types[i] == &ffi_type_sint32)
-                                *(I32 *)&args[i] = *(I32 *)v.ptr;
-                            else if (fe->arg_types[i] == &ffi_type_uint32)
-                                *(U32 *)&args[i] = *(U32 *)v.ptr;
-                            else if (fe->arg_types[i] == &ffi_type_uint64)
-                                *(U64 *)&args[i] = *(U64 *)v.ptr;
-                            else if (fe->arg_types[i] == &ffi_type_float)
-                                *(F32 *)&args[i] = *(F32 *)v.ptr;
-                            else
-                                args[i] = v.ptr;
-                            break;
-                        default:       args[i] = v.ptr; break;
+                    if (fe->arg_types[i] == &ffi_type_sint64) {
+                        I64 tmp = (v.type == VAL_PTR) ? *(I64 *)v.ptr : value_to_i64(v);
+                        *(I64 *)&args[i] = tmp;
+                    } else if (fe->arg_types[i] == &ffi_type_uint8) {
+                        U8 tmp = (v.type == VAL_PTR) ? *(U8 *)v.ptr : (U8)value_to_u64(v);
+                        *(U8 *)&args[i] = tmp;
+                    } else if (fe->arg_types[i] == &ffi_type_sint16) {
+                        I16 tmp = (v.type == VAL_PTR) ? *(I16 *)v.ptr : (I16)value_to_i64(v);
+                        *(I16 *)&args[i] = tmp;
+                    } else if (fe->arg_types[i] == &ffi_type_sint32) {
+                        I32 tmp = (v.type == VAL_PTR) ? *(I32 *)v.ptr : (I32)value_to_i64(v);
+                        *(I32 *)&args[i] = tmp;
+                    } else if (fe->arg_types[i] == &ffi_type_uint32) {
+                        U32 tmp = (v.type == VAL_PTR) ? *(U32 *)v.ptr : (U32)value_to_u64(v);
+                        *(U32 *)&args[i] = tmp;
+                    } else if (fe->arg_types[i] == &ffi_type_uint64) {
+                        U64 tmp = (v.type == VAL_PTR) ? *(U64 *)v.ptr : value_to_u64(v);
+                        *(U64 *)&args[i] = tmp;
+                    } else if (fe->arg_types[i] == &ffi_type_float) {
+                        F32 tmp = (v.type == VAL_PTR) ? *(F32 *)v.ptr : value_to_f32(v);
+                        *(F32 *)&args[i] = tmp;
+                    } else {
+                        args[i] = v.ptr;
                     }
                 } else {
                     // Deep: pass pointer (existing behavior)
@@ -823,7 +857,17 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 fe->cif.rtype->type == FFI_TYPE_STRUCT &&
                 *Map_has(&ffi_struct_defs, fe->return_type))
                 ret_sdef = Map_get(&ffi_struct_defs, fe->return_type);
-            void *raw = NULL;
+            union {
+                void *ptr;
+                I64 i64;
+                U64 u64;
+                I32 i32;
+                U32 u32;
+                I16 i16;
+                U8 u8;
+                F32 f32;
+                Bool boolean;
+            } raw = {0};
             void *ret_buf = NULL;
             if (ret_sdef) {
                 // Struct return: allocate buffer of struct size
@@ -844,59 +888,58 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = (Value){.type = VAL_STRUCT, .instance = inst};
             } else if (fe->return_is_shallow) {
                 // Shallow return: C function returned a primitive by value.
-                // 'raw' contains the value in its low bits — box it.
                 if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
-                    *result = (Value){.type = VAL_I64, .i64 = I64_new((I64)(intptr_t)raw)};
+                    *result = (Value){.type = VAL_I64, .i64 = I64_new(raw.i64)};
                 } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
-                    U8 *p = malloc(sizeof(U8)); *p = (U8)(intptr_t)raw;
+                    U8 *p = malloc(sizeof(U8)); *p = raw.u8;
                     *result = (Value){.type = VAL_U8, .u8 = p};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
-                    I16 *p = malloc(sizeof(I16)); *p = (I16)(intptr_t)raw;
+                    I16 *p = malloc(sizeof(I16)); *p = raw.i16;
                     *result = (Value){.type = VAL_I16, .i16 = p};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
-                    I32 *p = malloc(sizeof(I32)); *p = (I32)(intptr_t)raw;
+                    I32 *p = malloc(sizeof(I32)); *p = raw.i32;
                     *result = (Value){.type = VAL_I32, .i32 = p};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
-                    U32 *p = malloc(sizeof(U32)); *p = (U32)(intptr_t)raw;
+                    U32 *p = malloc(sizeof(U32)); *p = raw.u32;
                     *result = (Value){.type = VAL_U32, .u32 = p};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
-                    U64 *p = malloc(sizeof(U64)); *p = (U64)(intptr_t)raw;
+                    U64 *p = malloc(sizeof(U64)); *p = raw.u64;
                     *result = (Value){.type = VAL_U64, .u64 = p};
                 } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
-                    U64 *p = malloc(sizeof(U64)); *p = (U64)(intptr_t)raw;
-                    *result = (Value){.type = VAL_U64, .u64 = p};
+                    U32 *p = malloc(sizeof(U32)); *p = raw.u32;
+                    *result = (Value){.type = VAL_U32, .u32 = p};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
-                    F32 *p = malloc(sizeof(F32)); *p = *(F32 *)&raw;
+                    F32 *p = malloc(sizeof(F32)); *p = raw.f32;
                     *result = (Value){.type = VAL_F32, .f32 = p};
                 } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
-                    Bool *p = malloc(sizeof(Bool)); *p = (Bool)(intptr_t)raw;
+                    Bool *p = malloc(sizeof(Bool)); *p = raw.boolean;
                     *result = (Value){.type = VAL_BOOL, .boolean = p};
                 } else {
                     *result = val_none();
                 }
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "Str", 3) == 0)) {
-                ExtStr *sp = (ExtStr *)raw;
+                ExtStr *sp = (ExtStr *)raw.ptr;
                 *result = make_str_value_own((char *)sp->data, sp->count);
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
-                *result = (Value){.type = VAL_I64, .i64 = (I64 *)raw};
+                *result = (Value){.type = VAL_I64, .i64 = (I64 *)raw.ptr};
             } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
-                *result = (Value){.type = VAL_U8, .u8 = (U8 *)raw};
+                *result = (Value){.type = VAL_U8, .u8 = (U8 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
-                *result = (Value){.type = VAL_I16, .i16 = (I16 *)raw};
+                *result = (Value){.type = VAL_I16, .i16 = (I16 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
-                *result = (Value){.type = VAL_I32, .i32 = (I32 *)raw};
+                *result = (Value){.type = VAL_I32, .i32 = (I32 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
-                *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw};
+                *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
-                *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw};
+                *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw.ptr};
             } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
-                *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw};
+                *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
-                *result = (Value){.type = VAL_F32, .f32 = (F32 *)raw};
+                *result = (Value){.type = VAL_F32, .f32 = (F32 *)raw.ptr};
             } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
-                *result = (Value){.type = VAL_BOOL, .boolean = (Bool *)raw};
+                *result = (Value){.type = VAL_BOOL, .boolean = (Bool *)raw.ptr};
             } else if ((fe->return_type->count == 7 && memcmp(fe->return_type->c_str, "Dynamic", 7) == 0)) {
-                *result = (Value){.type = VAL_PTR, .ptr = raw};
+                *result = (Value){.type = VAL_PTR, .ptr = raw.ptr};
             } else {
                 // Struct return — look up struct def by return type name
                 if (*Map_has(&ffi_struct_defs, fe->return_type)) {
@@ -905,7 +948,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                     inst->struct_name = fe->return_type;
                     inst->struct_def = *sdef;
                     inst->borrowed = 0;
-                    inst->data = raw;
+                    inst->data = raw.ptr;
                     *result = (Value){.type = VAL_STRUCT, .instance = inst};
                 } else {
                     *result = val_none();
@@ -1016,7 +1059,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
         Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
         {
             I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-            ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : &_dot_str;
+            ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
         }
         char pid_buf[32];
         snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());

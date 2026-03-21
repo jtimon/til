@@ -69,7 +69,7 @@ static Value widen_numeric(Value v, Str *ptype) {
         free(v.i64); return val_u64(uval);
     }
     if (ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0) {
-        free(v.i64); return val_u64(uval);
+        free(v.i64); return val_u32((U32)uval);
     }
     if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v.type == VAL_U8) {
         free(v.u8); return val_u32((I64)uval);
@@ -208,7 +208,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return val_i32(*(I32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return val_u32(*(U32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return val_u64(*(U64 *)ptr);
-    if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u64(*(U64 *)ptr);
+    if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u32(*(U32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return val_f32(*(F32 *)ptr);
     if (ftype && (ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return val_bool(*(Bool *)ptr);
     // Enum field: tagged enums stored as pointer to EnumInstance, simple enums as I32
@@ -297,11 +297,11 @@ Value make_str_value(const char *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
-    inst->data = malloc(24); // Str = {U8 *c_str, U64 count, U64 cap}
+    inst->data = malloc(sizeof(Str));
     inst->borrowed = 0;
     *(char **)inst->data = strndup(data, len);
-    *(U64 *)((char *)inst->data + 8) = len;
-    *(U64 *)((char *)inst->data + 16) = CAP_LIT;
+    *(USize *)((char *)inst->data + sizeof(U8 *)) = (USize)len;
+    *(USize *)((char *)inst->data + sizeof(U8 *) + sizeof(USize)) = CAP_LIT;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
@@ -311,17 +311,17 @@ Value make_str_value_own(char *data, U64 len) {
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
     inst->borrowed = 0;
-    inst->data = malloc(24);
+    inst->data = malloc(sizeof(Str));
     *(char **)inst->data = data;
-    *(U64 *)((char *)inst->data + 8) = len;
-    *(U64 *)((char *)inst->data + 16) = len;
+    *(USize *)((char *)inst->data + sizeof(U8 *)) = (USize)len;
+    *(USize *)((char *)inst->data + sizeof(U8 *) + sizeof(USize)) = (USize)len;
     return (Value){.type = VAL_STRUCT, .instance = inst};
 }
 
 // Extract a C Str view from a Str StructInstance (stack-local, don't free)
 Str str_view(Value v) {
     char *data = *(char **)v.instance->data;
-    U64 len = *(U64 *)((char *)v.instance->data + 8);
+    USize len = *(USize *)((char *)v.instance->data + sizeof(U8 *));
     return (Str){.c_str = (U8 *)data, .count = len};
 }
 
@@ -613,7 +613,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
                         arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
                     else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
+                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
@@ -649,7 +649,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
                         arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
                     else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
+                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
@@ -943,7 +943,7 @@ static void eval_body(Scope *scope, Expr *body) {
                     else if ((etype->count == 3 && memcmp(etype->c_str, "U64", 3) == 0))
                         val = (Value){.type = VAL_U64, .u64 = (U64 *)val.ptr};
                     else if ((etype->count == 5 && memcmp(etype->c_str, "USize", 5) == 0))
-                        val = (Value){.type = VAL_U64, .u64 = (U64 *)val.ptr};
+                        val = (Value){.type = VAL_U32, .u32 = (U32 *)val.ptr};
                     else if ((etype->count == 3 && memcmp(etype->c_str, "F32", 3) == 0))
                         val = (Value){.type = VAL_F32, .f32 = (F32 *)val.ptr};
                     else if ((etype->count == 4 && memcmp(etype->c_str, "Bool", 4) == 0))
@@ -1300,8 +1300,8 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
     write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
-    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u64(count));
-    write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u64(esz));
+    write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u32((U32)count));
+    write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u32((U32)esz));
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
     Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};

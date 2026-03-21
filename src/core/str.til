@@ -1,7 +1,7 @@
 mode lib
 
-CAP_LIT : USize = -1.to_u64()
-CAP_VIEW : USize = -2.to_u64()
+CAP_LIT : USize = -1.to_u32()
+CAP_VIEW : USize = -2.to_u32()
 
 Str := struct {
     own mut c_str : U8 = 0
@@ -167,9 +167,9 @@ namespace:
                 result = result.concat(rest)
                 return result
             }
-            result = result.concat(self.substr(start, pos.to_u64()))
+            result = result.concat(self.substr(start, pos.to_u32()))
             result = result.concat(to)
-            start = start.add(pos.to_u64()).add(from.count)
+            start = start.add(pos.to_u32()).add(from.count)
         }
         if start.lt(self.count) {
             result = result.concat(self.substr(start, self.count.sub(start)))
