@@ -40,7 +40,7 @@ namespace:
         return au.sub(bu).to_i64().to_u64()
     }
     delete := ext_func(own self: U8, call_free: Bool = true) {}
-    size := func() returns U64 { return 1 }
+    size := func() returns USize { return 1 }
 }
 
 I16 := ext_struct {
@@ -72,7 +72,7 @@ namespace:
         return au.sub(bu).to_i64().to_u64()
     }
     delete := ext_func(own self: I16, call_free: Bool = true) {}
-    size := func() returns U64 { return 2 }
+    size := func() returns USize { return 2 }
 }
 
 I32 := ext_struct {
@@ -104,7 +104,7 @@ namespace:
         return au.sub(bu).to_i64().to_u64()
     }
     delete := ext_func(own self: I32, call_free: Bool = true) {}
-    size := func() returns U64 { return 4 }
+    size := func() returns USize { return 4 }
 }
 
 F32 := ext_struct {
@@ -123,7 +123,7 @@ namespace:
     cmp := ext_func(shallow a: F32, shallow b: F32) returns shallow I64 {}
     clone := ext_func(val: F32) returns shallow F32 {}
     delete := ext_func(own self: F32, call_free: Bool = true) {}
-    size := func() returns U64 { return 4 }
+    size := func() returns USize { return 4 }
 }
 
 U32 := ext_struct {
@@ -153,7 +153,7 @@ namespace:
         return au.sub(bu).to_i64().to_u64()
     }
     delete := ext_func(own self: U32, call_free: Bool = true) {}
-    size := func() returns U64 { return 4 }
+    size := func() returns USize { return 4 }
 }
 
 U64 := ext_struct {
@@ -188,7 +188,7 @@ namespace:
         return au.sub(bu)
     }
     delete := ext_func(own self: U64, call_free: Bool = true) {}
-    size := func() returns U64 { return 8 }
+    size := func() returns USize { return 8 }
 }
 
 USize := U64
@@ -258,7 +258,7 @@ namespace:
         return au.sub(bu).to_u64()
     }
     delete := ext_func(own self: I64, call_free: Bool = true) {}
-    size := func() returns U64 { return 8 }
+    size := func() returns USize { return 8 }
 }
 
 Range := struct {
@@ -304,7 +304,7 @@ namespace:
     }
     clone := ext_func(val: Bool) returns shallow Bool {}
     delete := ext_func(own self: Bool, call_free: Bool = true) {}
-    size := func() returns U64 { return 1 }
+    size := func() returns USize { return 1 }
 }
 
 // builtin functions and procs

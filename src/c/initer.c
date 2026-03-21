@@ -1245,7 +1245,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         char sz_buf[16];
         snprintf(sz_buf, sizeof(sz_buf), "%d", sz);
 
-        // size := func() returns U64 { return <literal> }
+        // size := func() returns USize { return <literal> }
         Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
         Expr *size_expr = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
         size_expr->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(sz_buf), .count = (U64)strlen((const char*)(sz_buf)), .cap = CAP_VIEW});
@@ -1258,7 +1258,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         func_def->data.data.FuncDef.nparam = 0;
         { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); func_def->data.data.FuncDef.params = *_v; free(_v); }
         { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-        func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT};
+        func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"USize", .count = 5, .cap = CAP_LIT};
         func_def->data.data.FuncDef.variadic_index = -1;
         func_def->data.data.FuncDef.kwargs_index = -1;
         Expr_add_child(func_def, func_body);
