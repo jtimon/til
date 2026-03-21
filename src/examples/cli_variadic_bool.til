@@ -2,7 +2,7 @@ mode cli
 
 main := proc(flags: ..Bool) {
     mut all := true
-    mut i : U64 = 0
+    mut i : USize = 0
     while i.lt(flags.len()) {
         ref f: Bool = flags.get(i)
         all = all.and(f)

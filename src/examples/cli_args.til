@@ -1,7 +1,7 @@
 mode cli
 
 main := proc(args: ..Str) {
-    mut i : U64 = 0
+    mut i : USize = 0
     while i.lt(args.len()) {
         ref a: Str = args.get(i)
         println(a)
