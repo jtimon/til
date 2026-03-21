@@ -415,78 +415,35 @@
   operations are on the hot path for the compiler.
 
 ** WIP #39 Self-hosting: replace C modules with til (bottom-up)
-  :DEPENDENCIES: #71 #74 #77
+  :DEPENDENCIES: #71 #74
   The centralized issue for tracking self-hosting progress.
   #12 (top-down: til.til replaces ctil.c) is done. #77 (til.til
-  imports .til modules instead of link_c) is a dependency.
-  This issue tracks the bottom-up work: replacing each C module
-  in src/c/ with its til-compiled equivalent from bootstrap/.
-  See doc/self.org for bootstrap build workflow and recovery.
+  imports .til modules, bridge removed, Makefile uses til build)
+  is done. This issue tracks the remaining bottom-up work:
+  translating C functions to til, one module at a time.
 
-*** Bootstrap facade: modes.til
-    ~bootstrap/modes.c~ is the single generated file in SRCS.
-    modes.til is the top of the import chain — it imports the next
-    module down, which imports the next, etc:
+*** Current build flow
+    ~bin/til_boot~ is built from last commit via gcc (always safe).
+    ~bin/til_current~ is built by ~til_boot build src/til.til~.
+    ~boot/~ has generated C checked into the repo for til_boot.
+    ~make til_core~ regenerates boot/ before commits.
 
-    ~modes.til → parser.til → lexer.til~ (+ core.til auto-prepended,
-    which imports ast.til)
+*** Import chain
+    modes.til is the top of the import chain:
+    ~modes.til -> initer.til -> parser.til -> lexer.til~
+    (+ core.til auto-prepended, which imports ast.til)
 
-    When a new module is ported (e.g. initer), change modes.til's
-    import to point to it: ~import("initer.til")~ (initer imports
-    parser, parser imports lexer, etc.). SRCS stays the same —
-    always ~bootstrap/modes.c~, no Makefile changes.
+    All .til stubs import their predecessor. All struct/enum types
+    are in .til files. C modules (src/c/*.c) link via ~link_c~ in
+    til.til and get types from ~boot/modes.h~.
 
-    One ~_til_lib_init~ constructor, one header chain, no collisions.
-
-*** General approach (per module) — incremental method
-    1. Create empty ~XX.til~ with ~mode lib~ and ~import~ of previous module
-    2. Wire it into ~modes.til~ import chain
-    3. Move structs/enums from ~XX.h~ to ~XX.til~ one at a time
-    4. Move functions from ~XX.c~ to ~XX.til~ one at a time
-    5. Each migration is a small commit with ~make clean && make test~
-    6. When ~XX.c~ is empty, delete it
-
-    This replaces the previous big-bang approach (write whole .til,
-    align, compatibility commit, swap). No pressure to finish a module
-    in one session — work can be interleaved with other tasks.
-
-*** Compatibility commit pattern (step 4)
-    Before the actual swap, verify the generated code is compatible
-    with all callers. Copy the per-module file into src/c/:
-
-    ~cp bootstrap/XX_XX.c src/c/XX.c~
-
-    The per-module file (~bootstrap/XX_XX.c~) contains ONLY the
-    module's own function bodies — not the full core/lexer/ast
-    chain. That's the file we want:
-    - ~bootstrap/modes_modes.c~ → ~src/c/modes.c~
-    - ~bootstrap/parser_parser.c~ → ~src/c/parser.c~
-    - ~bootstrap/initer_initer.c~ → ~src/c/initer.c~ (future)
-
-    Do NOT use the monolithic ~bootstrap/XX.c~ — that's 10K+ lines
-    including all imported modules. The monolithic file exists only
-    for compilation as part of SRCS; the per-module file is the
-    actual module logic.
-
-    After copying, fix the ~#include~ line:
-    ~#include "XX_XX.h"~ → ~#include "XX.h"~
-
-    Then expand ~src/c/XX.h~ with any declarations the generated
-    code needs that aren't in ~bootstrap/modes.h~ (e.g. ~Str_lit~,
-    ~U32_to_str~, ~Mode_size~, scalar methods, ~DEREF~ macro).
-
-    Build + test. If it passes, the generated code is compatible.
-    The swap commit then changes modes.til's import.
-
-    Build + test. If it passes, the generated code is compatible.
-    The swap commit then changes modes.til's import.
-
-    *Bikeshedding* (tolerable, don't fix): switch vs if-else, printf vs
-    println, for-loops vs Range, direct field access vs accessor calls,
-    ~(void)x;~ noise, temp variable names.
-
-    *Semantic/interface* (must fix): different data layouts, missing
-    implementations, wrong signatures, callers using incompatible patterns.
+*** Approach: translate C functions to til incrementally
+    All structs/enums are already in .til stubs. Remaining work is
+    translating C functions to til, one at a time:
+    1. Translate a function from ~XX.c~ to ~XX.til~
+    2. Remove the C version from ~XX.c~
+    3. ~make test~ -- verify
+    4. When ~XX.c~ is empty, delete it and remove ~link_c~ from til.til
 
 *** DONE Step 6: Empty til stubs for all remaining C modules
     Created empty ~mode lib~ stubs imported from modes.til:
@@ -494,22 +451,19 @@
     scavenger.til, typer.til. Ready for incremental migration.
 
 *** Current state of C modules
-    All typedefs/structs moved to til. Only functions, statics,
-    and two dispatch-internal types (DispatchFn, FFIEntry) remain.
+    All typedefs/structs in til. til_bridge.c deleted (#77).
+    Remaining work: translate ~160 C functions to til.
 
-    | Module | Statics | Typedefs | Functions |
-    |--------+---------+----------+-----------|
-    | initer.c | 0 | 0 | ~12 |
-    | typer.c | 4 | 0 | ~40 |
-    | precomp.c | 3 | 0 | ~10 |
-    | scavenger.c | 1 | 0 | ~7 |
-    | interpreter.c | 6 | 0 | ~20 |
-    | dispatch.c | 6 | 2 (DispatchFn, FFIEntry) | ~30 |
-    | builder.c | 8 | 0 | ~40 |
-    | til_bridge.c | -- deleted (#77) -- |
-
-    DispatchFn is a function pointer typedef, FFIEntry has opaque
-    libffi types (ffi_cif, ffi_type**) -- both left in C for now.
+    | Module | Functions | Notes |
+    |--------+-----------+-------|
+    | initer.c | ~12 | tscope_*, compute_layout, init_declarations |
+    | typer.c | ~40 | type_check, desugar_*, ASAP deletion |
+    | precomp.c | ~10 | constant folding |
+    | scavenger.c | ~7 | dead code elimination |
+    | interpreter.c | ~20 | eval_expr, eval_call, clone/free_value |
+    | dispatch.c | ~30 | FFI dispatch, ext_func handlers |
+    | builder.c | ~40 | C codegen (emit_expr, emit_stmt, etc.) |
+    | ext.c | ~50 | irreducible primitives (stays in C) |
 
 *** DONE Move typedefs/structs to til stubs
     All struct/enum typedefs moved from C headers to til stubs.
@@ -659,39 +613,17 @@
    in compat wrappers (Vec_push/Map_set/Set_add free val after memcpy)
    and Str not using with_capacity. See #46 for Str optimization.
 
-*** Architecture: core.til as ctil's runtime library
+*** Architecture
 
-   core.til (which imports str.til, vec.til, map.til, set.til, array.til)
-   is the single source of truth for Str, Array, Vec, Map, Set and all
-   their methods. Built into bootstrap via ~ctil translate~, these
-   generated C files ARE the implementation — no parallel C versions.
+   til.til imports self-hosted modules via modes.til. C modules
+   (initer.c, typer.c, etc.) are linked via ~link_c~ in til.til.
+   ext.c has irreducible primitives (scalar ops, system calls).
+   boot/ has generated C checked into the repo for til_boot.
 
-   ext.c is the canonical source for irreducible primitives ONLY:
-   scalar arithmetic (I64_add, U8_eq, etc.), system calls (readfile,
-   writefile, spawn_cmd), pointer ops (ptr_add, is_null), CLI parsing.
-   Everything else comes from til.
-
-   The builder emits ~#include "ext.h"~ in generated headers AFTER
-   forward declarations, so ext.h can reference any til-defined type
-   (Str, Array, Vec, etc.) in its function signatures without needing
-   manual forward declarations. As more types move from C to til,
-   ext.h naturally shrinks with no coordination needed.
-
-   Bootstrap: generated files are copied to bootstrap/ and checked
-   into the repo. People who clone the repo get pre-generated files.
-   Two-pass build (cc → ctil_core → cc) handles breaking changes.
-
-*** Duplication and --allow-multiple-definition
-
-   During the transition, ctil links BOTH bootstrap code (e.g.
-   bootstrap/lexer.c with core.til types) AND hand-written C modules
-   that define the same functions. ~--allow-multiple-definition~ lets
-   the linker pick one (first in SRCS order wins).
-
-   This duplication is purely transitional. Once #39 is complete,
-   til.til IS the compiler — it imports everything as til files, gets
-   compiled into one bootstrap .c file with all definitions. No
-   duplication, no ~--allow-multiple-definition~ needed.
+   ~--allow-multiple-definition~ is still needed during the
+   transition: til-compiled and C functions may overlap.
+   Once #39 is complete (all C modules translated to til),
+   no more link_c, no more duplication.
 
    During the transition, forward.h (#72) helps: the builder emits a
    header with ALL forward declarations (structs, enums, functions).
