@@ -21,7 +21,7 @@ static Str *gc_str(Str *s) {
 
 static void gc_free_all(void) {
     for (U32 i = 0; i < gc_strs.count; i++)
-        Str_delete(*(Str **)Vec_get(&gc_strs, &(U64){(U64)(i)}), &(Bool){1});
+        Str_delete(*(Str **)Vec_get(&gc_strs, &(USize){(USize)(i)}), &(Bool){1});
     Vec_delete(&gc_strs, &(Bool){0});
 }
 
@@ -85,7 +85,7 @@ static void collect_refs(Expr *e, Vec *refs) {
         U32 np = e->data.data.FuncDef.nparam;
         I32 fvi = e->data.data.FuncDef.variadic_index;
         for (U32 i = 0; i < np; i++) {
-            Param *_sp = (Param*)Vec_get(&e->data.data.FuncDef.params, &(U64){(U64)(i)});
+            Param *_sp = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
             if (_sp->ptype.count > 0)
                 vec_push_str(refs, &_sp->ptype);
         }
@@ -137,10 +137,10 @@ static void collect_refs(Expr *e, Vec *refs) {
 void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     Bool is_cli = mode && mode->needs_main && !run_tests;
 
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
 
     // 1. Build top-level declaration map
-    Map top; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); top = *_mp; free(_mp); }
+    Map top; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); top = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl) {
@@ -150,7 +150,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     }
 
     // 2. Build namespace method map: "Type.method" → method decl node
-    Map methods; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); methods = *_mp; free(_mp); }
+    Map methods; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); methods = *_mp; free(_mp); }
     for (U32 i = 0; i < top.count; i++) {
         Expr *decl = *(Expr **)(top.val_data + i * top.val_size);
         if (Expr_child(decl, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef &&
@@ -166,7 +166,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     }
 
     // 3. Seed worklist
-    Vec worklist; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); worklist = *_vp; free(_vp); }
+    Vec worklist; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); worklist = *_vp; free(_vp); }
     if (is_cli) {
         vec_push_str(&worklist, gc_str(Str_clone(&(Str){.c_str = (U8*)"main", .count = 4, .cap = CAP_LIT})));
         // Also seed from top-level variable declarations (e.g. mode auto-imports)
@@ -202,10 +202,10 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     }
 
     // 4. BFS
-    Set visited; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); visited = *_sp; free(_sp); }
+    Set visited; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); visited = *_sp; free(_sp); }
     U32 cursor = 0;
     while (cursor < worklist.count) {
-        Str *name = *(Str **)Vec_get(&worklist, &(U64){(U64)(cursor++)});
+        Str *name = *(Str **)Vec_get(&worklist, &(USize){(USize)(cursor++)});
         if (*Set_has(&visited, name)) continue;
         { Str *_p = malloc(sizeof(Str)); *_p = (Str){name->c_str, name->count, CAP_VIEW}; Set_add(&visited, _p); }
 
@@ -250,7 +250,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
             Str *dname = &stmt->data.data.Decl.name;
             if (!*Set_has(&visited, dname)) continue;
         }
-        *(Expr*)Vec_get(&program->children, &(U64){(U64)(w++)}) = *stmt;
+        *(Expr*)Vec_get(&program->children, &(USize){(USize)(w++)}) = *stmt;
     }
     program->children.count = w;
 
@@ -269,7 +269,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
                 Str *qn = qualified_name(sname, &field->data.data.Decl.name);
                 if (!*Set_has(&visited, qn)) continue;
             }
-            *(Expr*)Vec_get(&body->children, &(U64){(U64)(bw++)}) = *field;
+            *(Expr*)Vec_get(&body->children, &(USize){(USize)(bw++)}) = *field;
         }
         body->children.count = bw;
     }

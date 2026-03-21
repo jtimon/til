@@ -12,4 +12,5 @@ typedef char I8;
 typedef unsigned char U8;
 typedef float F32;
 typedef bool Bool;
+typedef U64 USize;  // container sizes (count, cap, elem_size) -- will become U32
 

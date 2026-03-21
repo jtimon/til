@@ -163,7 +163,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             if (e->data.data.FuncDef.return_type.count > 0)
                 e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
             for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-                Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(U64){(U64)(i)});
+                Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
                 _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
             }
             e->til_type = (TilType){TilType_TAG_FuncPtr};
@@ -193,7 +193,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
             // Bind parameters
             for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-                Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(U64){(U64)(i)});
+                Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
                 _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
                 Str *ptn = &_pi->ptype;
                 TilType pt = type_from_name(ptn, scope);
@@ -334,8 +334,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     Bool ufcs_match = 0;
                     if (top && top->func_def &&
                         top->func_def->data.data.FuncDef.nparam > 0 &&
-                        ((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(U64){(U64)(0)}))->ptype.count > 0) {
-                        Str *first_param = &((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(U64){(U64)(0)}))->ptype;
+                        ((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype.count > 0) {
+                        Str *first_param = &((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype;
                         if (type_name && *Str_eq(first_param, type_name)) {
                             ufcs_match = 1; // known type matches first param
                         } else if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
@@ -349,7 +349,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         // Rewrite: a.f(b) → f(a, b)
                         Expr *fn_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, fa->line, fa->col, &fa->path);
                         fn_ident->data.data.Ident = *method;
-                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(0)}) = *fn_ident;
+                        *(Expr*)Vec_get(&e->children, &(USize){(USize)(0)}) = *fn_ident;
                         // Insert instance as first arg
                         Expr *instance = obj;
                         Expr dummy = {0};
@@ -358,7 +358,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             Expr *ch = (Expr *)e->children.data;
                             memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
                         }
-                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(1)}) = *Expr_clone(instance);
+                        *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *Expr_clone(instance);
                         goto regular_call;
                     }
                     // Fallback: check if method is a FuncSig-typed struct field
@@ -419,7 +419,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Expr *instance = Expr_clone(obj); // clone before fa->children overwrite
                 Expr *type_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, obj->line, obj->col, &obj->path);
                 type_ident->data.data.Ident = *type_name;
-                *(Expr*)Vec_get(&fa->children, &(U64){(U64)(0)}) = *type_ident;
+                *(Expr*)Vec_get(&fa->children, &(USize){(USize)(0)}) = *type_ident;
                 // Insert instance as first arg
                 Expr dummy = {0};
                 { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
@@ -427,7 +427,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     Expr *ch = (Expr *)e->children.data;
                     memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
                 }
-                *(Expr*)Vec_get(&e->children, &(U64){(U64)(1)}) = *instance;
+                *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *instance;
                 // Fall through -- existing code below handles Type.method(instance, args)
                 // Re-fetch after e->children mutation (push may realloc)
                 fa = Expr_child(e, &(I64){(I64)(0)});
@@ -474,7 +474,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         Str *aname = &arg->data.data.Ident;
                         I32 slot = -1;
                         for (U32 j = 0; j < np; j++) {
-                            if (*Str_eq(&((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(U64){(U64)(j)}))->name, aname)) {
+                            if (*Str_eq(&((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
                                 slot = j;
                                 break;
                             }
@@ -503,7 +503,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 // Fill defaults for missing args
                 for (U32 i = 0; i < np; i++) {
                     if (!new_args[i]) {
-                        Str *_pn = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(U64){(U64)(i)}))->name;
+                        Str *_pn = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
                         if (*Map_has(&ns_func->data.data.FuncDef.param_defaults, _pn)) {
                             new_args[i] = Expr_clone((Expr*)Map_get(&ns_func->data.data.FuncDef.param_defaults, _pn));
                         } else {
@@ -520,7 +520,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     type_error(e, buf);
                 }
                 // Rebuild children: callee + desugared args
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                 Expr *callee = Expr_child(e, &(I64){(I64)(0)});
                 Vec_push(&new_ch, Expr_clone(callee));
                 for (U32 i = 0; i < np; i++) {
@@ -536,13 +536,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
             // Narrow Dynamic args to parameter types
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
-                Str *ptype = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->ptype;
+                Str *ptype = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
                 if (ptype)
                     narrow_dynamic(Expr_child(e, &(I64){(I64)(i)}), type_from_name(ptype, scope), ptype);
             }
             // Validate arg types against param types
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
-                Str *ptype_name = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->ptype;
+                Str *ptype_name = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
                 if (!ptype_name) continue;
                 Expr *arg = Expr_child(e, &(I64){(I64)(i)});
                 if (arg->til_type.tag == TilType_TAG_Dynamic) continue;
@@ -563,14 +563,14 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type.tag != ptype.tag) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->name.c_str,
+                             ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
                              ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
                     type_error(arg, buf);
                 } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
                            (arg->struct_name).count > 0 && !*Str_eq(ptype_name, &arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->name.c_str,
+                             ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
                              ptype_name->c_str, arg->struct_name.c_str);
                     type_error(arg, buf);
                 }
@@ -584,7 +584,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 U32 np = ns_func->data.data.FuncDef.nparam;
                 if (ns_func->data.data.FuncDef.params.count > 0) {
                     for (U32 i = 1; i < e->children.count && i - 1 < np; i++) {
-                        Param *_pp = (Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(U64){(U64)(i - 1)});
+                        Param *_pp = (Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)});
                         Bool pown = _pp->is_own;
                         if (pown && !Expr_child(e, &(I64){(I64)(i)})->is_own_arg) {
                             char buf[128];
@@ -689,7 +689,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
             // Rebuild children: callee + instance field values
-            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
             Expr *callee = Expr_child(e, &(I64){(I64)(0)});
             Vec_push(&new_ch, Expr_clone(callee));
             for (U32 i = 0; i < nfields; i++) {
@@ -730,7 +730,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         Expr *_mc = make_clone_call(tname,
                             Expr_child(e, &(I64){(I64)(ai)})->til_type, Expr_child(e, &(I64){(I64)(ai)}),
                             Expr_child(e, &(I64){(I64)(ai)}));
-                        *(Expr*)Vec_get(&e->children, &(U64){(U64)(ai)}) = *_mc;
+                        *(Expr*)Vec_get(&e->children, &(USize){(USize)(ai)}) = *_mc;
                         memset(_mc, 0, sizeof(Expr)); free(_mc);
                     }
                 }
@@ -750,8 +750,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             I32 kwi = fdef->data.data.FuncDef.kwargs_index;  // -1 if no kwargs
             U32 fixed_count = (vi >= 0) ? (U32)vi : nparam; // params before variadic
             // Collect positional and named args
-            Vec va_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); va_args = *_vp; free(_vp); } // variadic args (only if vi >= 0)
-            Vec kw_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); kw_args = *_vp; free(_vp); } // kwargs args (ExprData_TAG_NamedArg nodes)
+            Vec va_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); va_args = *_vp; free(_vp); } // variadic args (only if vi >= 0)
+            Vec kw_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); kw_args = *_vp; free(_vp); } // kwargs args (ExprData_TAG_NamedArg nodes)
             Expr **new_args = calloc(nparam, sizeof(Expr *));
             U32 pos_idx = 0;
             Bool seen_named = 0;
@@ -764,7 +764,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     for (U32 j = 0; j < nparam; j++) {
                         if ((I32)j == vi) continue; // can't name the variadic param
                         if ((I32)j == kwi) continue; // can't name the kwargs param
-                        if (*Str_eq(&((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(j)}))->name, aname)) {
+                        if (*Str_eq(&((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
                             slot = j;
                             break;
                         }
@@ -801,7 +801,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if ((I32)i == vi) continue; // variadic param handled separately
                 if ((I32)i == kwi) continue; // kwargs param handled separately
                 if (!new_args[i]) {
-                    Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)}))->name;
+                    Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
                     if (*Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
                         new_args[i] = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
                     } else {
@@ -820,21 +820,21 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 type_error(e, buf);
             }
             // Rebuild children: callee + args_before_variadic + variadic_args + args_after_variadic
-            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
             Expr *callee = Expr_child(e, &(I64){(I64)(0)});
             Vec_push(&new_ch, Expr_clone(callee));
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
                     e->variadic_index = new_ch.count; // children index of first variadic arg
                     for (U32 j = 0; j < va_args.count; j++) {
-                        Expr *va = *(Expr **)Vec_get(&va_args, &(U64){(U64)(j)});
+                        Expr *va = *(Expr **)Vec_get(&va_args, &(USize){(USize)(j)});
                         Vec_push(&new_ch, Expr_clone(va));
                     }
                     e->variadic_count = va_args.count;
                 } else if ((I32)i == kwi) {
                     e->kwargs_index = new_ch.count; // children index of first kwargs arg
                     for (U32 j = 0; j < kw_args.count; j++) {
-                        Expr *kw = *(Expr **)Vec_get(&kw_args, &(U64){(U64)(j)});
+                        Expr *kw = *(Expr **)Vec_get(&kw_args, &(USize){(USize)(j)});
                         Vec_push(&new_ch, Expr_clone(kw));
                     }
                     e->kwargs_count = kw_args.count;
@@ -863,7 +863,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
                 if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
-                Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(pi)}))->ptype;
+                Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
                 if (ptype)
                     narrow_dynamic(Expr_child(e, &(I64){(I64)(ci)}), type_from_name(ptype, scope), ptype);
                 ci++;
@@ -873,7 +873,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
                 if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
-                Str *ptype_name = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(pi)}))->ptype;
+                Str *ptype_name = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
                 if (!ptype_name) { ci++; continue; }
                 Expr *arg = Expr_child(e, &(I64){(I64)(ci)});
                 if (arg->til_type.tag == TilType_TAG_Dynamic) { ci++; continue; }
@@ -894,14 +894,14 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (arg->til_type.tag != ptype.tag) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(pi)}))->name.c_str,
+                             ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
                              ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
                     type_error(arg, buf);
                 } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
                            (arg->struct_name).count > 0 && !*Str_eq(ptype_name, &arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(pi)}))->name.c_str,
+                             ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
                              ptype_name->c_str, arg->struct_name.c_str);
                     type_error(arg, buf);
                 }
@@ -942,7 +942,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     ci += fkc; // skip kwargs args
                     continue;
                 }
-                Param *_pp2 = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(pi)});
+                Param *_pp2 = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)});
                 Bool pown = _pp2->is_own;
                 if (pown && !Expr_child(e, &(I64){(I64)(ci)})->is_own_arg) {
                     char buf[128];
@@ -1001,7 +1001,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
                     Expr *arg = Expr_child(e, &(I64){(I64)(ai + 1)});
-                    Str *expected_name = &((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(ai)}))->ptype;
+                    Str *expected_name = &((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(ai)}))->ptype;
                     if (!expected_name) continue;
                     TilType expected = type_from_name(expected_name, scope);
                     if (expected.tag == TilType_TAG_Unknown || expected.tag == TilType_TAG_Dynamic) continue;
@@ -1162,7 +1162,7 @@ static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
 //   Set.add(s, own v3)
 
 static void desugar_set_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1261,7 +1261,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 //   Map.set(m, own k2, own v2)
 
 static void desugar_map_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1437,7 +1437,7 @@ static Expr *make_ns_call(const char *sname, const char *method,
 static I32 _va_counter = 0;
 
 static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1461,7 +1461,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             if (tb && tb->func_def) {
                 I32 fvi = tb->func_def->data.data.FuncDef.variadic_index;
                 if (fvi >= 0)
-                    elem_type = &((Param*)Vec_get(&tb->func_def->data.data.FuncDef.params, &(U64){(U64)(fvi)}))->ptype;
+                    elem_type = &((Param*)Vec_get(&tb->func_def->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
             }
         } else if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
             Expr *type_node = Expr_child(callee, &(I64){(I64)(0)});
@@ -1476,7 +1476,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                             Expr_child(f, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
                             I32 fvi = Expr_child(f, &(I64){(I64)(0)})->data.data.FuncDef.variadic_index;
                             if (fvi >= 0)
-                                elem_type = &((Param*)Vec_get(&Expr_child(f, &(I64){(I64)(0)})->data.data.FuncDef.params, &(U64){(U64)(fvi)}))->ptype;
+                                elem_type = &((Param*)Vec_get(&Expr_child(f, &(I64){(I64)(0)})->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
                             break;
                         }
                     }
@@ -1500,7 +1500,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             }
             splat->is_own_arg = true;
             // Rebuild fcall children replacing variadic slot with splat
-            Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+            Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
             for (U32 j = 0; j < fcall->children.count; j++) {
                 if ((I32)j == vi) {
                     Vec_push(&fcall_new_ch, splat);
@@ -1592,7 +1592,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         }
 
         // 3. Replace variadic args in FCALL with _va ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
         Bool va_inserted = 0;
         for (U32 j = 0; j < fcall->children.count; j++) {
             if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
@@ -1664,7 +1664,7 @@ static Expr *find_kwargs_fcall(Expr *e) {
 static I32 _kw_counter = 0;
 
 static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1770,7 +1770,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         }
 
         // 3. Replace kwargs args in FCALL with _kw ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
         Bool kw_inserted = 0;
         for (U32 j = 0; j < fcall->children.count; j++) {
             if ((I32)j >= ki && (I32)j < ki + (I32)kc) {
@@ -1958,12 +1958,12 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
                 continue; // don't hoist — builder handles directly
         }
 
-        *(Expr*)Vec_get(&e->children, &(U64){(U64)(i)}) = *hoist_to_temp(Expr_clone(Expr_child(e, &(I64){(I64)(i)})), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&e->children, &(USize){(USize)(i)}) = *hoist_to_temp(Expr_clone(Expr_child(e, &(I64){(I64)(i)})), hoisted, nhoisted, cap, scope);
     }
 }
 
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
         // Collect hoisted decls from this statement
@@ -1979,7 +1979,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             if (stmt->til_type.tag != TilType_TAG_None) {
                 hoist_to_temp(stmt, &hoisted, &nhoisted, &hcap, scope);
                 stmt = hoisted[--nhoisted];
-                *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *stmt;
+                *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *stmt;
             }
             break;
         case ExprData_TAG_Return:
@@ -1989,7 +1989,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                     Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum ||
                     Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralStr ||
                     Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralBool) {
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
                 }
             }
             break;
@@ -2009,7 +2009,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum ||
                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralStr ||
                 Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
+                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
             }
             // For mut struct/enum params, replace assignment with swap so
             // ASAP delete of the temp frees the OLD value, not the new one.
@@ -2056,14 +2056,14 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralNum ||
                 Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralStr ||
                 Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(1)})), &hoisted, &nhoisted, &hcap, scope);
+                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(1)})), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         }
         case ExprData_TAG_If:
             hoist_expr(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
             if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FCall) {
-                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
+                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         // ExprData_TAG_While: skip condition -- hoisting changes loop semantics
@@ -2178,7 +2178,7 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
 
 // Insert delete calls before field reassignments (own and inline compound)
 static void insert_field_deletes(Expr *body) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -2252,7 +2252,7 @@ static Bool expr_used_in_nested_func(Expr *e, Str *name) {
     if (e->data.tag == ExprData_TAG_FuncDef) {
         // Check if name is shadowed by a parameter
         for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-            if (*Str_eq(&((Param*)Vec_get(&e->data.data.FuncDef.params, &(U64){(U64)(i)}))->name, name)) return 0;
+            if (*Str_eq(&((Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
         }
         // Not a param — recurse into body to find uses
         if (e->children.count > 0) return expr_uses_var(Expr_child(e, &(I64){(I64)(0)}), name);
@@ -2278,7 +2278,7 @@ static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
     if (!(fdef->data.data.FuncDef.params.count > 0)) return 0;
     U32 np = fdef->data.data.FuncDef.nparam;
     for (U32 i = 0; i < np && i + 1 < fcall->children.count; i++) {
-        if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)}))->is_own && Expr_child(fcall, &(I64){(I64)(i + 1)})->data.tag == ExprData_TAG_Ident &&
+        if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->is_own && Expr_child(fcall, &(I64){(I64)(i + 1)})->data.tag == ExprData_TAG_Ident &&
             *Str_eq(&Expr_child(fcall, &(I64){(I64)(i + 1)})->data.data.Ident, var_name)) {
             return 1;
         }
@@ -2371,7 +2371,7 @@ static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
 static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool return_only) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
         if (stmt->data.tag == ExprData_TAG_If) {
@@ -2408,7 +2408,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
 
     // Phase 1: collect locals with lifetime info
     // Start from 0 (not locals_start) to include own params, which are added before the body
-    Vec locals_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(LocalInfo)}); locals_vec = *_vp; free(_vp); }
+    Vec locals_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); locals_vec = *_vp; free(_vp); }
     for (U32 i = 0; i < scope->bindings.count; i++) {
         TypeBinding *b = (TypeBinding *)(scope->bindings.val_data + i * scope->bindings.val_size);
         if ((b->is_param && !b->is_own) || b->struct_def || b->func_def) continue;
@@ -2540,7 +2540,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     }
 
     // Phase 2: rebuild body with ASAP frees
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
@@ -2563,7 +2563,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
 
         // For ExprData_TAG_If/ExprData_TAG_While: insert frees before nested early exits
         if (stmt->data.tag == ExprData_TAG_If || stmt->data.tag == ExprData_TAG_While) {
-            Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
+            Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
             for (U32 j = 0; j < n_locals; j++) {
                 if (locals[j].skip_delete) continue;
                 if (locals[j].own_transfer >= 0) continue;
@@ -2859,7 +2859,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (tname) {
                     Expr *_mc = make_clone_call(tname, stmt->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
             }
@@ -2911,7 +2911,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (tname) {
                     Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(I64){(I64)(0)})->til_type,
                         Expr_child(stmt, &(I64){(I64)(0)}), stmt);
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
             }
@@ -2983,7 +2983,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr *_mc = make_clone_call(tname,
                         Expr_child(stmt, &(I64){(I64)(1)})->til_type, Expr_child(stmt, &(I64){(I64)(1)}),
                         Expr_child(stmt, &(I64){(I64)(1)}));
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(1)}) = *_mc;
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
             }
@@ -3013,7 +3013,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         if (tname) {
                             Expr *_mc = make_clone_call(tname, stmt->til_type,
                                 Expr_child(stmt, &(I64){(I64)(0)}), stmt);
-                            *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *_mc;
+                            *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                             memset(_mc, 0, sizeof(Expr)); free(_mc);
                         }
                     }
@@ -3106,7 +3106,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Expr_add_child(else_body, brk);
                 Expr_add_child(if_node, else_body);
                 // Prepend decl + if to body
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                 Vec_push(&new_ch, decl);
                 Vec_push(&new_ch, if_node);
                 for (U32 j = 0; j < body->children.count; j++) {
@@ -3119,7 +3119,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
                 true_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
                 true_lit->til_type = (TilType){TilType_TAG_Bool};
-                *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *true_lit;
+                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *true_lit;
             }
             {
                 TypeScope *while_scope = tscope_new(scope);
@@ -3259,7 +3259,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             Expr_add_child(bind_decl, get_call);
 
                             // Prepend to case body
-                            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                             Vec_push(&new_ch, bind_decl);
                             for (U32 bi = 0; bi < case_body->children.count; bi++) {
                                 Expr *ch = Expr_child(case_body, &(I64){(I64)(bi)});
@@ -3338,7 +3338,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // Replace ExprData_TAG_Switch with desugared block
             {
-                Expr *slot = (Expr*)Vec_get(&body->children, &(U64){(U64)(i)});
+                Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(i)});
                 *slot = *block;
                 // Deep-copy children buffer so slot doesn't share with block
                 U64 sz = block->children.count * block->children.elem_size;
@@ -3477,7 +3477,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
                 // Replace ForIn with desugared block
                 {
-                    Expr *slot = (Expr*)Vec_get(&body->children, &(U64){(U64)(i)});
+                    Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(i)});
                     *slot = *block;
                     U64 sz = block->children.count * block->children.elem_size;
                     slot->children.data = malloc(sz ? sz : 1);
@@ -3536,8 +3536,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 type_error(stmt, buf);
                 break;
             }
-            if (get_func->data.data.FuncDef.nparam != 2 || ((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(U64){(U64)(1)}))->ptype.count == 0 ||
-                !*Str_eq(&((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(U64){(U64)(1)}))->ptype, idx_type)) {
+            if (get_func->data.data.FuncDef.nparam != 2 || ((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype.count == 0 ||
+                !*Str_eq(&((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype, idx_type)) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' get() second param must match len() return type for for-in", type_name->c_str);
                 type_error(stmt, buf);
@@ -3685,7 +3685,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // Replace FOR_IN with the desugared block in parent body
             {
-                Expr *slot = (Expr*)Vec_get(&body->children, &(U64){(U64)(i)});
+                Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(i)});
                 *slot = *block;
                 U64 sz = block->children.count * block->children.elem_size;
                 slot->children.data = malloc(sz ? sz : 1);

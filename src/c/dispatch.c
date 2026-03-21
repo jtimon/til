@@ -97,7 +97,7 @@ static ffi_type *field_ffi_type(Expr *field) {
 // Build an ffi_type descriptor for a struct (heap-allocated, cached)
 static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     if (!ffi_type_cache_inited) {
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
         ffi_type_cache_inited = 1;
     }
     // Count instance fields
@@ -289,14 +289,14 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
     { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = e->line;
     fake_call.col = e->col;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
     { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
     // Skip child 3 (arity literal), actual args start at child 4
     for (U32 i = 4; i < e->children.count; i++) {
@@ -310,7 +310,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
         U32 nparam = fdef->data.data.FuncDef.nparam;
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
-            Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)}))->name;
+            Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
             if (*Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
                 Expr *def_arg = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
                 Vec_push(&fake_call.children, def_arg);
@@ -398,14 +398,14 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
     { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
     { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
 
 
@@ -663,7 +663,7 @@ static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
 // === Dispatch init ===
 
 static void dispatch_init(void) {
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
 
     #define REG(n, fn) do { Str *k = Str_clone(&(Str){.c_str = (U8*)(n), .count = (U64)strlen((const char*)(n)), .cap = CAP_VIEW}); DispatchFn f = fn; \
         Str *_k = malloc(sizeof(Str)); *_k = (Str){k->c_str, k->count, CAP_VIEW}; \
@@ -967,7 +967,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     bool *pshallows = NULL;
     bool has_shallow = false;
     for (U32 k = 0; k < np; k++) {
-        Param *_pk = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(k)});
+        Param *_pk = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)});
         if (_pk->is_shallow) {
             atypes[k] = shallow_ffi_type(&_pk->ptype);
             has_shallow = true;
@@ -978,7 +978,7 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
     if (has_shallow) {
         pshallows = malloc(sizeof(bool) * np);
         for (U32 k = 0; k < np; k++)
-            pshallows[k] = ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(k)}))->is_shallow;
+            pshallows[k] = ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)}))->is_shallow;
     }
     bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
     FFIEntry entry = {
@@ -1057,7 +1057,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     }
 
     // Build struct def map for return type lookup
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
@@ -1069,7 +1069,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     }
 
     // Scan program for ext_func/ext_proc, dlsym each
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
@@ -1139,7 +1139,7 @@ void ffi_cleanup(void) {
     }
     if (ffi_type_cache_inited) {
         for (U32 i = 0; i < ffi_type_cache.count; i++) {
-            ffi_type *t = *(ffi_type **)Vec_get(&ffi_type_cache, &(U64){(U64)(i)});
+            ffi_type *t = *(ffi_type **)Vec_get(&ffi_type_cache, &(USize){(USize)(i)});
             free(t->elements);
             free(t);
         }

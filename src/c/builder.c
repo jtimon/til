@@ -29,7 +29,7 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
         if (is_vec >= 0) {
             Str *type_name = &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident;
             for (U32 i = 0; i < infos->count; i++) {
-                CollectionInfo *existing = Vec_get(infos, &(U64){(U64)(i)});
+                CollectionInfo *existing = Vec_get(infos, &(USize){(USize)(i)});
                 if (*Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
             }
             CollectionInfo info = {type_name, is_vec};
@@ -63,7 +63,7 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
                 nargs = (I32)atol((char *)Expr_child(e, &(I64){(I64)(3)})->data.data.Ident.c_str);
             }
             for (U32 i = 0; i < methods->count; i++) {
-                DynCallInfo *existing = Vec_get(methods, &(U64){(U64)(i)});
+                DynCallInfo *existing = Vec_get(methods, &(USize){(USize)(i)});
                 if (*Str_eq(existing->method, method)) return;
             }
             DynCallInfo info = {.method = method, .nargs = nargs, .has_return = returns};
@@ -83,7 +83,7 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
         e->children.count >= 3 && Expr_child(e, &(I64){(I64)(2)})->data.tag == ExprData_TAG_LiteralStr) {
         Str *method = &Expr_child(e, &(I64){(I64)(2)})->data.data.Ident;
         for (U32 i = 0; i < methods->count; i++) {
-            Str **existing = Vec_get(methods, &(U64){(U64)(i)});
+            Str **existing = Vec_get(methods, &(USize){(USize)(i)});
             if (*Str_eq(*existing, method)) return;
         }
         { Str **_p = malloc(sizeof(Str *)); *_p = method; Vec_push(methods, _p); }
@@ -187,7 +187,7 @@ static void check_fcall_mut_args(Expr *e) {
         if (fdef && fdef->data.data.FuncDef.params.count > 0) {
             for (U32 a = 1; a < e->children.count; a++) {
                 U32 pi = a - 1;
-                if (pi < fdef->data.data.FuncDef.nparam && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(pi)}))->is_mut) {
+                if (pi < fdef->data.data.FuncDef.nparam && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->is_mut) {
                     Expr *arg = Expr_child(e, &(I64){(I64)(a)});
                     if (arg->data.tag == ExprData_TAG_Ident) {
                         Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
@@ -252,7 +252,7 @@ static Bool is_scalar_type(TilType t) {
 static Bool is_shallow_param(const char *name) {
     if (!current_fdef) return 0;
     for (U32 i = 0; i < current_fdef->data.data.FuncDef.nparam; i++) {
-        Param *_spi = (Param*)Vec_get(&current_fdef->data.data.FuncDef.params, &(U64){(U64)(i)});
+        Param *_spi = (Param*)Vec_get(&current_fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
         if (_spi->is_shallow &&
             strcmp((const char *)_spi->name.c_str, name) == 0)
             return 1;
@@ -315,7 +315,7 @@ static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
     Expr *fdef = find_callee_fdef(callee_name);
     if (!fdef) return 0;
     if (arg_index >= fdef->data.data.FuncDef.nparam) return 0;
-    return fdef->data.data.FuncDef.params.count > 0 && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(arg_index)}))->is_shallow;
+    return fdef->data.data.FuncDef.params.count > 0 && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(arg_index)}))->is_shallow;
 }
 
 // Map til function names to C symbol names (handles stdlib collisions)
@@ -382,7 +382,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 Expr *arg = Expr_child(e, &(I64){(I64)(i)});
                 Bool arg_shallow = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
                 }
                 const char *arg_c = "void *";
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
@@ -408,7 +408,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 Bool arg_shallow = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
                 }
                 if (arg_shallow)
                     emit_deref(f, Expr_child(e, &(I64){(I64)(i)}), depth);
@@ -509,7 +509,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 Expr *arg = Expr_child(e, &(I64){(I64)(i)});
                 Bool arg_shallow = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                    arg_shallow = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
                 }
                 const char *arg_c = "void *";
                 if (arg->til_type.tag != TilType_TAG_Unknown && arg->til_type.tag != TilType_TAG_Dynamic) {
@@ -533,7 +533,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 if (i > 1) fprintf(f, ", ");
                 Bool arg_shallow2 = 0;
                 if (sig && i - 1 < sig->data.data.FuncDef.nparam) {
-                    arg_shallow2 = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(i - 1)}))->is_shallow;
+                    arg_shallow2 = ((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->is_shallow;
                 }
                 if (arg_shallow2)
                     emit_deref(f, Expr_child(e, &(I64){(I64)(i)}), depth);
@@ -682,7 +682,7 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
             } else if ((I32)i == fkwi) {
                 ptype = "Map *";
             } else {
-                Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)});
+                Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
                 if (_epi->is_shallow) {
                     ptype = type_name_to_c_value(&_epi->ptype);
                 } else {
@@ -690,7 +690,7 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
                 }
             }
             if (with_names)
-                fprintf(f, "%s %s", ptype, ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(i)}))->name.c_str);
+                fprintf(f, "%s %s", ptype, ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name.c_str);
             else
                 fprintf(f, "%s", ptype);
         }
@@ -1264,18 +1264,18 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
             // Parse and bind each param
             I32 argi = 1; // argv[0] is program name, skip it
             for (U32 i = 0; i < nparam; i++) {
-                Param *_bpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)});
+                Param *_bpi = (Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)});
                 Str *pname = &_bpi->name;
                 Str *ptype = &_bpi->ptype;
                 if ((I32)i == vi) {
                     // Build Array[T] from remaining args
                     const char *et = (const char *)ptype->c_str;
                     fprintf(f, "    int _va_argc = argc - %d;\n", argi);
-                    fprintf(f, "    U64 _va_esz = sizeof(%s);\n", et);
-                    fprintf(f, "    U64 _va_cap = _va_argc;\n");
-                    fprintf(f, "    Array *%s = Array_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(U64){_va_esz}, &(U64){_va_cap});\n", pname->c_str, et, (unsigned long long)ptype->count);
+                    fprintf(f, "    USize _va_esz = sizeof(%s);\n", et);
+                    fprintf(f, "    USize _va_cap = _va_argc;\n");
+                    fprintf(f, "    Array *%s = Array_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(USize){_va_esz}, &(USize){_va_cap});\n", pname->c_str, et, (unsigned long long)ptype->count);
                     fprintf(f, "    for (int _i = 0; _i < _va_argc; _i++) {\n");
-                    fprintf(f, "        U64 _idx = _i;\n");
+                    fprintf(f, "        USize _idx = _i;\n");
                     if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0))
                         fprintf(f, "        Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv[%d + _i], .count = strlen(argv[%d + _i]), .cap = TIL_CAP_LIT});\n", argi, argi);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0))
@@ -1292,7 +1292,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
                         fprintf(f, "        U64 *_val = cli_parse_u64(argv[%d + _i]);\n", argi);
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
                         fprintf(f, "        Bool *_val = cli_parse_bool(argv[%d + _i]);\n", argi);
-                    fprintf(f, "        Array_set(%s, &(U64){_idx}, _val);\n", pname->c_str);
+                    fprintf(f, "        Array_set(%s, &(USize){_idx}, _val);\n", pname->c_str);
                     fprintf(f, "    }\n");
                 } else if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
                     fprintf(f, "    Str *%s = Str_clone(&(Str){.c_str = (U8 *)argv[%d], .count = strlen(argv[%d]), .cap = TIL_CAP_LIT});\n", pname->c_str, argi, argi);
@@ -1329,9 +1329,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
             Set saved_shallow = shallow_locals;
             Map saved_stypes = shallow_local_types;
             Set saved_unsafe = unsafe_to_hoist;
-            { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
-            { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+            { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
+            { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
             collect_unsafe_to_hoist(body);
             in_main_func = 1;
             emit_body(f, body, 1);
@@ -1358,12 +1358,12 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
         emit_param_list(f, func_def, 1);
         fprintf(f, ") {\n");
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++)
-            fprintf(f, "    (void)%s;\n", ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)}))->name.c_str);
+            fprintf(f, "    (void)%s;\n", ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)}))->name.c_str);
         // NULL guard for struct delete methods (self may be NULL)
         if (name->count > 7 && memcmp(name->c_str + name->count - 7, "_delete", 7) == 0 &&
             func_def->data.data.FuncDef.nparam >= 1 &&
-            ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){0}))->name.count == 4 &&
-            memcmp(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){0}))->name.c_str, "self", 4) == 0)
+            ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){0}))->name.count == 4 &&
+            memcmp(((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){0}))->name.c_str, "self", 4) == 0)
             fprintf(f, "    if (!self) return;\n");
         in_func_def = 1;
         current_fdef = func_def;
@@ -1371,9 +1371,9 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
         Set saved_shallow = shallow_locals;
         Map saved_stypes = shallow_local_types;
         Set saved_unsafe = unsafe_to_hoist;
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
         collect_unsafe_to_hoist(body);
         emit_body(f, body, 1);
         Set_delete(&shallow_locals, &(Bool){0});
@@ -1509,7 +1509,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Collect variant names from non-namespace entries
         Vec vnames;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vnames = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = Expr_child(body, &(I64){(I64)(i)});
             if (v->data.data.Decl.is_namespace) continue;
@@ -1518,7 +1518,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Zero-arg constructors
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
+            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
             fprintf(f, "%s *%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    %s *r = malloc(sizeof(%s));\n", name->c_str, name->c_str);
             fprintf(f, "    *r = (%s){ .tag = %s_TAG_%s };\n", name->c_str, name->c_str, vn->c_str);
@@ -1528,7 +1528,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // is_Variant functions
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
+            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
             if (is_variant_shallow) {
                 fprintf(f, "Bool %s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
                 fprintf(f, "    return (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
@@ -1547,9 +1547,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Collect variant info from non-namespace entries
         Vec vnames;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); vnames = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vnames = *_vp; free(_vp); }
         Vec vtypes;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); vtypes = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vtypes = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = Expr_child(body, &(I64){(I64)(i)});
             if (v->data.data.Decl.is_namespace) continue;
@@ -1559,8 +1559,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Constructor functions for all variants
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
-            Str *vt = *(Str **)Vec_get(&vtypes, &(U64){(U64)(i)});
+            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
+            Str *vt = *(Str **)Vec_get(&vtypes, &(USize){(USize)(i)});
             if (vt->count == 0) {
                 // Zero-arg constructor for no-payload variant
                 fprintf(f, "%s *%s_%s() {\n", name->c_str, name->c_str, vn->c_str);
@@ -1591,7 +1591,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // is_Variant functions
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
+            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
             if (is_variant_shallow) {
                 fprintf(f, "Bool %s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
                 fprintf(f, "    return (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
@@ -1606,8 +1606,8 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // get_Variant functions (payload variants only)
         for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(U64){(U64)(i)});
-            Str *vt = *(Str **)Vec_get(&vtypes, &(U64){(U64)(i)});
+            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
+            Str *vt = *(Str **)Vec_get(&vtypes, &(USize){(USize)(i)});
             if (vt->count == 0) continue;
             const char *ptype = type_name_to_c(vt);
             fprintf(f, "%s %s_get_%s(%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
@@ -1674,13 +1674,13 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     Bool is_lib = *mode_is_lib_output(mode);
 
     // Build struct body lookup map
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
     // Build func_def lookup map (for shallow param lookup at call sites)
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
     // Initialize shallow_locals and unsafe_to_hoist sets for scalar local hoisting
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef) {
@@ -1719,7 +1719,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         }
     }
     // Collect FuncSig names (bodyless func/proc definitions)
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
     has_funcsig_names = 1;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
@@ -1749,7 +1749,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     {
         I64 slash = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
         I64 dot = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-        Str *base = (dot > slash) ? Str_substr(c_output_path, &(U64){0}, &(U64){(U64)dot}) : c_output_path;
+        Str *base = (dot > slash) ? Str_substr(c_output_path, &(USize){0}, &(USize){(USize)dot}) : c_output_path;
         Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
         build_forward_header(program, fwd_path);
     }
@@ -1767,7 +1767,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
 
         // Topo-sort struct/enum defs into header
         {
-            Vec to_emit_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(U32)}); to_emit_mh = *_vp; free(_vp); }
+            Vec to_emit_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_mh = *_vp; free(_vp); }
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
                 if (stmt->data.tag == ExprData_TAG_Decl &&
@@ -1776,7 +1776,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit_mh, _p); }
                 }
             }
-            Set emitted_mh; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); emitted_mh = *_sp; free(_sp); }
+            Set emitted_mh; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); emitted_mh = *_sp; free(_sp); }
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
             { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_mh, _p); }
@@ -1792,7 +1792,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Bool progress_mh = 0;
                 for (U32 ei = 0; ei < to_emit_mh.count; ei++) {
                     if (done_mh[ei]) continue;
-                    U32 idx = *(U32 *)Vec_get(&to_emit_mh, &(U64){(U64)(ei)});
+                    U32 idx = *(U32 *)Vec_get(&to_emit_mh, &(USize){(USize)(ei)});
                     Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
                     Str *name = &stmt->data.data.Decl.name;
                     Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
@@ -1862,7 +1862,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 if (!progress_mh) {
                     for (U32 ei = 0; ei < to_emit_mh.count; ei++) {
                         if (done_mh[ei]) continue;
-                        U32 idx = *(U32 *)Vec_get(&to_emit_mh, &(U64){(U64)(ei)});
+                        U32 idx = *(U32 *)Vec_get(&to_emit_mh, &(USize){(USize)(ei)});
                         Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
                         Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
                         if (def->data.tag == ExprData_TAG_StructDef) {
@@ -2100,10 +2100,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Forward declarations for dyn_call dispatch functions
     {
         Vec dyn_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
-            DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
+            DynCallInfo *info = Vec_get(&dyn_methods, &(USize){(USize)(m)});
             if (info->has_return) {
                 if (info->nargs == 1)
                     fprintf(f, "void *dyn_call_%s(Str *type_name, void *val);\n", info->method->c_str);
@@ -2135,10 +2135,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         }
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
-            Str **method = Vec_get(&has_methods, &(U64){(U64)(m)});
+            Str **method = Vec_get(&has_methods, &(USize){(USize)(m)});
             fprintf(f, "%s dyn_has_%s(Str *type_name);\n", dyn_has_ret, (*method)->c_str);
         }
         if (has_methods.count) fprintf(f, "\n");
@@ -2148,10 +2148,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Forward declarations for array/vec builtin helpers
     {
         Vec coll_infos;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
-            CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
+            CollectionInfo *ci = Vec_get(&coll_infos, &(USize){(USize)(i)});
             const char *prefix = ci->is_vec ? "vec" : "array";
             const char *ret = ci->is_vec ? "Vec" : "Array";
             fprintf(f, "%s *%s_of_%s(int count, ...);\n",
@@ -2185,7 +2185,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Emit top-level variable declarations as file-scope globals
     // so they're accessible from functions/procs defined at the same level
     {
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); script_globals = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); script_globals = *_sp; free(_sp); }
         has_script_globals = 1;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
@@ -2223,10 +2223,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Emit dyn_call dispatch function bodies
     {
         Vec dyn_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
-            DynCallInfo *info = Vec_get(&dyn_methods, &(U64){(U64)(m)});
+            DynCallInfo *info = Vec_get(&dyn_methods, &(USize){(USize)(m)});
             Str *method = info->method;
             const char *ret_type = info->has_return ? "void *" : "void ";
             if (info->nargs == 1)
@@ -2257,12 +2257,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 // Build arg expressions with shallow dereference where needed
                 char arg1[64], arg2_str[64];
                 Vec *ps = &method_fdef->data.data.FuncDef.params;
-                if (ps->count > 0 && ((Param*)Vec_get(ps, &(U64){(U64)(0)}))->is_shallow)
+                if (ps->count > 0 && ((Param*)Vec_get(ps, &(USize){(USize)(0)}))->is_shallow)
                     snprintf(arg1, sizeof(arg1), "*(%s *)val", tname->c_str);
                 else
                     snprintf(arg1, sizeof(arg1), "val");
                 if (info->nargs == 2) {
-                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && ((Param*)Vec_get(ps, &(U64){(U64)(1)}))->is_shallow)
+                    if (ps->count > 1 && method_fdef->data.data.FuncDef.nparam > 1 && ((Param*)Vec_get(ps, &(USize){(USize)(1)}))->is_shallow)
                         snprintf(arg2_str, sizeof(arg2_str), "*(%s *)arg2", tname->c_str);
                     else
                         snprintf(arg2_str, sizeof(arg2_str), "arg2");
@@ -2322,7 +2322,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Bool has_return = ret_type->count > 0;
                 Bool any_shallow = ret_shallow;
                 for (U32 p = 0; p < np; p++) {
-                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)}))->is_shallow)
+                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)}))->is_shallow)
                         any_shallow = 1;
                 }
                 if (!any_shallow) continue; // no wrapper needed
@@ -2349,7 +2349,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 }
                 for (U32 p = 0; p < np; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    Param *param = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)});
+                    Param *param = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
                     if (param->is_shallow) {
                         const char *pc = type_name_to_c_value(&param->ptype);
                         fprintf(f, "*(%s *)_a%d", pc, p);
@@ -2381,7 +2381,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 Str *mname = &field->data.data.Decl.name;
                 Bool any_shallow = fdef->data.data.FuncDef.return_is_shallow;
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
-                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)}))->is_shallow)
+                    if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)}))->is_shallow)
                         any_shallow = 1;
                 }
                 const char *suffix = any_shallow ? "_dyn" : "";
@@ -2410,10 +2410,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         }
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
-            Str **method_ptr = Vec_get(&has_methods, &(U64){(U64)(m)});
+            Str **method_ptr = Vec_get(&has_methods, &(USize){(USize)(m)});
             Str *method = *method_ptr;
             fprintf(f, "%s dyn_has_%s(Str *type_name) {\n    (void)type_name;\n", dyn_has_ret, method->c_str);
             for (U32 i = 0; i < program->children.count; i++) {
@@ -2452,16 +2452,16 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Emit array/vec builtin helper function bodies
     {
         Vec coll_infos;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
-            CollectionInfo *ci = Vec_get(&coll_infos, &(U64){(U64)(i)});
+            CollectionInfo *ci = Vec_get(&coll_infos, &(USize){(USize)(i)});
             const char *et = (const char *)ci->type_name->c_str;
             U64 et_len = ci->type_name->count;
             if (ci->is_vec) {
                 fprintf(f, "Vec *vec_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    U64 _esz = sizeof(%s);\n", et);
-                fprintf(f, "    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(U64){_esz});\n", et, (unsigned long long)et_len);
+                fprintf(f, "    USize _esz = sizeof(%s);\n", et);
+                fprintf(f, "    Vec *_v = Vec_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(USize){_esz});\n", et, (unsigned long long)et_len);
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
                 {
@@ -2483,12 +2483,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 fprintf(f, "}\n\n");
             } else {
                 fprintf(f, "Array *array_of_%s(int count, ...) {\n", et);
-                fprintf(f, "    U64 _esz = sizeof(%s);\n", et);
-                fprintf(f, "    U64 _cap = count;\n");
-                fprintf(f, "    Array *_a = Array_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(U64){_esz}, &(U64){_cap});\n", et, (unsigned long long)et_len);
+                fprintf(f, "    USize _esz = sizeof(%s);\n", et);
+                fprintf(f, "    USize _cap = count;\n");
+                fprintf(f, "    Array *_a = Array_new(&(Str){.c_str = (U8 *)\"%s\", .count = %lluULL, .cap = TIL_CAP_LIT}, &(USize){_esz}, &(USize){_cap});\n", et, (unsigned long long)et_len);
                 fprintf(f, "    va_list ap; va_start(ap, count);\n");
                 fprintf(f, "    for (int _i = 0; _i < count; _i++) {\n");
-                fprintf(f, "        U64 _idx = _i;\n");
+                fprintf(f, "        USize _idx = _i;\n");
                 {
                     char clone_name[256];
                     snprintf(clone_name, sizeof(clone_name), "%s_clone", et);
@@ -2501,7 +2501,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         fprintf(f, "        %s *_val = %s_clone(va_arg(ap, %s *));\n", et, et, et);
                     }
                 }
-                fprintf(f, "        Array_set(_a, &(U64){_idx}, _val);\n");
+                fprintf(f, "        Array_set(_a, &(USize){_idx}, _val);\n");
                 fprintf(f, "    }\n");
                 fprintf(f, "    va_end(ap);\n");
                 fprintf(f, "    return _a;\n");
@@ -2573,7 +2573,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         emit_ns_inits(f, 1);
         // Collect unsafe-to-hoist for script-level statements
         Set_delete(&unsafe_to_hoist, &(Bool){0});
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
         collect_unsafe_to_hoist(program);
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
@@ -2633,7 +2633,7 @@ static void emit_header_forward_decls(FILE *f, Expr *program) {
 static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
     // Struct definitions with fields in dependency order (topo sorted)
     {
-        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
+        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
             if (stmt->data.tag == ExprData_TAG_Decl &&
@@ -2642,7 +2642,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                 { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit_h, _p); }
             }
         }
-        Set emitted_h; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); emitted_h = *_sp; free(_sp); }
+        Set emitted_h; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); emitted_h = *_sp; free(_sp); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
@@ -2658,7 +2658,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
             Bool progress_h = 0;
             for (U32 ei = 0; ei < to_emit_h.count; ei++) {
                 if (done_h[ei]) continue;
-                U32 idx = *(U32 *)Vec_get(&to_emit_h, &(U64){(U64)(ei)});
+                U32 idx = *(U32 *)Vec_get(&to_emit_h, &(USize){(USize)(ei)});
                 Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
                 Str *name = &stmt->data.data.Decl.name;
                 Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
@@ -2728,7 +2728,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
             if (!progress_h) {
                 for (U32 ei = 0; ei < to_emit_h.count; ei++) {
                     if (done_h[ei]) continue;
-                    U32 idx = *(U32 *)Vec_get(&to_emit_h, &(U64){(U64)(ei)});
+                    U32 idx = *(U32 *)Vec_get(&to_emit_h, &(USize){(USize)(ei)});
                     Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
                     Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
                     if (def->data.tag == ExprData_TAG_StructDef) {
@@ -2861,7 +2861,7 @@ I32 build_forward_header(Expr *program, Str *fwd_path) {
 I32 build_header(Expr *program, Str *h_path) {
     // Collect FuncSig names for type_name_to_c
     if (!has_funcsig_names) {
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); funcsig_names = *_sp; free(_sp); }
         has_funcsig_names = 1;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
@@ -2876,7 +2876,7 @@ I32 build_header(Expr *program, Str *h_path) {
     {
         I64 slash = *Str_rfind(h_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
         I64 dot = *Str_rfind(h_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-        Str *base = (dot > slash) ? Str_substr(h_path, &(U64){0}, &(U64){(U64)dot}) : h_path;
+        Str *base = (dot > slash) ? Str_substr(h_path, &(USize){0}, &(USize){(USize)dot}) : h_path;
         Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
         build_forward_header(program, fwd_path);
     }
@@ -2899,7 +2899,7 @@ I32 build_header(Expr *program, Str *h_path) {
 // Dead code — replaced by emit_header_defs_and_funcs. Kept in #if 0 until verified.
 #if 0
     {
-        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
+        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
             if (stmt->data.tag == ExprData_TAG_Decl &&
@@ -2908,7 +2908,7 @@ I32 build_header(Expr *program, Str *h_path) {
                 { U32 *_p = malloc(sizeof(U32)); *_p = i; Vec_push(&to_emit_h, _p); }
             }
         }
-        Set emitted_h; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); emitted_h = *_sp; free(_sp); }
+        Set emitted_h; { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); emitted_h = *_sp; free(_sp); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"U8", .count = 2, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I16", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
         { Str *_p; _p = Str_clone(&(Str){.c_str = (U8*)"I32", .count = 3, .cap = CAP_LIT}); Set_add(&emitted_h, _p); }
@@ -2924,7 +2924,7 @@ I32 build_header(Expr *program, Str *h_path) {
             Bool progress_h = 0;
             for (U32 ei = 0; ei < to_emit_h.count; ei++) {
                 if (done_h[ei]) continue;
-                U32 idx = *(U32 *)Vec_get(&to_emit_h, &(U64){(U64)(ei)});
+                U32 idx = *(U32 *)Vec_get(&to_emit_h, &(USize){(USize)(ei)});
                 Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
                 Str *name = &stmt->data.data.Decl.name;
                 Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
@@ -2994,7 +2994,7 @@ I32 build_header(Expr *program, Str *h_path) {
             if (!progress_h) {
                 for (U32 ei = 0; ei < to_emit_h.count; ei++) {
                     if (done_h[ei]) continue;
-                    U32 idx = *(U32 *)Vec_get(&to_emit_h, &(U64){(U64)(ei)});
+                    U32 idx = *(U32 *)Vec_get(&to_emit_h, &(USize){(USize)(ei)});
                     Expr *stmt = Expr_child(program, &(I64){(I64)(idx)});
                     Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
                     if (def->data.tag == ExprData_TAG_StructDef) {
@@ -3185,7 +3185,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    Param *_sp = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)});
+                    Param *_sp = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
                     if (_sp->is_own)
                         fprintf(f, "own ");
                     fprintf(f, "%s: %s", _sp->name.c_str, _sp->ptype.c_str);
@@ -3227,7 +3227,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
                 fprintf(f, "    %s := %s(", field->data.data.Decl.name.c_str, kw);
                 for (U32 p = 0; p < fdef->data.data.FuncDef.nparam; p++) {
                     if (p > 0) fprintf(f, ", ");
-                    Param *_ep = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(U64){(U64)(p)});
+                    Param *_ep = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(p)});
                     if (_ep->is_own)
                         fprintf(f, "own ");
                     fprintf(f, "%s: %s", _ep->name.c_str, _ep->ptype.c_str);
@@ -3251,7 +3251,7 @@ I32 build_til_binding(Expr *program, Str *til_path, Str *lib_name) {
             fprintf(f, "%s := %s(", name->c_str, kw);
             for (U32 p = 0; p < rhs->data.data.FuncDef.nparam; p++) {
                 if (p > 0) fprintf(f, ", ");
-                Param *_fp = (Param*)Vec_get(&rhs->data.data.FuncDef.params, &(U64){(U64)(p)});
+                Param *_fp = (Param*)Vec_get(&rhs->data.data.FuncDef.params, &(USize){(USize)(p)});
                 if (_fp->is_own)
                     fprintf(f, "own ");
                 I32 vi = rhs->data.data.FuncDef.variadic_index;
@@ -3288,7 +3288,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
     {
         I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : &_dot_str;
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
     }
 
     // Raylib library path (ext_dir is <root>/src/c)
@@ -3367,7 +3367,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
     {
         I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(U64){(U64)(0)}, &(U64){(U64)(slash)}) : &_dot_str;
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
     }
 
     // Raylib library path (ext_dir is <root>/src/c)
@@ -3379,16 +3379,16 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     Str *user_part = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     if (user_c_path) {
         I64 c_slash = *Str_rfind(c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        Str *c_dir = c_slash >= 0 ? Str_substr(c_path, &(U64){0}, &(U64){(U64)c_slash}) : &_dot_str;
+        Str *c_dir = c_slash >= 0 ? Str_substr(c_path, &(USize){0}, &(USize){(USize)c_slash}) : &_dot_str;
         I64 c_dot = *Str_rfind(c_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-        Str *c_base = (c_dot > c_slash) ? Str_substr(c_path, &(U64){0}, &(U64){(U64)c_dot}) : c_path;
+        Str *c_base = (c_dot > c_slash) ? Str_substr(c_path, &(USize){0}, &(USize){(USize)c_dot}) : c_path;
         Str *fwd_path = Str_concat(c_base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
 
         // Split space-separated link_c files and compile each individually
         Vec *files = Str_split(user_c_path, &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT});
         Str *all_objs = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
         for (U32 fi = 0; fi < files->count; fi++) {
-            Str *file = (Str *)Vec_get(files, &(U64){(U64)fi});
+            Str *file = (Str *)Vec_get(files, &(USize){(USize)fi});
             if (file->count == 0) continue;
             char obj_name[32];
             snprintf(obj_name, sizeof(obj_name), "/user_%u.o", fi);

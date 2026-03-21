@@ -158,7 +158,7 @@ F32 F32_from_i64_ext(I64 *a) { return (F32)*a; }
 Str *F32_to_str(F32 v) {
     char buf[32];
     snprintf(buf, 32, "%g", (double)v);
-    U64 len = (U64)strlen(buf);
+    USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(len + 1);
     memcpy(s->c_str, buf, len + 1);
@@ -219,7 +219,7 @@ U64 U64_from_i64_ext(I64 *a) { return (U64)*a; }
 Str *U64_to_str(U64 v) {
     char buf[32];
     snprintf(buf, 32, "%llu", v);
-    U64 len = (U64)strlen(buf);
+    USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
     s->c_str = malloc(len + 1);
     memcpy(s->c_str, buf, len + 1);
@@ -394,7 +394,7 @@ Str *til_bin_dir(void) {
     for (int i = 0; i < 5; i++) {
         char test[PATH_MAX + 32];
         snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
-        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
+        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)buf, .count = (USize)strlen(buf), .cap = CAP_VIEW});
         slash = strrchr(buf, '/');
         if (!slash) break;
         *slash = '\0';
@@ -405,7 +405,7 @@ Str *til_bin_dir(void) {
 Str *til_realpath(Str *path) {
     char *abs = realpath((const char *)path->c_str, NULL);
     if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    Str *s = Str_clone(&(Str){.c_str = (U8*)abs, .count = (U64)strlen(abs), .cap = CAP_VIEW});
+    Str *s = Str_clone(&(Str){.c_str = (U8*)abs, .count = (USize)strlen(abs), .cap = CAP_VIEW});
     free(abs);
     return s;
 }
@@ -418,7 +418,7 @@ I32 til_system(Str *cmd) {
 
 Str *til_str_left(Str *s, U64 n) {
     if (!s || n == 0) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    U64 len = (U64)s->count;
+    USize len = (USize)s->count;
     if (n > len) n = len;
     char *buf = malloc(n + 1);
     memcpy(buf, s->c_str, n);

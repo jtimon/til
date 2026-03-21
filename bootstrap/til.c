@@ -27967,13 +27967,13 @@ int main(int argc, char **argv) {
     *NODE_CASE = 24;
     (void)NODE_CASE;
     int _va_argc = argc - 1;
-    U64 _va_esz = sizeof(Str);
-    U64 _va_cap = _va_argc;
-    Array *args = Array_new(&(Str){.c_str = (U8 *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}, &(U64){_va_esz}, &(U64){_va_cap});
+    USize _va_esz = sizeof(Str);
+    USize _va_cap = _va_argc;
+    Array *args = Array_new(&(Str){.c_str = (U8 *)"Str", .count = 3ULL, .cap = TIL_CAP_LIT}, &(USize){_va_esz}, &(USize){_va_cap});
     for (int _i = 0; _i < _va_argc; _i++) {
-        U64 _idx = _i;
+        USize _idx = _i;
         Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv[1 + _i], .count = strlen(argv[1 + _i]), .cap = TIL_CAP_LIT});
-        Array_set(args, &(U64){_idx}, _val);
+        Array_set(args, &(USize){_idx}, _val);
     }
     U64 _t4881; { U64 *_hp = (U64 *)Array_len(args); _t4881 = *_hp; free(_hp); }
     (void)_t4881;

@@ -9,7 +9,7 @@
 
 TypeScope *tscope_new(TypeScope *parent) {
     TypeScope *s = malloc(sizeof(TypeScope));
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(TypeBinding)}); s->bindings = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(TypeBinding)}); s->bindings = *_mp; free(_mp); }
     s->parent = parent;
     return s;
 }
@@ -327,8 +327,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_clone) continue;
 
         // Collect instance field names and ref/funcptr flags
-        Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
-        Vec field_refs; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(I32)}); field_refs = *_vp; free(_vp); }
+        Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); field_names = *_vp; free(_vp); }
+        Vec field_refs; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(I32)}); field_refs = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = Expr_child(body, &(I64){(I64)(j)});
             if (field->data.tag == ExprData_TAG_Decl && !field->data.data.Decl.is_namespace) {
@@ -365,8 +365,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr_add_child(ctor, ctor_name);
 
             for (U32 j = 0; j < field_names.count; j++) {
-                Str *fname = *(Str **)Vec_get(&field_names, &(U64){(U64)(j)});
-                I32 fref = *(I32 *)Vec_get(&field_refs, &(U64){(U64)(j)});
+                Str *fname = *(Str **)Vec_get(&field_names, &(USize){(USize)(j)});
+                I32 fref = *(I32 *)Vec_get(&field_refs, &(USize){(USize)(j)});
                 // self.field_name
                 Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
@@ -404,12 +404,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *func_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
         func_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
         func_def->data.data.FuncDef.nparam = 1;
-        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); func_def->data.data.FuncDef.params = *_v; free(_v); }
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); func_def->data.data.FuncDef.params = *_v; free(_v); }
         { Param *_p = calloc(1, sizeof(Param));
           _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
           _p->ptype = *sname;
           Vec_push(&func_def->data.data.FuncDef.params, _p); }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
         func_def->data.data.FuncDef.return_type = *sname;
         func_def->data.data.FuncDef.variadic_index = -1;
         func_def->data.data.FuncDef.kwargs_index = -1;
@@ -459,8 +459,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (has_delete) continue;
 
         // Collect instance field names and own flags (skip ref and func ptr fields)
-        Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str *)}); field_names = *_vp; free(_vp); }
-        Vec field_owns; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(I32)}); field_owns = *_vp; free(_vp); }
+        Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); field_names = *_vp; free(_vp); }
+        Vec field_owns; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(I32)}); field_owns = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = Expr_child(body, &(I64){(I64)(j)});
             if (field->data.tag == ExprData_TAG_Decl && !field->data.data.Decl.is_namespace &&
@@ -481,8 +481,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // For each field: self.field.delete(call_free=<true for own, false for inline>)
         for (U32 j = 0; j < field_names.count; j++) {
-            Str *fname = *(Str **)Vec_get(&field_names, &(U64){(U64)(j)});
-            I32 fown = *(I32 *)Vec_get(&field_owns, &(U64){(U64)(j)});
+            Str *fname = *(Str **)Vec_get(&field_names, &(USize){(USize)(j)});
+            I32 fown = *(I32 *)Vec_get(&field_owns, &(USize){(USize)(j)});
             Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
             self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
             Expr *field_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
@@ -531,7 +531,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // file (same as clone), not to main file
         proc_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
         proc_def->data.data.FuncDef.nparam = 2;
-        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); proc_def->data.data.FuncDef.params = *_v; free(_v); }
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); proc_def->data.data.FuncDef.params = *_v; free(_v); }
         { Param *_p = calloc(1, sizeof(Param));
           _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
           _p->ptype = *sname;
@@ -541,7 +541,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
           _p->name = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
           _p->ptype = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
           Vec_push(&proc_def->data.data.FuncDef.params, _p); }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); proc_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); proc_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
         { Str *_k = Str_clone(&(Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT}); Expr *_v = Expr_clone(default_true); Map_set(&proc_def->data.data.FuncDef.param_defaults, _k, _v); }
         proc_def->data.data.FuncDef.return_type = (Str){0};
         proc_def->data.data.FuncDef.variadic_index = -1;
@@ -590,8 +590,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)}); // ExprData_TAG_Body
 
         // Collect variant info (names + optional payload types)
-        Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str)}); variant_names = *_vp; free(_vp); }
-        Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Str)}); variant_types = *_vp; free(_vp); }
+        Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_names = *_vp; free(_vp); }
+        Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_types = *_vp; free(_vp); }
         Bool has_payloads = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             if (Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.is_namespace) continue;
@@ -611,7 +611,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 snprintf(buf, sizeof(buf), "%d", j);
                 lit->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
                 Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                 decl->data.data.Decl.is_namespace = true;
                 Expr_add_child(decl, lit);
                 Expr_add_child(body, decl);
@@ -621,24 +621,24 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             // Keep original variant markers as registry (don't compact)
 
             for (U32 j = 0; j < variant_names.count; j++) {
-                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
+                if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
                     // Payload variant: ext_func constructor
                     // e.g. Num := ext_func(val: I64) returns Token {}
                     Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
                     fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
                     fdef->data.data.FuncDef.nparam = 1;
-                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
                     { Param *_p = calloc(1, sizeof(Param));
                       _p->name = (Str){.c_str = (U8*)"val", .count = 3, .cap = CAP_LIT};
-                      _p->ptype = *(Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
+                      _p->ptype = *(Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
                       Vec_push(&fdef->data.data.FuncDef.params, _p); }
-                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
                     fdef->data.data.FuncDef.return_type = *ename;
                     fdef->data.data.FuncDef.variadic_index = -1;
                     fdef->data.data.FuncDef.kwargs_index = -1;
                     Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
                     Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                     decl->data.data.Decl.is_namespace = true;
                     Expr_add_child(decl, fdef);
                     Expr_add_child(body, decl);
@@ -648,14 +648,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
                     fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
                     fdef->data.data.FuncDef.nparam = 0;
-                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
                     fdef->data.data.FuncDef.return_type = *ename;
                     fdef->data.data.FuncDef.variadic_index = -1;
                     fdef->data.data.FuncDef.kwargs_index = -1;
                     Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
                     Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                     decl->data.data.Decl.is_namespace = true;
                     Expr_add_child(decl, fdef);
                     Expr_add_child(body, decl);
@@ -664,19 +664,19 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
             // Generate get_Variant ext_func for payload variants
             for (U32 j = 0; j < variant_names.count; j++) {
-                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count == 0) continue;
+                if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count == 0) continue;
                 char name_buf[256];
-                snprintf(name_buf, sizeof(name_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                snprintf(name_buf, sizeof(name_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                 Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
                 fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
                 fdef->data.data.FuncDef.nparam = 1;
-                { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+                { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
                 { Param *_p = calloc(1, sizeof(Param));
                   _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                   _p->ptype = *ename;
                   Vec_push(&fdef->data.data.FuncDef.params, _p); }
-                { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-                fdef->data.data.FuncDef.return_type = *(Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
+                { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+                fdef->data.data.FuncDef.return_type = *(Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
                 fdef->data.data.FuncDef.variadic_index = -1;
                 fdef->data.data.FuncDef.kwargs_index = -1;
                 Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
@@ -691,16 +691,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Generate is_Variant ext_func for every variant (all enums)
         for (U32 j = 0; j < variant_names.count; j++) {
             char name_buf[256];
-            snprintf(name_buf, sizeof(name_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+            snprintf(name_buf, sizeof(name_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
             fdef->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));
               _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
               _p->ptype = *ename;
               Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -734,7 +734,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                 char is_buf[256];
                 snprintf(is_buf, sizeof(is_buf), "is_%s",
-                         ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                         ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                 Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                 is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
                 Expr_add_child(is_acc, self_id);
@@ -743,8 +743,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
                 Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
 
-                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
-                    Str *vtype = (Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
+                if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
+                    Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
                     Bool is_funcsig = type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr;
 
                     // Payload variant:
@@ -786,7 +786,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         // return self.get_Vj().eq(other.get_Vj())
                         char get_buf[256];
                         snprintf(get_buf, sizeof(get_buf), "get_%s",
-                                 ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                                 ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                         Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         Expr *get_acc1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
@@ -844,7 +844,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fdef->data.data.FuncDef.nparam = 2;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));
               _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
               _p->ptype = *ename;
@@ -853,7 +853,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
               _p->name = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
               _p->ptype = *ename;
               Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -876,11 +876,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 ename_id->data.data.Ident = *ename;
                 Expr *ctor_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                ctor_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                ctor_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                 Expr_add_child(ctor_acc, ename_id);
 
                 Expr *ctor_expr;
-                if (((Str *)Vec_get(&variant_types, &(U64){(U64)(j)}))->count > 0) {
+                if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
                     // Payload variant: E.V(self.get_V())
                     Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
                     Expr_add_child(ctor_call, ctor_acc);
@@ -888,7 +888,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     self_g->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                     char get_buf[256];
                     snprintf(get_buf, sizeof(get_buf), "get_%s",
-                             ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                             ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                     Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                     get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
                     Expr_add_child(get_acc, self_g);
@@ -912,7 +912,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         char is_buf[256];
                         snprintf(is_buf, sizeof(is_buf), "is_%s",
-                                 ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                                 ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                         Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                         is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
                         Expr_add_child(is_acc, self_id);
@@ -929,7 +929,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr *en2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         en2->data.data.Ident = *ename;
                         Expr *va2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        va2->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                        va2->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                         Expr_add_child(va2, en2);
 
                         cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
@@ -953,12 +953,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fdef->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));
               _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
               _p->ptype = *ename;
               Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = *ename;
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -1002,7 +1002,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             // file (same as clone), not to main file
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fdef->data.data.FuncDef.nparam = 2;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));
               _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
               _p->ptype = *ename;
@@ -1012,7 +1012,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
               _p->name = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
               _p->ptype = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
               Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             { Str *_k = Str_clone(&(Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT}); Expr *_v = Expr_clone(default_true); Map_set(&fdef->data.data.FuncDef.param_defaults, _k, _v); }
             fdef->data.data.FuncDef.return_type = (Str){0};
             fdef->data.data.FuncDef.variadic_index = -1;
@@ -1035,7 +1035,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                     char is_buf[256];
-                    snprintf(is_buf, sizeof(is_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                    snprintf(is_buf, sizeof(is_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                     Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                     is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
                     Expr_add_child(is_acc, self_id);
@@ -1043,11 +1043,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr_add_child(is_call, is_acc);
 
                     Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-                    Str *vtype = (Str *)Vec_get(&variant_types, &(U64){(U64)(j)});
+                    Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
                     if (vtype && (*vtype).count > 0 && type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr) {
                         // FuncSig payload: return "Variant(func)"
                         char buf[256];
-                        snprintf(buf, sizeof(buf), "%s(func)", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        snprintf(buf, sizeof(buf), "%s(func)", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                         Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
                         ret_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
                         Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
@@ -1061,7 +1061,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr_add_child(fmt_call, fmt_id);
 
                         char prefix_buf[256];
-                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                         Expr *prefix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
                         prefix->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(prefix_buf), .count = (U64)strlen((const char*)(prefix_buf)), .cap = CAP_VIEW});
                         Expr_add_child(fmt_call, prefix);
@@ -1070,7 +1070,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                         char get_buf[256];
-                        snprintf(get_buf, sizeof(get_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(U64){(U64)(j)}))->c_str);
+                        snprintf(get_buf, sizeof(get_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
                         Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                         get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
                         Expr_add_child(get_acc, self2);
@@ -1093,7 +1093,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     } else {
                         // return "VariantName"
                         Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                        ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                        ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                         Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
                         Expr_add_child(ret, ret_str);
                         Expr_add_child(then_body, ret);
@@ -1115,7 +1115,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     ename_id->data.data.Ident = *ename;
                     Expr *var_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    var_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    var_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                     Expr_add_child(var_acc, ename_id);
 
                     Expr *eq_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
@@ -1123,7 +1123,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr_add_child(eq_call, var_acc);
 
                     Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                    ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(U64){(U64)(j)});
+                    ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
                     Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
                     Expr_add_child(ret, ret_str);
                     Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
@@ -1145,12 +1145,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fdef->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));
               _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
               _p->ptype = *ename;
               Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
             fdef->data.data.FuncDef.variadic_index = -1;
             fdef->data.data.FuncDef.kwargs_index = -1;
@@ -1256,8 +1256,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Expr *func_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
         func_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
         func_def->data.data.FuncDef.nparam = 0;
-        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); func_def->data.data.FuncDef.params = *_v; free(_v); }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); func_def->data.data.FuncDef.params = *_v; free(_v); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
         func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT};
         func_def->data.data.FuncDef.variadic_index = -1;
         func_def->data.data.FuncDef.kwargs_index = -1;
@@ -1336,7 +1336,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *fd = MK(ExprData_TAG_FuncDef); \
             fd->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func}; \
             fd->data.data.FuncDef.nparam = 2; \
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fd->data.data.FuncDef.params = *_v; free(_v); } \
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fd->data.data.FuncDef.params = *_v; free(_v); } \
             { Param *_p = calloc(1, sizeof(Param)); \
               _p->name = (Str){.c_str = (U8*)"a", .count = 1, .cap = CAP_LIT}; \
               _p->ptype = *sname; \
@@ -1345,7 +1345,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
               _p->name = (Str){.c_str = (U8*)"b", .count = 1, .cap = CAP_LIT}; \
               _p->ptype = *sname; \
               Vec_push(&fd->data.data.FuncDef.params, _p); } \
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fd->data.data.FuncDef.param_defaults = *_mp; free(_mp); } \
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fd->data.data.FuncDef.param_defaults = *_mp; free(_mp); } \
             fd->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}; \
             fd->data.data.FuncDef.variadic_index = -1; \
             fd->data.data.FuncDef.kwargs_index = -1; \
@@ -1427,13 +1427,13 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *fd = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fd->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fd->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(U64){sizeof(Param)}); fd->data.data.FuncDef.params = *_v; free(_v); }
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fd->data.data.FuncDef.params = *_v; free(_v); }
             { Param *_p = calloc(1, sizeof(Param));
               _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
               _p->ptype = *sname;
               _p->is_mut = true;
               Vec_push(&fd->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(U64){sizeof(Expr)}); fd->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fd->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
             fd->data.data.FuncDef.return_type = (Str){0};
             fd->data.data.FuncDef.variadic_index = -1;
             fd->data.data.FuncDef.kwargs_index = -1;
@@ -1478,8 +1478,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 }
                 def->data.data.FuncDef.func_type = sig->data.data.FuncDef.func_type;
                 for (U32 j = 0; j < sig->data.data.FuncDef.nparam; j++) {
-                    Param *dp = (Param*)Vec_get(&def->data.data.FuncDef.params, &(U64){(U64)(j)});
-                    Param *sp = (Param*)Vec_get(&sig->data.data.FuncDef.params, &(U64){(U64)(j)});
+                    Param *dp = (Param*)Vec_get(&def->data.data.FuncDef.params, &(USize){(USize)(j)});
+                    Param *sp = (Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(j)});
                     dp->ptype = sp->ptype;
                     dp->is_mut = sp->is_mut;
                     dp->is_own = sp->is_own;

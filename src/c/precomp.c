@@ -111,7 +111,7 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
     if (e->data.tag == ExprData_TAG_Ident) {
         Str *name = &e->data.data.Ident;
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
-            if (*Str_eq(&((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(U64){(U64)(i)}))->name, name)) return 0;
+            if (*Str_eq(&((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
         }
         if (*Map_has(&known, name)) return 0;
         if (scope_get(precomp_scope, name)) return 0;
@@ -151,7 +151,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
                 Expr_error(arg, &(Str){.c_str = (U8*)"macro argument must be known at compile time", .count = 44, .cap = CAP_LIT});
             }
             // Clean up: detach callee so it's not double-freed
-            memset(Vec_get(&eval_call->children, &(U64){(U64)(0)}), 0, sizeof(Expr));
+            memset(Vec_get(&eval_call->children, &(USize){(USize)(0)}), 0, sizeof(Expr));
             eval_call->children.count = 0;
             Expr_delete(eval_call, &(Bool){1});
             return NULL;
@@ -165,7 +165,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     Value result = eval_expr(scope, eval_call);
 
     // Clean up eval_call (detach callee ident first — it's shared with original)
-    memset(Vec_get(&eval_call->children, &(U64){(U64)(0)}), 0, sizeof(Expr));
+    memset(Vec_get(&eval_call->children, &(USize){(USize)(0)}), 0, sizeof(Expr));
     for (U32 i = 1; i < eval_call->children.count; i++)
         Expr_delete(Expr_child(eval_call, &(I64){(I64)(i)}), &(Bool){0});
     Vec_delete(&eval_call->children, &(Bool){0});
@@ -215,13 +215,13 @@ static void process_body(Scope *scope, Expr *body) {
             if (is_macro_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 1);
                 if (lit) {
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *lit;
                     track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 }
             } else if (is_func_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 0);
                 if (lit) {
-                    *(Expr*)Vec_get(&stmt->children, &(U64){(U64)(0)}) = *lit;
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *lit;
                     track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 } else {
                     track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));
@@ -250,13 +250,13 @@ static void process_body(Scope *scope, Expr *body) {
                 Expr *lit = try_eval_call(scope, stmt, 1);
                 if (lit) {
                     Expr_delete(stmt, &(Bool){1});
-                    *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *lit;
+                    *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *lit;
                 }
             } else if (is_func_call(stmt)) {
                 Expr *lit = try_eval_call(scope, stmt, 0);
                 if (lit) {
                     Expr_delete(stmt, &(Bool){1});
-                    *(Expr*)Vec_get(&body->children, &(U64){(U64)(i)}) = *lit;
+                    *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *lit;
                 }
             }
             break;
@@ -269,8 +269,8 @@ static void process_body(Scope *scope, Expr *body) {
 
 void precomp(Expr *program) {
     // 1. Collect macro and pure func names
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); macros = *_sp; free(_sp); }
-    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}); funcs = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); macros = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); funcs = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
@@ -325,7 +325,7 @@ void precomp(Expr *program) {
     ffi_init(program, NULL, NULL, NULL);
 
     // 3. Process the program body
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(U64){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(U64){sizeof(Value)}); known = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Value)}); known = *_mp; free(_mp); }
     process_body(global, program);
 
     // Cleanup
