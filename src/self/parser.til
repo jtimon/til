@@ -113,7 +113,7 @@ parse_fn_signature := proc(mut p: Parser, shallow line: U32, shallow col: U32) r
         ref m : Bool = pmuts.get(i)
         fd.params.push(own Param(name = "", ptype = t.clone(), is_mut = m))
     }
-    fd.nparam = fd.params.len().to_i64().to_u32()
+    fd.nparam = fd.params.len()
     mut sig := Expr.new(ExprData.FuncDef(fd), line, col, p.path)
 
     // Wrap in Decl and store for later emission
@@ -245,7 +245,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         fd.return_type = expect_text(p, TokenType.Ident)
     }
 
-    fd.nparam = fd.params.len().to_i64().to_u32()
+    fd.nparam = fd.params.len()
     mut def := Expr.new(ExprData.FuncDef(fd), kw_line, kw_col, p.path)
 
     if check(p, TokenType.LBrace) {
@@ -703,7 +703,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                     ref pn : Str = pnames.get(i)
                     ffd.params.push(own Param(name = pn.clone()))
                 }
-                ffd.nparam = np.to_i64().to_u32()
+                ffd.nparam = np
                 mut fdef := Expr.new(ExprData.FuncDef(ffd), t_line, t_col, p.path)
                 Expr.add_child(fdef, own body)
                 // Wrap in NODE_DECL with explicit_type

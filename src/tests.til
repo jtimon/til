@@ -14,7 +14,8 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
         pos := haystack.substr(start, haystack.len().sub(start)).find(needle)
         if pos.eq(-1) { return count }
         count = count.add(1)
-        start = start.add(pos.to_u32()).add(needle.len())
+        pos_u : USize = pos.to_u32()
+        start = start.add(pos_u).add(needle.len())
     }
     return count
 }
@@ -66,7 +67,8 @@ parse_kv := func(line: Str, key: Str) returns I64 {
     needle := key.concat("=")
     pos := line.find(needle)
     if pos.lt(0) { return 0 }
-    start := pos.to_u32().add(needle.len())
+    pos_u : USize = pos.to_u32()
+    start := pos_u.add(needle.len())
     mut end := start
     while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) {
         end = end.add(1)
@@ -238,8 +240,9 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                     mut result_line := ""
                     result_pos := runner_out.rfind("RESULT ")
                     if result_pos.gte(0) {
-                        result_line = runner_out.substr(result_pos.to_u32(),
-                            runner_out.len().sub(result_pos.to_u32()))
+                        result_pos_u : USize = result_pos.to_u32()
+                        result_line = runner_out.substr(result_pos_u,
+                            runner_out.len().sub(result_pos_u))
                     }
 
                     // Parse common fields

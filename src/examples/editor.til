@@ -218,8 +218,10 @@ main := proc(args: ..Str) {
         if is_key_pressed(261) {
             ref cur_line : Str = lines.get(cursor_y.to_u32())
             if cursor_x.lt(cur_line.len().to_i64()) {
-                new_line := cur_line.substr(0, cursor_x.to_u32()).concat(
-                    cur_line.substr(cursor_x.to_u32().add(1), cur_line.len().sub(cursor_x.to_u32().add(1)))
+                cursor_x_u : USize = cursor_x.to_u32()
+                next_x_u := cursor_x_u.add(1)
+                new_line := cur_line.substr(0, cursor_x_u).concat(
+                    cur_line.substr(next_x_u, cur_line.len().sub(next_x_u))
                 )
                 mut new_lines := Vec.new("Str", Str.size())
                 mut i : USize = 0

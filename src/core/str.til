@@ -167,9 +167,10 @@ namespace:
                 result = result.concat(rest)
                 return result
             }
-            result = result.concat(self.substr(start, pos.to_u32()))
+            pos_u : USize = pos.to_u32()
+            result = result.concat(self.substr(start, pos_u))
             result = result.concat(to)
-            start = start.add(pos.to_u32()).add(from.count)
+            start = start.add(pos_u).add(from.count)
         }
         if start.lt(self.count) {
             result = result.concat(self.substr(start, self.count.sub(start)))
