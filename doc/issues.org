@@ -240,15 +240,23 @@
     til.til uses Set.new/Set.has/Set.add directly. til_set_* removed
     from til_bridge.c. self_diff target and script also removed.
 
-*** TODO Bridge reduction: remaining bridges
-    Still using bridge functions for:
-    - expr_vec_new/push/get/count → native Vec ops (needs #91 first,
-      see blocker below)
-    - expr_get_tag/child/nchildren/str_val → direct Expr field access
-    - expr_swap_children → direct children assignment
-    - NODE_* I32 constants → ExprData enum methods
+*** DONE Bridge reduction: til_bridge.c removed
+    All 15 bridge functions replaced with native til operations:
+    - NODE_* constants + expr_get_tag → ExprData is_* methods
+    - expr_get_child/nchildren → Expr.child/child_count (ast.til)
+    - expr_get_str_val → ExprData get_Ident/get_LiteralStr
+    - expr_vec_new/push/get/count → Vec.new/push/get/len
+    - expr_swap_children → Expr.swap_children (pure til, own param)
+    - expr_null → removed (unused)
     - til_parse/til_parse_mode → direct parse() call
-    - mode_resolve/mode_is_lib → already til funcs, just drop ext_func
+    - til_interpret_v → direct interpret() call
+    - til_compile_c/lib → direct compile_c/compile_lib calls
+    - til_str_left → str_left helper (substr + clone)
+    - til_realpath → realpath_str (moved to ext.c)
+    - til_system → system_cmd (moved to ext.c)
+    - til_bin_dir → get_bin_dir (moved to ext.c)
+
+    src/c/til_bridge.c deleted. link_c directive removed from til.til.
 
 *** TODO Makefile: ~til build src/til.til~ instead of two-pass gcc
     ~til build~ generates C and compiles. Currently blocked by:
@@ -530,7 +538,7 @@
     | interpreter.c | 6 | 0 | ~20 |
     | dispatch.c | 6 | 2 (DispatchFn, FFIEntry) | ~30 |
     | builder.c | 8 | 0 | ~40 |
-    | til_bridge.c | 1 | 0 | ~8 (being removed #77) |
+    | til_bridge.c | -- deleted (#77) -- |
 
     DispatchFn is a function pointer typedef, FFIEntry has opaque
     libffi types (ffi_cif, ffi_type**) -- both left in C for now.
