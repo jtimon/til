@@ -1,7 +1,7 @@
 mode lib
 
-CAP_LIT : U64 = -1.to_u64()
-CAP_VIEW : U64 = -2.to_u64()
+CAP_LIT : USize = -1.to_u64()
+CAP_VIEW : USize = -2.to_u64()
 
 Str := struct {
     own mut c_str : U8 = 0
@@ -159,7 +159,7 @@ namespace:
     replace := func(self: Str, from: Str, to: Str) returns Str {
         if from.count.eq(0) { return self.clone() }
         mut result := ""
-        mut start : U64 = 0
+        mut start : USize = 0
         while start.lte(self.count.sub(from.count)) {
             rest := self.substr(start, self.count.sub(start))
             pos := rest.find(from)
@@ -205,7 +205,7 @@ namespace:
     to_i64 := func(self: Str) returns I64 {
         if self.count.eq(0) { panic(__LOC__, "Str.to_i64: empty string") }
         mut result := 0
-        mut start : U64 = 0
+        mut start : USize = 0
         mut neg := false
         ref first : U8 = self.get(0)
         if first.eq(45) {
@@ -231,8 +231,8 @@ namespace:
             parts.push(own self.clone())
             return parts
         }
-        mut start : U64 = 0
-        mut pos : U64 = 0
+        mut start : USize = 0
+        mut pos : USize = 0
         while pos.lte(self.len().sub(delim.len())) {
             if self.substr(pos, delim.len()).eq(delim) {
                 parts.push(own self.substr(start, pos.sub(start)).clone())

@@ -6,18 +6,18 @@ import("lexer.til")
 
 Parser := struct {
     mut tokens := Vec.new("Token", Token.size())
-    mut pos : U64 = 0
+    mut pos : USize = 0
     mut path := ""
     mut fn_sig_decls := Vec.new("Expr", Expr.size())
 }
 
 peek := func(p: Parser) returns ref Token {
-    ref t : Token = p.tokens.get(p.pos.to_i64().to_u64())
+    ref t : Token = p.tokens.get(p.pos)
     return t
 }
 
 advance := proc(mut p: Parser) returns ref Token {
-    ref t : Token = p.tokens.get(p.pos.to_i64().to_u64())
+    ref t : Token = p.tokens.get(p.pos)
     if t.type.eq(TokenType.Eof).not() {
         p.pos = p.pos.add(1)
     }
@@ -360,7 +360,7 @@ parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow cal
         // Named arg: IDENT '=' expr
         if check(p, TokenType.Ident) {
             if p.pos.add(1).lt(p.tokens.len()) {
-                ref next_tok : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
+                ref next_tok : Token = p.tokens.get(p.pos.add(1))
                 if next_tok.type.eq(TokenType.Eq) {
                     na_line := peek_line(p)
                     na_col := peek_col(p)
@@ -417,7 +417,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
     // Negative number: -N desugars to 0.sub(N)
     if e_set.not().and(t.type.eq(TokenType.Minus)) {
         if p.pos.add(1).lt(p.tokens.len()) {
-            ref next_tok : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
+            ref next_tok : Token = p.tokens.get(p.pos.add(1))
             if next_tok.type.eq(TokenType.Number) {
                 advance(p) // consume '-'
                 ref num_tok : Token = advance(p) // consume number
@@ -554,7 +554,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
                 // Named arg check
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.tokens.len()) {
-                        ref nt : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
+                        ref nt : Token = p.tokens.get(p.pos.add(1))
                         if nt.type.eq(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
@@ -749,7 +749,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                 // Named arg check
                 if check(p, TokenType.Ident) {
                     if p.pos.add(1).lt(p.tokens.len()) {
-                        ref nt : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
+                        ref nt : Token = p.tokens.get(p.pos.add(1))
                         if nt.type.eq(TokenType.Eq) {
                             na_line := peek_line(p)
                             na_col := peek_col(p)
@@ -921,7 +921,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
             if check(p, TokenType.KwMut) { advance(p); own_mut = true }
             if check(p, TokenType.Ident) {
                 if p.pos.add(1).lt(p.tokens.len()) {
-                    ref nt : Token = p.tokens.get(p.pos.add(1).to_i64().to_u64())
+                    ref nt : Token = p.tokens.get(p.pos.add(1))
                     if nt.type.eq(TokenType.ColonEq).or(nt.type.eq(TokenType.Colon)) {
                         return parse_statement_ident(p, own_mut, true)
                     }

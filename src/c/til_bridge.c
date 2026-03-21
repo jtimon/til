@@ -43,7 +43,7 @@ Str *expr_get_str_val(Expr *e) {
 }
 Expr *expr_get_child(Expr *e, U32 i) {
     if (!e || i >= e->children.count) return NULL;
-    return Expr_child(e, &(I64){(I64)(i)});
+    return Expr_child(e, &(USize){(USize)(i)});
 }
 U32 expr_nchildren(Expr *e) { return e ? e->children.count : 0; }
 // Replace children: old children are freed, new_children is moved in

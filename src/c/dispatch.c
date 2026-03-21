@@ -101,17 +101,17 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
         ffi_type_cache_inited = 1;
     }
     // Count instance fields
-    Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
+    Expr *body = Expr_child(struct_def, &(USize){(USize)(0)});
     U32 nfields = 0;
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(I64){(I64)(i)});
+        Expr *f = Expr_child(body, &(USize){(USize)(i)});
         if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace) nfields++;
     }
     // Build elements array (NULL-terminated)
     ffi_type **elements = malloc(sizeof(ffi_type *) * (nfields + 1));
     U32 idx = 0;
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(I64){(I64)(i)});
+        Expr *f = Expr_child(body, &(USize){(USize)(i)});
         if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace)
             elements[idx++] = field_ffi_type(f);
     }
@@ -160,38 +160,38 @@ static Value eval_arg(Scope *s, Expr *e) {
 // === Remaining handlers (name mismatch or local ext_func — can't use auto-FFI) ===
 
 static Bool h_Bool_and(Scope *s, Expr *e, Value *r) {
-    Value a = eval_arg(s, Expr_child(e, &(I64){(I64)(1)}));
-    Value b = eval_arg(s, Expr_child(e, &(I64){(I64)(2)}));
+    Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
     *r = val_bool(Bool_and(*a.boolean, *b.boolean)); return 1;
 }
 static Bool h_Bool_or(Scope *s, Expr *e, Value *r) {
-    Value a = eval_arg(s, Expr_child(e, &(I64){(I64)(1)}));
-    Value b = eval_arg(s, Expr_child(e, &(I64){(I64)(2)}));
+    Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
     *r = val_bool(Bool_or(*a.boolean, *b.boolean)); return 1;
 }
 static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
-    Value v = eval_arg(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value v = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
     *r = val_bool(Bool_not(*v.boolean)); return 1;
 }
 
 static Bool h_U8_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     *r = val_u8(U8_from_i64(*v.i64)); return 1;
 }
 static Bool h_I16_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     *r = val_i16(I16_from_i64(*v.i64)); return 1;
 }
 static Bool h_I32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     *r = val_i32(I32_from_i64(*v.i64)); return 1;
 }
 static Bool h_F32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     *r = val_f32(F32_from_i64(*v.i64)); return 1;
 }
 static Bool h_U32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     *r = val_u32(U32_from_i64(*v.i64)); return 1;
 }
 
@@ -200,7 +200,7 @@ static void *val_to_ptr(Value v);
 // === Print handlers ===
 
 static Bool h_print_single(Scope *s, Expr *e, Value *r) {
-    Value arg = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value arg = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str sv = str_view(arg);
     fwrite(sv.c_str, 1, sv.count, stdout);
     *r = val_none(); return 1;
@@ -215,20 +215,20 @@ static Bool h_print_flush(Scope *s, Expr *e, Value *r) {
 // === Misc handlers ===
 
 static Bool h_exit(Scope *s, Expr *e, Value *r) {
-    Value a = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value a = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     exit((int)*a.i64);
     *r = val_none(); return 1;
 }
 
 static Bool h_free(Scope *s, Expr *e, Value *r) {
-    if (Expr_child(e, &(I64){(I64)(1)})->data.tag != ExprData_TAG_Ident) {
-        Value val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    if (Expr_child(e, &(USize){(USize)(1)})->data.tag != ExprData_TAG_Ident) {
+        Value val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
         void *ptr = val_to_ptr(val);
         if (ptr) free(ptr);
         *r = val_none();
         return 1;
     }
-    Cell *cell = scope_get(s, &Expr_child(e, &(I64){(I64)(1)})->data.data.Ident);
+    Cell *cell = scope_get(s, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
     if (cell->val.type == VAL_STRUCT && cell->val.instance) {
         if (!cell->val.instance->borrowed)
             free(cell->val.instance->data);
@@ -269,10 +269,10 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
 
 // Shared helper for all dyn_call variants
 static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
-    Value method_val = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
+    Value method_val = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
     Str _mn = str_view(method_val);
     Str *method = &_mn;
 
@@ -300,7 +300,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
     // Skip child 3 (arity literal), actual args start at child 4
     for (U32 i = 4; i < e->children.count; i++) {
-        Expr *arg = Expr_child(e, &(I64){(I64)(i)});
+        Expr *arg = Expr_child(e, &(USize){(USize)(i)});
         Vec_push(&fake_call.children, Expr_clone(arg));
     }
 
@@ -327,8 +327,8 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
 
 // dyn_has_method(type_name, "method") → Bool
 static Bool h_dyn_has_method(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
-    Value method_val = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value method_val = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
     Str _mn = str_view(method_val);
@@ -340,8 +340,8 @@ static Bool h_dyn_has_method(Scope *s, Expr *e, Value *r) {
 
 // dyn_fn(type_name, "method") → function pointer
 static Bool h_dyn_fn(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
-    Value method_val = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value method_val = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
     Str _mn = str_view(method_val);
@@ -417,7 +417,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
 
 // array("I64", 1, 2, 3)
 static Bool h_array(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
     U32 count = e->children.count - 2;
@@ -429,7 +429,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
 
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
-        Value elem = eval_expr(s, Expr_child(e, &(I64){(I64)(i + 2)}));
+        Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
         void *src = val_raw_ptr(elem);
         if (src) {
             if (elem.type == VAL_STRUCT && (elem.instance->struct_name->count == 3 && memcmp(elem.instance->struct_name->c_str, "Str", 3) == 0)) {
@@ -473,7 +473,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
 
 // vec("I64", 1, 2, 3)
 static Bool h_vec(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str _tn = str_view(type_name_val);
     Str *type_name = &_tn;
     U32 count = e->children.count - 2;
@@ -486,7 +486,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
 
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
-        Value elem = eval_expr(s, Expr_child(e, &(I64){(I64)(i + 2)}));
+        Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
         void *src = val_raw_ptr(elem);
         if (src) {
             if (elem.type == VAL_STRUCT && (elem.instance->struct_name->count == 3 && memcmp(elem.instance->struct_name->c_str, "Str", 3) == 0)) {
@@ -549,8 +549,8 @@ static void *val_to_ptr(Value v) {
 
 
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
-    Value buf = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
-    Value offset = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
+    Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
     *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + *offset.u64};
     return 1;
 }
@@ -559,7 +559,7 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
 // === System primitive handlers ===
 
 static Bool h_readfile(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value path = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str sv = str_view(path);
     char *p = strndup((const char *)sv.c_str, sv.count);
     FILE *f = fopen(p, "rb");
@@ -580,8 +580,8 @@ static Bool h_readfile(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_writefile(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
-    Value content = eval_expr(s, Expr_child(e, &(I64){(I64)(2)}));
+    Value path = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
+    Value content = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
     Str pv = str_view(path);
     Str cv = str_view(content);
     char *p = strndup((const char *)pv.c_str, pv.count);
@@ -599,7 +599,7 @@ static Bool h_writefile(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
-    Value cmd = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value cmd = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str sv = str_view(cmd);
     char *c = strndup((const char *)sv.c_str, sv.count);
     pid_t pid = fork();
@@ -617,7 +617,7 @@ static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
-    Value pidv = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value pidv = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     int status;
     pid_t result = waitpid((pid_t)*pidv.i64, &status, WNOHANG);
     if (result == 0) { *r = val_i64(-1); return 1; }
@@ -627,14 +627,14 @@ static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
 }
 
 static Bool h_sleep(Scope *s, Expr *e, Value *r) {
-    Value ms = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value ms = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     usleep((useconds_t)(*ms.i64 * 1000));
     *r = val_none();
     return 1;
 }
 
 static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, Expr_child(e, &(I64){(I64)(1)}));
+    Value path = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Str sv = str_view(path);
     char *p = strndup((const char *)sv.c_str, sv.count);
     struct stat st;
@@ -739,7 +739,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             void *args[nargs > 0 ? nargs : 1];
             void *arg_ptrs[nargs > 0 ? nargs : 1];
             for (U32 i = 0; i < nargs; i++) {
-                Value v = eval_expr(scope, Expr_child(e, &(I64){(I64)(i + 1)}));
+                Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(i + 1)}));
                 if (fe->param_shallows && i < (U32)fe->nparam && fe->param_shallows[i]) {
                     // Shallow: store dereferenced value directly for ffi
                     if (v.type == VAL_STRUCT) {
@@ -921,7 +921,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         I32 ctor_tag = *enum_variant_tag(enum_def, method);
         if (ctor_tag >= 0) {
             if (enum_variant_type(enum_def, ctor_tag)->count > 0) {
-                Value payload = eval_expr(scope, Expr_child(e, &(I64){(I64)(1)}));
+                Value payload = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
                 *result = val_enum(enum_name, ctor_tag, clone_value(payload));
             } else {
                 *result = val_enum(enum_name, ctor_tag, val_none());
@@ -929,7 +929,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
             return 1;
         }
         if (method->count > 4 && memcmp(method->c_str, "get_", 4) == 0) {
-            Value v = eval_expr(scope, Expr_child(e, &(I64){(I64)(1)}));
+            Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
             *result = clone_value(v.enum_inst->payload);
             return 1;
         }
@@ -939,7 +939,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
     if (method->count > 3 && memcmp(method->c_str, "is_", 3) == 0) {
         Str var_name = {.c_str = method->c_str + 3, .count = method->count - 3};
         I32 tag = *enum_variant_tag(enum_def, &var_name);
-        Value v = eval_expr(scope, Expr_child(e, &(I64){(I64)(1)}));
+        Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
         if (v.type == VAL_ENUM)
             *result = val_bool(v.enum_inst->tag == tag);
         else
@@ -1059,10 +1059,10 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     // Build struct def map for return type lookup
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
-        Expr *sdef = Expr_child(stmt, &(I64){(I64)(0)});
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
+        Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
         { Str *_k = malloc(sizeof(Str)); *_k = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW};
           Expr **_v = malloc(sizeof(Expr *)); *_v = sdef;
           Map_set(&ffi_struct_defs, _k, _v); }
@@ -1071,12 +1071,12 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     // Scan program for ext_func/ext_proc, dlsym each
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;
 
         // Top-level ext_func/ext_proc
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-            Expr *fdef = Expr_child(stmt, &(I64){(I64)(0)});
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            Expr *fdef = Expr_child(stmt, &(USize){(USize)(0)});
             FuncType fft = fdef->data.data.FuncDef.func_type;
             if (fft.tag != FuncType_TAG_ExtFunc && fft.tag != FuncType_TAG_ExtProc) continue;
 
@@ -1086,14 +1086,14 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
         }
 
         // ext_struct namespace methods
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef && Expr_child(stmt, &(I64){(I64)(0)})->is_ext) {
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef && Expr_child(stmt, &(USize){(USize)(0)})->is_ext) {
             Str *sname = &stmt->data.data.Decl.name;
-            Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)});
+            Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (!field->data.data.Decl.is_namespace) continue;
                 if (field->children.count == 0) continue;
-                Expr *fdef = Expr_child(field, &(I64){(I64)(0)});
+                Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 if (fdef->data.tag != ExprData_TAG_FuncDef) continue;
                 FuncType fft = fdef->data.data.FuncDef.func_type;
                 if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
@@ -1106,11 +1106,11 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
                     }
                 } else if (fft.tag == FuncType_TAG_Func || fft.tag == FuncType_TAG_Proc) {
                     // Scan function body for nested ext_func/ext_proc declarations
-                    Expr *fbody = Expr_child(fdef, &(I64){(I64)(0)});
+                    Expr *fbody = Expr_child(fdef, &(USize){(USize)(0)});
                     for (U32 k = 0; k < fbody->children.count; k++) {
-                        Expr *inner = Expr_child(fbody, &(I64){(I64)(k)});
+                        Expr *inner = Expr_child(fbody, &(USize){(USize)(k)});
                         if (inner->data.tag != ExprData_TAG_Decl || inner->children.count == 0) continue;
-                        Expr *idef = Expr_child(inner, &(I64){(I64)(0)});
+                        Expr *idef = Expr_child(inner, &(USize){(USize)(0)});
                         if (idef->data.tag != ExprData_TAG_FuncDef) continue;
                         FuncType ift = idef->data.data.FuncDef.func_type;
                         if (ift.tag != FuncType_TAG_ExtFunc && ift.tag != FuncType_TAG_ExtProc) continue;

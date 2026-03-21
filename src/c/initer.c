@@ -116,12 +116,12 @@ static I32 align_up(I32 offset, I32 align) {
 static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
     if (struct_def->total_struct_size > 0) return; // already computed
 
-    Expr *body = Expr_child(struct_def, &(I64){(I64)(0)});
+    Expr *body = Expr_child(struct_def, &(USize){(USize)(0)});
     I32 offset = 0;
     I32 max_align = 1;
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+        Expr *field = Expr_child(body, &(USize){(USize)(i)});
         if (field->data.tag != ExprData_TAG_Decl || field->data.data.Decl.is_namespace) continue;
 
         I32 fsz, falign;
@@ -132,10 +132,10 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             // Resolve the pointed-to struct for field access
             Str *ftype = &field->data.data.Decl.explicit_type;
             if (ftype->count == 0 && field->children.count > 0) {
-                Expr *def_val = Expr_child(field, &(I64){(I64)(0)});
+                Expr *def_val = Expr_child(field, &(USize){(USize)(0)});
                 if (def_val->data.tag == ExprData_TAG_FCall && def_val->children.count > 0 &&
-                    Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
-                    ftype = &Expr_child(def_val, &(I64){(I64)(0)})->data.data.Ident;
+                    Expr_child(def_val, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(def_val, &(USize){(USize)(0)})->data.data.Ident;
                 if (ftype->count > 0) field->data.data.Decl.explicit_type = *ftype;
             }
             if (ftype->count > 0 && !(ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0) && !(ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0) && !(ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) {
@@ -154,24 +154,24 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             Str _Bool_s = {.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
             Str *ftype = &field->data.data.Decl.explicit_type;
             if (ftype->count == 0 && field->children.count > 0) {
-                Expr *def_val = Expr_child(field, &(I64){(I64)(0)});
+                Expr *def_val = Expr_child(field, &(USize){(USize)(0)});
                 if (def_val->data.tag == ExprData_TAG_LiteralNum) ftype = &_I64_s;
                 else if (def_val->data.tag == ExprData_TAG_LiteralStr) ftype = &_Str_s;
                 else if (def_val->data.tag == ExprData_TAG_LiteralBool) ftype = &_Bool_s;
                 else if (def_val->struct_name.count > 0) ftype = &def_val->struct_name;
                 // FCALL default (e.g. Point()): callee ident is the struct name
                 else if (def_val->data.tag == ExprData_TAG_FCall && def_val->children.count > 0 &&
-                         Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
-                    ftype = &Expr_child(def_val, &(I64){(I64)(0)})->data.data.Ident;
+                         Expr_child(def_val, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(def_val, &(USize){(USize)(0)})->data.data.Ident;
                 // Namespace FCALL default (e.g. Vec.new(...)): struct name is in field access child
                 else if (def_val->data.tag == ExprData_TAG_FCall && def_val->children.count > 0 &&
-                         Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-                         Expr_child(Expr_child(def_val, &(I64){(I64)(0)}), &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
-                    ftype = &Expr_child(Expr_child(def_val, &(I64){(I64)(0)}), &(I64){(I64)(0)})->data.data.Ident;
+                         Expr_child(def_val, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                         Expr_child(Expr_child(def_val, &(USize){(USize)(0)}), &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(Expr_child(def_val, &(USize){(USize)(0)}), &(USize){(USize)(0)})->data.data.Ident;
                 // Namespace field access default (e.g. MyEnum.C): type is the parent ident
                 else if (def_val->data.tag == ExprData_TAG_FieldAccess && def_val->children.count > 0 &&
-                         Expr_child(def_val, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident)
-                    ftype = &Expr_child(def_val, &(I64){(I64)(0)})->data.data.Ident;
+                         Expr_child(def_val, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident)
+                    ftype = &Expr_child(def_val, &(USize){(USize)(0)})->data.data.Ident;
                 // Store resolved type for interpreter's read_field
                 if (ftype->count > 0) field->data.data.Decl.explicit_type = *ftype;
             }
@@ -228,15 +228,15 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
 
 static void compute_all_struct_layouts(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
         Str *sname = &stmt->data.data.Decl.name;
         if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
             (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        compute_struct_layout(Expr_child(stmt, &(I64){(I64)(0)}), scope);
+        compute_struct_layout(Expr_child(stmt, &(USize){(USize)(0)}), scope);
     }
 }
 
@@ -247,9 +247,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
     // Pass 1: register all struct definitions
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
         Str *sname = &stmt->data.data.Decl.name;
 
@@ -279,29 +279,29 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *b = tscope_find(scope, sname);
-        b->struct_def = Expr_child(stmt, &(I64){(I64)(0)});
+        b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
         b->is_builtin = is_builtin;
-        b->is_ext = Expr_child(stmt, &(I64){(I64)(0)})->is_ext;
+        b->is_ext = Expr_child(stmt, &(USize){(USize)(0)})->is_ext;
     }
 
     // Pass 1.1: pre-register FuncSig type aliases (bodyless func/proc defs)
     // Needed before struct layout/clone/delete so FuncSig-typed struct fields are recognized
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->children.count != 0) continue; // bodyless = FuncSig
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->children.count != 0) continue; // bodyless = FuncSig
         tscope_set(scope, &stmt->data.data.Decl.name, (TilType){TilType_TAG_FuncPtr}, -1, 0,
                    stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
-        if (fb) fb->func_def = Expr_child(stmt, &(I64){(I64)(0)});
+        if (fb) fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
     }
 
     // Pass 1.5: auto-generate clone methods for all structs
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
         Str *sname = &stmt->data.data.Decl.name;
 
@@ -309,15 +309,15 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
             (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        Expr *sdef = Expr_child(stmt, &(I64){(I64)(0)});
+        Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
         if (sdef->is_ext && stmt->is_core) continue;
 
-        Expr *body = Expr_child(sdef, &(I64){(I64)(0)}); // ExprData_TAG_Body
+        Expr *body = Expr_child(sdef, &(USize){(USize)(0)}); // ExprData_TAG_Body
 
         // Check if clone already exists in namespace
         Bool has_clone = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
                 (field->data.data.Decl.name.count == 5 && memcmp(field->data.data.Decl.name.c_str, "clone", 5) == 0)) {
                 has_clone = 1;
@@ -330,7 +330,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); field_names = *_vp; free(_vp); }
         Vec field_refs; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(I32)}); field_refs = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (field->data.tag == ExprData_TAG_Decl && !field->data.data.Decl.is_namespace) {
                 { Str **_p = malloc(sizeof(Str *)); *_p = &field->data.data.Decl.name; Vec_push(&field_names, _p); }
                 I32 ref_flag = field->data.data.Decl.is_ref ? 1 : 0;
@@ -431,9 +431,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
     // Pass 1.7: auto-generate delete methods for all structs
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_StructDef) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
 
         Str *sname = &stmt->data.data.Decl.name;
 
@@ -441,15 +441,15 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
             (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        Expr *sdef = Expr_child(stmt, &(I64){(I64)(0)});
+        Expr *sdef = Expr_child(stmt, &(USize){(USize)(0)});
         if (sdef->is_ext && stmt->is_core) continue;
 
-        Expr *body = Expr_child(sdef, &(I64){(I64)(0)}); // ExprData_TAG_Body
+        Expr *body = Expr_child(sdef, &(USize){(USize)(0)}); // ExprData_TAG_Body
 
         // Check if delete already exists in namespace
         Bool has_delete = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
                 (field->data.data.Decl.name.count == 6 && memcmp(field->data.data.Decl.name.c_str, "delete", 6) == 0)) {
                 has_delete = 1;
@@ -462,7 +462,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec field_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); field_names = *_vp; free(_vp); }
         Vec field_owns; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(I32)}); field_owns = *_vp; free(_vp); }
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (field->data.tag == ExprData_TAG_Decl && !field->data.data.Decl.is_namespace &&
                 !field->data.data.Decl.is_ref) {
                 // Skip FuncSig-typed fields — func ptrs don't need delete
@@ -564,9 +564,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
     // Pass 1.8: register enum definitions, generate variants + methods
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
 
         Str *ename = &stmt->data.data.Decl.name;
         I32 line = stmt->line, col = stmt->col;
@@ -585,19 +585,19 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Register in type scope
         tscope_set(scope, ename, (TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
         TypeBinding *b = tscope_find(scope, ename);
-        b->struct_def = Expr_child(stmt, &(I64){(I64)(0)});
+        b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
 
-        Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)}); // ExprData_TAG_Body
+        Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)}); // ExprData_TAG_Body
 
         // Collect variant info (names + optional payload types)
         Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_names = *_vp; free(_vp); }
         Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_types = *_vp; free(_vp); }
         Bool has_payloads = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            if (Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.is_namespace) continue;
-            { Str *_p = Str_clone(&Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.name); Vec_push(&variant_names, _p); }
-            { Str *_p = Str_clone(&Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.explicit_type); Vec_push(&variant_types, _p); }
-            if ((Expr_child(body, &(I64){(I64)(j)})->data.data.Decl.explicit_type.count > 0)) has_payloads = 1;
+            if (Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.is_namespace) continue;
+            { Str *_p = Str_clone(&Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.name); Vec_push(&variant_names, _p); }
+            { Str *_p = Str_clone(&Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.explicit_type); Vec_push(&variant_types, _p); }
+            if ((Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.explicit_type.count > 0)) has_payloads = 1;
         }
 
         if (!has_payloads) {
@@ -715,9 +715,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Check existing methods
         Bool has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = Expr_child(body, &(I64){(I64)(j)});
+            Expr *f = Expr_child(body, &(USize){(USize)(j)});
             if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
-            if (f->children.count == 0 || Expr_child(f, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+            if (f->children.count == 0 || Expr_child(f, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
             if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "eq", 2) == 0)) has_eq = 1;
             if ((f->data.data.Decl.name.count == 5 && memcmp(f->data.data.Decl.name.c_str, "clone", 5) == 0)) has_clone = 1;
             if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "delete", 6) == 0)) has_delete = 1;
@@ -1170,9 +1170,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1.85: register type aliases (Name := ExistingType where RHS is a known type name)
     // Must run after Pass 1 (structs), Pass 1.1 (FuncSigs), and Pass 1.8 (enums)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
         if (rhs->data.tag != ExprData_TAG_Ident) continue;
         // RHS is a simple identifier — check if it refers to a known type
         Str *target_name = &rhs->data.data.Ident;
@@ -1206,9 +1206,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1.92: auto-generate size methods for structs and enums
     // Uses total_struct_size computed above for correct values (includes alignment padding)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+        Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
         if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
 
         Str *sname = &stmt->data.data.Decl.name;
@@ -1220,12 +1220,12 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Skip core ext_structs (they define size in core.til)
         if (def->is_ext && stmt->is_core) continue;
 
-        Expr *body = Expr_child(def, &(I64){(I64)(0)}); // ExprData_TAG_Body
+        Expr *body = Expr_child(def, &(USize){(USize)(0)}); // ExprData_TAG_Body
 
         // Check if size already exists in namespace
         Bool has_size = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = Expr_child(body, &(I64){(I64)(j)});
+            Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
                 (field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0)) {
                 has_size = 1;
@@ -1277,23 +1277,23 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // From cmp: eq, neq, lt, gt, lte, gte (if missing)
     // From add+unity: inc (if missing). From sub+unity: dec (if missing)
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+        Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
         if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
 
         Str *sname = &stmt->data.data.Decl.name;
         if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
             (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
 
-        Expr *body = Expr_child(def, &(I64){(I64)(0)});
+        Expr *body = Expr_child(def, &(USize){(USize)(0)});
         Bool has_cmp = 0, has_eq = 0, has_neq = 0;
         Bool has_lt = 0, has_gt = 0, has_lte = 0, has_gte = 0;
         Bool has_add = 0, has_sub = 0, has_unity = 0, has_inc = 0, has_dec = 0;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = Expr_child(body, &(I64){(I64)(j)});
+            Expr *f = Expr_child(body, &(USize){(USize)(j)});
             if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
-            if (f->children.count == 0 || Expr_child(f, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+            if (f->children.count == 0 || Expr_child(f, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
             Str *fn = &f->data.data.Decl.name;
             if ((fn->count == 3 && memcmp(fn->c_str, "cmp", 3) == 0)) has_cmp = 1;
             if ((fn->count == 2 && memcmp(fn->c_str, "eq", 2) == 0)) has_eq = 1;
@@ -1449,16 +1449,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
     // Pass 2: register all func/proc definitions
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
 
         // Bodyless func/proc = FuncSig type definition
-        if (Expr_child(stmt, &(I64){(I64)(0)})->children.count == 0) {
+        if (Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) {
             tscope_set(scope, &stmt->data.data.Decl.name, (TilType){TilType_TAG_FuncPtr}, -1, 0,
                        stmt->line, stmt->col, 0, 0);
             TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
-            if (fb) fb->func_def = Expr_child(stmt, &(I64){(I64)(0)});
+            if (fb) fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
             continue;
         }
 
@@ -1467,7 +1467,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (stmt->data.data.Decl.explicit_type.count > 0) {
             TypeBinding *fsb = tscope_find(scope, &stmt->data.data.Decl.explicit_type);
             if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
-                Expr *def = Expr_child(stmt, &(I64){(I64)(0)});
+                Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
                 Expr *sig = fsb->func_def;
                 if (def->data.data.FuncDef.nparam != sig->data.data.FuncDef.nparam) {
                     fprintf(stderr, "%s:%u:%u: error: '%s' expects %u params but FuncSig '%s' has %u\n",
@@ -1492,16 +1492,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             }
         }
 
-        FuncType ft = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+        FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
         I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
         TilType rt = (TilType){TilType_TAG_None};
-        if ((Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_type.count > 0)) {
-            rt = type_from_name_init(&Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_type, scope);
+        if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
+            rt = type_from_name_init(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
         }
         tscope_set(scope, &stmt->data.data.Decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
         if (fb) {
-            fb->func_def = Expr_child(stmt, &(I64){(I64)(0)});
+            fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
             if (ft.tag == FuncType_TAG_ExtFunc || ft.tag == FuncType_TAG_ExtProc)
                 fb->is_builtin = 1;
         }

@@ -150,11 +150,11 @@ Expr := struct {
     add_child := proc(mut self: Expr, own child: Expr) {
         self.children.push(own child)
     }
-    child := func(parent: Expr, i: I64) returns ref Expr {
-        ref c : Expr = parent.children.get(i.to_u64())
+    child := func(parent: Expr, i: USize) returns ref Expr {
+        ref c : Expr = parent.children.get(i)
         return c
     }
-    child_count := func(parent: Expr) returns I64 {
+    child_count := func(parent: Expr) returns USize {
         return parent.children.len()
     }
     new := func(data: ExprData, shallow line: U32, shallow col: U32, path: Str) returns Expr {
@@ -255,7 +255,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     if e.children.len().gt(0) {
         println("")
         for i in 0..e.children.len() {
-            ast_print(Expr.child(e, i.to_i64()), indent.add(1))
+            ast_print(Expr.child(e, i), indent.add(1))
         }
         for i in 0..indent.to_i64().to_u64() {
             print("  ")
@@ -268,8 +268,8 @@ ast_print := proc(e: Expr, shallow indent: U32) {
 
 enum_has_payloads := func(enum_def: Expr) returns Bool {
     ref body : Expr = Expr.child(enum_def, 0)
-    for i in 0..Expr.child_count(body).to_u64() {
-        ref f : Expr = Expr.child(body, i.to_i64())
+    for i in 0..Expr.child_count(body) {
+        ref f : Expr = Expr.child(body, i)
         if f.data.is_Decl() {
             decl := f.data.get_Decl()
             if decl.is_namespace.not().and(decl.explicit_type.len().gt(0)) {
@@ -283,8 +283,8 @@ enum_has_payloads := func(enum_def: Expr) returns Bool {
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     ref body : Expr = Expr.child(enum_def, 0)
     mut tag : I32 = 0
-    for i in 0..Expr.child_count(body).to_u64() {
-        ref f : Expr = Expr.child(body, i.to_i64())
+    for i in 0..Expr.child_count(body) {
+        ref f : Expr = Expr.child(body, i)
         if f.data.is_Decl() {
             decl := f.data.get_Decl()
             if decl.is_namespace.not() {
@@ -299,8 +299,8 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
     ref body : Expr = Expr.child(enum_def, 0)
     mut idx : I32 = 0
-    for i in 0..Expr.child_count(body).to_u64() {
-        ref f : Expr = Expr.child(body, i.to_i64())
+    for i in 0..Expr.child_count(body) {
+        ref f : Expr = Expr.child(body, i)
         if f.data.is_Decl() {
             decl := f.data.get_Decl()
             if decl.is_namespace.not() {

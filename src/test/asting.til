@@ -35,5 +35,5 @@ test_expr_children := test() {
     child2 := Expr.new(ExprData.Body, 3, 1, "test.til")
     Expr.add_child(parent, own child1)
     Expr.add_child(parent, own child2)
-    assert_eq(__LOC__, Expr.child_count(parent), 2)
+    assert_eq(__LOC__, Expr.child_count(parent).to_i64(), 2)
 }

@@ -245,18 +245,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                 }
             }
-            infer_body(func_scope, Expr_child(e, &(I64){(I64)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref);
+            infer_body(func_scope, Expr_child(e, &(USize){(USize)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref);
             // Check: macro must have a return type (funcs allowed without)
             if (is_macro && (e->data.data.FuncDef.return_type).count == 0) {
                 type_error(e, "macro must declare a return type");
             }
             // Validate ref returns: every return value must be a param or ref variable
             if (e->data.data.FuncDef.return_is_ref) {
-                Expr *body = Expr_child(e, &(I64){(I64)(0)});
+                Expr *body = Expr_child(e, &(USize){(USize)(0)});
                 for (U32 ri = 0; ri < body->children.count; ri++) {
-                    Expr *s = Expr_child(body, &(I64){(I64)(ri)});
+                    Expr *s = Expr_child(body, &(USize){(USize)(ri)});
                     if (s->data.tag != ExprData_TAG_Return || s->children.count == 0) continue;
-                    Expr *rv = Expr_child(s, &(I64){(I64)(0)});
+                    Expr *rv = Expr_child(s, &(USize){(USize)(0)});
                     Bool ok = 0;
                     if (rv->data.tag == ExprData_TAG_Ident) {
                         TypeBinding *rb = tscope_find(func_scope, &rv->data.data.Ident);
@@ -274,9 +274,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->til_type = (TilType){TilType_TAG_None};
         // Reject ref payloads in tagged enum variants
         if (e->data.tag == ExprData_TAG_EnumDef) {
-            Expr *body = Expr_child(e, &(I64){(I64)(0)});
+            Expr *body = Expr_child(e, &(USize){(USize)(0)});
             for (U32 vi = 0; vi < body->children.count; vi++) {
-                Expr *v = Expr_child(body, &(I64){(I64)(vi)});
+                Expr *v = Expr_child(body, &(USize){(USize)(vi)});
                 if (v->data.tag == ExprData_TAG_Decl && !v->data.data.Decl.is_namespace &&
                     (v->data.data.Decl.explicit_type).count > 0 && v->data.data.Decl.is_ref) {
                     type_error(v, "ref payloads in tagged enum variants are not supported");
@@ -286,15 +286,15 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Type-check field declarations in a child scope so fields
         // don't leak into outer scope's locals for free-call insertion
         TypeScope *inner = tscope_new(scope);
-        infer_body(inner, Expr_child(e, &(I64){(I64)(0)}), 0, 0, 0, 0);
+        infer_body(inner, Expr_child(e, &(USize){(USize)(0)}), 0, 0, 0, 0);
         tscope_free(inner);
         break;
     }
     case ExprData_TAG_FCall: {
         // Namespace method call or UFCS: Type.method(args) or instance.method(args)
-        if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess) {
-            Expr *fa = Expr_child(e, &(I64){(I64)(0)});
-            Expr *obj = Expr_child(fa, &(I64){(I64)(0)});
+        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
+            Expr *fa = Expr_child(e, &(USize){(USize)(0)});
+            Expr *obj = Expr_child(fa, &(USize){(USize)(0)});
             Str *method = &fa->data.data.FieldAccess;
 
             // Type just the object first (not the full field access)
@@ -317,13 +317,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Expr *sdef = type_name ? tscope_get_struct(scope, type_name) : NULL;
                 Expr *ns_func = NULL;
                 if (sdef) {
-                    Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+                    Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
                     for (U32 i = 0; i < body->children.count; i++) {
-                        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+                        Expr *field = Expr_child(body, &(USize){(USize)(i)});
                         if (field->data.data.Decl.is_namespace &&
                             *Str_eq(&field->data.data.Decl.name, method) &&
-                            Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                            ns_func = Expr_child(field, &(I64){(I64)(0)});
+                            Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                            ns_func = Expr_child(field, &(USize){(USize)(0)});
                             break;
                         }
                     }
@@ -364,9 +364,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     // Fallback: check if method is a FuncSig-typed struct field
                     // e.g. h.on_click(3, 5) where on_click is a BinaryOp field
                     if (sdef && (obj->til_type.tag == TilType_TAG_Struct || obj->til_type.tag == TilType_TAG_Enum)) {
-                        Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+                        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
                         for (U32 fi = 0; fi < body->children.count; fi++) {
-                            Expr *field = Expr_child(body, &(I64){(I64)(fi)});
+                            Expr *field = Expr_child(body, &(USize){(USize)(fi)});
                             if (field->data.tag != ExprData_TAG_Decl || field->data.data.Decl.is_namespace) continue;
                             if (!*Str_eq(&field->data.data.Decl.name, method)) continue;
                             if (field->data.data.Decl.explicit_type.count == 0) continue;
@@ -386,7 +386,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                     type_error(e, buf2);
                                 }
                                 for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
-                                    infer_expr(scope, Expr_child(e, &(I64){(I64)(ai + 1)}), in_func);
+                                    infer_expr(scope, Expr_child(e, &(USize){(USize)(ai + 1)}), in_func);
                                 }
                                 e->fn_sig = sig;
                                 if (sig->data.data.FuncDef.return_type.count > 0) {
@@ -430,25 +430,25 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *instance;
                 // Fall through -- existing code below handles Type.method(instance, args)
                 // Re-fetch after e->children mutation (push may realloc)
-                fa = Expr_child(e, &(I64){(I64)(0)});
+                fa = Expr_child(e, &(USize){(USize)(0)});
                 method = &fa->data.data.FieldAccess;
             }
 
             // Type the (possibly new) object and look up namespace func
-            obj = Expr_child(fa, &(I64){(I64)(0)});
+            obj = Expr_child(fa, &(USize){(USize)(0)});
             if (obj->til_type.tag == TilType_TAG_Unknown) {
                 infer_expr(scope, obj, in_func);
             }
             Expr *sdef = (obj->struct_name).count > 0 ? tscope_get_struct(scope, &obj->struct_name) : NULL;
             Expr *ns_func = NULL;
             if (sdef) {
-                Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+                Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
                 for (U32 i = 0; i < body->children.count; i++) {
-                    Expr *field = Expr_child(body, &(I64){(I64)(i)});
+                    Expr *field = Expr_child(body, &(USize){(USize)(i)});
                     if (field->data.data.Decl.is_namespace &&
                         *Str_eq(&field->data.data.Decl.name, method) &&
-                        Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                        ns_func = Expr_child(field, &(I64){(I64)(0)});
+                        Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                        ns_func = Expr_child(field, &(USize){(USize)(0)});
                         break;
                     }
                 }
@@ -468,7 +468,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 U32 pos_idx = 0;
                 Bool seen_named = 0;
                 for (U32 i = 1; i < e->children.count; i++) {
-                    Expr *arg = Expr_child(e, &(I64){(I64)(i)});
+                    Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                     if (arg->data.tag == ExprData_TAG_NamedArg) {
                         seen_named = 1;
                         Str *aname = &arg->data.data.Ident;
@@ -488,7 +488,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
                             type_error(arg, buf);
                         } else {
-                            new_args[slot] = Expr_clone(Expr_child(arg, &(I64){(I64)(0)})); // unwrap ExprData_TAG_NamedArg
+                            new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
                         }
                     } else {
                         if (seen_named) {
@@ -521,7 +521,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 // Rebuild children: callee + desugared args
                 Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-                Expr *callee = Expr_child(e, &(I64){(I64)(0)});
+                Expr *callee = Expr_child(e, &(USize){(USize)(0)});
                 Vec_push(&new_ch, Expr_clone(callee));
                 for (U32 i = 0; i < np; i++) {
                     Vec_push(&new_ch, new_args[i]);
@@ -532,19 +532,19 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
             // Infer arg types
             for (U32 i = 1; i < e->children.count; i++) {
-                infer_expr(scope, Expr_child(e, &(I64){(I64)(i)}), in_func);
+                infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
             }
             // Narrow Dynamic args to parameter types
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
                 Str *ptype = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
                 if (ptype)
-                    narrow_dynamic(Expr_child(e, &(I64){(I64)(i)}), type_from_name(ptype, scope), ptype);
+                    narrow_dynamic(Expr_child(e, &(USize){(USize)(i)}), type_from_name(ptype, scope), ptype);
             }
             // Validate arg types against param types
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
                 Str *ptype_name = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
                 if (!ptype_name) continue;
-                Expr *arg = Expr_child(e, &(I64){(I64)(i)});
+                Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                 if (arg->til_type.tag == TilType_TAG_Dynamic) continue;
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype.tag == TilType_TAG_Dynamic) continue;
@@ -576,8 +576,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
             // #88: own p.delete() — propagate own from FieldAccess callee to UFCS-inserted first arg
-            if (ufcs_desugared && Expr_child(e, &(I64){(I64)(0)})->is_own_arg && e->children.count > 1) {
-                Expr_child(e, &(I64){(I64)(1)})->is_own_arg = 1;
+            if (ufcs_desugared && Expr_child(e, &(USize){(USize)(0)})->is_own_arg && e->children.count > 1) {
+                Expr_child(e, &(USize){(USize)(1)})->is_own_arg = 1;
             }
             // Validate 'own' markers on arguments
             {
@@ -586,25 +586,25 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     for (U32 i = 1; i < e->children.count && i - 1 < np; i++) {
                         Param *_pp = (Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)});
                         Bool pown = _pp->is_own;
-                        if (pown && !Expr_child(e, &(I64){(I64)(i)})->is_own_arg) {
+                        if (pown && !Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
                                      _pp->name.c_str);
-                            type_error(Expr_child(e, &(I64){(I64)(i)}), buf);
-                        } else if (!pown && Expr_child(e, &(I64){(I64)(i)})->is_own_arg) {
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), buf);
+                        } else if (!pown && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
                                      _pp->name.c_str);
-                            type_error(Expr_child(e, &(I64){(I64)(i)}), buf);
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), buf);
                         }
-                        if (pown && Expr_child(e, &(I64){(I64)(i)})->data.tag == ExprData_TAG_Ident) {
-                            TypeBinding *ab = tscope_find(scope, &Expr_child(e, &(I64){(I64)(i)})->data.data.Ident);
-                            if (ab && ab->is_ref) type_error(Expr_child(e, &(I64){(I64)(i)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
+                        if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident) {
+                            TypeBinding *ab = tscope_find(scope, &Expr_child(e, &(USize){(USize)(i)})->data.data.Ident);
+                            if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(i)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
                         }
-                        if (pown && Expr_child(e, &(I64){(I64)(i)})->data.tag == ExprData_TAG_LiteralNull)
-                            type_error(Expr_child(e, &(I64){(I64)(i)}), "cannot pass null to 'own' parameter");
-                        if (_pp->is_shallow && Expr_child(e, &(I64){(I64)(i)})->data.tag == ExprData_TAG_LiteralNull)
-                            type_error(Expr_child(e, &(I64){(I64)(i)}), "cannot pass null to 'shallow' parameter");
+                        if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), "cannot pass null to 'own' parameter");
+                        if (_pp->is_shallow && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), "cannot pass null to 'shallow' parameter");
                     }
                 }
             }
@@ -621,13 +621,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         regular_call:;
         // Resolve callee
-        Str _name_val = Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
+        Str _name_val = Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
         Str *name = &_name_val;
         // Resolve type alias for struct constructors (Point2 → Point)
         Str *resolved_name = resolve_type_alias(scope, name);
         if (resolved_name != name) {
             // Rewrite callee Ident to canonical name so builder emits correct constructor
-            Expr_child(e, &(I64){(I64)(0)})->data.data.Ident = *resolved_name;
+            Expr_child(e, &(USize){(USize)(0)})->data.data.Ident = *resolved_name;
             _name_val = *resolved_name;
         }
         // Struct instantiation: Point() or Point(x=1, y=2)
@@ -641,11 +641,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 e->til_type = (TilType){TilType_TAG_Unknown};
                 break;
             }
-            Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
             // Count instance fields (skip namespace)
             U32 nfields = 0;
             for (U32 i = 0; i < body->children.count; i++) {
-                if (!Expr_child(body, &(I64){(I64)(i)})->data.data.Decl.is_namespace) nfields++;
+                if (!Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) nfields++;
             }
             // Desugar named args into positional (one per instance field)
             Expr **field_vals = calloc(nfields, sizeof(Expr *));
@@ -653,11 +653,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             I32 *field_idx = malloc(nfields * sizeof(I32));
             { I32 k = 0;
               for (U32 i = 0; i < body->children.count; i++) {
-                  if (!Expr_child(body, &(I64){(I64)(i)})->data.data.Decl.is_namespace) field_idx[k++] = i;
+                  if (!Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) field_idx[k++] = i;
               }
             }
             for (U32 i = 1; i < e->children.count; i++) {
-                Expr *arg = Expr_child(e, &(I64){(I64)(i)});
+                Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                 if (arg->data.tag != ExprData_TAG_NamedArg) {
                     type_error(arg, "struct instantiation requires named arguments");
                     continue;
@@ -665,7 +665,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Str *aname = &arg->data.data.Ident;
                 I32 slot = -1;
                 for (U32 j = 0; j < nfields; j++) {
-                    if (*Str_eq(&Expr_child(body, &(I64){(I64)(field_idx[j])})->data.data.Decl.name, aname)) {
+                    if (*Str_eq(&Expr_child(body, &(USize){(USize)(field_idx[j])})->data.data.Decl.name, aname)) {
                         slot = j;
                         break;
                     }
@@ -679,18 +679,18 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     snprintf(buf, sizeof(buf), "duplicate argument for field '%s'", aname->c_str);
                     type_error(arg, buf);
                 } else {
-                    field_vals[slot] = Expr_clone(Expr_child(arg, &(I64){(I64)(0)})); // unwrap ExprData_TAG_NamedArg
+                    field_vals[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
                 }
             }
             // Fill remaining from struct field defaults (clone to avoid shared ownership)
             for (U32 i = 0; i < nfields; i++) {
                 if (!field_vals[i]) {
-                    field_vals[i] = Expr_clone(Expr_child(Expr_child(body, &(I64){(I64)(field_idx[i])}), &(I64){(I64)(0)}));
+                    field_vals[i] = Expr_clone(Expr_child(Expr_child(body, &(USize){(USize)(field_idx[i])}), &(USize){(USize)(0)}));
                 }
             }
             // Rebuild children: callee + instance field values
             Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-            Expr *callee = Expr_child(e, &(I64){(I64)(0)});
+            Expr *callee = Expr_child(e, &(USize){(USize)(0)});
             Vec_push(&new_ch, Expr_clone(callee));
             for (U32 i = 0; i < nfields; i++) {
                 Vec_push(&new_ch, field_vals[i]);
@@ -701,35 +701,35 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             free(field_idx);
             // Type-check args (skip already-inferred defaults)
             for (U32 i = 1; i < e->children.count; i++) {
-                if (Expr_child(e, &(I64){(I64)(i)})->til_type.tag == TilType_TAG_Unknown) {
-                    infer_expr(scope, Expr_child(e, &(I64){(I64)(i)}), in_func);
+                if (Expr_child(e, &(USize){(USize)(i)})->til_type.tag == TilType_TAG_Unknown) {
+                    infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
                 }
             }
             // Auto-insert clone for constructor args that are identifiers
             // Skip clone for `own` fields — use move semantics instead
             { U32 fi = 0;
               for (U32 bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
-                Expr *fld = Expr_child(body, &(I64){(I64)(bi)});
+                Expr *fld = Expr_child(body, &(USize){(USize)(bi)});
                 if (fld->data.data.Decl.is_namespace) continue;
                 I32 ai = fi + 1; // arg index (children[0] is callee)
                 fi++;
                 if (fld->data.data.Decl.is_own) {
                     // own field: mark for move, don't clone
-                    if (Expr_child(e, &(I64){(I64)(ai)})->data.tag == ExprData_TAG_Ident)
-                        Expr_child(e, &(I64){(I64)(ai)})->is_own_arg = 1;
+                    if (Expr_child(e, &(USize){(USize)(ai)})->data.tag == ExprData_TAG_Ident)
+                        Expr_child(e, &(USize){(USize)(ai)})->is_own_arg = 1;
                     continue;
                 }
                 if (fld->data.data.Decl.is_ref) {
                     // ref field: store pointer, don't clone
                     continue;
                 }
-                if (Expr_child(e, &(I64){(I64)(ai)})->data.tag == ExprData_TAG_Ident) {
-                    const char *tname = type_to_name(Expr_child(e, &(I64){(I64)(ai)})->til_type,
-                                                      &Expr_child(e, &(I64){(I64)(ai)})->struct_name);
+                if (Expr_child(e, &(USize){(USize)(ai)})->data.tag == ExprData_TAG_Ident) {
+                    const char *tname = type_to_name(Expr_child(e, &(USize){(USize)(ai)})->til_type,
+                                                      &Expr_child(e, &(USize){(USize)(ai)})->struct_name);
                     if (tname) {
                         Expr *_mc = make_clone_call(tname,
-                            Expr_child(e, &(I64){(I64)(ai)})->til_type, Expr_child(e, &(I64){(I64)(ai)}),
-                            Expr_child(e, &(I64){(I64)(ai)}));
+                            Expr_child(e, &(USize){(USize)(ai)})->til_type, Expr_child(e, &(USize){(USize)(ai)}),
+                            Expr_child(e, &(USize){(USize)(ai)}));
                         *(Expr*)Vec_get(&e->children, &(USize){(USize)(ai)}) = *_mc;
                         memset(_mc, 0, sizeof(Expr)); free(_mc);
                     }
@@ -756,7 +756,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             U32 pos_idx = 0;
             Bool seen_named = 0;
             for (U32 i = 1; i < e->children.count; i++) {
-                Expr *arg = Expr_child(e, &(I64){(I64)(i)});
+                Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                 if (arg->data.tag == ExprData_TAG_NamedArg) {
                     seen_named = 1;
                     Str *aname = &arg->data.data.Ident;
@@ -781,7 +781,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
                         type_error(arg, buf);
                     } else {
-                        new_args[slot] = Expr_clone(Expr_child(arg, &(I64){(I64)(0)})); // unwrap ExprData_TAG_NamedArg
+                        new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
                     }
                 } else {
                     if (seen_named) {
@@ -821,7 +821,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
             // Rebuild children: callee + args_before_variadic + variadic_args + args_after_variadic
             Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-            Expr *callee = Expr_child(e, &(I64){(I64)(0)});
+            Expr *callee = Expr_child(e, &(USize){(USize)(0)});
             Vec_push(&new_ch, Expr_clone(callee));
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
@@ -850,7 +850,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         // Infer types of all arguments
         for (U32 i = 1; i < e->children.count; i++) {
-            infer_expr(scope, Expr_child(e, &(I64){(I64)(i)}), in_func);
+            infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
         }
         // Narrow Dynamic args to parameter types, then validate arg types
         if (callee_bind && callee_bind->func_def) {
@@ -865,7 +865,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
                 Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
                 if (ptype)
-                    narrow_dynamic(Expr_child(e, &(I64){(I64)(ci)}), type_from_name(ptype, scope), ptype);
+                    narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), type_from_name(ptype, scope), ptype);
                 ci++;
             }
             // Validate arg types against param types
@@ -875,7 +875,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
                 Str *ptype_name = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
                 if (!ptype_name) { ci++; continue; }
-                Expr *arg = Expr_child(e, &(I64){(I64)(ci)});
+                Expr *arg = Expr_child(e, &(USize){(USize)(ci)});
                 if (arg->til_type.tag == TilType_TAG_Dynamic) { ci++; continue; }
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype.tag == TilType_TAG_Dynamic) { ci++; continue; }
@@ -912,7 +912,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0) || (name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0) ||
              (name->count == 14 && memcmp(name->c_str, "dyn_has_method", 14) == 0) || (name->count == 6 && memcmp(name->c_str, "dyn_fn", 6) == 0)) &&
             e->children.count >= 3) {
-            Expr *method_arg = Expr_child(e, &(I64){(I64)(2)});
+            Expr *method_arg = Expr_child(e, &(USize){(USize)(2)});
             if (method_arg->data.tag != ExprData_TAG_LiteralStr) {
                 type_error(method_arg, "dyn_call method argument must be a string literal");
             }
@@ -920,7 +920,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // array/vec builtins: type_name (1st arg) must be a string literal
         if (((name->count == 5 && memcmp(name->c_str, "array", 5) == 0) || (name->count == 3 && memcmp(name->c_str, "vec", 3) == 0)) &&
             e->children.count >= 2) {
-            Expr *type_arg = Expr_child(e, &(I64){(I64)(1)});
+            Expr *type_arg = Expr_child(e, &(USize){(USize)(1)});
             if (type_arg->data.tag != ExprData_TAG_LiteralStr) {
                 type_error(type_arg, "array/vec type_name argument must be a string literal");
             }
@@ -944,25 +944,25 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 Param *_pp2 = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)});
                 Bool pown = _pp2->is_own;
-                if (pown && !Expr_child(e, &(I64){(I64)(ci)})->is_own_arg) {
+                if (pown && !Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
                              _pp2->name.c_str);
-                    type_error(Expr_child(e, &(I64){(I64)(ci)}), buf);
-                } else if (!pown && Expr_child(e, &(I64){(I64)(ci)})->is_own_arg) {
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), buf);
+                } else if (!pown && Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
                              _pp2->name.c_str);
-                    type_error(Expr_child(e, &(I64){(I64)(ci)}), buf);
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), buf);
                 }
-                if (pown && Expr_child(e, &(I64){(I64)(ci)})->data.tag == ExprData_TAG_Ident) {
-                    TypeBinding *ab = tscope_find(scope, &Expr_child(e, &(I64){(I64)(ci)})->data.data.Ident);
-                    if (ab && ab->is_ref) type_error(Expr_child(e, &(I64){(I64)(ci)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
+                if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_Ident) {
+                    TypeBinding *ab = tscope_find(scope, &Expr_child(e, &(USize){(USize)(ci)})->data.data.Ident);
+                    if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(ci)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
                 }
-                if (pown && Expr_child(e, &(I64){(I64)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                    type_error(Expr_child(e, &(I64){(I64)(ci)}), "cannot pass null to 'own' parameter");
-                if (_pp2->is_shallow && Expr_child(e, &(I64){(I64)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                    type_error(Expr_child(e, &(I64){(I64)(ci)}), "cannot pass null to 'shallow' parameter");
+                if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), "cannot pass null to 'own' parameter");
+                if (_pp2->is_shallow && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), "cannot pass null to 'shallow' parameter");
                 ci++;
             }
         }
@@ -976,7 +976,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Function pointer call: resolve return type from func_def if available
         // Only for actual func ptr variables (is_proc == -1), not functions returning func ptrs
         if (fn_type.tag == TilType_TAG_FuncPtr && callee_bind && callee_bind->is_proc < 0) {
-            Expr_child(e, &(I64){(I64)(0)})->til_type = (TilType){TilType_TAG_FuncPtr}; // mark callee for builder
+            Expr_child(e, &(USize){(USize)(0)})->til_type = (TilType){TilType_TAG_FuncPtr}; // mark callee for builder
             // Store signature on FCALL for builder to use
             if (callee_bind && callee_bind->func_def)
                 e->fn_sig = callee_bind->func_def;
@@ -1000,7 +1000,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     type_error(e, buf);
                 }
                 for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
-                    Expr *arg = Expr_child(e, &(I64){(I64)(ai + 1)});
+                    Expr *arg = Expr_child(e, &(USize){(USize)(ai + 1)});
                     Str *expected_name = &((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(ai)}))->ptype;
                     if (!expected_name) continue;
                     TilType expected = type_from_name(expected_name, scope);
@@ -1050,16 +1050,16 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         break;
     }
     case ExprData_TAG_FieldAccess: {
-        infer_expr(scope, Expr_child(e, &(I64){(I64)(0)}), in_func);
-        Expr *obj = Expr_child(e, &(I64){(I64)(0)});
+        infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
+        Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         if (obj->struct_name.count > 0) {
             Expr *sdef = tscope_get_struct(scope, &obj->struct_name);
             if (sdef) {
-                Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+                Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
                 Str *fname = &e->data.data.Ident;
                 Bool found = 0;
                 for (U32 i = 0; i < body->children.count; i++) {
-                    Expr *field = Expr_child(body, &(I64){(I64)(i)});
+                    Expr *field = Expr_child(body, &(USize){(USize)(i)});
                     // Skip variant registry entries (non-namespace) in enum bodies
                     if (sdef->data.tag == ExprData_TAG_EnumDef && !field->data.data.Decl.is_namespace)
                         continue;
@@ -1069,7 +1069,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         e->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
                         e->is_ref_field = field->data.data.Decl.is_ref;
                         if (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) {
-                            e->struct_name = Expr_child(field, &(I64){(I64)(0)})->struct_name;
+                            e->struct_name = Expr_child(field, &(USize){(USize)(0)})->struct_name;
                         } else {
                             e->struct_name = obj->struct_name;
                         }
@@ -1079,7 +1079,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         if (sdef->data.tag == ExprData_TAG_EnumDef &&
                             field->data.data.Decl.is_namespace &&
                             field->children.count > 0) {
-                            Expr *fc = Expr_child(field, &(I64){(I64)(0)});
+                            Expr *fc = Expr_child(field, &(USize){(USize)(0)});
                             if (fc->data.tag != ExprData_TAG_FuncDef) {
                                 // I64 literal variant
                                 e->til_type = (TilType){TilType_TAG_Enum};
@@ -1114,21 +1114,21 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     }
     case ExprData_TAG_MapLit:
         for (U32 i = 0; i < e->children.count; i++)
-            infer_expr(scope, Expr_child(e, &(I64){(I64)(i)}), in_func);
+            infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
         e->til_type = (TilType){TilType_TAG_Struct};
         e->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
         break;
     case ExprData_TAG_SetLit:
         for (U32 i = 0; i < e->children.count; i++)
-            infer_expr(scope, Expr_child(e, &(I64){(I64)(i)}), in_func);
+            infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
         e->til_type = (TilType){TilType_TAG_Struct};
         e->struct_name = (Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT};
         break;
     case ExprData_TAG_NamedArg:
         // Infer the value inside the named arg (child[0])
         if (e->children.count > 0) {
-            infer_expr(scope, Expr_child(e, &(I64){(I64)(0)}), in_func);
-            Expr *val = Expr_child(e, &(I64){(I64)(0)});
+            infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
+            Expr *val = Expr_child(e, &(USize){(USize)(0)});
             e->til_type = val->til_type;
             e->struct_name = val->struct_name;
         }
@@ -1144,9 +1144,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
     Expr *sdef = tscope_get_struct(scope, Str_clone(&(Str){.c_str = (U8*)(type_name), .count = (U64)strlen((const char*)(type_name)), .cap = CAP_VIEW}));
     if (!sdef) return 0;
-    Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+    Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(I64){(I64)(i)});
+        Expr *f = Expr_child(body, &(USize){(USize)(i)});
         if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
             (f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "cmp", 3) == 0))
             return 1;
@@ -1166,14 +1166,14 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0 ||
-            Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_SetLit) {
+            Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_SetLit) {
             Vec_push(&new_ch, Expr_clone(stmt));
             continue;
         }
         changed = 1;
-        Expr *set_lit = Expr_child(stmt, &(I64){(I64)(0)});
+        Expr *set_lit = Expr_child(stmt, &(USize){(USize)(0)});
         U32 line = set_lit->line, col = set_lit->col;
         Str *path = &set_lit->path;
         Str *var_name = &stmt->data.data.Decl.name;
@@ -1185,7 +1185,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         }
 
         // Get element type from first entry
-        Expr *first = Expr_child(set_lit, &(I64){(I64)(0)});
+        Expr *first = Expr_child(set_lit, &(USize){(USize)(0)});
         const char *elem_type = type_to_name(first->til_type, &first->struct_name);
         if (!elem_type) {
             type_error(first, "set literal: cannot determine element type");
@@ -1202,7 +1202,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 
         // Validate all elements have consistent type
         for (U32 j = 1; j < set_lit->children.count; j++) {
-            Expr *v = Expr_child(set_lit, &(I64){(I64)(j)});
+            Expr *v = Expr_child(set_lit, &(USize){(USize)(j)});
             const char *vt = type_to_name(v->til_type, &v->struct_name);
             if (!vt || strcmp(vt, elem_type) != 0)
                 type_error(v, "set literal: all elements must be the same type");
@@ -1239,7 +1239,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
             self_id->til_type = (TilType){TilType_TAG_Struct};
             self_id->struct_name = (Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT};
             Expr_add_child(add_call, self_id);
-            Expr *val = Expr_clone(Expr_child(set_lit, &(I64){(I64)(j)}));
+            Expr *val = Expr_clone(Expr_child(set_lit, &(USize){(USize)(j)}));
             val->is_own_arg = true;
             Expr_add_child(add_call, val);
             Vec_push(&new_ch, add_call);
@@ -1265,15 +1265,15 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         // Only handle: name := {k: v, ...}
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0 ||
-            Expr_child(stmt, &(I64){(I64)(0)})->data.tag != ExprData_TAG_MapLit) {
+            Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_MapLit) {
             Vec_push(&new_ch, Expr_clone(stmt));
             continue;
         }
         changed = 1;
-        Expr *map_lit = Expr_child(stmt, &(I64){(I64)(0)});
+        Expr *map_lit = Expr_child(stmt, &(USize){(USize)(0)});
         U32 line = map_lit->line, col = map_lit->col;
         Str *path = &map_lit->path;
         Str *var_name = &stmt->data.data.Decl.name;
@@ -1291,8 +1291,8 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         }
 
         // Get key/val types from first entry (already inferred)
-        Expr *first_key = Expr_child(map_lit, &(I64){(I64)(0)});
-        Expr *first_val = Expr_child(map_lit, &(I64){(I64)(1)});
+        Expr *first_key = Expr_child(map_lit, &(USize){(USize)(0)});
+        Expr *first_val = Expr_child(map_lit, &(USize){(USize)(1)});
         const char *key_type = type_to_name(first_key->til_type, &first_key->struct_name);
         const char *val_type = type_to_name(first_val->til_type, &first_val->struct_name);
 
@@ -1316,8 +1316,8 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
 
         // Validate all entries have consistent types
         for (U32 j = 2; j < map_lit->children.count; j += 2) {
-            Expr *k = Expr_child(map_lit, &(I64){(I64)(j)});
-            Expr *v = Expr_child(map_lit, &(I64){(I64)(j + 1)});
+            Expr *k = Expr_child(map_lit, &(USize){(USize)(j)});
+            Expr *v = Expr_child(map_lit, &(USize){(USize)(j + 1)});
             const char *kt = type_to_name(k->til_type, &k->struct_name);
             const char *vt = type_to_name(v->til_type, &v->struct_name);
             if (!kt || strcmp(kt, key_type) != 0)
@@ -1372,11 +1372,11 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
             self_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
             Expr_add_child(set_call, self_id);
             // Arg: own key
-            Expr *key = Expr_clone(Expr_child(map_lit, &(I64){(I64)(j * 2)}));
+            Expr *key = Expr_clone(Expr_child(map_lit, &(USize){(USize)(j * 2)}));
             key->is_own_arg = true;
             Expr_add_child(set_call, key);
             // Arg: own val
-            Expr *mval = Expr_clone(Expr_child(map_lit, &(I64){(I64)(j * 2 + 1)}));
+            Expr *mval = Expr_clone(Expr_child(map_lit, &(USize){(USize)(j * 2 + 1)}));
             mval->is_own_arg = true;
             Expr_add_child(set_call, mval);
 
@@ -1402,14 +1402,14 @@ static Expr *find_variadic_fcall(Expr *e) {
         e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return NULL;
     if (e->data.tag == ExprData_TAG_FCall && e->variadic_index >= 0) {
         // Skip array/vec builtins — handled specially like dyn_call
-        if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-            Str *cn = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
+        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+            Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             if ((cn->count == 5 && memcmp(cn->c_str, "array", 5) == 0) || (cn->count == 3 && memcmp(cn->c_str, "vec", 3) == 0)) return NULL;
         }
         return e;
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        Expr *found = find_variadic_fcall(Expr_child(e, &(I64){(I64)(i)}));
+        Expr *found = find_variadic_fcall(Expr_child(e, &(USize){(USize)(i)}));
         if (found) return found;
     }
     return NULL;
@@ -1441,7 +1441,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         Expr *fcall = find_variadic_fcall(stmt);
         if (!fcall) {
             Vec_push(&new_ch, Expr_clone(stmt));
@@ -1455,7 +1455,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
         // Find element type from func_def
         Str *elem_type = NULL;
-        Expr *callee = Expr_child(fcall, &(I64){(I64)(0)});
+        Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
         if (callee->data.tag == ExprData_TAG_Ident) {
             TypeBinding *tb = tscope_find(scope, &callee->data.data.Ident);
             if (tb && tb->func_def) {
@@ -1464,19 +1464,19 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                     elem_type = &((Param*)Vec_get(&tb->func_def->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
             }
         } else if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
-            Expr *type_node = Expr_child(callee, &(I64){(I64)(0)});
+            Expr *type_node = Expr_child(callee, &(USize){(USize)(0)});
             if (type_node->data.tag == ExprData_TAG_Ident) {
                 Expr *sdef = tscope_get_struct(scope, &type_node->data.data.Ident);
                 if (sdef) {
-                    Expr *sbody = Expr_child(sdef, &(I64){(I64)(0)});
+                    Expr *sbody = Expr_child(sdef, &(USize){(USize)(0)});
                     for (U32 j = 0; j < sbody->children.count; j++) {
-                        Expr *f = Expr_child(sbody, &(I64){(I64)(j)});
+                        Expr *f = Expr_child(sbody, &(USize){(USize)(j)});
                         if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
                             *Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
-                            Expr_child(f, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                            I32 fvi = Expr_child(f, &(I64){(I64)(0)})->data.data.FuncDef.variadic_index;
+                            Expr_child(f, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                            I32 fvi = Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.variadic_index;
                             if (fvi >= 0)
-                                elem_type = &((Param*)Vec_get(&Expr_child(f, &(I64){(I64)(0)})->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
+                                elem_type = &((Param*)Vec_get(&Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
                             break;
                         }
                     }
@@ -1489,8 +1489,8 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         }
 
         // Pure splat: f(fixed, ..arr) — pass array directly, skip Array construction
-        if (vc == 1 && Expr_child(fcall, &(I64){(I64)(vi)})->is_splat) {
-            Expr *splat = Expr_child(fcall, &(I64){(I64)(vi)});
+        if (vc == 1 && Expr_child(fcall, &(USize){(USize)(vi)})->is_splat) {
+            Expr *splat = Expr_child(fcall, &(USize){(USize)(vi)});
             splat->is_splat = false;
             // Clone if ident so caller keeps their copy; otherwise clone borrowed ref
             if (splat->data.tag == ExprData_TAG_Ident) {
@@ -1505,7 +1505,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                 if ((I32)j == vi) {
                     Vec_push(&fcall_new_ch, splat);
                 } else {
-                    Expr *ch = Expr_child(fcall, &(I64){(I64)(j)});
+                    Expr *ch = Expr_child(fcall, &(USize){(USize)(j)});
                     Vec_push(&fcall_new_ch, Expr_clone(ch));
                 }
             }
@@ -1575,7 +1575,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             Expr_add_child(set_call, idx);
             // Arg: val — clone idents and field accesses so Array_set
             // doesn't free the caller's variable or an interior pointer
-            Expr *val = Expr_child(fcall, &(I64){(I64)(vi + j)});
+            Expr *val = Expr_child(fcall, &(USize){(USize)(vi + j)});
             if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
                 const char *tname = type_to_name(val->til_type, &val->struct_name);
                 if (tname)
@@ -1617,7 +1617,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                 Vec_push(&fcall_new_ch, va_id);
                 va_inserted = 1;
             }
-            Expr *ch = Expr_child(fcall, &(I64){(I64)(j)});
+            Expr *ch = Expr_child(fcall, &(USize){(USize)(j)});
             Vec_push(&fcall_new_ch, Expr_clone(ch));
         }
         // Insert _va at end if variadic was last param and vc==0
@@ -1655,7 +1655,7 @@ static Expr *find_kwargs_fcall(Expr *e) {
         e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return NULL;
     if (e->data.tag == ExprData_TAG_FCall && e->kwargs_index >= 0) return e;
     for (U32 i = 0; i < e->children.count; i++) {
-        Expr *found = find_kwargs_fcall(Expr_child(e, &(I64){(I64)(i)}));
+        Expr *found = find_kwargs_fcall(Expr_child(e, &(USize){(USize)(i)}));
         if (found) return found;
     }
     return NULL;
@@ -1668,7 +1668,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         Expr *fcall = find_kwargs_fcall(stmt);
         if (!fcall) {
             Vec_push(&new_ch, Expr_clone(stmt));
@@ -1688,8 +1688,8 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         // Find the widest value type among kwargs args for val_size
         const char *val_size_type = "I64"; // default: 8 bytes for primitives
         for (U32 j = 0; j < kc; j++) {
-            Expr *na = Expr_child(fcall, &(I64){(I64)(ki + j)});
-            Expr *v = Expr_child(na, &(I64){(I64)(0)});
+            Expr *na = Expr_child(fcall, &(USize){(USize)(ki + j)});
+            Expr *v = Expr_child(na, &(USize){(USize)(0)});
             if (v->til_type.tag == TilType_TAG_Struct && v->struct_name.count > 0) {
                 val_size_type = (const char *)v->struct_name.c_str;
                 break; // struct types are bigger than primitives
@@ -1734,10 +1734,10 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 
         // 2. Map.set calls for each kwargs arg
         for (U32 j = 0; j < kc; j++) {
-            Expr *named_arg = Expr_child(fcall, &(I64){(I64)(ki + j)});
+            Expr *named_arg = Expr_child(fcall, &(USize){(USize)(ki + j)});
             // named_arg is ExprData_TAG_NamedArg with str_val = key name, child[0] = value
             Str *key_name = &named_arg->data.data.NamedArg;
-            Expr *val = Expr_child(named_arg, &(I64){(I64)(0)});
+            Expr *val = Expr_child(named_arg, &(USize){(USize)(0)});
 
             Expr *set_call = make_ns_call("Map", "set", (TilType){TilType_TAG_None}, NULL, fcall);
             // Arg: self = _kw (mut)
@@ -1795,7 +1795,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
                 Vec_push(&fcall_new_ch, kw_id);
                 kw_inserted = 1;
             }
-            Expr *ch = Expr_child(fcall, &(I64){(I64)(j)});
+            Expr *ch = Expr_child(fcall, &(USize){(USize)(j)});
             Vec_push(&fcall_new_ch, Expr_clone(ch));
         }
         // Insert _kw at end if kwargs was last param and kc==0
@@ -1829,7 +1829,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 static Bool expr_contains_fcall(Expr *e) {
     if (e->data.tag == ExprData_TAG_FCall) return 1;
     for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_contains_fcall(Expr_child(e, &(I64){(I64)(i)}))) return 1;
+        if (expr_contains_fcall(Expr_child(e, &(USize){(USize)(i)}))) return 1;
     }
     return 0;
 }
@@ -1837,21 +1837,21 @@ static Bool expr_contains_fcall(Expr *e) {
 // Check if a function call returns ref
 static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope) {
     if (fcall->data.tag != ExprData_TAG_FCall) return 0;
-    Expr *callee = Expr_child(fcall, &(I64){(I64)(0)});
+    Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
     if (callee->data.tag == ExprData_TAG_Ident) {
         TypeBinding *cb = tscope_find(scope, &callee->data.data.Ident);
         return (cb && cb->func_def) ? cb->func_def->data.data.FuncDef.return_is_ref : 0;
     }
     if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
-        Expr *sdef = tscope_get_struct(scope, &Expr_child(callee, &(I64){(I64)(0)})->data.data.Ident);
+        Expr *sdef = tscope_get_struct(scope, &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident);
         if (!sdef) return 0;
-        Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = Expr_child(body, &(I64){(I64)(j)});
+            Expr *f = Expr_child(body, &(USize){(USize)(j)});
             if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
                 *Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
-                Expr_child(f, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef)
-                return Expr_child(f, &(I64){(I64)(0)})->data.data.FuncDef.return_is_ref;
+                Expr_child(f, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef)
+                return Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.return_is_ref;
         }
     }
     return 0;
@@ -1906,39 +1906,39 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
     if (e->data.tag == ExprData_TAG_FuncDef || e->data.tag == ExprData_TAG_StructDef || e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return;
     // Recurse into children first (depth-first: inner fcalls hoisted before outer)
     for (U32 i = 0; i < e->children.count; i++) {
-        hoist_expr(Expr_child(e, &(I64){(I64)(i)}), hoisted, nhoisted, cap, scope);
+        hoist_expr(Expr_child(e, &(USize){(USize)(i)}), hoisted, nhoisted, cap, scope);
     }
     if (e->data.tag != ExprData_TAG_FCall) return;
 
     // For struct constructors, find field info to skip hoisting inline compound args
     Expr *ctor_body = NULL;
     if ((e->struct_name).count > 0 && e->children.count > 0 &&
-        *Str_eq(&Expr_child(e, &(I64){(I64)(0)})->data.data.Ident, &e->struct_name)) {
+        *Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
         Expr *sdef = tscope_get_struct(scope, &e->struct_name);
-        if (sdef) ctor_body = Expr_child(sdef, &(I64){(I64)(0)});
+        if (sdef) ctor_body = Expr_child(sdef, &(USize){(USize)(0)});
     }
 
     // Check each argument (children[1..n])
     // dyn_call variants: don't hoist the method arg (2nd) — codegen needs it as a literal
     Bool is_dyn_call = 0;
-    if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-        Str *cn = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
+    if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
         is_dyn_call = (cn->count == 8 && memcmp(cn->c_str, "dyn_call", 8) == 0) || (cn->count == 12 && memcmp(cn->c_str, "dyn_call_ret", 12) == 0) ||
                       (cn->count == 14 && memcmp(cn->c_str, "dyn_has_method", 14) == 0) || (cn->count == 6 && memcmp(cn->c_str, "dyn_fn", 6) == 0);
     }
     Bool is_array_vec = 0;
-    if (Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-        Str *cn = &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident;
+    if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
         is_array_vec = (cn->count == 5 && memcmp(cn->c_str, "array", 5) == 0) || (cn->count == 3 && memcmp(cn->c_str, "vec", 3) == 0);
     }
     U32 fi = 0; // instance field index for struct constructors
     for (U32 i = 1; i < e->children.count; i++) {
         if (is_dyn_call && (i == 2 || i == 3)) continue; // keep method and arity as literals
         if (is_array_vec && i == 1) continue; // keep type_name as ExprData_TAG_LiteralStr
-        if (Expr_child(e, &(I64){(I64)(i)})->data.tag != ExprData_TAG_FCall &&
-            Expr_child(e, &(I64){(I64)(i)})->data.tag != ExprData_TAG_LiteralNum &&
-            Expr_child(e, &(I64){(I64)(i)})->data.tag != ExprData_TAG_LiteralStr &&
-            Expr_child(e, &(I64){(I64)(i)})->data.tag != ExprData_TAG_LiteralBool) continue;
+        if (Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_FCall &&
+            Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_LiteralNum &&
+            Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_LiteralStr &&
+            Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_LiteralBool) continue;
 
         // Skip hoisting inline compound field args in struct constructors
         if (ctor_body) {
@@ -1946,10 +1946,10 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
             Bool is_own = 0;
             TilType ft = (TilType){TilType_TAG_None};
             for (; fi < ctor_body->children.count; fi++) {
-                Expr *field = Expr_child(ctor_body, &(I64){(I64)(fi)});
+                Expr *field = Expr_child(ctor_body, &(USize){(USize)(fi)});
                 if (!field->data.data.Decl.is_namespace) {
                     is_own = field->data.data.Decl.is_own;
-                    ft = Expr_child(field, &(I64){(I64)(0)})->til_type;
+                    ft = Expr_child(field, &(USize){(USize)(0)})->til_type;
                     fi++;
                     break;
                 }
@@ -1958,21 +1958,21 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
                 continue; // don't hoist — builder handles directly
         }
 
-        *(Expr*)Vec_get(&e->children, &(USize){(USize)(i)}) = *hoist_to_temp(Expr_clone(Expr_child(e, &(I64){(I64)(i)})), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&e->children, &(USize){(USize)(i)}) = *hoist_to_temp(Expr_clone(Expr_child(e, &(USize){(USize)(i)})), hoisted, nhoisted, cap, scope);
     }
 }
 
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         // Collect hoisted decls from this statement
         Expr **hoisted = NULL;
         U32 nhoisted = 0, hcap = 0;
         // Walk the appropriate expression tree based on statement type
         switch (stmt->data.tag) {
         case ExprData_TAG_Decl:
-            hoist_expr(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
             break;
         case ExprData_TAG_FCall:
             hoist_expr(stmt, &hoisted, &nhoisted, &hcap, scope);
@@ -1984,17 +1984,17 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             break;
         case ExprData_TAG_Return:
             if (stmt->children.count > 0) {
-                hoist_expr(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
-                if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FCall ||
-                    Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum ||
-                    Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralStr ||
-                    Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralBool) {
-                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
+                hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
+                if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
+                    Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
+                    Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
+                    Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool) {
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), &hoisted, &nhoisted, &hcap, scope);
                 }
             }
             break;
         case ExprData_TAG_Assign: {
-            hoist_expr(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
             // Skip top-level hoisting for compound-type locals — builder
             // uses pointer-assign (typer inserts delete before reassignment).
             // Keep hoisting for scalars (deref-assign) and params (write-through).
@@ -2005,11 +2005,11 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)
                     do_hoist = 0;
             }
-            if (do_hoist && (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FCall ||
-                Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum ||
-                Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralStr ||
-                Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
+            if (do_hoist && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
+                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
+                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
+                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
+                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), &hoisted, &nhoisted, &hcap, scope);
             }
             // For mut struct/enum params, replace assignment with swap so
             // ASAP delete of the temp frees the OLD value, not the new one.
@@ -2032,7 +2032,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 if (ab->struct_name) a->struct_name = *ab->struct_name;
                 Expr_add_child(call, a);
                 // arg1: the RHS (hoisted temp ident)
-                Expr_add_child(call, Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})));
+                Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
                 // arg2: Type.size() — hoist to temp so builder emits deref correctly
                 const char *tname = type_to_name(ab->type, ab->struct_name);
                 Expr *sz_call = make_ns_call(tname, "size", (TilType){TilType_TAG_U64}, NULL, stmt);
@@ -2044,26 +2044,26 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             break;
         }
         case ExprData_TAG_FieldAssign: {
-            hoist_expr(Expr_child(stmt, &(I64){(I64)(1)}), &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(Expr_child(stmt, &(USize){(USize)(1)}), &hoisted, &nhoisted, &hcap, scope);
             // Skip hoisting for inline compound fields (same as constructor args)
             Bool fa_hoist = 1;
             if (!stmt->is_own_field) {
-                TilType ft = Expr_child(stmt, &(I64){(I64)(1)})->til_type;
+                TilType ft = Expr_child(stmt, &(USize){(USize)(1)})->til_type;
                 if (ft.tag == TilType_TAG_Struct || ft.tag == TilType_TAG_Enum)
                     fa_hoist = 0;
             }
-            if (fa_hoist && (Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_FCall ||
-                Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralNum ||
-                Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralStr ||
-                Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(1)})), &hoisted, &nhoisted, &hcap, scope);
+            if (fa_hoist && (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FCall ||
+                Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum ||
+                Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralStr ||
+                Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
+                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(1)})), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         }
         case ExprData_TAG_If:
-            hoist_expr(Expr_child(stmt, &(I64){(I64)(0)}), &hoisted, &nhoisted, &hcap, scope);
-            if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FCall) {
-                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(I64){(I64)(0)})), &hoisted, &nhoisted, &hcap, scope);
+            hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
+            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall) {
+                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), &hoisted, &nhoisted, &hcap, scope);
             }
             break;
         // ExprData_TAG_While: skip condition -- hoisting changes loop semantics
@@ -2140,7 +2140,7 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Exp
 // Build Type.delete(obj.field, call_free) for field reassignment.
 // is_own: true for own (pointer) fields, false for inline (value) fields.
 static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
-    Expr *rhs = Expr_child(field_assign, &(I64){(I64)(1)});
+    Expr *rhs = Expr_child(field_assign, &(USize){(USize)(1)});
     const char *tname = type_to_name(rhs->til_type, &rhs->struct_name);
     if (!tname) return NULL;
     I32 line = field_assign->line, col = field_assign->col;
@@ -2165,7 +2165,7 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
     field_acc->is_own_field = is_own;
     field_acc->til_type = rhs->til_type;
     field_acc->struct_name = rhs->struct_name;
-    Expr_add_child(field_acc, Expr_clone(Expr_child(field_assign, &(I64){(I64)(0)})));
+    Expr_add_child(field_acc, Expr_clone(Expr_child(field_assign, &(USize){(USize)(0)})));
     Expr_add_child(call, field_acc);
 
     Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
@@ -2182,7 +2182,7 @@ static void insert_field_deletes(Expr *body) {
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_FieldAssign) {
             Bool need_delete = 0;
             Bool is_own = stmt->is_own_field;
@@ -2192,7 +2192,7 @@ static void insert_field_deletes(Expr *body) {
             } else if (is_own) {
                 need_delete = 1;
             } else {
-                TilType ft = Expr_child(stmt, &(I64){(I64)(1)})->til_type;
+                TilType ft = Expr_child(stmt, &(USize){(USize)(1)})->til_type;
                 if (ft.tag == TilType_TAG_Struct || ft.tag == TilType_TAG_Enum)
                     need_delete = 1;
             }
@@ -2241,7 +2241,7 @@ static Bool expr_uses_var(Expr *e, Str *name) {
     if (e->data.tag == ExprData_TAG_Ident && *Str_eq(&e->data.data.Ident, name)) return 1;
     if (e->data.tag == ExprData_TAG_Assign && *Str_eq(&e->data.data.Ident, name)) return 1;
     for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_uses_var(Expr_child(e, &(I64){(I64)(i)}), name)) return 1;
+        if (expr_uses_var(Expr_child(e, &(USize){(USize)(i)}), name)) return 1;
     }
     return 0;
 }
@@ -2255,11 +2255,11 @@ static Bool expr_used_in_nested_func(Expr *e, Str *name) {
             if (*Str_eq(&((Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
         }
         // Not a param — recurse into body to find uses
-        if (e->children.count > 0) return expr_uses_var(Expr_child(e, &(I64){(I64)(0)}), name);
+        if (e->children.count > 0) return expr_uses_var(Expr_child(e, &(USize){(USize)(0)}), name);
         return 0;
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_used_in_nested_func(Expr_child(e, &(I64){(I64)(i)}), name)) return 1;
+        if (expr_used_in_nested_func(Expr_child(e, &(USize){(USize)(i)}), name)) return 1;
     }
     return 0;
 }
@@ -2268,7 +2268,7 @@ static Bool expr_contains_decl(Expr *e, Str *name) {
     if (e->data.tag == ExprData_TAG_FuncDef) return 0;
     if (e->data.tag == ExprData_TAG_Decl && *Str_eq(&e->data.data.Decl.name, name)) return 1;
     for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_contains_decl(Expr_child(e, &(I64){(I64)(i)}), name)) return 1;
+        if (expr_contains_decl(Expr_child(e, &(USize){(USize)(i)}), name)) return 1;
     }
     return 0;
 }
@@ -2278,8 +2278,8 @@ static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
     if (!(fdef->data.data.FuncDef.params.count > 0)) return 0;
     U32 np = fdef->data.data.FuncDef.nparam;
     for (U32 i = 0; i < np && i + 1 < fcall->children.count; i++) {
-        if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->is_own && Expr_child(fcall, &(I64){(I64)(i + 1)})->data.tag == ExprData_TAG_Ident &&
-            *Str_eq(&Expr_child(fcall, &(I64){(I64)(i + 1)})->data.data.Ident, var_name)) {
+        if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->is_own && Expr_child(fcall, &(USize){(USize)(i + 1)})->data.tag == ExprData_TAG_Ident &&
+            *Str_eq(&Expr_child(fcall, &(USize){(USize)(i + 1)})->data.data.Ident, var_name)) {
             return 1;
         }
     }
@@ -2289,47 +2289,47 @@ static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
 static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
     if (fcall->data.tag != ExprData_TAG_FCall || fcall->children.count < 2) return 0;
     // Struct constructor: check if var is in an own field position
-    if ((fcall->struct_name).count > 0 && Expr_child(fcall, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
-        *Str_eq(&Expr_child(fcall, &(I64){(I64)(0)})->data.data.Ident, &fcall->struct_name)) {
+    if ((fcall->struct_name).count > 0 && Expr_child(fcall, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
+        *Str_eq(&Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident, &fcall->struct_name)) {
         Expr *sdef = tscope_get_struct(scope, &fcall->struct_name);
         if (sdef) {
-            Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
             U32 fi = 0;
             for (U32 i = 0; i < body->children.count; i++) {
-                if (Expr_child(body, &(I64){(I64)(i)})->data.tag != ExprData_TAG_Decl ||
-                    Expr_child(body, &(I64){(I64)(i)})->data.data.Decl.is_namespace) continue;
+                if (Expr_child(body, &(USize){(USize)(i)})->data.tag != ExprData_TAG_Decl ||
+                    Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) continue;
                 U32 arg_idx = fi + 1;
                 fi++;
                 if (arg_idx < fcall->children.count &&
-                    Expr_child(fcall, &(I64){(I64)(arg_idx)})->data.tag == ExprData_TAG_Ident &&
-                    *Str_eq(&Expr_child(fcall, &(I64){(I64)(arg_idx)})->data.data.Ident, var_name) &&
-                    Expr_child(body, &(I64){(I64)(i)})->data.data.Decl.is_own) {
+                    Expr_child(fcall, &(USize){(USize)(arg_idx)})->data.tag == ExprData_TAG_Ident &&
+                    *Str_eq(&Expr_child(fcall, &(USize){(USize)(arg_idx)})->data.data.Ident, var_name) &&
+                    Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_own) {
                     return 1;
                 }
             }
         }
     }
     // Direct call: look up func def in scope
-    if (Expr_child(fcall, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-        Str *fn_name = &Expr_child(fcall, &(I64){(I64)(0)})->data.data.Ident;
+    if (Expr_child(fcall, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        Str *fn_name = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
         TypeBinding *fb = tscope_find(scope, fn_name);
         if (!fb || !fb->func_def) return 0;
         return check_own_args(fb->func_def, fcall, var_name);
     }
     // Namespace method call: look up in struct definition
-    if (Expr_child(fcall, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess && Expr_child(fcall, &(I64){(I64)(0)})->is_ns_field) {
-        Str *method = &Expr_child(fcall, &(I64){(I64)(0)})->data.data.Ident;
-        Expr *type_node = Expr_child(Expr_child(fcall, &(I64){(I64)(0)}), &(I64){0});
+    if (Expr_child(fcall, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess && Expr_child(fcall, &(USize){(USize)(0)})->is_ns_field) {
+        Str *method = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
+        Expr *type_node = Expr_child(Expr_child(fcall, &(USize){(USize)(0)}), &(USize){0});
         if (type_node->data.tag != ExprData_TAG_Ident) return 0;
         Expr *sdef = tscope_get_struct(scope, &type_node->data.data.Ident);
         if (!sdef) return 0;
-        Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
         for (U32 i = 0; i < body->children.count; i++) {
-            Expr *field = Expr_child(body, &(I64){(I64)(i)});
+            Expr *field = Expr_child(body, &(USize){(USize)(i)});
             if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
                 *Str_eq(&field->data.data.Decl.name, method) &&
-                Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                return check_own_args(Expr_child(field, &(I64){(I64)(0)}), fcall, var_name);
+                Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                return check_own_args(Expr_child(field, &(USize){(USize)(0)}), fcall, var_name);
             }
         }
     }
@@ -2341,12 +2341,12 @@ static Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
     if (fcall_has_own_arg(e, var_name, scope)) return 1;
     // Own field assignment: RHS ownership transfers to the field
     if (e->data.tag == ExprData_TAG_FieldAssign && e->is_own_field &&
-        Expr_child(e, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident &&
-        *Str_eq(&Expr_child(e, &(I64){(I64)(1)})->data.data.Ident, var_name)) {
+        Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident &&
+        *Str_eq(&Expr_child(e, &(USize){(USize)(1)})->data.data.Ident, var_name)) {
         return 1;
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_transfers_own(Expr_child(e, &(I64){(I64)(i)}), var_name, scope)) return 1;
+        if (expr_transfers_own(Expr_child(e, &(USize){(USize)(i)}), var_name, scope)) return 1;
     }
     return 0;
 }
@@ -2356,10 +2356,10 @@ static Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
 // Check if any alias (ref decl sourced from 'name') is used in expr
 static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {
     for (U32 k = 0; k < body->children.count; k++) {
-        Expr *d = Expr_child(body, &(I64){(I64)(k)});
+        Expr *d = Expr_child(body, &(USize){(USize)(k)});
         if (d->data.tag == ExprData_TAG_Decl && d->data.data.Decl.is_ref &&
-            Expr_child(d, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
-            *Str_eq(&Expr_child(d, &(I64){(I64)(0)})->data.data.Ident, name)) {
+            Expr_child(d, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
+            *Str_eq(&Expr_child(d, &(USize){(USize)(0)})->data.data.Ident, name)) {
             if (expr_uses_var(expr, &d->data.data.Decl.name))
                 return 1;
         }
@@ -2373,20 +2373,20 @@ static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {
 static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool return_only) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_If) {
             for (U32 c = 1; c < stmt->children.count; c++)
-                insert_exit_deletes(Expr_child(stmt, &(I64){(I64)(c)}), live, n_live, return_only);
+                insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(c)}), live, n_live, return_only);
         }
         if (stmt->data.tag == ExprData_TAG_While) {
-            insert_exit_deletes(Expr_child(stmt, &(I64){(I64)(1)}), live, n_live, 1);
+            insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(1)}), live, n_live, 1);
         }
         if (stmt->data.tag == ExprData_TAG_Return ||
             (!return_only && (stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue))) {
             for (U32 j = 0; j < n_live; j++) {
                 if (stmt->children.count > 0 &&
-                    (expr_uses_var(Expr_child(stmt, &(I64){(I64)(0)}), live[j].name) ||
-                     alias_used_in_expr(body, live[j].name, Expr_child(stmt, &(I64){(I64)(0)})))) continue;
+                    (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), live[j].name) ||
+                     alias_used_in_expr(body, live[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
                 Expr *del = make_delete_call(
                     live[j].name, live[j].type, live[j].struct_name, stmt);
                 if (del) Vec_push(&new_ch, del);
@@ -2416,7 +2416,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         // Find decl_index: direct child first, then nested
         I32 decl_idx = -1;
         for (U32 j = 0; j < body->children.count; j++) {
-            Expr *s = Expr_child(body, &(I64){(I64)(j)});
+            Expr *s = Expr_child(body, &(USize){(USize)(j)});
             if (s->data.tag == ExprData_TAG_Decl && *Str_eq(&s->data.data.Decl.name, b->name)) {
                 decl_idx = j;
                 break;
@@ -2424,7 +2424,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         }
         if (decl_idx == -1) {
             for (U32 j = 0; j < body->children.count; j++) {
-                if (expr_contains_decl(Expr_child(body, &(I64){(I64)(j)}), b->name)) {
+                if (expr_contains_decl(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
                     decl_idx = j;
                     break;
                 }
@@ -2436,10 +2436,10 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         I32 own_transfer = -1;
         I32 scan_from = decl_idx >= 0 ? decl_idx + 1 : 0;
         for (U32 j = scan_from; j < body->children.count; j++) {
-            if (expr_uses_var(Expr_child(body, &(I64){(I64)(j)}), b->name)) {
+            if (expr_uses_var(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
                 last_use = j;
             }
-            if (own_transfer == -1 && expr_transfers_own(Expr_child(body, &(I64){(I64)(j)}), b->name, scope)) {
+            if (own_transfer == -1 && expr_transfers_own(Expr_child(body, &(USize){(USize)(j)}), b->name, scope)) {
                 own_transfer = j;
             }
         }
@@ -2452,7 +2452,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             // If captured by a nested func/proc, don't ASAP-delete — the nested
             // function may be called after this scope's body finishes (e.g. cli mode main)
             for (U32 j = scan_from; j < body->children.count; j++) {
-                if (expr_used_in_nested_func(Expr_child(body, &(I64){(I64)(j)}), b->name)) {
+                if (expr_used_in_nested_func(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
                     skip_delete = 1;
                     break;
                 }
@@ -2478,14 +2478,14 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     while (ref_changed) {
         ref_changed = 0;
         for (U32 i = 0; i < body->children.count; i++) {
-            Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+            Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
             if (stmt->data.tag != ExprData_TAG_Decl || !stmt->data.data.Decl.is_ref) continue;
-            Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
 
             // Compute ref_last: max of AST uses and extended last_use in locals
             I32 ref_last = -1;
             for (U32 j = i + 1; j < body->children.count; j++) {
-                if (expr_uses_var(Expr_child(body, &(I64){(I64)(j)}), &stmt->data.data.Decl.name))
+                if (expr_uses_var(Expr_child(body, &(USize){(USize)(j)}), &stmt->data.data.Decl.name))
                     ref_last = j;
             }
             if (ref_last == -1) ref_last = i;
@@ -2509,9 +2509,9 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             // Extend last_use of all ident args in the fcall
             // Walk field-access chains to find root ident (e.g. root.children → root)
             for (U32 a = 1; a < rhs->children.count; a++) {
-                Expr *arg = Expr_child(rhs, &(I64){(I64)(a)});
+                Expr *arg = Expr_child(rhs, &(USize){(USize)(a)});
                 while (arg->data.tag == ExprData_TAG_FieldAccess && arg->children.count > 0)
-                    arg = Expr_child(arg, &(I64){(I64)(0)});
+                    arg = Expr_child(arg, &(USize){(USize)(0)});
                 if (arg->data.tag != ExprData_TAG_Ident) continue;
                 Str *aname = &arg->data.data.Ident;
                 for (U32 j = 0; j < n_locals; j++) {
@@ -2527,11 +2527,11 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     // Check for use after ownership transfer
     for (U32 j = 0; j < n_locals; j++) {
         if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
-            Expr *stmt = Expr_child(body, &(I64){(I64)(locals[j].last_use)});
+            Expr *stmt = Expr_child(body, &(USize){(USize)(locals[j].last_use)});
             char buf[128];
             snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name->c_str);
             type_error(stmt, buf);
-            Expr *xfer = Expr_child(body, &(I64){(I64)(locals[j].own_transfer)});
+            Expr *xfer = Expr_child(body, &(USize){(USize)(locals[j].own_transfer)});
             fprintf(stderr, "%s:%u:%u: note: ownership transferred here\n",
                     xfer->path.c_str, xfer->line, xfer->col);
             fprintf(stderr, "  help: pass a clone instead: own %s.clone()\n",
@@ -2543,14 +2543,14 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
 
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
 
         // Before ExprData_TAG_Return/ExprData_TAG_Break/ExprData_TAG_Continue: free locals not yet freed
         if (stmt->data.tag == ExprData_TAG_Return || stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue) {
             for (U32 j = 0; j < n_locals; j++) {
                 if (stmt->children.count > 0 &&
-                    (expr_uses_var(Expr_child(stmt, &(I64){(I64)(0)}), locals[j].name) ||
-                     alias_used_in_expr(body, locals[j].name, Expr_child(stmt, &(I64){(I64)(0)})))) continue;
+                    (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), locals[j].name) ||
+                     alias_used_in_expr(body, locals[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
                 if (locals[j].skip_delete) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < (I32)i &&
@@ -2577,10 +2577,10 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 LocalInfo *live = Vec_take(&live_vec);
                 if (stmt->data.tag == ExprData_TAG_If) {
                     for (U32 c = 1; c < stmt->children.count; c++)
-                        insert_exit_deletes(Expr_child(stmt, &(I64){(I64)(c)}), live, n_live, 0);
+                        insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(c)}), live, n_live, 0);
                 } else {
                     // While: only free before return (break/continue stay in parent scope)
-                    insert_exit_deletes(Expr_child(stmt, &(I64){(I64)(1)}), live, n_live, 1);
+                    insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(1)}), live, n_live, 1);
                 }
                 free(live);
             } else {
@@ -2596,7 +2596,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].skip_delete) break;
                 TilType t = locals[j].type;
                 if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) {
-                    Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+                    Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
                     if (expr_uses_var(rhs, vname)) {
                         // RHS reads this var — can't delete before assignment.
                         // Flag so builder emits save-old-delete pattern.
@@ -2640,16 +2640,16 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref) {
     body->til_type = (TilType){TilType_TAG_None};
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         switch (stmt->data.tag) {
         case ExprData_TAG_Decl:
             // Skip variant registry entries (payload enum: no children)
             if (stmt->children.count == 0) break;
-            infer_expr(scope, Expr_child(stmt, &(I64){(I64)(0)}), in_func);
+            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
             // For struct/enum defs, register type in scope
-            if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
-                Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
-                Bool is_enum = (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef);
+            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
+                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
+                Bool is_enum = (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef);
                 // Check explicit type annotation if present
                 if (stmt->data.data.Decl.explicit_type.count > 0) {
                     TilType declared = type_from_name(&stmt->data.data.Decl.explicit_type, scope);
@@ -2667,7 +2667,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
                 // Check for redeclaration: existing binding with a different struct_def
                 TypeBinding *existing = tscope_find(scope, sname);
-                if (existing && existing->struct_def && existing->struct_def != Expr_child(stmt, &(I64){(I64)(0)})) {
+                if (existing && existing->struct_def && existing->struct_def != Expr_child(stmt, &(USize){(USize)(0)})) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "%s '%s' already declared at %s:%u:%u",
                              is_enum ? "enum" : "struct", sname->c_str,
@@ -2695,13 +2695,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
                 // Store struct def pointer and builtin flag in the binding
                 TypeBinding *b = tscope_find(scope, sname);
-                b->struct_def = Expr_child(stmt, &(I64){(I64)(0)});
+                b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
                 b->is_builtin = is_builtin;
-                b->is_ext = Expr_child(stmt, &(I64){(I64)(0)})->is_ext;
+                b->is_ext = Expr_child(stmt, &(USize){(USize)(0)})->is_ext;
                 break;
             }
             // For func/proc defs, store return type and func/proc-ness in scope
-            if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
                 // Check explicit type annotation if present
                 if (stmt->data.data.Decl.explicit_type.count > 0) {
                     if (!(stmt->data.data.Decl.explicit_type.count == 11 && memcmp(stmt->data.data.Decl.explicit_type.c_str, "FunctionDef", 11) == 0)) {
@@ -2711,25 +2711,25 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         type_error(stmt, buf);
                     }
                 }
-                FuncType ft = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+                FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
                 I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
                 TilType rt = (TilType){TilType_TAG_None};
-                if ((Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_type.count > 0)) {
-                    rt = type_from_name(&Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.return_type, scope);
+                if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
+                    rt = type_from_name(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
                 }
                 stmt->til_type = rt;
                 tscope_set(scope, &stmt->data.data.Decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
                 // Store func_def pointer and builtin flag
                 TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
                 if (fb) {
-                    fb->func_def = Expr_child(stmt, &(I64){(I64)(0)});
+                    fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
                     if (ft.tag == FuncType_TAG_ExtFunc || ft.tag == FuncType_TAG_ExtProc)
                         fb->is_builtin = 1;
                 }
                 break;
             }
             // Type alias: Decl where RHS is Ident referring to a type (already registered by initer)
-            if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
+            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
                 TypeBinding *alias_b = tscope_find(scope, &stmt->data.data.Decl.name);
                 if (alias_b && alias_b->is_type_alias) {
                     stmt->til_type = (TilType){TilType_TAG_None};
@@ -2748,42 +2748,42 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; use 'own' with Dynamic type",
                              stmt->data.data.Decl.name.c_str);
                     type_error(stmt, buf);
-                } else if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum &&
+                } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum &&
                            (is_numeric_type(declared) || declared.tag == TilType_TAG_Dynamic)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
-                    if (is_numeric_type(declared) && !literal_in_range((const char *)Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident.c_str, declared)) {
+                    if (is_numeric_type(declared) && !literal_in_range((const char *)Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, declared)) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
-                                 Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident.c_str, til_type_name_c(&declared)->c_str);
-                        type_error(Expr_child(stmt, &(I64){(I64)(0)}), buf);
+                                 Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&declared)->c_str);
+                        type_error(Expr_child(stmt, &(USize){(USize)(0)}), buf);
                     }
-                    Expr_child(stmt, &(I64){(I64)(0)})->til_type = declared;
-                } else if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
+                    Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
+                } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
                     type_error(stmt, "null can only be assigned to 'ref' declarations");
-                } else if (Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != declared.tag &&
-                           Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != TilType_TAG_Dynamic) {
+                } else if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
+                           Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Dynamic) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                              stmt->data.data.Decl.name.c_str, til_type_name_c(&declared)->c_str,
-                             til_type_name_c(&Expr_child(stmt, &(I64){(I64)(0)})->til_type)->c_str);
+                             til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
                     type_error(stmt, buf);
                 } else if ((declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) &&
-                           (Expr_child(stmt, &(I64){(I64)(0)})->struct_name.count > 0) &&
-                           !*Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(I64){(I64)(0)})->struct_name)) {
+                           (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0) &&
+                           !*Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(USize){(USize)(0)})->struct_name)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                             stmt->data.data.Decl.name.c_str, etn->c_str, Expr_child(stmt, &(I64){(I64)(0)})->struct_name.c_str);
+                             stmt->data.data.Decl.name.c_str, etn->c_str, Expr_child(stmt, &(USize){(USize)(0)})->struct_name.c_str);
                     type_error(stmt, buf);
                 }
                 stmt->til_type = declared;
                 // Narrow Dynamic RHS to declared type
-                narrow_dynamic(Expr_child(stmt, &(I64){(I64)(0)}), declared, etn);
+                narrow_dynamic(Expr_child(stmt, &(USize){(USize)(0)}), declared, etn);
                 // For struct/enum types, propagate struct_name from explicit type (resolved through aliases)
                 if (declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) {
-                    Expr_child(stmt, &(I64){(I64)(0)})->struct_name = *resolve_type_alias(scope, etn);
+                    Expr_child(stmt, &(USize){(USize)(0)})->struct_name = *resolve_type_alias(scope, etn);
                 }
             } else {
-                stmt->til_type = Expr_child(stmt, &(I64){(I64)(0)})->til_type;
+                stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
                 if (stmt->til_type.tag == TilType_TAG_Dynamic) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add a type annotation like '%s : Type = ...' to specify the concrete type",
@@ -2792,9 +2792,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
             }
             tscope_set(scope, &stmt->data.data.Decl.name, stmt->til_type, -1, stmt->data.data.Decl.is_mut, stmt->line, stmt->col, 0, 0);
-            if ((stmt->til_type.tag == TilType_TAG_Struct || stmt->til_type.tag == TilType_TAG_Enum) && (Expr_child(stmt, &(I64){(I64)(0)})->struct_name.count > 0)) {
+            if ((stmt->til_type.tag == TilType_TAG_Struct || stmt->til_type.tag == TilType_TAG_Enum) && (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)) {
                 TypeBinding *b = tscope_find(scope, &stmt->data.data.Decl.name);
-                if (b) b->struct_name = Str_clone(&Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
+                if (b) b->struct_name = Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
             }
             // For function pointer variables, propagate func_def from source or fn_sig
             if (stmt->til_type.tag == TilType_TAG_FuncPtr) {
@@ -2802,11 +2802,11 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Explicit Fn signature on decl takes priority
                 if (dst && stmt->data.data.Decl.fn_sig) {
                     dst->func_def = stmt->data.data.Decl.fn_sig;
-                } else if (dst && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-                    TypeBinding *src = tscope_find(scope, &Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident);
+                } else if (dst && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+                    TypeBinding *src = tscope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
                     if (src && src->func_def) dst->func_def = src->func_def;
-                } else if (dst && Expr_child(stmt, &(I64){(I64)(0)})->fn_sig) {
-                    dst->func_def = Expr_child(stmt, &(I64){(I64)(0)})->fn_sig;
+                } else if (dst && Expr_child(stmt, &(USize){(USize)(0)})->fn_sig) {
+                    dst->func_def = Expr_child(stmt, &(USize){(USize)(0)})->fn_sig;
                 }
                 // Named FuncSig type in explicit type position
                 if (dst && !dst->func_def && stmt->data.data.Decl.explicit_type.count > 0) {
@@ -2819,7 +2819,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 TypeBinding *b = tscope_find(scope, &stmt->data.data.Decl.name);
                 if (b) b->is_ref = 1;
                 // Validate ref RHS: must be null, a ref-returning fcall, or a ref/param variable
-                Expr *rhs = Expr_child(stmt, &(I64){(I64)(0)});
+                Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
                 Bool ok = 0;
                 if (rhs->data.tag == ExprData_TAG_LiteralNull) ok = 1;
                 if (rhs->data.tag == ExprData_TAG_FCall && fcall_returns_ref(rhs, scope)) ok = 1;
@@ -2830,8 +2830,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (!ok) type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable");
             }
             // Error: owning result of ref-returning function without ref
-            if (!stmt->data.data.Decl.is_ref && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FCall &&
-                fcall_returns_ref(Expr_child(stmt, &(I64){(I64)(0)}), scope)) {
+            if (!stmt->data.data.Decl.is_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall &&
+                fcall_returns_ref(Expr_child(stmt, &(USize){(USize)(0)}), scope)) {
                 type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()");
             }
             // Auto-alias: immutable ident → immutable dest becomes ref (skip for Fn)
@@ -2840,8 +2840,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             //           explicit ref (user intends to clone from borrowed value)
             if (!stmt->data.data.Decl.is_ref && !stmt->data.data.Decl.is_mut &&
                 stmt->til_type.tag != TilType_TAG_FuncPtr &&
-                Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-                TypeBinding *rb = tscope_find(scope, &Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident);
+                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+                TypeBinding *rb = tscope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
                 if (rb && !rb->is_mut && !rb->is_own &&
                     (!rb->is_ref || rb->is_alias) && !rb->is_param) {
                     stmt->data.data.Decl.is_ref = true;
@@ -2850,23 +2850,23 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
             }
             // Auto-insert clone for declarations from identifiers (skip ref decls)
-            if ((Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident ||
-                 (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-                  (Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_Struct ||
-                   Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_Enum))) &&
+            if ((Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident ||
+                 (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                  (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Struct ||
+                   Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Enum))) &&
                 !stmt->data.data.Decl.is_ref) {
-                const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
+                const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
                 if (tname) {
                     Expr *_mc = make_clone_call(tname, stmt->til_type,
-                        Expr_child(stmt, &(I64){(I64)(0)}), stmt);
+                        Expr_child(stmt, &(USize){(USize)(0)}), stmt);
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
             }
             break;
         case ExprData_TAG_Assign: {
-            infer_expr(scope, Expr_child(stmt, &(I64){(I64)(0)}), in_func);
-            stmt->til_type = Expr_child(stmt, &(I64){(I64)(0)})->til_type;
+            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+            stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
             Str *aname = &stmt->data.data.Ident;
             TilType existing = tscope_get(scope, aname);
             if (existing.tag == TilType_TAG_Unknown) {
@@ -2885,32 +2885,32 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     fprintf(stderr, "%s:%u:%u: note: '%s' declared here, consider adding 'mut'\n",
                             stmt->path.c_str, b->line, b->col, aname->c_str);
                 }
-            } else if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(existing)) {
-                if (!literal_in_range((const char *)Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident.c_str, existing)) {
+            } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(existing)) {
+                if (!literal_in_range((const char *)Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, existing)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
-                             Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident.c_str, til_type_name_c(&existing)->c_str);
+                             Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&existing)->c_str);
                     type_error(stmt, buf);
                 }
-                Expr_child(stmt, &(I64){(I64)(0)})->til_type = existing;
+                Expr_child(stmt, &(USize){(USize)(0)})->til_type = existing;
                 stmt->til_type = existing;
-            } else if (Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != existing.tag &&
-                       Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != TilType_TAG_Unknown) {
+            } else if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != existing.tag &&
+                       Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "'%s' is %s but assigned %s",
                          aname->c_str, til_type_name_c(&existing)->c_str,
-                         til_type_name_c(&Expr_child(stmt, &(I64){(I64)(0)})->til_type)->c_str);
+                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
                 type_error(stmt, buf);
             }
             // Auto-insert clone for assignments from identifiers
-            if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident ||
-                (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-                 (Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_Struct ||
-                  Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag == TilType_TAG_Enum))) {
-                const char *tname = type_to_name(Expr_child(stmt, &(I64){(I64)(0)})->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
+            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident ||
+                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                 (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Struct ||
+                  Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Enum))) {
+                const char *tname = type_to_name(Expr_child(stmt, &(USize){(USize)(0)})->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
                 if (tname) {
-                    Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(I64){(I64)(0)})->til_type,
-                        Expr_child(stmt, &(I64){(I64)(0)}), stmt);
+                    Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(USize){(USize)(0)})->til_type,
+                        Expr_child(stmt, &(USize){(USize)(0)}), stmt);
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
@@ -2918,17 +2918,17 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             break;
         }
         case ExprData_TAG_FieldAssign: {
-            infer_expr(scope, Expr_child(stmt, &(I64){(I64)(0)}), in_func); // object
-            infer_expr(scope, Expr_child(stmt, &(I64){(I64)(1)}), in_func); // value
-            Expr *obj = Expr_child(stmt, &(I64){(I64)(0)});
+            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func); // object
+            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func); // value
+            Expr *obj = Expr_child(stmt, &(USize){(USize)(0)});
             Str *fname = &stmt->data.data.Ident;
             if (obj->struct_name.count > 0) {
                 Expr *sdef = tscope_get_struct(scope, &obj->struct_name);
                 if (sdef) {
-                    Expr *body = Expr_child(sdef, &(I64){(I64)(0)});
+                    Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
                     Bool found = 0;
                     for (U32 i = 0; i < body->children.count; i++) {
-                        Expr *field = Expr_child(body, &(I64){(I64)(i)});
+                        Expr *field = Expr_child(body, &(USize){(USize)(i)});
                         if (*Str_eq(&field->data.data.Decl.name, fname)) {
                             found = 1;
                             stmt->is_ns_field = field->data.data.Decl.is_namespace;
@@ -2939,21 +2939,21 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                                 snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
                                 type_error(stmt, buf);
                             }
-                            if (Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(field->til_type)) {
-                                if (!literal_in_range((const char *)Expr_child(stmt, &(I64){(I64)(1)})->data.data.Ident.c_str, field->til_type)) {
+                            if (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(field->til_type)) {
+                                if (!literal_in_range((const char *)Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident.c_str, field->til_type)) {
                                     char buf[128];
                                     snprintf(buf, sizeof(buf), "integer literal %s out of range for field '%s' (%s)",
-                                             Expr_child(stmt, &(I64){(I64)(1)})->data.data.Ident.c_str, fname->c_str, til_type_name_c(&field->til_type)->c_str);
-                                    type_error(Expr_child(stmt, &(I64){(I64)(1)}), buf);
+                                             Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident.c_str, fname->c_str, til_type_name_c(&field->til_type)->c_str);
+                                    type_error(Expr_child(stmt, &(USize){(USize)(1)}), buf);
                                 }
-                                Expr_child(stmt, &(I64){(I64)(1)})->til_type = field->til_type;
-                            } else if (Expr_child(stmt, &(I64){(I64)(1)})->til_type.tag != field->til_type.tag &&
-                                Expr_child(stmt, &(I64){(I64)(1)})->til_type.tag != TilType_TAG_Unknown &&
-                                Expr_child(stmt, &(I64){(I64)(1)})->til_type.tag != TilType_TAG_Dynamic) {
+                                Expr_child(stmt, &(USize){(USize)(1)})->til_type = field->til_type;
+                            } else if (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != field->til_type.tag &&
+                                Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Unknown &&
+                                Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Dynamic) {
                                 char buf[128];
                                 snprintf(buf, sizeof(buf), "field '%s' is %s but assigned %s",
                                          fname->c_str, til_type_name_c(&field->til_type)->c_str,
-                                         til_type_name_c(&Expr_child(stmt, &(I64){(I64)(1)})->til_type)->c_str);
+                                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(1)})->til_type)->c_str);
                                 type_error(stmt, buf);
                             }
                             break;
@@ -2973,16 +2973,16 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // Auto-insert clone for field assignments from identifiers
             // Skip clone for ref fields — they store pointers, not owned copies
             if (!stmt->is_ref_field &&
-                (Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident ||
-                 (Expr_child(stmt, &(I64){(I64)(1)})->data.tag == ExprData_TAG_FieldAccess &&
-                  (Expr_child(stmt, &(I64){(I64)(1)})->til_type.tag == TilType_TAG_Struct ||
-                   Expr_child(stmt, &(I64){(I64)(1)})->til_type.tag == TilType_TAG_Enum)))) {
-                const char *tname = type_to_name(Expr_child(stmt, &(I64){(I64)(1)})->til_type,
-                                                  &Expr_child(stmt, &(I64){(I64)(1)})->struct_name);
+                (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident ||
+                 (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FieldAccess &&
+                  (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Struct ||
+                   Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Enum)))) {
+                const char *tname = type_to_name(Expr_child(stmt, &(USize){(USize)(1)})->til_type,
+                                                  &Expr_child(stmt, &(USize){(USize)(1)})->struct_name);
                 if (tname) {
                     Expr *_mc = make_clone_call(tname,
-                        Expr_child(stmt, &(I64){(I64)(1)})->til_type, Expr_child(stmt, &(I64){(I64)(1)}),
-                        Expr_child(stmt, &(I64){(I64)(1)}));
+                        Expr_child(stmt, &(USize){(USize)(1)})->til_type, Expr_child(stmt, &(USize){(USize)(1)}),
+                        Expr_child(stmt, &(USize){(USize)(1)}));
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
                 }
@@ -2994,11 +2994,11 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             break;
         case ExprData_TAG_Return:
             if (stmt->children.count > 0) {
-                infer_expr(scope, Expr_child(stmt, &(I64){(I64)(0)}), in_func);
-                stmt->til_type = Expr_child(stmt, &(I64){(I64)(0)})->til_type;
+                infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+                stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
                 // Error: returning an explicit ref variable from a non-ref function
-                if (!returns_ref && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-                    TypeBinding *b = tscope_find(scope, &Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident);
+                if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+                    TypeBinding *b = tscope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
                     if (b && b->is_ref && !b->is_alias && !b->is_param) {
                         type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'");
                     }
@@ -3006,13 +3006,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Auto-insert clone when returning a borrowed param or auto-alias
                 // (prevents use-after-free: aliases share storage with locals,
                 //  params are borrowed — both need cloning to return safely)
-                if (!returns_ref && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-                    TypeBinding *b = tscope_find(scope, &Expr_child(stmt, &(I64){(I64)(0)})->data.data.Ident);
+                if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+                    TypeBinding *b = tscope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
                     if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
-                        const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(I64){(I64)(0)})->struct_name);
+                        const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
                         if (tname) {
                             Expr *_mc = make_clone_call(tname, stmt->til_type,
-                                Expr_child(stmt, &(I64){(I64)(0)}), stmt);
+                                Expr_child(stmt, &(USize){(USize)(0)}), stmt);
                             *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                             memset(_mc, 0, sizeof(Expr)); free(_mc);
                         }
@@ -3035,22 +3035,22 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
         case ExprData_TAG_If:
-            infer_expr(scope, Expr_child(stmt, &(I64){(I64)(0)}), in_func); // condition
-            if (Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != TilType_TAG_Bool &&
-                Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != TilType_TAG_Unknown) {
+            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func); // condition
+            if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Bool &&
+                Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "if condition must be Bool, got %s",
-                         til_type_name_c(&Expr_child(stmt, &(I64){(I64)(0)})->til_type)->c_str);
+                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
                 type_error(stmt, buf);
             }
             {
                 TypeScope *then_scope = tscope_new(scope);
-                infer_body(then_scope, Expr_child(stmt, &(I64){(I64)(1)}), in_func, 1, in_loop, returns_ref);
+                infer_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, in_loop, returns_ref);
                 tscope_free(then_scope);
             }
             if (stmt->children.count > 2) {
                 TypeScope *else_scope = tscope_new(scope);
-                infer_body(else_scope, Expr_child(stmt, &(I64){(I64)(2)}), in_func, 1, in_loop, returns_ref);
+                infer_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}), in_func, 1, in_loop, returns_ref);
                 tscope_free(else_scope);
             }
             stmt->til_type = (TilType){TilType_TAG_None};
@@ -3062,22 +3062,22 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             break;
         }
         case ExprData_TAG_While:
-            infer_expr(scope, Expr_child(stmt, &(I64){(I64)(0)}), in_func); // condition
-            if (Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != TilType_TAG_Bool &&
-                Expr_child(stmt, &(I64){(I64)(0)})->til_type.tag != TilType_TAG_Unknown) {
+            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func); // condition
+            if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Bool &&
+                Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "while condition must be Bool, got %s",
-                         til_type_name_c(&Expr_child(stmt, &(I64){(I64)(0)})->til_type)->c_str);
+                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
                 type_error(stmt, buf);
             }
             // Transform: while COND { BODY } -> while true { _wcond := COND; if _wcond {} else { break }; BODY }
             // This lets ASAP destruction free the condition result each iteration.
-            if (expr_contains_fcall(Expr_child(stmt, &(I64){(I64)(0)}))) {
-                Expr *cond = Expr_child(stmt, &(I64){(I64)(0)});
+            if (expr_contains_fcall(Expr_child(stmt, &(USize){(USize)(0)}))) {
+                Expr *cond = Expr_child(stmt, &(USize){(USize)(0)});
                 I32 line = cond->line;
                 I32 col = cond->col;
                 Str *path = &cond->path;
-                Expr *body = Expr_child(stmt, &(I64){(I64)(1)});
+                Expr *body = Expr_child(stmt, &(USize){(USize)(1)});
                 // _wcondN := COND
                 char name_buf[32];
                 snprintf(name_buf, sizeof(name_buf), "_wcond%d", hoist_counter++);
@@ -3110,7 +3110,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Vec_push(&new_ch, decl);
                 Vec_push(&new_ch, if_node);
                 for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *ch = Expr_child(body, &(I64){(I64)(j)});
+                    Expr *ch = Expr_child(body, &(USize){(USize)(j)});
                     Vec_push(&new_ch, Expr_clone(ch));
                 }
                 Vec_delete(&body->children, &(Bool){0});
@@ -3123,7 +3123,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             {
                 TypeScope *while_scope = tscope_new(scope);
-                infer_body(while_scope, Expr_child(stmt, &(I64){(I64)(1)}), in_func, 1, 1, returns_ref);
+                infer_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, 1, returns_ref);
                 tscope_free(while_scope);
             }
             stmt->til_type = (TilType){TilType_TAG_None};
@@ -3131,7 +3131,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
         case ExprData_TAG_Switch: {
             // Desugar: switch expr { case v1: B1  case v2: B2  case: B3 }
             // Into:   { _swN := expr; if _swN.eq(v1) { B1 } else if _swN.eq(v2) { B2 } else { B3 } }
-            Expr *sw_expr = Expr_child(stmt, &(I64){(I64)(0)});
+            Expr *sw_expr = Expr_child(stmt, &(USize){(USize)(0)});
             I32 sw_line = stmt->line, sw_col = stmt->col;
             Str *sw_path = &stmt->path;
 
@@ -3160,26 +3160,26 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Expr *default_body = NULL;
 
             for (U32 ci = 1; ci < stmt->children.count; ci++) {
-                Expr *case_node = Expr_child(stmt, &(I64){(I64)(ci)});
+                Expr *case_node = Expr_child(stmt, &(USize){(USize)(ci)});
                 if (case_node->children.count == 1) {
                     // Default case — just body, no match expr
-                    default_body = Expr_child(case_node, &(I64){(I64)(0)});
+                    default_body = Expr_child(case_node, &(USize){(USize)(0)});
                     continue;
                 }
-                Expr *match_expr = Expr_child(case_node, &(I64){(I64)(0)});
-                Expr *case_body = Expr_child(case_node, &(I64){(I64)(1)});
+                Expr *match_expr = Expr_child(case_node, &(USize){(USize)(0)});
+                Expr *case_body = Expr_child(case_node, &(USize){(USize)(1)});
                 Expr *condition = NULL;
 
                 // Phase 2: Range case — case A..B: → _sw.gte(A).and(_sw.lte(B))
                 // Detect Range.new(start, end) pattern from parser's .. desugaring
                 if (match_expr->data.tag == ExprData_TAG_FCall &&
                     match_expr->children.count == 3 &&
-                    Expr_child(match_expr, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-                    (Expr_child(match_expr, &(I64){(I64)(0)})->data.data.Ident.count == 3 && memcmp(Expr_child(match_expr, &(I64){(I64)(0)})->data.data.Ident.c_str, "new", 3) == 0) &&
-                    Expr_child(Expr_child(match_expr, &(I64){(I64)(0)}), &(I64){0})->data.tag == ExprData_TAG_Ident &&
-                    (Expr_child(Expr_child(match_expr, &(I64){(I64)(0)}), &(I64){0})->data.data.Ident.count == 5 && memcmp(Expr_child(Expr_child(match_expr, &(I64){(I64)(0)}), &(I64){0})->data.data.Ident.c_str, "Range", 5) == 0)) {
-                    Expr *start_expr = Expr_child(match_expr, &(I64){(I64)(1)});
-                    Expr *end_expr = Expr_child(match_expr, &(I64){(I64)(2)});
+                    Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                    (Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident.count == 3 && memcmp(Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident.c_str, "new", 3) == 0) &&
+                    Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
+                    (Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.count == 5 && memcmp(Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.c_str, "Range", 5) == 0)) {
+                    Expr *start_expr = Expr_child(match_expr, &(USize){(USize)(1)});
+                    Expr *end_expr = Expr_child(match_expr, &(USize){(USize)(2)});
 
                     // _sw.gte(start)
                     Expr *sw1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
@@ -3215,13 +3215,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (!condition &&
                     match_expr->data.tag == ExprData_TAG_FCall &&
                     match_expr->children.count == 2 &&
-                    Expr_child(match_expr, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-                    Expr_child(Expr_child(match_expr, &(I64){(I64)(0)}), &(I64){0})->data.tag == ExprData_TAG_Ident &&
-                    Expr_child(match_expr, &(I64){(I64)(1)})->data.tag == ExprData_TAG_Ident) {
-                    Expr *callee = Expr_child(match_expr, &(I64){(I64)(0)});
-                    Str *type_name = &Expr_child(callee, &(I64){(I64)(0)})->data.data.Ident;
+                    Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                    Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
+                    Expr_child(match_expr, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
+                    Expr *callee = Expr_child(match_expr, &(USize){(USize)(0)});
+                    Str *type_name = &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident;
                     Str *variant_name = &callee->data.data.Ident;
-                    Str *binding_name = &Expr_child(match_expr, &(I64){(I64)(1)})->data.data.Ident;
+                    Str *binding_name = &Expr_child(match_expr, &(USize){(USize)(1)})->data.data.Ident;
                     Expr *enum_def = tscope_get_struct(scope, type_name);
                     if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
                         I32 tag = *enum_variant_tag(enum_def, variant_name);
@@ -3262,7 +3262,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                             Vec_push(&new_ch, bind_decl);
                             for (U32 bi = 0; bi < case_body->children.count; bi++) {
-                                Expr *ch = Expr_child(case_body, &(I64){(I64)(bi)});
+                                Expr *ch = Expr_child(case_body, &(USize){(USize)(bi)});
                                 Vec_push(&new_ch, Expr_clone(ch));
                             }
                             Vec_delete(&case_body->children, &(Bool){0});
@@ -3276,8 +3276,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (!condition &&
                     match_expr->data.tag == ExprData_TAG_FieldAccess &&
                     match_expr->children.count > 0 &&
-                    Expr_child(match_expr, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident) {
-                    Str *type_name = &Expr_child(match_expr, &(I64){(I64)(0)})->data.data.Ident;
+                    Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+                    Str *type_name = &Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident;
                     Str *variant_name = &match_expr->data.data.FieldAccess;
                     Expr *enum_def = tscope_get_struct(scope, type_name);
                     if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
@@ -3322,7 +3322,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr *else_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, case_node->line, case_node->col, sw_path);
                     Expr_add_child(else_body, if_node);
                     Expr_add_child(last_if, else_body);
-                    last_if = Expr_child(Expr_child(last_if, &(I64){(I64)(last_if->children.count - 1)}), &(I64){(I64)(0)});
+                    last_if = Expr_child(Expr_child(last_if, &(USize){(USize)(last_if->children.count - 1)}), &(USize){(USize)(0)});
                 }
             }
 
@@ -3352,19 +3352,19 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
         }
         case ExprData_TAG_ForIn: {
             // Validate iterable and desugar to while loop in anonymous scope
-            Expr *iter = Expr_child(stmt, &(I64){(I64)(0)});
+            Expr *iter = Expr_child(stmt, &(USize){(USize)(0)});
 
             // #100: Detect Range.new(start, end) from parser's .. desugaring
             // For scalar types, desugar directly to while loop with inc/dec
             // instead of going through Range.new/len/get
             if (iter->data.tag == ExprData_TAG_FCall &&
                 iter->children.count == 3 &&
-                Expr_child(iter, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-                (Expr_child(iter, &(I64){(I64)(0)})->data.data.FieldAccess.count == 3 && memcmp(Expr_child(iter, &(I64){(I64)(0)})->data.data.FieldAccess.c_str, "new", 3) == 0) &&
-                Expr_child(Expr_child(iter, &(I64){(I64)(0)}), &(I64){0})->data.tag == ExprData_TAG_Ident &&
-                (Expr_child(Expr_child(iter, &(I64){(I64)(0)}), &(I64){0})->data.data.Ident.count == 5 && memcmp(Expr_child(Expr_child(iter, &(I64){(I64)(0)}), &(I64){0})->data.data.Ident.c_str, "Range", 5) == 0)) {
-                Expr *start_expr = Expr_child(iter, &(I64){(I64)(1)});
-                Expr *end_expr = Expr_child(iter, &(I64){(I64)(2)});
+                Expr_child(iter, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+                (Expr_child(iter, &(USize){(USize)(0)})->data.data.FieldAccess.count == 3 && memcmp(Expr_child(iter, &(USize){(USize)(0)})->data.data.FieldAccess.c_str, "new", 3) == 0) &&
+                Expr_child(Expr_child(iter, &(USize){(USize)(0)}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
+                (Expr_child(Expr_child(iter, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.count == 5 && memcmp(Expr_child(Expr_child(iter, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.c_str, "Range", 5) == 0)) {
+                Expr *start_expr = Expr_child(iter, &(USize){(USize)(1)});
+                Expr *end_expr = Expr_child(iter, &(USize){(USize)(2)});
                 // Infer operand types to determine T
                 infer_expr(scope, start_expr, in_func);
                 infer_expr(scope, end_expr, in_func);
@@ -3386,7 +3386,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
 
                 Str *var_name = &stmt->data.data.Ident;
-                Expr *for_body = Expr_child(stmt, &(I64){(I64)(1)});
+                Expr *for_body = Expr_child(stmt, &(USize){(USize)(1)});
                 I32 line = stmt->line, col = stmt->col;
                 Str *path = &stmt->path;
                 int counter = hoist_counter++;
@@ -3446,7 +3446,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr_add_child(wb, RCALL0(RID(cur_name), step, step_len));
                     // Copy body
                     for (U32 bi = 0; bi < for_body->children.count; bi++)
-                        Expr_add_child(wb, Expr_clone(Expr_child(for_body, &(I64){(I64)(bi)})));
+                        Expr_add_child(wb, Expr_clone(Expr_child(for_body, &(USize){(USize)(bi)})));
                     return wb;
                 }
 
@@ -3508,13 +3508,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // Find len() and get() in namespace, validate signatures
             Expr *len_func = NULL, *get_func = NULL;
-            Expr *sbody = Expr_child(sdef, &(I64){(I64)(0)});
+            Expr *sbody = Expr_child(sdef, &(USize){(USize)(0)});
             for (U32 fi = 0; fi < sbody->children.count; fi++) {
-                Expr *field = Expr_child(sbody, &(I64){(I64)(fi)});
+                Expr *field = Expr_child(sbody, &(USize){(USize)(fi)});
                 if (!field->data.data.Decl.is_namespace) continue;
-                if (Expr_child(field, &(I64){(I64)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-                if ((field->data.data.Decl.name.count == 3 && memcmp(field->data.data.Decl.name.c_str, "len", 3) == 0)) len_func = Expr_child(field, &(I64){(I64)(0)});
-                if ((field->data.data.Decl.name.count == 3 && memcmp(field->data.data.Decl.name.c_str, "get", 3) == 0)) get_func = Expr_child(field, &(I64){(I64)(0)});
+                if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+                if ((field->data.data.Decl.name.count == 3 && memcmp(field->data.data.Decl.name.c_str, "len", 3) == 0)) len_func = Expr_child(field, &(USize){(USize)(0)});
+                if ((field->data.data.Decl.name.count == 3 && memcmp(field->data.data.Decl.name.c_str, "get", 3) == 0)) get_func = Expr_child(field, &(USize){(USize)(0)});
             }
 
             if (!len_func) {
@@ -3570,7 +3570,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             //     }
             // }
             Str *var_name = &stmt->data.data.Ident;
-            Expr *for_body = Expr_child(stmt, &(I64){(I64)(1)});
+            Expr *for_body = Expr_child(stmt, &(USize){(USize)(1)});
             I32 line = stmt->line;
             I32 col = stmt->col;
             Str *path = &stmt->path;
@@ -3677,7 +3677,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // Copy original body statements
             for (U32 bi = 0; bi < for_body->children.count; bi++) {
-                Expr_add_child(wbody, Expr_clone(Expr_child(for_body, &(I64){(I64)(bi)})));
+                Expr_add_child(wbody, Expr_clone(Expr_child(for_body, &(USize){(USize)(bi)})));
             }
 
             Expr_add_child(while_node, wbody);

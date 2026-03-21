@@ -91,16 +91,16 @@ static Bool is_known(Expr *e, Value *out) {
 static Bool is_macro_call(Expr *e) {
     return e->data.tag == ExprData_TAG_FCall &&
            e->children.count > 0 &&
-           Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
-           *Set_has(&macros, &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident);
+           Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
+           *Set_has(&macros, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
 }
 
 // Check if a ExprData_TAG_FCall is a pure func call
 static Bool is_func_call(Expr *e) {
     return e->data.tag == ExprData_TAG_FCall &&
            e->children.count > 0 &&
-           Expr_child(e, &(I64){(I64)(0)})->data.tag == ExprData_TAG_Ident &&
-           *Set_has(&funcs, &Expr_child(e, &(I64){(I64)(0)})->data.data.Ident);
+           Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
+           *Set_has(&funcs, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
 }
 
 // Check if a func body references identifiers not available at precomp time.
@@ -118,7 +118,7 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
         return 1;
     }
     for (U32 i = 0; i < e->children.count; i++) {
-        if (func_uses_unknown_globals(Expr_child(e, &(I64){(I64)(i)}), func_def, precomp_scope)) return 1;
+        if (func_uses_unknown_globals(Expr_child(e, &(USize){(USize)(i)}), func_def, precomp_scope)) return 1;
     }
     return 0;
 }
@@ -127,11 +127,11 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
 static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Check if the function body references unknown globals
-    Str *callee_name = &Expr_child(fcall, &(I64){(I64)(0)})->data.data.Ident;
+    Str *callee_name = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
     Cell *fn_cell = scope_get(scope, callee_name);
     if (fn_cell && fn_cell->val.type == VAL_FUNC && fn_cell->val.func->data.tag == ExprData_TAG_FuncDef) {
         Expr *fdef = fn_cell->val.func;
-        if (fdef->children.count > 0 && func_uses_unknown_globals(Expr_child(fdef, &(I64){(I64)(0)}), fdef, scope)) {
+        if (fdef->children.count > 0 && func_uses_unknown_globals(Expr_child(fdef, &(USize){(USize)(0)}), fdef, scope)) {
             return NULL;
         }
     }
@@ -141,10 +141,10 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     Expr *eval_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, fcall->line, fcall->col, &fcall->path);
     eval_call->til_type = fcall->til_type;
     eval_call->struct_name = fcall->struct_name;
-    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(I64){(I64)(0)}))); // callee ident (clone — borrowed ref)
+    Expr_add_child(eval_call, Expr_clone(Expr_child(fcall, &(USize){(USize)(0)}))); // callee ident (clone — borrowed ref)
 
     for (U32 i = 0; i < nargs; i++) {
-        Expr *arg = Expr_child(fcall, &(I64){(I64)(i + 1)});
+        Expr *arg = Expr_child(fcall, &(USize){(USize)(i + 1)});
         Value arg_val;
         if (!is_known(arg, &arg_val)) {
             if (require_known) {
@@ -167,7 +167,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Clean up eval_call (detach callee ident first — it's shared with original)
     memset(Vec_get(&eval_call->children, &(USize){(USize)(0)}), 0, sizeof(Expr));
     for (U32 i = 1; i < eval_call->children.count; i++)
-        Expr_delete(Expr_child(eval_call, &(I64){(I64)(i)}), &(Bool){0});
+        Expr_delete(Expr_child(eval_call, &(USize){(USize)(i)}), &(Bool){0});
     Vec_delete(&eval_call->children, &(Bool){0});
     free(eval_call);
 
@@ -194,54 +194,54 @@ static void track_literal(Scope *scope, Str *name, Expr *rhs) {
 // Process a body, replacing macro calls with literals
 static void process_body(Scope *scope, Expr *body) {
     for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
 
         switch (stmt->data.tag) {
         case ExprData_TAG_Decl:
             if (stmt->children.count == 0) break; // variant registry (payload enums)
-            if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef ||
-                Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
-                Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef) {
+            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
+                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
+                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
                 // Recurse into func/proc/macro bodies
-                if (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef &&
-                    Expr_child(stmt, &(I64){(I64)(0)})->children.count > 0) {
-                    process_body(scope, Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)}));
+                if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
+                    Expr_child(stmt, &(USize){(USize)(0)})->children.count > 0) {
+                    process_body(scope, Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)}));
                 }
                 break;
             }
             // ref declarations must keep the function call — no folding
             if (stmt->data.data.Decl.is_ref) break;
             // Check if RHS is a macro or pure func call
-            if (is_macro_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
-                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 1);
+            if (is_macro_call(Expr_child(stmt, &(USize){(USize)(0)}))) {
+                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(USize){(USize)(0)}), 1);
                 if (lit) {
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *lit;
                     track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 }
-            } else if (is_func_call(Expr_child(stmt, &(I64){(I64)(0)}))) {
-                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(I64){(I64)(0)}), 0);
+            } else if (is_func_call(Expr_child(stmt, &(USize){(USize)(0)}))) {
+                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(USize){(USize)(0)}), 0);
                 if (lit) {
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *lit;
                     track_literal(scope, (&stmt->data.data.Decl.name), lit);
                 } else {
-                    track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));
+                    track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(USize){(USize)(0)}));
                 }
             } else {
                 // Track compile-time known value
-                track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(I64){(I64)(0)}));
+                track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(USize){(USize)(0)}));
             }
             break;
 
         case ExprData_TAG_If:
             if (stmt->children.count > 1)
-                process_body(scope, Expr_child(stmt, &(I64){(I64)(1)}));
+                process_body(scope, Expr_child(stmt, &(USize){(USize)(1)}));
             if (stmt->children.count > 2)
-                process_body(scope, Expr_child(stmt, &(I64){(I64)(2)}));
+                process_body(scope, Expr_child(stmt, &(USize){(USize)(2)}));
             break;
 
         case ExprData_TAG_While:
             if (stmt->children.count > 1)
-                process_body(scope, Expr_child(stmt, &(I64){(I64)(1)}));
+                process_body(scope, Expr_child(stmt, &(USize){(USize)(1)}));
             break;
 
         case ExprData_TAG_FCall:
@@ -272,9 +272,9 @@ void precomp(Expr *program) {
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); macros = *_sp; free(_sp); }
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); funcs = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 && Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-            FuncType ft = Expr_child(stmt, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+            FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
             if (ft.tag == FuncType_TAG_Macro)
                 { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(&stmt->data.data.Decl.name)->c_str, stmt->data.data.Decl.name.count, stmt->data.data.Decl.name.count}; Set_add(&macros, _p); }
             else if (ft.tag == FuncType_TAG_Func)
@@ -282,15 +282,15 @@ void precomp(Expr *program) {
         }
         // Register namespace funcs from struct/enum bodies
         if (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0 &&
-            (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
-             Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
-            Expr *body = Expr_child(Expr_child(stmt, &(I64){(I64)(0)}), &(I64){(I64)(0)});
+            Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
             for (U32 j = 0; j < body->children.count; j++) {
-                Expr *field = Expr_child(body, &(I64){(I64)(j)});
+                Expr *field = Expr_child(body, &(USize){(USize)(j)});
                 if (field->data.data.Decl.is_namespace &&
-                    Expr_child(field, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                    FuncType ft = Expr_child(field, &(I64){(I64)(0)})->data.data.FuncDef.func_type;
+                    Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                    FuncType ft = Expr_child(field, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
                     if (ft.tag == FuncType_TAG_Func) {
                         Str *qname = Str_concat(Str_concat(sname, &(Str){.c_str = (U8*)"_", .count = 1, .cap = CAP_LIT}), &field->data.data.Decl.name);
                         { Str *_p = malloc(sizeof(Str)); *_p = (Str){Str_clone(qname)->c_str, qname->count, qname->count}; Set_add(&funcs, _p); }
@@ -310,12 +310,12 @@ void precomp(Expr *program) {
     // 2. Set up interpreter scope (same as interpret() does)
     Scope *global = scope_new(NULL);
     for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(I64){(I64)(i)});
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl &&
-            (Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_FuncDef ||
-             Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_StructDef ||
-             Expr_child(stmt, &(I64){(I64)(0)})->data.tag == ExprData_TAG_EnumDef)) {
-            Value val = {.type = VAL_FUNC, .func = Expr_child(stmt, &(I64){(I64)(0)})};
+            (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
+             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
+            Value val = {.type = VAL_FUNC, .func = Expr_child(stmt, &(USize){(USize)(0)})};
             scope_set_owned(global, (&stmt->data.data.Decl.name), val);
         }
     }

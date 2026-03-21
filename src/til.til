@@ -210,7 +210,7 @@ main := proc(args: ..Str) {
     mut path : Str = ""
     mut custom_bin : Str = ""
     mut custom_c : Str = ""
-    mut path_idx : U64 = 1
+    mut path_idx : USize = 1
 
     if args.len().eq(1) {
         if command.eq("help").or(command.eq("--help")) {
@@ -441,7 +441,7 @@ main := proc(args: ..Str) {
 
     // Append -l flags from CLI args (args[2..])
     mut user_argv := Vec.new("Str", Str.size())
-    mut ai : U64 = path_idx.add(1)
+    mut ai : USize = path_idx.add(1)
     while ai.lt(args.len()) {
         ref arg : Str = args.get(ai)
         if arg.starts_with("-l") {
@@ -545,7 +545,7 @@ main := proc(args: ..Str) {
         if result.eq(0).and(do_lib.not()).and(command.eq("run")) {
             // Build command with user args
             mut cmd := bin_path
-            mut ui : U64 = 0
+            mut ui : USize = 0
             while ui.lt(user_argv.len()) {
                 ref uarg : Str = user_argv.get(ui)
                 cmd = cmd.concat(" '").concat(uarg).concat("'")
