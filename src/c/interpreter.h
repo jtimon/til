@@ -10,20 +10,20 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
 // --- Values ---
 
 typedef enum {
-    VAL_NONE,
-    VAL_I64,
-    VAL_U8,
-    VAL_I16,
-    VAL_I32,
-    VAL_U32,
-    VAL_U64,
-    VAL_F32,
-    VAL_BOOL,
-    VAL_FUNC,   // pointer to a func/proc AST node
-    VAL_STRUCT, // struct instance (including Str)
-    VAL_ENUM,   // enum instance (tagged union with optional payload)
-    VAL_PTR,    // raw buffer (Value array for malloc/ptr_add/memcpy)
-} ValType;
+    Value_TAG_None,
+    Value_TAG_Int,
+    Value_TAG_Byte,
+    Value_TAG_Short,
+    Value_TAG_Int32,
+    Value_TAG_Uint32,
+    Value_TAG_Uint64,
+    Value_TAG_Float,
+    Value_TAG_Boolean,
+    Value_TAG_Func,    // borrowed pointer to a func/proc AST node
+    Value_TAG_Struct,  // struct instance (including Str)
+    Value_TAG_Enum,    // enum instance (tagged union with optional payload)
+    Value_TAG_Ptr,     // raw buffer (Value array for malloc/ptr_add/memcpy)
+} Value_tag;
 
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
@@ -33,50 +33,52 @@ struct StructInstance {
     Str *struct_name;       // borrowed from AST (no alloc, no free)
     Expr *struct_def;       // borrowed pointer to NODE_STRUCT_DEF
     void *data;             // flat buffer, same layout as C struct
-    Bool borrowed;          // if true, data points into parent buffer — don't free
-};
-
-struct Value {
-    ValType type;
-    union {
-        I64 *i64;
-        U8 *u8;
-        I16 *i16;
-        I32 *i32;
-        U32 *u32;
-        U64 *u64;
-        F32 *f32;
-        Bool *boolean;
-        Expr *func;
-        StructInstance *instance;
-        EnumInstance *enum_inst;
-        void *ptr;
-    };
+    Bool borrowed;          // if true, data points into parent buffer -- don't free
 };
 
 struct EnumInstance {
     Str *enum_name;
     I32 tag;
-    Value payload;  // VAL_NONE for no-payload variants
+    Value *payload;         // heap-allocated (own), NULL for no-payload variants
+};
+
+struct Value {
+    Value_tag tag;
+    union {
+        I64 Int;
+        U8 Byte;
+        I16 Short;
+        I32 Int32;
+        U32 Uint32;
+        U64 Uint64;
+        F32 Float;
+        Bool Boolean;
+        void *Func;              // borrowed Expr* (cast when used)
+        StructInstance Struct;    // inline
+        EnumInstance Enum;        // inline
+        void *Ptr;
+    } data;
 };
 
 static inline Value val_none(void) {
-    return (Value){.type = VAL_NONE};
+    return (Value){.tag = Value_TAG_None};
 }
-static inline Value val_i64(I64 v) { I64 *p = malloc(sizeof(I64)); *p = v; return (Value){.type = VAL_I64, .i64 = p}; }
-static inline Value val_u8(I64 v) { U8 *p = malloc(sizeof(U8)); *p = (U8)(v & 0xFF); return (Value){.type = VAL_U8, .u8 = p}; }
-static inline Value val_i16(I64 v) { I16 *p = malloc(sizeof(I16)); *p = (I16)v; return (Value){.type = VAL_I16, .i16 = p}; }
-static inline Value val_i32(I64 v) { I32 *p = malloc(sizeof(I32)); *p = (I32)v; return (Value){.type = VAL_I32, .i32 = p}; }
-static inline Value val_u32(I64 v) { U32 *p = malloc(sizeof(U32)); *p = (U32)(v & 0xFFFFFFFF); return (Value){.type = VAL_U32, .u32 = p}; }
-static inline Value val_u64(U64 v) { U64 *p = malloc(sizeof(U64)); *p = v; return (Value){.type = VAL_U64, .u64 = p}; }
-static inline Value val_f32(F32 v) { F32 *p = malloc(sizeof(F32)); *p = v; return (Value){.type = VAL_F32, .f32 = p}; }
-static inline Value val_bool(Bool v) { Bool *p = malloc(sizeof(Bool)); *p = v; return (Value){.type = VAL_BOOL, .boolean = p}; }
-static inline Value val_enum(Str *enum_name, I32 tag, Value payload) {
-    EnumInstance *ei = malloc(sizeof(EnumInstance));
-    ei->enum_name = enum_name;
-    ei->tag = tag;
-    ei->payload = payload;
-    return (Value){.type = VAL_ENUM, .enum_inst = ei};
+static inline Value val_i64(I64 v) { return (Value){.tag = Value_TAG_Int, .data.Int = v}; }
+static inline Value val_u8(I64 v) { return (Value){.tag = Value_TAG_Byte, .data.Byte = (U8)(v & 0xFF)}; }
+static inline Value val_i16(I64 v) { return (Value){.tag = Value_TAG_Short, .data.Short = (I16)v}; }
+static inline Value val_i32(I64 v) { return (Value){.tag = Value_TAG_Int32, .data.Int32 = (I32)v}; }
+static inline Value val_u32(I64 v) { return (Value){.tag = Value_TAG_Uint32, .data.Uint32 = (U32)(v & 0xFFFFFFFF)}; }
+static inline Value val_u64(U64 v) { return (Value){.tag = Value_TAG_Uint64, .data.Uint64 = v}; }
+static inline Value val_f32(F32 v) { return (Value){.tag = Value_TAG_Float, .data.Float = v}; }
+static inline Value val_bool(Bool v) { return (Value){.tag = Value_TAG_Boolean, .data.Boolean = v}; }
+static inline Value val_enum(Str *enum_name, I32 etag, Value payload) {
+    Value r;
+    r.tag = Value_TAG_Enum;
+    r.data.Enum.enum_name = enum_name;
+    r.data.Enum.tag = etag;
+    r.data.Enum.payload = malloc(sizeof(Value));
+    *r.data.Enum.payload = payload;
+    return r;
 }
 
 // --- Cells ---
@@ -131,4 +133,3 @@ Expr *find_field_decl(Expr *struct_def, Str *fname);
 
 // Write a Value into flat buffer at a field decl's offset
 void write_field(StructInstance *inst, Expr *fdecl, Value val);
-

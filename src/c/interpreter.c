@@ -52,34 +52,34 @@ static Value widen_numeric(Value v, Str *ptype) {
     if (!ptype || ptype->count == 0) return v;
     // Extract source value as I64/U64
     I64 ival = 0; U64 uval = 0; int is_unsigned = 0;
-    switch (v.type) {
-        case VAL_U8:  uval = *v.u8; is_unsigned = 1; break;
-        case VAL_I16: ival = *v.i16; break;
-        case VAL_I32: ival = *v.i32; break;
-        case VAL_U32: uval = *v.u32; is_unsigned = 1; break;
+    switch (v.tag) {
+        case Value_TAG_Byte:  uval = v.data.Byte; is_unsigned = 1; break;
+        case Value_TAG_Short: ival = v.data.Short; break;
+        case Value_TAG_Int32: ival = v.data.Int32; break;
+        case Value_TAG_Uint32: uval = v.data.Uint32; is_unsigned = 1; break;
         default: return v;
     }
     if (!is_unsigned) uval = (U64)ival;
     else ival = (I64)uval;
     // Check target type and widen
     if (ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0) {
-        free(v.i64); return val_i64(is_unsigned ? (I64)uval : ival);
+        return val_i64(is_unsigned ? (I64)uval : ival);
     }
     if (ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0) {
-        free(v.i64); return val_u64(uval);
+        return val_u64(uval);
     }
     if (ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0) {
-        free(v.i64); return val_u32((U32)uval);
+        return val_u32((U32)uval);
     }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v.type == VAL_U8) {
-        free(v.u8); return val_u32((I64)uval);
+    if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v.tag == Value_TAG_Byte) {
+        return val_u32((I64)uval);
     }
     if (ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0) {
-        if (v.type == VAL_U8) { free(v.u8); return val_i32(ival); }
-        if (v.type == VAL_I16) { free(v.i16); return val_i32(ival); }
+        if (v.tag == Value_TAG_Byte) { return val_i32(ival); }
+        if (v.tag == Value_TAG_Short) { return val_i32(ival); }
     }
-    if (ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0 && v.type == VAL_U8) {
-        free(v.u8); return val_i16(ival);
+    if (ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0 && v.tag == Value_TAG_Byte) {
+        return val_i16(ival);
     }
     return v;
 }
@@ -87,14 +87,14 @@ static Value widen_numeric(Value v, Str *ptype) {
 // Check if a Value's type doesn't match the target ptype and would need widening
 static Bool needs_widen(Value v, Str *ptype) {
     if (!ptype || ptype->count == 0) return 0;
-    switch (v.type) {
-        case VAL_U8:
+    switch (v.tag) {
+        case Value_TAG_Byte:
             return !(ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0);
-        case VAL_I16:
+        case Value_TAG_Short:
             return !(ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0);
-        case VAL_I32:
+        case Value_TAG_Int32:
             return !(ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0);
-        case VAL_U32:
+        case Value_TAG_Uint32:
             return !(ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0);
         default: return 0;
     }
@@ -177,29 +177,31 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         if (fdecl->data.data.Decl.field_struct_def) {
             Expr *nested = fdecl->data.data.Decl.field_struct_def;
             Str *ftype = &fdecl->data.data.Decl.explicit_type;
-            StructInstance *sub = malloc(sizeof(StructInstance));
-            sub->struct_name = ftype;
-            sub->struct_def = nested;
-            sub->data = owned; // borrowed — points into the owning struct's heap alloc
-            sub->borrowed = 1;
-            return (Value){.type = VAL_STRUCT, .instance = sub};
+            Value result;
+            result.tag = Value_TAG_Struct;
+            result.data.Struct.struct_name = ftype;
+            result.data.Struct.struct_def = nested;
+            result.data.Struct.data = owned; // borrowed — points into the owning struct's heap alloc
+            result.data.Struct.borrowed = 1;
+            return result;
         }
-        return (Value){.type = VAL_PTR, .ptr = owned};
+        return (Value){.tag = Value_TAG_Ptr, .data.Ptr = owned};
     }
     if (fdecl->data.data.Decl.is_ref) {
         void *ref_ptr = *(void **)ptr;
-        if (!ref_ptr) return (Value){.type = VAL_PTR, .ptr = NULL};
+        if (!ref_ptr) return (Value){.tag = Value_TAG_Ptr, .data.Ptr = NULL};
         if (fdecl->data.data.Decl.field_struct_def) {
             Expr *nested = fdecl->data.data.Decl.field_struct_def;
             Str *ftype = &fdecl->data.data.Decl.explicit_type;
-            StructInstance *sub = malloc(sizeof(StructInstance));
-            sub->struct_name = ftype;
-            sub->struct_def = nested;
-            sub->data = ref_ptr;
-            sub->borrowed = 1;
-            return (Value){.type = VAL_STRUCT, .instance = sub};
+            Value result;
+            result.tag = Value_TAG_Struct;
+            result.data.Struct.struct_name = ftype;
+            result.data.Struct.struct_def = nested;
+            result.data.Struct.data = ref_ptr;
+            result.data.Struct.borrowed = 1;
+            return result;
         }
-        return (Value){.type = VAL_PTR, .ptr = ref_ptr};
+        return (Value){.tag = Value_TAG_Ptr, .data.Ptr = ref_ptr};
     }
     Str *ftype = &fdecl->data.data.Decl.explicit_type;
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0))  return val_i64(*(I64 *)ptr);
@@ -216,7 +218,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
         fdecl->data.data.Decl.field_struct_def->data.tag == ExprData_TAG_EnumDef) {
         if (*enum_has_payloads(fdecl->data.data.Decl.field_struct_def)) {
             EnumInstance *ei = *(EnumInstance **)ptr;
-            if (ei) return val_enum(ei->enum_name, ei->tag, clone_value(ei->payload));
+            if (ei) return val_enum(ei->enum_name, ei->tag, clone_value(*ei->payload));
             return val_i32(0);
         }
         return val_i32(*(I32 *)ptr);
@@ -224,17 +226,18 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     // Inline struct: borrow if parent is borrowed, copy otherwise
     if (fdecl->data.data.Decl.field_struct_def) {
         Expr *nested = fdecl->data.data.Decl.field_struct_def;
-        StructInstance *sub = malloc(sizeof(StructInstance));
-        sub->struct_name = ftype; // borrowed — set by initer for inferred struct types
-        sub->struct_def = nested;
-        sub->data = ptr;       // always point into parent buffer
-        sub->borrowed = 1;     // always borrowed — field lives in parent
-        return (Value){.type = VAL_STRUCT, .instance = sub};
+        Value result;
+        result.tag = Value_TAG_Struct;
+        result.data.Struct.struct_name = ftype; // borrowed — set by initer for inferred struct types
+        result.data.Struct.struct_def = nested;
+        result.data.Struct.data = ptr;       // always point into parent buffer
+        result.data.Struct.borrowed = 1;     // always borrowed — field lives in parent
+        return result;
     }
     // FuncSig-typed field: stored as Expr * pointer (func ptr)
     if (ftype) {
         void *stored = *(void **)ptr;
-        if (stored) return (Value){.type = VAL_FUNC, .func = (Expr *)stored};
+        if (stored) return (Value){.tag = Value_TAG_Func, .data.Func = stored};
     }
     // Fallback: treat as I64
     return val_i64(*(I64 *)ptr);
@@ -245,49 +248,46 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
     void *ptr = (char *)inst->data + fdecl->data.data.Decl.field_offset;
     I32 fsz = fdecl->data.data.Decl.field_size;
     if (fdecl->data.data.Decl.is_own) {
-        *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
-        if (val.type == VAL_STRUCT) { free(val.instance); }
+        *(void **)ptr = val.tag == Value_TAG_Struct ? val.data.Struct.data : val.data.Ptr;
         return;
     }
     if (fdecl->data.data.Decl.is_ref) {
         // ref field: store pointer (don't own the data)
-        if (val.type == VAL_PTR) *(void **)ptr = val.ptr;
-        else if (val.type == VAL_STRUCT) {
-            *(void **)ptr = val.instance->data;
-            free(val.instance);
+        if (val.tag == Value_TAG_Ptr) *(void **)ptr = val.data.Ptr;
+        else if (val.tag == Value_TAG_Struct) {
+            *(void **)ptr = val.data.Struct.data;
         }
         else *(void **)ptr = NULL;
         return;
     }
-    switch (val.type) {
-    case VAL_I64:  *(I64 *)ptr = *val.i64; free(val.i64); break;
-    case VAL_U8:   *(U8 *)ptr = *val.u8; free(val.u8); break;
-    case VAL_I16:  *(I16 *)ptr = *val.i16; free(val.i16); break;
-    case VAL_I32:  *(I32 *)ptr = *val.i32; free(val.i32); break;
-    case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
-    case VAL_U64:  *(U64 *)ptr = *val.u64; free(val.u64); break;
-    case VAL_F32:  *(F32 *)ptr = *val.f32; free(val.f32); break;
-    case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
-    case VAL_STRUCT:
-        if (val.instance->borrowed) {
+    switch (val.tag) {
+    case Value_TAG_Int:  *(I64 *)ptr = val.data.Int; break;
+    case Value_TAG_Byte:   *(U8 *)ptr = val.data.Byte; break;
+    case Value_TAG_Short:  *(I16 *)ptr = val.data.Short; break;
+    case Value_TAG_Int32:  *(I32 *)ptr = val.data.Int32; break;
+    case Value_TAG_Uint32:  *(U32 *)ptr = val.data.Uint32; break;
+    case Value_TAG_Uint64:  *(U64 *)ptr = val.data.Uint64; break;
+    case Value_TAG_Float:  *(F32 *)ptr = val.data.Float; break;
+    case Value_TAG_Boolean: *(Bool *)ptr = val.data.Boolean; break;
+    case Value_TAG_Struct:
+        if (val.data.Struct.borrowed) {
             Value cloned = clone_value(val);
-            memcpy(ptr, cloned.instance->data, fsz);
-            free(cloned.instance->data);
-            free(cloned.instance);
+            memcpy(ptr, cloned.data.Struct.data, fsz);
+            free(cloned.data.Struct.data);
         } else {
-            memcpy(ptr, val.instance->data, fsz);
-            free(val.instance->data);
-            free(val.instance);
+            memcpy(ptr, val.data.Struct.data, fsz);
+            free(val.data.Struct.data);
         }
         break;
-    case VAL_ENUM: {
+    case Value_TAG_Enum: {
         EnumInstance *existing = *(EnumInstance **)ptr;
-        if (existing) { free_value(existing->payload); free(existing); }
-        *(EnumInstance **)ptr = val.enum_inst;
+        if (existing) { free_value(*existing->payload); free(existing->payload); free(existing); }
+        *(EnumInstance **)ptr = malloc(sizeof(EnumInstance));
+        **(EnumInstance **)ptr = val.data.Enum;
         break;
     }
-    case VAL_PTR:  *(void **)ptr = val.ptr; break;
-    case VAL_FUNC: *(void **)ptr = (void *)val.func; break;
+    case Value_TAG_Ptr:  *(void **)ptr = val.data.Ptr; break;
+    case Value_TAG_Func: *(void **)ptr = val.data.Func; break;
     default: break;
     }
 }
@@ -302,7 +302,11 @@ Value make_str_value(const char *data, U64 len) {
     *(char **)inst->data = strndup(data, len);
     *(USize *)((char *)inst->data + sizeof(U8 *)) = (USize)len;
     *(USize *)((char *)inst->data + sizeof(U8 *) + sizeof(USize)) = CAP_LIT;
-    return (Value){.type = VAL_STRUCT, .instance = inst};
+    Value result;
+    result.tag = Value_TAG_Struct;
+    result.data.Struct = *inst;
+    free(inst);
+    return result;
 }
 
 // Build a Str StructInstance taking ownership of buffer (no copy)
@@ -315,31 +319,35 @@ Value make_str_value_own(char *data, U64 len) {
     *(char **)inst->data = data;
     *(USize *)((char *)inst->data + sizeof(U8 *)) = (USize)len;
     *(USize *)((char *)inst->data + sizeof(U8 *) + sizeof(USize)) = (USize)len;
-    return (Value){.type = VAL_STRUCT, .instance = inst};
+    Value result;
+    result.tag = Value_TAG_Struct;
+    result.data.Struct = *inst;
+    free(inst);
+    return result;
 }
 
 // Extract a C Str view from a Str StructInstance (stack-local, don't free)
 Str str_view(Value v) {
-    char *data = *(char **)v.instance->data;
-    USize len = *(USize *)((char *)v.instance->data + sizeof(U8 *));
+    char *data = *(char **)v.data.Struct.data;
+    USize len = *(USize *)((char *)v.data.Struct.data + sizeof(U8 *));
     return (Str){.c_str = (U8 *)data, .count = len};
 }
 
 // Deep-clone a Value (for payload enum operations and general use)
 Value clone_value(Value v) {
-    switch (v.type) {
-    case VAL_I64:  return val_i64(*v.i64);
-    case VAL_U8:   return val_u8(*v.u8);
-    case VAL_I16:  return val_i16(*v.i16);
-    case VAL_I32:  return val_i32(*v.i32);
-    case VAL_U32:  return val_u32(*v.u32);
-    case VAL_U64:  return val_u64(*v.u64);
-    case VAL_F32:  return val_f32(*v.f32);
-    case VAL_BOOL: return val_bool(*v.boolean);
-    case VAL_ENUM: return val_enum(v.enum_inst->enum_name, v.enum_inst->tag,
-                                    clone_value(v.enum_inst->payload));
-    case VAL_STRUCT: {
-        StructInstance *src = v.instance;
+    switch (v.tag) {
+    case Value_TAG_Int:  return val_i64(v.data.Int);
+    case Value_TAG_Byte:   return val_u8(v.data.Byte);
+    case Value_TAG_Short:  return val_i16(v.data.Short);
+    case Value_TAG_Int32:  return val_i32(v.data.Int32);
+    case Value_TAG_Uint32:  return val_u32(v.data.Uint32);
+    case Value_TAG_Uint64:  return val_u64(v.data.Uint64);
+    case Value_TAG_Float:  return val_f32(v.data.Float);
+    case Value_TAG_Boolean: return val_bool(v.data.Boolean);
+    case Value_TAG_Enum: return val_enum(v.data.Enum.enum_name, v.data.Enum.tag,
+                                    clone_value(*v.data.Enum.payload));
+    case Value_TAG_Struct: {
+        StructInstance *src = &v.data.Struct;
         StructInstance *dst = malloc(sizeof(StructInstance));
         dst->struct_name = src->struct_name; // borrowed
         dst->struct_def = src->struct_def;
@@ -352,7 +360,11 @@ Value clone_value(Value v) {
             Str *s = (Str *)src->data;
             if (s->count > 0 && s->c_str)
                 *(char **)dst->data = strndup((const char *)s->c_str, s->count);
-            return (Value){.type = VAL_STRUCT, .instance = dst};
+            Value result;
+            result.tag = Value_TAG_Struct;
+            result.data.Struct = *dst;
+            free(dst);
+            return result;
         }
         // Deep-clone fields that contain heap pointers
         Expr *body = Expr_child(src->struct_def, &(USize){(USize)(0)});
@@ -366,16 +378,14 @@ Value clone_value(Value v) {
                 void *src_ptr = *(void **)((char *)src->data + foff);
                 if (src_ptr && field->data.data.Decl.field_struct_def) {
                     Expr *nested = field->data.data.Decl.field_struct_def;
-                    StructInstance tmp_src = {
-                        .struct_name = ftype,
-                        .struct_def = nested,
-                        .data = src_ptr,
-                        .borrowed = 1
-                    };
-                    Value tmp_val = {.type = VAL_STRUCT, .instance = &tmp_src};
+                    Value tmp_val;
+                    tmp_val.tag = Value_TAG_Struct;
+                    tmp_val.data.Struct.struct_name = ftype;
+                    tmp_val.data.Struct.struct_def = nested;
+                    tmp_val.data.Struct.data = src_ptr;
+                    tmp_val.data.Struct.borrowed = 1;
                     Value cloned = clone_value(tmp_val);
-                    *(void **)((char *)dst->data + foff) = cloned.instance->data;
-                    free(cloned.instance);
+                    *(void **)((char *)dst->data + foff) = cloned.data.Struct.data;
                 }
                 continue;
             }
@@ -400,7 +410,8 @@ Value clone_value(Value v) {
                     EnumInstance *clone = malloc(sizeof(EnumInstance));
                     clone->enum_name = ei->enum_name;
                     clone->tag = ei->tag;
-                    clone->payload = clone_value(ei->payload);
+                    clone->payload = malloc(sizeof(Value));
+                    *clone->payload = clone_value(*ei->payload);
                     *(EnumInstance **)((char *)dst->data + foff) = clone;
                 }
                 continue;
@@ -409,49 +420,53 @@ Value clone_value(Value v) {
             if (field->data.data.Decl.field_struct_def &&
                 field->data.data.Decl.field_struct_def->data.tag != ExprData_TAG_EnumDef) {
                 Expr *nested = field->data.data.Decl.field_struct_def;
-                StructInstance tmp_src = {
-                    .struct_name = ftype,
-                    .struct_def = nested,
-                    .data = (char *)src->data + foff,
-                    .borrowed = 1
-                };
-                Value tmp_val = {.type = VAL_STRUCT, .instance = &tmp_src};
+                Value tmp_val;
+                tmp_val.tag = Value_TAG_Struct;
+                tmp_val.data.Struct.struct_name = ftype;
+                tmp_val.data.Struct.struct_def = nested;
+                tmp_val.data.Struct.data = (char *)src->data + foff;
+                tmp_val.data.Struct.borrowed = 1;
                 Value cloned = clone_value(tmp_val);
-                memcpy((char *)dst->data + foff, cloned.instance->data, nested->total_struct_size);
-                free(cloned.instance->data);
-                free(cloned.instance);
+                memcpy((char *)dst->data + foff, cloned.data.Struct.data, nested->total_struct_size);
+                free(cloned.data.Struct.data);
                 continue;
             }
         }
-        return (Value){.type = VAL_STRUCT, .instance = dst};
+        Value result;
+        result.tag = Value_TAG_Struct;
+        result.data.Struct = *dst;
+        free(dst);
+        return result;
     }
-    case VAL_PTR:
-        return (Value){.type = VAL_PTR, .ptr = v.ptr};
-    case VAL_FUNC:
-        return (Value){.type = VAL_FUNC, .func = v.func};
-    case VAL_NONE: return val_none();
+    case Value_TAG_Ptr:
+        return (Value){.tag = Value_TAG_Ptr, .data.Ptr = v.data.Ptr};
+    case Value_TAG_Func:
+        return (Value){.tag = Value_TAG_Func, .data.Func = v.data.Func};
+    case Value_TAG_None: return val_none();
     default:       return val_none();
     }
 }
 
 // Free a Value's heap memory
 void free_value(Value v) {
-    switch (v.type) {
-    case VAL_I64:  free(v.i64); break;
-    case VAL_U8:   free(v.u8); break;
-    case VAL_I16:  free(v.i16); break;
-    case VAL_I32:  free(v.i32); break;
-    case VAL_U32:  free(v.u32); break;
-    case VAL_U64:  free(v.u64); break;
-    case VAL_F32:  free(v.f32); break;
-    case VAL_BOOL: free(v.boolean); break;
-    case VAL_ENUM:
-        free_value(v.enum_inst->payload);
-        free(v.enum_inst);
+    switch (v.tag) {
+    case Value_TAG_Int:  break;
+    case Value_TAG_Byte:   break;
+    case Value_TAG_Short:  break;
+    case Value_TAG_Int32:  break;
+    case Value_TAG_Uint32:  break;
+    case Value_TAG_Uint64:  break;
+    case Value_TAG_Float:  break;
+    case Value_TAG_Boolean: break;
+    case Value_TAG_Enum:
+        if (v.data.Enum.payload) {
+            free_value(*v.data.Enum.payload);
+            free(v.data.Enum.payload);
+        }
         break;
-    case VAL_PTR:
+    case Value_TAG_Ptr:
         break; // borrowed pointer into buffer, nothing to free
-    case VAL_FUNC:
+    case Value_TAG_Func:
         break; // function pointer: borrowed reference to AST, nothing to free
     default: break;
     }
@@ -459,22 +474,22 @@ void free_value(Value v) {
 
 // Compare two Values for equality
 Bool values_equal(Value a, Value b) {
-    if (a.type != b.type) return 0;
-    switch (a.type) {
-    case VAL_I64:  return *a.i64 == *b.i64;
-    case VAL_I16:  return *a.i16 == *b.i16;
-    case VAL_I32:  return *a.i32 == *b.i32;
-    case VAL_U32:  return *a.u32 == *b.u32;
-    case VAL_U64:  return *a.u64 == *b.u64;
-    case VAL_F32:  return *a.f32 == *b.f32;
-    case VAL_U8:   return *a.u8 == *b.u8;
-    case VAL_BOOL: return *a.boolean == *b.boolean;
-    case VAL_ENUM:
-        if (a.enum_inst->tag != b.enum_inst->tag) return 0;
-        return values_equal(a.enum_inst->payload, b.enum_inst->payload);
-    case VAL_PTR:  return a.ptr == b.ptr;
-    case VAL_FUNC: return a.func == b.func;
-    case VAL_NONE:
+    if (a.tag != b.tag) return 0;
+    switch (a.tag) {
+    case Value_TAG_Int:  return a.data.Int == b.data.Int;
+    case Value_TAG_Short:  return a.data.Short == b.data.Short;
+    case Value_TAG_Int32:  return a.data.Int32 == b.data.Int32;
+    case Value_TAG_Uint32:  return a.data.Uint32 == b.data.Uint32;
+    case Value_TAG_Uint64:  return a.data.Uint64 == b.data.Uint64;
+    case Value_TAG_Float:  return a.data.Float == b.data.Float;
+    case Value_TAG_Byte:   return a.data.Byte == b.data.Byte;
+    case Value_TAG_Boolean: return a.data.Boolean == b.data.Boolean;
+    case Value_TAG_Enum:
+        if (a.data.Enum.tag != b.data.Enum.tag) return 0;
+        return values_equal(*a.data.Enum.payload, *b.data.Enum.payload);
+    case Value_TAG_Ptr:  return a.data.Ptr == b.data.Ptr;
+    case Value_TAG_Func: return a.data.Func == b.data.Func;
+    case Value_TAG_None:
         return 1;
     default:       return 0;
     }
@@ -491,11 +506,11 @@ Value eval_call(Scope *scope, Expr *e) {
     // Namespace method call: Struct.method(args)
     if (callee_expr->data.tag == ExprData_TAG_FieldAccess) {
         Value fn_val = eval_expr(scope,callee_expr);
-        if (fn_val.type != VAL_FUNC) {
+        if (fn_val.tag != Value_TAG_Func) {
             Expr_error(e, &(Str){.c_str = (U8*)"namespace field is not a function", .count = 37, .cap = CAP_LIT});
             exit(1);
         }
-        Expr *func_def = fn_val.func;
+        Expr *func_def = (Expr*)fn_val.data.Func;
         // FuncPtr field: stored function may be ext_func from another type.
         // Find the real flat name by reverse-looking-up the Expr* in ns_fields.
         if (callee_expr->til_type.tag == TilType_TAG_FuncPtr) {
@@ -506,7 +521,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     Str *qn = *(Str **)Vec_get(&ns_keys, &(USize){(USize)(ki)});
                     if (!*Map_has(&ns_fields, qn)) continue;
                     Value *nsv = Map_get(&ns_fields, qn);
-                    if (nsv->type == VAL_FUNC && nsv->func == func_def) {
+                    if (nsv->tag == Value_TAG_Func && nsv->data.Func == func_def) {
                         // qn is "Type.method" — build flat name "Type_method"
                         static char fp_flat_buf[256];
                         memcpy(fp_flat_buf, qn->c_str, qn->count);
@@ -534,10 +549,10 @@ Value eval_call(Scope *scope, Expr *e) {
             Str *parent_sname = &Expr_child(callee_expr, &(USize){(USize)(0)})->struct_name;
             if (parent_sname) {
                 Cell *tc = scope_get(scope, parent_sname);
-                if (tc && tc->val.type == VAL_FUNC && tc->val.func->data.tag == ExprData_TAG_EnumDef) {
+                if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
                     Value eresult;
                     if (enum_method_dispatch(&callee_expr->data.data.Ident, scope,
-                            tc->val.func, parent_sname, e, &eresult)) {
+                            ((Expr*)tc->val.data.Func), parent_sname, e, &eresult)) {
                         // Null cells of own-arg idents
                         for (U32 i = 1; i < e->children.count; i++) {
                             if (Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
@@ -569,18 +584,18 @@ Value eval_call(Scope *scope, Expr *e) {
         }
         Expr *body = Expr_child(func_def, &(USize){(USize)(0)});
 
-        // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
+        // Guard: skip call if first 'own' param is val_none, borrowed struct, or Value_TAG_Ptr
         if (func_def->data.data.FuncDef.nparam > 0 &&
             func_def->data.data.FuncDef.params.count > 0 &&
             ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->is_own &&
             e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
             Cell *fc = scope_get(scope, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
-            if (fc && fc->val.type == VAL_NONE) return val_none();
-            if (fc && fc->val.type == VAL_STRUCT && fc->val.instance->borrowed) {
+            if (fc && fc->val.tag == Value_TAG_None) return val_none();
+            if (fc && fc->val.tag == Value_TAG_Struct && fc->val.data.Struct.borrowed) {
                 fc->val = val_none();
                 return val_none();
             }
-            if (fc && fc->val.type == VAL_PTR) {
+            if (fc && fc->val.tag == Value_TAG_Ptr) {
                 fc->val = val_none();
                 return val_none();
             }
@@ -592,32 +607,32 @@ Value eval_call(Scope *scope, Expr *e) {
             Expr *arg_expr = Expr_child(e, &(USize){(USize)(i + 1)});
             if (arg_expr->data.tag == ExprData_TAG_Ident) {
                 Cell *arg_cell = scope_get(scope, &arg_expr->data.data.Ident);
-                // Reinterpret VAL_PTR based on param type
-                if (arg_cell->val.type == VAL_PTR && _ipi->ptype.count > 0) {
+                // Reinterpret Value_TAG_Ptr based on param type
+                if (arg_cell->val.tag == Value_TAG_Ptr && _ipi->ptype.count > 0) {
                     Str *ptype = &_ipi->ptype;
                     Value arg = arg_cell->val;
                     if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
-                        Str *sp = (Str *)arg.ptr;
+                        Str *sp = (Str *)arg.data.Ptr;
                         arg = make_str_value_own((char *)sp->c_str, sp->count);
                     }
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0))
-                        arg = (Value){.type = VAL_I64, .i64 = (I64 *)arg.ptr};
+                        arg = val_i64(*(I64 *)arg.data.Ptr);
                     else if ((ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0))
-                        arg = (Value){.type = VAL_U8, .u8 = (U8 *)arg.ptr};
+                        arg = val_u8(*(U8 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0))
-                        arg = (Value){.type = VAL_I16, .i16 = (I16 *)arg.ptr};
+                        arg = val_i16(*(I16 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0))
-                        arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
+                        arg = val_i32(*(I32 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0))
-                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                        arg = val_u32(*(U32 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
-                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
+                        arg = val_u64(*(U64 *)arg.data.Ptr);
                     else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                        arg = val_u32(*(U32 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
-                        arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
+                        arg = val_f32(*(F32 *)arg.data.Ptr);
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
-                        arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
+                        arg = val_bool(*(Bool *)arg.data.Ptr);
                     arg = widen_numeric(arg, ptype);
                     scope_set_owned(call_scope, &_ipi->name, arg);
                 } else if (needs_widen(arg_cell->val, &_ipi->ptype)) {
@@ -629,31 +644,31 @@ Value eval_call(Scope *scope, Expr *e) {
                 }
             } else {
                 Value arg = eval_expr(scope,arg_expr);
-                // Reinterpret VAL_PTR based on param type (same as ref decl)
-                if (arg.type == VAL_PTR && _ipi->ptype.count > 0) {
+                // Reinterpret Value_TAG_Ptr based on param type (same as ref decl)
+                if (arg.tag == Value_TAG_Ptr && _ipi->ptype.count > 0) {
                     Str *ptype = &_ipi->ptype;
                     if ((ptype->count == 3 && memcmp(ptype->c_str, "Str", 3) == 0)) {
-                        Str *sp = (Str *)arg.ptr;
+                        Str *sp = (Str *)arg.data.Ptr;
                         arg = make_str_value_own((char *)sp->c_str, sp->count);
                     }
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "I64", 3) == 0))
-                        arg = (Value){.type = VAL_I64, .i64 = (I64 *)arg.ptr};
+                        arg = val_i64(*(I64 *)arg.data.Ptr);
                     else if ((ptype->count == 2 && memcmp(ptype->c_str, "U8", 2) == 0))
-                        arg = (Value){.type = VAL_U8, .u8 = (U8 *)arg.ptr};
+                        arg = val_u8(*(U8 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "I16", 3) == 0))
-                        arg = (Value){.type = VAL_I16, .i16 = (I16 *)arg.ptr};
+                        arg = val_i16(*(I16 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "I32", 3) == 0))
-                        arg = (Value){.type = VAL_I32, .i32 = (I32 *)arg.ptr};
+                        arg = val_i32(*(I32 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0))
-                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                        arg = val_u32(*(U32 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
-                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
+                        arg = val_u64(*(U64 *)arg.data.Ptr);
                     else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
+                        arg = val_u32(*(U32 *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
-                        arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
+                        arg = val_f32(*(F32 *)arg.data.Ptr);
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
-                        arg = (Value){.type = VAL_BOOL, .boolean = (Bool *)arg.ptr};
+                        arg = val_bool(*(Bool *)arg.data.Ptr);
                 }
                 arg = widen_numeric(arg, &_ipi->ptype);
                 scope_set_owned(call_scope, &_ipi->name, arg);
@@ -695,8 +710,8 @@ Value eval_call(Scope *scope, Expr *e) {
     }
 
     // Struct instantiation — typer already desugared named args to positional
-    if (fn_cell->val.type == VAL_FUNC && fn_cell->val.func->data.tag == ExprData_TAG_StructDef) {
-        Expr *sdef = fn_cell->val.func;
+    if (fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
+        Expr *sdef = ((Expr*)fn_cell->val.data.Func);
         Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
 
         StructInstance *inst = malloc(sizeof(StructInstance));
@@ -714,38 +729,42 @@ Value eval_call(Scope *scope, Expr *e) {
             if (arg->data.tag == ExprData_TAG_Ident) {
                 Cell *src = scope_get(scope, &arg->data.data.Ident);
                 val = src->val;
-                if (val.type != VAL_FUNC)
+                if (val.tag != Value_TAG_Func)
                     src->val = val_none();
             } else {
                 val = eval_expr(scope, arg);
             }
             write_field(inst, field, val);
         }
-        return (Value){.type = VAL_STRUCT, .instance = inst};
+        Value result;
+        result.tag = Value_TAG_Struct;
+        result.data.Struct = *inst;
+        free(inst);
+        return result;
     }
 
-    if (fn_cell->val.type != VAL_FUNC) {
+    if (fn_cell->val.tag != Value_TAG_Func) {
         char buf[128];
         snprintf(buf, sizeof(buf), "'%s' is not a function", name->c_str);
         Expr_error(e, &(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
         exit(1);
     }
 
-    Expr *func_def = fn_cell->val.func;
+    Expr *func_def = ((Expr*)fn_cell->val.data.Func);
     Expr *body = Expr_child(func_def, &(USize){(USize)(0)});
 
-    // Guard: skip call if first 'own' param is val_none, borrowed struct, or VAL_PTR
+    // Guard: skip call if first 'own' param is val_none, borrowed struct, or Value_TAG_Ptr
     if (func_def->data.data.FuncDef.nparam > 0 &&
         func_def->data.data.FuncDef.params.count > 0 &&
         ((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->is_own &&
         e->children.count > 1 && Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
         Cell *fc = scope_get(scope, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
-        if (fc && fc->val.type == VAL_NONE) return val_none();
-        if (fc && fc->val.type == VAL_STRUCT && fc->val.instance->borrowed) {
+        if (fc && fc->val.tag == Value_TAG_None) return val_none();
+        if (fc && fc->val.tag == Value_TAG_Struct && fc->val.data.Struct.borrowed) {
             fc->val = val_none();
             return val_none();
         }
-        if (fc && fc->val.type == VAL_PTR) {
+        if (fc && fc->val.tag == Value_TAG_Ptr) {
             fc->val = val_none();
             return val_none();
         }
@@ -806,7 +825,7 @@ Value eval_expr(Scope *scope, Expr *e) {
     case ExprData_TAG_LiteralBool:
         return val_bool((e->data.data.LiteralBool.count == 4 && memcmp(e->data.data.LiteralBool.c_str, "true", 4) == 0));
     case ExprData_TAG_LiteralNull:
-        return (Value){.type = VAL_PTR, .ptr = NULL};
+        return (Value){.tag = Value_TAG_Ptr, .data.Ptr = NULL};
     case ExprData_TAG_Ident: {
         Cell *cell = scope_get(scope, &e->data.data.Ident);
         if (!cell) {
@@ -820,31 +839,31 @@ Value eval_expr(Scope *scope, Expr *e) {
     case ExprData_TAG_FCall:
         return eval_call(scope, e);
     case ExprData_TAG_FuncDef:
-        return (Value){.type = VAL_FUNC, .func = e};
+        return (Value){.tag = Value_TAG_Func, .data.Func = (void*)e};
     case ExprData_TAG_StructDef:
     case ExprData_TAG_EnumDef:
-        return (Value){.type = VAL_FUNC, .func = e};
+        return (Value){.tag = Value_TAG_Func, .data.Func = (void*)e};
     case ExprData_TAG_FieldAccess: {
         Value obj = eval_expr(scope,Expr_child(e, &(USize){(USize)(0)}));
         Str *fname = &e->data.data.FieldAccess;
         if (e->is_ns_field) {
-            Str *sname = obj.type == VAL_STRUCT
-                ? obj.instance->struct_name : &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
+            Str *sname = obj.tag == Value_TAG_Struct
+                ? obj.data.Struct.struct_name : &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             Value *nsv = ns_get(sname, fname);
             if (nsv) {
                 // Fresh copy of scalar values (prevents alias to namespace map)
-                if (nsv->type == VAL_I64) return val_i64(*nsv->i64);
-                if (nsv->type == VAL_I32) return val_i32(*nsv->i32);
+                if (nsv->tag == Value_TAG_Int) return val_i64(nsv->data.Int);
+                if (nsv->tag == Value_TAG_Int32) return val_i32(nsv->data.Int32);
                 // Auto-call zero-arg enum constructors (Token.Eof without parens)
-                if (nsv->type == VAL_FUNC && nsv->func &&
-                    nsv->func->data.tag == ExprData_TAG_FuncDef &&
-                    nsv->func->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
-                    nsv->func->data.data.FuncDef.nparam == 0) {
+                if (nsv->tag == Value_TAG_Func && nsv->data.Func &&
+                    ((Expr*)nsv->data.Func)->data.tag == ExprData_TAG_FuncDef &&
+                    ((Expr*)nsv->data.Func)->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
+                    ((Expr*)nsv->data.Func)->data.data.FuncDef.nparam == 0) {
                     Cell *tc = scope_get(scope, sname);
-                    if (tc && tc->val.type == VAL_FUNC && tc->val.func->data.tag == ExprData_TAG_EnumDef) {
-                        I32 tag = *enum_variant_tag(tc->val.func, fname);
+                    if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
+                        I32 tag = *enum_variant_tag(((Expr*)tc->val.data.Func), fname);
                         if (tag >= 0) {
-                            if (*enum_has_payloads(tc->val.func))
+                            if (*enum_has_payloads(((Expr*)tc->val.data.Func)))
                                 return val_enum(sname, tag, val_none());
                             else
                                 return val_i32(tag);
@@ -858,32 +877,32 @@ Value eval_expr(Scope *scope, Expr *e) {
             Expr_error(e, &(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
             exit(1);
         }
-        if (obj.type == VAL_PTR) {
+        if (obj.tag == Value_TAG_Ptr) {
             Expr *obj_expr = Expr_child(e, &(USize){(USize)(0)});
             if (obj_expr->struct_name.count > 0) {
                 Cell *tc = scope_get(scope, &obj_expr->struct_name);
-                if (tc && tc->val.type == VAL_FUNC && tc->val.func->data.tag == ExprData_TAG_StructDef) {
-                    StructInstance *inst = malloc(sizeof(StructInstance));
-                    inst->struct_name = &obj_expr->struct_name;
-                    inst->struct_def = tc->val.func;
-                    inst->data = obj.ptr;
-                    inst->borrowed = 1;
-                    obj = (Value){.type = VAL_STRUCT, .instance = inst};
+                if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
+                    void *saved_ptr = obj.data.Ptr;
+                    obj.tag = Value_TAG_Struct;
+                    obj.data.Struct.struct_name = &obj_expr->struct_name;
+                    obj.data.Struct.struct_def = ((Expr*)tc->val.data.Func);
+                    obj.data.Struct.data = saved_ptr;
+                    obj.data.Struct.borrowed = 1;
                 }
             }
         }
-        if (obj.type != VAL_STRUCT) {
+        if (obj.tag != Value_TAG_Struct) {
             Expr_error(e, &(Str){.c_str = (U8*)"field access on non-struct", .count = 27, .cap = CAP_LIT});
             exit(1);
         }
-        Expr *fdecl = find_field_decl(obj.instance->struct_def, fname);
+        Expr *fdecl = find_field_decl(obj.data.Struct.struct_def, fname);
         if (!fdecl) {
             char buf[128];
             snprintf(buf, sizeof(buf), "no field '%s'", fname->c_str);
             Expr_error(e, &(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
             exit(1);
         }
-        return read_field(obj.instance, fdecl);
+        return read_field(&obj.data.Struct, fdecl);
     }
     default:
         char buf[128];
@@ -920,48 +939,48 @@ static void eval_body(Scope *scope, Expr *body) {
                         exit(1);
                     }
                     val = src->val;
-                    if (val.type != VAL_FUNC)
+                    if (val.tag != Value_TAG_Func)
                         src->val = val_none();
                 } else {
                     val = eval_expr(scope,rhs);
                 }
-                // Reinterpret VAL_PTR based on declared type (ref a : I64 = ptr_add(...))
-                // Only for ref decls — own decls keep VAL_PTR (they own a buffer, not a single element)
+                // Reinterpret Value_TAG_Ptr based on declared type (ref a : I64 = ptr_add(...))
+                // Only for ref decls — own decls keep Value_TAG_Ptr (they own a buffer, not a single element)
                 // Skip narrowing for NULL pointers (null literal)
-                if (val.type == VAL_PTR && val.ptr != NULL && (stmt->data.data.Decl.explicit_type).count > 0 && stmt->data.data.Decl.is_ref) {
+                if (val.tag == Value_TAG_Ptr && val.data.Ptr != NULL && (stmt->data.data.Decl.explicit_type).count > 0 && stmt->data.data.Decl.is_ref) {
                     Str *etype = &stmt->data.data.Decl.explicit_type;
                     if ((etype->count == 3 && memcmp(etype->c_str, "I64", 3) == 0))
-                        val = (Value){.type = VAL_I64, .i64 = (I64 *)val.ptr};
+                        val = val_i64(*(I64 *)val.data.Ptr);
                     else if ((etype->count == 2 && memcmp(etype->c_str, "U8", 2) == 0))
-                        val = (Value){.type = VAL_U8, .u8 = (U8 *)val.ptr};
+                        val = val_u8(*(U8 *)val.data.Ptr);
                     else if ((etype->count == 3 && memcmp(etype->c_str, "I16", 3) == 0))
-                        val = (Value){.type = VAL_I16, .i16 = (I16 *)val.ptr};
+                        val = val_i16(*(I16 *)val.data.Ptr);
                     else if ((etype->count == 3 && memcmp(etype->c_str, "I32", 3) == 0))
-                        val = (Value){.type = VAL_I32, .i32 = (I32 *)val.ptr};
+                        val = val_i32(*(I32 *)val.data.Ptr);
                     else if ((etype->count == 3 && memcmp(etype->c_str, "U32", 3) == 0))
-                        val = (Value){.type = VAL_U32, .u32 = (U32 *)val.ptr};
+                        val = val_u32(*(U32 *)val.data.Ptr);
                     else if ((etype->count == 3 && memcmp(etype->c_str, "U64", 3) == 0))
-                        val = (Value){.type = VAL_U64, .u64 = (U64 *)val.ptr};
+                        val = val_u64(*(U64 *)val.data.Ptr);
                     else if ((etype->count == 5 && memcmp(etype->c_str, "USize", 5) == 0))
-                        val = (Value){.type = VAL_U32, .u32 = (U32 *)val.ptr};
+                        val = val_u32(*(U32 *)val.data.Ptr);
                     else if ((etype->count == 3 && memcmp(etype->c_str, "F32", 3) == 0))
-                        val = (Value){.type = VAL_F32, .f32 = (F32 *)val.ptr};
+                        val = val_f32(*(F32 *)val.data.Ptr);
                     else if ((etype->count == 4 && memcmp(etype->c_str, "Bool", 4) == 0))
-                        val = (Value){.type = VAL_BOOL, .boolean = (Bool *)val.ptr};
+                        val = val_bool(*(Bool *)val.data.Ptr);
                     else if ((etype->count == 3 && memcmp(etype->c_str, "Str", 3) == 0)) {
-                        Str *sp = (Str *)val.ptr;
+                        Str *sp = (Str *)val.data.Ptr;
                         val = make_str_value_own((char *)sp->c_str, sp->count);
                     }
                     else {
                         // User-defined struct: wrap ptr in borrowed StructInstance
                         Cell *tc = scope_get(scope, etype);
-                        if (tc && tc->val.type == VAL_FUNC && tc->val.func->data.tag == ExprData_TAG_StructDef) {
-                            StructInstance *inst = malloc(sizeof(StructInstance));
-                            inst->struct_name = etype;
-                            inst->struct_def = tc->val.func;
-                            inst->data = val.ptr;
-                            inst->borrowed = stmt->data.data.Decl.is_mut ? 1 : 0;
-                            val = (Value){.type = VAL_STRUCT, .instance = inst};
+                        if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
+                            void *saved_ptr = val.data.Ptr;
+                            val.tag = Value_TAG_Struct;
+                            val.data.Struct.struct_name = etype;
+                            val.data.Struct.struct_def = ((Expr*)tc->val.data.Func);
+                            val.data.Struct.data = saved_ptr;
+                            val.data.Struct.borrowed = stmt->data.data.Decl.is_mut ? 1 : 0;
                         }
                     }
                 }
@@ -983,7 +1002,7 @@ static void eval_body(Scope *scope, Expr *body) {
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
                 free_value(cell->val);
                 cell->val = src->val;
-                if (src->val.type != VAL_FUNC)
+                if (src->val.tag != Value_TAG_Func)
                     src->val = val_none();
             } else {
                 Value new_val = eval_expr(scope,rhs);
@@ -1005,8 +1024,8 @@ static void eval_body(Scope *scope, Expr *body) {
             Str *fname = &stmt->data.data.FieldAssign;
             if (stmt->is_ns_field) {
                 Value obj = eval_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}));
-                Str *sname = obj.type == VAL_STRUCT
-                    ? obj.instance->struct_name : &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident;
+                Str *sname = obj.tag == Value_TAG_Struct
+                    ? obj.data.Struct.struct_name : &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident;
                 ns_set(sname, fname, val);
                 if (move_src) move_src->val = val_none();
             } else {
@@ -1016,9 +1035,9 @@ static void eval_body(Scope *scope, Expr *body) {
                 Expr *obj_expr = Expr_child(stmt, &(USize){(USize)(0)});
                 if (obj_expr->data.tag == ExprData_TAG_Ident) {
                     Cell *cell = scope_get(scope, &obj_expr->data.data.Ident);
-                    if (cell && cell->val.type == VAL_STRUCT) {
-                        base = cell->val.instance->data;
-                        cur_sdef = cell->val.instance->struct_def;
+                    if (cell && cell->val.tag == Value_TAG_Struct) {
+                        base = cell->val.data.Struct.data;
+                        cur_sdef = cell->val.data.Struct.struct_def;
                     }
                 } else if (obj_expr->data.tag == ExprData_TAG_FieldAccess) {
                     // Chained: e.g. l1.start.x — walk chain to compute offset
@@ -1029,9 +1048,9 @@ static void eval_body(Scope *scope, Expr *body) {
                         cur = Expr_child(cur, &(USize){(USize)(0)});
                     }
                     Cell *cell = scope_get(scope, &cur->data.data.Ident);
-                    if (cell && cell->val.type == VAL_STRUCT) {
-                        base = cell->val.instance->data;
-                        cur_sdef = cell->val.instance->struct_def;
+                    if (cell && cell->val.tag == Value_TAG_Struct) {
+                        base = cell->val.data.Struct.data;
+                        cur_sdef = cell->val.data.Struct.struct_def;
                         for (I32 d = depth - 1; d >= 0; d--) {
                             Expr *fd = find_field_decl(cur_sdef, &chain[d]->data.data.FieldAccess);
                             if (!fd) { base = NULL; break; }
@@ -1054,48 +1073,45 @@ static void eval_body(Scope *scope, Expr *body) {
                 // Write value directly at computed address
                 I32 fsz = fdecl->data.data.Decl.field_size;
                 if (fdecl->data.data.Decl.is_own) {
-                    *(void **)ptr = val.type == VAL_STRUCT ? val.instance->data : val.ptr;
-                    if (val.type == VAL_STRUCT) free(val.instance);
+                    *(void **)ptr = val.tag == Value_TAG_Struct ? val.data.Struct.data : val.data.Ptr;
                 } else if (fdecl->data.data.Decl.is_ref) {
-                    if (val.type == VAL_PTR) *(void **)ptr = val.ptr;
-                    else if (val.type == VAL_STRUCT) {
-                        *(void **)ptr = val.instance->data;
-                        free(val.instance);
+                    if (val.tag == Value_TAG_Ptr) *(void **)ptr = val.data.Ptr;
+                    else if (val.tag == Value_TAG_Struct) {
+                        *(void **)ptr = val.data.Struct.data;
                     }
                     else *(void **)ptr = NULL;
                 } else {
-                    switch (val.type) {
-                    case VAL_I64:  *(I64 *)ptr = *val.i64; free(val.i64); break;
-                    case VAL_U8:   *(U8 *)ptr = *val.u8; free(val.u8); break;
-                    case VAL_I16:  *(I16 *)ptr = *val.i16; free(val.i16); break;
-                    case VAL_I32:  *(I32 *)ptr = *val.i32; free(val.i32); break;
-                    case VAL_U32:  *(U32 *)ptr = *val.u32; free(val.u32); break;
-                    case VAL_U64:  *(U64 *)ptr = *val.u64; free(val.u64); break;
-                    case VAL_BOOL: *(Bool *)ptr = *val.boolean; free(val.boolean); break;
-                    case VAL_STRUCT:
-                        if (val.instance->borrowed) {
+                    switch (val.tag) {
+                    case Value_TAG_Int:  *(I64 *)ptr = val.data.Int; break;
+                    case Value_TAG_Byte:   *(U8 *)ptr = val.data.Byte; break;
+                    case Value_TAG_Short:  *(I16 *)ptr = val.data.Short; break;
+                    case Value_TAG_Int32:  *(I32 *)ptr = val.data.Int32; break;
+                    case Value_TAG_Uint32:  *(U32 *)ptr = val.data.Uint32; break;
+                    case Value_TAG_Uint64:  *(U64 *)ptr = val.data.Uint64; break;
+                    case Value_TAG_Boolean: *(Bool *)ptr = val.data.Boolean; break;
+                    case Value_TAG_Struct:
+                        if (val.data.Struct.borrowed) {
                             Value cloned = clone_value(val);
-                            memcpy(ptr, cloned.instance->data, fsz);
-                            free(cloned.instance->data);
-                            free(cloned.instance);
+                            memcpy(ptr, cloned.data.Struct.data, fsz);
+                            free(cloned.data.Struct.data);
                         } else {
-                            memcpy(ptr, val.instance->data, fsz);
-                            free(val.instance->data);
-                            free(val.instance);
+                            memcpy(ptr, val.data.Struct.data, fsz);
+                            free(val.data.Struct.data);
                         }
                         break;
-                    case VAL_ENUM: {
+                    case Value_TAG_Enum: {
                         EnumInstance *existing = *(EnumInstance **)ptr;
-                        if (existing) { free_value(existing->payload); free(existing); }
-                        *(EnumInstance **)ptr = val.enum_inst;
+                        if (existing) { free_value(*existing->payload); free(existing->payload); free(existing); }
+                        *(EnumInstance **)ptr = malloc(sizeof(EnumInstance));
+                        **(EnumInstance **)ptr = val.data.Enum;
                         break;
                     }
-                    case VAL_PTR: *(void **)ptr = val.ptr; break;
-                    case VAL_FUNC: *(void **)ptr = (void *)val.func; break;
+                    case Value_TAG_Ptr: *(void **)ptr = val.data.Ptr; break;
+                    case Value_TAG_Func: *(void **)ptr = val.data.Func; break;
                     default: break;
                     }
                 }
-                if (move_src && move_src->val.type != VAL_FUNC) move_src->val = val_none();
+                if (move_src && move_src->val.tag != Value_TAG_Func) move_src->val = val_none();
             }
             break;
         }
@@ -1110,7 +1126,7 @@ static void eval_body(Scope *scope, Expr *body) {
         }
         case ExprData_TAG_If: {
             Value cond = eval_expr(scope,Expr_child(stmt, &(USize){(USize)(0)}));
-            if (*cond.boolean) {
+            if (cond.data.Boolean) {
                 Scope *then_scope = scope_new(scope);
                 eval_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}));
                 scope_free(then_scope);
@@ -1125,7 +1141,7 @@ static void eval_body(Scope *scope, Expr *body) {
             while (1) {
                 if (has_return) break;
                 Value cond = eval_expr(scope,Expr_child(stmt, &(USize){(USize)(0)}));
-                if (!*cond.boolean) break;
+                if (!cond.data.Boolean) break;
                 Scope *while_scope = scope_new(scope);
                 eval_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}));
                 scope_free(while_scope);
@@ -1179,9 +1195,8 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                     Value fval = eval_expr(global, Expr_child(field, &(USize){(USize)(0)}));
                     // Simple enum variant tags: convert I64 literal to I32 (matching C enum)
                     if (sdef->data.tag == ExprData_TAG_EnumDef && !*enum_has_payloads(sdef) &&
-                        fval.type == VAL_I64) {
-                        I32 tag = (I32)*fval.i64;
-                        free(fval.i64);
+                        fval.tag == Value_TAG_Int) {
+                        I32 tag = (I32)fval.data.Int;
                         fval = val_i32(tag);
                     }
                     ns_set(sname, (&field->data.data.Decl.name), fval);
@@ -1260,23 +1275,21 @@ static I32 elem_size_for_type(Str *type_name) {
 }
 
 static void value_to_buf(void *dest, Value v, Str *type_name) {
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))       { memcpy(dest, v.i64, sizeof(I64)); free(v.i64); }
-    else if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0))   { memcpy(dest, v.u8, sizeof(U8)); free(v.u8); }
-    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0))  { memcpy(dest, v.i16, sizeof(I16)); free(v.i16); }
-    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  { memcpy(dest, v.i32, sizeof(I32)); free(v.i32); }
-    else if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  { memcpy(dest, v.u32, sizeof(U32)); free(v.u32); }
-    else if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) { memcpy(dest, v.boolean, sizeof(Bool)); free(v.boolean); }
-    else if (v.type == VAL_STRUCT) {
-        I32 sz = v.instance->struct_def->total_struct_size;
-        if (v.instance->borrowed) {
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0))       { memcpy(dest, &v.data.Int, sizeof(I64)); }
+    else if ((type_name->count == 2 && memcmp(type_name->c_str, "U8", 2) == 0))   { memcpy(dest, &v.data.Byte, sizeof(U8)); }
+    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I16", 3) == 0))  { memcpy(dest, &v.data.Short, sizeof(I16)); }
+    else if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  { memcpy(dest, &v.data.Int32, sizeof(I32)); }
+    else if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  { memcpy(dest, &v.data.Uint32, sizeof(U32)); }
+    else if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) { memcpy(dest, &v.data.Boolean, sizeof(Bool)); }
+    else if (v.tag == Value_TAG_Struct) {
+        I32 sz = v.data.Struct.struct_def->total_struct_size;
+        if (v.data.Struct.borrowed) {
             Value cloned = clone_value(v);
-            memcpy(dest, cloned.instance->data, sz);
-            free(cloned.instance->data);
-            free(cloned.instance);
+            memcpy(dest, cloned.data.Struct.data, sz);
+            free(cloned.data.Struct.data);
         } else {
-            memcpy(dest, v.instance->data, sz);
-            free(v.instance->data);
-            free(v.instance);
+            memcpy(dest, v.data.Struct.data, sz);
+            free(v.data.Struct.data);
         }
     }
 }
@@ -1299,7 +1312,7 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
-    write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
+    write_field(inst, find_field_decl(cached_array_def, &fn_data), (Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
     write_field(inst, find_field_decl(cached_array_def, &fn_cap), val_u32((U32)count));
     write_field(inst, find_field_decl(cached_array_def, &fn_esz), val_u32((U32)esz));
     // Populate FuncPtr fields (#91)
@@ -1310,7 +1323,11 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     if (clone_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ec), *clone_fn);
     if (delete_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ed), *delete_fn);
     write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)elem_type->c_str, elem_type->count));
-    return (Value){.type = VAL_STRUCT, .instance = inst};
+    Value result;
+    result.tag = Value_TAG_Struct;
+    result.data.Struct = *inst;
+    free(inst);
+    return result;
 }
 
 I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_path, Str *ext_c_path, Str *link_flags, Vec *user_argv) {
@@ -1328,7 +1345,7 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
             (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
-            Value val = {.type = VAL_FUNC, .func = Expr_child(stmt, &(USize){(USize)(0)})};
+            Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
             scope_set_owned(global, (&stmt->data.data.Decl.name), val);
         }
     }
@@ -1341,10 +1358,10 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
         Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
         if (rhs->data.tag != ExprData_TAG_Ident) continue;
         Cell *src = scope_get(global, &rhs->data.data.Ident);
-        if (src && src->val.type == VAL_FUNC &&
-            (src->val.func->data.tag == ExprData_TAG_StructDef ||
-             src->val.func->data.tag == ExprData_TAG_EnumDef)) {
-            Value val = {.type = VAL_FUNC, .func = src->val.func};
+        if (src && src->val.tag == Value_TAG_Func &&
+            (((Expr*)src->val.data.Func)->data.tag == ExprData_TAG_StructDef ||
+             ((Expr*)src->val.data.Func)->data.tag == ExprData_TAG_EnumDef)) {
+            Value val = {.tag = Value_TAG_Func, .data.Func = src->val.data.Func};
             scope_set_owned(global, &stmt->data.data.Decl.name, val);
         }
     }
@@ -1362,8 +1379,8 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
         Str *alias_name = &stmt->data.data.Decl.name;
         Str *target_name = &rhs->data.data.Ident;
         Cell *tc = scope_get(global, target_name);
-        if (!tc || tc->val.type != VAL_FUNC) continue;
-        Expr *sdef = tc->val.func;
+        if (!tc || tc->val.tag != Value_TAG_Func) continue;
+        Expr *sdef = ((Expr*)tc->val.data.Func);
         if (sdef->data.tag != ExprData_TAG_StructDef && sdef->data.tag != ExprData_TAG_EnumDef) continue;
         Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
         for (U32 j = 0; j < body->children.count; j++) {
@@ -1409,12 +1426,12 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
     if (mode && mode->needs_main) {
         Str main_name = {.c_str = (U8 *)"main", .count = 4};
         Cell *main_cell = scope_get(global, &main_name);
-        if (!main_cell || main_cell->val.type != VAL_FUNC) {
+        if (!main_cell || main_cell->val.tag != Value_TAG_Func) {
             fprintf(stderr, "%s: error: mode '%.*s' requires a 'main' proc\n", path->c_str, (int)mode->name.count, (const char *)mode->name.c_str);
             scope_free(global);
             return 1;
         }
-        Expr *func_def = main_cell->val.func;
+        Expr *func_def = (Expr*)main_cell->val.data.Func;
         U32 nparam = func_def->data.data.FuncDef.nparam;
         I32 vi = func_def->data.data.FuncDef.variadic_index;
         Expr *body = Expr_child(func_def, &(USize){(USize)(0)});

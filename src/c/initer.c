@@ -977,7 +977,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // delete := func(own self: E, call_free: Bool = true) {
         //     if call_free { free(own self) }
         // }
-        // free() builtin handles payload cleanup for VAL_ENUM
+        // free() builtin handles payload cleanup for Value_TAG_Enum
         if (!has_delete) {
             Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
             Expr *cond = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);

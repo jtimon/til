@@ -18,25 +18,25 @@ static Expr *value_to_expr(Value val, Expr *src) {
     I32 line = src->line, col = src->col;
     Str *path = &src->path;
     Expr *e;
-    switch (val.type) {
-    case VAL_I64: {
+    switch (val.tag) {
+    case Value_TAG_Int: {
         e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
         char buf[32];
-        snprintf(buf, sizeof(buf), "%lld", (long long)*val.i64);
+        snprintf(buf, sizeof(buf), "%lld", (long long)val.data.Int);
         e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
         e->til_type = (TilType){TilType_TAG_I64};
         return e;
     }
-    case VAL_U8: {
+    case Value_TAG_Byte: {
         e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
         char buf[32];
-        snprintf(buf, sizeof(buf), "%u", (unsigned)*val.u8);
+        snprintf(buf, sizeof(buf), "%u", (unsigned)val.data.Byte);
         e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
         e->til_type = (TilType){TilType_TAG_U8};
         return e;
     }
-    case VAL_STRUCT: {
-        if ((val.instance->struct_name->count == 3 && memcmp(val.instance->struct_name->c_str, "Str", 3) == 0)) {
+    case Value_TAG_Struct: {
+        if ((val.data.Struct.struct_name->count == 3 && memcmp(val.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
             Str sv = str_view(val);
             e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
             e->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(const char *)sv.c_str, .count = sv.count, .cap = CAP_VIEW});
@@ -46,9 +46,9 @@ static Expr *value_to_expr(Value val, Expr *src) {
         }
         return NULL; // other struct types not supported in precomp
     }
-    case VAL_BOOL: {
+    case Value_TAG_Boolean: {
         e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-        e->data.data.LiteralBool = (*val.boolean ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT} : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
+        e->data.data.LiteralBool = (val.data.Boolean ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT} : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
         e->til_type = (TilType){TilType_TAG_Bool};
         return e;
     }
@@ -129,8 +129,8 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Check if the function body references unknown globals
     Str *callee_name = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
     Cell *fn_cell = scope_get(scope, callee_name);
-    if (fn_cell && fn_cell->val.type == VAL_FUNC && fn_cell->val.func->data.tag == ExprData_TAG_FuncDef) {
-        Expr *fdef = fn_cell->val.func;
+    if (fn_cell && fn_cell->val.tag == Value_TAG_Func && ((Expr*)fn_cell->val.data.Func)->data.tag == ExprData_TAG_FuncDef) {
+        Expr *fdef = (Expr*)fn_cell->val.data.Func;
         if (fdef->children.count > 0 && func_uses_unknown_globals(Expr_child(fdef, &(USize){(USize)(0)}), fdef, scope)) {
             return NULL;
         }
@@ -315,7 +315,7 @@ void precomp(Expr *program) {
             (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
-            Value val = {.type = VAL_FUNC, .func = Expr_child(stmt, &(USize){(USize)(0)})};
+            Value val = {.tag = Value_TAG_Func, .data.Func = (void*)Expr_child(stmt, &(USize){(USize)(0)})};
             scope_set_owned(global, (&stmt->data.data.Decl.name), val);
         }
     }

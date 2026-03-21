@@ -13,44 +13,42 @@ I32 I32_from_i64(I64 v);
 F32 F32_from_i64(I64 v);
 U32 U32_from_i64(I64 v);
 U64 U64_from_i64(I64 v);
-static I64 *I64_new(I64 val) { I64 *p = malloc(sizeof(I64)); *p = val; return p; }
-
 static I64 value_to_i64(Value v) {
-    switch (v.type) {
-        case VAL_I64:  return *v.i64;
-        case VAL_U8:   return *v.u8;
-        case VAL_I16:  return *v.i16;
-        case VAL_I32:  return *v.i32;
-        case VAL_U32:  return *v.u32;
-        case VAL_U64:  return (I64)*v.u64;
-        case VAL_BOOL: return *v.boolean ? 1 : 0;
+    switch (v.tag) {
+        case Value_TAG_Int:  return v.data.Int;
+        case Value_TAG_Byte:   return v.data.Byte;
+        case Value_TAG_Short:  return v.data.Short;
+        case Value_TAG_Int32:  return v.data.Int32;
+        case Value_TAG_Uint32:  return v.data.Uint32;
+        case Value_TAG_Uint64:  return (I64)v.data.Uint64;
+        case Value_TAG_Boolean: return v.data.Boolean ? 1 : 0;
         default:       return 0;
     }
 }
 
 static U64 value_to_u64(Value v) {
-    switch (v.type) {
-        case VAL_I64:  return (U64)*v.i64;
-        case VAL_U8:   return *v.u8;
-        case VAL_I16:  return (U64)*v.i16;
-        case VAL_I32:  return (U64)*v.i32;
-        case VAL_U32:  return *v.u32;
-        case VAL_U64:  return *v.u64;
-        case VAL_BOOL: return *v.boolean ? 1 : 0;
+    switch (v.tag) {
+        case Value_TAG_Int:  return (U64)v.data.Int;
+        case Value_TAG_Byte:   return v.data.Byte;
+        case Value_TAG_Short:  return (U64)v.data.Short;
+        case Value_TAG_Int32:  return (U64)v.data.Int32;
+        case Value_TAG_Uint32:  return v.data.Uint32;
+        case Value_TAG_Uint64:  return v.data.Uint64;
+        case Value_TAG_Boolean: return v.data.Boolean ? 1 : 0;
         default:       return 0;
     }
 }
 
 static F32 value_to_f32(Value v) {
-    switch (v.type) {
-        case VAL_I64:  return (F32)*v.i64;
-        case VAL_U8:   return (F32)*v.u8;
-        case VAL_I16:  return (F32)*v.i16;
-        case VAL_I32:  return (F32)*v.i32;
-        case VAL_U32:  return (F32)*v.u32;
-        case VAL_U64:  return (F32)*v.u64;
-        case VAL_F32:  return *v.f32;
-        case VAL_BOOL: return *v.boolean ? 1.0f : 0.0f;
+    switch (v.tag) {
+        case Value_TAG_Int:  return (F32)v.data.Int;
+        case Value_TAG_Byte:   return (F32)v.data.Byte;
+        case Value_TAG_Short:  return (F32)v.data.Short;
+        case Value_TAG_Int32:  return (F32)v.data.Int32;
+        case Value_TAG_Uint32:  return (F32)v.data.Uint32;
+        case Value_TAG_Uint64:  return (F32)v.data.Uint64;
+        case Value_TAG_Float:  return v.data.Float;
+        case Value_TAG_Boolean: return v.data.Boolean ? 1.0f : 0.0f;
         default:       return 0.0f;
     }
 }
@@ -171,26 +169,26 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
 
 // === Eval helper for Dynamic narrowing ===
 // When the typer narrows a Dynamic arg to a concrete type, the expression's
-// til_type is the target. If the runtime value is VAL_PTR (from ptr_add/malloc),
+// til_type is the target. If the runtime value is Value_TAG_Ptr (from ptr_add/malloc),
 // reinterpret it as the narrowed type so dispatch handlers see the right union field.
 static Value eval_arg(Scope *s, Expr *e) {
     Value v = eval_expr(s, e);
-    if (v.type == VAL_PTR && e->til_type.tag != TilType_TAG_Dynamic) {
+    if (v.tag == Value_TAG_Ptr && e->til_type.tag != TilType_TAG_Dynamic) {
         switch (e->til_type.tag) {
-            case TilType_TAG_I64:    return (Value){.type = VAL_I64, .i64 = (I64 *)v.ptr};
-            case TilType_TAG_U8:    return (Value){.type = VAL_U8, .u8 = (U8 *)v.ptr};
-            case TilType_TAG_I16:   return (Value){.type = VAL_I16, .i16 = (I16 *)v.ptr};
-            case TilType_TAG_I32:   return (Value){.type = VAL_I32, .i32 = (I32 *)v.ptr};
-            case TilType_TAG_U32:   return (Value){.type = VAL_U32, .u32 = (U32 *)v.ptr};
-            case TilType_TAG_U64:   return (Value){.type = VAL_U64, .u64 = (U64 *)v.ptr};
-            case TilType_TAG_F32:   return (Value){.type = VAL_F32, .f32 = (F32 *)v.ptr};
-            case TilType_TAG_Bool:  return (Value){.type = VAL_BOOL, .boolean = (Bool *)v.ptr};
+            case TilType_TAG_I64:    return (Value){.tag = Value_TAG_Int, .data.Int = *(I64 *)v.data.Ptr};
+            case TilType_TAG_U8:    return (Value){.tag = Value_TAG_Byte, .data.Byte = *(U8 *)v.data.Ptr};
+            case TilType_TAG_I16:   return (Value){.tag = Value_TAG_Short, .data.Short = *(I16 *)v.data.Ptr};
+            case TilType_TAG_I32:   return (Value){.tag = Value_TAG_Int32, .data.Int32 = *(I32 *)v.data.Ptr};
+            case TilType_TAG_U32:   return (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)v.data.Ptr};
+            case TilType_TAG_U64:   return (Value){.tag = Value_TAG_Uint64, .data.Uint64 = *(U64 *)v.data.Ptr};
+            case TilType_TAG_F32:   return (Value){.tag = Value_TAG_Float, .data.Float = *(F32 *)v.data.Ptr};
+            case TilType_TAG_Bool:  return (Value){.tag = Value_TAG_Boolean, .data.Boolean = *(Bool *)v.data.Ptr};
             case TilType_TAG_Struct:
                 if ((e->struct_name).count > 0 && (e->struct_name.count == 3 && memcmp(e->struct_name.c_str, "Str", 3) == 0)) {
-                    ExtStr *sp = (ExtStr *)v.ptr;
+                    ExtStr *sp = (ExtStr *)v.data.Ptr;
                     return make_str_value_own((char *)sp->data, sp->count);
                 }
-                return (Value){.type = VAL_STRUCT, .instance = v.ptr};
+                { Value r; r.tag = Value_TAG_Struct; r.data.Struct = *(StructInstance *)v.data.Ptr; return r; }
             default: break;
         }
     }
@@ -204,40 +202,40 @@ static Value eval_arg(Scope *s, Expr *e) {
 static Bool h_Bool_and(Scope *s, Expr *e, Value *r) {
     Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
     Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = val_bool(Bool_and(*a.boolean, *b.boolean)); return 1;
+    *r = val_bool(Bool_and(a.data.Boolean, b.data.Boolean)); return 1;
 }
 static Bool h_Bool_or(Scope *s, Expr *e, Value *r) {
     Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
     Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = val_bool(Bool_or(*a.boolean, *b.boolean)); return 1;
+    *r = val_bool(Bool_or(a.data.Boolean, b.data.Boolean)); return 1;
 }
 static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
     Value v = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_bool(Bool_not(*v.boolean)); return 1;
+    *r = val_bool(Bool_not(v.data.Boolean)); return 1;
 }
 
 static Bool h_U8_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_u8(U8_from_i64(*v.i64)); return 1;
+    *r = val_u8(U8_from_i64(v.data.Int)); return 1;
 }
 static Bool h_I16_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_i16(I16_from_i64(*v.i64)); return 1;
+    *r = val_i16(I16_from_i64(v.data.Int)); return 1;
 }
 static Bool h_I32_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_i32(I32_from_i64(*v.i64)); return 1;
+    *r = val_i32(I32_from_i64(v.data.Int)); return 1;
 }
 static Bool h_F32_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_f32(F32_from_i64(*v.i64)); return 1;
+    *r = val_f32(F32_from_i64(v.data.Int)); return 1;
 }
 static Bool h_U32_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_u32(U32_from_i64(*v.i64)); return 1;
+    *r = val_u32(U32_from_i64(v.data.Int)); return 1;
 }
 
-static void *val_to_ptr(Value v);
+static void *val_to_ptr(Value *v);
 
 // === Print handlers ===
 
@@ -258,49 +256,28 @@ static Bool h_print_flush(Scope *s, Expr *e, Value *r) {
 
 static Bool h_exit(Scope *s, Expr *e, Value *r) {
     Value a = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    exit((int)*a.i64);
+    exit((int)a.data.Int);
     *r = val_none(); return 1;
 }
 
 static Bool h_free(Scope *s, Expr *e, Value *r) {
     if (Expr_child(e, &(USize){(USize)(1)})->data.tag != ExprData_TAG_Ident) {
         Value val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-        void *ptr = val_to_ptr(val);
+        void *ptr = val_to_ptr(&val);
         if (ptr) free(ptr);
         *r = val_none();
         return 1;
     }
     Cell *cell = scope_get(s, &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident);
-    if (cell->val.type == VAL_STRUCT && cell->val.instance) {
-        if (!cell->val.instance->borrowed)
-            free(cell->val.instance->data);
-        free(cell->val.instance);
-    } else if (cell->val.type == VAL_ENUM && cell->val.enum_inst) {
-        Value payload = cell->val.enum_inst->payload;
-        if (payload.type == VAL_I64)  free(payload.i64);
-        else if (payload.type == VAL_U8)   free(payload.u8);
-        else if (payload.type == VAL_I16)  free(payload.i16);
-        else if (payload.type == VAL_I32)  free(payload.i32);
-        else if (payload.type == VAL_U32)  free(payload.u32);
-        else if (payload.type == VAL_F32)  free(payload.f32);
-        else if (payload.type == VAL_BOOL) free(payload.boolean);
-        free(cell->val.enum_inst);
-    } else if (cell->val.type == VAL_I64) {
-        free(cell->val.i64);
-    } else if (cell->val.type == VAL_U8) {
-        free(cell->val.u8);
-    } else if (cell->val.type == VAL_I16) {
-        free(cell->val.i16);
-    } else if (cell->val.type == VAL_I32) {
-        free(cell->val.i32);
-    } else if (cell->val.type == VAL_U32) {
-        free(cell->val.u32);
-    } else if (cell->val.type == VAL_F32) {
-        free(cell->val.f32);
-    } else if (cell->val.type == VAL_BOOL) {
-        free(cell->val.boolean);
-    } else if (cell->val.type == VAL_PTR) {
-        free(cell->val.ptr);
+    if (cell->val.tag == Value_TAG_Struct) {
+        if (!cell->val.data.Struct.borrowed)
+            free(cell->val.data.Struct.data);
+    } else if (cell->val.tag == Value_TAG_Enum) {
+        Value payload = *cell->val.data.Enum.payload;
+        (void)payload;
+        free(cell->val.data.Enum.payload);
+    } else if (cell->val.tag == Value_TAG_Ptr) {
+        free(cell->val.data.Ptr);
     }
     cell->val = val_none();
     *r = val_none();
@@ -347,8 +324,8 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     }
 
     Value fn_val = eval_expr(s, &field_access);
-    if (fn_val.type == VAL_FUNC && fn_val.func->data.tag == ExprData_TAG_FuncDef) {
-        Expr *fdef = fn_val.func;
+    if (fn_val.tag == Value_TAG_Func && ((Expr*)fn_val.data.Func)->data.tag == ExprData_TAG_FuncDef) {
+        Expr *fdef = (Expr*)fn_val.data.Func;
         U32 nparam = fdef->data.data.FuncDef.nparam;
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
@@ -389,7 +366,7 @@ static Bool h_dyn_fn(Scope *s, Expr *e, Value *r) {
     Str _mn = str_view(method_val);
     Str *method = &_mn;
     Value *nsv = ns_get(type_name, method);
-    if (!nsv || nsv->type != VAL_FUNC) {
+    if (!nsv || nsv->tag != Value_TAG_Func) {
         fprintf(stderr, "dyn_fn: unknown %s.%s\n", (char*)type_name->c_str, (char*)method->c_str);
         exit(1);
     }
@@ -400,17 +377,17 @@ static Bool h_dyn_fn(Scope *s, Expr *e, Value *r) {
 // === Collection builtin handlers ===
 
 // Get raw pointer from a Value (for memcpy into Array/Vec data buffer)
-static void *val_raw_ptr(Value v) {
-    switch (v.type) {
-        case VAL_I64:    return v.i64;
-        case VAL_U8:     return v.u8;
-        case VAL_I16:    return v.i16;
-        case VAL_I32:    return v.i32;
-        case VAL_U32:    return v.u32;
-        case VAL_F32:    return v.f32;
-        case VAL_BOOL:   return v.boolean;
-        case VAL_STRUCT: return v.instance->data;
-        case VAL_PTR:    return v.ptr;
+static void *val_raw_ptr(Value *v) {
+    switch (v->tag) {
+        case Value_TAG_Int:    return &v->data.Int;
+        case Value_TAG_Byte:     return &v->data.Byte;
+        case Value_TAG_Short:    return &v->data.Short;
+        case Value_TAG_Int32:    return &v->data.Int32;
+        case Value_TAG_Uint32:    return &v->data.Uint32;
+        case Value_TAG_Float:    return &v->data.Float;
+        case Value_TAG_Boolean:   return &v->data.Boolean;
+        case Value_TAG_Struct: return v->data.Struct.data;
+        case Value_TAG_Ptr:    return v->data.Ptr;
         default:         return NULL;
     }
 }
@@ -472,9 +449,9 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
-        void *src = val_raw_ptr(elem);
+        void *src = val_raw_ptr(&elem);
         if (src) {
-            if (elem.type == VAL_STRUCT && (elem.instance->struct_name->count == 3 && memcmp(elem.instance->struct_name->c_str, "Str", 3) == 0)) {
+            if (elem.tag == Value_TAG_Struct && (elem.data.Struct.struct_name->count == 3 && memcmp(elem.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
                 // Deep-copy Str: copy flat bytes then strndup the data pointer
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
@@ -496,7 +473,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
-    write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
+    write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
     write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u32(count));
     write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u32((U32)elem_size));
     write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
@@ -508,8 +485,8 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     if (clone_fn) write_field(si, find_field_decl(cached_array_def, &fn_ec), *clone_fn);
     if (delete_fn) write_field(si, find_field_decl(cached_array_def, &fn_ed), *delete_fn);
 
-    r->type = VAL_STRUCT;
-    r->instance = si;
+    r->tag = Value_TAG_Struct;
+    r->data.Struct = *si; free(si);
     return 1;
 }
 
@@ -529,9 +506,9 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
-        void *src = val_raw_ptr(elem);
+        void *src = val_raw_ptr(&elem);
         if (src) {
-            if (elem.type == VAL_STRUCT && (elem.instance->struct_name->count == 3 && memcmp(elem.instance->struct_name->c_str, "Str", 3) == 0)) {
+            if (elem.tag == Value_TAG_Struct && (elem.data.Struct.struct_name->count == 3 && memcmp(elem.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
                 memcpy((char *)data + i * elem_size, src, elem_size);
                 char **dp = (char **)((char *)data + i * elem_size);
                 USize slen = *(USize *)((char *)data + i * elem_size + sizeof(U8 *));
@@ -553,7 +530,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
     Str fn_et = {.c_str = (U8 *)"elem_type", .count = 9};
-    write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.type = VAL_PTR, .ptr = data});
+    write_field(si, find_field_decl(cached_vec_def, &fn_data), (Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
     write_field(si, find_field_decl(cached_vec_def, &fn_count), val_u32(count));
     write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u32(cap));
     write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u32((U32)elem_size));
@@ -566,25 +543,25 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     if (clone_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ec), *clone_fn);
     if (delete_fn) write_field(si, find_field_decl(cached_vec_def, &fn_ed), *delete_fn);
 
-    r->type = VAL_STRUCT;
-    r->instance = si;
+    r->tag = Value_TAG_Struct;
+    r->data.Struct = *si; free(si);
     return 1;
 }
 
 // === Pointer primitive handlers ===
 
 // Extract raw void* from any Value type
-static void *val_to_ptr(Value v) {
-    switch (v.type) {
-        case VAL_PTR:    return v.ptr;
-        case VAL_I64:    return v.i64;
-        case VAL_U8:     return v.u8;
-        case VAL_I16:    return v.i16;
-        case VAL_I32:    return v.i32;
-        case VAL_U32:    return v.u32;
-        case VAL_F32:    return v.f32;
-        case VAL_BOOL:   return v.boolean;
-        case VAL_STRUCT: return v.instance->data;
+static void *val_to_ptr(Value *v) {
+    switch (v->tag) {
+        case Value_TAG_Ptr:    return v->data.Ptr;
+        case Value_TAG_Int:    return &v->data.Int;
+        case Value_TAG_Byte:     return &v->data.Byte;
+        case Value_TAG_Short:    return &v->data.Short;
+        case Value_TAG_Int32:    return &v->data.Int32;
+        case Value_TAG_Uint32:    return &v->data.Uint32;
+        case Value_TAG_Float:    return &v->data.Float;
+        case Value_TAG_Boolean:   return &v->data.Boolean;
+        case Value_TAG_Struct: return v->data.Struct.data;
         default:         return NULL;
     }
 }
@@ -593,7 +570,7 @@ static void *val_to_ptr(Value v) {
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = (Value){.type = VAL_PTR, .ptr = (char *)buf.ptr + value_to_u64(offset)};
+    *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)buf.data.Ptr + value_to_u64(offset)};
     return 1;
 }
 
@@ -661,7 +638,7 @@ static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
 static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
     Value pidv = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     int status;
-    pid_t result = waitpid((pid_t)*pidv.i64, &status, WNOHANG);
+    pid_t result = waitpid((pid_t)pidv.data.Int, &status, WNOHANG);
     if (result == 0) { *r = val_i64(-1); return 1; }
     if (WIFEXITED(status)) { *r = val_i64(WEXITSTATUS(status)); return 1; }
     *r = val_i64(-1);
@@ -670,7 +647,7 @@ static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
 
 static Bool h_sleep(Scope *s, Expr *e, Value *r) {
     Value ms = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    usleep((useconds_t)(*ms.i64 * 1000));
+    usleep((useconds_t)(ms.data.Int * 1000));
     *r = val_none();
     return 1;
 }
@@ -784,66 +761,48 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(i + 1)}));
                 if (fe->param_shallows && i < (U32)fe->nparam && fe->param_shallows[i]) {
                     // Shallow: store dereferenced value directly for ffi
-                    if (v.type == VAL_STRUCT) {
+                    if (v.tag == Value_TAG_Struct) {
                         // Struct by value: point arg_ptrs directly at struct data
-                        arg_ptrs[i] = v.instance->data;
+                        arg_ptrs[i] = v.data.Struct.data;
                         continue;
                     }
-                    // Check for NULL before shallow dereference
-                    void *shallow_ptr = NULL;
-                    switch (v.type) {
-                        case VAL_I64:  shallow_ptr = v.i64; break;
-                        case VAL_U8:   shallow_ptr = v.u8; break;
-                        case VAL_I16:  shallow_ptr = v.i16; break;
-                        case VAL_I32:  shallow_ptr = v.i32; break;
-                        case VAL_U32:  shallow_ptr = v.u32; break;
-                        case VAL_U64:  shallow_ptr = v.u64; break;
-                        case VAL_F32:  shallow_ptr = v.f32; break;
-                        case VAL_BOOL: shallow_ptr = v.boolean; break;
-                        case VAL_PTR:  shallow_ptr = v.ptr; break;
-                        default:       shallow_ptr = v.ptr; break;
-                    }
-                    if (!shallow_ptr) {
-                        fprintf(stderr, "panic: null deref\n");
-                        exit(1);
-                    }
                     if (fe->arg_types[i] == &ffi_type_sint64) {
-                        I64 tmp = (v.type == VAL_PTR) ? *(I64 *)v.ptr : value_to_i64(v);
+                        I64 tmp = (v.tag == Value_TAG_Ptr) ? *(I64 *)v.data.Ptr : value_to_i64(v);
                         *(I64 *)&args[i] = tmp;
                     } else if (fe->arg_types[i] == &ffi_type_uint8) {
-                        U8 tmp = (v.type == VAL_PTR) ? *(U8 *)v.ptr : (U8)value_to_u64(v);
+                        U8 tmp = (v.tag == Value_TAG_Ptr) ? *(U8 *)v.data.Ptr : (U8)value_to_u64(v);
                         *(U8 *)&args[i] = tmp;
                     } else if (fe->arg_types[i] == &ffi_type_sint16) {
-                        I16 tmp = (v.type == VAL_PTR) ? *(I16 *)v.ptr : (I16)value_to_i64(v);
+                        I16 tmp = (v.tag == Value_TAG_Ptr) ? *(I16 *)v.data.Ptr : (I16)value_to_i64(v);
                         *(I16 *)&args[i] = tmp;
                     } else if (fe->arg_types[i] == &ffi_type_sint32) {
-                        I32 tmp = (v.type == VAL_PTR) ? *(I32 *)v.ptr : (I32)value_to_i64(v);
+                        I32 tmp = (v.tag == Value_TAG_Ptr) ? *(I32 *)v.data.Ptr : (I32)value_to_i64(v);
                         *(I32 *)&args[i] = tmp;
                     } else if (fe->arg_types[i] == &ffi_type_uint32) {
-                        U32 tmp = (v.type == VAL_PTR) ? *(U32 *)v.ptr : (U32)value_to_u64(v);
+                        U32 tmp = (v.tag == Value_TAG_Ptr) ? *(U32 *)v.data.Ptr : (U32)value_to_u64(v);
                         *(U32 *)&args[i] = tmp;
                     } else if (fe->arg_types[i] == &ffi_type_uint64) {
-                        U64 tmp = (v.type == VAL_PTR) ? *(U64 *)v.ptr : value_to_u64(v);
+                        U64 tmp = (v.tag == Value_TAG_Ptr) ? *(U64 *)v.data.Ptr : value_to_u64(v);
                         *(U64 *)&args[i] = tmp;
                     } else if (fe->arg_types[i] == &ffi_type_float) {
-                        F32 tmp = (v.type == VAL_PTR) ? *(F32 *)v.ptr : value_to_f32(v);
+                        F32 tmp = (v.tag == Value_TAG_Ptr) ? *(F32 *)v.data.Ptr : value_to_f32(v);
                         *(F32 *)&args[i] = tmp;
                     } else {
-                        args[i] = v.ptr;
+                        args[i] = v.data.Ptr;
                     }
                 } else {
-                    // Deep: pass pointer (existing behavior)
-                    switch (v.type) {
-                        case VAL_I64:    args[i] = v.i64; break;
-                        case VAL_U8:     args[i] = v.u8; break;
-                        case VAL_I16:    args[i] = v.i16; break;
-                        case VAL_I32:    args[i] = v.i32; break;
-                        case VAL_U32:    args[i] = v.u32; break;
-                        case VAL_U64:    args[i] = v.u64; break;
-                        case VAL_F32:    args[i] = v.f32; break;
-                        case VAL_BOOL:   args[i] = v.boolean; break;
-                        case VAL_PTR:    args[i] = v.ptr; break;
-                        case VAL_STRUCT: args[i] = v.instance->data; break;
+                    // Deep: pass heap-allocated pointer (FFI callee may free it)
+                    switch (v.tag) {
+                        case Value_TAG_Int:    { I64 *p = malloc(sizeof(I64)); *p = v.data.Int; args[i] = p; break; }
+                        case Value_TAG_Byte:   { U8 *p = malloc(sizeof(U8)); *p = v.data.Byte; args[i] = p; break; }
+                        case Value_TAG_Short:  { I16 *p = malloc(sizeof(I16)); *p = v.data.Short; args[i] = p; break; }
+                        case Value_TAG_Int32:  { I32 *p = malloc(sizeof(I32)); *p = v.data.Int32; args[i] = p; break; }
+                        case Value_TAG_Uint32: { U32 *p = malloc(sizeof(U32)); *p = v.data.Uint32; args[i] = p; break; }
+                        case Value_TAG_Uint64: { U64 *p = malloc(sizeof(U64)); *p = v.data.Uint64; args[i] = p; break; }
+                        case Value_TAG_Float:  { F32 *p = malloc(sizeof(F32)); *p = v.data.Float; args[i] = p; break; }
+                        case Value_TAG_Boolean: { Bool *p = malloc(sizeof(Bool)); *p = v.data.Boolean; args[i] = p; break; }
+                        case Value_TAG_Ptr:    args[i] = v.data.Ptr; break;
+                        case Value_TAG_Struct: args[i] = v.data.Struct.data; break;
                         default:         args[i] = NULL; break;
                     }
                 }
@@ -885,35 +844,28 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 inst->struct_def = *ret_sdef;
                 inst->data = ret_buf;
                 inst->borrowed = 0;
-                *result = (Value){.type = VAL_STRUCT, .instance = inst};
+                result->tag = Value_TAG_Struct;
+                result->data.Struct = *inst; free(inst);
             } else if (fe->return_is_shallow) {
                 // Shallow return: C function returned a primitive by value.
                 if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
-                    *result = (Value){.type = VAL_I64, .i64 = I64_new(raw.i64)};
+                    *result = (Value){.tag = Value_TAG_Int, .data.Int = raw.i64};
                 } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
-                    U8 *p = malloc(sizeof(U8)); *p = raw.u8;
-                    *result = (Value){.type = VAL_U8, .u8 = p};
+                    *result = (Value){.tag = Value_TAG_Byte, .data.Byte = raw.u8};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
-                    I16 *p = malloc(sizeof(I16)); *p = raw.i16;
-                    *result = (Value){.type = VAL_I16, .i16 = p};
+                    *result = (Value){.tag = Value_TAG_Short, .data.Short = raw.i16};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
-                    I32 *p = malloc(sizeof(I32)); *p = raw.i32;
-                    *result = (Value){.type = VAL_I32, .i32 = p};
+                    *result = (Value){.tag = Value_TAG_Int32, .data.Int32 = raw.i32};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
-                    U32 *p = malloc(sizeof(U32)); *p = raw.u32;
-                    *result = (Value){.type = VAL_U32, .u32 = p};
+                    *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = raw.u32};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
-                    U64 *p = malloc(sizeof(U64)); *p = raw.u64;
-                    *result = (Value){.type = VAL_U64, .u64 = p};
+                    *result = (Value){.tag = Value_TAG_Uint64, .data.Uint64 = raw.u64};
                 } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
-                    U32 *p = malloc(sizeof(U32)); *p = raw.u32;
-                    *result = (Value){.type = VAL_U32, .u32 = p};
+                    *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = raw.u32};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
-                    F32 *p = malloc(sizeof(F32)); *p = raw.f32;
-                    *result = (Value){.type = VAL_F32, .f32 = p};
+                    *result = (Value){.tag = Value_TAG_Float, .data.Float = raw.f32};
                 } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
-                    Bool *p = malloc(sizeof(Bool)); *p = raw.boolean;
-                    *result = (Value){.type = VAL_BOOL, .boolean = p};
+                    *result = (Value){.tag = Value_TAG_Boolean, .data.Boolean = raw.boolean};
                 } else {
                     *result = val_none();
                 }
@@ -921,27 +873,27 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 ExtStr *sp = (ExtStr *)raw.ptr;
                 *result = make_str_value_own((char *)sp->data, sp->count);
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
-                *result = (Value){.type = VAL_I64, .i64 = (I64 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Int, .data.Int = *(I64 *)raw.ptr};
             } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
-                *result = (Value){.type = VAL_U8, .u8 = (U8 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Byte, .data.Byte = *(U8 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
-                *result = (Value){.type = VAL_I16, .i16 = (I16 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Short, .data.Short = *(I16 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
-                *result = (Value){.type = VAL_I32, .i32 = (I32 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Int32, .data.Int32 = *(I32 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
-                *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
-                *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Uint64, .data.Uint64 = *(U64 *)raw.ptr};
             } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
-                *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)raw.ptr};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
-                *result = (Value){.type = VAL_F32, .f32 = (F32 *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Float, .data.Float = *(F32 *)raw.ptr};
             } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
-                *result = (Value){.type = VAL_BOOL, .boolean = (Bool *)raw.ptr};
+                *result = (Value){.tag = Value_TAG_Boolean, .data.Boolean = *(Bool *)raw.ptr};
             } else if ((fe->return_type->count == 7 && memcmp(fe->return_type->c_str, "Dynamic", 7) == 0)) {
-                *result = (Value){.type = VAL_PTR, .ptr = raw.ptr};
+                *result = (Value){.tag = Value_TAG_Ptr, .data.Ptr = raw.ptr};
             } else {
-                // Struct return — look up struct def by return type name
+                // Struct return -- look up struct def by return type name
                 if (*Map_has(&ffi_struct_defs, fe->return_type)) {
                     Expr **sdef = Map_get(&ffi_struct_defs, fe->return_type);
                     StructInstance *inst = malloc(sizeof(StructInstance));
@@ -949,7 +901,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                     inst->struct_def = *sdef;
                     inst->borrowed = 0;
                     inst->data = raw.ptr;
-                    *result = (Value){.type = VAL_STRUCT, .instance = inst};
+                    result->tag = Value_TAG_Struct;
+                    result->data.Struct = *inst; free(inst);
                 } else {
                     *result = val_none();
                 }
@@ -980,7 +933,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         }
         if (method->count > 4 && memcmp(method->c_str, "get_", 4) == 0) {
             Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
-            *result = clone_value(v.enum_inst->payload);
+            *result = clone_value(*v.data.Enum.payload);
             return 1;
         }
     }
@@ -990,10 +943,10 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         Str var_name = {.c_str = method->c_str + 3, .count = method->count - 3};
         I32 tag = *enum_variant_tag(enum_def, &var_name);
         Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
-        if (v.type == VAL_ENUM)
-            *result = val_bool(v.enum_inst->tag == tag);
+        if (v.tag == Value_TAG_Enum)
+            *result = val_bool(v.data.Enum.tag == tag);
         else
-            *result = val_bool(*v.i32 == tag);
+            *result = val_bool(v.data.Int32 == tag);
         return 1;
     }
 
