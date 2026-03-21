@@ -261,7 +261,18 @@
 *** TODO Makefile: ~til build src/til.til~ instead of two-pass gcc
     ~til build~ generates C and compiles. Currently blocked by:
 
-    1. *Module-level variable conflict*: builder emits module-level
+    1. *Map/Set literal codegen missing*: the builder does not handle
+       ~ExprData_TAG_MapLit~ or ~ExprData_TAG_SetLit~. Map literals
+       like ~core_modes := { "script": Mode(...), ... }~ generate
+       ~Map_new~ but no ~Map_set~ calls — the entries are never inserted.
+       This causes ~mode_resolve~ to fail with "key not found".
+       The interpreter handles Map/Set literals at runtime; the builder
+       needs equivalent codegen.
+
+       ~til build src/til.til~ succeeds (compiles to a binary), but
+       the resulting binary crashes because ~core_modes~ is empty.
+
+    2. *Module-level variable conflict*: builder emits module-level
        vars as ~static~ and initializes them in both ~_til_lib_init~
        (constructor, for ~mode lib~ modules) and ~main()~ (for the
        entry point). With ~--allow-multiple-definition~, separate
@@ -270,7 +281,7 @@
        ~main()~ to reinitialize vars already populated by the
        constructor (e.g. ~core_modes~ gets overwritten with empty Map).
 
-    2. *Fix needed in builder.c*: either skip reinitializing imported
+    3. *Fix needed in builder.c*: either skip reinitializing imported
        module vars in ~main()~, or don't use constructors at all
        (call init explicitly). Related to #89 (monolithic compilation).
 
