@@ -30301,7 +30301,7 @@ int main(int argc, char **argv) {
                 c_path = Str_clone(custom_c);
             }
             ;
-            Str *_t4891 = Str_lit("bin/til/", 8ULL);
+            Str *_t4891 = Str_lit("bin/", 4ULL);
             (void)_t4891;
             Str *bin_path = Str_concat(_t4891, name);
             (void)bin_path;
@@ -30368,7 +30368,7 @@ int main(int argc, char **argv) {
                 }
                 ;
                 ;
-                Str *bp_dir = Str_lit("bin/til", 7ULL);
+                Str *bp_dir = Str_lit("bin", 3ULL);
                 (void)bp_dir;
                 I64 _t4777 = 0;
                 (void)_t4777;

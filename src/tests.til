@@ -1,9 +1,9 @@
 mode cli
 
 NL := Str.from_byte(10)
-TIL := "bin/til_bootstrap"
-RUNNER := "bin/til/test_runner"
-PLOT := "bin/til/plot"
+TIL := "bin/til_boot"
+RUNNER := "bin/test_runner"
+PLOT := "bin/plot"
 GUI_TIMEOUT := "1"
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
@@ -440,7 +440,7 @@ main := proc(args: ..Str) {
         add_single(tests, "build_".concat(bn), "build", 124, "",
                    TIL.concat(" build ").concat(gf)
                        .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
-                       .concat(" bin/til/").concat(bn).concat(run_args))
+                       .concat(" bin/").concat(bn).concat(run_args))
     }
 
     // === Run all tests in parallel ===

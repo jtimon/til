@@ -449,7 +449,7 @@ main := proc(args: ..Str) {
 
         mut c_path := "gen/til/".concat(name).concat(".c")
         if custom_c.len().gt(0) { c_path = custom_c }
-        mut bin_path := "bin/til/".concat(name)
+        mut bin_path := "bin/".concat(name)
         if custom_bin.len().gt(0) { bin_path = custom_bin }
 
         do_lib := mode_is_lib_output(cur_mode).and(command.eq("run").not())
@@ -464,7 +464,7 @@ main := proc(args: ..Str) {
                 cp_slash_u : USize = cp_slash.to_u32()
                 cp_dir = c_path.substr(0, cp_slash_u)
             }
-            mut bp_dir := "bin/til"
+            mut bp_dir := "bin"
             if bp_slash.gt(0) {
                 bp_slash_u : USize = bp_slash.to_u32()
                 bp_dir = bin_path.substr(0, bp_slash_u)

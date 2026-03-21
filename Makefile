@@ -38,25 +38,22 @@ bin/til_boot: $(SRCS) $(HDRS) $(CORE) $(SELF) boot/til.c src/til.til $(RAYLIB_LI
 
 # --- programs built by til ---
 
-bin/til/test_runner: bin/til_boot $(CORE) $(SELF) src/test_runner.til
-	@mkdir -p bin/til
+bin/test_runner: bin/til_boot $(CORE) $(SELF) src/test_runner.til
 	@bin/til_boot build src/test_runner.til
 
-bin/til/plot: bin/til_boot $(CORE) $(SELF) src/examples/plot.til
-	@mkdir -p bin/til
+bin/plot: bin/til_boot $(CORE) $(SELF) src/examples/plot.til
 	@bin/til_boot build src/examples/plot.til
 
-bin/til/tests: bin/til_boot $(CORE) $(SELF) src/tests.til
-	@mkdir -p bin/til
+bin/tests: bin/til_boot $(CORE) $(SELF) src/tests.til
 	@bin/til_boot build src/tests.til
 
 # --- test suite ---
 
-test: bin/til_boot bin/til/test_runner bin/til/plot bin/til/tests
-	@bin/til/tests $(if $(J),-j$(J))
+test: bin/til_boot bin/test_runner bin/plot bin/tests
+	@bin/tests $(if $(J),-j$(J))
 
-test_headless: bin/til_boot bin/til/test_runner bin/til/plot bin/til/tests
-	@xvfb-run --auto-servernum bin/til/tests $(if $(J),-j$(J))
+test_headless: bin/til_boot bin/test_runner bin/plot bin/tests
+	@xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
 
 # --- bootstrap regeneration ---
 
