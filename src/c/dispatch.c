@@ -64,6 +64,7 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
     if ((type_name->count == 3 && memcmp(type_name->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
     if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
     if ((type_name->count == 3 && memcmp(type_name->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
+    if ((type_name->count == 5 && memcmp(type_name->c_str, "USize", 5) == 0)) return &ffi_type_uint64;
     if ((type_name->count == 3 && memcmp(type_name->c_str, "F32", 3) == 0))  return &ffi_type_float;
     if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
     // Struct type: look up def and build ffi_type
@@ -86,6 +87,7 @@ static ffi_type *field_ffi_type(Expr *field) {
     if ((ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return &ffi_type_sint32;
     if ((ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return &ffi_type_uint32;
     if ((ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return &ffi_type_uint64;
+    if ((ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return &ffi_type_uint64;
     if ((ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return &ffi_type_float;
     if ((ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
     // Inline struct field
@@ -860,6 +862,9 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
                     U64 *p = malloc(sizeof(U64)); *p = (U64)(intptr_t)raw;
                     *result = (Value){.type = VAL_U64, .u64 = p};
+                } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
+                    U64 *p = malloc(sizeof(U64)); *p = (U64)(intptr_t)raw;
+                    *result = (Value){.type = VAL_U64, .u64 = p};
                 } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
                     F32 *p = malloc(sizeof(F32)); *p = *(F32 *)&raw;
                     *result = (Value){.type = VAL_F32, .f32 = p};
@@ -883,6 +888,8 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
                 *result = (Value){.type = VAL_U32, .u32 = (U32 *)raw};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
+                *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw};
+            } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
                 *result = (Value){.type = VAL_U64, .u64 = (U64 *)raw};
             } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
                 *result = (Value){.type = VAL_F32, .f32 = (F32 *)raw};

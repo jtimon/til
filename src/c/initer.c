@@ -87,6 +87,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return (TilType){TilType_TAG_I32};
     if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return (TilType){TilType_TAG_U32};
     if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return (TilType){TilType_TAG_U64};
+    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return (TilType){TilType_TAG_U64};
     if ((name->count == 3 && memcmp(name->c_str, "Str", 3) == 0))  return (TilType){TilType_TAG_Struct};
     if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return (TilType){TilType_TAG_Bool};
     if ((name->count == 9 && memcmp(name->c_str, "StructDef", 9) == 0))    return (TilType){TilType_TAG_StructDef};
@@ -271,6 +272,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         else if ((sname->count == 3 && memcmp(sname->c_str, "I32", 3) == 0))        { builtin_type = (TilType){TilType_TAG_I32};        is_builtin = 1; }
         else if ((sname->count == 3 && memcmp(sname->c_str, "U32", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U32};        is_builtin = 1; }
         else if ((sname->count == 3 && memcmp(sname->c_str, "U64", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U64};        is_builtin = 1; }
+        else if ((sname->count == 5 && memcmp(sname->c_str, "USize", 5) == 0))      { builtin_type = (TilType){TilType_TAG_U64};        is_builtin = 1; }
         else if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))        { is_builtin = 0; } // Str is a regular struct
         else if ((sname->count == 4 && memcmp(sname->c_str, "Bool", 4) == 0))       { builtin_type = (TilType){TilType_TAG_Bool};       is_builtin = 1; }
         else if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0))  { builtin_type = (TilType){TilType_TAG_StructDef}; is_builtin = 1; }

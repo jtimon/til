@@ -68,6 +68,9 @@ static Value widen_numeric(Value v, Str *ptype) {
     if (ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0) {
         free(v.i64); return val_u64(uval);
     }
+    if (ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0) {
+        free(v.i64); return val_u64(uval);
+    }
     if (ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0 && v.type == VAL_U8) {
         free(v.u8); return val_u32((I64)uval);
     }
@@ -205,6 +208,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return val_i32(*(I32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return val_u32(*(U32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return val_u64(*(U64 *)ptr);
+    if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u64(*(U64 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return val_f32(*(F32 *)ptr);
     if (ftype && (ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return val_bool(*(Bool *)ptr);
     // Enum field: tagged enums stored as pointer to EnumInstance, simple enums as I32
@@ -608,6 +612,8 @@ Value eval_call(Scope *scope, Expr *e) {
                         arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
                         arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
+                    else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
+                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
@@ -641,6 +647,8 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U32", 3) == 0))
                         arg = (Value){.type = VAL_U32, .u32 = (U32 *)arg.ptr};
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
+                        arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
+                    else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
                         arg = (Value){.type = VAL_U64, .u64 = (U64 *)arg.ptr};
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
                         arg = (Value){.type = VAL_F32, .f32 = (F32 *)arg.ptr};
@@ -933,6 +941,8 @@ static void eval_body(Scope *scope, Expr *body) {
                     else if ((etype->count == 3 && memcmp(etype->c_str, "U32", 3) == 0))
                         val = (Value){.type = VAL_U32, .u32 = (U32 *)val.ptr};
                     else if ((etype->count == 3 && memcmp(etype->c_str, "U64", 3) == 0))
+                        val = (Value){.type = VAL_U64, .u64 = (U64 *)val.ptr};
+                    else if ((etype->count == 5 && memcmp(etype->c_str, "USize", 5) == 0))
                         val = (Value){.type = VAL_U64, .u64 = (U64 *)val.ptr};
                     else if ((etype->count == 3 && memcmp(etype->c_str, "F32", 3) == 0))
                         val = (Value){.type = VAL_F32, .f32 = (F32 *)val.ptr};
@@ -1460,4 +1470,3 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
     ffi_cleanup();
     return 0;
 }
-
