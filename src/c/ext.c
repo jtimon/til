@@ -353,6 +353,24 @@ I32 system_cmd(Str *cmd) {
     return 1;
 }
 
+Str *get_bin_dir(void) {
+    char buf[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len <= 0) return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+    buf[len] = '\0';
+    char *slash = strrchr(buf, '/');
+    if (slash) *slash = '\0';
+    for (int i = 0; i < 5; i++) {
+        char test[PATH_MAX + 32];
+        snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
+        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
+        slash = strrchr(buf, '/');
+        if (!slash) break;
+        *slash = '\0';
+    }
+    return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+}
+
 I64 *spawn_cmd(Str *cmd) {
     char *c = strndup((char *)cmd->c_str, cmd->count);
     pid_t pid = fork();

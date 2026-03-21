@@ -19,25 +19,4 @@ void expr_swap_children(Expr *e, Vec *new_children) {
     memset(new_children, 0, sizeof(Vec));
 }
 
-// --- Utility wrappers ---
 
-// Derive project root by searching upward from binary location for src/core/core.til
-Str *til_bin_dir(void) {
-    char buf[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len <= 0) return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-    buf[len] = '\0';
-    // Strip binary name
-    char *slash = strrchr(buf, '/');
-    if (slash) *slash = '\0';
-    // Search upward for src/core/core.til
-    for (int i = 0; i < 5; i++) {
-        char test[PATH_MAX + 32];
-        snprintf(test, sizeof(test), "%s/src/core/core.til", buf);
-        if (access(test, F_OK) == 0) return Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-        slash = strrchr(buf, '/');
-        if (!slash) break;
-        *slash = '\0';
-    }
-    return Str_clone(&(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
-}

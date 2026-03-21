@@ -856,7 +856,7 @@ I32 build_til_binding(Expr *, Str *, Str *);
 I32 compile_c(Str *, Str *, Str *, Str *, Str *);
 I32 compile_lib(Str *, Str *, Str *, Str *, Str *);
 void ast_print(Expr *, U32);
-Str * til_bin_dir(void);
+Str * get_bin_dir(void);
 Str * realpath_str(Str *);
 I32 system_cmd(Str *);
 
@@ -28915,7 +28915,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     ;
-    Str *bin_dir = til_bin_dir();
+    Str *bin_dir = get_bin_dir();
     (void)bin_dir;
     Str *_t4963 = Str_lit("/src/core/core.til", 18ULL);
     (void)_t4963;

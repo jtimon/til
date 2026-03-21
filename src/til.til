@@ -45,7 +45,7 @@ compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c: Str, user_c: Str, lfl
 ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 
 // Utility
-til_bin_dir := ext_func() returns Str {}
+get_bin_dir := ext_func() returns Str {}
 realpath_str := ext_func(path: Str) returns Str {}
 
 system_cmd := ext_func(cmd: Str) returns shallow I32 {}
@@ -210,7 +210,7 @@ main := proc(args: ..Str) {
     }
 
     // Resolve paths relative to binary location
-    bin_dir := til_bin_dir()
+    bin_dir := get_bin_dir()
     core_path := bin_dir.concat("/src/core/core.til")
     ext_c_path := bin_dir.concat("/src/c/ext.c")
 
