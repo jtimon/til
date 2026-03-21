@@ -2,13 +2,10 @@
 
 all: bin/til_current
 
-SRCS := $(wildcard src/c/*.c) boot/modes.c
-HDRS := $(wildcard src/c/*.h) boot/modes.h
 CORE := $(wildcard src/core/*.til)
 SELF := $(wildcard src/self/*.til)
 CC_FLAGS := -Wall -Wextra -Werror -g -Isrc -Isrc/c -Iboot
 LD_FLAGS := -Wl,--allow-multiple-definition -rdynamic -ldl
-CC_CMD = cc $(CC_FLAGS) $(SRCS) boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS)
 
 RAYLIB_LIB := lib/raylib/src/libraylib.a
 RAYLIB_FLAGS := -Llib/raylib/src -lraylib -lm -lpthread -lrt
@@ -25,8 +22,6 @@ lib/libffi/.built:
 	@touch $@
 
 # --- Boot compiler (always from last commit, never breaks) ---
-# Extracts boot/ and src/c/ from HEAD, compiles in tmp/boot/.
-# Isolated from working directory changes.
 
 bin/til_boot: $(RAYLIB_LIB) lib/libffi/.built
 	@mkdir -p bin tmp/boot/boot tmp/boot/src/c
@@ -40,18 +35,18 @@ bin/til_boot: $(RAYLIB_LIB) lib/libffi/.built
 	  tmp/boot/src/c/*.c tmp/boot/boot/modes.c tmp/boot/boot/til.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_boot
 
-# --- Regenerate boot/ from current .til sources ---
+# --- Current compiler (built by til_boot from current sources) ---
+
+bin/til_current: bin/til_boot $(CORE) $(SELF) src/til.til
+	bin/til_boot build -o bin/til_current src/til.til
+
+# --- Regenerate boot/ (run before committing .til changes) ---
 
 til_core: bin/til_boot
 	@bin/til_boot translate src/self/modes.til
 	@cp gen/til/modes*.c gen/til/modes*.h boot/ 2>/dev/null || true
 	@bin/til_boot translate src/til.til
 	@cp gen/til/til*.c gen/til/til*.h boot/ 2>/dev/null || true
-
-# --- Current compiler (regen + compile, may break during dev) ---
-
-bin/til_current: til_core $(SRCS) $(HDRS) $(CORE) $(SELF) boot/til.c src/til.til
-	$(CC_CMD) -o bin/til_current
 
 # --- Programs built by current compiler ---
 
@@ -77,16 +72,6 @@ test_headless: bin/til_current bin/test_runner bin/plot bin/tests
 revert_boot:
 	git checkout HEAD boot/
 	git clean -fd boot/
-
-bin/til_boot_asan: $(RAYLIB_LIB) lib/libffi/.built
-	@mkdir -p bin
-	cc -Wall -Wextra -g -fsanitize=address $(CC_FLAGS) $(SRCS) boot/til.c \
-	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_boot_asan
-
-bin/til_boot_dbg: $(RAYLIB_LIB) lib/libffi/.built
-	@mkdir -p bin
-	cc -Wall -Wextra -g -O0 $(CC_FLAGS) $(SRCS) boot/til.c \
-	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_boot_dbg
 
 clean:
 	rm -rf bin/* gen/* tmp/boot
