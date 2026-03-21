@@ -150,6 +150,9 @@ Expr := struct {
     add_child := proc(mut self: Expr, own child: Expr) {
         self.children.push(own child)
     }
+    push_child_clone := proc(mut self: Expr, child: Expr) {
+        self.children.push(own Expr.clone(child))
+    }
     child := func(parent: Expr, i: USize) returns ref Expr {
         ref c : Expr = parent.children.get(i)
         return c

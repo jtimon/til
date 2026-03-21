@@ -26,12 +26,6 @@ til_parse_mode := ext_func() returns Str {}
 // Expr helpers
 expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
 
-// Expr Vec helpers
-expr_vec_new := ext_func() returns Vec {}
-expr_vec_push := ext_proc(v: Vec, e: Expr) {}
-expr_vec_get := ext_func(v: Vec, shallow i: U32) returns ref Expr {}
-expr_vec_count := ext_func(v: Vec) returns shallow U32 {}
-
 // Mode
 mode_resolve := ext_func(name: Str) returns Mode {}
 mode_is_lib := ext_func(m: Mode) returns Bool {}
@@ -64,7 +58,7 @@ til_system := ext_func(cmd: Str) returns shallow I32 {}
 // Matching nodes are removed from the body.
 extract_imports := proc(mut body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
-    kept := expr_vec_new()
+    kept := Vec.new("", Expr.size())
     for i in 0..Expr.child_count(body) {
         ref stmt : Expr = Expr.child(body, i)
         mut is_import := false
@@ -79,7 +73,7 @@ extract_imports := proc(mut body: Expr) returns Vec {
             path := Expr.child(stmt, 1).data.get_LiteralStr()
             paths.push(own path)
         } else {
-            expr_vec_push(kept, stmt)
+            kept.push(own Expr.clone(stmt))
         }
     }
     expr_swap_children(body, kept)
@@ -88,8 +82,8 @@ extract_imports := proc(mut body: Expr) returns Vec {
 
 // Recursively resolve imports.
 resolve_imports := proc(import_paths: Vec, base_dir: Str,
-                        resolved_set: Dynamic, stack: Dynamic,
-                        merged: Dynamic, lib_dir: Str) returns I32 {
+                        mut resolved_set: Set, mut stack: Vec,
+                        mut merged: Vec, lib_dir: Str) returns I32 {
     for i in 0..import_paths.len() {
         ref import_path : Str = import_paths.get(i)
 
@@ -139,7 +133,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Append imported file's declarations
         for k in 0..Expr.child_count(sub_ast) {
             ref ch : Expr = Expr.child(sub_ast, k)
-            expr_vec_push(merged, ch)
+            merged.push(own Expr.clone(ch))
         }
     }
     return 0
@@ -218,7 +212,7 @@ main := proc(args: ..Str) {
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
     resolved := Set.new("Str", Str.size())
-    resolve_stack := expr_vec_new()
+    resolve_stack := Vec.new("", Expr.size())
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     abs_path := til_realpath(path)
@@ -248,7 +242,7 @@ main := proc(args: ..Str) {
     }
 
     // Resolve core imports
-    core_import_decls := expr_vec_new()
+    core_import_decls := Vec.new("", Expr.size())
     core_imports := extract_imports(core_ast)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
@@ -279,7 +273,7 @@ main := proc(args: ..Str) {
     auto_import := cur_mode.auto_import
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)
-    import_decls := expr_vec_new()
+    import_decls := Vec.new("", Expr.size())
     if imports.len().gt(0) {
         lib_dir := bin_dir.concat("/src/lib")
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,
@@ -290,23 +284,21 @@ main := proc(args: ..Str) {
     }
 
     // Merge: core + core_imports + mode + user_imports + user
-    merged := expr_vec_new()
+    merged := Vec.new("", Expr.size())
 
     // Core declarations (skip if user file IS core.til)
     if skip_core.not() {
         for i in 0..Expr.child_count(core_ast) {
             ref ch : Expr = Expr.child(core_ast, i)
             mark_core(ch)
-            expr_vec_push(merged, ch)
+            merged.push(own Expr.clone(ch))
         }
 
         // Core import declarations
-        mut ci : U32 = 0
-        while ci.lt(expr_vec_count(core_import_decls)) {
-            ref ch : Expr = expr_vec_get(core_import_decls, ci)
+        for ci in 0..core_import_decls.len() {
+            ref ch : Expr = core_import_decls.get(ci)
             mark_core(ch)
-            expr_vec_push(merged, ch)
-            ci = ci.add(1)
+            merged.push(own Expr.clone(ch))
         }
     }
 
@@ -318,22 +310,20 @@ main := proc(args: ..Str) {
         mode_ast := til_parse(mode_tokens, mode_til_path)
         for i in 0..Expr.child_count(mode_ast) {
             ref ch : Expr = Expr.child(mode_ast, i)
-            expr_vec_push(merged, ch)
+            merged.push(own Expr.clone(ch))
         }
     }
 
     // User import declarations
-    mut di : U32 = 0
-    while di.lt(expr_vec_count(import_decls)) {
-        ref ch : Expr = expr_vec_get(import_decls, di)
-        expr_vec_push(merged, ch)
-        di = di.add(1)
+    for di in 0..import_decls.len() {
+        ref ch : Expr = import_decls.get(di)
+        merged.push(own Expr.clone(ch))
     }
 
     // User declarations
     for i in 0..Expr.child_count(ast) {
         ref ch : Expr = Expr.child(ast, i)
-        expr_vec_push(merged, ch)
+        merged.push(own Expr.clone(ch))
     }
 
     expr_swap_children(ast, merged)
@@ -341,7 +331,7 @@ main := proc(args: ..Str) {
     // Extract link() and link_c() directives
     mut link_flags := ""
     mut link_c_paths := ""
-    kept := expr_vec_new()
+    kept := Vec.new("", Expr.size())
     for i in 0..Expr.child_count(ast) {
         ref stmt : Expr = Expr.child(ast, i)
         mut is_directive := false
@@ -362,10 +352,10 @@ main := proc(args: ..Str) {
                 }
                 link_c_paths = link_c_paths.concat(arg)
             } else {
-                expr_vec_push(kept, stmt)
+                kept.push(own Expr.clone(stmt))
             }
         } else {
-            expr_vec_push(kept, stmt)
+            kept.push(own Expr.clone(stmt))
         }
     }
     expr_swap_children(ast, kept)

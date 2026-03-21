@@ -30,25 +30,6 @@ void expr_swap_children(Expr *e, Vec *new_children) {
     memset(new_children, 0, sizeof(Vec));
 }
 
-// Create new Vec for collecting Expr values (elem_size = sizeof(Expr))
-Vec *expr_vec_new(void) {
-    Vec *v = malloc(sizeof(Vec));
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); *v = *_vp; free(_vp); }
-    return v;
-}
-
-// Push an Expr into a Vec (clones e, takes ownership of clone)
-void expr_vec_push(Vec *v, Expr *e) {
-    Vec_push(v, Expr_clone(e));
-}
-
-// Get Expr* from Vec at index i
-Expr *expr_vec_get(Vec *v, U32 i) {
-    return (Expr *)Vec_get(v, &(USize){(USize)(i)});
-}
-
-U32 expr_vec_count(Vec *v) { return v->count; }
-
 // --- Pipeline wrappers ---
 
 I32 til_interpret_v(Expr *ast, Mode *mode, Bool run_tests,
