@@ -31,9 +31,7 @@ bin/til_boot: $(RAYLIB_LIB) lib/libffi/.built
 	@for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	cc $(CC_FLAGS) -Itmp/boot/boot \
-	  tmp/boot/src/c/*.c tmp/boot/boot/modes.c tmp/boot/boot/til.c \
-	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/modes.c tmp/boot/boot/til.c -Wl,--allow-multiple-definition $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o bin/til_boot
 
 # --- Current compiler (built by til_boot from current sources) ---
 

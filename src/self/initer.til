@@ -20,7 +20,17 @@ TypeBinding := struct {
     mut is_builtin := false
     mut is_ext := false
     ref mut struct_name : Str = NULL
+    namespace:
+    eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
+        return a.name.eq(b.name)
+    }
+    to_str := func(self: TypeBinding) returns Str {
+        if is_null(self.name) { return "TypeBinding" }
+        return self.name.clone()
+    }
 }
+
+ScopeFind := enum { NotFound, Found: TypeBinding }
 
 TypeScope := struct {
     mut bindings := Map.new("Str", Str.size(), "TypeBinding", TypeBinding.size())
@@ -28,5 +38,60 @@ TypeScope := struct {
     namespace:
     new := func(parent: TypeScope) returns TypeScope {
         return TypeScope(parent = parent)
+    }
+    find := func(self: TypeScope, name: Str) returns ScopeFind {
+        if self.bindings.has(name) {
+            ref b : TypeBinding = self.bindings.get(name)
+            return ScopeFind.Found(b)
+        }
+        if is_null(self.parent).not() {
+            return TypeScope.find(self.parent, name)
+        }
+        return ScopeFind.NotFound
+    }
+    get_type := func(self: TypeScope, name: Str) returns TilType {
+        switch self.find(name) {
+        case ScopeFind.Found(b): return b.type
+        case: return TilType.Unknown
+        }
+    }
+    is_proc := func(self: TypeScope, name: Str) returns shallow I32 {
+        switch self.find(name) {
+        case ScopeFind.Found(b): return b.is_proc
+        case: return -1.to_i32()
+        }
+    }
+    get_struct := func(self: TypeScope, name: Str) returns ref Expr {
+        switch self.find(name) {
+        case ScopeFind.Found(b): return b.struct_def
+        case: return NULL
+        }
+    }
+    is_mut := func(self: TypeScope, name: Str) returns shallow Bool {
+        switch self.find(name) {
+        case ScopeFind.Found(b): return b.is_mut
+        case: return false
+        }
+    }
+    set := proc(mut self: TypeScope, name: Str, type: TilType,
+                shallow is_proc: I32, shallow is_mut: Bool,
+                shallow line: U32, shallow col: U32,
+                shallow is_param: Bool, shallow is_own: Bool) {
+        if self.bindings.has(name) {
+            ref mut b : TypeBinding = self.bindings.get(name)
+            b.type = type
+            b.is_proc = is_proc
+            b.is_mut = is_mut
+            b.line = line
+            b.col = col
+            b.is_param = is_param
+            b.is_own = is_own
+            return
+        }
+        own nb := TypeBinding(name = name.clone(), type = type,
+                              is_proc = is_proc, is_mut = is_mut,
+                              line = line, col = col,
+                              is_param = is_param, is_own = is_own)
+        self.bindings.set(own name.clone(), own nb)
     }
 }

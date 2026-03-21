@@ -145,6 +145,11 @@ typedef struct TokenType TokenType;
 typedef struct Token Token;
 typedef struct Parser Parser;
 typedef struct TypeBinding TypeBinding;
+typedef enum {
+    ScopeFind_TAG_NotFound,
+    ScopeFind_TAG_Found
+} ScopeFind_tag;
+typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct LocalInfo LocalInfo;
 typedef struct StructInstance StructInstance;
@@ -300,6 +305,13 @@ typedef struct TypeBinding {
     Str *struct_name;
 } TypeBinding;
 
+
+struct ScopeFind {
+    ScopeFind_tag tag;
+    union {
+        TypeBinding Found;
+    } data;
+};
 
 typedef struct LocalInfo {
     Str *name;
@@ -672,10 +684,23 @@ Expr * parse_expression(Parser * p);
 Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own);
 Expr * parse_statement(Parser * p);
 Expr * parse(Vec * tokens, Str * path, Str * mode_out);
+Bool TypeBinding_eq(TypeBinding * a, TypeBinding * b);
+Str * TypeBinding_to_str(TypeBinding * self);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 * TypeBinding_size(void);
+Bool * ScopeFind_eq(ScopeFind * self, ScopeFind * other);
+ScopeFind * ScopeFind_clone(ScopeFind * self);
+void ScopeFind_delete(ScopeFind * self, Bool * call_free);
+Str * ScopeFind_to_str(ScopeFind * self);
+U32 * ScopeFind_size(void);
 TypeScope * TypeScope_new(TypeScope * parent);
+ScopeFind * TypeScope_find(TypeScope * self, Str * name);
+TilType * TypeScope_get_type(TypeScope * self, Str * name);
+I32 TypeScope_is_proc(TypeScope * self, Str * name);
+Expr * TypeScope_get_struct(TypeScope * self, Str * name);
+Bool TypeScope_is_mut(TypeScope * self, Str * name);
+void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 * TypeScope_size(void);
@@ -789,6 +814,12 @@ TokenType *TokenType_KwTrue();
 TokenType *TokenType_KwFalse();
 TokenType *TokenType_KwNull();
 TokenType *TokenType_Error();
+Bool * ScopeFind_eq(ScopeFind *, ScopeFind *);
+Bool * ScopeFind_is_NotFound(ScopeFind *);
+ScopeFind *ScopeFind_NotFound();
+Bool * ScopeFind_is_Found(ScopeFind *);
+ScopeFind *ScopeFind_Found(TypeBinding *);
+TypeBinding * ScopeFind_get_Found(ScopeFind *);
 Bool * Value_eq(Value *, Value *);
 Bool * Value_is_None(Value *);
 Value *Value_None();
