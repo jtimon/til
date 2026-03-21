@@ -20,8 +20,6 @@ link("ffi")
 
 // Tokenize/Parse
 tokenize := ext_func(source: Str, path: Str) returns Vec {}
-til_parse := ext_func(tokens: Vec, path: Str) returns Expr {}
-til_parse_mode := ext_func() returns Str {}
 
 // Expr helpers
 expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
@@ -115,8 +113,8 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         // Load, lex, parse the imported file
         source := readfile(abs)
         tokens := tokenize(source, abs)
-        sub_ast := til_parse(tokens, abs)
-        sub_mode := til_parse_mode()
+        mut sub_mode := ""
+        sub_ast := parse(tokens, abs.clone(), sub_mode)
         sub_imports := extract_imports(sub_ast)
 
         // No mode = script (default), any mode is fine for imports
@@ -235,7 +233,8 @@ main := proc(args: ..Str) {
     // Load core.til
     core_source := readfile(core_path)
     core_tokens := tokenize(core_source, core_path)
-    core_ast := til_parse(core_tokens, core_path)
+    mut _core_mode := ""
+    core_ast := parse(core_tokens, core_path.clone(), _core_mode)
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
     mut skip_core := false
@@ -262,11 +261,9 @@ main := proc(args: ..Str) {
     // Load user file
     source := readfile(path)
     tokens := tokenize(source, path)
-    ast := til_parse(tokens, path)
+    mut mode_str := ""
+    ast := parse(tokens, path.clone(), mode_str)
     imports := extract_imports(ast)
-
-    // Resolve cur_mode
-    mode_str := til_parse_mode()
     mut cur_mode : Mode = mode_resolve("script")
     if mode_str.len().gt(0) {
         cur_mode = mode_resolve(mode_str)
@@ -313,7 +310,8 @@ main := proc(args: ..Str) {
         mode_til_path := bin_dir.concat("/src/modes/").concat(auto_import).concat(".til")
         mode_source := readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_til_path)
-        mode_ast := til_parse(mode_tokens, mode_til_path)
+        mut _mode_mode := ""
+        mode_ast := parse(mode_tokens, mode_til_path.clone(), _mode_mode)
         for i in 0..Expr.child_count(mode_ast) {
             ref ch : Expr = Expr.child(mode_ast, i)
             merged.push(own Expr.clone(ch))

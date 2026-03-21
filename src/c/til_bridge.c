@@ -12,16 +12,6 @@
 #include <unistd.h>
 #include <stdio.h>
 
-// --- Parse wrapper ---
-
-static Str _parse_mode;
-
-Expr *til_parse(Vec *tokens, Str *path) {
-    _parse_mode = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-    return parse(tokens, Str_clone(path), &_parse_mode);
-}
-Str *til_parse_mode(void) { return Str_clone(&_parse_mode); }
-
 // Replace children: old children are freed, new_children is moved in
 void expr_swap_children(Expr *e, Vec *new_children) {
     Vec_delete(&e->children, &(Bool){0});
