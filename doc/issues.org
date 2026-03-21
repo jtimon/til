@@ -244,8 +244,7 @@
   - With-payload enum: ~struct { Tag tag; union { ... } data; }~
     (e.g. ExprData)
 
-** WIP #77 til.til: import self-hosted modules, use ~til build~ in Makefile
-  :DEPENDENCIES: #101
+** FIXED #77 til.til: import self-hosted modules, use ~til build~ in Makefile
   Goal: til.til imports self-hosted modules directly instead of link_c,
   and Makefile uses ~til build src/til.til~ instead of two-pass gcc.
 
