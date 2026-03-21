@@ -1,7 +1,7 @@
 mode cli
 
 NL := Str.from_byte(10)
-TIL := "bin/til_boot"
+TIL := "bin/til_current"
 RUNNER := "bin/test_runner"
 PLOT := "bin/plot"
 GUI_TIMEOUT := "1"

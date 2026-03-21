@@ -7,7 +7,7 @@ mode cli
 //   test_runner single <label> <expected_exit> [<expected_out_file>] -- <cmd...>
 //   test_runner count <label> <needle> <expected_count> -- <cmd...>
 
-TIL := "bin/til_boot"
+TIL := "bin/til_current"
 
 // Extract basename from path: "src/test/types.til" → "types"
 test_basename := func(path: Str) returns Str {
