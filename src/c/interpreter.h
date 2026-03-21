@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 #include <stdlib.h>
 
 // Interpret a parsed program. Returns 0 on success, non-zero on error.
@@ -9,7 +9,7 @@ I32 interpret(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *user_c_
 
 // --- Value constructors ---
 // Types (Value, StructInstance, EnumInstance, Cell, Binding, Scope)
-// are defined in interpreter.til and generated into bootstrap/modes.h.
+// are defined in interpreter.til and generated into boot/modes.h.
 
 static inline Value val_none(void) {
     return (Value){.tag = Value_TAG_None};

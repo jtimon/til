@@ -1,5 +1,5 @@
 #include "builder.h"
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 #include "pre70.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -3438,12 +3438,12 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
             Str *user_obj = Str_concat(c_dir, &(Str){.c_str = (U8*)obj_name, .count = (U64)strlen(obj_name), .cap = CAP_VIEW});
 
             // Skip -include forward.h for src/c/ files — they have their own
-            // headers (bootstrap/ast.h etc.) which define the same types
+            // headers (boot/ast.h etc.) which define the same types
             // Skip -include forward.h for src/c/ files — they have their own
-            // headers (bootstrap/ast.h etc.) which define the same types
+            // headers (boot/ast.h etc.) which define the same types
             Bool skip_fwd = (file->count > 6 && memcmp(file->c_str, "src/c/", 6) == 0);
             Str *fwd_flag = skip_fwd
-                ? &(Str){.c_str = (U8*)" -Isrc/c -Ibootstrap", .count = 20, .cap = CAP_LIT}
+                ? &(Str){.c_str = (U8*)" -Isrc/c -Iboot", .count = 15, .cap = CAP_LIT}
                 : Str_concat(&(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}, fwd_path);
             Str *obj_cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
                 &(Str){.c_str = (U8*)"cc -Wall -Wextra -Werror -I", .count = 27, .cap = CAP_LIT}, ext_dir),

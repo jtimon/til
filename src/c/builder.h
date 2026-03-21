@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 
 // Generate C source code from a parsed program.
 // Writes the generated C to `c_output_path`.

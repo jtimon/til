@@ -1,5 +1,5 @@
 #include "typer.h"
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 #include "pre70.h"
 #include "initer.h"
 #include <stdio.h>
@@ -2376,7 +2376,7 @@ static Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
     return 0;
 }
 
-// LocalInfo defined in typer.til (generated into bootstrap headers)
+// LocalInfo defined in typer.til (generated into boot headers)
 
 // Check if any alias (ref decl sourced from 'name') is used in expr
 static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {

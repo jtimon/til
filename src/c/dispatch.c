@@ -1,12 +1,12 @@
 #include "dispatch.h"
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 #include "builder.h"
 #include "pre70.h"
 #include "ext.h"
 #include <stdio.h>
 
 // Forward declarations for value-param scalar functions (not in ext.h
-// because bootstrap redefines them with pointer-param signatures)
+// because boot redefines them with pointer-param signatures)
 U8 U8_from_i64(I64 v);
 I16 I16_from_i64(I64 v);
 I32 I32_from_i64(I64 v);
@@ -63,7 +63,7 @@ static F32 value_to_f32(Value v) {
 
 // Codegen Str layout (matches ext.h Str: {U8 *data, U64 count, U64 cap})
 // Distinct from compiler-internal Str (str.h: {char *c_str, U64 count, U64 cap})
-// ExtStr defined in dispatch.til (generated into bootstrap/modes.h)
+// ExtStr defined in dispatch.til (generated into boot/modes.h)
 
 typedef Bool (*DispatchFn)(Scope *, Expr *, Value *);
 

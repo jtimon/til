@@ -1,5 +1,5 @@
 #include "interpreter.h"
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 #include "pre70.h"
 #include "dispatch.h"
 #include "ext.h"

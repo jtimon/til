@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 
 // Remove top-level declarations and namespace methods not reachable
 // from the program's entry points. needs_main: main. Otherwise: all

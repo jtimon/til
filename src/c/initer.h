@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../bootstrap/modes.h"
+#include "../../boot/modes.h"
 
-// TypeBinding and TypeScope are defined in initer.til (generated into bootstrap headers)
+// TypeBinding and TypeScope are defined in initer.til (generated into boot headers)
 
 // Scope operations
 TypeScope *tscope_new(TypeScope *parent);
