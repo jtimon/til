@@ -25,21 +25,21 @@ FONTS := array("Str",
     "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
     "/usr/share/fonts/truetype/andika/Andika-Regular.ttf"
 )
-NUM_FONTS := 21
+NUM_FONTS : USize = 21
 
 main := proc() {
     init_window(1200, 800, "font test")
     set_target_fps(60)
 
     // Load all fonts
-    mut fonts := Array.new("Font", 48, NUM_FONTS.to_u64())
-    for i in 0..NUM_FONTS.to_u64() {
+    mut fonts := Array.new("Font", 48, NUM_FONTS)
+    for i in 0..NUM_FONTS {
         ref path : Str = FONTS.get(i)
         f := load_font(path, 48)
         fonts.set(i, own f)
     }
 
-    mut sel := 0
+    mut sel : USize = 0
 
     while window_should_close().not() {
         if is_mouse_button_pressed(0) {
@@ -57,10 +57,10 @@ main := proc() {
 
         // Show all fonts, each rendering its own name
         mut y := 50
-        for i in 0..NUM_FONTS.to_u64() {
+        for i in 0..NUM_FONTS {
             ref path : Str = FONTS.get(i)
             ref font : Font = fonts.get(i)
-            if i.eq(sel.to_u64()) {
+            if i.eq(sel) {
                 draw_rectangle(0, y.sub(2), 1200, 30, 40, 40, 80, 255)
                 draw_text_font(font, path, 30, y, 24, 1, 255, 255, 0, 255)
             } else {
@@ -70,7 +70,7 @@ main := proc() {
         }
 
         // Selected font large preview
-        ref cur_font : Font = fonts.get(sel.to_u64())
+        ref cur_font : Font = fonts.get(sel)
         draw_rectangle(0, y.add(10), 1200, 100, 10, 10, 20, 255)
         draw_text_font(cur_font, "Do Re Mi Fa Sol La Si — C D E F G A B — 1234567890", 30, y.add(20), 36, 1, 255, 255, 255, 255)
         draw_text_font(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim", 30, y.add(62), 28, 1, 200, 200, 200, 255)
@@ -78,7 +78,7 @@ main := proc() {
         end_drawing()
     }
 
-    for i in 0..NUM_FONTS.to_u64() {
+    for i in 0..NUM_FONTS {
         ref uf : Font = fonts.get(i)
         unload_font(uf)
     }

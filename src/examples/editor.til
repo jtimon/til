@@ -26,7 +26,7 @@ main := proc(args: ..Str) {
         content := readfile(filename)
         if content.len().gt(0) {
             parts := content.split("\n")
-            mut i : U64 = 0
+            mut i : USize = 0
             while i.lt(parts.len()) {
                 ref p : Str = parts.get(i)
                 lines.push(own p.clone())
@@ -145,7 +145,7 @@ main := proc(args: ..Str) {
                 // Replace current line with before
                 // Build new lines vec
                 mut new_lines := Vec.new("Str", Str.size())
-                mut i : U64 = 0
+                mut i : USize = 0
                 while i.lt(lines.len()) {
                     if i.eq(cursor_y.to_u64()) {
                         new_lines.push(own before.clone())
@@ -172,7 +172,7 @@ main := proc(args: ..Str) {
                 )
                 // Rebuild lines
                 mut new_lines := Vec.new("Str", Str.size())
-                mut i : U64 = 0
+                mut i : USize = 0
                 while i.lt(lines.len()) {
                     if i.eq(cursor_y.to_u64()) {
                         new_lines.push(own new_line.clone())
@@ -194,7 +194,7 @@ main := proc(args: ..Str) {
                     merged := prev_line.concat(cur_line)
 
                     mut new_lines := Vec.new("Str", Str.size())
-                    mut i : U64 = 0
+                    mut i : USize = 0
                     while i.lt(lines.len()) {
                         if i.eq(cursor_y.sub(1).to_u64()) {
                             new_lines.push(own merged.clone())
@@ -222,7 +222,7 @@ main := proc(args: ..Str) {
                     cur_line.substr(cursor_x.to_u64().add(1), cur_line.len().sub(cursor_x.to_u64().add(1)))
                 )
                 mut new_lines := Vec.new("Str", Str.size())
-                mut i : U64 = 0
+                mut i : USize = 0
                 while i.lt(lines.len()) {
                     if i.eq(cursor_y.to_u64()) {
                         new_lines.push(own new_line.clone())
@@ -241,7 +241,7 @@ main := proc(args: ..Str) {
                     merged := cur_line.concat(next_line)
 
                     mut new_lines := Vec.new("Str", Str.size())
-                    mut i : U64 = 0
+                    mut i : USize = 0
                     while i.lt(lines.len()) {
                         if i.eq(cursor_y.to_u64()) {
                             new_lines.push(own merged.clone())
@@ -271,7 +271,7 @@ main := proc(args: ..Str) {
                         cur_line.substr(cursor_x.to_u64(), cur_line.len().sub(cursor_x.to_u64()))
                     )
                     mut new_lines := Vec.new("Str", Str.size())
-                    mut i : U64 = 0
+                    mut i : USize = 0
                     while i.lt(lines.len()) {
                         if i.eq(cursor_y.to_u64()) {
                             new_lines.push(own new_line.clone())

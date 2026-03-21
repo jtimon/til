@@ -2,8 +2,8 @@ mode script
 
 import("../self/lexer.til")
 
-check_tok := proc(tokens: Vec, i: I64, expected_type: TokenType, expected_text: Str) {
-    ref t : Token = tokens.get(i.to_u64())
+check_tok := proc(tokens: Vec, i: USize, expected_type: TokenType, expected_text: Str) {
+    ref t : Token = tokens.get(i)
     tt := t.type
     expect(__LOC__, tt.eq(expected_type),
         "token ", i.to_str(), " type: expected ", expected_type.to_str(),
