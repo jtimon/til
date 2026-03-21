@@ -77,7 +77,7 @@ rescue: $(RAYLIB_LIB) lib/libffi/.built
 	@for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/rescue/$$f" 2>/dev/null || true; \
 	done
-	cc -Wall -Wextra -Werror -g -Isrc -Isrc/c -Itmp/rescue/bootstrap tmp/rescue/src/c/*.c tmp/rescue/bootstrap/modes.c tmp/rescue/bootstrap/til.c -Wl,--allow-multiple-definition $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o tmp/rescue/til
+	cc -Wall -Wextra -Werror -g -Itmp/rescue/src -Itmp/rescue/src/c -Itmp/rescue/bootstrap tmp/rescue/src/c/*.c tmp/rescue/bootstrap/modes.c tmp/rescue/bootstrap/til.c -Wl,--allow-multiple-definition $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) -o tmp/rescue/til
 	@echo "Rescue compiler: tmp/rescue/til"
 
 # --- debug/asan targets ---
