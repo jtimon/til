@@ -858,7 +858,7 @@ I32 compile_lib(Str *, Str *, Str *, Str *, Str *);
 void ast_print(Expr *, U32);
 Str * til_bin_dir(void);
 Str * realpath_str(Str *);
-I32 til_system(Str *);
+I32 system_cmd(Str *);
 
 Str *Str_lit(const char *s, unsigned long long len);
 void print_single(Str *s);
@@ -30329,7 +30329,7 @@ int main(int argc, char **argv) {
             if (do_lib) {
                 Str *_t4769 = Str_lit("mkdir -p gen/til gen/lib", 24ULL);
                 (void)_t4769;
-                I32 _t4770 = til_system(_t4769);
+                I32 _t4770 = system_cmd(_t4769);
                 (void)_t4770;
                 Str_delete(_t4769, &(Bool){1});
                 ;
@@ -30396,7 +30396,7 @@ int main(int argc, char **argv) {
                 (void)_t4783;
                 Str_delete(_t4782, &(Bool){1});
                 Str_delete(bp_dir, &(Bool){1});
-                I32 _t4784 = til_system(_t4783);
+                I32 _t4784 = system_cmd(_t4783);
                 (void)_t4784;
                 Str_delete(_t4783, &(Bool){1});
                 ;
@@ -30821,7 +30821,7 @@ int main(int argc, char **argv) {
                     ;
                 }
                 U32_delete(ui, &(Bool){1});
-                I32 _t4875 = til_system(cmd);
+                I32 _t4875 = system_cmd(cmd);
                 (void)_t4875;
                 Str_delete(cmd, &(Bool){1});
                 result = _t4875;

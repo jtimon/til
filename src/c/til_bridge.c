@@ -21,13 +21,6 @@ void expr_swap_children(Expr *e, Vec *new_children) {
 
 // --- Utility wrappers ---
 
-I32 til_system(Str *cmd) {
-    int status = system((const char *)cmd->c_str);
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    return 1;
-}
-
-
 // Derive project root by searching upward from binary location for src/core/core.til
 Str *til_bin_dir(void) {
     char buf[PATH_MAX];

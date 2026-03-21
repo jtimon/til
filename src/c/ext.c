@@ -345,6 +345,14 @@ Str *realpath_str(Str *path) {
     return s;
 }
 
+I32 system_cmd(Str *cmd) {
+    char *c = strndup((char *)cmd->c_str, cmd->count);
+    int status = system(c);
+    free(c);
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    return 1;
+}
+
 I64 *spawn_cmd(Str *cmd) {
     char *c = strndup((char *)cmd->c_str, cmd->count);
     pid_t pid = fork();

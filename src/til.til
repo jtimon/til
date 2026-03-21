@@ -48,7 +48,7 @@ ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 til_bin_dir := ext_func() returns Str {}
 realpath_str := ext_func(path: Str) returns Str {}
 
-til_system := ext_func(cmd: Str) returns shallow I32 {}
+system_cmd := ext_func(cmd: Str) returns shallow I32 {}
 
 // Owned copy of first n bytes of s (substr returns a view, this returns a clone)
 str_left := func(s: Str, n: USize) returns Str {
@@ -457,7 +457,7 @@ main := proc(args: ..Str) {
         do_lib := mode_is_lib_output(cur_mode).and(command.eq("run").not())
 
         if do_lib {
-            til_system("mkdir -p gen/til gen/lib")
+            system_cmd("mkdir -p gen/til gen/lib")
         } else {
             cp_slash := c_path.rfind("/")
             bp_slash := bin_path.rfind("/")
@@ -471,7 +471,7 @@ main := proc(args: ..Str) {
                 bp_slash_u : USize = bp_slash.to_u32()
                 bp_dir = bin_path.substr(0, bp_slash_u)
             }
-            til_system("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
+            system_cmd("mkdir -p ".concat(cp_dir).concat(" ").concat(bp_dir))
         }
 
         result = build(ast, cur_mode, run_tests, path, c_path)
@@ -516,7 +516,7 @@ main := proc(args: ..Str) {
                 cmd = cmd.concat(" '").concat(uarg).concat("'")
                 ui = ui.add(1)
             }
-            result = til_system(cmd)
+            result = system_cmd(cmd)
         }
     } else if command.eq("ast") {
         println("mode: ".concat(cur_mode.name))
