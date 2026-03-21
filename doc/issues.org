@@ -1,11 +1,28 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 101
+# NEXT_ISSUE: 102
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
 
+
+** OPEN #101 Deterministic temp variable names in generated C
+  :DEPENDENCY_OF: #77
+  The builder/typer generates temp variable names (e.g. ~_t4253~,
+  ~_rc4617~, ~_wcond4618~) using counters that depend on processing
+  order or memory layout, making the output non-deterministic.
+  Two identical ~til build~ runs on the same source can produce
+  different C files (same logic, different temp names).
+
+  This blocks #77: ~til build src/til.til~ must be idempotent --
+  the self-built binary must produce identical output to the
+  bootstrap binary. Without deterministic names, we can't diff
+  generated C to verify correctness.
+
+  Fix: ensure temp variable counters are reset or seeded
+  deterministically per translation unit, so the same input
+  always produces the same output.
 
 ** OPEN #99 Struct literals as auto-generated new method
   Struct literal syntax ~MyStruct(x = 1, y = 2)~ is currently special
@@ -228,6 +245,7 @@
     (e.g. ExprData)
 
 ** WIP #77 til.til: import self-hosted modules, use ~til build~ in Makefile
+  :DEPENDENCIES: #101
   Goal: til.til imports self-hosted modules directly instead of link_c,
   and Makefile uses ~til build src/til.til~ instead of two-pass gcc.
 
