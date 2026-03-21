@@ -1,0 +1,30 @@
+* Codex Environment Notes
+
+** Headless Test Workflow
+
+In Codex sessions, normal shell commands may run inside a remapped user
+namespace. In that namespace, =/tmp= and =/tmp/.X11-unix= can appear owned by
+=nobody:nogroup= instead of =root:root=. When that happens, =xvfb-run= fails
+to start a usable X server, GUI examples cannot open the display, and the GUI
+build tests fail with =exit=139 expected=124=.
+
+Symptoms:
+
+- =make test= or =make test_headless= from the sandboxed shell reports the GUI
+  build tests failing with =exit=139 expected=124=
+- direct GUI runs show =X11: Failed to open display=
+- =xvfb-run= stderr contains:
+  - =_XSERVTransmkdir: Owner of /tmp/.X11-unix should be set to root=
+  - =Fatal server error: Cannot establish any listening sockets=
+
+Verified fix for Codex:
+
+- run GUI/headless validation outside the sandboxed user namespace
+- in practice, use an escalated command for:
+  - =make clean && make test_headless=
+
+Verified result:
+
+- host-namespace run of =make clean && make test_headless= passes with =73/73=
+- sandboxed run is not a trustworthy gate for GUI/headless validation in this
+  repo
