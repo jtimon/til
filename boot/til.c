@@ -840,9 +840,6 @@ void * Value_get_Ptr(Value *);
 #include "ext.h"
 
 Vec * tokenize(Str *, Str *);
-Mode * mode_resolve(Str *);
-Bool * mode_is_lib(Mode *);
-Bool * mode_is_lib_output(Mode *);
 TypeScope * tscope_new(TypeScope *);
 void tscope_free(TypeScope *);
 I32 init_declarations(Expr *, TypeScope *);
@@ -28732,7 +28729,7 @@ int main(int argc, char **argv) {
         (void)_t4551;
         Array_set(_va89, &(U32){_t4550}, _t4551);
         ;
-        Str *_t4552 = Str_lit("src/til.til:168:15", 18ULL);
+        Str *_t4552 = Str_lit("src/til.til:163:15", 18ULL);
         (void)_t4552;
         panic(_t4552, _va89);
         Str_delete(_t4552, &(Bool){1});
@@ -29114,7 +29111,7 @@ int main(int argc, char **argv) {
             (void)_t4600;
             Array_set(_va90, &(U32){_t4599}, _t4600);
             ;
-            Str *_t4601 = Str_lit("src/til.til:255:19", 18ULL);
+            Str *_t4601 = Str_lit("src/til.til:250:19", 18ULL);
             (void)_t4601;
             panic(_t4601, _va90);
             Str_delete(_t4601, &(Bool){1});
@@ -29142,7 +29139,6 @@ int main(int argc, char **argv) {
     (void)_t4984;
     Mode *cur_mode = mode_resolve(_t4984);
     (void)cur_mode;
-    Str_delete(_t4984, &(Bool){1});
     U32 _t4985; { U32 *_hp = (U32 *)Str_len(mode_str); _t4985 = *_hp; free(_hp); }
     (void)_t4985;
     U32 _t4986 = 0;
@@ -29188,7 +29184,7 @@ int main(int argc, char **argv) {
             Str_delete(_t4611, &(Bool){1});
             Array_set(_va91, &(U32){_t4612}, _t4613);
             ;
-            Str *_t4614 = Str_lit("src/til.til:269:19", 18ULL);
+            Str *_t4614 = Str_lit("src/til.til:264:19", 18ULL);
             (void)_t4614;
             panic(_t4614, _va91);
             Str_delete(_t4614, &(Bool){1});
@@ -29248,7 +29244,7 @@ int main(int argc, char **argv) {
             (void)_t4622;
             Array_set(_va92, &(U32){_t4621}, _t4622);
             ;
-            Str *_t4623 = Str_lit("src/til.til:283:19", 18ULL);
+            Str *_t4623 = Str_lit("src/til.til:278:19", 18ULL);
             (void)_t4623;
             panic(_t4623, _va92);
             Str_delete(_t4623, &(Bool){1});
@@ -29893,7 +29889,7 @@ int main(int argc, char **argv) {
         Str_delete(_t4720, &(Bool){1});
         Array_set(_va93, &(U32){_t4721}, _t4722);
         ;
-        Str *_t4723 = Str_lit("src/til.til:372:15", 18ULL);
+        Str *_t4723 = Str_lit("src/til.til:367:15", 18ULL);
         (void)_t4723;
         panic(_t4723, _va93);
         Str_delete(_t4723, &(Bool){1});
@@ -30149,7 +30145,7 @@ int main(int argc, char **argv) {
             (void)_t4749;
             Array_set(_va94, &(U32){_t4748}, _t4749);
             ;
-            Str *_t4750 = Str_lit("src/til.til:426:19", 18ULL);
+            Str *_t4750 = Str_lit("src/til.til:421:19", 18ULL);
             (void)_t4750;
             panic(_t4750, _va94);
             Str_delete(_t4750, &(Bool){1});
@@ -30210,7 +30206,7 @@ int main(int argc, char **argv) {
                 (void)_t4759;
                 Array_set(_va95, &(U32){_t4758}, _t4759);
                 ;
-                Str *_t4760 = Str_lit("src/til.til:432:19", 18ULL);
+                Str *_t4760 = Str_lit("src/til.til:427:19", 18ULL);
                 (void)_t4760;
                 panic(_t4760, _va95);
                 Str_delete(_t4760, &(Bool){1});
@@ -30905,10 +30901,10 @@ int main(int argc, char **argv) {
         }
         ;
     }
+    Str_delete(_t4984, &(Bool){1});
     ;
     Expr_delete(ast, &(Bool){1});
     Str_delete(command, &(Bool){1});
-    Mode_delete(cur_mode, &(Bool){1});
     Str_delete(custom_bin, &(Bool){1});
     Str_delete(custom_c, &(Bool){1});
     Str_delete(ext_c_path, &(Bool){1});

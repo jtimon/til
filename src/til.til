@@ -22,11 +22,6 @@ link("ffi")
 tokenize := ext_func(source: Str, path: Str) returns Vec {}
 
 
-// Mode
-mode_resolve := ext_func(name: Str) returns Mode {}
-mode_is_lib := ext_func(m: Mode) returns Bool {}
-mode_is_lib_output := ext_func(m: Mode) returns Bool {}
-
 // Pipeline
 tscope_new := ext_func(parent: TypeScope) returns TypeScope {}
 tscope_free := ext_proc(s: TypeScope) {}
@@ -262,7 +257,7 @@ main := proc(args: ..Str) {
     mut mode_str := ""
     ast := parse(tokens, path.clone(), mode_str)
     imports := extract_imports(ast)
-    mut cur_mode : Mode = mode_resolve("script")
+    ref mut cur_mode : Mode = mode_resolve("script")
     if mode_str.len().gt(0) {
         cur_mode = mode_resolve(mode_str)
         if cur_mode.name.len().eq(0) {

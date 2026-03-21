@@ -1282,11 +1282,14 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
         if (has_script_globals) {
             for (U32 i = 0; i < codegen_program->children.count; i++) {
                 Expr *gs = Expr_child(codegen_program, &(USize){(USize)(i)});
-                if (gs->data.tag != ExprData_TAG_Decl) continue;
-                Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
-                if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-                    rhs->data.tag == ExprData_TAG_EnumDef) continue;
-                if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
+                if (gs->data.tag == ExprData_TAG_Decl) {
+                    Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
+                    if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
+                        rhs->data.tag == ExprData_TAG_EnumDef) continue;
+                    if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
+                } else if (gs->data.tag != ExprData_TAG_FCall) {
+                    continue;
+                }
                 emit_stmt(f, gs, 1);
             }
         }
@@ -2562,11 +2565,14 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         if (has_script_globals) {
             for (U32 i = 0; i < codegen_program->children.count; i++) {
                 Expr *gs = Expr_child(codegen_program, &(USize){(USize)(i)});
-                if (gs->data.tag != ExprData_TAG_Decl) continue;
-                Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
-                if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-                    rhs->data.tag == ExprData_TAG_EnumDef) continue;
-                if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
+                if (gs->data.tag == ExprData_TAG_Decl) {
+                    Expr *rhs = Expr_child(gs, &(USize){(USize)(0)});
+                    if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
+                        rhs->data.tag == ExprData_TAG_EnumDef) continue;
+                    if (gs->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
+                } else if (gs->data.tag != ExprData_TAG_FCall) {
+                    continue;
+                }
                 emit_stmt(f, gs, 1);
             }
         }
