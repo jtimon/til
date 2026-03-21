@@ -21,14 +21,6 @@ void expr_swap_children(Expr *e, Vec *new_children) {
 
 // --- Utility wrappers ---
 
-Str *til_realpath(Str *path) {
-    char *abs = realpath((const char *)path->c_str, NULL);
-    if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
-    free(abs);
-    return s;
-}
-
 I32 til_system(Str *cmd) {
     int status = system((const char *)cmd->c_str);
     if (WIFEXITED(status)) return WEXITSTATUS(status);

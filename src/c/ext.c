@@ -335,6 +335,16 @@ void writefile(Str *path, Str *content) {
     fclose(f);
 }
 
+Str *realpath_str(Str *path) {
+    char *p = strndup((char *)path->c_str, path->count);
+    char *abs = realpath(p, NULL);
+    free(p);
+    if (!abs) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(abs), .count = (USize)strlen((const char*)(abs)), .cap = CAP_VIEW});
+    free(abs);
+    return s;
+}
+
 I64 *spawn_cmd(Str *cmd) {
     char *c = strndup((char *)cmd->c_str, cmd->count);
     pid_t pid = fork();

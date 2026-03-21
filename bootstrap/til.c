@@ -857,7 +857,7 @@ I32 compile_c(Str *, Str *, Str *, Str *, Str *);
 I32 compile_lib(Str *, Str *, Str *, Str *, Str *);
 void ast_print(Expr *, U32);
 Str * til_bin_dir(void);
-Str * til_realpath(Str *);
+Str * realpath_str(Str *);
 I32 til_system(Str *);
 
 Str *Str_lit(const char *s, unsigned long long len);
@@ -27739,7 +27739,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str *try_path = Str_concat(_t4427, import_path);
                 (void)try_path;
                 Str_delete(_t4427, &(Bool){1});
-                Str *abs = til_realpath(try_path);
+                Str *abs = realpath_str(try_path);
                 (void)abs;
                 Str *_t4428 = Str_lit("", 0ULL);
                 (void)_t4428;
@@ -27766,7 +27766,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                     Str_delete(_t4396, &(Bool){1});
                     try_path = Str_concat(_t4397, import_path);
                     Str_delete(_t4397, &(Bool){1});
-                    abs = til_realpath(try_path);
+                    abs = realpath_str(try_path);
                 }
                 ;
                 Str_delete(try_path, &(Bool){1});
@@ -28005,7 +28005,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str *try_path = Str_concat(_t4476, import_path);
                 (void)try_path;
                 Str_delete(_t4476, &(Bool){1});
-                Str *abs = til_realpath(try_path);
+                Str *abs = realpath_str(try_path);
                 (void)abs;
                 Str *_t4477 = Str_lit("", 0ULL);
                 (void)_t4477;
@@ -28032,7 +28032,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                     Str_delete(_t4445, &(Bool){1});
                     try_path = Str_concat(_t4446, import_path);
                     Str_delete(_t4446, &(Bool){1});
-                    abs = til_realpath(try_path);
+                    abs = realpath_str(try_path);
                 }
                 ;
                 Str_delete(try_path, &(Bool){1});
@@ -28943,7 +28943,7 @@ int main(int argc, char **argv) {
     (void)resolve_stack;
     Str_delete(_t4967, &(Bool){1});
     ;
-    Str *abs_path = til_realpath(path);
+    Str *abs_path = realpath_str(path);
     (void)abs_path;
     Str *user_dir = Str_lit(".", 1ULL);
     (void)user_dir;
@@ -29019,7 +29019,7 @@ int main(int argc, char **argv) {
     Vec_delete(core_tokens, &(Bool){1});
     Bool skip_core = 0;
     (void)skip_core;
-    Str *core_abs = til_realpath(core_path);
+    Str *core_abs = realpath_str(core_path);
     (void)core_abs;
     Str_delete(core_path, &(Bool){1});
     U32 _t4973; { U32 *_hp = (U32 *)Str_len(core_abs); _t4973 = *_hp; free(_hp); }

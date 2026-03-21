@@ -46,7 +46,7 @@ ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 
 // Utility
 til_bin_dir := ext_func() returns Str {}
-til_realpath := ext_func(path: Str) returns Str {}
+realpath_str := ext_func(path: Str) returns Str {}
 
 til_system := ext_func(cmd: Str) returns shallow I32 {}
 
@@ -93,10 +93,10 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         ref import_path : Str = import_paths.get(i)
         // Try relative to importing file's directory, then lib_dir
         mut try_path := base_dir.concat("/").concat(import_path)
-        mut abs := til_realpath(try_path)
+        mut abs := realpath_str(try_path)
         if abs.eq("").and(lib_dir.len().gt(0)) {
             try_path = lib_dir.concat("/").concat(import_path)
-            abs = til_realpath(try_path)
+            abs = realpath_str(try_path)
         }
         if abs.eq("") {
             println("error: could not find import '".concat(import_path).concat("' (from ").concat(base_dir).concat("/)"))
@@ -219,7 +219,7 @@ main := proc(args: ..Str) {
     resolve_stack := Vec.new("", Expr.size())
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
-    abs_path := til_realpath(path)
+    abs_path := realpath_str(path)
     mut user_dir := "."
     if abs_path.len().gt(0) {
         mut last_slash := abs_path.len().sub(1)
@@ -238,7 +238,7 @@ main := proc(args: ..Str) {
 
     // Add core.til to resolved set; skip prepending if user file IS core.til
     mut skip_core := false
-    core_abs := til_realpath(core_path)
+    core_abs := realpath_str(core_path)
     if core_abs.len().gt(0) {
         if Set.has(resolved, core_abs) {
             skip_core = true
