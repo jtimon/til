@@ -31,6 +31,15 @@
 
   Generic case (Vec2, custom types) deferred to #94 (post).
 
+* FIXED #79 Type aliases in FuncPtr typedef signatures
+  Bodyless FuncDefs (FuncPtr typedefs like ~DistanceFn~, ~CloneFn~)
+  were breaking early in the typer before reaching alias resolution.
+  Added resolution for return type and param types in the early-exit
+  path. ~DistanceFn := func(Dynamic, Dynamic) returns USize~ now
+  correctly resolves ~USize~ to ~U64~ in generated C.
+
+* REOPENED #79 Type aliases -- moved back to issues.org (FuncPtr forward decls don't resolve)
+
 * FIXED #88 UFCS with ~own~ first arg: ~own p.delete()~
   Parser now marks ~is_own_arg~ on the FieldAccess callee for
   statement-level ~own expr.method()~. Typer propagates it to the

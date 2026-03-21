@@ -159,6 +159,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     case ExprData_TAG_FuncDef:
         if (e->children.count == 0) {
             // Bodyless = FuncSig type definition, no body to type
+            // Resolve aliases in return type and param types (#79)
+            if (e->data.data.FuncDef.return_type.count > 0)
+                e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
+            for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
+                Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(U64){(U64)(i)});
+                _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
+            }
             e->til_type = (TilType){TilType_TAG_FuncPtr};
             break;
         }
