@@ -1,5 +1,24 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #77 til.til: import self-hosted modules, use ~til build~ in Makefile
+  Goal: til.til imports self-hosted modules directly instead of link_c,
+  and Makefile uses ~til build src/til.til~ instead of two-pass gcc.
+
+** DONE til.til imports self-hosted modules
+   til.til now does ~import("self/modes.til")~ which pulls in the full
+   chain: modes -> initer -> parser -> lexer (+ core/ast auto-prepended).
+   Real types (Expr, Mode, TypeScope, etc.) replace ext_struct stubs.
+
+** DONE Bridge reduction: til_bridge.c removed
+   All 15 bridge functions replaced with native til operations.
+   src/c/til_bridge.c deleted. link_c directive removed from til.til.
+
+** DONE Makefile: ~til build src/til.til~ replaces two-pass gcc
+   ~bin/til_current~ is now built by ~til_boot build src/til.til~.
+   No more gcc for the current compiler. Self-build is idempotent --
+   generated C is identical (zero diff) between til_current and
+   the self-built binary.
+
 * FIXED #80 USize type alias for container sizes
   Introduced ~USize~ as the semantic container-size type and completed
   the flip from ~U64~ to ~U32~ across the self-hosted compiler,
