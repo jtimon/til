@@ -261,14 +261,19 @@ plot_csv := proc(csv_path: Str, svg_path: Str, last_n: I64 = 0, show_x_labels: B
     all_rows := parse_csv(content)
 
     mut rows := Vec.new("Row", Row.size())
-    if last_n.gt(0).and(all_rows.len().gt(last_n.to_u64())) {
-        mut i := all_rows.len().sub(last_n.to_u64())
-        while i.lt(all_rows.len()) {
-            ref r : Row = all_rows.get(i)
-            rows.push(own Row(commit = r.commit.clone(), interp_ms = r.interp_ms,
-                              compile_ms = r.compile_ms, run_ms = r.run_ms,
-                              wall_ms = r.wall_ms))
-            i = i.add(1)
+    if last_n.gt(0) {
+        mut last_n_us : USize = last_n.to_u64()
+        if all_rows.len().gt(last_n_us) {
+            mut i : USize = all_rows.len().sub(last_n_us)
+            while i.lt(all_rows.len()) {
+                ref r : Row = all_rows.get(i)
+                rows.push(own Row(commit = r.commit.clone(), interp_ms = r.interp_ms,
+                                  compile_ms = r.compile_ms, run_ms = r.run_ms,
+                                  wall_ms = r.wall_ms))
+                i = i.add(1)
+            }
+        } else {
+            rows = all_rows
         }
     } else {
         rows = all_rows

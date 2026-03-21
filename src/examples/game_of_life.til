@@ -12,7 +12,6 @@ main := proc() {
     grid_w := cols.mul(cell)
     grid_h := rows.mul(cell)
     total := cols.mul(rows)
-
     init_window(grid_w, grid_h.add(bar_h), "game of life")
     set_target_fps(60)
 
@@ -47,11 +46,12 @@ main := proc() {
             my := get_mouse_y().sub(bar_h).div(cell)
             if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
                 idx := my.mul(cols).add(mx)
-                ref val : I64 = grid.get(idx.to_u64())
+                idx_u : USize = idx.to_u64()
+                ref val : I64 = grid.get(idx_u)
                 if val.eq(0) {
-                    grid.set(idx.to_u64(), own 1)
+                    grid.set(idx_u, own 1)
                 } else {
-                    grid.set(idx.to_u64(), own 0)
+                    grid.set(idx_u, own 0)
                 }
             }
         }
@@ -89,7 +89,8 @@ main := proc() {
             px := dx.mul(cell)
             py := dy.mul(cell).add(bar_h)
 
-            ref dv : I64 = grid.get(di.to_u64())
+            di_u : USize = di.to_u64()
+            ref dv : I64 = grid.get(di_u)
             if dv.eq(1) {
                 draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 0, 200, 0, 255)
             } else {

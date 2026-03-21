@@ -14,9 +14,10 @@ main := proc() {
     set_target_fps(60)
 
     // State arrays
-    mut mines := Array.new("I64", 8, total.to_u64())
-    mut counts := Array.new("I64", 8, total.to_u64())
-    mut state := Array.new("I64", 8, total.to_u64())
+    total_us : USize = total.to_u64()
+    mut mines := Array.new("I64", 8, total_us)
+    mut counts := Array.new("I64", 8, total_us)
+    mut state := Array.new("I64", 8, total_us)
     // state: 0=hidden, 1=revealed, 2=flagged
 
     mut game_over := false
@@ -33,9 +34,10 @@ main := proc() {
             // R = restart
             mut ri := 0
             while ri.lt(total) {
-                mines.set(ri.to_u64(), own 0)
-                counts.set(ri.to_u64(), own 0)
-                state.set(ri.to_u64(), own 0)
+                ri_u : USize = ri.to_u64()
+                mines.set(ri_u, own 0)
+                counts.set(ri_u, own 0)
+                state.set(ri_u, own 0)
                 ri = ri.add(1)
             }
             game_over = false
@@ -51,7 +53,8 @@ main := proc() {
                 my := get_mouse_y().sub(top_bar).div(cell)
                 if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
                     idx := my.mul(cols).add(mx)
-                    ref st : I64 = state.get(idx.to_u64())
+                    idx_u : USize = idx.to_u64()
+                    ref st : I64 = state.get(idx_u)
                     if st.eq(0) {
                         if first_click {
                             // Place mines, avoiding clicked cell + neighbors
@@ -59,7 +62,8 @@ main := proc() {
                             mut placed := 0
                             while placed.lt(num_mines) {
                                 pos := get_random_value(0, total.sub(1))
-                                ref m : I64 = mines.get(pos.to_u64())
+                                pos_u : USize = pos.to_u64()
+                                ref m : I64 = mines.get(pos_u)
                                 if m.eq(0) {
                                     // Check not near first click
                                     px := pos.mod(cols)
@@ -69,7 +73,7 @@ main := proc() {
                                     mut diff_y := py.sub(my)
                                     if diff_y.lt(0) { diff_y = 0.sub(diff_y) }
                                     if diff_x.gt(1).or(diff_y.gt(1)) {
-                                        mines.set(pos.to_u64(), own 1)
+                                        mines.set(pos_u, own 1)
                                         placed = placed.add(1)
                                     }
                                 }
@@ -77,7 +81,8 @@ main := proc() {
                             // Compute neighbor counts
                             mut ci := 0
                             while ci.lt(total) {
-                                ref cm : I64 = mines.get(ci.to_u64())
+                                ci_u : USize = ci.to_u64()
+                                ref cm : I64 = mines.get(ci_u)
                                 if cm.eq(0) {
                                     cx := ci.mod(cols)
                                     cy := ci.div(cols)
@@ -88,7 +93,8 @@ main := proc() {
                                         while nx.lte(cx.add(1)) {
                                             if nx.gte(0).and(nx.lt(cols)).and(ny.gte(0)).and(ny.lt(rows)) {
                                                 ni := ny.mul(cols).add(nx)
-                                                ref nm : I64 = mines.get(ni.to_u64())
+                                                ni_u : USize = ni.to_u64()
+                                                ref nm : I64 = mines.get(ni_u)
                                                 if nm.eq(1) {
                                                     cnt = cnt.add(1)
                                                 }
@@ -97,22 +103,23 @@ main := proc() {
                                         }
                                         ny = ny.add(1)
                                     }
-                                    counts.set(ci.to_u64(), own cnt)
+                                    counts.set(ci_u, own cnt)
                                 }
                                 ci = ci.add(1)
                             }
                         }
 
                         // Check mine
-                        ref is_mine : I64 = mines.get(idx.to_u64())
+                        ref is_mine : I64 = mines.get(idx_u)
                         if is_mine.eq(1) {
                             game_over = true
                             // Reveal all mines
                             mut ri2 := 0
                             while ri2.lt(total) {
-                                ref rm : I64 = mines.get(ri2.to_u64())
+                                ri2_u : USize = ri2.to_u64()
+                                ref rm : I64 = mines.get(ri2_u)
                                 if rm.eq(1) {
-                                    state.set(ri2.to_u64(), own 1)
+                                    state.set(ri2_u, own 1)
                                 }
                                 ri2 = ri2.add(1)
                             }
@@ -125,10 +132,11 @@ main := proc() {
                                 // Pop by reducing count manually
                                 stack.count = stack.count.sub(1)
 
-                                ref cur_st : I64 = state.get(cur.to_u64())
+                                cur_u : USize = cur.to_u64()
+                                ref cur_st : I64 = state.get(cur_u)
                                 if cur_st.eq(0) {
-                                    state.set(cur.to_u64(), own 1)
-                                    ref cur_cnt : I64 = counts.get(cur.to_u64())
+                                    state.set(cur_u, own 1)
+                                    ref cur_cnt : I64 = counts.get(cur_u)
                                     if cur_cnt.eq(0) {
                                         // Push all neighbors
                                         cur_x := cur.mod(cols)
@@ -139,7 +147,8 @@ main := proc() {
                                             while px.lte(cur_x.add(1)) {
                                                 if px.gte(0).and(px.lt(cols)).and(py.gte(0)).and(py.lt(rows)) {
                                                     ni := py.mul(cols).add(px)
-                                                    ref ns : I64 = state.get(ni.to_u64())
+                                                    ni_u : USize = ni.to_u64()
+                                                    ref ns : I64 = state.get(ni_u)
                                                     if ns.eq(0) {
                                                         stack.push(own ni)
                                                     }
@@ -156,7 +165,8 @@ main := proc() {
                             mut revealed := 0
                             mut wi := 0
                             while wi.lt(total) {
-                                ref ws : I64 = state.get(wi.to_u64())
+                                wi_u : USize = wi.to_u64()
+                                ref ws : I64 = state.get(wi_u)
                                 if ws.eq(1) {
                                     revealed = revealed.add(1)
                                 }
@@ -176,13 +186,14 @@ main := proc() {
                 my := get_mouse_y().sub(top_bar).div(cell)
                 if mx.gte(0).and(mx.lt(cols)).and(my.gte(0)).and(my.lt(rows)) {
                     idx := my.mul(cols).add(mx)
-                    ref st : I64 = state.get(idx.to_u64())
+                    idx_u : USize = idx.to_u64()
+                    ref st : I64 = state.get(idx_u)
                     if st.eq(0) {
-                        state.set(idx.to_u64(), own 2)
+                        state.set(idx_u, own 2)
                         flags = flags.add(1)
                     } else {
                         if st.eq(2) {
-                            state.set(idx.to_u64(), own 0)
+                            state.set(idx_u, own 0)
                             flags = flags.sub(1)
                         }
                     }
@@ -213,7 +224,8 @@ main := proc() {
             px := dx.mul(cell)
             py := dy.mul(cell).add(top_bar)
 
-            ref ds : I64 = state.get(di.to_u64())
+            di_u : USize = di.to_u64()
+            ref ds : I64 = state.get(di_u)
             if ds.eq(0) {
                 // Hidden
                 draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 60, 60, 60, 255)
@@ -224,14 +236,14 @@ main := proc() {
                     draw_text("F", px.add(9), py.add(5), 20, 255, 255, 0, 255)
                 } else {
                     // Revealed
-                    ref dm : I64 = mines.get(di.to_u64())
+                    ref dm : I64 = mines.get(di_u)
                     if dm.eq(1) {
                         // Mine
                         draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 30, 30, 30, 255)
                         draw_circle(px.add(cell.div(2)), py.add(cell.div(2)), 8, 230, 41, 55, 255)
                     } else {
                         draw_rectangle(px.add(1), py.add(1), cell.sub(2), cell.sub(2), 30, 30, 30, 255)
-                        ref dc : I64 = counts.get(di.to_u64())
+                        ref dc : I64 = counts.get(di_u)
                         if dc.gt(0) {
                             // Number colors
                             mut nr := 200

@@ -16,16 +16,17 @@ main := proc() {
     center_y := rows.div(2)
 
     // P1 state
-    mut body := Array.new("I64", 8, max_len.to_u64())
-    mut snake_len := 3
+    max_len_us : USize = max_len.to_u64()
+    mut body := Array.new("I64", 8, max_len_us)
+    mut snake_len : USize = 3
     mut dx := 1
     mut dy := 0
     mut next_dx := 1
     mut next_dy := 0
 
     // P2 state
-    mut body2 := Array.new("I64", 8, max_len.to_u64())
-    mut snake_len2 := 3
+    mut body2 := Array.new("I64", 8, max_len_us)
+    mut snake_len2 : USize = 3
     mut dx2 := -1
     mut dy2 := 0
     mut next_dx2 := -1
@@ -200,36 +201,36 @@ main := proc() {
 
                     // P1 head vs P1 body
                     if game_over.not() {
-                        mut i := 0
+                        mut i : USize = 0
                         while i.lt(snake_len) {
-                            ref seg : I64 = body.get(i.to_u64())
+                            ref seg : I64 = body.get(i)
                             if seg.eq(new_pos) { p1_dead = true }
                             i = i.add(1)
                         }
                     }
                     // P1 head vs P2 body
                     if game_over.not() {
-                        mut i := 0
+                        mut i : USize = 0
                         while i.lt(snake_len2) {
-                            ref seg : I64 = body2.get(i.to_u64())
+                            ref seg : I64 = body2.get(i)
                             if seg.eq(new_pos) { p1_dead = true }
                             i = i.add(1)
                         }
                     }
                     // P2 head vs P2 body
                     if game_over.not() {
-                        mut i := 0
+                        mut i : USize = 0
                         while i.lt(snake_len2) {
-                            ref seg : I64 = body2.get(i.to_u64())
+                            ref seg : I64 = body2.get(i)
                             if seg.eq(new_pos2) { p2_dead = true }
                             i = i.add(1)
                         }
                     }
                     // P2 head vs P1 body
                     if game_over.not() {
-                        mut i := 0
+                        mut i : USize = 0
                         while i.lt(snake_len) {
-                            ref seg : I64 = body.get(i.to_u64())
+                            ref seg : I64 = body.get(i)
                             if seg.eq(new_pos2) { p2_dead = true }
                             i = i.add(1)
                         }
@@ -239,30 +240,30 @@ main := proc() {
 
                     if game_over.not() {
                         // Shift P1 body
-                        mut j := snake_len.sub(1)
+                        mut j : USize = snake_len.sub(1)
                         while j.gt(0) {
-                            ref prev_ref : I64 = body.get(j.sub(1).to_u64())
+                            ref prev_ref : I64 = body.get(j.sub(1))
                             prev_val := prev_ref
-                            body.set(j.to_u64(), own prev_val)
+                            body.set(j, own prev_val)
                             j = j.sub(1)
                         }
                         body.set(0, own new_pos)
 
                         // Shift P2 body
-                        mut j2 := snake_len2.sub(1)
+                        mut j2 : USize = snake_len2.sub(1)
                         while j2.gt(0) {
-                            ref prev_ref2 : I64 = body2.get(j2.sub(1).to_u64())
+                            ref prev_ref2 : I64 = body2.get(j2.sub(1))
                             prev_val2 := prev_ref2
-                            body2.set(j2.to_u64(), own prev_val2)
+                            body2.set(j2, own prev_val2)
                             j2 = j2.sub(1)
                         }
                         body2.set(0, own new_pos2)
 
                         // Food collision P1
                         if new_x.eq(food_x).and(new_y.eq(food_y)) {
-                            ref tail_ref : I64 = body.get(snake_len.sub(1).to_u64())
+                            ref tail_ref : I64 = body.get(snake_len.sub(1))
                             tail_val := tail_ref
-                            body.set(snake_len.to_u64(), own tail_val)
+                            body.set(snake_len, own tail_val)
                             snake_len = snake_len.add(1)
                             score = score.add(10)
                             food_x = get_random_value(0, cols.sub(1))
@@ -270,9 +271,9 @@ main := proc() {
                         }
                         // Food collision P2
                         if new_x2.eq(food_x).and(new_y2.eq(food_y)) {
-                            ref tail_ref2 : I64 = body2.get(snake_len2.sub(1).to_u64())
+                            ref tail_ref2 : I64 = body2.get(snake_len2.sub(1))
                             tail_val2 := tail_ref2
-                            body2.set(snake_len2.to_u64(), own tail_val2)
+                            body2.set(snake_len2, own tail_val2)
                             snake_len2 = snake_len2.add(1)
                             score = score.add(10)
                             food_x = get_random_value(0, cols.sub(1))
@@ -288,27 +289,27 @@ main := proc() {
                     }
                 } else {
                     // 1P mode
-                    mut i := 0
+                    mut i : USize = 0
                     while i.lt(snake_len) {
-                        ref seg : I64 = body.get(i.to_u64())
+                        ref seg : I64 = body.get(i)
                         if seg.eq(new_pos) { game_over = true }
                         i = i.add(1)
                     }
 
                     if game_over.not() {
-                        mut j := snake_len.sub(1)
+                        mut j : USize = snake_len.sub(1)
                         while j.gt(0) {
-                            ref prev_ref : I64 = body.get(j.sub(1).to_u64())
+                            ref prev_ref : I64 = body.get(j.sub(1))
                             prev_val := prev_ref
-                            body.set(j.to_u64(), own prev_val)
+                            body.set(j, own prev_val)
                             j = j.sub(1)
                         }
                         body.set(0, own new_pos)
 
                         if new_x.eq(food_x).and(new_y.eq(food_y)) {
-                            ref tail_ref : I64 = body.get(snake_len.sub(1).to_u64())
+                            ref tail_ref : I64 = body.get(snake_len.sub(1))
                             tail_val := tail_ref
-                            body.set(snake_len.to_u64(), own tail_val)
+                            body.set(snake_len, own tail_val)
                             snake_len = snake_len.add(1)
                             score = score.add(10)
 
@@ -348,9 +349,9 @@ main := proc() {
                        cell.sub(4), cell.sub(4), 0, 200, 0, 255)
 
         // P1 body segments
-        mut k := 1
+        mut k : USize = 1
         while k.lt(snake_len) {
-            ref seg : I64 = body.get(k.to_u64())
+            ref seg : I64 = body.get(k)
             sx := seg.mod(cols).mul(cell).add(2)
             sy := seg.div(cols).mul(cell).add(2).add(bar_h)
             draw_rectangle(sx, sy, cell.sub(4), cell.sub(4), 255, 255, 0, 255)
@@ -365,9 +366,9 @@ main := proc() {
 
         // P2 (only in 2P mode)
         if two_player {
-            mut k2 := 1
+            mut k2 : USize = 1
             while k2.lt(snake_len2) {
-                ref seg2 : I64 = body2.get(k2.to_u64())
+                ref seg2 : I64 = body2.get(k2)
                 sx2 := seg2.mod(cols).mul(cell).add(2)
                 sy2 := seg2.div(cols).mul(cell).add(2).add(bar_h)
                 draw_rectangle(sx2, sy2, cell.sub(4), cell.sub(4), 0, 200, 210, 255)
