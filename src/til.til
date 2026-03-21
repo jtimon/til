@@ -24,8 +24,6 @@ til_parse := ext_func(tokens: Vec, path: Str) returns Expr {}
 til_parse_mode := ext_func() returns Str {}
 
 // Expr helpers
-expr_null := ext_func() returns Expr {}
-expr_get_str_val := ext_func(e: Expr) returns ref Str {}
 expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
 
 // Expr Vec helpers
@@ -72,14 +70,14 @@ extract_imports := proc(mut body: Expr) returns Vec {
         mut is_import := false
         if stmt.data.is_FCall().and(Expr.child_count(stmt).eq(2)) {
             if Expr.child(stmt, 0).data.is_Ident()
-                .and(expr_get_str_val(Expr.child(stmt, 0)).eq("import"))
+                .and(Expr.child(stmt, 0).data.get_Ident().eq("import"))
                 .and(Expr.child(stmt, 1).data.is_LiteralStr()) {
                 is_import = true
             }
         }
         if is_import {
-            ref path : Str = expr_get_str_val(Expr.child(stmt, 1))
-            paths.push(own path.clone())
+            path := Expr.child(stmt, 1).data.get_LiteralStr()
+            paths.push(own path)
         } else {
             expr_vec_push(kept, stmt)
         }
@@ -354,8 +352,8 @@ main := proc(args: ..Str) {
             }
         }
         if is_directive {
-            ref fname : Str = expr_get_str_val(Expr.child(stmt, 0))
-            ref arg : Str = expr_get_str_val(Expr.child(stmt, 1))
+            fname := Expr.child(stmt, 0).data.get_Ident()
+            arg := Expr.child(stmt, 1).data.get_LiteralStr()
             if fname.eq("link") {
                 link_flags = link_flags.concat(" -l").concat(arg)
             } else if fname.eq("link_c") {

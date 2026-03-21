@@ -23,20 +23,6 @@ Expr *til_parse(Vec *tokens, Str *path) {
 }
 Str *til_parse_mode(void) { return Str_clone(&_parse_mode); }
 
-// --- Expr field accessors ---
-
-Str *expr_get_str_val(Expr *e) {
-    if (!e) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    // str_val shares a union with decl/func_def — only valid for these node types
-    switch (e->data.tag) {
-    case ExprData_TAG_Ident: case ExprData_TAG_LiteralStr: case ExprData_TAG_LiteralNum:
-    case ExprData_TAG_LiteralBool: case ExprData_TAG_Assign: case ExprData_TAG_ForIn:
-    case ExprData_TAG_FieldAccess: case ExprData_TAG_FieldAssign: case ExprData_TAG_NamedArg:
-        return e->data.data.Ident.count > 0 ? &e->data.data.Ident : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-    default:
-        return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    }
-}
 // Replace children: old children are freed, new_children is moved in
 void expr_swap_children(Expr *e, Vec *new_children) {
     Vec_delete(&e->children, &(Bool){0});
