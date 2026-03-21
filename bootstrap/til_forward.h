@@ -720,6 +720,7 @@ U32 * Mode_size(void);
 Mode * mode_resolve(Str * name);
 Bool * mode_is_lib(Mode * m);
 Bool * mode_is_lib_output(Mode * m);
+Str * str_left(Str * s, U32 * n);
 Vec * extract_imports(Expr * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Str * lib_dir);
 void usage(void);

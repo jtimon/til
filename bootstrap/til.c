@@ -725,6 +725,7 @@ U32 * Mode_size(void);
 Mode * mode_resolve(Str * name);
 Bool * mode_is_lib(Mode * m);
 Bool * mode_is_lib_output(Mode * m);
+Str * str_left(Str * s, U32 * n);
 Vec * extract_imports(Expr * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Str * lib_dir);
 void usage(void);
@@ -859,7 +860,6 @@ I32 til_compile_lib(Str *, Str *, Str *, Str *, Str *);
 void ast_print(Expr *, U32);
 Str * til_bin_dir(void);
 Str * til_realpath(Str *);
-Str * til_str_left(Str *, U64);
 I32 til_system(Str *);
 
 Str *Str_lit(const char *s, unsigned long long len);
@@ -1291,6 +1291,7 @@ U32 * Mode_size(void);
 Mode * mode_resolve(Str * name);
 Bool * mode_is_lib(Mode * m);
 Bool * mode_is_lib_output(Mode * m);
+Str * str_left(Str * s, U32 * n);
 Vec * extract_imports(Expr * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Vec * stack, Vec * merged, Str * lib_dir);
 void usage(void);
@@ -1511,67 +1512,67 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t5026;
-static I64 *_t5027;
-static I64 *_t5028;
+static I64 *_t5035;
+static I64 *_t5036;
+static I64 *_t5037;
 static U32 *CAP_LIT;
-static I64 *_t5029;
-static I64 *_t5030;
-static I64 *_t5031;
+static I64 *_t5038;
+static I64 *_t5039;
+static I64 *_t5040;
 static U32 *CAP_VIEW;
-static Str *_t5032;
-static U32 *_t5033;
-static Str *_t5034;
-static U32 *_t5035;
+static Str *_t5041;
+static U32 *_t5042;
+static Str *_t5043;
+static U32 *_t5044;
 static Map *core_modes;
-static Bool *_t5036;
-static Bool *_t5037;
-static Bool *_t5038;
-static Bool *_t5039;
-static Str *_t5040;
-static Mode *_t5041;
-static Bool *_t5042;
-static Bool *_t5043;
-static Bool *_t5044;
 static Bool *_t5045;
-static Str *_t5046;
-static Mode *_t5047;
+static Bool *_t5046;
+static Bool *_t5047;
 static Bool *_t5048;
-static Bool *_t5049;
-static Bool *_t5050;
+static Str *_t5049;
+static Mode *_t5050;
 static Bool *_t5051;
-static Str *_t5052;
-static Mode *_t5053;
+static Bool *_t5052;
+static Bool *_t5053;
 static Bool *_t5054;
-static Bool *_t5055;
-static Bool *_t5056;
+static Str *_t5055;
+static Mode *_t5056;
 static Bool *_t5057;
-static Str *_t5058;
-static Mode *_t5059;
+static Bool *_t5058;
+static Bool *_t5059;
 static Bool *_t5060;
-static Bool *_t5061;
-static Bool *_t5062;
+static Str *_t5061;
+static Mode *_t5062;
 static Bool *_t5063;
-static Str *_t5064;
-static Mode *_t5065;
+static Bool *_t5064;
+static Bool *_t5065;
 static Bool *_t5066;
-static Bool *_t5067;
-static Bool *_t5068;
+static Str *_t5067;
+static Mode *_t5068;
 static Bool *_t5069;
-static Str *_t5070;
-static Mode *_t5071;
+static Bool *_t5070;
+static Bool *_t5071;
 static Bool *_t5072;
-static Bool *_t5073;
-static Bool *_t5074;
+static Str *_t5073;
+static Mode *_t5074;
 static Bool *_t5075;
-static Str *_t5076;
-static Mode *_t5077;
+static Bool *_t5076;
+static Bool *_t5077;
 static Bool *_t5078;
-static Bool *_t5079;
-static Bool *_t5080;
+static Str *_t5079;
+static Mode *_t5080;
 static Bool *_t5081;
-static Str *_t5082;
-static Mode *_t5083;
+static Bool *_t5082;
+static Bool *_t5083;
+static Bool *_t5084;
+static Str *_t5085;
+static Mode *_t5086;
+static Bool *_t5087;
+static Bool *_t5088;
+static Bool *_t5089;
+static Bool *_t5090;
+static Str *_t5091;
+static Mode *_t5092;
 
 EnumDef * EnumDef_clone(EnumDef * self) {
     (void)self;
@@ -27458,204 +27459,242 @@ Bool * mode_is_lib_output(Mode * m) {
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t4340; return _r; }
 }
 
+Str * str_left(Str * s, U32 * n) {
+    (void)s;
+    (void)n;
+    U32 _t4343 = 0;
+    (void)_t4343;
+    Bool _t4344 = U32_eq(DEREF(n), _t4343);
+    (void)_t4344;
+    ;
+    if (_t4344) {
+        Str *_t4341 = Str_lit("", 0ULL);
+        (void)_t4341;
+        ;
+        return _t4341;
+    }
+    ;
+    U32 _t4345; { U32 *_hp = (U32 *)Str_len(s); _t4345 = *_hp; free(_hp); }
+    (void)_t4345;
+    Bool _t4346; { Bool *_hp = (Bool *)U32_gte(n, &(U32){_t4345}); _t4346 = *_hp; free(_hp); }
+    (void)_t4346;
+    ;
+    if (_t4346) {
+        Str *_t4342 = Str_clone(s);
+        (void)_t4342;
+        ;
+        return _t4342;
+    }
+    ;
+    U32 _t4347 = 0;
+    (void)_t4347;
+    Str *_t4348 = Str_substr(s, &(U32){_t4347}, n);
+    (void)_t4348;
+    ;
+    Str *_t4349 = Str_clone(_t4348);
+    (void)_t4349;
+    Str_delete(_t4348, &(Bool){1});
+    return _t4349;
+}
+
 Vec * extract_imports(Expr * body) {
     (void)body;
-    Str *_t4381 = Str_lit("Str", 3ULL);
-    (void)_t4381;
-    U32 _t4382; { U32 *_hp = (U32 *)Str_size(); _t4382 = *_hp; free(_hp); }
-    (void)_t4382;
-    Vec *paths = Vec_new(_t4381, &(U32){_t4382});
+    Str *_t4390 = Str_lit("Str", 3ULL);
+    (void)_t4390;
+    U32 _t4391; { U32 *_hp = (U32 *)Str_size(); _t4391 = *_hp; free(_hp); }
+    (void)_t4391;
+    Vec *paths = Vec_new(_t4390, &(U32){_t4391});
     (void)paths;
-    Str_delete(_t4381, &(Bool){1});
+    Str_delete(_t4390, &(Bool){1});
     ;
-    Str *_t4383 = Str_lit("", 0ULL);
-    (void)_t4383;
-    U32 _t4384; { U32 *_hp = (U32 *)Expr_size(); _t4384 = *_hp; free(_hp); }
-    (void)_t4384;
-    Vec *kept = Vec_new(_t4383, &(U32){_t4384});
+    Str *_t4392 = Str_lit("", 0ULL);
+    (void)_t4392;
+    U32 _t4393; { U32 *_hp = (U32 *)Expr_size(); _t4393 = *_hp; free(_hp); }
+    (void)_t4393;
+    Vec *kept = Vec_new(_t4392, &(U32){_t4393});
     (void)kept;
-    Str_delete(_t4383, &(Bool){1});
+    Str_delete(_t4392, &(Bool){1});
     ;
     {
-        U32 _re4341; { U32 *_hp = (U32 *)Expr_child_count(body); _re4341 = *_hp; free(_hp); }
-        (void)_re4341;
-        U32 *_rc4341 = malloc(sizeof(U32));
-        *_rc4341 = 0;
-        (void)_rc4341;
-        Bool _t4380; { Bool *_hp = (Bool *)U32_lte(_rc4341, &(U32){_re4341}); _t4380 = *_hp; free(_hp); }
-        (void)_t4380;
-        if (_t4380) {
+        U32 _re4350; { U32 *_hp = (U32 *)Expr_child_count(body); _re4350 = *_hp; free(_hp); }
+        (void)_re4350;
+        U32 *_rc4350 = malloc(sizeof(U32));
+        *_rc4350 = 0;
+        (void)_rc4350;
+        Bool _t4389; { Bool *_hp = (Bool *)U32_lte(_rc4350, &(U32){_re4350}); _t4389 = *_hp; free(_hp); }
+        (void)_t4389;
+        if (_t4389) {
             while (1) {
-                Bool _wcond4342; { Bool *_hp = (Bool *)U32_lt(_rc4341, &(U32){_re4341}); _wcond4342 = *_hp; free(_hp); }
-                (void)_wcond4342;
-                if (_wcond4342) {
+                Bool _wcond4351; { Bool *_hp = (Bool *)U32_lt(_rc4350, &(U32){_re4350}); _wcond4351 = *_hp; free(_hp); }
+                (void)_wcond4351;
+                if (_wcond4351) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4341);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4350);
                 (void)i;
-                U32_inc(_rc4341);
+                U32_inc(_rc4350);
                 Expr *stmt = Expr_child(body, i);
                 (void)stmt;
                 Bool is_import = 0;
                 (void)is_import;
-                U32 _t4356; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4356 = *_hp; free(_hp); }
-                (void)_t4356;
-                U32 _t4357 = 2;
-                (void)_t4357;
-                Bool _t4358; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4358 = *_hp; free(_hp); }
-                (void)_t4358;
-                Bool _t4359 = U32_eq(_t4356, _t4357);
-                (void)_t4359;
+                U32 _t4365; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4365 = *_hp; free(_hp); }
+                (void)_t4365;
+                U32 _t4366 = 2;
+                (void)_t4366;
+                Bool _t4367; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4367 = *_hp; free(_hp); }
+                (void)_t4367;
+                Bool _t4368 = U32_eq(_t4365, _t4366);
+                (void)_t4368;
                 ;
                 ;
-                Bool _t4360 = Bool_and(_t4358, _t4359);
-                (void)_t4360;
+                Bool _t4369 = Bool_and(_t4367, _t4368);
+                (void)_t4369;
                 ;
                 ;
-                if (_t4360) {
-                    U32 _t4344 = 0;
-                    (void)_t4344;
-                    U32 _t4345 = 0;
-                    (void)_t4345;
-                    Str *_t4346 = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4345})->data);
-                    (void)_t4346;
-                    ;
-                    Str *_t4347 = Str_lit("import", 6ULL);
-                    (void)_t4347;
-                    Bool _t4348; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4344})->data); _t4348 = *_hp; free(_hp); }
-                    (void)_t4348;
-                    ;
-                    Bool _t4349; { Bool *_hp = (Bool *)Str_eq(_t4346, _t4347); _t4349 = *_hp; free(_hp); }
-                    (void)_t4349;
-                    Str_delete(_t4346, &(Bool){1});
-                    Str_delete(_t4347, &(Bool){1});
-                    U32 _t4350 = 1;
-                    (void)_t4350;
-                    Bool _t4351 = Bool_and(_t4348, _t4349);
-                    (void)_t4351;
-                    ;
-                    ;
-                    Bool _t4352; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4350})->data); _t4352 = *_hp; free(_hp); }
-                    (void)_t4352;
-                    ;
-                    Bool _t4353 = Bool_and(_t4351, _t4352);
+                if (_t4369) {
+                    U32 _t4353 = 0;
                     (void)_t4353;
+                    U32 _t4354 = 0;
+                    (void)_t4354;
+                    Str *_t4355 = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4354})->data);
+                    (void)_t4355;
+                    ;
+                    Str *_t4356 = Str_lit("import", 6ULL);
+                    (void)_t4356;
+                    Bool _t4357; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4353})->data); _t4357 = *_hp; free(_hp); }
+                    (void)_t4357;
+                    ;
+                    Bool _t4358; { Bool *_hp = (Bool *)Str_eq(_t4355, _t4356); _t4358 = *_hp; free(_hp); }
+                    (void)_t4358;
+                    Str_delete(_t4355, &(Bool){1});
+                    Str_delete(_t4356, &(Bool){1});
+                    U32 _t4359 = 1;
+                    (void)_t4359;
+                    Bool _t4360 = Bool_and(_t4357, _t4358);
+                    (void)_t4360;
                     ;
                     ;
-                    if (_t4353) {
-                        Bool _t4343 = 1;
-                        (void)_t4343;
-                        is_import = _t4343;
+                    Bool _t4361; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4359})->data); _t4361 = *_hp; free(_hp); }
+                    (void)_t4361;
+                    ;
+                    Bool _t4362 = Bool_and(_t4360, _t4361);
+                    (void)_t4362;
+                    ;
+                    ;
+                    if (_t4362) {
+                        Bool _t4352 = 1;
+                        (void)_t4352;
+                        is_import = _t4352;
                         ;
                     }
                     ;
                 }
                 ;
                 if (is_import) {
-                    U32 _t4354 = 1;
-                    (void)_t4354;
-                    Str *path = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4354})->data);
+                    U32 _t4363 = 1;
+                    (void)_t4363;
+                    Str *path = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4363})->data);
                     (void)path;
                     ;
                     Vec_push(paths, path);
                 } else {
-                    Expr *_t4355 = Expr_clone(stmt);
-                    (void)_t4355;
-                    Vec_push(kept, _t4355);
+                    Expr *_t4364 = Expr_clone(stmt);
+                    (void)_t4364;
+                    Vec_push(kept, _t4364);
                 }
                 U32_delete(i, &(Bool){1});
                 ;
             }
         } else {
             while (1) {
-                Bool _wcond4361; { Bool *_hp = (Bool *)U32_gt(_rc4341, &(U32){_re4341}); _wcond4361 = *_hp; free(_hp); }
-                (void)_wcond4361;
-                if (_wcond4361) {
+                Bool _wcond4370; { Bool *_hp = (Bool *)U32_gt(_rc4350, &(U32){_re4350}); _wcond4370 = *_hp; free(_hp); }
+                (void)_wcond4370;
+                if (_wcond4370) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4341);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4350);
                 (void)i;
-                U32_dec(_rc4341);
+                U32_dec(_rc4350);
                 Expr *stmt = Expr_child(body, i);
                 (void)stmt;
                 Bool is_import = 0;
                 (void)is_import;
-                U32 _t4375; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4375 = *_hp; free(_hp); }
-                (void)_t4375;
-                U32 _t4376 = 2;
-                (void)_t4376;
-                Bool _t4377; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4377 = *_hp; free(_hp); }
-                (void)_t4377;
-                Bool _t4378 = U32_eq(_t4375, _t4376);
-                (void)_t4378;
+                U32 _t4384; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4384 = *_hp; free(_hp); }
+                (void)_t4384;
+                U32 _t4385 = 2;
+                (void)_t4385;
+                Bool _t4386; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4386 = *_hp; free(_hp); }
+                (void)_t4386;
+                Bool _t4387 = U32_eq(_t4384, _t4385);
+                (void)_t4387;
                 ;
                 ;
-                Bool _t4379 = Bool_and(_t4377, _t4378);
-                (void)_t4379;
+                Bool _t4388 = Bool_and(_t4386, _t4387);
+                (void)_t4388;
                 ;
                 ;
-                if (_t4379) {
-                    U32 _t4363 = 0;
-                    (void)_t4363;
-                    U32 _t4364 = 0;
-                    (void)_t4364;
-                    Str *_t4365 = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4364})->data);
-                    (void)_t4365;
-                    ;
-                    Str *_t4366 = Str_lit("import", 6ULL);
-                    (void)_t4366;
-                    Bool _t4367; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4363})->data); _t4367 = *_hp; free(_hp); }
-                    (void)_t4367;
-                    ;
-                    Bool _t4368; { Bool *_hp = (Bool *)Str_eq(_t4365, _t4366); _t4368 = *_hp; free(_hp); }
-                    (void)_t4368;
-                    Str_delete(_t4365, &(Bool){1});
-                    Str_delete(_t4366, &(Bool){1});
-                    U32 _t4369 = 1;
-                    (void)_t4369;
-                    Bool _t4370 = Bool_and(_t4367, _t4368);
-                    (void)_t4370;
-                    ;
-                    ;
-                    Bool _t4371; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4369})->data); _t4371 = *_hp; free(_hp); }
-                    (void)_t4371;
-                    ;
-                    Bool _t4372 = Bool_and(_t4370, _t4371);
+                if (_t4388) {
+                    U32 _t4372 = 0;
                     (void)_t4372;
+                    U32 _t4373 = 0;
+                    (void)_t4373;
+                    Str *_t4374 = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4373})->data);
+                    (void)_t4374;
+                    ;
+                    Str *_t4375 = Str_lit("import", 6ULL);
+                    (void)_t4375;
+                    Bool _t4376; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4372})->data); _t4376 = *_hp; free(_hp); }
+                    (void)_t4376;
+                    ;
+                    Bool _t4377; { Bool *_hp = (Bool *)Str_eq(_t4374, _t4375); _t4377 = *_hp; free(_hp); }
+                    (void)_t4377;
+                    Str_delete(_t4374, &(Bool){1});
+                    Str_delete(_t4375, &(Bool){1});
+                    U32 _t4378 = 1;
+                    (void)_t4378;
+                    Bool _t4379 = Bool_and(_t4376, _t4377);
+                    (void)_t4379;
                     ;
                     ;
-                    if (_t4372) {
-                        Bool _t4362 = 1;
-                        (void)_t4362;
-                        is_import = _t4362;
+                    Bool _t4380; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4378})->data); _t4380 = *_hp; free(_hp); }
+                    (void)_t4380;
+                    ;
+                    Bool _t4381 = Bool_and(_t4379, _t4380);
+                    (void)_t4381;
+                    ;
+                    ;
+                    if (_t4381) {
+                        Bool _t4371 = 1;
+                        (void)_t4371;
+                        is_import = _t4371;
                         ;
                     }
                     ;
                 }
                 ;
                 if (is_import) {
-                    U32 _t4373 = 1;
-                    (void)_t4373;
-                    Str *path = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4373})->data);
+                    U32 _t4382 = 1;
+                    (void)_t4382;
+                    Str *path = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4382})->data);
                     (void)path;
                     ;
                     Vec_push(paths, path);
                 } else {
-                    Expr *_t4374 = Expr_clone(stmt);
-                    (void)_t4374;
-                    Vec_push(kept, _t4374);
+                    Expr *_t4383 = Expr_clone(stmt);
+                    (void)_t4383;
+                    Vec_push(kept, _t4383);
                 }
                 U32_delete(i, &(Bool){1});
                 ;
             }
         }
-        U32_delete(_rc4341, &(Bool){1});
+        U32_delete(_rc4350, &(Bool){1});
         ;
         ;
     }
@@ -27672,132 +27711,132 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
     (void)merged;
     (void)lib_dir;
     {
-        U32 _re4385; { U32 *_hp = (U32 *)Vec_len(import_paths); _re4385 = *_hp; free(_hp); }
-        (void)_re4385;
-        U32 *_rc4385 = malloc(sizeof(U32));
-        *_rc4385 = 0;
-        (void)_rc4385;
-        Bool _t4482; { Bool *_hp = (Bool *)U32_lte(_rc4385, &(U32){_re4385}); _t4482 = *_hp; free(_hp); }
-        (void)_t4482;
-        if (_t4482) {
+        U32 _re4394; { U32 *_hp = (U32 *)Vec_len(import_paths); _re4394 = *_hp; free(_hp); }
+        (void)_re4394;
+        U32 *_rc4394 = malloc(sizeof(U32));
+        *_rc4394 = 0;
+        (void)_rc4394;
+        Bool _t4491; { Bool *_hp = (Bool *)U32_lte(_rc4394, &(U32){_re4394}); _t4491 = *_hp; free(_hp); }
+        (void)_t4491;
+        if (_t4491) {
             while (1) {
-                Bool _wcond4386; { Bool *_hp = (Bool *)U32_lt(_rc4385, &(U32){_re4385}); _wcond4386 = *_hp; free(_hp); }
-                (void)_wcond4386;
-                if (_wcond4386) {
+                Bool _wcond4395; { Bool *_hp = (Bool *)U32_lt(_rc4394, &(U32){_re4394}); _wcond4395 = *_hp; free(_hp); }
+                (void)_wcond4395;
+                if (_wcond4395) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4385);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4394);
                 (void)i;
-                U32_inc(_rc4385);
+                U32_inc(_rc4394);
                 Str *import_path = Vec_get(import_paths, i);
                 (void)import_path;
-                Str *_t4417 = Str_lit("/", 1ULL);
-                (void)_t4417;
-                Str *_t4418 = Str_concat(base_dir, _t4417);
-                (void)_t4418;
-                Str_delete(_t4417, &(Bool){1});
-                Str *try_path = Str_concat(_t4418, import_path);
+                Str *_t4426 = Str_lit("/", 1ULL);
+                (void)_t4426;
+                Str *_t4427 = Str_concat(base_dir, _t4426);
+                (void)_t4427;
+                Str_delete(_t4426, &(Bool){1});
+                Str *try_path = Str_concat(_t4427, import_path);
                 (void)try_path;
-                Str_delete(_t4418, &(Bool){1});
+                Str_delete(_t4427, &(Bool){1});
                 Str *abs = til_realpath(try_path);
                 (void)abs;
-                Str *_t4419 = Str_lit("", 0ULL);
-                (void)_t4419;
-                U32 _t4420; { U32 *_hp = (U32 *)Str_len(lib_dir); _t4420 = *_hp; free(_hp); }
-                (void)_t4420;
-                U32 _t4421 = 0;
-                (void)_t4421;
-                Bool _t4422; { Bool *_hp = (Bool *)Str_eq(abs, _t4419); _t4422 = *_hp; free(_hp); }
-                (void)_t4422;
-                Str_delete(_t4419, &(Bool){1});
-                Bool _t4423; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4420}, &(U32){_t4421}); _t4423 = *_hp; free(_hp); }
-                (void)_t4423;
+                Str *_t4428 = Str_lit("", 0ULL);
+                (void)_t4428;
+                U32 _t4429; { U32 *_hp = (U32 *)Str_len(lib_dir); _t4429 = *_hp; free(_hp); }
+                (void)_t4429;
+                U32 _t4430 = 0;
+                (void)_t4430;
+                Bool _t4431; { Bool *_hp = (Bool *)Str_eq(abs, _t4428); _t4431 = *_hp; free(_hp); }
+                (void)_t4431;
+                Str_delete(_t4428, &(Bool){1});
+                Bool _t4432; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4429}, &(U32){_t4430}); _t4432 = *_hp; free(_hp); }
+                (void)_t4432;
                 ;
                 ;
-                Bool _t4424 = Bool_and(_t4422, _t4423);
-                (void)_t4424;
+                Bool _t4433 = Bool_and(_t4431, _t4432);
+                (void)_t4433;
                 ;
                 ;
-                if (_t4424) {
-                    Str *_t4387 = Str_lit("/", 1ULL);
-                    (void)_t4387;
-                    Str *_t4388 = Str_concat(lib_dir, _t4387);
-                    (void)_t4388;
-                    Str_delete(_t4387, &(Bool){1});
-                    try_path = Str_concat(_t4388, import_path);
-                    Str_delete(_t4388, &(Bool){1});
+                if (_t4433) {
+                    Str *_t4396 = Str_lit("/", 1ULL);
+                    (void)_t4396;
+                    Str *_t4397 = Str_concat(lib_dir, _t4396);
+                    (void)_t4397;
+                    Str_delete(_t4396, &(Bool){1});
+                    try_path = Str_concat(_t4397, import_path);
+                    Str_delete(_t4397, &(Bool){1});
                     abs = til_realpath(try_path);
                 }
                 ;
                 Str_delete(try_path, &(Bool){1});
-                Str *_t4425 = Str_lit("", 0ULL);
-                (void)_t4425;
-                Bool _t4426; { Bool *_hp = (Bool *)Str_eq(abs, _t4425); _t4426 = *_hp; free(_hp); }
-                (void)_t4426;
-                Str_delete(_t4425, &(Bool){1});
-                if (_t4426) {
-                    Str *_t4389 = Str_lit("Str", 3ULL);
-                    (void)_t4389;
-                    U32 _t4390; { U32 *_hp = (U32 *)Str_size(); _t4390 = *_hp; free(_hp); }
-                    (void)_t4390;
-                    U32 _t4391 = 1;
-                    (void)_t4391;
-                    Array *_va78 = Array_new(_t4389, &(U32){_t4390}, &(U32){_t4391});
-                    (void)_va78;
-                    Str_delete(_t4389, &(Bool){1});
-                    ;
-                    ;
-                    Str *_t4392 = Str_lit("error: could not find import '", 30ULL);
-                    (void)_t4392;
-                    Str *_t4393 = Str_concat(_t4392, import_path);
-                    (void)_t4393;
-                    Str_delete(_t4392, &(Bool){1});
-                    Str *_t4394 = Str_lit("' (from ", 8ULL);
-                    (void)_t4394;
-                    Str *_t4395 = Str_concat(_t4393, _t4394);
-                    (void)_t4395;
-                    Str_delete(_t4393, &(Bool){1});
-                    Str_delete(_t4394, &(Bool){1});
-                    Str *_t4396 = Str_concat(_t4395, base_dir);
-                    (void)_t4396;
-                    Str_delete(_t4395, &(Bool){1});
-                    Str *_t4397 = Str_lit("/)", 2ULL);
-                    (void)_t4397;
-                    U32 _t4398 = 0;
+                Str *_t4434 = Str_lit("", 0ULL);
+                (void)_t4434;
+                Bool _t4435; { Bool *_hp = (Bool *)Str_eq(abs, _t4434); _t4435 = *_hp; free(_hp); }
+                (void)_t4435;
+                Str_delete(_t4434, &(Bool){1});
+                if (_t4435) {
+                    Str *_t4398 = Str_lit("Str", 3ULL);
                     (void)_t4398;
-                    Str *_t4399 = Str_concat(_t4396, _t4397);
+                    U32 _t4399; { U32 *_hp = (U32 *)Str_size(); _t4399 = *_hp; free(_hp); }
                     (void)_t4399;
-                    Str_delete(_t4396, &(Bool){1});
-                    Str_delete(_t4397, &(Bool){1});
-                    Array_set(_va78, &(U32){_t4398}, _t4399);
+                    U32 _t4400 = 1;
+                    (void)_t4400;
+                    Array *_va78 = Array_new(_t4398, &(U32){_t4399}, &(U32){_t4400});
+                    (void)_va78;
+                    Str_delete(_t4398, &(Bool){1});
+                    ;
+                    ;
+                    Str *_t4401 = Str_lit("error: could not find import '", 30ULL);
+                    (void)_t4401;
+                    Str *_t4402 = Str_concat(_t4401, import_path);
+                    (void)_t4402;
+                    Str_delete(_t4401, &(Bool){1});
+                    Str *_t4403 = Str_lit("' (from ", 8ULL);
+                    (void)_t4403;
+                    Str *_t4404 = Str_concat(_t4402, _t4403);
+                    (void)_t4404;
+                    Str_delete(_t4402, &(Bool){1});
+                    Str_delete(_t4403, &(Bool){1});
+                    Str *_t4405 = Str_concat(_t4404, base_dir);
+                    (void)_t4405;
+                    Str_delete(_t4404, &(Bool){1});
+                    Str *_t4406 = Str_lit("/)", 2ULL);
+                    (void)_t4406;
+                    U32 _t4407 = 0;
+                    (void)_t4407;
+                    Str *_t4408 = Str_concat(_t4405, _t4406);
+                    (void)_t4408;
+                    Str_delete(_t4405, &(Bool){1});
+                    Str_delete(_t4406, &(Bool){1});
+                    Array_set(_va78, &(U32){_t4407}, _t4408);
                     ;
                     println(_va78);
-                    I64 _t4400 = 1;
-                    (void)_t4400;
+                    I64 _t4409 = 1;
+                    (void)_t4409;
                     ;
                     Str_delete(abs, &(Bool){1});
                     U32_delete(i, &(Bool){1});
-                    U32_delete(_rc4385, &(Bool){1});
+                    U32_delete(_rc4394, &(Bool){1});
                     ;
                     ;
-                    { I32 *_r = malloc(sizeof(I32)); *_r = _t4400; return _r; }
+                    { I32 *_r = malloc(sizeof(I32)); *_r = _t4409; return _r; }
                 }
                 ;
                 U32_delete(i, &(Bool){1});
-                Bool _t4427; { Bool *_hp = (Bool *)Set_has(resolved_set, abs); _t4427 = *_hp; free(_hp); }
-                (void)_t4427;
-                if (_t4427) {
+                Bool _t4436; { Bool *_hp = (Bool *)Set_has(resolved_set, abs); _t4436 = *_hp; free(_hp); }
+                (void)_t4436;
+                if (_t4436) {
                     ;
                     Str_delete(abs, &(Bool){1});
                     continue;
                 }
                 ;
-                Str *_t4428 = Str_clone(abs);
-                (void)_t4428;
-                Set_add(resolved_set, _t4428);
+                Str *_t4437 = Str_clone(abs);
+                (void)_t4437;
+                Set_add(resolved_set, _t4437);
                 Str *source = readfile(abs);
                 (void)source;
                 Vec *tokens = tokenize(source, abs);
@@ -27811,73 +27850,73 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str_delete(sub_mode, &(Bool){1});
                 Vec *sub_imports = extract_imports(sub_ast);
                 (void)sub_imports;
-                U32 _t4429; { U32 *_hp = (U32 *)Str_len(abs); _t4429 = *_hp; free(_hp); }
-                (void)_t4429;
-                U32 _t4430 = 1;
-                (void)_t4430;
-                U32 *last_slash = malloc(sizeof(U32)); *last_slash = U32_sub(_t4429, _t4430);
+                U32 _t4438; { U32 *_hp = (U32 *)Str_len(abs); _t4438 = *_hp; free(_hp); }
+                (void)_t4438;
+                U32 _t4439 = 1;
+                (void)_t4439;
+                U32 *last_slash = malloc(sizeof(U32)); *last_slash = U32_sub(_t4438, _t4439);
                 (void)last_slash;
                 ;
                 ;
                 while (1) {
-                    U32 _t4402 = 0;
-                    (void)_t4402;
-                    U8 *_t4403 = Str_get(abs, last_slash);
-                    (void)_t4403;
-                    U8 _t4404 = 47;
-                    (void)_t4404;
-                    Bool _t4405; { Bool *_hp = (Bool *)U32_gt(last_slash, &(U32){_t4402}); _t4405 = *_hp; free(_hp); }
-                    (void)_t4405;
+                    U32 _t4411 = 0;
+                    (void)_t4411;
+                    U8 *_t4412 = Str_get(abs, last_slash);
+                    (void)_t4412;
+                    U8 _t4413 = 47;
+                    (void)_t4413;
+                    Bool _t4414; { Bool *_hp = (Bool *)U32_gt(last_slash, &(U32){_t4411}); _t4414 = *_hp; free(_hp); }
+                    (void)_t4414;
                     ;
-                    Bool _t4406; { Bool *_hp = (Bool *)U8_neq(_t4403, &(U8){_t4404}); _t4406 = *_hp; free(_hp); }
-                    (void)_t4406;
+                    Bool _t4415; { Bool *_hp = (Bool *)U8_neq(_t4412, &(U8){_t4413}); _t4415 = *_hp; free(_hp); }
+                    (void)_t4415;
                     ;
-                    Bool _wcond4401 = Bool_and(_t4405, _t4406);
-                    (void)_wcond4401;
+                    Bool _wcond4410 = Bool_and(_t4414, _t4415);
+                    (void)_wcond4410;
                     ;
                     ;
-                    if (_wcond4401) {
+                    if (_wcond4410) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 _t4407 = 1;
-                    (void)_t4407;
-                    U32 _t4408 = U32_sub(DEREF(last_slash), _t4407);
-                    (void)_t4408;
+                    U32 _t4416 = 1;
+                    (void)_t4416;
+                    U32 _t4417 = U32_sub(DEREF(last_slash), _t4416);
+                    (void)_t4417;
                     ;
-                    *last_slash = _t4408;
+                    *last_slash = _t4417;
                     ;
                 }
-                Str *sub_dir = til_str_left(abs, DEREF(last_slash));
+                Str *sub_dir = str_left(abs, last_slash);
                 (void)sub_dir;
                 Str_delete(abs, &(Bool){1});
                 U32_delete(last_slash, &(Bool){1});
-                U32 _t4431; { U32 *_hp = (U32 *)Vec_len(sub_imports); _t4431 = *_hp; free(_hp); }
-                (void)_t4431;
-                U32 _t4432 = 0;
-                (void)_t4432;
-                Bool _t4433; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4431}, &(U32){_t4432}); _t4433 = *_hp; free(_hp); }
-                (void)_t4433;
+                U32 _t4440; { U32 *_hp = (U32 *)Vec_len(sub_imports); _t4440 = *_hp; free(_hp); }
+                (void)_t4440;
+                U32 _t4441 = 0;
+                (void)_t4441;
+                Bool _t4442; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4440}, &(U32){_t4441}); _t4442 = *_hp; free(_hp); }
+                (void)_t4442;
                 ;
                 ;
-                if (_t4433) {
+                if (_t4442) {
                     I32 err; { I32 *_hp = (I32 *)resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir); err = *_hp; free(_hp); }
                     (void)err;
-                    I32 _t4409 = 0;
-                    (void)_t4409;
-                    Bool _t4410; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4409}); _t4410 = *_hp; free(_hp); }
-                    (void)_t4410;
+                    I32 _t4418 = 0;
+                    (void)_t4418;
+                    Bool _t4419; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4418}); _t4419 = *_hp; free(_hp); }
+                    (void)_t4419;
                     ;
-                    if (_t4410) {
+                    if (_t4419) {
                         ;
                         ;
                         Expr_delete(sub_ast, &(Bool){1});
                         Str_delete(sub_dir, &(Bool){1});
                         Vec_delete(sub_imports, &(Bool){1});
                         Str_delete(sub_mode, &(Bool){1});
-                        U32_delete(_rc4385, &(Bool){1});
+                        U32_delete(_rc4394, &(Bool){1});
                         ;
                         ;
                         { I32 *_r = malloc(sizeof(I32)); *_r = err; return _r; }
@@ -27889,55 +27928,55 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str_delete(sub_dir, &(Bool){1});
                 Vec_delete(sub_imports, &(Bool){1});
                 {
-                    U32 _re4411; { U32 *_hp = (U32 *)Expr_child_count(sub_ast); _re4411 = *_hp; free(_hp); }
-                    (void)_re4411;
-                    U32 *_rc4411 = malloc(sizeof(U32));
-                    *_rc4411 = 0;
-                    (void)_rc4411;
-                    Bool _t4416; { Bool *_hp = (Bool *)U32_lte(_rc4411, &(U32){_re4411}); _t4416 = *_hp; free(_hp); }
-                    (void)_t4416;
-                    if (_t4416) {
+                    U32 _re4420; { U32 *_hp = (U32 *)Expr_child_count(sub_ast); _re4420 = *_hp; free(_hp); }
+                    (void)_re4420;
+                    U32 *_rc4420 = malloc(sizeof(U32));
+                    *_rc4420 = 0;
+                    (void)_rc4420;
+                    Bool _t4425; { Bool *_hp = (Bool *)U32_lte(_rc4420, &(U32){_re4420}); _t4425 = *_hp; free(_hp); }
+                    (void)_t4425;
+                    if (_t4425) {
                         while (1) {
-                            Bool _wcond4412; { Bool *_hp = (Bool *)U32_lt(_rc4411, &(U32){_re4411}); _wcond4412 = *_hp; free(_hp); }
-                            (void)_wcond4412;
-                            if (_wcond4412) {
+                            Bool _wcond4421; { Bool *_hp = (Bool *)U32_lt(_rc4420, &(U32){_re4420}); _wcond4421 = *_hp; free(_hp); }
+                            (void)_wcond4421;
+                            if (_wcond4421) {
                             } else {
                                 ;
                                 break;
                             }
                             ;
-                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4411);
+                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4420);
                             (void)k;
-                            U32_inc(_rc4411);
+                            U32_inc(_rc4420);
                             Expr *ch = Expr_child(sub_ast, k);
                             (void)ch;
-                            Expr *_t4413 = Expr_clone(ch);
-                            (void)_t4413;
+                            Expr *_t4422 = Expr_clone(ch);
+                            (void)_t4422;
                             U32_delete(k, &(Bool){1});
-                            Vec_push(merged, _t4413);
+                            Vec_push(merged, _t4422);
                         }
                     } else {
                         while (1) {
-                            Bool _wcond4414; { Bool *_hp = (Bool *)U32_gt(_rc4411, &(U32){_re4411}); _wcond4414 = *_hp; free(_hp); }
-                            (void)_wcond4414;
-                            if (_wcond4414) {
+                            Bool _wcond4423; { Bool *_hp = (Bool *)U32_gt(_rc4420, &(U32){_re4420}); _wcond4423 = *_hp; free(_hp); }
+                            (void)_wcond4423;
+                            if (_wcond4423) {
                             } else {
                                 ;
                                 break;
                             }
                             ;
-                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4411);
+                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4420);
                             (void)k;
-                            U32_dec(_rc4411);
+                            U32_dec(_rc4420);
                             Expr *ch = Expr_child(sub_ast, k);
                             (void)ch;
-                            Expr *_t4415 = Expr_clone(ch);
-                            (void)_t4415;
+                            Expr *_t4424 = Expr_clone(ch);
+                            (void)_t4424;
                             U32_delete(k, &(Bool){1});
-                            Vec_push(merged, _t4415);
+                            Vec_push(merged, _t4424);
                         }
                     }
-                    U32_delete(_rc4411, &(Bool){1});
+                    U32_delete(_rc4420, &(Bool){1});
                     ;
                     ;
                 }
@@ -27945,123 +27984,123 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
             }
         } else {
             while (1) {
-                Bool _wcond4434; { Bool *_hp = (Bool *)U32_gt(_rc4385, &(U32){_re4385}); _wcond4434 = *_hp; free(_hp); }
-                (void)_wcond4434;
-                if (_wcond4434) {
+                Bool _wcond4443; { Bool *_hp = (Bool *)U32_gt(_rc4394, &(U32){_re4394}); _wcond4443 = *_hp; free(_hp); }
+                (void)_wcond4443;
+                if (_wcond4443) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4385);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4394);
                 (void)i;
-                U32_dec(_rc4385);
+                U32_dec(_rc4394);
                 Str *import_path = Vec_get(import_paths, i);
                 (void)import_path;
-                Str *_t4465 = Str_lit("/", 1ULL);
-                (void)_t4465;
-                Str *_t4466 = Str_concat(base_dir, _t4465);
-                (void)_t4466;
-                Str_delete(_t4465, &(Bool){1});
-                Str *try_path = Str_concat(_t4466, import_path);
+                Str *_t4474 = Str_lit("/", 1ULL);
+                (void)_t4474;
+                Str *_t4475 = Str_concat(base_dir, _t4474);
+                (void)_t4475;
+                Str_delete(_t4474, &(Bool){1});
+                Str *try_path = Str_concat(_t4475, import_path);
                 (void)try_path;
-                Str_delete(_t4466, &(Bool){1});
+                Str_delete(_t4475, &(Bool){1});
                 Str *abs = til_realpath(try_path);
                 (void)abs;
-                Str *_t4467 = Str_lit("", 0ULL);
-                (void)_t4467;
-                U32 _t4468; { U32 *_hp = (U32 *)Str_len(lib_dir); _t4468 = *_hp; free(_hp); }
-                (void)_t4468;
-                U32 _t4469 = 0;
-                (void)_t4469;
-                Bool _t4470; { Bool *_hp = (Bool *)Str_eq(abs, _t4467); _t4470 = *_hp; free(_hp); }
-                (void)_t4470;
-                Str_delete(_t4467, &(Bool){1});
-                Bool _t4471; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4468}, &(U32){_t4469}); _t4471 = *_hp; free(_hp); }
-                (void)_t4471;
+                Str *_t4476 = Str_lit("", 0ULL);
+                (void)_t4476;
+                U32 _t4477; { U32 *_hp = (U32 *)Str_len(lib_dir); _t4477 = *_hp; free(_hp); }
+                (void)_t4477;
+                U32 _t4478 = 0;
+                (void)_t4478;
+                Bool _t4479; { Bool *_hp = (Bool *)Str_eq(abs, _t4476); _t4479 = *_hp; free(_hp); }
+                (void)_t4479;
+                Str_delete(_t4476, &(Bool){1});
+                Bool _t4480; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4477}, &(U32){_t4478}); _t4480 = *_hp; free(_hp); }
+                (void)_t4480;
                 ;
                 ;
-                Bool _t4472 = Bool_and(_t4470, _t4471);
-                (void)_t4472;
+                Bool _t4481 = Bool_and(_t4479, _t4480);
+                (void)_t4481;
                 ;
                 ;
-                if (_t4472) {
-                    Str *_t4435 = Str_lit("/", 1ULL);
-                    (void)_t4435;
-                    Str *_t4436 = Str_concat(lib_dir, _t4435);
-                    (void)_t4436;
-                    Str_delete(_t4435, &(Bool){1});
-                    try_path = Str_concat(_t4436, import_path);
-                    Str_delete(_t4436, &(Bool){1});
+                if (_t4481) {
+                    Str *_t4444 = Str_lit("/", 1ULL);
+                    (void)_t4444;
+                    Str *_t4445 = Str_concat(lib_dir, _t4444);
+                    (void)_t4445;
+                    Str_delete(_t4444, &(Bool){1});
+                    try_path = Str_concat(_t4445, import_path);
+                    Str_delete(_t4445, &(Bool){1});
                     abs = til_realpath(try_path);
                 }
                 ;
                 Str_delete(try_path, &(Bool){1});
-                Str *_t4473 = Str_lit("", 0ULL);
-                (void)_t4473;
-                Bool _t4474; { Bool *_hp = (Bool *)Str_eq(abs, _t4473); _t4474 = *_hp; free(_hp); }
-                (void)_t4474;
-                Str_delete(_t4473, &(Bool){1});
-                if (_t4474) {
-                    Str *_t4437 = Str_lit("Str", 3ULL);
-                    (void)_t4437;
-                    U32 _t4438; { U32 *_hp = (U32 *)Str_size(); _t4438 = *_hp; free(_hp); }
-                    (void)_t4438;
-                    U32 _t4439 = 1;
-                    (void)_t4439;
-                    Array *_va79 = Array_new(_t4437, &(U32){_t4438}, &(U32){_t4439});
-                    (void)_va79;
-                    Str_delete(_t4437, &(Bool){1});
-                    ;
-                    ;
-                    Str *_t4440 = Str_lit("error: could not find import '", 30ULL);
-                    (void)_t4440;
-                    Str *_t4441 = Str_concat(_t4440, import_path);
-                    (void)_t4441;
-                    Str_delete(_t4440, &(Bool){1});
-                    Str *_t4442 = Str_lit("' (from ", 8ULL);
-                    (void)_t4442;
-                    Str *_t4443 = Str_concat(_t4441, _t4442);
-                    (void)_t4443;
-                    Str_delete(_t4441, &(Bool){1});
-                    Str_delete(_t4442, &(Bool){1});
-                    Str *_t4444 = Str_concat(_t4443, base_dir);
-                    (void)_t4444;
-                    Str_delete(_t4443, &(Bool){1});
-                    Str *_t4445 = Str_lit("/)", 2ULL);
-                    (void)_t4445;
-                    U32 _t4446 = 0;
+                Str *_t4482 = Str_lit("", 0ULL);
+                (void)_t4482;
+                Bool _t4483; { Bool *_hp = (Bool *)Str_eq(abs, _t4482); _t4483 = *_hp; free(_hp); }
+                (void)_t4483;
+                Str_delete(_t4482, &(Bool){1});
+                if (_t4483) {
+                    Str *_t4446 = Str_lit("Str", 3ULL);
                     (void)_t4446;
-                    Str *_t4447 = Str_concat(_t4444, _t4445);
+                    U32 _t4447; { U32 *_hp = (U32 *)Str_size(); _t4447 = *_hp; free(_hp); }
                     (void)_t4447;
-                    Str_delete(_t4444, &(Bool){1});
-                    Str_delete(_t4445, &(Bool){1});
-                    Array_set(_va79, &(U32){_t4446}, _t4447);
+                    U32 _t4448 = 1;
+                    (void)_t4448;
+                    Array *_va79 = Array_new(_t4446, &(U32){_t4447}, &(U32){_t4448});
+                    (void)_va79;
+                    Str_delete(_t4446, &(Bool){1});
+                    ;
+                    ;
+                    Str *_t4449 = Str_lit("error: could not find import '", 30ULL);
+                    (void)_t4449;
+                    Str *_t4450 = Str_concat(_t4449, import_path);
+                    (void)_t4450;
+                    Str_delete(_t4449, &(Bool){1});
+                    Str *_t4451 = Str_lit("' (from ", 8ULL);
+                    (void)_t4451;
+                    Str *_t4452 = Str_concat(_t4450, _t4451);
+                    (void)_t4452;
+                    Str_delete(_t4450, &(Bool){1});
+                    Str_delete(_t4451, &(Bool){1});
+                    Str *_t4453 = Str_concat(_t4452, base_dir);
+                    (void)_t4453;
+                    Str_delete(_t4452, &(Bool){1});
+                    Str *_t4454 = Str_lit("/)", 2ULL);
+                    (void)_t4454;
+                    U32 _t4455 = 0;
+                    (void)_t4455;
+                    Str *_t4456 = Str_concat(_t4453, _t4454);
+                    (void)_t4456;
+                    Str_delete(_t4453, &(Bool){1});
+                    Str_delete(_t4454, &(Bool){1});
+                    Array_set(_va79, &(U32){_t4455}, _t4456);
                     ;
                     println(_va79);
-                    I64 _t4448 = 1;
-                    (void)_t4448;
+                    I64 _t4457 = 1;
+                    (void)_t4457;
                     ;
                     Str_delete(abs, &(Bool){1});
                     U32_delete(i, &(Bool){1});
-                    U32_delete(_rc4385, &(Bool){1});
+                    U32_delete(_rc4394, &(Bool){1});
                     ;
                     ;
-                    { I32 *_r = malloc(sizeof(I32)); *_r = _t4448; return _r; }
+                    { I32 *_r = malloc(sizeof(I32)); *_r = _t4457; return _r; }
                 }
                 ;
                 U32_delete(i, &(Bool){1});
-                Bool _t4475; { Bool *_hp = (Bool *)Set_has(resolved_set, abs); _t4475 = *_hp; free(_hp); }
-                (void)_t4475;
-                if (_t4475) {
+                Bool _t4484; { Bool *_hp = (Bool *)Set_has(resolved_set, abs); _t4484 = *_hp; free(_hp); }
+                (void)_t4484;
+                if (_t4484) {
                     ;
                     Str_delete(abs, &(Bool){1});
                     continue;
                 }
                 ;
-                Str *_t4476 = Str_clone(abs);
-                (void)_t4476;
-                Set_add(resolved_set, _t4476);
+                Str *_t4485 = Str_clone(abs);
+                (void)_t4485;
+                Set_add(resolved_set, _t4485);
                 Str *source = readfile(abs);
                 (void)source;
                 Vec *tokens = tokenize(source, abs);
@@ -28075,73 +28114,73 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str_delete(sub_mode, &(Bool){1});
                 Vec *sub_imports = extract_imports(sub_ast);
                 (void)sub_imports;
-                U32 _t4477; { U32 *_hp = (U32 *)Str_len(abs); _t4477 = *_hp; free(_hp); }
-                (void)_t4477;
-                U32 _t4478 = 1;
-                (void)_t4478;
-                U32 *last_slash = malloc(sizeof(U32)); *last_slash = U32_sub(_t4477, _t4478);
+                U32 _t4486; { U32 *_hp = (U32 *)Str_len(abs); _t4486 = *_hp; free(_hp); }
+                (void)_t4486;
+                U32 _t4487 = 1;
+                (void)_t4487;
+                U32 *last_slash = malloc(sizeof(U32)); *last_slash = U32_sub(_t4486, _t4487);
                 (void)last_slash;
                 ;
                 ;
                 while (1) {
-                    U32 _t4450 = 0;
-                    (void)_t4450;
-                    U8 *_t4451 = Str_get(abs, last_slash);
-                    (void)_t4451;
-                    U8 _t4452 = 47;
-                    (void)_t4452;
-                    Bool _t4453; { Bool *_hp = (Bool *)U32_gt(last_slash, &(U32){_t4450}); _t4453 = *_hp; free(_hp); }
-                    (void)_t4453;
+                    U32 _t4459 = 0;
+                    (void)_t4459;
+                    U8 *_t4460 = Str_get(abs, last_slash);
+                    (void)_t4460;
+                    U8 _t4461 = 47;
+                    (void)_t4461;
+                    Bool _t4462; { Bool *_hp = (Bool *)U32_gt(last_slash, &(U32){_t4459}); _t4462 = *_hp; free(_hp); }
+                    (void)_t4462;
                     ;
-                    Bool _t4454; { Bool *_hp = (Bool *)U8_neq(_t4451, &(U8){_t4452}); _t4454 = *_hp; free(_hp); }
-                    (void)_t4454;
+                    Bool _t4463; { Bool *_hp = (Bool *)U8_neq(_t4460, &(U8){_t4461}); _t4463 = *_hp; free(_hp); }
+                    (void)_t4463;
                     ;
-                    Bool _wcond4449 = Bool_and(_t4453, _t4454);
-                    (void)_wcond4449;
+                    Bool _wcond4458 = Bool_and(_t4462, _t4463);
+                    (void)_wcond4458;
                     ;
                     ;
-                    if (_wcond4449) {
+                    if (_wcond4458) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 _t4455 = 1;
-                    (void)_t4455;
-                    U32 _t4456 = U32_sub(DEREF(last_slash), _t4455);
-                    (void)_t4456;
+                    U32 _t4464 = 1;
+                    (void)_t4464;
+                    U32 _t4465 = U32_sub(DEREF(last_slash), _t4464);
+                    (void)_t4465;
                     ;
-                    *last_slash = _t4456;
+                    *last_slash = _t4465;
                     ;
                 }
-                Str *sub_dir = til_str_left(abs, DEREF(last_slash));
+                Str *sub_dir = str_left(abs, last_slash);
                 (void)sub_dir;
                 Str_delete(abs, &(Bool){1});
                 U32_delete(last_slash, &(Bool){1});
-                U32 _t4479; { U32 *_hp = (U32 *)Vec_len(sub_imports); _t4479 = *_hp; free(_hp); }
-                (void)_t4479;
-                U32 _t4480 = 0;
-                (void)_t4480;
-                Bool _t4481; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4479}, &(U32){_t4480}); _t4481 = *_hp; free(_hp); }
-                (void)_t4481;
+                U32 _t4488; { U32 *_hp = (U32 *)Vec_len(sub_imports); _t4488 = *_hp; free(_hp); }
+                (void)_t4488;
+                U32 _t4489 = 0;
+                (void)_t4489;
+                Bool _t4490; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4488}, &(U32){_t4489}); _t4490 = *_hp; free(_hp); }
+                (void)_t4490;
                 ;
                 ;
-                if (_t4481) {
+                if (_t4490) {
                     I32 err; { I32 *_hp = (I32 *)resolve_imports(sub_imports, sub_dir, resolved_set, stack, merged, lib_dir); err = *_hp; free(_hp); }
                     (void)err;
-                    I32 _t4457 = 0;
-                    (void)_t4457;
-                    Bool _t4458; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4457}); _t4458 = *_hp; free(_hp); }
-                    (void)_t4458;
+                    I32 _t4466 = 0;
+                    (void)_t4466;
+                    Bool _t4467; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4466}); _t4467 = *_hp; free(_hp); }
+                    (void)_t4467;
                     ;
-                    if (_t4458) {
+                    if (_t4467) {
                         ;
                         ;
                         Expr_delete(sub_ast, &(Bool){1});
                         Str_delete(sub_dir, &(Bool){1});
                         Vec_delete(sub_imports, &(Bool){1});
                         Str_delete(sub_mode, &(Bool){1});
-                        U32_delete(_rc4385, &(Bool){1});
+                        U32_delete(_rc4394, &(Bool){1});
                         ;
                         ;
                         { I32 *_r = malloc(sizeof(I32)); *_r = err; return _r; }
@@ -28153,287 +28192,287 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str_delete(sub_dir, &(Bool){1});
                 Vec_delete(sub_imports, &(Bool){1});
                 {
-                    U32 _re4459; { U32 *_hp = (U32 *)Expr_child_count(sub_ast); _re4459 = *_hp; free(_hp); }
-                    (void)_re4459;
-                    U32 *_rc4459 = malloc(sizeof(U32));
-                    *_rc4459 = 0;
-                    (void)_rc4459;
-                    Bool _t4464; { Bool *_hp = (Bool *)U32_lte(_rc4459, &(U32){_re4459}); _t4464 = *_hp; free(_hp); }
-                    (void)_t4464;
-                    if (_t4464) {
+                    U32 _re4468; { U32 *_hp = (U32 *)Expr_child_count(sub_ast); _re4468 = *_hp; free(_hp); }
+                    (void)_re4468;
+                    U32 *_rc4468 = malloc(sizeof(U32));
+                    *_rc4468 = 0;
+                    (void)_rc4468;
+                    Bool _t4473; { Bool *_hp = (Bool *)U32_lte(_rc4468, &(U32){_re4468}); _t4473 = *_hp; free(_hp); }
+                    (void)_t4473;
+                    if (_t4473) {
                         while (1) {
-                            Bool _wcond4460; { Bool *_hp = (Bool *)U32_lt(_rc4459, &(U32){_re4459}); _wcond4460 = *_hp; free(_hp); }
-                            (void)_wcond4460;
-                            if (_wcond4460) {
+                            Bool _wcond4469; { Bool *_hp = (Bool *)U32_lt(_rc4468, &(U32){_re4468}); _wcond4469 = *_hp; free(_hp); }
+                            (void)_wcond4469;
+                            if (_wcond4469) {
                             } else {
                                 ;
                                 break;
                             }
                             ;
-                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4459);
+                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4468);
                             (void)k;
-                            U32_inc(_rc4459);
+                            U32_inc(_rc4468);
                             Expr *ch = Expr_child(sub_ast, k);
                             (void)ch;
-                            Expr *_t4461 = Expr_clone(ch);
-                            (void)_t4461;
+                            Expr *_t4470 = Expr_clone(ch);
+                            (void)_t4470;
                             U32_delete(k, &(Bool){1});
-                            Vec_push(merged, _t4461);
+                            Vec_push(merged, _t4470);
                         }
                     } else {
                         while (1) {
-                            Bool _wcond4462; { Bool *_hp = (Bool *)U32_gt(_rc4459, &(U32){_re4459}); _wcond4462 = *_hp; free(_hp); }
-                            (void)_wcond4462;
-                            if (_wcond4462) {
+                            Bool _wcond4471; { Bool *_hp = (Bool *)U32_gt(_rc4468, &(U32){_re4468}); _wcond4471 = *_hp; free(_hp); }
+                            (void)_wcond4471;
+                            if (_wcond4471) {
                             } else {
                                 ;
                                 break;
                             }
                             ;
-                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4459);
+                            U32 *k = malloc(sizeof(U32)); *k = U32_clone(_rc4468);
                             (void)k;
-                            U32_dec(_rc4459);
+                            U32_dec(_rc4468);
                             Expr *ch = Expr_child(sub_ast, k);
                             (void)ch;
-                            Expr *_t4463 = Expr_clone(ch);
-                            (void)_t4463;
+                            Expr *_t4472 = Expr_clone(ch);
+                            (void)_t4472;
                             U32_delete(k, &(Bool){1});
-                            Vec_push(merged, _t4463);
+                            Vec_push(merged, _t4472);
                         }
                     }
-                    U32_delete(_rc4459, &(Bool){1});
+                    U32_delete(_rc4468, &(Bool){1});
                     ;
                     ;
                 }
                 Expr_delete(sub_ast, &(Bool){1});
             }
         }
-        U32_delete(_rc4385, &(Bool){1});
+        U32_delete(_rc4394, &(Bool){1});
         ;
         ;
     }
-    I64 _t4483 = 0;
-    (void)_t4483;
-    { I32 *_r = malloc(sizeof(I32)); *_r = _t4483; return _r; }
+    I64 _t4492 = 0;
+    (void)_t4492;
+    { I32 *_r = malloc(sizeof(I32)); *_r = _t4492; return _r; }
 }
 
 void usage(void) {
-    Str *_t4484 = Str_lit("Str", 3ULL);
-    (void)_t4484;
-    U32 _t4485; { U32 *_hp = (U32 *)Str_size(); _t4485 = *_hp; free(_hp); }
-    (void)_t4485;
-    U32 _t4486 = 1;
-    (void)_t4486;
-    Array *_va80 = Array_new(_t4484, &(U32){_t4485}, &(U32){_t4486});
+    Str *_t4493 = Str_lit("Str", 3ULL);
+    (void)_t4493;
+    U32 _t4494; { U32 *_hp = (U32 *)Str_size(); _t4494 = *_hp; free(_hp); }
+    (void)_t4494;
+    U32 _t4495 = 1;
+    (void)_t4495;
+    Array *_va80 = Array_new(_t4493, &(U32){_t4494}, &(U32){_t4495});
     (void)_va80;
-    Str_delete(_t4484, &(Bool){1});
+    Str_delete(_t4493, &(Bool){1});
     ;
     ;
-    U32 _t4487 = 0;
-    (void)_t4487;
-    Str *_t4488 = Str_lit("Usage: til <command> <path>", 27ULL);
-    (void)_t4488;
-    Array_set(_va80, &(U32){_t4487}, _t4488);
+    U32 _t4496 = 0;
+    (void)_t4496;
+    Str *_t4497 = Str_lit("Usage: til <command> <path>", 27ULL);
+    (void)_t4497;
+    Array_set(_va80, &(U32){_t4496}, _t4497);
     ;
     println(_va80);
-    Str *_t4489 = Str_lit("Str", 3ULL);
-    (void)_t4489;
-    U32 _t4490; { U32 *_hp = (U32 *)Str_size(); _t4490 = *_hp; free(_hp); }
-    (void)_t4490;
-    U32 _t4491 = 1;
-    (void)_t4491;
-    Array *_va81 = Array_new(_t4489, &(U32){_t4490}, &(U32){_t4491});
+    Str *_t4498 = Str_lit("Str", 3ULL);
+    (void)_t4498;
+    U32 _t4499; { U32 *_hp = (U32 *)Str_size(); _t4499 = *_hp; free(_hp); }
+    (void)_t4499;
+    U32 _t4500 = 1;
+    (void)_t4500;
+    Array *_va81 = Array_new(_t4498, &(U32){_t4499}, &(U32){_t4500});
     (void)_va81;
-    Str_delete(_t4489, &(Bool){1});
+    Str_delete(_t4498, &(Bool){1});
     ;
     ;
-    U32 _t4492 = 0;
-    (void)_t4492;
-    Str *_t4493 = Str_lit("", 0ULL);
-    (void)_t4493;
-    Array_set(_va81, &(U32){_t4492}, _t4493);
+    U32 _t4501 = 0;
+    (void)_t4501;
+    Str *_t4502 = Str_lit("", 0ULL);
+    (void)_t4502;
+    Array_set(_va81, &(U32){_t4501}, _t4502);
     ;
     println(_va81);
-    Str *_t4494 = Str_lit("Str", 3ULL);
-    (void)_t4494;
-    U32 _t4495; { U32 *_hp = (U32 *)Str_size(); _t4495 = *_hp; free(_hp); }
-    (void)_t4495;
-    U32 _t4496 = 1;
-    (void)_t4496;
-    Array *_va82 = Array_new(_t4494, &(U32){_t4495}, &(U32){_t4496});
+    Str *_t4503 = Str_lit("Str", 3ULL);
+    (void)_t4503;
+    U32 _t4504; { U32 *_hp = (U32 *)Str_size(); _t4504 = *_hp; free(_hp); }
+    (void)_t4504;
+    U32 _t4505 = 1;
+    (void)_t4505;
+    Array *_va82 = Array_new(_t4503, &(U32){_t4504}, &(U32){_t4505});
     (void)_va82;
-    Str_delete(_t4494, &(Bool){1});
+    Str_delete(_t4503, &(Bool){1});
     ;
     ;
-    U32 _t4497 = 0;
-    (void)_t4497;
-    Str *_t4498 = Str_lit("Commands:", 9ULL);
-    (void)_t4498;
-    Array_set(_va82, &(U32){_t4497}, _t4498);
+    U32 _t4506 = 0;
+    (void)_t4506;
+    Str *_t4507 = Str_lit("Commands:", 9ULL);
+    (void)_t4507;
+    Array_set(_va82, &(U32){_t4506}, _t4507);
     ;
     println(_va82);
-    Str *_t4499 = Str_lit("Str", 3ULL);
-    (void)_t4499;
-    U32 _t4500; { U32 *_hp = (U32 *)Str_size(); _t4500 = *_hp; free(_hp); }
-    (void)_t4500;
-    U32 _t4501 = 1;
-    (void)_t4501;
-    Array *_va83 = Array_new(_t4499, &(U32){_t4500}, &(U32){_t4501});
+    Str *_t4508 = Str_lit("Str", 3ULL);
+    (void)_t4508;
+    U32 _t4509; { U32 *_hp = (U32 *)Str_size(); _t4509 = *_hp; free(_hp); }
+    (void)_t4509;
+    U32 _t4510 = 1;
+    (void)_t4510;
+    Array *_va83 = Array_new(_t4508, &(U32){_t4509}, &(U32){_t4510});
     (void)_va83;
-    Str_delete(_t4499, &(Bool){1});
+    Str_delete(_t4508, &(Bool){1});
     ;
     ;
-    U32 _t4502 = 0;
-    (void)_t4502;
-    Str *_t4503 = Str_lit("  interpret  Read and interpret a .til file", 43ULL);
-    (void)_t4503;
-    Array_set(_va83, &(U32){_t4502}, _t4503);
+    U32 _t4511 = 0;
+    (void)_t4511;
+    Str *_t4512 = Str_lit("  interpret  Read and interpret a .til file", 43ULL);
+    (void)_t4512;
+    Array_set(_va83, &(U32){_t4511}, _t4512);
     ;
     println(_va83);
-    Str *_t4504 = Str_lit("Str", 3ULL);
-    (void)_t4504;
-    U32 _t4505; { U32 *_hp = (U32 *)Str_size(); _t4505 = *_hp; free(_hp); }
-    (void)_t4505;
-    U32 _t4506 = 1;
-    (void)_t4506;
-    Array *_va84 = Array_new(_t4504, &(U32){_t4505}, &(U32){_t4506});
+    Str *_t4513 = Str_lit("Str", 3ULL);
+    (void)_t4513;
+    U32 _t4514; { U32 *_hp = (U32 *)Str_size(); _t4514 = *_hp; free(_hp); }
+    (void)_t4514;
+    U32 _t4515 = 1;
+    (void)_t4515;
+    Array *_va84 = Array_new(_t4513, &(U32){_t4514}, &(U32){_t4515});
     (void)_va84;
-    Str_delete(_t4504, &(Bool){1});
+    Str_delete(_t4513, &(Bool){1});
     ;
     ;
-    U32 _t4507 = 0;
-    (void)_t4507;
-    Str *_t4508 = Str_lit("  translate  Generate C source (no compilation)", 47ULL);
-    (void)_t4508;
-    Array_set(_va84, &(U32){_t4507}, _t4508);
+    U32 _t4516 = 0;
+    (void)_t4516;
+    Str *_t4517 = Str_lit("  translate  Generate C source (no compilation)", 47ULL);
+    (void)_t4517;
+    Array_set(_va84, &(U32){_t4516}, _t4517);
     ;
     println(_va84);
-    Str *_t4509 = Str_lit("Str", 3ULL);
-    (void)_t4509;
-    U32 _t4510; { U32 *_hp = (U32 *)Str_size(); _t4510 = *_hp; free(_hp); }
-    (void)_t4510;
-    U32 _t4511 = 1;
-    (void)_t4511;
-    Array *_va85 = Array_new(_t4509, &(U32){_t4510}, &(U32){_t4511});
+    Str *_t4518 = Str_lit("Str", 3ULL);
+    (void)_t4518;
+    U32 _t4519; { U32 *_hp = (U32 *)Str_size(); _t4519 = *_hp; free(_hp); }
+    (void)_t4519;
+    U32 _t4520 = 1;
+    (void)_t4520;
+    Array *_va85 = Array_new(_t4518, &(U32){_t4519}, &(U32){_t4520});
     (void)_va85;
-    Str_delete(_t4509, &(Bool){1});
+    Str_delete(_t4518, &(Bool){1});
     ;
     ;
-    U32 _t4512 = 0;
-    (void)_t4512;
-    Str *_t4513 = Str_lit("  build      Compile a .til file to a binary", 44ULL);
-    (void)_t4513;
-    Array_set(_va85, &(U32){_t4512}, _t4513);
+    U32 _t4521 = 0;
+    (void)_t4521;
+    Str *_t4522 = Str_lit("  build      Compile a .til file to a binary", 44ULL);
+    (void)_t4522;
+    Array_set(_va85, &(U32){_t4521}, _t4522);
     ;
     println(_va85);
-    Str *_t4514 = Str_lit("Str", 3ULL);
-    (void)_t4514;
-    U32 _t4515; { U32 *_hp = (U32 *)Str_size(); _t4515 = *_hp; free(_hp); }
-    (void)_t4515;
-    U32 _t4516 = 1;
-    (void)_t4516;
-    Array *_va86 = Array_new(_t4514, &(U32){_t4515}, &(U32){_t4516});
+    Str *_t4523 = Str_lit("Str", 3ULL);
+    (void)_t4523;
+    U32 _t4524; { U32 *_hp = (U32 *)Str_size(); _t4524 = *_hp; free(_hp); }
+    (void)_t4524;
+    U32 _t4525 = 1;
+    (void)_t4525;
+    Array *_va86 = Array_new(_t4523, &(U32){_t4524}, &(U32){_t4525});
     (void)_va86;
-    Str_delete(_t4514, &(Bool){1});
+    Str_delete(_t4523, &(Bool){1});
     ;
     ;
-    U32 _t4517 = 0;
-    (void)_t4517;
-    Str *_t4518 = Str_lit("  run        Compile and run a .til file", 40ULL);
-    (void)_t4518;
-    Array_set(_va86, &(U32){_t4517}, _t4518);
+    U32 _t4526 = 0;
+    (void)_t4526;
+    Str *_t4527 = Str_lit("  run        Compile and run a .til file", 40ULL);
+    (void)_t4527;
+    Array_set(_va86, &(U32){_t4526}, _t4527);
     ;
     println(_va86);
-    Str *_t4519 = Str_lit("Str", 3ULL);
-    (void)_t4519;
-    U32 _t4520; { U32 *_hp = (U32 *)Str_size(); _t4520 = *_hp; free(_hp); }
-    (void)_t4520;
-    U32 _t4521 = 1;
-    (void)_t4521;
-    Array *_va87 = Array_new(_t4519, &(U32){_t4520}, &(U32){_t4521});
+    Str *_t4528 = Str_lit("Str", 3ULL);
+    (void)_t4528;
+    U32 _t4529; { U32 *_hp = (U32 *)Str_size(); _t4529 = *_hp; free(_hp); }
+    (void)_t4529;
+    U32 _t4530 = 1;
+    (void)_t4530;
+    Array *_va87 = Array_new(_t4528, &(U32){_t4529}, &(U32){_t4530});
     (void)_va87;
-    Str_delete(_t4519, &(Bool){1});
+    Str_delete(_t4528, &(Bool){1});
     ;
     ;
-    U32 _t4522 = 0;
-    (void)_t4522;
-    Str *_t4523 = Str_lit("  test       Run test functions in a .til file", 46ULL);
-    (void)_t4523;
-    Array_set(_va87, &(U32){_t4522}, _t4523);
+    U32 _t4531 = 0;
+    (void)_t4531;
+    Str *_t4532 = Str_lit("  test       Run test functions in a .til file", 46ULL);
+    (void)_t4532;
+    Array_set(_va87, &(U32){_t4531}, _t4532);
     ;
     println(_va87);
-    Str *_t4524 = Str_lit("Str", 3ULL);
-    (void)_t4524;
-    U32 _t4525; { U32 *_hp = (U32 *)Str_size(); _t4525 = *_hp; free(_hp); }
-    (void)_t4525;
-    U32 _t4526 = 1;
-    (void)_t4526;
-    Array *_va88 = Array_new(_t4524, &(U32){_t4525}, &(U32){_t4526});
+    Str *_t4533 = Str_lit("Str", 3ULL);
+    (void)_t4533;
+    U32 _t4534; { U32 *_hp = (U32 *)Str_size(); _t4534 = *_hp; free(_hp); }
+    (void)_t4534;
+    U32 _t4535 = 1;
+    (void)_t4535;
+    Array *_va88 = Array_new(_t4533, &(U32){_t4534}, &(U32){_t4535});
     (void)_va88;
-    Str_delete(_t4524, &(Bool){1});
+    Str_delete(_t4533, &(Bool){1});
     ;
     ;
-    U32 _t4527 = 0;
-    (void)_t4527;
-    Str *_t4528 = Str_lit("  help       Print this message", 31ULL);
-    (void)_t4528;
-    Array_set(_va88, &(U32){_t4527}, _t4528);
+    U32 _t4536 = 0;
+    (void)_t4536;
+    Str *_t4537 = Str_lit("  help       Print this message", 31ULL);
+    (void)_t4537;
+    Array_set(_va88, &(U32){_t4536}, _t4537);
     ;
     println(_va88);
 }
 
 void mark_core(Expr * e) {
     (void)e;
-    Bool _t4535 = 1;
-    (void)_t4535;
-    e->is_core = _t4535;
+    Bool _t4544 = 1;
+    (void)_t4544;
+    e->is_core = _t4544;
     ;
     {
-        U32 _re4529; { U32 *_hp = (U32 *)Expr_child_count(e); _re4529 = *_hp; free(_hp); }
-        (void)_re4529;
-        U32 *_rc4529 = malloc(sizeof(U32));
-        *_rc4529 = 0;
-        (void)_rc4529;
-        Bool _t4534; { Bool *_hp = (Bool *)U32_lte(_rc4529, &(U32){_re4529}); _t4534 = *_hp; free(_hp); }
-        (void)_t4534;
-        if (_t4534) {
+        U32 _re4538; { U32 *_hp = (U32 *)Expr_child_count(e); _re4538 = *_hp; free(_hp); }
+        (void)_re4538;
+        U32 *_rc4538 = malloc(sizeof(U32));
+        *_rc4538 = 0;
+        (void)_rc4538;
+        Bool _t4543; { Bool *_hp = (Bool *)U32_lte(_rc4538, &(U32){_re4538}); _t4543 = *_hp; free(_hp); }
+        (void)_t4543;
+        if (_t4543) {
             while (1) {
-                Bool _wcond4530; { Bool *_hp = (Bool *)U32_lt(_rc4529, &(U32){_re4529}); _wcond4530 = *_hp; free(_hp); }
-                (void)_wcond4530;
-                if (_wcond4530) {
+                Bool _wcond4539; { Bool *_hp = (Bool *)U32_lt(_rc4538, &(U32){_re4538}); _wcond4539 = *_hp; free(_hp); }
+                (void)_wcond4539;
+                if (_wcond4539) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4529);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4538);
                 (void)i;
-                U32_inc(_rc4529);
-                Expr *_t4531 = Expr_child(e, i);
-                (void)_t4531;
-                mark_core(_t4531);
+                U32_inc(_rc4538);
+                Expr *_t4540 = Expr_child(e, i);
+                (void)_t4540;
+                mark_core(_t4540);
                 U32_delete(i, &(Bool){1});
             }
         } else {
             while (1) {
-                Bool _wcond4532; { Bool *_hp = (Bool *)U32_gt(_rc4529, &(U32){_re4529}); _wcond4532 = *_hp; free(_hp); }
-                (void)_wcond4532;
-                if (_wcond4532) {
+                Bool _wcond4541; { Bool *_hp = (Bool *)U32_gt(_rc4538, &(U32){_re4538}); _wcond4541 = *_hp; free(_hp); }
+                (void)_wcond4541;
+                if (_wcond4541) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4529);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4538);
                 (void)i;
-                U32_dec(_rc4529);
-                Expr *_t4533 = Expr_child(e, i);
-                (void)_t4533;
-                mark_core(_t4533);
+                U32_dec(_rc4538);
+                Expr *_t4542 = Expr_child(e, i);
+                (void)_t4542;
+                mark_core(_t4542);
                 U32_delete(i, &(Bool){1});
             }
         }
-        U32_delete(_rc4529, &(Bool){1});
+        U32_delete(_rc4538, &(Bool){1});
         ;
         ;
     }
@@ -28441,212 +28480,212 @@ void mark_core(Expr * e) {
 
 int main(int argc, char **argv) {
     if (argc - 1 < 0) { fprintf(stderr, "error: main expects at least 0 argument(s), got %d\n", argc - 1); return 1; }
-    _t5026 = malloc(sizeof(I64));
-    *_t5026 = 0;
-    (void)_t5026;
-    _t5027 = malloc(sizeof(I64));
-    *_t5027 = 1;
-    (void)_t5027;
-    _t5028 = malloc(sizeof(I64)); *_t5028 = I64_sub(DEREF(_t5026), DEREF(_t5027));
-    (void)_t5028;
-    CAP_LIT = malloc(sizeof(U32)); *CAP_LIT = I64_to_usize(DEREF(_t5028));
-    (void)CAP_LIT;
-    _t5029 = malloc(sizeof(I64));
-    *_t5029 = 0;
-    (void)_t5029;
-    _t5030 = malloc(sizeof(I64));
-    *_t5030 = 2;
-    (void)_t5030;
-    _t5031 = malloc(sizeof(I64)); *_t5031 = I64_sub(DEREF(_t5029), DEREF(_t5030));
-    (void)_t5031;
-    CAP_VIEW = malloc(sizeof(U32)); *CAP_VIEW = I64_to_usize(DEREF(_t5031));
-    (void)CAP_VIEW;
-    _t5032 = Str_lit("Str", 3ULL);
-    (void)_t5032;
-    _t5033 = Str_size();
-    (void)_t5033;
-    _t5034 = Str_lit("Mode", 4ULL);
-    (void)_t5034;
-    _t5035 = Mode_size();
+    _t5035 = malloc(sizeof(I64));
+    *_t5035 = 0;
     (void)_t5035;
-    core_modes = Map_new(_t5032, _t5033, _t5034, _t5035);
-    (void)core_modes;
-    _t5036 = malloc(sizeof(Bool));
-    *_t5036 = 0;
+    _t5036 = malloc(sizeof(I64));
+    *_t5036 = 1;
     (void)_t5036;
-    _t5037 = malloc(sizeof(Bool));
-    *_t5037 = 0;
+    _t5037 = malloc(sizeof(I64)); *_t5037 = I64_sub(DEREF(_t5035), DEREF(_t5036));
     (void)_t5037;
-    _t5038 = malloc(sizeof(Bool));
+    CAP_LIT = malloc(sizeof(U32)); *CAP_LIT = I64_to_usize(DEREF(_t5037));
+    (void)CAP_LIT;
+    _t5038 = malloc(sizeof(I64));
     *_t5038 = 0;
     (void)_t5038;
-    _t5039 = malloc(sizeof(Bool));
-    *_t5039 = 0;
+    _t5039 = malloc(sizeof(I64));
+    *_t5039 = 2;
     (void)_t5039;
-    _t5040 = Str_lit("script", 6ULL);
+    _t5040 = malloc(sizeof(I64)); *_t5040 = I64_sub(DEREF(_t5038), DEREF(_t5039));
     (void)_t5040;
-    _t5041 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("script", 6ULL)); _t5041->name = *_ca; free(_ca); }
-    _t5041->needs_main = DEREF(_t5036);
-    _t5041->decls_only = DEREF(_t5037);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5041->auto_import = *_ca; free(_ca); }
-    _t5041->is_pure = DEREF(_t5038);
-    _t5041->debug_prints = DEREF(_t5039);
+    CAP_VIEW = malloc(sizeof(U32)); *CAP_VIEW = I64_to_usize(DEREF(_t5040));
+    (void)CAP_VIEW;
+    _t5041 = Str_lit("Str", 3ULL);
     (void)_t5041;
-    _t5042 = malloc(sizeof(Bool));
-    *_t5042 = 1;
+    _t5042 = Str_size();
     (void)_t5042;
-    _t5043 = malloc(sizeof(Bool));
-    *_t5043 = 1;
+    _t5043 = Str_lit("Mode", 4ULL);
     (void)_t5043;
-    _t5044 = malloc(sizeof(Bool));
-    *_t5044 = 0;
+    _t5044 = Mode_size();
     (void)_t5044;
+    core_modes = Map_new(_t5041, _t5042, _t5043, _t5044);
+    (void)core_modes;
     _t5045 = malloc(sizeof(Bool));
     *_t5045 = 0;
     (void)_t5045;
-    _t5046 = Str_lit("cli", 3ULL);
+    _t5046 = malloc(sizeof(Bool));
+    *_t5046 = 0;
     (void)_t5046;
-    _t5047 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("cli", 3ULL)); _t5047->name = *_ca; free(_ca); }
-    _t5047->needs_main = DEREF(_t5042);
-    _t5047->decls_only = DEREF(_t5043);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5047->auto_import = *_ca; free(_ca); }
-    _t5047->is_pure = DEREF(_t5044);
-    _t5047->debug_prints = DEREF(_t5045);
+    _t5047 = malloc(sizeof(Bool));
+    *_t5047 = 0;
     (void)_t5047;
     _t5048 = malloc(sizeof(Bool));
-    *_t5048 = 1;
+    *_t5048 = 0;
     (void)_t5048;
-    _t5049 = malloc(sizeof(Bool));
-    *_t5049 = 1;
+    _t5049 = Str_lit("script", 6ULL);
     (void)_t5049;
-    _t5050 = malloc(sizeof(Bool));
-    *_t5050 = 0;
+    _t5050 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("script", 6ULL)); _t5050->name = *_ca; free(_ca); }
+    _t5050->needs_main = DEREF(_t5045);
+    _t5050->decls_only = DEREF(_t5046);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5050->auto_import = *_ca; free(_ca); }
+    _t5050->is_pure = DEREF(_t5047);
+    _t5050->debug_prints = DEREF(_t5048);
     (void)_t5050;
     _t5051 = malloc(sizeof(Bool));
-    *_t5051 = 0;
+    *_t5051 = 1;
     (void)_t5051;
-    _t5052 = Str_lit("gui", 3ULL);
+    _t5052 = malloc(sizeof(Bool));
+    *_t5052 = 1;
     (void)_t5052;
-    _t5053 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t5053->name = *_ca; free(_ca); }
-    _t5053->needs_main = DEREF(_t5048);
-    _t5053->decls_only = DEREF(_t5049);
-    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t5053->auto_import = *_ca; free(_ca); }
-    _t5053->is_pure = DEREF(_t5050);
-    _t5053->debug_prints = DEREF(_t5051);
+    _t5053 = malloc(sizeof(Bool));
+    *_t5053 = 0;
     (void)_t5053;
     _t5054 = malloc(sizeof(Bool));
     *_t5054 = 0;
     (void)_t5054;
-    _t5055 = malloc(sizeof(Bool));
-    *_t5055 = 1;
+    _t5055 = Str_lit("cli", 3ULL);
     (void)_t5055;
-    _t5056 = malloc(sizeof(Bool));
-    *_t5056 = 0;
+    _t5056 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("cli", 3ULL)); _t5056->name = *_ca; free(_ca); }
+    _t5056->needs_main = DEREF(_t5051);
+    _t5056->decls_only = DEREF(_t5052);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5056->auto_import = *_ca; free(_ca); }
+    _t5056->is_pure = DEREF(_t5053);
+    _t5056->debug_prints = DEREF(_t5054);
     (void)_t5056;
     _t5057 = malloc(sizeof(Bool));
-    *_t5057 = 0;
+    *_t5057 = 1;
     (void)_t5057;
-    _t5058 = Str_lit("test", 4ULL);
+    _t5058 = malloc(sizeof(Bool));
+    *_t5058 = 1;
     (void)_t5058;
-    _t5059 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("test", 4ULL)); _t5059->name = *_ca; free(_ca); }
-    _t5059->needs_main = DEREF(_t5054);
-    _t5059->decls_only = DEREF(_t5055);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5059->auto_import = *_ca; free(_ca); }
-    _t5059->is_pure = DEREF(_t5056);
-    _t5059->debug_prints = DEREF(_t5057);
+    _t5059 = malloc(sizeof(Bool));
+    *_t5059 = 0;
     (void)_t5059;
     _t5060 = malloc(sizeof(Bool));
     *_t5060 = 0;
     (void)_t5060;
-    _t5061 = malloc(sizeof(Bool));
-    *_t5061 = 1;
+    _t5061 = Str_lit("gui", 3ULL);
     (void)_t5061;
-    _t5062 = malloc(sizeof(Bool));
-    *_t5062 = 1;
+    _t5062 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t5062->name = *_ca; free(_ca); }
+    _t5062->needs_main = DEREF(_t5057);
+    _t5062->decls_only = DEREF(_t5058);
+    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t5062->auto_import = *_ca; free(_ca); }
+    _t5062->is_pure = DEREF(_t5059);
+    _t5062->debug_prints = DEREF(_t5060);
     (void)_t5062;
     _t5063 = malloc(sizeof(Bool));
     *_t5063 = 0;
     (void)_t5063;
-    _t5064 = Str_lit("pure", 4ULL);
+    _t5064 = malloc(sizeof(Bool));
+    *_t5064 = 1;
     (void)_t5064;
-    _t5065 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("pure", 4ULL)); _t5065->name = *_ca; free(_ca); }
-    _t5065->needs_main = DEREF(_t5060);
-    _t5065->decls_only = DEREF(_t5061);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5065->auto_import = *_ca; free(_ca); }
-    _t5065->is_pure = DEREF(_t5062);
-    _t5065->debug_prints = DEREF(_t5063);
+    _t5065 = malloc(sizeof(Bool));
+    *_t5065 = 0;
     (void)_t5065;
     _t5066 = malloc(sizeof(Bool));
     *_t5066 = 0;
     (void)_t5066;
-    _t5067 = malloc(sizeof(Bool));
-    *_t5067 = 1;
+    _t5067 = Str_lit("test", 4ULL);
     (void)_t5067;
-    _t5068 = malloc(sizeof(Bool));
-    *_t5068 = 1;
+    _t5068 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("test", 4ULL)); _t5068->name = *_ca; free(_ca); }
+    _t5068->needs_main = DEREF(_t5063);
+    _t5068->decls_only = DEREF(_t5064);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5068->auto_import = *_ca; free(_ca); }
+    _t5068->is_pure = DEREF(_t5065);
+    _t5068->debug_prints = DEREF(_t5066);
     (void)_t5068;
     _t5069 = malloc(sizeof(Bool));
-    *_t5069 = 1;
+    *_t5069 = 0;
     (void)_t5069;
-    _t5070 = Str_lit("pura", 4ULL);
+    _t5070 = malloc(sizeof(Bool));
+    *_t5070 = 1;
     (void)_t5070;
-    _t5071 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("pura", 4ULL)); _t5071->name = *_ca; free(_ca); }
-    _t5071->needs_main = DEREF(_t5066);
-    _t5071->decls_only = DEREF(_t5067);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5071->auto_import = *_ca; free(_ca); }
-    _t5071->is_pure = DEREF(_t5068);
-    _t5071->debug_prints = DEREF(_t5069);
+    _t5071 = malloc(sizeof(Bool));
+    *_t5071 = 1;
     (void)_t5071;
     _t5072 = malloc(sizeof(Bool));
     *_t5072 = 0;
     (void)_t5072;
-    _t5073 = malloc(sizeof(Bool));
-    *_t5073 = 1;
+    _t5073 = Str_lit("pure", 4ULL);
     (void)_t5073;
-    _t5074 = malloc(sizeof(Bool));
-    *_t5074 = 0;
+    _t5074 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("pure", 4ULL)); _t5074->name = *_ca; free(_ca); }
+    _t5074->needs_main = DEREF(_t5069);
+    _t5074->decls_only = DEREF(_t5070);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5074->auto_import = *_ca; free(_ca); }
+    _t5074->is_pure = DEREF(_t5071);
+    _t5074->debug_prints = DEREF(_t5072);
     (void)_t5074;
     _t5075 = malloc(sizeof(Bool));
     *_t5075 = 0;
     (void)_t5075;
-    _t5076 = Str_lit("lib", 3ULL);
+    _t5076 = malloc(sizeof(Bool));
+    *_t5076 = 1;
     (void)_t5076;
-    _t5077 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("lib", 3ULL)); _t5077->name = *_ca; free(_ca); }
-    _t5077->needs_main = DEREF(_t5072);
-    _t5077->decls_only = DEREF(_t5073);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5077->auto_import = *_ca; free(_ca); }
-    _t5077->is_pure = DEREF(_t5074);
-    _t5077->debug_prints = DEREF(_t5075);
+    _t5077 = malloc(sizeof(Bool));
+    *_t5077 = 1;
     (void)_t5077;
     _t5078 = malloc(sizeof(Bool));
-    *_t5078 = 0;
+    *_t5078 = 1;
     (void)_t5078;
-    _t5079 = malloc(sizeof(Bool));
-    *_t5079 = 1;
+    _t5079 = Str_lit("pura", 4ULL);
     (void)_t5079;
-    _t5080 = malloc(sizeof(Bool));
-    *_t5080 = 0;
+    _t5080 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("pura", 4ULL)); _t5080->name = *_ca; free(_ca); }
+    _t5080->needs_main = DEREF(_t5075);
+    _t5080->decls_only = DEREF(_t5076);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5080->auto_import = *_ca; free(_ca); }
+    _t5080->is_pure = DEREF(_t5077);
+    _t5080->debug_prints = DEREF(_t5078);
     (void)_t5080;
     _t5081 = malloc(sizeof(Bool));
-    *_t5081 = 1;
+    *_t5081 = 0;
     (void)_t5081;
-    _t5082 = Str_lit("liba", 4ULL);
+    _t5082 = malloc(sizeof(Bool));
+    *_t5082 = 1;
     (void)_t5082;
-    _t5083 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("liba", 4ULL)); _t5083->name = *_ca; free(_ca); }
-    _t5083->needs_main = DEREF(_t5078);
-    _t5083->decls_only = DEREF(_t5079);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5083->auto_import = *_ca; free(_ca); }
-    _t5083->is_pure = DEREF(_t5080);
-    _t5083->debug_prints = DEREF(_t5081);
+    _t5083 = malloc(sizeof(Bool));
+    *_t5083 = 0;
     (void)_t5083;
+    _t5084 = malloc(sizeof(Bool));
+    *_t5084 = 0;
+    (void)_t5084;
+    _t5085 = Str_lit("lib", 3ULL);
+    (void)_t5085;
+    _t5086 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("lib", 3ULL)); _t5086->name = *_ca; free(_ca); }
+    _t5086->needs_main = DEREF(_t5081);
+    _t5086->decls_only = DEREF(_t5082);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5086->auto_import = *_ca; free(_ca); }
+    _t5086->is_pure = DEREF(_t5083);
+    _t5086->debug_prints = DEREF(_t5084);
+    (void)_t5086;
+    _t5087 = malloc(sizeof(Bool));
+    *_t5087 = 0;
+    (void)_t5087;
+    _t5088 = malloc(sizeof(Bool));
+    *_t5088 = 1;
+    (void)_t5088;
+    _t5089 = malloc(sizeof(Bool));
+    *_t5089 = 0;
+    (void)_t5089;
+    _t5090 = malloc(sizeof(Bool));
+    *_t5090 = 1;
+    (void)_t5090;
+    _t5091 = Str_lit("liba", 4ULL);
+    (void)_t5091;
+    _t5092 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("liba", 4ULL)); _t5092->name = *_ca; free(_ca); }
+    _t5092->needs_main = DEREF(_t5087);
+    _t5092->decls_only = DEREF(_t5088);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t5092->auto_import = *_ca; free(_ca); }
+    _t5092->is_pure = DEREF(_t5089);
+    _t5092->debug_prints = DEREF(_t5090);
+    (void)_t5092;
     int _va_argc = argc - 1;
     USize _va_esz = sizeof(Str);
     USize _va_cap = _va_argc;
@@ -28656,47 +28695,47 @@ int main(int argc, char **argv) {
         Str *_val = Str_clone(&(Str){.c_str = (U8 *)argv[1 + _i], .count = strlen(argv[1 + _i]), .cap = TIL_CAP_LIT});
         Array_set(args, &(USize){_idx}, _val);
     }
-    U32 _t4939; { U32 *_hp = (U32 *)Array_len(args); _t4939 = *_hp; free(_hp); }
-    (void)_t4939;
-    U32 _t4940 = 0;
-    (void)_t4940;
-    Bool _t4941 = U32_eq(_t4939, _t4940);
-    (void)_t4941;
+    U32 _t4948; { U32 *_hp = (U32 *)Array_len(args); _t4948 = *_hp; free(_hp); }
+    (void)_t4948;
+    U32 _t4949 = 0;
+    (void)_t4949;
+    Bool _t4950 = U32_eq(_t4948, _t4949);
+    (void)_t4950;
     ;
     ;
-    if (_t4941) {
+    if (_t4950) {
         usage();
-        Str *_t4536 = Str_lit("Str", 3ULL);
-        (void)_t4536;
-        U32 _t4537; { U32 *_hp = (U32 *)Str_size(); _t4537 = *_hp; free(_hp); }
-        (void)_t4537;
-        U32 _t4538 = 1;
-        (void)_t4538;
-        Array *_va89 = Array_new(_t4536, &(U32){_t4537}, &(U32){_t4538});
+        Str *_t4545 = Str_lit("Str", 3ULL);
+        (void)_t4545;
+        U32 _t4546; { U32 *_hp = (U32 *)Str_size(); _t4546 = *_hp; free(_hp); }
+        (void)_t4546;
+        U32 _t4547 = 1;
+        (void)_t4547;
+        Array *_va89 = Array_new(_t4545, &(U32){_t4546}, &(U32){_t4547});
         (void)_va89;
-        Str_delete(_t4536, &(Bool){1});
+        Str_delete(_t4545, &(Bool){1});
         ;
         ;
-        U32 _t4539 = 0;
-        (void)_t4539;
-        Str *_t4540 = Str_lit("no arguments", 12ULL);
-        (void)_t4540;
-        Array_set(_va89, &(U32){_t4539}, _t4540);
+        U32 _t4548 = 0;
+        (void)_t4548;
+        Str *_t4549 = Str_lit("no arguments", 12ULL);
+        (void)_t4549;
+        Array_set(_va89, &(U32){_t4548}, _t4549);
         ;
-        Str *_t4541 = Str_lit("src/til.til:166:15", 18ULL);
-        (void)_t4541;
-        panic(_t4541, _va89);
-        Str_delete(_t4541, &(Bool){1});
+        Str *_t4550 = Str_lit("src/til.til:172:15", 18ULL);
+        (void)_t4550;
+        panic(_t4550, _va89);
+        Str_delete(_t4550, &(Bool){1});
     }
     ;
-    U32 *_t4942 = malloc(sizeof(U32));
-    *_t4942 = 0;
-    (void)_t4942;
-    Str *cmd_ref = Array_get(args, _t4942);
+    U32 *_t4951 = malloc(sizeof(U32));
+    *_t4951 = 0;
+    (void)_t4951;
+    Str *cmd_ref = Array_get(args, _t4951);
     (void)cmd_ref;
     Str *command = Str_clone(cmd_ref);
     (void)command;
-    U32_delete(_t4942, &(Bool){1});
+    U32_delete(_t4951, &(Bool){1});
     Str *path = Str_lit("", 0ULL);
     (void)path;
     Str *custom_bin = Str_lit("", 0ULL);
@@ -28706,30 +28745,30 @@ int main(int argc, char **argv) {
     U32 *path_idx = malloc(sizeof(U32));
     *path_idx = 1;
     (void)path_idx;
-    U32 _t4943; { U32 *_hp = (U32 *)Array_len(args); _t4943 = *_hp; free(_hp); }
-    (void)_t4943;
-    U32 _t4944 = 1;
-    (void)_t4944;
-    Bool _t4945 = U32_eq(_t4943, _t4944);
-    (void)_t4945;
+    U32 _t4952; { U32 *_hp = (U32 *)Array_len(args); _t4952 = *_hp; free(_hp); }
+    (void)_t4952;
+    U32 _t4953 = 1;
+    (void)_t4953;
+    Bool _t4954 = U32_eq(_t4952, _t4953);
+    (void)_t4954;
     ;
     ;
-    if (_t4945) {
-        Str *_t4542 = Str_lit("help", 4ULL);
-        (void)_t4542;
-        Str *_t4543 = Str_lit("--help", 6ULL);
-        (void)_t4543;
-        Bool _t4544; { Bool *_hp = (Bool *)Str_eq(command, _t4542); _t4544 = *_hp; free(_hp); }
-        (void)_t4544;
-        Str_delete(_t4542, &(Bool){1});
-        Bool _t4545; { Bool *_hp = (Bool *)Str_eq(command, _t4543); _t4545 = *_hp; free(_hp); }
-        (void)_t4545;
-        Str_delete(_t4543, &(Bool){1});
-        Bool _t4546 = Bool_or(_t4544, _t4545);
-        (void)_t4546;
+    if (_t4954) {
+        Str *_t4551 = Str_lit("help", 4ULL);
+        (void)_t4551;
+        Str *_t4552 = Str_lit("--help", 6ULL);
+        (void)_t4552;
+        Bool _t4553; { Bool *_hp = (Bool *)Str_eq(command, _t4551); _t4553 = *_hp; free(_hp); }
+        (void)_t4553;
+        Str_delete(_t4551, &(Bool){1});
+        Bool _t4554; { Bool *_hp = (Bool *)Str_eq(command, _t4552); _t4554 = *_hp; free(_hp); }
+        (void)_t4554;
+        Str_delete(_t4552, &(Bool){1});
+        Bool _t4555 = Bool_or(_t4553, _t4554);
+        (void)_t4555;
         ;
         ;
-        if (_t4546) {
+        if (_t4555) {
             usage();
             ;
             ;
@@ -28746,12 +28785,12 @@ int main(int argc, char **argv) {
         command = Str_lit("interpret", 9ULL);
     } else {
         while (1) {
-            U32 _t4563; { U32 *_hp = (U32 *)Array_len(args); _t4563 = *_hp; free(_hp); }
-            (void)_t4563;
-            Bool _wcond4547; { Bool *_hp = (Bool *)U32_lt(path_idx, &(U32){_t4563}); _wcond4547 = *_hp; free(_hp); }
-            (void)_wcond4547;
+            U32 _t4572; { U32 *_hp = (U32 *)Array_len(args); _t4572 = *_hp; free(_hp); }
+            (void)_t4572;
+            Bool _wcond4556; { Bool *_hp = (Bool *)U32_lt(path_idx, &(U32){_t4572}); _wcond4556 = *_hp; free(_hp); }
+            (void)_wcond4556;
             ;
-            if (_wcond4547) {
+            if (_wcond4556) {
             } else {
                 ;
                 break;
@@ -28759,80 +28798,80 @@ int main(int argc, char **argv) {
             ;
             Str *flag = Array_get(args, path_idx);
             (void)flag;
-            Str *_t4564 = Str_lit("-o", 2ULL);
-            (void)_t4564;
-            U32 _t4565 = 1;
-            (void)_t4565;
-            U32 _t4566 = U32_add(DEREF(path_idx), _t4565);
-            (void)_t4566;
+            Str *_t4573 = Str_lit("-o", 2ULL);
+            (void)_t4573;
+            U32 _t4574 = 1;
+            (void)_t4574;
+            U32 _t4575 = U32_add(DEREF(path_idx), _t4574);
+            (void)_t4575;
             ;
-            U32 _t4567; { U32 *_hp = (U32 *)Array_len(args); _t4567 = *_hp; free(_hp); }
-            (void)_t4567;
-            Bool _t4568; { Bool *_hp = (Bool *)Str_eq(flag, _t4564); _t4568 = *_hp; free(_hp); }
-            (void)_t4568;
-            Str_delete(_t4564, &(Bool){1});
-            Bool _t4569; { Bool *_hp = (Bool *)U32_lt(&(U32){_t4566}, &(U32){_t4567}); _t4569 = *_hp; free(_hp); }
-            (void)_t4569;
-            ;
-            ;
-            Bool _t4570 = Bool_and(_t4568, _t4569);
-            (void)_t4570;
+            U32 _t4576; { U32 *_hp = (U32 *)Array_len(args); _t4576 = *_hp; free(_hp); }
+            (void)_t4576;
+            Bool _t4577; { Bool *_hp = (Bool *)Str_eq(flag, _t4573); _t4577 = *_hp; free(_hp); }
+            (void)_t4577;
+            Str_delete(_t4573, &(Bool){1});
+            Bool _t4578; { Bool *_hp = (Bool *)U32_lt(&(U32){_t4575}, &(U32){_t4576}); _t4578 = *_hp; free(_hp); }
+            (void)_t4578;
             ;
             ;
-            if (_t4570) {
-                U32 _t4548 = 1;
-                (void)_t4548;
-                U32 *_t4549 = malloc(sizeof(U32)); *_t4549 = U32_add(DEREF(path_idx), _t4548);
-                (void)_t4549;
-                ;
-                Str *oval = Array_get(args, _t4549);
-                (void)oval;
-                custom_bin = Str_clone(oval);
-                U32_delete(_t4549, &(Bool){1});
-                U32 _t4550 = 2;
-                (void)_t4550;
-                U32 _t4551 = U32_add(DEREF(path_idx), _t4550);
-                (void)_t4551;
-                ;
-                *path_idx = _t4551;
-                ;
-            } else {
-                Str *_t4556 = Str_lit("-c", 2ULL);
-                (void)_t4556;
+            Bool _t4579 = Bool_and(_t4577, _t4578);
+            (void)_t4579;
+            ;
+            ;
+            if (_t4579) {
                 U32 _t4557 = 1;
                 (void)_t4557;
-                U32 _t4558 = U32_add(DEREF(path_idx), _t4557);
+                U32 *_t4558 = malloc(sizeof(U32)); *_t4558 = U32_add(DEREF(path_idx), _t4557);
                 (void)_t4558;
                 ;
-                U32 _t4559; { U32 *_hp = (U32 *)Array_len(args); _t4559 = *_hp; free(_hp); }
+                Str *oval = Array_get(args, _t4558);
+                (void)oval;
+                custom_bin = Str_clone(oval);
+                U32_delete(_t4558, &(Bool){1});
+                U32 _t4559 = 2;
                 (void)_t4559;
-                Bool _t4560; { Bool *_hp = (Bool *)Str_eq(flag, _t4556); _t4560 = *_hp; free(_hp); }
+                U32 _t4560 = U32_add(DEREF(path_idx), _t4559);
                 (void)_t4560;
-                Str_delete(_t4556, &(Bool){1});
-                Bool _t4561; { Bool *_hp = (Bool *)U32_lt(&(U32){_t4558}, &(U32){_t4559}); _t4561 = *_hp; free(_hp); }
-                (void)_t4561;
+                ;
+                *path_idx = _t4560;
+                ;
+            } else {
+                Str *_t4565 = Str_lit("-c", 2ULL);
+                (void)_t4565;
+                U32 _t4566 = 1;
+                (void)_t4566;
+                U32 _t4567 = U32_add(DEREF(path_idx), _t4566);
+                (void)_t4567;
+                ;
+                U32 _t4568; { U32 *_hp = (U32 *)Array_len(args); _t4568 = *_hp; free(_hp); }
+                (void)_t4568;
+                Bool _t4569; { Bool *_hp = (Bool *)Str_eq(flag, _t4565); _t4569 = *_hp; free(_hp); }
+                (void)_t4569;
+                Str_delete(_t4565, &(Bool){1});
+                Bool _t4570; { Bool *_hp = (Bool *)U32_lt(&(U32){_t4567}, &(U32){_t4568}); _t4570 = *_hp; free(_hp); }
+                (void)_t4570;
                 ;
                 ;
-                Bool _t4562 = Bool_and(_t4560, _t4561);
-                (void)_t4562;
+                Bool _t4571 = Bool_and(_t4569, _t4570);
+                (void)_t4571;
                 ;
                 ;
-                if (_t4562) {
-                    U32 _t4552 = 1;
-                    (void)_t4552;
-                    U32 *_t4553 = malloc(sizeof(U32)); *_t4553 = U32_add(DEREF(path_idx), _t4552);
-                    (void)_t4553;
+                if (_t4571) {
+                    U32 _t4561 = 1;
+                    (void)_t4561;
+                    U32 *_t4562 = malloc(sizeof(U32)); *_t4562 = U32_add(DEREF(path_idx), _t4561);
+                    (void)_t4562;
                     ;
-                    Str *cval = Array_get(args, _t4553);
+                    Str *cval = Array_get(args, _t4562);
                     (void)cval;
                     custom_c = Str_clone(cval);
-                    U32_delete(_t4553, &(Bool){1});
-                    U32 _t4554 = 2;
-                    (void)_t4554;
-                    U32 _t4555 = U32_add(DEREF(path_idx), _t4554);
-                    (void)_t4555;
+                    U32_delete(_t4562, &(Bool){1});
+                    U32 _t4563 = 2;
+                    (void)_t4563;
+                    U32 _t4564 = U32_add(DEREF(path_idx), _t4563);
+                    (void)_t4564;
                     ;
-                    *path_idx = _t4555;
+                    *path_idx = _t4564;
                     ;
                 } else {
                     ;
@@ -28848,21 +28887,21 @@ int main(int argc, char **argv) {
         path = Str_clone(p);
     }
     ;
-    Str *_t4946 = Str_lit("help", 4ULL);
-    (void)_t4946;
-    Str *_t4947 = Str_lit("--help", 6ULL);
-    (void)_t4947;
-    Bool _t4948; { Bool *_hp = (Bool *)Str_eq(command, _t4946); _t4948 = *_hp; free(_hp); }
-    (void)_t4948;
-    Str_delete(_t4946, &(Bool){1});
-    Bool _t4949; { Bool *_hp = (Bool *)Str_eq(command, _t4947); _t4949 = *_hp; free(_hp); }
-    (void)_t4949;
-    Str_delete(_t4947, &(Bool){1});
-    Bool _t4950 = Bool_or(_t4948, _t4949);
-    (void)_t4950;
+    Str *_t4955 = Str_lit("help", 4ULL);
+    (void)_t4955;
+    Str *_t4956 = Str_lit("--help", 6ULL);
+    (void)_t4956;
+    Bool _t4957; { Bool *_hp = (Bool *)Str_eq(command, _t4955); _t4957 = *_hp; free(_hp); }
+    (void)_t4957;
+    Str_delete(_t4955, &(Bool){1});
+    Bool _t4958; { Bool *_hp = (Bool *)Str_eq(command, _t4956); _t4958 = *_hp; free(_hp); }
+    (void)_t4958;
+    Str_delete(_t4956, &(Bool){1});
+    Bool _t4959 = Bool_or(_t4957, _t4958);
+    (void)_t4959;
     ;
     ;
-    if (_t4950) {
+    if (_t4959) {
         usage();
         ;
         Array_delete(args, &(Bool){1});
@@ -28876,89 +28915,89 @@ int main(int argc, char **argv) {
     ;
     Str *bin_dir = til_bin_dir();
     (void)bin_dir;
-    Str *_t4951 = Str_lit("/src/core/core.til", 18ULL);
-    (void)_t4951;
-    Str *core_path = Str_concat(bin_dir, _t4951);
+    Str *_t4960 = Str_lit("/src/core/core.til", 18ULL);
+    (void)_t4960;
+    Str *core_path = Str_concat(bin_dir, _t4960);
     (void)core_path;
-    Str_delete(_t4951, &(Bool){1});
-    Str *_t4952 = Str_lit("/src/c/ext.c", 12ULL);
-    (void)_t4952;
-    Str *ext_c_path = Str_concat(bin_dir, _t4952);
+    Str_delete(_t4960, &(Bool){1});
+    Str *_t4961 = Str_lit("/src/c/ext.c", 12ULL);
+    (void)_t4961;
+    Str *ext_c_path = Str_concat(bin_dir, _t4961);
     (void)ext_c_path;
-    Str_delete(_t4952, &(Bool){1});
-    Str *_t4953 = Str_lit("Str", 3ULL);
-    (void)_t4953;
-    U32 _t4954; { U32 *_hp = (U32 *)Str_size(); _t4954 = *_hp; free(_hp); }
-    (void)_t4954;
-    Set *resolved = Set_new(_t4953, &(U32){_t4954});
+    Str_delete(_t4961, &(Bool){1});
+    Str *_t4962 = Str_lit("Str", 3ULL);
+    (void)_t4962;
+    U32 _t4963; { U32 *_hp = (U32 *)Str_size(); _t4963 = *_hp; free(_hp); }
+    (void)_t4963;
+    Set *resolved = Set_new(_t4962, &(U32){_t4963});
     (void)resolved;
-    Str_delete(_t4953, &(Bool){1});
+    Str_delete(_t4962, &(Bool){1});
     ;
-    Str *_t4955 = Str_lit("", 0ULL);
-    (void)_t4955;
-    U32 _t4956; { U32 *_hp = (U32 *)Expr_size(); _t4956 = *_hp; free(_hp); }
-    (void)_t4956;
-    Vec *resolve_stack = Vec_new(_t4955, &(U32){_t4956});
+    Str *_t4964 = Str_lit("", 0ULL);
+    (void)_t4964;
+    U32 _t4965; { U32 *_hp = (U32 *)Expr_size(); _t4965 = *_hp; free(_hp); }
+    (void)_t4965;
+    Vec *resolve_stack = Vec_new(_t4964, &(U32){_t4965});
     (void)resolve_stack;
-    Str_delete(_t4955, &(Bool){1});
+    Str_delete(_t4964, &(Bool){1});
     ;
     Str *abs_path = til_realpath(path);
     (void)abs_path;
     Str *user_dir = Str_lit(".", 1ULL);
     (void)user_dir;
-    U32 _t4957; { U32 *_hp = (U32 *)Str_len(abs_path); _t4957 = *_hp; free(_hp); }
-    (void)_t4957;
-    U32 _t4958 = 0;
-    (void)_t4958;
-    Bool _t4959; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4957}, &(U32){_t4958}); _t4959 = *_hp; free(_hp); }
-    (void)_t4959;
+    U32 _t4966; { U32 *_hp = (U32 *)Str_len(abs_path); _t4966 = *_hp; free(_hp); }
+    (void)_t4966;
+    U32 _t4967 = 0;
+    (void)_t4967;
+    Bool _t4968; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4966}, &(U32){_t4967}); _t4968 = *_hp; free(_hp); }
+    (void)_t4968;
     ;
     ;
-    if (_t4959) {
-        U32 _t4579; { U32 *_hp = (U32 *)Str_len(abs_path); _t4579 = *_hp; free(_hp); }
-        (void)_t4579;
-        U32 _t4580 = 1;
-        (void)_t4580;
-        U32 *last_slash = malloc(sizeof(U32)); *last_slash = U32_sub(_t4579, _t4580);
+    if (_t4968) {
+        U32 _t4588; { U32 *_hp = (U32 *)Str_len(abs_path); _t4588 = *_hp; free(_hp); }
+        (void)_t4588;
+        U32 _t4589 = 1;
+        (void)_t4589;
+        U32 *last_slash = malloc(sizeof(U32)); *last_slash = U32_sub(_t4588, _t4589);
         (void)last_slash;
         ;
         ;
         while (1) {
-            U32 _t4572 = 0;
-            (void)_t4572;
-            U8 *_t4573 = Str_get(abs_path, last_slash);
-            (void)_t4573;
-            U8 _t4574 = 47;
-            (void)_t4574;
-            Bool _t4575; { Bool *_hp = (Bool *)U32_gt(last_slash, &(U32){_t4572}); _t4575 = *_hp; free(_hp); }
-            (void)_t4575;
+            U32 _t4581 = 0;
+            (void)_t4581;
+            U8 *_t4582 = Str_get(abs_path, last_slash);
+            (void)_t4582;
+            U8 _t4583 = 47;
+            (void)_t4583;
+            Bool _t4584; { Bool *_hp = (Bool *)U32_gt(last_slash, &(U32){_t4581}); _t4584 = *_hp; free(_hp); }
+            (void)_t4584;
             ;
-            Bool _t4576; { Bool *_hp = (Bool *)U8_neq(_t4573, &(U8){_t4574}); _t4576 = *_hp; free(_hp); }
-            (void)_t4576;
+            Bool _t4585; { Bool *_hp = (Bool *)U8_neq(_t4582, &(U8){_t4583}); _t4585 = *_hp; free(_hp); }
+            (void)_t4585;
             ;
-            Bool _wcond4571 = Bool_and(_t4575, _t4576);
-            (void)_wcond4571;
+            Bool _wcond4580 = Bool_and(_t4584, _t4585);
+            (void)_wcond4580;
             ;
             ;
-            if (_wcond4571) {
+            if (_wcond4580) {
             } else {
                 ;
                 break;
             }
             ;
-            U32 _t4577 = 1;
-            (void)_t4577;
-            U32 _t4578 = U32_sub(DEREF(last_slash), _t4577);
-            (void)_t4578;
+            U32 _t4586 = 1;
+            (void)_t4586;
+            U32 _t4587 = U32_sub(DEREF(last_slash), _t4586);
+            (void)_t4587;
             ;
-            *last_slash = _t4578;
+            *last_slash = _t4587;
             ;
         }
-        user_dir = til_str_left(abs_path, DEREF(last_slash));
+        user_dir = str_left(abs_path, last_slash);
         U32_delete(last_slash, &(Bool){1});
-        Str *_t4581 = Str_clone(abs_path);
-        (void)_t4581;
-        Set_add(resolved, _t4581);
+        Str *_t4590 = Str_clone(abs_path);
+        (void)_t4590;
+        Set_add(resolved, _t4590);
     }
     ;
     Str_delete(abs_path, &(Bool){1});
@@ -28975,94 +29014,94 @@ int main(int argc, char **argv) {
     Str *core_abs = til_realpath(core_path);
     (void)core_abs;
     Str_delete(core_path, &(Bool){1});
-    U32 _t4960; { U32 *_hp = (U32 *)Str_len(core_abs); _t4960 = *_hp; free(_hp); }
-    (void)_t4960;
-    U32 _t4961 = 0;
-    (void)_t4961;
-    Bool _t4962; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4960}, &(U32){_t4961}); _t4962 = *_hp; free(_hp); }
-    (void)_t4962;
+    U32 _t4969; { U32 *_hp = (U32 *)Str_len(core_abs); _t4969 = *_hp; free(_hp); }
+    (void)_t4969;
+    U32 _t4970 = 0;
+    (void)_t4970;
+    Bool _t4971; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4969}, &(U32){_t4970}); _t4971 = *_hp; free(_hp); }
+    (void)_t4971;
     ;
     ;
-    if (_t4962) {
-        Bool _t4583; { Bool *_hp = (Bool *)Set_has(resolved, core_abs); _t4583 = *_hp; free(_hp); }
-        (void)_t4583;
-        if (_t4583) {
-            Bool _t4582 = 1;
-            (void)_t4582;
-            skip_core = _t4582;
+    if (_t4971) {
+        Bool _t4592; { Bool *_hp = (Bool *)Set_has(resolved, core_abs); _t4592 = *_hp; free(_hp); }
+        (void)_t4592;
+        if (_t4592) {
+            Bool _t4591 = 1;
+            (void)_t4591;
+            skip_core = _t4591;
             ;
         }
         ;
-        Str *_t4584 = Str_clone(core_abs);
-        (void)_t4584;
-        Set_add(resolved, _t4584);
+        Str *_t4593 = Str_clone(core_abs);
+        (void)_t4593;
+        Set_add(resolved, _t4593);
     }
     ;
     Str_delete(core_abs, &(Bool){1});
-    Str *_t4963 = Str_lit("", 0ULL);
-    (void)_t4963;
-    U32 _t4964; { U32 *_hp = (U32 *)Expr_size(); _t4964 = *_hp; free(_hp); }
-    (void)_t4964;
-    Vec *core_import_decls = Vec_new(_t4963, &(U32){_t4964});
+    Str *_t4972 = Str_lit("", 0ULL);
+    (void)_t4972;
+    U32 _t4973; { U32 *_hp = (U32 *)Expr_size(); _t4973 = *_hp; free(_hp); }
+    (void)_t4973;
+    Vec *core_import_decls = Vec_new(_t4972, &(U32){_t4973});
     (void)core_import_decls;
-    Str_delete(_t4963, &(Bool){1});
+    Str_delete(_t4972, &(Bool){1});
     ;
     Vec *core_imports = extract_imports(core_ast);
     (void)core_imports;
-    U32 _t4965; { U32 *_hp = (U32 *)Vec_len(core_imports); _t4965 = *_hp; free(_hp); }
-    (void)_t4965;
-    U32 _t4966 = 0;
-    (void)_t4966;
-    Bool _t4967; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4965}, &(U32){_t4966}); _t4967 = *_hp; free(_hp); }
-    (void)_t4967;
+    U32 _t4974; { U32 *_hp = (U32 *)Vec_len(core_imports); _t4974 = *_hp; free(_hp); }
+    (void)_t4974;
+    U32 _t4975 = 0;
+    (void)_t4975;
+    Bool _t4976; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4974}, &(U32){_t4975}); _t4976 = *_hp; free(_hp); }
+    (void)_t4976;
     ;
     ;
-    Bool _t4968 = Bool_not(skip_core);
-    (void)_t4968;
-    Bool _t4969 = Bool_and(_t4967, _t4968);
-    (void)_t4969;
+    Bool _t4977 = Bool_not(skip_core);
+    (void)_t4977;
+    Bool _t4978 = Bool_and(_t4976, _t4977);
+    (void)_t4978;
     ;
     ;
-    if (_t4969) {
-        Str *_t4591 = Str_lit("/src/core", 9ULL);
-        (void)_t4591;
-        Str *core_dir = Str_concat(bin_dir, _t4591);
+    if (_t4978) {
+        Str *_t4600 = Str_lit("/src/core", 9ULL);
+        (void)_t4600;
+        Str *core_dir = Str_concat(bin_dir, _t4600);
         (void)core_dir;
-        Str_delete(_t4591, &(Bool){1});
-        Str *_t4592 = Str_lit("", 0ULL);
-        (void)_t4592;
-        I32 err; { I32 *_hp = (I32 *)resolve_imports(core_imports, core_dir, resolved, resolve_stack, core_import_decls, _t4592); err = *_hp; free(_hp); }
+        Str_delete(_t4600, &(Bool){1});
+        Str *_t4601 = Str_lit("", 0ULL);
+        (void)_t4601;
+        I32 err; { I32 *_hp = (I32 *)resolve_imports(core_imports, core_dir, resolved, resolve_stack, core_import_decls, _t4601); err = *_hp; free(_hp); }
         (void)err;
-        Str_delete(_t4592, &(Bool){1});
+        Str_delete(_t4601, &(Bool){1});
         Str_delete(core_dir, &(Bool){1});
-        I32 _t4593 = 0;
-        (void)_t4593;
-        Bool _t4594; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4593}); _t4594 = *_hp; free(_hp); }
-        (void)_t4594;
+        I32 _t4602 = 0;
+        (void)_t4602;
+        Bool _t4603; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4602}); _t4603 = *_hp; free(_hp); }
+        (void)_t4603;
         ;
         ;
-        if (_t4594) {
-            Str *_t4585 = Str_lit("Str", 3ULL);
-            (void)_t4585;
-            U32 _t4586; { U32 *_hp = (U32 *)Str_size(); _t4586 = *_hp; free(_hp); }
-            (void)_t4586;
-            U32 _t4587 = 1;
-            (void)_t4587;
-            Array *_va90 = Array_new(_t4585, &(U32){_t4586}, &(U32){_t4587});
+        if (_t4603) {
+            Str *_t4594 = Str_lit("Str", 3ULL);
+            (void)_t4594;
+            U32 _t4595; { U32 *_hp = (U32 *)Str_size(); _t4595 = *_hp; free(_hp); }
+            (void)_t4595;
+            U32 _t4596 = 1;
+            (void)_t4596;
+            Array *_va90 = Array_new(_t4594, &(U32){_t4595}, &(U32){_t4596});
             (void)_va90;
-            Str_delete(_t4585, &(Bool){1});
+            Str_delete(_t4594, &(Bool){1});
             ;
             ;
-            U32 _t4588 = 0;
-            (void)_t4588;
-            Str *_t4589 = Str_lit("failed to resolve core imports", 30ULL);
-            (void)_t4589;
-            Array_set(_va90, &(U32){_t4588}, _t4589);
+            U32 _t4597 = 0;
+            (void)_t4597;
+            Str *_t4598 = Str_lit("failed to resolve core imports", 30ULL);
+            (void)_t4598;
+            Array_set(_va90, &(U32){_t4597}, _t4598);
             ;
-            Str *_t4590 = Str_lit("src/til.til:252:19", 18ULL);
-            (void)_t4590;
-            panic(_t4590, _va90);
-            Str_delete(_t4590, &(Bool){1});
+            Str *_t4599 = Str_lit("src/til.til:258:19", 18ULL);
+            (void)_t4599;
+            panic(_t4599, _va90);
+            Str_delete(_t4599, &(Bool){1});
         }
         ;
     }
@@ -29080,60 +29119,60 @@ int main(int argc, char **argv) {
     (void)imports;
     Str *mode_str = til_parse_mode();
     (void)mode_str;
-    Str *_t4970 = Str_lit("script", 6ULL);
-    (void)_t4970;
-    Mode *cur_mode = mode_resolve(_t4970);
+    Str *_t4979 = Str_lit("script", 6ULL);
+    (void)_t4979;
+    Mode *cur_mode = mode_resolve(_t4979);
     (void)cur_mode;
-    Str_delete(_t4970, &(Bool){1});
-    U32 _t4971; { U32 *_hp = (U32 *)Str_len(mode_str); _t4971 = *_hp; free(_hp); }
-    (void)_t4971;
-    U32 _t4972 = 0;
-    (void)_t4972;
-    Bool _t4973; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4971}, &(U32){_t4972}); _t4973 = *_hp; free(_hp); }
-    (void)_t4973;
+    Str_delete(_t4979, &(Bool){1});
+    U32 _t4980; { U32 *_hp = (U32 *)Str_len(mode_str); _t4980 = *_hp; free(_hp); }
+    (void)_t4980;
+    U32 _t4981 = 0;
+    (void)_t4981;
+    Bool _t4982; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4980}, &(U32){_t4981}); _t4982 = *_hp; free(_hp); }
+    (void)_t4982;
     ;
     ;
-    if (_t4973) {
+    if (_t4982) {
         cur_mode = mode_resolve(mode_str);
-        U32 _t4604; { U32 *_hp = (U32 *)Str_len(&cur_mode->name); _t4604 = *_hp; free(_hp); }
-        (void)_t4604;
-        U32 _t4605 = 0;
-        (void)_t4605;
-        Bool _t4606 = U32_eq(_t4604, _t4605);
-        (void)_t4606;
+        U32 _t4613; { U32 *_hp = (U32 *)Str_len(&cur_mode->name); _t4613 = *_hp; free(_hp); }
+        (void)_t4613;
+        U32 _t4614 = 0;
+        (void)_t4614;
+        Bool _t4615 = U32_eq(_t4613, _t4614);
+        (void)_t4615;
         ;
         ;
-        if (_t4606) {
-            Str *_t4595 = Str_lit("Str", 3ULL);
-            (void)_t4595;
-            U32 _t4596; { U32 *_hp = (U32 *)Str_size(); _t4596 = *_hp; free(_hp); }
-            (void)_t4596;
-            U32 _t4597 = 1;
-            (void)_t4597;
-            Array *_va91 = Array_new(_t4595, &(U32){_t4596}, &(U32){_t4597});
+        if (_t4615) {
+            Str *_t4604 = Str_lit("Str", 3ULL);
+            (void)_t4604;
+            U32 _t4605; { U32 *_hp = (U32 *)Str_size(); _t4605 = *_hp; free(_hp); }
+            (void)_t4605;
+            U32 _t4606 = 1;
+            (void)_t4606;
+            Array *_va91 = Array_new(_t4604, &(U32){_t4605}, &(U32){_t4606});
             (void)_va91;
-            Str_delete(_t4595, &(Bool){1});
+            Str_delete(_t4604, &(Bool){1});
             ;
             ;
-            Str *_t4598 = Str_lit("unknown mode '", 14ULL);
-            (void)_t4598;
-            Str *_t4599 = Str_concat(_t4598, mode_str);
-            (void)_t4599;
-            Str_delete(_t4598, &(Bool){1});
-            Str *_t4600 = Str_lit("'", 1ULL);
-            (void)_t4600;
-            U32 _t4601 = 0;
-            (void)_t4601;
-            Str *_t4602 = Str_concat(_t4599, _t4600);
-            (void)_t4602;
-            Str_delete(_t4599, &(Bool){1});
-            Str_delete(_t4600, &(Bool){1});
-            Array_set(_va91, &(U32){_t4601}, _t4602);
+            Str *_t4607 = Str_lit("unknown mode '", 14ULL);
+            (void)_t4607;
+            Str *_t4608 = Str_concat(_t4607, mode_str);
+            (void)_t4608;
+            Str_delete(_t4607, &(Bool){1});
+            Str *_t4609 = Str_lit("'", 1ULL);
+            (void)_t4609;
+            U32 _t4610 = 0;
+            (void)_t4610;
+            Str *_t4611 = Str_concat(_t4608, _t4609);
+            (void)_t4611;
+            Str_delete(_t4608, &(Bool){1});
+            Str_delete(_t4609, &(Bool){1});
+            Array_set(_va91, &(U32){_t4610}, _t4611);
             ;
-            Str *_t4603 = Str_lit("src/til.til:268:19", 18ULL);
-            (void)_t4603;
-            panic(_t4603, _va91);
-            Str_delete(_t4603, &(Bool){1});
+            Str *_t4612 = Str_lit("src/til.til:274:19", 18ULL);
+            (void)_t4612;
+            panic(_t4612, _va91);
+            Str_delete(_t4612, &(Bool){1});
         }
         ;
     }
@@ -29141,59 +29180,59 @@ int main(int argc, char **argv) {
     Str_delete(mode_str, &(Bool){1});
     Str *auto_import = Str_clone(&cur_mode->auto_import);
     (void)auto_import;
-    Str *_t4974 = Str_lit("", 0ULL);
-    (void)_t4974;
-    U32 _t4975; { U32 *_hp = (U32 *)Expr_size(); _t4975 = *_hp; free(_hp); }
-    (void)_t4975;
-    Vec *import_decls = Vec_new(_t4974, &(U32){_t4975});
+    Str *_t4983 = Str_lit("", 0ULL);
+    (void)_t4983;
+    U32 _t4984; { U32 *_hp = (U32 *)Expr_size(); _t4984 = *_hp; free(_hp); }
+    (void)_t4984;
+    Vec *import_decls = Vec_new(_t4983, &(U32){_t4984});
     (void)import_decls;
-    Str_delete(_t4974, &(Bool){1});
+    Str_delete(_t4983, &(Bool){1});
     ;
-    U32 _t4976; { U32 *_hp = (U32 *)Vec_len(imports); _t4976 = *_hp; free(_hp); }
-    (void)_t4976;
-    U32 _t4977 = 0;
-    (void)_t4977;
-    Bool _t4978; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4976}, &(U32){_t4977}); _t4978 = *_hp; free(_hp); }
-    (void)_t4978;
+    U32 _t4985; { U32 *_hp = (U32 *)Vec_len(imports); _t4985 = *_hp; free(_hp); }
+    (void)_t4985;
+    U32 _t4986 = 0;
+    (void)_t4986;
+    Bool _t4987; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4985}, &(U32){_t4986}); _t4987 = *_hp; free(_hp); }
+    (void)_t4987;
     ;
     ;
-    if (_t4978) {
-        Str *_t4613 = Str_lit("/src/lib", 8ULL);
-        (void)_t4613;
-        Str *lib_dir = Str_concat(bin_dir, _t4613);
+    if (_t4987) {
+        Str *_t4622 = Str_lit("/src/lib", 8ULL);
+        (void)_t4622;
+        Str *lib_dir = Str_concat(bin_dir, _t4622);
         (void)lib_dir;
-        Str_delete(_t4613, &(Bool){1});
+        Str_delete(_t4622, &(Bool){1});
         I32 err; { I32 *_hp = (I32 *)resolve_imports(imports, user_dir, resolved, resolve_stack, import_decls, lib_dir); err = *_hp; free(_hp); }
         (void)err;
         Str_delete(lib_dir, &(Bool){1});
-        I32 _t4614 = 0;
-        (void)_t4614;
-        Bool _t4615; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4614}); _t4615 = *_hp; free(_hp); }
-        (void)_t4615;
+        I32 _t4623 = 0;
+        (void)_t4623;
+        Bool _t4624; { Bool *_hp = (Bool *)I32_gt(&(I32){err}, &(I32){_t4623}); _t4624 = *_hp; free(_hp); }
+        (void)_t4624;
         ;
         ;
-        if (_t4615) {
-            Str *_t4607 = Str_lit("Str", 3ULL);
-            (void)_t4607;
-            U32 _t4608; { U32 *_hp = (U32 *)Str_size(); _t4608 = *_hp; free(_hp); }
-            (void)_t4608;
-            U32 _t4609 = 1;
-            (void)_t4609;
-            Array *_va92 = Array_new(_t4607, &(U32){_t4608}, &(U32){_t4609});
+        if (_t4624) {
+            Str *_t4616 = Str_lit("Str", 3ULL);
+            (void)_t4616;
+            U32 _t4617; { U32 *_hp = (U32 *)Str_size(); _t4617 = *_hp; free(_hp); }
+            (void)_t4617;
+            U32 _t4618 = 1;
+            (void)_t4618;
+            Array *_va92 = Array_new(_t4616, &(U32){_t4617}, &(U32){_t4618});
             (void)_va92;
-            Str_delete(_t4607, &(Bool){1});
+            Str_delete(_t4616, &(Bool){1});
             ;
             ;
-            U32 _t4610 = 0;
-            (void)_t4610;
-            Str *_t4611 = Str_lit("failed to resolve imports", 25ULL);
-            (void)_t4611;
-            Array_set(_va92, &(U32){_t4610}, _t4611);
+            U32 _t4619 = 0;
+            (void)_t4619;
+            Str *_t4620 = Str_lit("failed to resolve imports", 25ULL);
+            (void)_t4620;
+            Array_set(_va92, &(U32){_t4619}, _t4620);
             ;
-            Str *_t4612 = Str_lit("src/til.til:282:19", 18ULL);
-            (void)_t4612;
-            panic(_t4612, _va92);
-            Str_delete(_t4612, &(Bool){1});
+            Str *_t4621 = Str_lit("src/til.til:288:19", 18ULL);
+            (void)_t4621;
+            panic(_t4621, _va92);
+            Str_delete(_t4621, &(Bool){1});
         }
         ;
     }
@@ -29202,125 +29241,125 @@ int main(int argc, char **argv) {
     Vec_delete(resolve_stack, &(Bool){1});
     Set_delete(resolved, &(Bool){1});
     Str_delete(user_dir, &(Bool){1});
-    Str *_t4979 = Str_lit("", 0ULL);
-    (void)_t4979;
-    U32 _t4980; { U32 *_hp = (U32 *)Expr_size(); _t4980 = *_hp; free(_hp); }
-    (void)_t4980;
-    Vec *merged = Vec_new(_t4979, &(U32){_t4980});
+    Str *_t4988 = Str_lit("", 0ULL);
+    (void)_t4988;
+    U32 _t4989; { U32 *_hp = (U32 *)Expr_size(); _t4989 = *_hp; free(_hp); }
+    (void)_t4989;
+    Vec *merged = Vec_new(_t4988, &(U32){_t4989});
     (void)merged;
-    Str_delete(_t4979, &(Bool){1});
+    Str_delete(_t4988, &(Bool){1});
     ;
-    Bool _t4981 = Bool_not(skip_core);
-    (void)_t4981;
+    Bool _t4990 = Bool_not(skip_core);
+    (void)_t4990;
     ;
-    if (_t4981) {
+    if (_t4990) {
         {
-            U32 _re4616; { U32 *_hp = (U32 *)Expr_child_count(core_ast); _re4616 = *_hp; free(_hp); }
-            (void)_re4616;
-            U32 *_rc4616 = malloc(sizeof(U32));
-            *_rc4616 = 0;
-            (void)_rc4616;
-            Bool _t4621; { Bool *_hp = (Bool *)U32_lte(_rc4616, &(U32){_re4616}); _t4621 = *_hp; free(_hp); }
-            (void)_t4621;
-            if (_t4621) {
+            U32 _re4625; { U32 *_hp = (U32 *)Expr_child_count(core_ast); _re4625 = *_hp; free(_hp); }
+            (void)_re4625;
+            U32 *_rc4625 = malloc(sizeof(U32));
+            *_rc4625 = 0;
+            (void)_rc4625;
+            Bool _t4630; { Bool *_hp = (Bool *)U32_lte(_rc4625, &(U32){_re4625}); _t4630 = *_hp; free(_hp); }
+            (void)_t4630;
+            if (_t4630) {
                 while (1) {
-                    Bool _wcond4617; { Bool *_hp = (Bool *)U32_lt(_rc4616, &(U32){_re4616}); _wcond4617 = *_hp; free(_hp); }
-                    (void)_wcond4617;
-                    if (_wcond4617) {
+                    Bool _wcond4626; { Bool *_hp = (Bool *)U32_lt(_rc4625, &(U32){_re4625}); _wcond4626 = *_hp; free(_hp); }
+                    (void)_wcond4626;
+                    if (_wcond4626) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4616);
+                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4625);
                     (void)i;
-                    U32_inc(_rc4616);
+                    U32_inc(_rc4625);
                     Expr *ch = Expr_child(core_ast, i);
                     (void)ch;
                     mark_core(ch);
-                    Expr *_t4618 = Expr_clone(ch);
-                    (void)_t4618;
+                    Expr *_t4627 = Expr_clone(ch);
+                    (void)_t4627;
                     U32_delete(i, &(Bool){1});
-                    Vec_push(merged, _t4618);
+                    Vec_push(merged, _t4627);
                 }
             } else {
                 while (1) {
-                    Bool _wcond4619; { Bool *_hp = (Bool *)U32_gt(_rc4616, &(U32){_re4616}); _wcond4619 = *_hp; free(_hp); }
-                    (void)_wcond4619;
-                    if (_wcond4619) {
+                    Bool _wcond4628; { Bool *_hp = (Bool *)U32_gt(_rc4625, &(U32){_re4625}); _wcond4628 = *_hp; free(_hp); }
+                    (void)_wcond4628;
+                    if (_wcond4628) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4616);
+                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4625);
                     (void)i;
-                    U32_dec(_rc4616);
+                    U32_dec(_rc4625);
                     Expr *ch = Expr_child(core_ast, i);
                     (void)ch;
                     mark_core(ch);
-                    Expr *_t4620 = Expr_clone(ch);
-                    (void)_t4620;
+                    Expr *_t4629 = Expr_clone(ch);
+                    (void)_t4629;
                     U32_delete(i, &(Bool){1});
-                    Vec_push(merged, _t4620);
+                    Vec_push(merged, _t4629);
                 }
             }
-            U32_delete(_rc4616, &(Bool){1});
+            U32_delete(_rc4625, &(Bool){1});
             ;
             ;
         }
         {
-            U32 _re4622; { U32 *_hp = (U32 *)Vec_len(core_import_decls); _re4622 = *_hp; free(_hp); }
-            (void)_re4622;
-            U32 *_rc4622 = malloc(sizeof(U32));
-            *_rc4622 = 0;
-            (void)_rc4622;
-            Bool _t4627; { Bool *_hp = (Bool *)U32_lte(_rc4622, &(U32){_re4622}); _t4627 = *_hp; free(_hp); }
-            (void)_t4627;
-            if (_t4627) {
+            U32 _re4631; { U32 *_hp = (U32 *)Vec_len(core_import_decls); _re4631 = *_hp; free(_hp); }
+            (void)_re4631;
+            U32 *_rc4631 = malloc(sizeof(U32));
+            *_rc4631 = 0;
+            (void)_rc4631;
+            Bool _t4636; { Bool *_hp = (Bool *)U32_lte(_rc4631, &(U32){_re4631}); _t4636 = *_hp; free(_hp); }
+            (void)_t4636;
+            if (_t4636) {
                 while (1) {
-                    Bool _wcond4623; { Bool *_hp = (Bool *)U32_lt(_rc4622, &(U32){_re4622}); _wcond4623 = *_hp; free(_hp); }
-                    (void)_wcond4623;
-                    if (_wcond4623) {
+                    Bool _wcond4632; { Bool *_hp = (Bool *)U32_lt(_rc4631, &(U32){_re4631}); _wcond4632 = *_hp; free(_hp); }
+                    (void)_wcond4632;
+                    if (_wcond4632) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 *ci = malloc(sizeof(U32)); *ci = U32_clone(_rc4622);
+                    U32 *ci = malloc(sizeof(U32)); *ci = U32_clone(_rc4631);
                     (void)ci;
-                    U32_inc(_rc4622);
+                    U32_inc(_rc4631);
                     Expr *ch = Vec_get(core_import_decls, ci);
                     (void)ch;
                     mark_core(ch);
-                    Expr *_t4624 = Expr_clone(ch);
-                    (void)_t4624;
+                    Expr *_t4633 = Expr_clone(ch);
+                    (void)_t4633;
                     U32_delete(ci, &(Bool){1});
-                    Vec_push(merged, _t4624);
+                    Vec_push(merged, _t4633);
                 }
             } else {
                 while (1) {
-                    Bool _wcond4625; { Bool *_hp = (Bool *)U32_gt(_rc4622, &(U32){_re4622}); _wcond4625 = *_hp; free(_hp); }
-                    (void)_wcond4625;
-                    if (_wcond4625) {
+                    Bool _wcond4634; { Bool *_hp = (Bool *)U32_gt(_rc4631, &(U32){_re4631}); _wcond4634 = *_hp; free(_hp); }
+                    (void)_wcond4634;
+                    if (_wcond4634) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 *ci = malloc(sizeof(U32)); *ci = U32_clone(_rc4622);
+                    U32 *ci = malloc(sizeof(U32)); *ci = U32_clone(_rc4631);
                     (void)ci;
-                    U32_dec(_rc4622);
+                    U32_dec(_rc4631);
                     Expr *ch = Vec_get(core_import_decls, ci);
                     (void)ch;
                     mark_core(ch);
-                    Expr *_t4626 = Expr_clone(ch);
-                    (void)_t4626;
+                    Expr *_t4635 = Expr_clone(ch);
+                    (void)_t4635;
                     U32_delete(ci, &(Bool){1});
-                    Vec_push(merged, _t4626);
+                    Vec_push(merged, _t4635);
                 }
             }
-            U32_delete(_rc4622, &(Bool){1});
+            U32_delete(_rc4631, &(Bool){1});
             ;
             ;
         }
@@ -29328,29 +29367,29 @@ int main(int argc, char **argv) {
     ;
     Expr_delete(core_ast, &(Bool){1});
     Vec_delete(core_import_decls, &(Bool){1});
-    U32 _t4982; { U32 *_hp = (U32 *)Str_len(auto_import); _t4982 = *_hp; free(_hp); }
-    (void)_t4982;
-    U32 _t4983 = 0;
-    (void)_t4983;
-    Bool _t4984; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4982}, &(U32){_t4983}); _t4984 = *_hp; free(_hp); }
-    (void)_t4984;
+    U32 _t4991; { U32 *_hp = (U32 *)Str_len(auto_import); _t4991 = *_hp; free(_hp); }
+    (void)_t4991;
+    U32 _t4992 = 0;
+    (void)_t4992;
+    Bool _t4993; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4991}, &(U32){_t4992}); _t4993 = *_hp; free(_hp); }
+    (void)_t4993;
     ;
     ;
-    if (_t4984) {
-        Str *_t4634 = Str_lit("/src/modes/", 11ULL);
-        (void)_t4634;
-        Str *_t4635 = Str_concat(bin_dir, _t4634);
-        (void)_t4635;
-        Str_delete(_t4634, &(Bool){1});
-        Str *_t4636 = Str_concat(_t4635, auto_import);
-        (void)_t4636;
-        Str_delete(_t4635, &(Bool){1});
-        Str *_t4637 = Str_lit(".til", 4ULL);
-        (void)_t4637;
-        Str *mode_til_path = Str_concat(_t4636, _t4637);
+    if (_t4993) {
+        Str *_t4643 = Str_lit("/src/modes/", 11ULL);
+        (void)_t4643;
+        Str *_t4644 = Str_concat(bin_dir, _t4643);
+        (void)_t4644;
+        Str_delete(_t4643, &(Bool){1});
+        Str *_t4645 = Str_concat(_t4644, auto_import);
+        (void)_t4645;
+        Str_delete(_t4644, &(Bool){1});
+        Str *_t4646 = Str_lit(".til", 4ULL);
+        (void)_t4646;
+        Str *mode_til_path = Str_concat(_t4645, _t4646);
         (void)mode_til_path;
-        Str_delete(_t4636, &(Bool){1});
-        Str_delete(_t4637, &(Bool){1});
+        Str_delete(_t4645, &(Bool){1});
+        Str_delete(_t4646, &(Bool){1});
         Str *mode_source = readfile(mode_til_path);
         (void)mode_source;
         Vec *mode_tokens = tokenize(mode_source, mode_til_path);
@@ -29361,55 +29400,55 @@ int main(int argc, char **argv) {
         Str_delete(mode_til_path, &(Bool){1});
         Vec_delete(mode_tokens, &(Bool){1});
         {
-            U32 _re4628; { U32 *_hp = (U32 *)Expr_child_count(mode_ast); _re4628 = *_hp; free(_hp); }
-            (void)_re4628;
-            U32 *_rc4628 = malloc(sizeof(U32));
-            *_rc4628 = 0;
-            (void)_rc4628;
-            Bool _t4633; { Bool *_hp = (Bool *)U32_lte(_rc4628, &(U32){_re4628}); _t4633 = *_hp; free(_hp); }
-            (void)_t4633;
-            if (_t4633) {
+            U32 _re4637; { U32 *_hp = (U32 *)Expr_child_count(mode_ast); _re4637 = *_hp; free(_hp); }
+            (void)_re4637;
+            U32 *_rc4637 = malloc(sizeof(U32));
+            *_rc4637 = 0;
+            (void)_rc4637;
+            Bool _t4642; { Bool *_hp = (Bool *)U32_lte(_rc4637, &(U32){_re4637}); _t4642 = *_hp; free(_hp); }
+            (void)_t4642;
+            if (_t4642) {
                 while (1) {
-                    Bool _wcond4629; { Bool *_hp = (Bool *)U32_lt(_rc4628, &(U32){_re4628}); _wcond4629 = *_hp; free(_hp); }
-                    (void)_wcond4629;
-                    if (_wcond4629) {
+                    Bool _wcond4638; { Bool *_hp = (Bool *)U32_lt(_rc4637, &(U32){_re4637}); _wcond4638 = *_hp; free(_hp); }
+                    (void)_wcond4638;
+                    if (_wcond4638) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4628);
+                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4637);
                     (void)i;
-                    U32_inc(_rc4628);
+                    U32_inc(_rc4637);
                     Expr *ch = Expr_child(mode_ast, i);
                     (void)ch;
-                    Expr *_t4630 = Expr_clone(ch);
-                    (void)_t4630;
+                    Expr *_t4639 = Expr_clone(ch);
+                    (void)_t4639;
                     U32_delete(i, &(Bool){1});
-                    Vec_push(merged, _t4630);
+                    Vec_push(merged, _t4639);
                 }
             } else {
                 while (1) {
-                    Bool _wcond4631; { Bool *_hp = (Bool *)U32_gt(_rc4628, &(U32){_re4628}); _wcond4631 = *_hp; free(_hp); }
-                    (void)_wcond4631;
-                    if (_wcond4631) {
+                    Bool _wcond4640; { Bool *_hp = (Bool *)U32_gt(_rc4637, &(U32){_re4637}); _wcond4640 = *_hp; free(_hp); }
+                    (void)_wcond4640;
+                    if (_wcond4640) {
                     } else {
                         ;
                         break;
                     }
                     ;
-                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4628);
+                    U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4637);
                     (void)i;
-                    U32_dec(_rc4628);
+                    U32_dec(_rc4637);
                     Expr *ch = Expr_child(mode_ast, i);
                     (void)ch;
-                    Expr *_t4632 = Expr_clone(ch);
-                    (void)_t4632;
+                    Expr *_t4641 = Expr_clone(ch);
+                    (void)_t4641;
                     U32_delete(i, &(Bool){1});
-                    Vec_push(merged, _t4632);
+                    Vec_push(merged, _t4641);
                 }
             }
-            U32_delete(_rc4628, &(Bool){1});
+            U32_delete(_rc4637, &(Bool){1});
             ;
             ;
         }
@@ -29419,109 +29458,109 @@ int main(int argc, char **argv) {
     Str_delete(auto_import, &(Bool){1});
     Str_delete(bin_dir, &(Bool){1});
     {
-        U32 _re4638; { U32 *_hp = (U32 *)Vec_len(import_decls); _re4638 = *_hp; free(_hp); }
-        (void)_re4638;
-        U32 *_rc4638 = malloc(sizeof(U32));
-        *_rc4638 = 0;
-        (void)_rc4638;
-        Bool _t4643; { Bool *_hp = (Bool *)U32_lte(_rc4638, &(U32){_re4638}); _t4643 = *_hp; free(_hp); }
-        (void)_t4643;
-        if (_t4643) {
+        U32 _re4647; { U32 *_hp = (U32 *)Vec_len(import_decls); _re4647 = *_hp; free(_hp); }
+        (void)_re4647;
+        U32 *_rc4647 = malloc(sizeof(U32));
+        *_rc4647 = 0;
+        (void)_rc4647;
+        Bool _t4652; { Bool *_hp = (Bool *)U32_lte(_rc4647, &(U32){_re4647}); _t4652 = *_hp; free(_hp); }
+        (void)_t4652;
+        if (_t4652) {
             while (1) {
-                Bool _wcond4639; { Bool *_hp = (Bool *)U32_lt(_rc4638, &(U32){_re4638}); _wcond4639 = *_hp; free(_hp); }
-                (void)_wcond4639;
-                if (_wcond4639) {
+                Bool _wcond4648; { Bool *_hp = (Bool *)U32_lt(_rc4647, &(U32){_re4647}); _wcond4648 = *_hp; free(_hp); }
+                (void)_wcond4648;
+                if (_wcond4648) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *di = malloc(sizeof(U32)); *di = U32_clone(_rc4638);
+                U32 *di = malloc(sizeof(U32)); *di = U32_clone(_rc4647);
                 (void)di;
-                U32_inc(_rc4638);
+                U32_inc(_rc4647);
                 Expr *ch = Vec_get(import_decls, di);
                 (void)ch;
-                Expr *_t4640 = Expr_clone(ch);
-                (void)_t4640;
+                Expr *_t4649 = Expr_clone(ch);
+                (void)_t4649;
                 U32_delete(di, &(Bool){1});
-                Vec_push(merged, _t4640);
+                Vec_push(merged, _t4649);
             }
         } else {
             while (1) {
-                Bool _wcond4641; { Bool *_hp = (Bool *)U32_gt(_rc4638, &(U32){_re4638}); _wcond4641 = *_hp; free(_hp); }
-                (void)_wcond4641;
-                if (_wcond4641) {
+                Bool _wcond4650; { Bool *_hp = (Bool *)U32_gt(_rc4647, &(U32){_re4647}); _wcond4650 = *_hp; free(_hp); }
+                (void)_wcond4650;
+                if (_wcond4650) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *di = malloc(sizeof(U32)); *di = U32_clone(_rc4638);
+                U32 *di = malloc(sizeof(U32)); *di = U32_clone(_rc4647);
                 (void)di;
-                U32_dec(_rc4638);
+                U32_dec(_rc4647);
                 Expr *ch = Vec_get(import_decls, di);
                 (void)ch;
-                Expr *_t4642 = Expr_clone(ch);
-                (void)_t4642;
+                Expr *_t4651 = Expr_clone(ch);
+                (void)_t4651;
                 U32_delete(di, &(Bool){1});
-                Vec_push(merged, _t4642);
+                Vec_push(merged, _t4651);
             }
         }
-        U32_delete(_rc4638, &(Bool){1});
+        U32_delete(_rc4647, &(Bool){1});
         ;
         ;
     }
     Vec_delete(import_decls, &(Bool){1});
     {
-        U32 _re4644; { U32 *_hp = (U32 *)Expr_child_count(ast); _re4644 = *_hp; free(_hp); }
-        (void)_re4644;
-        U32 *_rc4644 = malloc(sizeof(U32));
-        *_rc4644 = 0;
-        (void)_rc4644;
-        Bool _t4649; { Bool *_hp = (Bool *)U32_lte(_rc4644, &(U32){_re4644}); _t4649 = *_hp; free(_hp); }
-        (void)_t4649;
-        if (_t4649) {
+        U32 _re4653; { U32 *_hp = (U32 *)Expr_child_count(ast); _re4653 = *_hp; free(_hp); }
+        (void)_re4653;
+        U32 *_rc4653 = malloc(sizeof(U32));
+        *_rc4653 = 0;
+        (void)_rc4653;
+        Bool _t4658; { Bool *_hp = (Bool *)U32_lte(_rc4653, &(U32){_re4653}); _t4658 = *_hp; free(_hp); }
+        (void)_t4658;
+        if (_t4658) {
             while (1) {
-                Bool _wcond4645; { Bool *_hp = (Bool *)U32_lt(_rc4644, &(U32){_re4644}); _wcond4645 = *_hp; free(_hp); }
-                (void)_wcond4645;
-                if (_wcond4645) {
+                Bool _wcond4654; { Bool *_hp = (Bool *)U32_lt(_rc4653, &(U32){_re4653}); _wcond4654 = *_hp; free(_hp); }
+                (void)_wcond4654;
+                if (_wcond4654) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4644);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4653);
                 (void)i;
-                U32_inc(_rc4644);
+                U32_inc(_rc4653);
                 Expr *ch = Expr_child(ast, i);
                 (void)ch;
-                Expr *_t4646 = Expr_clone(ch);
-                (void)_t4646;
+                Expr *_t4655 = Expr_clone(ch);
+                (void)_t4655;
                 U32_delete(i, &(Bool){1});
-                Vec_push(merged, _t4646);
+                Vec_push(merged, _t4655);
             }
         } else {
             while (1) {
-                Bool _wcond4647; { Bool *_hp = (Bool *)U32_gt(_rc4644, &(U32){_re4644}); _wcond4647 = *_hp; free(_hp); }
-                (void)_wcond4647;
-                if (_wcond4647) {
+                Bool _wcond4656; { Bool *_hp = (Bool *)U32_gt(_rc4653, &(U32){_re4653}); _wcond4656 = *_hp; free(_hp); }
+                (void)_wcond4656;
+                if (_wcond4656) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4644);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4653);
                 (void)i;
-                U32_dec(_rc4644);
+                U32_dec(_rc4653);
                 Expr *ch = Expr_child(ast, i);
                 (void)ch;
-                Expr *_t4648 = Expr_clone(ch);
-                (void)_t4648;
+                Expr *_t4657 = Expr_clone(ch);
+                (void)_t4657;
                 U32_delete(i, &(Bool){1});
-                Vec_push(merged, _t4648);
+                Vec_push(merged, _t4657);
             }
         }
-        U32_delete(_rc4644, &(Bool){1});
+        U32_delete(_rc4653, &(Bool){1});
         ;
         ;
     }
@@ -29531,128 +29570,128 @@ int main(int argc, char **argv) {
     (void)link_flags;
     Str *link_c_paths = Str_lit("", 0ULL);
     (void)link_c_paths;
-    Str *_t4985 = Str_lit("", 0ULL);
-    (void)_t4985;
-    U32 _t4986; { U32 *_hp = (U32 *)Expr_size(); _t4986 = *_hp; free(_hp); }
-    (void)_t4986;
-    Vec *kept = Vec_new(_t4985, &(U32){_t4986});
+    Str *_t4994 = Str_lit("", 0ULL);
+    (void)_t4994;
+    U32 _t4995; { U32 *_hp = (U32 *)Expr_size(); _t4995 = *_hp; free(_hp); }
+    (void)_t4995;
+    Vec *kept = Vec_new(_t4994, &(U32){_t4995});
     (void)kept;
-    Str_delete(_t4985, &(Bool){1});
+    Str_delete(_t4994, &(Bool){1});
     ;
     {
-        U32 _re4650; { U32 *_hp = (U32 *)Expr_child_count(ast); _re4650 = *_hp; free(_hp); }
-        (void)_re4650;
-        U32 *_rc4650 = malloc(sizeof(U32));
-        *_rc4650 = 0;
-        (void)_rc4650;
-        Bool _t4703; { Bool *_hp = (Bool *)U32_lte(_rc4650, &(U32){_re4650}); _t4703 = *_hp; free(_hp); }
-        (void)_t4703;
-        if (_t4703) {
+        U32 _re4659; { U32 *_hp = (U32 *)Expr_child_count(ast); _re4659 = *_hp; free(_hp); }
+        (void)_re4659;
+        U32 *_rc4659 = malloc(sizeof(U32));
+        *_rc4659 = 0;
+        (void)_rc4659;
+        Bool _t4712; { Bool *_hp = (Bool *)U32_lte(_rc4659, &(U32){_re4659}); _t4712 = *_hp; free(_hp); }
+        (void)_t4712;
+        if (_t4712) {
             while (1) {
-                Bool _wcond4651; { Bool *_hp = (Bool *)U32_lt(_rc4650, &(U32){_re4650}); _wcond4651 = *_hp; free(_hp); }
-                (void)_wcond4651;
-                if (_wcond4651) {
+                Bool _wcond4660; { Bool *_hp = (Bool *)U32_lt(_rc4659, &(U32){_re4659}); _wcond4660 = *_hp; free(_hp); }
+                (void)_wcond4660;
+                if (_wcond4660) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4650);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4659);
                 (void)i;
-                U32_inc(_rc4650);
+                U32_inc(_rc4659);
                 Expr *stmt = Expr_child(ast, i);
                 (void)stmt;
                 Bool is_directive = 0;
                 (void)is_directive;
-                U32 _t4672; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4672 = *_hp; free(_hp); }
-                (void)_t4672;
-                U32 _t4673 = 2;
-                (void)_t4673;
-                Bool _t4674; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4674 = *_hp; free(_hp); }
-                (void)_t4674;
-                Bool _t4675 = U32_eq(_t4672, _t4673);
-                (void)_t4675;
+                U32 _t4681; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4681 = *_hp; free(_hp); }
+                (void)_t4681;
+                U32 _t4682 = 2;
+                (void)_t4682;
+                Bool _t4683; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4683 = *_hp; free(_hp); }
+                (void)_t4683;
+                Bool _t4684 = U32_eq(_t4681, _t4682);
+                (void)_t4684;
                 ;
                 ;
-                Bool _t4676 = Bool_and(_t4674, _t4675);
-                (void)_t4676;
+                Bool _t4685 = Bool_and(_t4683, _t4684);
+                (void)_t4685;
                 ;
                 ;
-                if (_t4676) {
-                    U32 _t4653 = 0;
-                    (void)_t4653;
-                    U32 _t4654 = 1;
-                    (void)_t4654;
-                    Bool _t4655; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4653})->data); _t4655 = *_hp; free(_hp); }
-                    (void)_t4655;
+                if (_t4685) {
+                    U32 _t4662 = 0;
+                    (void)_t4662;
+                    U32 _t4663 = 1;
+                    (void)_t4663;
+                    Bool _t4664; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4662})->data); _t4664 = *_hp; free(_hp); }
+                    (void)_t4664;
                     ;
-                    Bool _t4656; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4654})->data); _t4656 = *_hp; free(_hp); }
-                    (void)_t4656;
+                    Bool _t4665; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4663})->data); _t4665 = *_hp; free(_hp); }
+                    (void)_t4665;
                     ;
-                    Bool _t4657 = Bool_and(_t4655, _t4656);
-                    (void)_t4657;
+                    Bool _t4666 = Bool_and(_t4664, _t4665);
+                    (void)_t4666;
                     ;
                     ;
-                    if (_t4657) {
-                        Bool _t4652 = 1;
-                        (void)_t4652;
-                        is_directive = _t4652;
+                    if (_t4666) {
+                        Bool _t4661 = 1;
+                        (void)_t4661;
+                        is_directive = _t4661;
                         ;
                     }
                     ;
                 }
                 ;
                 if (is_directive) {
-                    U32 _t4667 = 0;
-                    (void)_t4667;
-                    Str *fname = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4667})->data);
+                    U32 _t4676 = 0;
+                    (void)_t4676;
+                    Str *fname = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4676})->data);
                     (void)fname;
                     ;
-                    U32 _t4668 = 1;
-                    (void)_t4668;
-                    Str *arg = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4668})->data);
+                    U32 _t4677 = 1;
+                    (void)_t4677;
+                    Str *arg = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4677})->data);
                     (void)arg;
                     ;
-                    Str *_t4669 = Str_lit("link", 4ULL);
-                    (void)_t4669;
-                    Bool _t4670; { Bool *_hp = (Bool *)Str_eq(fname, _t4669); _t4670 = *_hp; free(_hp); }
-                    (void)_t4670;
-                    Str_delete(_t4669, &(Bool){1});
-                    if (_t4670) {
-                        Str *_t4658 = Str_lit(" -l", 3ULL);
-                        (void)_t4658;
-                        Str *_t4659 = Str_concat(link_flags, _t4658);
-                        (void)_t4659;
-                        Str_delete(_t4658, &(Bool){1});
-                        link_flags = Str_concat(_t4659, arg);
-                        Str_delete(_t4659, &(Bool){1});
+                    Str *_t4678 = Str_lit("link", 4ULL);
+                    (void)_t4678;
+                    Bool _t4679; { Bool *_hp = (Bool *)Str_eq(fname, _t4678); _t4679 = *_hp; free(_hp); }
+                    (void)_t4679;
+                    Str_delete(_t4678, &(Bool){1});
+                    if (_t4679) {
+                        Str *_t4667 = Str_lit(" -l", 3ULL);
+                        (void)_t4667;
+                        Str *_t4668 = Str_concat(link_flags, _t4667);
+                        (void)_t4668;
+                        Str_delete(_t4667, &(Bool){1});
+                        link_flags = Str_concat(_t4668, arg);
+                        Str_delete(_t4668, &(Bool){1});
                     } else {
-                        Str *_t4665 = Str_lit("link_c", 6ULL);
-                        (void)_t4665;
-                        Bool _t4666; { Bool *_hp = (Bool *)Str_eq(fname, _t4665); _t4666 = *_hp; free(_hp); }
-                        (void)_t4666;
-                        Str_delete(_t4665, &(Bool){1});
-                        if (_t4666) {
-                            U32 _t4661; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t4661 = *_hp; free(_hp); }
-                            (void)_t4661;
-                            U32 _t4662 = 0;
-                            (void)_t4662;
-                            Bool _t4663; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4661}, &(U32){_t4662}); _t4663 = *_hp; free(_hp); }
-                            (void)_t4663;
+                        Str *_t4674 = Str_lit("link_c", 6ULL);
+                        (void)_t4674;
+                        Bool _t4675; { Bool *_hp = (Bool *)Str_eq(fname, _t4674); _t4675 = *_hp; free(_hp); }
+                        (void)_t4675;
+                        Str_delete(_t4674, &(Bool){1});
+                        if (_t4675) {
+                            U32 _t4670; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t4670 = *_hp; free(_hp); }
+                            (void)_t4670;
+                            U32 _t4671 = 0;
+                            (void)_t4671;
+                            Bool _t4672; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4670}, &(U32){_t4671}); _t4672 = *_hp; free(_hp); }
+                            (void)_t4672;
                             ;
                             ;
-                            if (_t4663) {
-                                Str *_t4660 = Str_lit(" ", 1ULL);
-                                (void)_t4660;
-                                link_c_paths = Str_concat(link_c_paths, _t4660);
-                                Str_delete(_t4660, &(Bool){1});
+                            if (_t4672) {
+                                Str *_t4669 = Str_lit(" ", 1ULL);
+                                (void)_t4669;
+                                link_c_paths = Str_concat(link_c_paths, _t4669);
+                                Str_delete(_t4669, &(Bool){1});
                             }
                             ;
                             link_c_paths = Str_concat(link_c_paths, arg);
                         } else {
-                            Expr *_t4664 = Expr_clone(stmt);
-                            (void)_t4664;
-                            Vec_push(kept, _t4664);
+                            Expr *_t4673 = Expr_clone(stmt);
+                            (void)_t4673;
+                            Vec_push(kept, _t4673);
                         }
                         ;
                     }
@@ -29660,119 +29699,119 @@ int main(int argc, char **argv) {
                     Str_delete(arg, &(Bool){1});
                     Str_delete(fname, &(Bool){1});
                 } else {
-                    Expr *_t4671 = Expr_clone(stmt);
-                    (void)_t4671;
-                    Vec_push(kept, _t4671);
+                    Expr *_t4680 = Expr_clone(stmt);
+                    (void)_t4680;
+                    Vec_push(kept, _t4680);
                 }
                 U32_delete(i, &(Bool){1});
                 ;
             }
         } else {
             while (1) {
-                Bool _wcond4677; { Bool *_hp = (Bool *)U32_gt(_rc4650, &(U32){_re4650}); _wcond4677 = *_hp; free(_hp); }
-                (void)_wcond4677;
-                if (_wcond4677) {
+                Bool _wcond4686; { Bool *_hp = (Bool *)U32_gt(_rc4659, &(U32){_re4659}); _wcond4686 = *_hp; free(_hp); }
+                (void)_wcond4686;
+                if (_wcond4686) {
                 } else {
                     ;
                     break;
                 }
                 ;
-                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4650);
+                U32 *i = malloc(sizeof(U32)); *i = U32_clone(_rc4659);
                 (void)i;
-                U32_dec(_rc4650);
+                U32_dec(_rc4659);
                 Expr *stmt = Expr_child(ast, i);
                 (void)stmt;
                 Bool is_directive = 0;
                 (void)is_directive;
-                U32 _t4698; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4698 = *_hp; free(_hp); }
-                (void)_t4698;
-                U32 _t4699 = 2;
-                (void)_t4699;
-                Bool _t4700; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4700 = *_hp; free(_hp); }
-                (void)_t4700;
-                Bool _t4701 = U32_eq(_t4698, _t4699);
-                (void)_t4701;
+                U32 _t4707; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4707 = *_hp; free(_hp); }
+                (void)_t4707;
+                U32 _t4708 = 2;
+                (void)_t4708;
+                Bool _t4709; { Bool *_hp = (Bool *)ExprData_is_FCall(&stmt->data); _t4709 = *_hp; free(_hp); }
+                (void)_t4709;
+                Bool _t4710 = U32_eq(_t4707, _t4708);
+                (void)_t4710;
                 ;
                 ;
-                Bool _t4702 = Bool_and(_t4700, _t4701);
-                (void)_t4702;
+                Bool _t4711 = Bool_and(_t4709, _t4710);
+                (void)_t4711;
                 ;
                 ;
-                if (_t4702) {
-                    U32 _t4679 = 0;
-                    (void)_t4679;
-                    U32 _t4680 = 1;
-                    (void)_t4680;
-                    Bool _t4681; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4679})->data); _t4681 = *_hp; free(_hp); }
-                    (void)_t4681;
+                if (_t4711) {
+                    U32 _t4688 = 0;
+                    (void)_t4688;
+                    U32 _t4689 = 1;
+                    (void)_t4689;
+                    Bool _t4690; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(stmt, &(U32){_t4688})->data); _t4690 = *_hp; free(_hp); }
+                    (void)_t4690;
                     ;
-                    Bool _t4682; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4680})->data); _t4682 = *_hp; free(_hp); }
-                    (void)_t4682;
+                    Bool _t4691; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&Expr_child(stmt, &(U32){_t4689})->data); _t4691 = *_hp; free(_hp); }
+                    (void)_t4691;
                     ;
-                    Bool _t4683 = Bool_and(_t4681, _t4682);
-                    (void)_t4683;
+                    Bool _t4692 = Bool_and(_t4690, _t4691);
+                    (void)_t4692;
                     ;
                     ;
-                    if (_t4683) {
-                        Bool _t4678 = 1;
-                        (void)_t4678;
-                        is_directive = _t4678;
+                    if (_t4692) {
+                        Bool _t4687 = 1;
+                        (void)_t4687;
+                        is_directive = _t4687;
                         ;
                     }
                     ;
                 }
                 ;
                 if (is_directive) {
-                    U32 _t4693 = 0;
-                    (void)_t4693;
-                    Str *fname = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4693})->data);
+                    U32 _t4702 = 0;
+                    (void)_t4702;
+                    Str *fname = ExprData_get_Ident(&Expr_child(stmt, &(U32){_t4702})->data);
                     (void)fname;
                     ;
-                    U32 _t4694 = 1;
-                    (void)_t4694;
-                    Str *arg = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4694})->data);
+                    U32 _t4703 = 1;
+                    (void)_t4703;
+                    Str *arg = ExprData_get_LiteralStr(&Expr_child(stmt, &(U32){_t4703})->data);
                     (void)arg;
                     ;
-                    Str *_t4695 = Str_lit("link", 4ULL);
-                    (void)_t4695;
-                    Bool _t4696; { Bool *_hp = (Bool *)Str_eq(fname, _t4695); _t4696 = *_hp; free(_hp); }
-                    (void)_t4696;
-                    Str_delete(_t4695, &(Bool){1});
-                    if (_t4696) {
-                        Str *_t4684 = Str_lit(" -l", 3ULL);
-                        (void)_t4684;
-                        Str *_t4685 = Str_concat(link_flags, _t4684);
-                        (void)_t4685;
-                        Str_delete(_t4684, &(Bool){1});
-                        link_flags = Str_concat(_t4685, arg);
-                        Str_delete(_t4685, &(Bool){1});
+                    Str *_t4704 = Str_lit("link", 4ULL);
+                    (void)_t4704;
+                    Bool _t4705; { Bool *_hp = (Bool *)Str_eq(fname, _t4704); _t4705 = *_hp; free(_hp); }
+                    (void)_t4705;
+                    Str_delete(_t4704, &(Bool){1});
+                    if (_t4705) {
+                        Str *_t4693 = Str_lit(" -l", 3ULL);
+                        (void)_t4693;
+                        Str *_t4694 = Str_concat(link_flags, _t4693);
+                        (void)_t4694;
+                        Str_delete(_t4693, &(Bool){1});
+                        link_flags = Str_concat(_t4694, arg);
+                        Str_delete(_t4694, &(Bool){1});
                     } else {
-                        Str *_t4691 = Str_lit("link_c", 6ULL);
-                        (void)_t4691;
-                        Bool _t4692; { Bool *_hp = (Bool *)Str_eq(fname, _t4691); _t4692 = *_hp; free(_hp); }
-                        (void)_t4692;
-                        Str_delete(_t4691, &(Bool){1});
-                        if (_t4692) {
-                            U32 _t4687; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t4687 = *_hp; free(_hp); }
-                            (void)_t4687;
-                            U32 _t4688 = 0;
-                            (void)_t4688;
-                            Bool _t4689; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4687}, &(U32){_t4688}); _t4689 = *_hp; free(_hp); }
-                            (void)_t4689;
+                        Str *_t4700 = Str_lit("link_c", 6ULL);
+                        (void)_t4700;
+                        Bool _t4701; { Bool *_hp = (Bool *)Str_eq(fname, _t4700); _t4701 = *_hp; free(_hp); }
+                        (void)_t4701;
+                        Str_delete(_t4700, &(Bool){1});
+                        if (_t4701) {
+                            U32 _t4696; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t4696 = *_hp; free(_hp); }
+                            (void)_t4696;
+                            U32 _t4697 = 0;
+                            (void)_t4697;
+                            Bool _t4698; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4696}, &(U32){_t4697}); _t4698 = *_hp; free(_hp); }
+                            (void)_t4698;
                             ;
                             ;
-                            if (_t4689) {
-                                Str *_t4686 = Str_lit(" ", 1ULL);
-                                (void)_t4686;
-                                link_c_paths = Str_concat(link_c_paths, _t4686);
-                                Str_delete(_t4686, &(Bool){1});
+                            if (_t4698) {
+                                Str *_t4695 = Str_lit(" ", 1ULL);
+                                (void)_t4695;
+                                link_c_paths = Str_concat(link_c_paths, _t4695);
+                                Str_delete(_t4695, &(Bool){1});
                             }
                             ;
                             link_c_paths = Str_concat(link_c_paths, arg);
                         } else {
-                            Expr *_t4690 = Expr_clone(stmt);
-                            (void)_t4690;
-                            Vec_push(kept, _t4690);
+                            Expr *_t4699 = Expr_clone(stmt);
+                            (void)_t4699;
+                            Vec_push(kept, _t4699);
                         }
                         ;
                     }
@@ -29780,15 +29819,15 @@ int main(int argc, char **argv) {
                     Str_delete(arg, &(Bool){1});
                     Str_delete(fname, &(Bool){1});
                 } else {
-                    Expr *_t4697 = Expr_clone(stmt);
-                    (void)_t4697;
-                    Vec_push(kept, _t4697);
+                    Expr *_t4706 = Expr_clone(stmt);
+                    (void)_t4706;
+                    Vec_push(kept, _t4706);
                 }
                 U32_delete(i, &(Bool){1});
                 ;
             }
         }
-        U32_delete(_rc4650, &(Bool){1});
+        U32_delete(_rc4659, &(Bool){1});
         ;
         ;
     }
@@ -29796,117 +29835,117 @@ int main(int argc, char **argv) {
     Vec_delete(kept, &(Bool){1});
     TypeScope *scope = tscope_new(NULL);
     (void)scope;
-    I32 _t4987 = init_declarations(ast, scope);
-    (void)_t4987;
+    I32 _t4996 = init_declarations(ast, scope);
+    (void)_t4996;
     ;
     I32 type_errors = type_check(ast, scope, cur_mode);
     (void)type_errors;
     TypeScope_delete(scope, &(Bool){1});
-    I32 _t4988 = 0;
-    (void)_t4988;
-    Bool _t4989; { Bool *_hp = (Bool *)I32_gt(&(I32){type_errors}, &(I32){_t4988}); _t4989 = *_hp; free(_hp); }
-    (void)_t4989;
+    I32 _t4997 = 0;
+    (void)_t4997;
+    Bool _t4998; { Bool *_hp = (Bool *)I32_gt(&(I32){type_errors}, &(I32){_t4997}); _t4998 = *_hp; free(_hp); }
+    (void)_t4998;
     ;
-    if (_t4989) {
-        Str *_t4704 = Str_lit("Str", 3ULL);
-        (void)_t4704;
-        U32 _t4705; { U32 *_hp = (U32 *)Str_size(); _t4705 = *_hp; free(_hp); }
-        (void)_t4705;
-        U32 _t4706 = 1;
-        (void)_t4706;
-        Array *_va93 = Array_new(_t4704, &(U32){_t4705}, &(U32){_t4706});
+    if (_t4998) {
+        Str *_t4713 = Str_lit("Str", 3ULL);
+        (void)_t4713;
+        U32 _t4714; { U32 *_hp = (U32 *)Str_size(); _t4714 = *_hp; free(_hp); }
+        (void)_t4714;
+        U32 _t4715 = 1;
+        (void)_t4715;
+        Array *_va93 = Array_new(_t4713, &(U32){_t4714}, &(U32){_t4715});
         (void)_va93;
-        Str_delete(_t4704, &(Bool){1});
+        Str_delete(_t4713, &(Bool){1});
         ;
         ;
-        Str *_t4707 = I32_to_str(&(I32){type_errors});
-        (void)_t4707;
-        Str *_t4708 = Str_lit(" type error(s) found", 20ULL);
-        (void)_t4708;
-        U32 _t4709 = 0;
-        (void)_t4709;
-        Str *_t4710 = Str_concat(_t4707, _t4708);
-        (void)_t4710;
-        Str_delete(_t4707, &(Bool){1});
-        Str_delete(_t4708, &(Bool){1});
-        Array_set(_va93, &(U32){_t4709}, _t4710);
+        Str *_t4716 = I32_to_str(&(I32){type_errors});
+        (void)_t4716;
+        Str *_t4717 = Str_lit(" type error(s) found", 20ULL);
+        (void)_t4717;
+        U32 _t4718 = 0;
+        (void)_t4718;
+        Str *_t4719 = Str_concat(_t4716, _t4717);
+        (void)_t4719;
+        Str_delete(_t4716, &(Bool){1});
+        Str_delete(_t4717, &(Bool){1});
+        Array_set(_va93, &(U32){_t4718}, _t4719);
         ;
-        Str *_t4711 = Str_lit("src/til.til:370:15", 18ULL);
-        (void)_t4711;
-        panic(_t4711, _va93);
-        Str_delete(_t4711, &(Bool){1});
+        Str *_t4720 = Str_lit("src/til.til:376:15", 18ULL);
+        (void)_t4720;
+        panic(_t4720, _va93);
+        Str_delete(_t4720, &(Bool){1});
     }
     ;
     ;
-    Str *_t4990 = Str_lit("test", 4ULL);
-    (void)_t4990;
-    Str *_t4991 = Str_lit("test", 4ULL);
-    (void)_t4991;
-    Bool _t4992; { Bool *_hp = (Bool *)Str_eq(command, _t4990); _t4992 = *_hp; free(_hp); }
-    (void)_t4992;
-    Str_delete(_t4990, &(Bool){1});
-    Bool _t4993; { Bool *_hp = (Bool *)Str_eq(&cur_mode->name, _t4991); _t4993 = *_hp; free(_hp); }
-    (void)_t4993;
-    Str_delete(_t4991, &(Bool){1});
-    Str *_t4994 = Str_lit("pure", 4ULL);
-    (void)_t4994;
-    Bool _t4995 = Bool_or(_t4992, _t4993);
-    (void)_t4995;
-    ;
-    ;
-    Bool _t4996; { Bool *_hp = (Bool *)Str_eq(&cur_mode->name, _t4994); _t4996 = *_hp; free(_hp); }
-    (void)_t4996;
-    Str_delete(_t4994, &(Bool){1});
-    Str *_t4997 = Str_lit("pura", 4ULL);
-    (void)_t4997;
-    Bool _t4998 = Bool_or(_t4995, _t4996);
-    (void)_t4998;
-    ;
-    ;
-    Bool _t4999; { Bool *_hp = (Bool *)Str_eq(&cur_mode->name, _t4997); _t4999 = *_hp; free(_hp); }
+    Str *_t4999 = Str_lit("test", 4ULL);
     (void)_t4999;
-    Str_delete(_t4997, &(Bool){1});
-    Bool run_tests = Bool_or(_t4998, _t4999);
+    Str *_t5000 = Str_lit("test", 4ULL);
+    (void)_t5000;
+    Bool _t5001; { Bool *_hp = (Bool *)Str_eq(command, _t4999); _t5001 = *_hp; free(_hp); }
+    (void)_t5001;
+    Str_delete(_t4999, &(Bool){1});
+    Bool _t5002; { Bool *_hp = (Bool *)Str_eq(&cur_mode->name, _t5000); _t5002 = *_hp; free(_hp); }
+    (void)_t5002;
+    Str_delete(_t5000, &(Bool){1});
+    Str *_t5003 = Str_lit("pure", 4ULL);
+    (void)_t5003;
+    Bool _t5004 = Bool_or(_t5001, _t5002);
+    (void)_t5004;
+    ;
+    ;
+    Bool _t5005; { Bool *_hp = (Bool *)Str_eq(&cur_mode->name, _t5003); _t5005 = *_hp; free(_hp); }
+    (void)_t5005;
+    Str_delete(_t5003, &(Bool){1});
+    Str *_t5006 = Str_lit("pura", 4ULL);
+    (void)_t5006;
+    Bool _t5007 = Bool_or(_t5004, _t5005);
+    (void)_t5007;
+    ;
+    ;
+    Bool _t5008; { Bool *_hp = (Bool *)Str_eq(&cur_mode->name, _t5006); _t5008 = *_hp; free(_hp); }
+    (void)_t5008;
+    Str_delete(_t5006, &(Bool){1});
+    Bool run_tests = Bool_or(_t5007, _t5008);
     (void)run_tests;
     ;
     ;
     precomp(ast);
-    Str *_t5000 = Str_lit("translate", 9ULL);
-    (void)_t5000;
-    Str *_t5001 = Str_lit("build", 5ULL);
-    (void)_t5001;
-    Bool _t5002; { Bool *_hp = (Bool *)Str_eq(command, _t5000); _t5002 = *_hp; free(_hp); }
-    (void)_t5002;
-    Str_delete(_t5000, &(Bool){1});
-    Bool _t5003; { Bool *_hp = (Bool *)Str_eq(command, _t5001); _t5003 = *_hp; free(_hp); }
-    (void)_t5003;
-    Str_delete(_t5001, &(Bool){1});
-    Bool _t5004; { Bool *_hp = (Bool *)mode_is_lib_output(cur_mode); _t5004 = *_hp; free(_hp); }
-    (void)_t5004;
-    Bool _t5005 = Bool_or(_t5002, _t5003);
-    (void)_t5005;
+    Str *_t5009 = Str_lit("translate", 9ULL);
+    (void)_t5009;
+    Str *_t5010 = Str_lit("build", 5ULL);
+    (void)_t5010;
+    Bool _t5011; { Bool *_hp = (Bool *)Str_eq(command, _t5009); _t5011 = *_hp; free(_hp); }
+    (void)_t5011;
+    Str_delete(_t5009, &(Bool){1});
+    Bool _t5012; { Bool *_hp = (Bool *)Str_eq(command, _t5010); _t5012 = *_hp; free(_hp); }
+    (void)_t5012;
+    Str_delete(_t5010, &(Bool){1});
+    Bool _t5013; { Bool *_hp = (Bool *)mode_is_lib_output(cur_mode); _t5013 = *_hp; free(_hp); }
+    (void)_t5013;
+    Bool _t5014 = Bool_or(_t5011, _t5012);
+    (void)_t5014;
     ;
     ;
-    Bool is_lib_target = Bool_and(_t5004, _t5005);
+    Bool is_lib_target = Bool_and(_t5013, _t5014);
     (void)is_lib_target;
     ;
     ;
-    U32 _t5006; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t5006 = *_hp; free(_hp); }
-    (void)_t5006;
-    U32 _t5007 = 0;
-    (void)_t5007;
-    Bool _t5008 = Bool_not(is_lib_target);
-    (void)_t5008;
+    U32 _t5015; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t5015 = *_hp; free(_hp); }
+    (void)_t5015;
+    U32 _t5016 = 0;
+    (void)_t5016;
+    Bool _t5017 = Bool_not(is_lib_target);
+    (void)_t5017;
     ;
-    Bool _t5009 = U32_eq(_t5006, _t5007);
-    (void)_t5009;
-    ;
-    ;
-    Bool _t5010 = Bool_and(_t5008, _t5009);
-    (void)_t5010;
+    Bool _t5018 = U32_eq(_t5015, _t5016);
+    (void)_t5018;
     ;
     ;
-    if (_t5010) {
+    Bool _t5019 = Bool_and(_t5017, _t5018);
+    (void)_t5019;
+    ;
+    ;
+    if (_t5019) {
         scavenge(ast, cur_mode, run_tests);
     }
     ;
@@ -29914,40 +29953,40 @@ int main(int argc, char **argv) {
     (void)result;
     Str *user_c = Str_lit("", 0ULL);
     (void)user_c;
-    U32 _t5011; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t5011 = *_hp; free(_hp); }
-    (void)_t5011;
-    U32 _t5012 = 0;
-    (void)_t5012;
-    Bool _t5013; { Bool *_hp = (Bool *)U32_gt(&(U32){_t5011}, &(U32){_t5012}); _t5013 = *_hp; free(_hp); }
-    (void)_t5013;
+    U32 _t5020; { U32 *_hp = (U32 *)Str_len(link_c_paths); _t5020 = *_hp; free(_hp); }
+    (void)_t5020;
+    U32 _t5021 = 0;
+    (void)_t5021;
+    Bool _t5022; { Bool *_hp = (Bool *)U32_gt(&(U32){_t5020}, &(U32){_t5021}); _t5022 = *_hp; free(_hp); }
+    (void)_t5022;
     ;
     ;
-    if (_t5013) {
+    if (_t5022) {
         user_c = Str_clone(link_c_paths);
     }
     ;
     Str_delete(link_c_paths, &(Bool){1});
-    Str *_t5014 = Str_lit("Str", 3ULL);
-    (void)_t5014;
-    U32 _t5015; { U32 *_hp = (U32 *)Str_size(); _t5015 = *_hp; free(_hp); }
-    (void)_t5015;
-    Vec *user_argv = Vec_new(_t5014, &(U32){_t5015});
+    Str *_t5023 = Str_lit("Str", 3ULL);
+    (void)_t5023;
+    U32 _t5024; { U32 *_hp = (U32 *)Str_size(); _t5024 = *_hp; free(_hp); }
+    (void)_t5024;
+    Vec *user_argv = Vec_new(_t5023, &(U32){_t5024});
     (void)user_argv;
-    Str_delete(_t5014, &(Bool){1});
+    Str_delete(_t5023, &(Bool){1});
     ;
-    U32 _t5016 = 1;
-    (void)_t5016;
-    U32 *ai = malloc(sizeof(U32)); *ai = U32_add(DEREF(path_idx), _t5016);
+    U32 _t5025 = 1;
+    (void)_t5025;
+    U32 *ai = malloc(sizeof(U32)); *ai = U32_add(DEREF(path_idx), _t5025);
     (void)ai;
     ;
     U32_delete(path_idx, &(Bool){1});
     while (1) {
-        U32 _t4728; { U32 *_hp = (U32 *)Array_len(args); _t4728 = *_hp; free(_hp); }
-        (void)_t4728;
-        Bool _wcond4712; { Bool *_hp = (Bool *)U32_lt(ai, &(U32){_t4728}); _wcond4712 = *_hp; free(_hp); }
-        (void)_wcond4712;
+        U32 _t4737; { U32 *_hp = (U32 *)Array_len(args); _t4737 = *_hp; free(_hp); }
+        (void)_t4737;
+        Bool _wcond4721; { Bool *_hp = (Bool *)U32_lt(ai, &(U32){_t4737}); _wcond4721 = *_hp; free(_hp); }
+        (void)_wcond4721;
         ;
-        if (_wcond4712) {
+        if (_wcond4721) {
         } else {
             ;
             break;
@@ -29955,238 +29994,238 @@ int main(int argc, char **argv) {
         ;
         Str *arg = Array_get(args, ai);
         (void)arg;
-        Str *_t4729 = Str_lit("-l", 2ULL);
-        (void)_t4729;
-        Bool _t4730; { Bool *_hp = (Bool *)Str_starts_with(arg, _t4729); _t4730 = *_hp; free(_hp); }
-        (void)_t4730;
-        Str_delete(_t4729, &(Bool){1});
-        if (_t4730) {
-            U32 _t4715 = 2;
-            (void)_t4715;
-            U32 _t4716; { U32 *_hp = (U32 *)Str_len(arg); _t4716 = *_hp; free(_hp); }
-            (void)_t4716;
-            Str *lib = Str_substr(arg, &(U32){_t4715}, &(U32){_t4716});
+        Str *_t4738 = Str_lit("-l", 2ULL);
+        (void)_t4738;
+        Bool _t4739; { Bool *_hp = (Bool *)Str_starts_with(arg, _t4738); _t4739 = *_hp; free(_hp); }
+        (void)_t4739;
+        Str_delete(_t4738, &(Bool){1});
+        if (_t4739) {
+            U32 _t4724 = 2;
+            (void)_t4724;
+            U32 _t4725; { U32 *_hp = (U32 *)Str_len(arg); _t4725 = *_hp; free(_hp); }
+            (void)_t4725;
+            Str *lib = Str_substr(arg, &(U32){_t4724}, &(U32){_t4725});
             (void)lib;
             ;
             ;
-            U32 _t4717; { U32 *_hp = (U32 *)Str_len(lib); _t4717 = *_hp; free(_hp); }
-            (void)_t4717;
-            U32 _t4718 = 0;
-            (void)_t4718;
-            U32 _t4719 = 1;
-            (void)_t4719;
-            U32 _t4720 = U32_add(DEREF(ai), _t4719);
-            (void)_t4720;
+            U32 _t4726; { U32 *_hp = (U32 *)Str_len(lib); _t4726 = *_hp; free(_hp); }
+            (void)_t4726;
+            U32 _t4727 = 0;
+            (void)_t4727;
+            U32 _t4728 = 1;
+            (void)_t4728;
+            U32 _t4729 = U32_add(DEREF(ai), _t4728);
+            (void)_t4729;
             ;
-            U32 _t4721; { U32 *_hp = (U32 *)Array_len(args); _t4721 = *_hp; free(_hp); }
-            (void)_t4721;
-            Bool _t4722 = U32_eq(_t4717, _t4718);
-            (void)_t4722;
-            ;
-            ;
-            Bool _t4723; { Bool *_hp = (Bool *)U32_lt(&(U32){_t4720}, &(U32){_t4721}); _t4723 = *_hp; free(_hp); }
-            (void)_t4723;
+            U32 _t4730; { U32 *_hp = (U32 *)Array_len(args); _t4730 = *_hp; free(_hp); }
+            (void)_t4730;
+            Bool _t4731 = U32_eq(_t4726, _t4727);
+            (void)_t4731;
             ;
             ;
-            Bool _t4724 = Bool_and(_t4722, _t4723);
-            (void)_t4724;
+            Bool _t4732; { Bool *_hp = (Bool *)U32_lt(&(U32){_t4729}, &(U32){_t4730}); _t4732 = *_hp; free(_hp); }
+            (void)_t4732;
             ;
             ;
-            if (_t4724) {
-                U32 _t4713 = 1;
-                (void)_t4713;
-                U32 _t4714 = U32_add(DEREF(ai), _t4713);
-                (void)_t4714;
+            Bool _t4733 = Bool_and(_t4731, _t4732);
+            (void)_t4733;
+            ;
+            ;
+            if (_t4733) {
+                U32 _t4722 = 1;
+                (void)_t4722;
+                U32 _t4723 = U32_add(DEREF(ai), _t4722);
+                (void)_t4723;
                 ;
-                *ai = _t4714;
+                *ai = _t4723;
                 ;
                 Str *next_arg = Array_get(args, ai);
                 (void)next_arg;
                 lib = Str_clone(next_arg);
             }
             ;
-            Str *_t4725 = Str_lit(" -l", 3ULL);
-            (void)_t4725;
-            Str *_t4726 = Str_concat(link_flags, _t4725);
-            (void)_t4726;
-            Str_delete(_t4725, &(Bool){1});
-            link_flags = Str_concat(_t4726, lib);
-            Str_delete(_t4726, &(Bool){1});
+            Str *_t4734 = Str_lit(" -l", 3ULL);
+            (void)_t4734;
+            Str *_t4735 = Str_concat(link_flags, _t4734);
+            (void)_t4735;
+            Str_delete(_t4734, &(Bool){1});
+            link_flags = Str_concat(_t4735, lib);
+            Str_delete(_t4735, &(Bool){1});
             Str_delete(lib, &(Bool){1});
         } else {
-            Str *_t4727 = Str_clone(arg);
-            (void)_t4727;
-            Vec_push(user_argv, _t4727);
+            Str *_t4736 = Str_clone(arg);
+            (void)_t4736;
+            Vec_push(user_argv, _t4736);
         }
         ;
-        U32 _t4731 = 1;
-        (void)_t4731;
-        U32 _t4732 = U32_add(DEREF(ai), _t4731);
-        (void)_t4732;
+        U32 _t4740 = 1;
+        (void)_t4740;
+        U32 _t4741 = U32_add(DEREF(ai), _t4740);
+        (void)_t4741;
         ;
-        *ai = _t4732;
+        *ai = _t4741;
         ;
     }
     U32_delete(ai, &(Bool){1});
     Array_delete(args, &(Bool){1});
     Str *lflags = Str_lit("", 0ULL);
     (void)lflags;
-    U32 _t5017; { U32 *_hp = (U32 *)Str_len(link_flags); _t5017 = *_hp; free(_hp); }
-    (void)_t5017;
-    U32 _t5018 = 0;
-    (void)_t5018;
-    Bool _t5019; { Bool *_hp = (Bool *)U32_gt(&(U32){_t5017}, &(U32){_t5018}); _t5019 = *_hp; free(_hp); }
-    (void)_t5019;
+    U32 _t5026; { U32 *_hp = (U32 *)Str_len(link_flags); _t5026 = *_hp; free(_hp); }
+    (void)_t5026;
+    U32 _t5027 = 0;
+    (void)_t5027;
+    Bool _t5028; { Bool *_hp = (Bool *)U32_gt(&(U32){_t5026}, &(U32){_t5027}); _t5028 = *_hp; free(_hp); }
+    (void)_t5028;
     ;
     ;
-    if (_t5019) {
+    if (_t5028) {
         lflags = Str_clone(link_flags);
     }
     ;
     Str_delete(link_flags, &(Bool){1});
     Bool is_lib_mode; { Bool *_hp = (Bool *)mode_is_lib(cur_mode); is_lib_mode = *_hp; free(_hp); }
     (void)is_lib_mode;
-    Str *_t5020 = Str_lit("interpret", 9ULL);
-    (void)_t5020;
-    Str *_t5021 = Str_lit("test", 4ULL);
-    (void)_t5021;
-    Bool _t5022; { Bool *_hp = (Bool *)Str_eq(command, _t5020); _t5022 = *_hp; free(_hp); }
-    (void)_t5022;
-    Str_delete(_t5020, &(Bool){1});
-    Bool _t5023; { Bool *_hp = (Bool *)Str_eq(command, _t5021); _t5023 = *_hp; free(_hp); }
-    (void)_t5023;
-    Str_delete(_t5021, &(Bool){1});
-    Bool _t5024 = Bool_or(_t5022, _t5023);
-    (void)_t5024;
+    Str *_t5029 = Str_lit("interpret", 9ULL);
+    (void)_t5029;
+    Str *_t5030 = Str_lit("test", 4ULL);
+    (void)_t5030;
+    Bool _t5031; { Bool *_hp = (Bool *)Str_eq(command, _t5029); _t5031 = *_hp; free(_hp); }
+    (void)_t5031;
+    Str_delete(_t5029, &(Bool){1});
+    Bool _t5032; { Bool *_hp = (Bool *)Str_eq(command, _t5030); _t5032 = *_hp; free(_hp); }
+    (void)_t5032;
+    Str_delete(_t5030, &(Bool){1});
+    Bool _t5033 = Bool_or(_t5031, _t5032);
+    (void)_t5033;
     ;
     ;
-    if (_t5024) {
-        Str *_t4739 = Str_lit("interpret", 9ULL);
-        (void)_t4739;
-        Bool _t4740; { Bool *_hp = (Bool *)Str_eq(command, _t4739); _t4740 = *_hp; free(_hp); }
-        (void)_t4740;
-        Str_delete(_t4739, &(Bool){1});
-        Bool _t4741 = Bool_and(is_lib_mode, _t4740);
-        (void)_t4741;
+    if (_t5033) {
+        Str *_t4748 = Str_lit("interpret", 9ULL);
+        (void)_t4748;
+        Bool _t4749; { Bool *_hp = (Bool *)Str_eq(command, _t4748); _t4749 = *_hp; free(_hp); }
+        (void)_t4749;
+        Str_delete(_t4748, &(Bool){1});
+        Bool _t4750 = Bool_and(is_lib_mode, _t4749);
+        (void)_t4750;
         ;
-        if (_t4741) {
-            Str *_t4733 = Str_lit("Str", 3ULL);
-            (void)_t4733;
-            U32 _t4734; { U32 *_hp = (U32 *)Str_size(); _t4734 = *_hp; free(_hp); }
-            (void)_t4734;
-            U32 _t4735 = 1;
-            (void)_t4735;
-            Array *_va94 = Array_new(_t4733, &(U32){_t4734}, &(U32){_t4735});
+        if (_t4750) {
+            Str *_t4742 = Str_lit("Str", 3ULL);
+            (void)_t4742;
+            U32 _t4743; { U32 *_hp = (U32 *)Str_size(); _t4743 = *_hp; free(_hp); }
+            (void)_t4743;
+            U32 _t4744 = 1;
+            (void)_t4744;
+            Array *_va94 = Array_new(_t4742, &(U32){_t4743}, &(U32){_t4744});
             (void)_va94;
-            Str_delete(_t4733, &(Bool){1});
+            Str_delete(_t4742, &(Bool){1});
             ;
             ;
-            U32 _t4736 = 0;
-            (void)_t4736;
-            Str *_t4737 = Str_lit("cannot interpret a library — use translate or build", 53ULL);
-            (void)_t4737;
-            Array_set(_va94, &(U32){_t4736}, _t4737);
+            U32 _t4745 = 0;
+            (void)_t4745;
+            Str *_t4746 = Str_lit("cannot interpret a library — use translate or build", 53ULL);
+            (void)_t4746;
+            Array_set(_va94, &(U32){_t4745}, _t4746);
             ;
-            Str *_t4738 = Str_lit("src/til.til:424:19", 18ULL);
-            (void)_t4738;
-            panic(_t4738, _va94);
-            Str_delete(_t4738, &(Bool){1});
+            Str *_t4747 = Str_lit("src/til.til:430:19", 18ULL);
+            (void)_t4747;
+            panic(_t4747, _va94);
+            Str_delete(_t4747, &(Bool){1});
         }
         ;
-        I32 _t4742 = til_interpret_v(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags, user_argv);
-        (void)_t4742;
-        result = _t4742;
+        I32 _t4751 = til_interpret_v(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags, user_argv);
+        (void)_t4751;
+        result = _t4751;
         ;
     } else {
-        Str *_t4931 = Str_lit("translate", 9ULL);
-        (void)_t4931;
-        Str *_t4932 = Str_lit("build", 5ULL);
-        (void)_t4932;
-        Bool _t4933; { Bool *_hp = (Bool *)Str_eq(command, _t4931); _t4933 = *_hp; free(_hp); }
-        (void)_t4933;
-        Str_delete(_t4931, &(Bool){1});
-        Bool _t4934; { Bool *_hp = (Bool *)Str_eq(command, _t4932); _t4934 = *_hp; free(_hp); }
-        (void)_t4934;
-        Str_delete(_t4932, &(Bool){1});
-        Str *_t4935 = Str_lit("run", 3ULL);
-        (void)_t4935;
-        Bool _t4936 = Bool_or(_t4933, _t4934);
-        (void)_t4936;
+        Str *_t4940 = Str_lit("translate", 9ULL);
+        (void)_t4940;
+        Str *_t4941 = Str_lit("build", 5ULL);
+        (void)_t4941;
+        Bool _t4942; { Bool *_hp = (Bool *)Str_eq(command, _t4940); _t4942 = *_hp; free(_hp); }
+        (void)_t4942;
+        Str_delete(_t4940, &(Bool){1});
+        Bool _t4943; { Bool *_hp = (Bool *)Str_eq(command, _t4941); _t4943 = *_hp; free(_hp); }
+        (void)_t4943;
+        Str_delete(_t4941, &(Bool){1});
+        Str *_t4944 = Str_lit("run", 3ULL);
+        (void)_t4944;
+        Bool _t4945 = Bool_or(_t4942, _t4943);
+        (void)_t4945;
         ;
         ;
-        Bool _t4937; { Bool *_hp = (Bool *)Str_eq(command, _t4935); _t4937 = *_hp; free(_hp); }
-        (void)_t4937;
-        Str_delete(_t4935, &(Bool){1});
-        Bool _t4938 = Bool_or(_t4936, _t4937);
-        (void)_t4938;
+        Bool _t4946; { Bool *_hp = (Bool *)Str_eq(command, _t4944); _t4946 = *_hp; free(_hp); }
+        (void)_t4946;
+        Str_delete(_t4944, &(Bool){1});
+        Bool _t4947 = Bool_or(_t4945, _t4946);
+        (void)_t4947;
         ;
         ;
-        if (_t4938) {
-            Str *_t4864 = Str_lit("run", 3ULL);
-            (void)_t4864;
-            Bool _t4865; { Bool *_hp = (Bool *)Str_eq(command, _t4864); _t4865 = *_hp; free(_hp); }
-            (void)_t4865;
-            Str_delete(_t4864, &(Bool){1});
-            Bool _t4866 = Bool_and(is_lib_mode, _t4865);
-            (void)_t4866;
+        if (_t4947) {
+            Str *_t4873 = Str_lit("run", 3ULL);
+            (void)_t4873;
+            Bool _t4874; { Bool *_hp = (Bool *)Str_eq(command, _t4873); _t4874 = *_hp; free(_hp); }
+            (void)_t4874;
+            Str_delete(_t4873, &(Bool){1});
+            Bool _t4875 = Bool_and(is_lib_mode, _t4874);
+            (void)_t4875;
             ;
-            if (_t4866) {
-                Str *_t4743 = Str_lit("Str", 3ULL);
-                (void)_t4743;
-                U32 _t4744; { U32 *_hp = (U32 *)Str_size(); _t4744 = *_hp; free(_hp); }
-                (void)_t4744;
-                U32 _t4745 = 1;
-                (void)_t4745;
-                Array *_va95 = Array_new(_t4743, &(U32){_t4744}, &(U32){_t4745});
+            if (_t4875) {
+                Str *_t4752 = Str_lit("Str", 3ULL);
+                (void)_t4752;
+                U32 _t4753; { U32 *_hp = (U32 *)Str_size(); _t4753 = *_hp; free(_hp); }
+                (void)_t4753;
+                U32 _t4754 = 1;
+                (void)_t4754;
+                Array *_va95 = Array_new(_t4752, &(U32){_t4753}, &(U32){_t4754});
                 (void)_va95;
-                Str_delete(_t4743, &(Bool){1});
+                Str_delete(_t4752, &(Bool){1});
                 ;
                 ;
-                U32 _t4746 = 0;
-                (void)_t4746;
-                Str *_t4747 = Str_lit("cannot run a library — use translate or build", 47ULL);
-                (void)_t4747;
-                Array_set(_va95, &(U32){_t4746}, _t4747);
+                U32 _t4755 = 0;
+                (void)_t4755;
+                Str *_t4756 = Str_lit("cannot run a library — use translate or build", 47ULL);
+                (void)_t4756;
+                Array_set(_va95, &(U32){_t4755}, _t4756);
                 ;
-                Str *_t4748 = Str_lit("src/til.til:430:19", 18ULL);
-                (void)_t4748;
-                panic(_t4748, _va95);
-                Str_delete(_t4748, &(Bool){1});
+                Str *_t4757 = Str_lit("src/til.til:436:19", 18ULL);
+                (void)_t4757;
+                panic(_t4757, _va95);
+                Str_delete(_t4757, &(Bool){1});
             }
             ;
-            Str *_t4867 = Str_lit("/", 1ULL);
-            (void)_t4867;
-            I64 *last_slash = Str_rfind(path, _t4867);
+            Str *_t4876 = Str_lit("/", 1ULL);
+            (void)_t4876;
+            I64 *last_slash = Str_rfind(path, _t4876);
             (void)last_slash;
-            Str_delete(_t4867, &(Bool){1});
+            Str_delete(_t4876, &(Bool){1});
             Str *basename = Str_clone(path);
             (void)basename;
-            I64 _t4868 = 0;
-            (void)_t4868;
-            Bool _t4869; { Bool *_hp = (Bool *)I64_gte(last_slash, &(I64){_t4868}); _t4869 = *_hp; free(_hp); }
-            (void)_t4869;
+            I64 _t4877 = 0;
+            (void)_t4877;
+            Bool _t4878; { Bool *_hp = (Bool *)I64_gte(last_slash, &(I64){_t4877}); _t4878 = *_hp; free(_hp); }
+            (void)_t4878;
             ;
-            if (_t4869) {
+            if (_t4878) {
                 U32 last_slash_u = I64_to_u32(DEREF(last_slash));
                 (void)last_slash_u;
-                U32 _t4749 = 1;
-                (void)_t4749;
-                U32 _t4750; { U32 *_hp = (U32 *)Str_len(path); _t4750 = *_hp; free(_hp); }
-                (void)_t4750;
-                U32 _t4751 = U32_sub(_t4750, last_slash_u);
-                (void)_t4751;
+                U32 _t4758 = 1;
+                (void)_t4758;
+                U32 _t4759; { U32 *_hp = (U32 *)Str_len(path); _t4759 = *_hp; free(_hp); }
+                (void)_t4759;
+                U32 _t4760 = U32_sub(_t4759, last_slash_u);
+                (void)_t4760;
                 ;
-                U32 _t4752 = 1;
-                (void)_t4752;
-                U32 _t4753 = U32_add(last_slash_u, _t4749);
-                (void)_t4753;
-                ;
-                ;
-                U32 _t4754 = U32_sub(_t4751, _t4752);
-                (void)_t4754;
+                U32 _t4761 = 1;
+                (void)_t4761;
+                U32 _t4762 = U32_add(last_slash_u, _t4758);
+                (void)_t4762;
                 ;
                 ;
-                basename = Str_substr(path, &(U32){_t4753}, &(U32){_t4754});
+                U32 _t4763 = U32_sub(_t4760, _t4761);
+                (void)_t4763;
+                ;
+                ;
+                basename = Str_substr(path, &(U32){_t4762}, &(U32){_t4763});
                 ;
                 ;
             }
@@ -30194,113 +30233,113 @@ int main(int argc, char **argv) {
             I64_delete(last_slash, &(Bool){1});
             U32 name_len; { U32 *_hp = (U32 *)Str_len(basename); name_len = *_hp; free(_hp); }
             (void)name_len;
-            Str *_t4870 = Str_lit(".til", 4ULL);
-            (void)_t4870;
-            Bool _t4871; { Bool *_hp = (Bool *)Str_ends_with(basename, _t4870); _t4871 = *_hp; free(_hp); }
-            (void)_t4871;
-            Str_delete(_t4870, &(Bool){1});
-            if (_t4871) {
-                U32 _t4755 = 4;
-                (void)_t4755;
-                U32 _t4756 = U32_sub(name_len, _t4755);
-                (void)_t4756;
+            Str *_t4879 = Str_lit(".til", 4ULL);
+            (void)_t4879;
+            Bool _t4880; { Bool *_hp = (Bool *)Str_ends_with(basename, _t4879); _t4880 = *_hp; free(_hp); }
+            (void)_t4880;
+            Str_delete(_t4879, &(Bool){1});
+            if (_t4880) {
+                U32 _t4764 = 4;
+                (void)_t4764;
+                U32 _t4765 = U32_sub(name_len, _t4764);
+                (void)_t4765;
                 ;
-                name_len = _t4756;
+                name_len = _t4765;
                 ;
             }
             ;
-            U32 _t4872 = 0;
-            (void)_t4872;
-            Str *name = Str_substr(basename, &(U32){_t4872}, &(U32){name_len});
+            U32 _t4881 = 0;
+            (void)_t4881;
+            Str *name = Str_substr(basename, &(U32){_t4881}, &(U32){name_len});
             (void)name;
             ;
             Str_delete(basename, &(Bool){1});
             ;
-            Str *_t4873 = Str_lit("gen/til/", 8ULL);
-            (void)_t4873;
-            Str *_t4874 = Str_concat(_t4873, name);
-            (void)_t4874;
-            Str_delete(_t4873, &(Bool){1});
-            Str *_t4875 = Str_lit(".c", 2ULL);
-            (void)_t4875;
-            Str *c_path = Str_concat(_t4874, _t4875);
+            Str *_t4882 = Str_lit("gen/til/", 8ULL);
+            (void)_t4882;
+            Str *_t4883 = Str_concat(_t4882, name);
+            (void)_t4883;
+            Str_delete(_t4882, &(Bool){1});
+            Str *_t4884 = Str_lit(".c", 2ULL);
+            (void)_t4884;
+            Str *c_path = Str_concat(_t4883, _t4884);
             (void)c_path;
-            Str_delete(_t4874, &(Bool){1});
-            Str_delete(_t4875, &(Bool){1});
-            U32 _t4876; { U32 *_hp = (U32 *)Str_len(custom_c); _t4876 = *_hp; free(_hp); }
-            (void)_t4876;
-            U32 _t4877 = 0;
-            (void)_t4877;
-            Bool _t4878; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4876}, &(U32){_t4877}); _t4878 = *_hp; free(_hp); }
-            (void)_t4878;
+            Str_delete(_t4883, &(Bool){1});
+            Str_delete(_t4884, &(Bool){1});
+            U32 _t4885; { U32 *_hp = (U32 *)Str_len(custom_c); _t4885 = *_hp; free(_hp); }
+            (void)_t4885;
+            U32 _t4886 = 0;
+            (void)_t4886;
+            Bool _t4887; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4885}, &(U32){_t4886}); _t4887 = *_hp; free(_hp); }
+            (void)_t4887;
             ;
             ;
-            if (_t4878) {
+            if (_t4887) {
                 c_path = Str_clone(custom_c);
             }
             ;
-            Str *_t4879 = Str_lit("bin/til/", 8ULL);
-            (void)_t4879;
-            Str *bin_path = Str_concat(_t4879, name);
+            Str *_t4888 = Str_lit("bin/til/", 8ULL);
+            (void)_t4888;
+            Str *bin_path = Str_concat(_t4888, name);
             (void)bin_path;
-            Str_delete(_t4879, &(Bool){1});
-            U32 _t4880; { U32 *_hp = (U32 *)Str_len(custom_bin); _t4880 = *_hp; free(_hp); }
-            (void)_t4880;
-            U32 _t4881 = 0;
-            (void)_t4881;
-            Bool _t4882; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4880}, &(U32){_t4881}); _t4882 = *_hp; free(_hp); }
-            (void)_t4882;
+            Str_delete(_t4888, &(Bool){1});
+            U32 _t4889; { U32 *_hp = (U32 *)Str_len(custom_bin); _t4889 = *_hp; free(_hp); }
+            (void)_t4889;
+            U32 _t4890 = 0;
+            (void)_t4890;
+            Bool _t4891; { Bool *_hp = (Bool *)U32_gt(&(U32){_t4889}, &(U32){_t4890}); _t4891 = *_hp; free(_hp); }
+            (void)_t4891;
             ;
             ;
-            if (_t4882) {
+            if (_t4891) {
                 bin_path = Str_clone(custom_bin);
             }
             ;
-            Str *_t4883 = Str_lit("run", 3ULL);
-            (void)_t4883;
-            Bool _t4884; { Bool *_hp = (Bool *)Str_eq(command, _t4883); _t4884 = *_hp; free(_hp); }
-            (void)_t4884;
-            Str_delete(_t4883, &(Bool){1});
-            Bool _t4885; { Bool *_hp = (Bool *)mode_is_lib_output(cur_mode); _t4885 = *_hp; free(_hp); }
-            (void)_t4885;
-            Bool _t4886 = Bool_not(_t4884);
-            (void)_t4886;
+            Str *_t4892 = Str_lit("run", 3ULL);
+            (void)_t4892;
+            Bool _t4893; { Bool *_hp = (Bool *)Str_eq(command, _t4892); _t4893 = *_hp; free(_hp); }
+            (void)_t4893;
+            Str_delete(_t4892, &(Bool){1});
+            Bool _t4894; { Bool *_hp = (Bool *)mode_is_lib_output(cur_mode); _t4894 = *_hp; free(_hp); }
+            (void)_t4894;
+            Bool _t4895 = Bool_not(_t4893);
+            (void)_t4895;
             ;
-            Bool do_lib = Bool_and(_t4885, _t4886);
+            Bool do_lib = Bool_and(_t4894, _t4895);
             (void)do_lib;
             ;
             ;
             if (do_lib) {
-                Str *_t4757 = Str_lit("mkdir -p gen/til gen/lib", 24ULL);
-                (void)_t4757;
-                I32 _t4758 = til_system(_t4757);
-                (void)_t4758;
-                Str_delete(_t4757, &(Bool){1});
+                Str *_t4766 = Str_lit("mkdir -p gen/til gen/lib", 24ULL);
+                (void)_t4766;
+                I32 _t4767 = til_system(_t4766);
+                (void)_t4767;
+                Str_delete(_t4766, &(Bool){1});
                 ;
             } else {
-                Str *_t4761 = Str_lit("/", 1ULL);
-                (void)_t4761;
-                I64 cp_slash; { I64 *_hp = (I64 *)Str_rfind(c_path, _t4761); cp_slash = *_hp; free(_hp); }
+                Str *_t4770 = Str_lit("/", 1ULL);
+                (void)_t4770;
+                I64 cp_slash; { I64 *_hp = (I64 *)Str_rfind(c_path, _t4770); cp_slash = *_hp; free(_hp); }
                 (void)cp_slash;
-                Str_delete(_t4761, &(Bool){1});
-                Str *_t4762 = Str_lit("/", 1ULL);
-                (void)_t4762;
-                I64 bp_slash; { I64 *_hp = (I64 *)Str_rfind(bin_path, _t4762); bp_slash = *_hp; free(_hp); }
+                Str_delete(_t4770, &(Bool){1});
+                Str *_t4771 = Str_lit("/", 1ULL);
+                (void)_t4771;
+                I64 bp_slash; { I64 *_hp = (I64 *)Str_rfind(bin_path, _t4771); bp_slash = *_hp; free(_hp); }
                 (void)bp_slash;
-                Str_delete(_t4762, &(Bool){1});
+                Str_delete(_t4771, &(Bool){1});
                 Str *cp_dir = Str_lit("gen/til", 7ULL);
                 (void)cp_dir;
-                I64 _t4763 = 0;
-                (void)_t4763;
-                Bool _t4764; { Bool *_hp = (Bool *)I64_gt(&(I64){cp_slash}, &(I64){_t4763}); _t4764 = *_hp; free(_hp); }
-                (void)_t4764;
+                I64 _t4772 = 0;
+                (void)_t4772;
+                Bool _t4773; { Bool *_hp = (Bool *)I64_gt(&(I64){cp_slash}, &(I64){_t4772}); _t4773 = *_hp; free(_hp); }
+                (void)_t4773;
                 ;
-                if (_t4764) {
+                if (_t4773) {
                     U32 cp_slash_u = I64_to_u32(cp_slash);
                     (void)cp_slash_u;
-                    U32 _t4759 = 0;
-                    (void)_t4759;
-                    cp_dir = Str_substr(c_path, &(U32){_t4759}, &(U32){cp_slash_u});
+                    U32 _t4768 = 0;
+                    (void)_t4768;
+                    cp_dir = Str_substr(c_path, &(U32){_t4768}, &(U32){cp_slash_u});
                     ;
                     ;
                 }
@@ -30308,314 +30347,314 @@ int main(int argc, char **argv) {
                 ;
                 Str *bp_dir = Str_lit("bin/til", 7ULL);
                 (void)bp_dir;
-                I64 _t4765 = 0;
-                (void)_t4765;
-                Bool _t4766; { Bool *_hp = (Bool *)I64_gt(&(I64){bp_slash}, &(I64){_t4765}); _t4766 = *_hp; free(_hp); }
-                (void)_t4766;
+                I64 _t4774 = 0;
+                (void)_t4774;
+                Bool _t4775; { Bool *_hp = (Bool *)I64_gt(&(I64){bp_slash}, &(I64){_t4774}); _t4775 = *_hp; free(_hp); }
+                (void)_t4775;
                 ;
-                if (_t4766) {
+                if (_t4775) {
                     U32 bp_slash_u = I64_to_u32(bp_slash);
                     (void)bp_slash_u;
-                    U32 _t4760 = 0;
-                    (void)_t4760;
-                    bp_dir = Str_substr(bin_path, &(U32){_t4760}, &(U32){bp_slash_u});
+                    U32 _t4769 = 0;
+                    (void)_t4769;
+                    bp_dir = Str_substr(bin_path, &(U32){_t4769}, &(U32){bp_slash_u});
                     ;
                     ;
                 }
                 ;
                 ;
-                Str *_t4767 = Str_lit("mkdir -p ", 9ULL);
-                (void)_t4767;
-                Str *_t4768 = Str_concat(_t4767, cp_dir);
-                (void)_t4768;
-                Str_delete(_t4767, &(Bool){1});
+                Str *_t4776 = Str_lit("mkdir -p ", 9ULL);
+                (void)_t4776;
+                Str *_t4777 = Str_concat(_t4776, cp_dir);
+                (void)_t4777;
+                Str_delete(_t4776, &(Bool){1});
                 Str_delete(cp_dir, &(Bool){1});
-                Str *_t4769 = Str_lit(" ", 1ULL);
-                (void)_t4769;
-                Str *_t4770 = Str_concat(_t4768, _t4769);
-                (void)_t4770;
-                Str_delete(_t4768, &(Bool){1});
-                Str_delete(_t4769, &(Bool){1});
-                Str *_t4771 = Str_concat(_t4770, bp_dir);
-                (void)_t4771;
-                Str_delete(_t4770, &(Bool){1});
+                Str *_t4778 = Str_lit(" ", 1ULL);
+                (void)_t4778;
+                Str *_t4779 = Str_concat(_t4777, _t4778);
+                (void)_t4779;
+                Str_delete(_t4777, &(Bool){1});
+                Str_delete(_t4778, &(Bool){1});
+                Str *_t4780 = Str_concat(_t4779, bp_dir);
+                (void)_t4780;
+                Str_delete(_t4779, &(Bool){1});
                 Str_delete(bp_dir, &(Bool){1});
-                I32 _t4772 = til_system(_t4771);
-                (void)_t4772;
-                Str_delete(_t4771, &(Bool){1});
+                I32 _t4781 = til_system(_t4780);
+                (void)_t4781;
+                Str_delete(_t4780, &(Bool){1});
                 ;
             }
-            I32 _t4887 = build(ast, cur_mode, run_tests, path, c_path);
-            (void)_t4887;
-            result = _t4887;
+            I32 _t4896 = build(ast, cur_mode, run_tests, path, c_path);
+            (void)_t4896;
+            result = _t4896;
             ;
-            I32 _t4888 = 0;
-            (void)_t4888;
-            Bool _t4889 = I32_eq(result, _t4888);
-            (void)_t4889;
+            I32 _t4897 = 0;
+            (void)_t4897;
+            Bool _t4898 = I32_eq(result, _t4897);
+            (void)_t4898;
             ;
-            Bool _t4890 = Bool_and(_t4889, do_lib);
-            (void)_t4890;
+            Bool _t4899 = Bool_and(_t4898, do_lib);
+            (void)_t4899;
             ;
-            if (_t4890) {
-                Str *_t4829 = Str_lit("gen/til/", 8ULL);
-                (void)_t4829;
-                Str *_t4830 = Str_concat(_t4829, name);
-                (void)_t4830;
-                Str_delete(_t4829, &(Bool){1});
-                Str *_t4831 = Str_lit(".h", 2ULL);
-                (void)_t4831;
-                Str *h_path = Str_concat(_t4830, _t4831);
+            if (_t4899) {
+                Str *_t4838 = Str_lit("gen/til/", 8ULL);
+                (void)_t4838;
+                Str *_t4839 = Str_concat(_t4838, name);
+                (void)_t4839;
+                Str_delete(_t4838, &(Bool){1});
+                Str *_t4840 = Str_lit(".h", 2ULL);
+                (void)_t4840;
+                Str *h_path = Str_concat(_t4839, _t4840);
                 (void)h_path;
-                Str_delete(_t4830, &(Bool){1});
-                Str_delete(_t4831, &(Bool){1});
-                Str *_t4832 = Str_lit("gen/til/", 8ULL);
-                (void)_t4832;
-                Str *_t4833 = Str_concat(_t4832, name);
-                (void)_t4833;
-                Str_delete(_t4832, &(Bool){1});
-                Str *_t4834 = Str_lit(".til", 4ULL);
-                (void)_t4834;
-                Str *til_path = Str_concat(_t4833, _t4834);
+                Str_delete(_t4839, &(Bool){1});
+                Str_delete(_t4840, &(Bool){1});
+                Str *_t4841 = Str_lit("gen/til/", 8ULL);
+                (void)_t4841;
+                Str *_t4842 = Str_concat(_t4841, name);
+                (void)_t4842;
+                Str_delete(_t4841, &(Bool){1});
+                Str *_t4843 = Str_lit(".til", 4ULL);
+                (void)_t4843;
+                Str *til_path = Str_concat(_t4842, _t4843);
                 (void)til_path;
-                Str_delete(_t4833, &(Bool){1});
-                Str_delete(_t4834, &(Bool){1});
-                I32 _t4835 = build_header(ast, h_path);
-                (void)_t4835;
-                result = _t4835;
+                Str_delete(_t4842, &(Bool){1});
+                Str_delete(_t4843, &(Bool){1});
+                I32 _t4844 = build_header(ast, h_path);
+                (void)_t4844;
+                result = _t4844;
                 ;
-                I32 _t4836 = 0;
-                (void)_t4836;
-                Bool _t4837 = I32_eq(result, _t4836);
-                (void)_t4837;
+                I32 _t4845 = 0;
+                (void)_t4845;
+                Bool _t4846 = I32_eq(result, _t4845);
+                (void)_t4846;
                 ;
-                if (_t4837) {
-                    I32 _t4773 = build_til_binding(ast, til_path, name);
-                    (void)_t4773;
-                    result = _t4773;
+                if (_t4846) {
+                    I32 _t4782 = build_til_binding(ast, til_path, name);
+                    (void)_t4782;
+                    result = _t4782;
                     ;
                 }
                 ;
-                I32 _t4838 = 0;
-                (void)_t4838;
-                Str *_t4839 = Str_lit("translate", 9ULL);
-                (void)_t4839;
-                Bool _t4840 = I32_eq(result, _t4838);
-                (void)_t4840;
+                I32 _t4847 = 0;
+                (void)_t4847;
+                Str *_t4848 = Str_lit("translate", 9ULL);
+                (void)_t4848;
+                Bool _t4849 = I32_eq(result, _t4847);
+                (void)_t4849;
                 ;
-                Bool _t4841; { Bool *_hp = (Bool *)Str_eq(command, _t4839); _t4841 = *_hp; free(_hp); }
-                (void)_t4841;
-                Str_delete(_t4839, &(Bool){1});
-                Bool _t4842 = Bool_and(_t4840, _t4841);
-                (void)_t4842;
+                Bool _t4850; { Bool *_hp = (Bool *)Str_eq(command, _t4848); _t4850 = *_hp; free(_hp); }
+                (void)_t4850;
+                Str_delete(_t4848, &(Bool){1});
+                Bool _t4851 = Bool_and(_t4849, _t4850);
+                (void)_t4851;
                 ;
                 ;
-                if (_t4842) {
-                    Str *_t4774 = Str_lit("Str", 3ULL);
-                    (void)_t4774;
-                    U32 _t4775; { U32 *_hp = (U32 *)Str_size(); _t4775 = *_hp; free(_hp); }
-                    (void)_t4775;
-                    U32 _t4776 = 1;
-                    (void)_t4776;
-                    Array *_va96 = Array_new(_t4774, &(U32){_t4775}, &(U32){_t4776});
+                if (_t4851) {
+                    Str *_t4783 = Str_lit("Str", 3ULL);
+                    (void)_t4783;
+                    U32 _t4784; { U32 *_hp = (U32 *)Str_size(); _t4784 = *_hp; free(_hp); }
+                    (void)_t4784;
+                    U32 _t4785 = 1;
+                    (void)_t4785;
+                    Array *_va96 = Array_new(_t4783, &(U32){_t4784}, &(U32){_t4785});
                     (void)_va96;
-                    Str_delete(_t4774, &(Bool){1});
+                    Str_delete(_t4783, &(Bool){1});
                     ;
                     ;
-                    Str *_t4777 = Str_lit("Generated: ", 11ULL);
-                    (void)_t4777;
-                    U32 _t4778 = 0;
-                    (void)_t4778;
-                    Str *_t4779 = Str_concat(_t4777, c_path);
-                    (void)_t4779;
-                    Str_delete(_t4777, &(Bool){1});
-                    Array_set(_va96, &(U32){_t4778}, _t4779);
+                    Str *_t4786 = Str_lit("Generated: ", 11ULL);
+                    (void)_t4786;
+                    U32 _t4787 = 0;
+                    (void)_t4787;
+                    Str *_t4788 = Str_concat(_t4786, c_path);
+                    (void)_t4788;
+                    Str_delete(_t4786, &(Bool){1});
+                    Array_set(_va96, &(U32){_t4787}, _t4788);
                     ;
                     println(_va96);
-                    Str *_t4780 = Str_lit("Str", 3ULL);
-                    (void)_t4780;
-                    U32 _t4781; { U32 *_hp = (U32 *)Str_size(); _t4781 = *_hp; free(_hp); }
-                    (void)_t4781;
-                    U32 _t4782 = 1;
-                    (void)_t4782;
-                    Array *_va97 = Array_new(_t4780, &(U32){_t4781}, &(U32){_t4782});
+                    Str *_t4789 = Str_lit("Str", 3ULL);
+                    (void)_t4789;
+                    U32 _t4790; { U32 *_hp = (U32 *)Str_size(); _t4790 = *_hp; free(_hp); }
+                    (void)_t4790;
+                    U32 _t4791 = 1;
+                    (void)_t4791;
+                    Array *_va97 = Array_new(_t4789, &(U32){_t4790}, &(U32){_t4791});
                     (void)_va97;
-                    Str_delete(_t4780, &(Bool){1});
+                    Str_delete(_t4789, &(Bool){1});
                     ;
                     ;
-                    Str *_t4783 = Str_lit("Generated: ", 11ULL);
-                    (void)_t4783;
-                    U32 _t4784 = 0;
-                    (void)_t4784;
-                    Str *_t4785 = Str_concat(_t4783, h_path);
-                    (void)_t4785;
-                    Str_delete(_t4783, &(Bool){1});
-                    Array_set(_va97, &(U32){_t4784}, _t4785);
+                    Str *_t4792 = Str_lit("Generated: ", 11ULL);
+                    (void)_t4792;
+                    U32 _t4793 = 0;
+                    (void)_t4793;
+                    Str *_t4794 = Str_concat(_t4792, h_path);
+                    (void)_t4794;
+                    Str_delete(_t4792, &(Bool){1});
+                    Array_set(_va97, &(U32){_t4793}, _t4794);
                     ;
                     println(_va97);
-                    Str *_t4786 = Str_lit("Str", 3ULL);
-                    (void)_t4786;
-                    U32 _t4787; { U32 *_hp = (U32 *)Str_size(); _t4787 = *_hp; free(_hp); }
-                    (void)_t4787;
-                    U32 _t4788 = 1;
-                    (void)_t4788;
-                    Array *_va98 = Array_new(_t4786, &(U32){_t4787}, &(U32){_t4788});
+                    Str *_t4795 = Str_lit("Str", 3ULL);
+                    (void)_t4795;
+                    U32 _t4796; { U32 *_hp = (U32 *)Str_size(); _t4796 = *_hp; free(_hp); }
+                    (void)_t4796;
+                    U32 _t4797 = 1;
+                    (void)_t4797;
+                    Array *_va98 = Array_new(_t4795, &(U32){_t4796}, &(U32){_t4797});
                     (void)_va98;
-                    Str_delete(_t4786, &(Bool){1});
+                    Str_delete(_t4795, &(Bool){1});
                     ;
                     ;
-                    Str *_t4789 = Str_lit("Generated: ", 11ULL);
-                    (void)_t4789;
-                    U32 _t4790 = 0;
-                    (void)_t4790;
-                    Str *_t4791 = Str_concat(_t4789, til_path);
-                    (void)_t4791;
-                    Str_delete(_t4789, &(Bool){1});
-                    Array_set(_va98, &(U32){_t4790}, _t4791);
+                    Str *_t4798 = Str_lit("Generated: ", 11ULL);
+                    (void)_t4798;
+                    U32 _t4799 = 0;
+                    (void)_t4799;
+                    Str *_t4800 = Str_concat(_t4798, til_path);
+                    (void)_t4800;
+                    Str_delete(_t4798, &(Bool){1});
+                    Array_set(_va98, &(U32){_t4799}, _t4800);
                     ;
                     println(_va98);
                 }
                 ;
-                I32 _t4843 = 0;
-                (void)_t4843;
-                Str *_t4844 = Str_lit("build", 5ULL);
-                (void)_t4844;
-                Bool _t4845 = I32_eq(result, _t4843);
-                (void)_t4845;
+                I32 _t4852 = 0;
+                (void)_t4852;
+                Str *_t4853 = Str_lit("build", 5ULL);
+                (void)_t4853;
+                Bool _t4854 = I32_eq(result, _t4852);
+                (void)_t4854;
                 ;
-                Bool _t4846; { Bool *_hp = (Bool *)Str_eq(command, _t4844); _t4846 = *_hp; free(_hp); }
-                (void)_t4846;
-                Str_delete(_t4844, &(Bool){1});
-                Bool _t4847 = Bool_and(_t4845, _t4846);
-                (void)_t4847;
+                Bool _t4855; { Bool *_hp = (Bool *)Str_eq(command, _t4853); _t4855 = *_hp; free(_hp); }
+                (void)_t4855;
+                Str_delete(_t4853, &(Bool){1});
+                Bool _t4856 = Bool_and(_t4854, _t4855);
+                (void)_t4856;
                 ;
                 ;
-                if (_t4847) {
-                    I32 _t4826 = til_compile_lib(c_path, name, ext_c_path, user_c, lflags);
-                    (void)_t4826;
-                    result = _t4826;
+                if (_t4856) {
+                    I32 _t4835 = til_compile_lib(c_path, name, ext_c_path, user_c, lflags);
+                    (void)_t4835;
+                    result = _t4835;
                     ;
-                    I32 _t4827 = 0;
-                    (void)_t4827;
-                    Bool _t4828 = I32_eq(result, _t4827);
-                    (void)_t4828;
+                    I32 _t4836 = 0;
+                    (void)_t4836;
+                    Bool _t4837 = I32_eq(result, _t4836);
+                    (void)_t4837;
                     ;
-                    if (_t4828) {
-                        Str *_t4792 = Str_lit("Str", 3ULL);
-                        (void)_t4792;
-                        U32 _t4793; { U32 *_hp = (U32 *)Str_size(); _t4793 = *_hp; free(_hp); }
-                        (void)_t4793;
-                        U32 _t4794 = 1;
-                        (void)_t4794;
-                        Array *_va99 = Array_new(_t4792, &(U32){_t4793}, &(U32){_t4794});
+                    if (_t4837) {
+                        Str *_t4801 = Str_lit("Str", 3ULL);
+                        (void)_t4801;
+                        U32 _t4802; { U32 *_hp = (U32 *)Str_size(); _t4802 = *_hp; free(_hp); }
+                        (void)_t4802;
+                        U32 _t4803 = 1;
+                        (void)_t4803;
+                        Array *_va99 = Array_new(_t4801, &(U32){_t4802}, &(U32){_t4803});
                         (void)_va99;
-                        Str_delete(_t4792, &(Bool){1});
+                        Str_delete(_t4801, &(Bool){1});
                         ;
                         ;
-                        Str *_t4795 = Str_lit("Generated: ", 11ULL);
-                        (void)_t4795;
-                        U32 _t4796 = 0;
-                        (void)_t4796;
-                        Str *_t4797 = Str_concat(_t4795, c_path);
-                        (void)_t4797;
-                        Str_delete(_t4795, &(Bool){1});
-                        Array_set(_va99, &(U32){_t4796}, _t4797);
+                        Str *_t4804 = Str_lit("Generated: ", 11ULL);
+                        (void)_t4804;
+                        U32 _t4805 = 0;
+                        (void)_t4805;
+                        Str *_t4806 = Str_concat(_t4804, c_path);
+                        (void)_t4806;
+                        Str_delete(_t4804, &(Bool){1});
+                        Array_set(_va99, &(U32){_t4805}, _t4806);
                         ;
                         println(_va99);
-                        Str *_t4798 = Str_lit("Str", 3ULL);
-                        (void)_t4798;
-                        U32 _t4799; { U32 *_hp = (U32 *)Str_size(); _t4799 = *_hp; free(_hp); }
-                        (void)_t4799;
-                        U32 _t4800 = 1;
-                        (void)_t4800;
-                        Array *_va100 = Array_new(_t4798, &(U32){_t4799}, &(U32){_t4800});
+                        Str *_t4807 = Str_lit("Str", 3ULL);
+                        (void)_t4807;
+                        U32 _t4808; { U32 *_hp = (U32 *)Str_size(); _t4808 = *_hp; free(_hp); }
+                        (void)_t4808;
+                        U32 _t4809 = 1;
+                        (void)_t4809;
+                        Array *_va100 = Array_new(_t4807, &(U32){_t4808}, &(U32){_t4809});
                         (void)_va100;
-                        Str_delete(_t4798, &(Bool){1});
+                        Str_delete(_t4807, &(Bool){1});
                         ;
                         ;
-                        Str *_t4801 = Str_lit("Generated: ", 11ULL);
-                        (void)_t4801;
-                        U32 _t4802 = 0;
-                        (void)_t4802;
-                        Str *_t4803 = Str_concat(_t4801, h_path);
-                        (void)_t4803;
-                        Str_delete(_t4801, &(Bool){1});
-                        Array_set(_va100, &(U32){_t4802}, _t4803);
+                        Str *_t4810 = Str_lit("Generated: ", 11ULL);
+                        (void)_t4810;
+                        U32 _t4811 = 0;
+                        (void)_t4811;
+                        Str *_t4812 = Str_concat(_t4810, h_path);
+                        (void)_t4812;
+                        Str_delete(_t4810, &(Bool){1});
+                        Array_set(_va100, &(U32){_t4811}, _t4812);
                         ;
                         println(_va100);
-                        Str *_t4804 = Str_lit("Str", 3ULL);
-                        (void)_t4804;
-                        U32 _t4805; { U32 *_hp = (U32 *)Str_size(); _t4805 = *_hp; free(_hp); }
-                        (void)_t4805;
-                        U32 _t4806 = 1;
-                        (void)_t4806;
-                        Array *_va101 = Array_new(_t4804, &(U32){_t4805}, &(U32){_t4806});
+                        Str *_t4813 = Str_lit("Str", 3ULL);
+                        (void)_t4813;
+                        U32 _t4814; { U32 *_hp = (U32 *)Str_size(); _t4814 = *_hp; free(_hp); }
+                        (void)_t4814;
+                        U32 _t4815 = 1;
+                        (void)_t4815;
+                        Array *_va101 = Array_new(_t4813, &(U32){_t4814}, &(U32){_t4815});
                         (void)_va101;
-                        Str_delete(_t4804, &(Bool){1});
+                        Str_delete(_t4813, &(Bool){1});
                         ;
                         ;
-                        Str *_t4807 = Str_lit("Generated: ", 11ULL);
-                        (void)_t4807;
-                        U32 _t4808 = 0;
-                        (void)_t4808;
-                        Str *_t4809 = Str_concat(_t4807, til_path);
-                        (void)_t4809;
-                        Str_delete(_t4807, &(Bool){1});
-                        Array_set(_va101, &(U32){_t4808}, _t4809);
+                        Str *_t4816 = Str_lit("Generated: ", 11ULL);
+                        (void)_t4816;
+                        U32 _t4817 = 0;
+                        (void)_t4817;
+                        Str *_t4818 = Str_concat(_t4816, til_path);
+                        (void)_t4818;
+                        Str_delete(_t4816, &(Bool){1});
+                        Array_set(_va101, &(U32){_t4817}, _t4818);
                         ;
                         println(_va101);
-                        Str *_t4810 = Str_lit("Str", 3ULL);
-                        (void)_t4810;
-                        U32 _t4811; { U32 *_hp = (U32 *)Str_size(); _t4811 = *_hp; free(_hp); }
-                        (void)_t4811;
-                        U32 _t4812 = 1;
-                        (void)_t4812;
-                        Array *_va102 = Array_new(_t4810, &(U32){_t4811}, &(U32){_t4812});
+                        Str *_t4819 = Str_lit("Str", 3ULL);
+                        (void)_t4819;
+                        U32 _t4820; { U32 *_hp = (U32 *)Str_size(); _t4820 = *_hp; free(_hp); }
+                        (void)_t4820;
+                        U32 _t4821 = 1;
+                        (void)_t4821;
+                        Array *_va102 = Array_new(_t4819, &(U32){_t4820}, &(U32){_t4821});
                         (void)_va102;
-                        Str_delete(_t4810, &(Bool){1});
+                        Str_delete(_t4819, &(Bool){1});
                         ;
                         ;
-                        Str *_t4813 = Str_lit("Generated: gen/lib/lib", 22ULL);
-                        (void)_t4813;
-                        Str *_t4814 = Str_concat(_t4813, name);
-                        (void)_t4814;
-                        Str_delete(_t4813, &(Bool){1});
-                        Str *_t4815 = Str_lit(".so", 3ULL);
-                        (void)_t4815;
-                        U32 _t4816 = 0;
-                        (void)_t4816;
-                        Str *_t4817 = Str_concat(_t4814, _t4815);
-                        (void)_t4817;
-                        Str_delete(_t4814, &(Bool){1});
-                        Str_delete(_t4815, &(Bool){1});
-                        Array_set(_va102, &(U32){_t4816}, _t4817);
+                        Str *_t4822 = Str_lit("Generated: gen/lib/lib", 22ULL);
+                        (void)_t4822;
+                        Str *_t4823 = Str_concat(_t4822, name);
+                        (void)_t4823;
+                        Str_delete(_t4822, &(Bool){1});
+                        Str *_t4824 = Str_lit(".so", 3ULL);
+                        (void)_t4824;
+                        U32 _t4825 = 0;
+                        (void)_t4825;
+                        Str *_t4826 = Str_concat(_t4823, _t4824);
+                        (void)_t4826;
+                        Str_delete(_t4823, &(Bool){1});
+                        Str_delete(_t4824, &(Bool){1});
+                        Array_set(_va102, &(U32){_t4825}, _t4826);
                         ;
                         println(_va102);
-                        Str *_t4818 = Str_lit("Str", 3ULL);
-                        (void)_t4818;
-                        U32 _t4819; { U32 *_hp = (U32 *)Str_size(); _t4819 = *_hp; free(_hp); }
-                        (void)_t4819;
-                        U32 _t4820 = 1;
-                        (void)_t4820;
-                        Array *_va103 = Array_new(_t4818, &(U32){_t4819}, &(U32){_t4820});
+                        Str *_t4827 = Str_lit("Str", 3ULL);
+                        (void)_t4827;
+                        U32 _t4828; { U32 *_hp = (U32 *)Str_size(); _t4828 = *_hp; free(_hp); }
+                        (void)_t4828;
+                        U32 _t4829 = 1;
+                        (void)_t4829;
+                        Array *_va103 = Array_new(_t4827, &(U32){_t4828}, &(U32){_t4829});
                         (void)_va103;
-                        Str_delete(_t4818, &(Bool){1});
+                        Str_delete(_t4827, &(Bool){1});
                         ;
                         ;
-                        Str *_t4821 = Str_lit("Generated: gen/lib/lib", 22ULL);
-                        (void)_t4821;
-                        Str *_t4822 = Str_concat(_t4821, name);
-                        (void)_t4822;
-                        Str_delete(_t4821, &(Bool){1});
-                        Str *_t4823 = Str_lit(".a", 2ULL);
-                        (void)_t4823;
-                        U32 _t4824 = 0;
-                        (void)_t4824;
-                        Str *_t4825 = Str_concat(_t4822, _t4823);
-                        (void)_t4825;
-                        Str_delete(_t4822, &(Bool){1});
-                        Str_delete(_t4823, &(Bool){1});
-                        Array_set(_va103, &(U32){_t4824}, _t4825);
+                        Str *_t4830 = Str_lit("Generated: gen/lib/lib", 22ULL);
+                        (void)_t4830;
+                        Str *_t4831 = Str_concat(_t4830, name);
+                        (void)_t4831;
+                        Str_delete(_t4830, &(Bool){1});
+                        Str *_t4832 = Str_lit(".a", 2ULL);
+                        (void)_t4832;
+                        U32 _t4833 = 0;
+                        (void)_t4833;
+                        Str *_t4834 = Str_concat(_t4831, _t4832);
+                        (void)_t4834;
+                        Str_delete(_t4831, &(Bool){1});
+                        Str_delete(_t4832, &(Bool){1});
+                        Array_set(_va103, &(U32){_t4833}, _t4834);
                         ;
                         println(_va103);
                     }
@@ -30627,115 +30666,115 @@ int main(int argc, char **argv) {
             }
             ;
             Str_delete(name, &(Bool){1});
-            I32 _t4891 = 0;
-            (void)_t4891;
-            Bool _t4892 = I32_eq(result, _t4891);
-            (void)_t4892;
+            I32 _t4900 = 0;
+            (void)_t4900;
+            Bool _t4901 = I32_eq(result, _t4900);
+            (void)_t4901;
             ;
-            Bool _t4893 = Bool_not(do_lib);
-            (void)_t4893;
-            Str *_t4894 = Str_lit("translate", 9ULL);
-            (void)_t4894;
-            Bool _t4895 = Bool_and(_t4892, _t4893);
-            (void)_t4895;
-            ;
-            ;
-            Bool _t4896; { Bool *_hp = (Bool *)Str_eq(command, _t4894); _t4896 = *_hp; free(_hp); }
-            (void)_t4896;
-            Str_delete(_t4894, &(Bool){1});
-            Bool _t4897 = Bool_and(_t4895, _t4896);
-            (void)_t4897;
+            Bool _t4902 = Bool_not(do_lib);
+            (void)_t4902;
+            Str *_t4903 = Str_lit("translate", 9ULL);
+            (void)_t4903;
+            Bool _t4904 = Bool_and(_t4901, _t4902);
+            (void)_t4904;
             ;
             ;
-            if (_t4897) {
-                Str *_t4848 = Str_lit("Str", 3ULL);
-                (void)_t4848;
-                U32 _t4849; { U32 *_hp = (U32 *)Str_size(); _t4849 = *_hp; free(_hp); }
-                (void)_t4849;
-                U32 _t4850 = 1;
-                (void)_t4850;
-                Array *_va104 = Array_new(_t4848, &(U32){_t4849}, &(U32){_t4850});
+            Bool _t4905; { Bool *_hp = (Bool *)Str_eq(command, _t4903); _t4905 = *_hp; free(_hp); }
+            (void)_t4905;
+            Str_delete(_t4903, &(Bool){1});
+            Bool _t4906 = Bool_and(_t4904, _t4905);
+            (void)_t4906;
+            ;
+            ;
+            if (_t4906) {
+                Str *_t4857 = Str_lit("Str", 3ULL);
+                (void)_t4857;
+                U32 _t4858; { U32 *_hp = (U32 *)Str_size(); _t4858 = *_hp; free(_hp); }
+                (void)_t4858;
+                U32 _t4859 = 1;
+                (void)_t4859;
+                Array *_va104 = Array_new(_t4857, &(U32){_t4858}, &(U32){_t4859});
                 (void)_va104;
-                Str_delete(_t4848, &(Bool){1});
+                Str_delete(_t4857, &(Bool){1});
                 ;
                 ;
-                Str *_t4851 = Str_lit("Generated: ", 11ULL);
-                (void)_t4851;
-                U32 _t4852 = 0;
-                (void)_t4852;
-                Str *_t4853 = Str_concat(_t4851, c_path);
-                (void)_t4853;
-                Str_delete(_t4851, &(Bool){1});
-                Array_set(_va104, &(U32){_t4852}, _t4853);
+                Str *_t4860 = Str_lit("Generated: ", 11ULL);
+                (void)_t4860;
+                U32 _t4861 = 0;
+                (void)_t4861;
+                Str *_t4862 = Str_concat(_t4860, c_path);
+                (void)_t4862;
+                Str_delete(_t4860, &(Bool){1});
+                Array_set(_va104, &(U32){_t4861}, _t4862);
                 ;
                 println(_va104);
             }
             ;
-            I32 _t4898 = 0;
-            (void)_t4898;
-            Bool _t4899 = I32_eq(result, _t4898);
-            (void)_t4899;
+            I32 _t4907 = 0;
+            (void)_t4907;
+            Bool _t4908 = I32_eq(result, _t4907);
+            (void)_t4908;
             ;
-            Bool _t4900 = Bool_not(do_lib);
-            (void)_t4900;
-            Str *_t4901 = Str_lit("translate", 9ULL);
-            (void)_t4901;
-            Bool _t4902; { Bool *_hp = (Bool *)Str_eq(command, _t4901); _t4902 = *_hp; free(_hp); }
-            (void)_t4902;
-            Str_delete(_t4901, &(Bool){1});
-            Bool _t4903 = Bool_and(_t4899, _t4900);
-            (void)_t4903;
-            ;
-            ;
-            Bool _t4904 = Bool_not(_t4902);
-            (void)_t4904;
-            ;
-            Bool _t4905 = Bool_and(_t4903, _t4904);
-            (void)_t4905;
+            Bool _t4909 = Bool_not(do_lib);
+            (void)_t4909;
+            Str *_t4910 = Str_lit("translate", 9ULL);
+            (void)_t4910;
+            Bool _t4911; { Bool *_hp = (Bool *)Str_eq(command, _t4910); _t4911 = *_hp; free(_hp); }
+            (void)_t4911;
+            Str_delete(_t4910, &(Bool){1});
+            Bool _t4912 = Bool_and(_t4908, _t4909);
+            (void)_t4912;
             ;
             ;
-            if (_t4905) {
-                I32 _t4854 = til_compile_c(c_path, bin_path, ext_c_path, user_c, lflags);
-                (void)_t4854;
-                result = _t4854;
+            Bool _t4913 = Bool_not(_t4911);
+            (void)_t4913;
+            ;
+            Bool _t4914 = Bool_and(_t4912, _t4913);
+            (void)_t4914;
+            ;
+            ;
+            if (_t4914) {
+                I32 _t4863 = til_compile_c(c_path, bin_path, ext_c_path, user_c, lflags);
+                (void)_t4863;
+                result = _t4863;
                 ;
             }
             ;
             Str_delete(c_path, &(Bool){1});
-            I32 _t4906 = 0;
-            (void)_t4906;
-            Bool _t4907 = I32_eq(result, _t4906);
-            (void)_t4907;
+            I32 _t4915 = 0;
+            (void)_t4915;
+            Bool _t4916 = I32_eq(result, _t4915);
+            (void)_t4916;
             ;
-            Bool _t4908 = Bool_not(do_lib);
-            (void)_t4908;
+            Bool _t4917 = Bool_not(do_lib);
+            (void)_t4917;
             ;
-            Str *_t4909 = Str_lit("run", 3ULL);
-            (void)_t4909;
-            Bool _t4910 = Bool_and(_t4907, _t4908);
-            (void)_t4910;
-            ;
-            ;
-            Bool _t4911; { Bool *_hp = (Bool *)Str_eq(command, _t4909); _t4911 = *_hp; free(_hp); }
-            (void)_t4911;
-            Str_delete(_t4909, &(Bool){1});
-            Bool _t4912 = Bool_and(_t4910, _t4911);
-            (void)_t4912;
+            Str *_t4918 = Str_lit("run", 3ULL);
+            (void)_t4918;
+            Bool _t4919 = Bool_and(_t4916, _t4917);
+            (void)_t4919;
             ;
             ;
-            if (_t4912) {
+            Bool _t4920; { Bool *_hp = (Bool *)Str_eq(command, _t4918); _t4920 = *_hp; free(_hp); }
+            (void)_t4920;
+            Str_delete(_t4918, &(Bool){1});
+            Bool _t4921 = Bool_and(_t4919, _t4920);
+            (void)_t4921;
+            ;
+            ;
+            if (_t4921) {
                 Str *cmd = Str_clone(bin_path);
                 (void)cmd;
                 U32 *ui = malloc(sizeof(U32));
                 *ui = 0;
                 (void)ui;
                 while (1) {
-                    U32 _t4856; { U32 *_hp = (U32 *)Vec_len(user_argv); _t4856 = *_hp; free(_hp); }
-                    (void)_t4856;
-                    Bool _wcond4855; { Bool *_hp = (Bool *)U32_lt(ui, &(U32){_t4856}); _wcond4855 = *_hp; free(_hp); }
-                    (void)_wcond4855;
+                    U32 _t4865; { U32 *_hp = (U32 *)Vec_len(user_argv); _t4865 = *_hp; free(_hp); }
+                    (void)_t4865;
+                    Bool _wcond4864; { Bool *_hp = (Bool *)U32_lt(ui, &(U32){_t4865}); _wcond4864 = *_hp; free(_hp); }
+                    (void)_wcond4864;
                     ;
-                    if (_wcond4855) {
+                    if (_wcond4864) {
                     } else {
                         ;
                         break;
@@ -30743,100 +30782,100 @@ int main(int argc, char **argv) {
                     ;
                     Str *uarg = Vec_get(user_argv, ui);
                     (void)uarg;
-                    Str *_t4857 = Str_lit(" '", 2ULL);
-                    (void)_t4857;
-                    Str *_t4858 = Str_concat(cmd, _t4857);
-                    (void)_t4858;
-                    Str_delete(_t4857, &(Bool){1});
-                    Str *_t4859 = Str_concat(_t4858, uarg);
-                    (void)_t4859;
-                    Str_delete(_t4858, &(Bool){1});
-                    Str *_t4860 = Str_lit("'", 1ULL);
-                    (void)_t4860;
-                    cmd = Str_concat(_t4859, _t4860);
-                    Str_delete(_t4859, &(Bool){1});
-                    Str_delete(_t4860, &(Bool){1});
-                    U32 _t4861 = 1;
-                    (void)_t4861;
-                    U32 _t4862 = U32_add(DEREF(ui), _t4861);
-                    (void)_t4862;
+                    Str *_t4866 = Str_lit(" '", 2ULL);
+                    (void)_t4866;
+                    Str *_t4867 = Str_concat(cmd, _t4866);
+                    (void)_t4867;
+                    Str_delete(_t4866, &(Bool){1});
+                    Str *_t4868 = Str_concat(_t4867, uarg);
+                    (void)_t4868;
+                    Str_delete(_t4867, &(Bool){1});
+                    Str *_t4869 = Str_lit("'", 1ULL);
+                    (void)_t4869;
+                    cmd = Str_concat(_t4868, _t4869);
+                    Str_delete(_t4868, &(Bool){1});
+                    Str_delete(_t4869, &(Bool){1});
+                    U32 _t4870 = 1;
+                    (void)_t4870;
+                    U32 _t4871 = U32_add(DEREF(ui), _t4870);
+                    (void)_t4871;
                     ;
-                    *ui = _t4862;
+                    *ui = _t4871;
                     ;
                 }
                 U32_delete(ui, &(Bool){1});
-                I32 _t4863 = til_system(cmd);
-                (void)_t4863;
+                I32 _t4872 = til_system(cmd);
+                (void)_t4872;
                 Str_delete(cmd, &(Bool){1});
-                result = _t4863;
+                result = _t4872;
                 ;
             }
             ;
             Str_delete(bin_path, &(Bool){1});
         } else {
-            Str *_t4929 = Str_lit("ast", 3ULL);
-            (void)_t4929;
-            Bool _t4930; { Bool *_hp = (Bool *)Str_eq(command, _t4929); _t4930 = *_hp; free(_hp); }
-            (void)_t4930;
-            Str_delete(_t4929, &(Bool){1});
-            if (_t4930) {
-                Str *_t4913 = Str_lit("Str", 3ULL);
-                (void)_t4913;
-                U32 _t4914; { U32 *_hp = (U32 *)Str_size(); _t4914 = *_hp; free(_hp); }
-                (void)_t4914;
-                U32 _t4915 = 1;
-                (void)_t4915;
-                Array *_va105 = Array_new(_t4913, &(U32){_t4914}, &(U32){_t4915});
-                (void)_va105;
-                Str_delete(_t4913, &(Bool){1});
-                ;
-                ;
-                Str *_t4916 = Str_lit("mode: ", 6ULL);
-                (void)_t4916;
-                U32 _t4917 = 0;
-                (void)_t4917;
-                Str *_t4918 = Str_concat(_t4916, &cur_mode->name);
-                (void)_t4918;
-                Str_delete(_t4916, &(Bool){1});
-                Array_set(_va105, &(U32){_t4917}, _t4918);
-                ;
-                println(_va105);
-                U32 _t4919 = 0;
-                (void)_t4919;
-                ast_print(ast, _t4919);
-                ;
-            } else {
-                Str *_t4920 = Str_lit("Str", 3ULL);
-                (void)_t4920;
-                U32 _t4921; { U32 *_hp = (U32 *)Str_size(); _t4921 = *_hp; free(_hp); }
-                (void)_t4921;
-                U32 _t4922 = 1;
+            Str *_t4938 = Str_lit("ast", 3ULL);
+            (void)_t4938;
+            Bool _t4939; { Bool *_hp = (Bool *)Str_eq(command, _t4938); _t4939 = *_hp; free(_hp); }
+            (void)_t4939;
+            Str_delete(_t4938, &(Bool){1});
+            if (_t4939) {
+                Str *_t4922 = Str_lit("Str", 3ULL);
                 (void)_t4922;
-                Array *_va106 = Array_new(_t4920, &(U32){_t4921}, &(U32){_t4922});
-                (void)_va106;
-                Str_delete(_t4920, &(Bool){1});
-                ;
-                ;
-                Str *_t4923 = Str_lit("error: unknown command '", 24ULL);
+                U32 _t4923; { U32 *_hp = (U32 *)Str_size(); _t4923 = *_hp; free(_hp); }
                 (void)_t4923;
-                Str *_t4924 = Str_concat(_t4923, command);
+                U32 _t4924 = 1;
                 (void)_t4924;
-                Str_delete(_t4923, &(Bool){1});
-                Str *_t4925 = Str_lit("'", 1ULL);
+                Array *_va105 = Array_new(_t4922, &(U32){_t4923}, &(U32){_t4924});
+                (void)_va105;
+                Str_delete(_t4922, &(Bool){1});
+                ;
+                ;
+                Str *_t4925 = Str_lit("mode: ", 6ULL);
                 (void)_t4925;
                 U32 _t4926 = 0;
                 (void)_t4926;
-                Str *_t4927 = Str_concat(_t4924, _t4925);
+                Str *_t4927 = Str_concat(_t4925, &cur_mode->name);
                 (void)_t4927;
-                Str_delete(_t4924, &(Bool){1});
                 Str_delete(_t4925, &(Bool){1});
-                Array_set(_va106, &(U32){_t4926}, _t4927);
+                Array_set(_va105, &(U32){_t4926}, _t4927);
+                ;
+                println(_va105);
+                U32 _t4928 = 0;
+                (void)_t4928;
+                ast_print(ast, _t4928);
+                ;
+            } else {
+                Str *_t4929 = Str_lit("Str", 3ULL);
+                (void)_t4929;
+                U32 _t4930; { U32 *_hp = (U32 *)Str_size(); _t4930 = *_hp; free(_hp); }
+                (void)_t4930;
+                U32 _t4931 = 1;
+                (void)_t4931;
+                Array *_va106 = Array_new(_t4929, &(U32){_t4930}, &(U32){_t4931});
+                (void)_va106;
+                Str_delete(_t4929, &(Bool){1});
+                ;
+                ;
+                Str *_t4932 = Str_lit("error: unknown command '", 24ULL);
+                (void)_t4932;
+                Str *_t4933 = Str_concat(_t4932, command);
+                (void)_t4933;
+                Str_delete(_t4932, &(Bool){1});
+                Str *_t4934 = Str_lit("'", 1ULL);
+                (void)_t4934;
+                U32 _t4935 = 0;
+                (void)_t4935;
+                Str *_t4936 = Str_concat(_t4933, _t4934);
+                (void)_t4936;
+                Str_delete(_t4933, &(Bool){1});
+                Str_delete(_t4934, &(Bool){1});
+                Array_set(_va106, &(U32){_t4935}, _t4936);
                 ;
                 println(_va106);
                 usage();
-                I32 _t4928 = 1;
-                (void)_t4928;
-                result = _t4928;
+                I32 _t4937 = 1;
+                (void)_t4937;
+                result = _t4937;
                 ;
             }
             ;
@@ -30856,10 +30895,10 @@ int main(int argc, char **argv) {
     ;
     Vec_delete(user_argv, &(Bool){1});
     Str_delete(user_c, &(Bool){1});
-    I64 _t5025 = I32_to_i64(result);
-    (void)_t5025;
+    I64 _t5034 = I32_to_i64(result);
+    (void)_t5034;
     ;
-    exit(_t5025);
+    exit(_t5034);
     ;
     return 0;
 }

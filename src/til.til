@@ -49,8 +49,15 @@ ast_print := ext_proc(ast: Expr, shallow indent: U32) {}
 // Utility
 til_bin_dir := ext_func() returns Str {}
 til_realpath := ext_func(path: Str) returns Str {}
-til_str_left := ext_func(s: Str, shallow n: U64) returns Str {}
+
 til_system := ext_func(cmd: Str) returns shallow I32 {}
+
+// Owned copy of first n bytes of s (substr returns a view, this returns a clone)
+str_left := func(s: Str, n: USize) returns Str {
+    if n.eq(0) { return "" }
+    if n.gte(s.len()) { return s.clone() }
+    return s.substr(0, n).clone()
+}
 
 // --- Translated ctil.c functions ---
 
@@ -86,7 +93,6 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
                         mut merged: Vec, lib_dir: Str) returns I32 {
     for i in 0..import_paths.len() {
         ref import_path : Str = import_paths.get(i)
-
         // Try relative to importing file's directory, then lib_dir
         mut try_path := base_dir.concat("/").concat(import_path)
         mut abs := til_realpath(try_path)
@@ -120,7 +126,7 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         while last_slash.gt(0).and(abs.get(last_slash).neq('/')) {
             last_slash = last_slash.sub(1)
         }
-        sub_dir := til_str_left(abs, last_slash)
+        sub_dir := str_left(abs, last_slash)
 
         // Recurse for sub-imports
         if sub_imports.len().gt(0) {
@@ -222,7 +228,7 @@ main := proc(args: ..Str) {
         while last_slash.gt(0).and(abs_path.get(last_slash).neq('/')) {
             last_slash = last_slash.sub(1)
         }
-        user_dir = til_str_left(abs_path, last_slash)
+        user_dir = str_left(abs_path, last_slash)
         Set.add(resolved, own abs_path.clone())
     }
 

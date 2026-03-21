@@ -18,7 +18,6 @@ static Str _parse_mode;
 
 Expr *til_parse(Vec *tokens, Str *path) {
     _parse_mode = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-    // Clone path: parser stores Str* in Parser struct and propagates to AST nodes.
     return parse(tokens, Str_clone(path), &_parse_mode);
 }
 Str *til_parse_mode(void) { return Str_clone(&_parse_mode); }
@@ -53,19 +52,6 @@ I32 til_compile_lib(Str *c_path, Str *lib_name, Str *ext_c, Str *user_c, Str *lf
 }
 
 // --- Utility wrappers ---
-
-// Return owned copy of first n bytes of s (avoids CAP_VIEW + scavenger ordering issues)
-Str *til_str_left(Str *s, U64 n) {
-    if (!s || n == 0) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
-    USize len = s->count;
-    if (n > len) n = len;
-    char *buf = malloc(n + 1);
-    memcpy(buf, s->c_str, n);
-    buf[n] = '\0';
-    Str *result = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (USize)strlen((const char*)(buf)), .cap = CAP_VIEW});
-    free(buf);
-    return result;
-}
 
 Str *til_realpath(Str *path) {
     char *abs = realpath((const char *)path->c_str, NULL);
