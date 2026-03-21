@@ -662,6 +662,7 @@ static const char *type_name_to_c_value(Str *name) {
     if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return "USize";
     if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return "F32";
     if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return "Bool";
+    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0)) return "void *";
     if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))   return "void *"; // function pointer (opaque)
     // Named FuncSig type → void * (opaque function pointer)
     if (has_funcsig_names) {
