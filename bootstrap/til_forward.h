@@ -719,7 +719,7 @@ U32 * Mode_size(void);
 Mode * mode_resolve(Str * name);
 Bool * mode_is_lib(Mode * m);
 Bool * mode_is_lib_output(Mode * m);
-Vec * extract_imports(void * body);
+Vec * extract_imports(Expr * body);
 I32 * resolve_imports(Vec * import_paths, Str * base_dir, void * resolved_set, void * stack, void * merged, Str * lib_dir);
 void usage(void);
 void mark_core(Expr * e);

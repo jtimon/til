@@ -16,33 +16,6 @@ link_c("src/c/til_bridge.c")
 link("dl")
 link("ffi")
 
-// --- NodeTypeTag constants (matching C enum values) ---
-NODE_BODY : I32 = 0
-NODE_LITERAL_STR : I32 = 1
-NODE_LITERAL_NUM : I32 = 2
-NODE_LITERAL_BOOL : I32 = 3
-NODE_LITERAL_NULL : I32 = 4
-NODE_IDENT : I32 = 5
-NODE_DECL : I32 = 6
-NODE_ASSIGN : I32 = 7
-NODE_FCALL : I32 = 8
-NODE_FUNC_DEF : I32 = 9
-NODE_STRUCT_DEF : I32 = 10
-NODE_ENUM_DEF : I32 = 11
-NODE_FIELD_ACCESS : I32 = 12
-NODE_FIELD_ASSIGN : I32 = 13
-NODE_RETURN : I32 = 14
-NODE_IF : I32 = 15
-NODE_WHILE : I32 = 16
-NODE_FOR_IN : I32 = 17
-NODE_NAMED_ARG : I32 = 18
-NODE_BREAK : I32 = 19
-NODE_CONTINUE : I32 = 20
-NODE_MAP_LIT : I32 = 21
-NODE_SET_LIT : I32 = 22
-NODE_SWITCH : I32 = 23
-NODE_CASE : I32 = 24
-
 // --- Bridge ext_func/ext_proc declarations ---
 
 // Tokenize/Parse
@@ -52,10 +25,7 @@ til_parse_mode := ext_func() returns Str {}
 
 // Expr helpers
 expr_null := ext_func() returns Expr {}
-expr_get_tag := ext_func(e: Expr) returns shallow I32 {}
 expr_get_str_val := ext_func(e: Expr) returns ref Str {}
-expr_get_child := ext_func(e: Expr, shallow i: U32) returns ref Expr {}
-expr_nchildren := ext_func(e: Expr) returns shallow U32 {}
 expr_swap_children := ext_proc(e: Expr, new_children: Vec) {}
 
 // Expr Vec helpers
@@ -94,22 +64,25 @@ til_system := ext_func(cmd: Str) returns shallow I32 {}
 
 // Extract import("path") calls from AST body, returning paths as Vec of Str*.
 // Matching nodes are removed from the body.
-extract_imports := proc(body: Dynamic) returns Vec {
+extract_imports := proc(mut body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
     kept := expr_vec_new()
-    mut i : U32 = 0
-    while i.lt(expr_nchildren(body)) {
-        ref stmt : Expr = expr_get_child(body, i)
-        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(2))
-            .and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_IDENT))
-            .and(expr_get_str_val(expr_get_child(stmt, 0)).eq("import"))
-            .and(expr_get_tag(expr_get_child(stmt, 1)).eq(NODE_LITERAL_STR)) {
-            ref path : Str = expr_get_str_val(expr_get_child(stmt, 1))
+    for i in 0..Expr.child_count(body) {
+        ref stmt : Expr = Expr.child(body, i)
+        mut is_import := false
+        if stmt.data.is_FCall().and(Expr.child_count(stmt).eq(2)) {
+            if Expr.child(stmt, 0).data.is_Ident()
+                .and(expr_get_str_val(Expr.child(stmt, 0)).eq("import"))
+                .and(Expr.child(stmt, 1).data.is_LiteralStr()) {
+                is_import = true
+            }
+        }
+        if is_import {
+            ref path : Str = expr_get_str_val(Expr.child(stmt, 1))
             paths.push(own path.clone())
         } else {
             expr_vec_push(kept, stmt)
         }
-        i = i.add(1)
     }
     expr_swap_children(body, kept)
     return paths
@@ -166,11 +139,9 @@ resolve_imports := proc(import_paths: Vec, base_dir: Str,
         }
 
         // Append imported file's declarations
-        mut k : U32 = 0
-        while k.lt(expr_nchildren(sub_ast)) {
-            ref ch : Expr = expr_get_child(sub_ast, k)
+        for k in 0..Expr.child_count(sub_ast) {
+            ref ch : Expr = Expr.child(sub_ast, k)
             expr_vec_push(merged, ch)
-            k = k.add(1)
         }
     }
     return 0
@@ -190,10 +161,8 @@ usage := proc() {
 
 mark_core := proc(mut e: Expr) {
     e.is_core = true
-    mut i : U32 = 0
-    while i.lt(expr_nchildren(e)) {
-        mark_core(expr_get_child(e, i))
-        i = i.add(1)
+    for i in 0..Expr.child_count(e) {
+        mark_core(Expr.child(e, i))
     }
 }
 
@@ -326,22 +295,20 @@ main := proc(args: ..Str) {
     merged := expr_vec_new()
 
     // Core declarations (skip if user file IS core.til)
-    mut i : U32 = 0
     if skip_core.not() {
-        while i.lt(expr_nchildren(core_ast)) {
-            ref ch : Expr = expr_get_child(core_ast, i)
+        for i in 0..Expr.child_count(core_ast) {
+            ref ch : Expr = Expr.child(core_ast, i)
             mark_core(ch)
             expr_vec_push(merged, ch)
-            i = i.add(1)
         }
 
         // Core import declarations
-        i = 0
-        while i.lt(expr_vec_count(core_import_decls)) {
-            ref ch : Expr = expr_vec_get(core_import_decls, i)
+        mut ci : U32 = 0
+        while ci.lt(expr_vec_count(core_import_decls)) {
+            ref ch : Expr = expr_vec_get(core_import_decls, ci)
             mark_core(ch)
             expr_vec_push(merged, ch)
-            i = i.add(1)
+            ci = ci.add(1)
         }
     }
 
@@ -351,28 +318,24 @@ main := proc(args: ..Str) {
         mode_source := readfile(mode_til_path)
         mode_tokens := tokenize(mode_source, mode_til_path)
         mode_ast := til_parse(mode_tokens, mode_til_path)
-        i = 0
-        while i.lt(expr_nchildren(mode_ast)) {
-            ref ch : Expr = expr_get_child(mode_ast, i)
+        for i in 0..Expr.child_count(mode_ast) {
+            ref ch : Expr = Expr.child(mode_ast, i)
             expr_vec_push(merged, ch)
-            i = i.add(1)
         }
     }
 
     // User import declarations
-    i = 0
-    while i.lt(expr_vec_count(import_decls)) {
-        ref ch : Expr = expr_vec_get(import_decls, i)
+    mut di : U32 = 0
+    while di.lt(expr_vec_count(import_decls)) {
+        ref ch : Expr = expr_vec_get(import_decls, di)
         expr_vec_push(merged, ch)
-        i = i.add(1)
+        di = di.add(1)
     }
 
     // User declarations
-    i = 0
-    while i.lt(expr_nchildren(ast)) {
-        ref ch : Expr = expr_get_child(ast, i)
+    for i in 0..Expr.child_count(ast) {
+        ref ch : Expr = Expr.child(ast, i)
         expr_vec_push(merged, ch)
-        i = i.add(1)
     }
 
     expr_swap_children(ast, merged)
@@ -381,14 +344,18 @@ main := proc(args: ..Str) {
     mut link_flags := ""
     mut link_c_paths := ""
     kept := expr_vec_new()
-    i = 0
-    while i.lt(expr_nchildren(ast)) {
-        ref stmt : Expr = expr_get_child(ast, i)
-        if expr_get_tag(stmt).eq(NODE_FCALL).and(expr_nchildren(stmt).eq(2))
-            .and(expr_get_tag(expr_get_child(stmt, 0)).eq(NODE_IDENT))
-            .and(expr_get_tag(expr_get_child(stmt, 1)).eq(NODE_LITERAL_STR)) {
-            ref fname : Str = expr_get_str_val(expr_get_child(stmt, 0))
-            ref arg : Str = expr_get_str_val(expr_get_child(stmt, 1))
+    for i in 0..Expr.child_count(ast) {
+        ref stmt : Expr = Expr.child(ast, i)
+        mut is_directive := false
+        if stmt.data.is_FCall().and(Expr.child_count(stmt).eq(2)) {
+            if Expr.child(stmt, 0).data.is_Ident()
+                .and(Expr.child(stmt, 1).data.is_LiteralStr()) {
+                is_directive = true
+            }
+        }
+        if is_directive {
+            ref fname : Str = expr_get_str_val(Expr.child(stmt, 0))
+            ref arg : Str = expr_get_str_val(Expr.child(stmt, 1))
             if fname.eq("link") {
                 link_flags = link_flags.concat(" -l").concat(arg)
             } else if fname.eq("link_c") {
@@ -402,7 +369,6 @@ main := proc(args: ..Str) {
         } else {
             expr_vec_push(kept, stmt)
         }
-        i = i.add(1)
     }
     expr_swap_children(ast, kept)
 

@@ -25,10 +25,6 @@ Str *til_parse_mode(void) { return Str_clone(&_parse_mode); }
 
 // --- Expr field accessors ---
 
-// NULL-safe: .and() chains in compiled til evaluate all operands eagerly
-// (unlike C's && which short-circuits), so these may be called on NULL exprs
-// or out-of-bounds indices when a prior condition would have been false.
-I32 expr_get_tag(Expr *e) { return e ? (I32)e->data.tag : (I32)-1; }
 Str *expr_get_str_val(Expr *e) {
     if (!e) return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
     // str_val shares a union with decl/func_def — only valid for these node types
@@ -41,11 +37,6 @@ Str *expr_get_str_val(Expr *e) {
         return Str_clone(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT});
     }
 }
-Expr *expr_get_child(Expr *e, U32 i) {
-    if (!e || i >= e->children.count) return NULL;
-    return Expr_child(e, &(USize){(USize)(i)});
-}
-U32 expr_nchildren(Expr *e) { return e ? e->children.count : 0; }
 // Replace children: old children are freed, new_children is moved in
 void expr_swap_children(Expr *e, Vec *new_children) {
     Vec_delete(&e->children, &(Bool){0});
