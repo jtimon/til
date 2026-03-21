@@ -28539,6 +28539,7 @@ int main(int argc, char **argv) {
     _t5055->is_pure = DEREF(_t5052);
     _t5055->debug_prints = DEREF(_t5053);
     (void)_t5055;
+    Map_set(core_modes, _t5054, _t5055);
     _t5056 = malloc(sizeof(Bool));
     *_t5056 = 1;
     (void)_t5056;
@@ -28561,6 +28562,7 @@ int main(int argc, char **argv) {
     _t5061->is_pure = DEREF(_t5058);
     _t5061->debug_prints = DEREF(_t5059);
     (void)_t5061;
+    Map_set(core_modes, _t5060, _t5061);
     _t5062 = malloc(sizeof(Bool));
     *_t5062 = 1;
     (void)_t5062;
@@ -28583,6 +28585,7 @@ int main(int argc, char **argv) {
     _t5067->is_pure = DEREF(_t5064);
     _t5067->debug_prints = DEREF(_t5065);
     (void)_t5067;
+    Map_set(core_modes, _t5066, _t5067);
     _t5068 = malloc(sizeof(Bool));
     *_t5068 = 0;
     (void)_t5068;
@@ -28605,6 +28608,7 @@ int main(int argc, char **argv) {
     _t5073->is_pure = DEREF(_t5070);
     _t5073->debug_prints = DEREF(_t5071);
     (void)_t5073;
+    Map_set(core_modes, _t5072, _t5073);
     _t5074 = malloc(sizeof(Bool));
     *_t5074 = 0;
     (void)_t5074;
@@ -28627,6 +28631,7 @@ int main(int argc, char **argv) {
     _t5079->is_pure = DEREF(_t5076);
     _t5079->debug_prints = DEREF(_t5077);
     (void)_t5079;
+    Map_set(core_modes, _t5078, _t5079);
     _t5080 = malloc(sizeof(Bool));
     *_t5080 = 0;
     (void)_t5080;
@@ -28649,6 +28654,7 @@ int main(int argc, char **argv) {
     _t5085->is_pure = DEREF(_t5082);
     _t5085->debug_prints = DEREF(_t5083);
     (void)_t5085;
+    Map_set(core_modes, _t5084, _t5085);
     _t5086 = malloc(sizeof(Bool));
     *_t5086 = 0;
     (void)_t5086;
@@ -28671,6 +28677,7 @@ int main(int argc, char **argv) {
     _t5091->is_pure = DEREF(_t5088);
     _t5091->debug_prints = DEREF(_t5089);
     (void)_t5091;
+    Map_set(core_modes, _t5090, _t5091);
     _t5092 = malloc(sizeof(Bool));
     *_t5092 = 0;
     (void)_t5092;
@@ -28693,6 +28700,7 @@ int main(int argc, char **argv) {
     _t5097->is_pure = DEREF(_t5094);
     _t5097->debug_prints = DEREF(_t5095);
     (void)_t5097;
+    Map_set(core_modes, _t5096, _t5097);
     int _va_argc = argc - 1;
     USize _va_esz = sizeof(Str);
     USize _va_cap = _va_argc;
