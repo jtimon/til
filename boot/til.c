@@ -871,7 +871,6 @@ Value *Value_Ptr(void *);
 void * Value_get_Ptr(Value *);
 #include "ext.h"
 
-TypeBinding * tscope_find(TypeScope *, Str *);
 I32 init_declarations(Expr *, TypeScope *);
 void * Vec_take(Vec *);
 I32 type_check(Expr *, TypeScope *, Mode *);

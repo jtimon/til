@@ -10,12 +10,7 @@
 
 
 
-TypeBinding *tscope_find(TypeScope *s, Str *name) {
-    for (TypeScope *cur = s; cur; cur = cur->parent) {
-        if (*Map_has(&cur->bindings, name)) return Map_get(&cur->bindings, name);
-    }
-    return NULL;
-}
+
 
 
 
@@ -41,7 +36,8 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
     if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0))     return (TilType){TilType_TAG_Dynamic};
     if (scope) {
         // Check for builtin aliases first (e.g. USize := U64 has struct_def but type is U64)
-        TypeBinding *b = tscope_find(scope, name);
+        ScopeFind *_sf = TypeScope_find(scope, name);
+        TypeBinding *b = _sf->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf) : NULL;
         if (b && b->is_builtin && b->struct_def) return b->type;
         Expr *sdef = TypeScope_get_struct(scope, name);
         if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
@@ -124,7 +120,8 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             }
             // Resolve type alias (e.g. USize → U64) for both size computation and interpreter
             {
-                TypeBinding *ab = tscope_find(scope, ftype);
+                ScopeFind *_sf2 = TypeScope_find(scope, ftype);
+                TypeBinding *ab = _sf2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf2) : NULL;
                 if (ab && ab->is_type_alias && ab->alias_target) {
                     ftype = ab->alias_target;
                     field->data.data.Decl.explicit_type = *ftype;
@@ -201,7 +198,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Str *sname = &stmt->data.data.Decl.name;
 
         // Check for redeclaration: if a struct/ext_struct with this name already exists, error
-        TypeBinding *existing = tscope_find(scope, sname);
+        ScopeFind *_sf3 = TypeScope_find(scope, sname);
+        TypeBinding *existing = _sf3->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf3) : NULL;
         if (existing && existing->struct_def) {
             fprintf(stderr, "%s:%u:%u: error: struct '%s' already declared at %s:%u:%u\n",
                     stmt->path.c_str, stmt->line, stmt->col, sname->c_str,
@@ -226,7 +224,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))   { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
 
         TypeScope_set(scope, sname, &builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *b = tscope_find(scope, sname);
+        TypeBinding *b = Map_get(&scope->bindings, sname);
         b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
         b->is_builtin = is_builtin;
         b->is_ext = Expr_child(stmt, &(USize){(USize)(0)})->is_ext;
@@ -241,8 +239,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (Expr_child(stmt, &(USize){(USize)(0)})->children.count != 0) continue; // bodyless = FuncSig
         TypeScope_set(scope, &stmt->data.data.Decl.name, &(TilType){TilType_TAG_FuncPtr}, -1, 0,
                    stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
-        if (fb) fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
+        TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
+        fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
     }
 
     // Pass 1.5: auto-generate clone methods for all structs
@@ -521,7 +519,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Str *path = &stmt->path;
 
         // Check for redeclaration
-        TypeBinding *existing = tscope_find(scope, ename);
+        ScopeFind *_sf4 = TypeScope_find(scope, ename);
+        TypeBinding *existing = _sf4->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf4) : NULL;
         if (existing && existing->struct_def) {
             fprintf(stderr, "%s:%u:%u: error: enum '%s' already declared at %s:%u:%u\n",
                     path->c_str, line, col, ename->c_str,
@@ -532,7 +531,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Register in type scope
         TypeScope_set(scope, ename, &(TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
-        TypeBinding *b = tscope_find(scope, ename);
+        TypeBinding *b = Map_get(&scope->bindings, ename);
         b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
 
         Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)}); // ExprData_TAG_Body
@@ -1124,18 +1123,19 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (rhs->data.tag != ExprData_TAG_Ident) continue;
         // RHS is a simple identifier — check if it refers to a known type
         Str *target_name = &rhs->data.data.Ident;
-        TypeBinding *target = tscope_find(scope, target_name);
-        if (!target) continue;
+        ScopeFind *_sf5 = TypeScope_find(scope, target_name);
+        if (_sf5->tag != ScopeFind_TAG_Found) continue;
+        TypeBinding *target = ScopeFind_get_Found(_sf5);
         // Must be a type definition: struct_def (struct/enum) or builtin or funcSig
         if (!target->struct_def && !target->is_builtin &&
             !(target->func_def && target->func_def->children.count == 0)) continue;
         // Already registered (e.g. by Pass 1 or 1.1) — skip
-        if (tscope_find(scope, &stmt->data.data.Decl.name)) continue;
+        if (TypeScope_find(scope, &stmt->data.data.Decl.name)->tag == ScopeFind_TAG_Found) continue;
         // Register alias with same type info as target
         TypeScope_set(scope, &stmt->data.data.Decl.name, &target->type, target->is_proc, 0,
                    stmt->line, stmt->col, 0, 0);
-        TypeBinding *ab = tscope_find(scope, &stmt->data.data.Decl.name);
-        if (ab) {
+        TypeBinding *ab = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
+        {
             ab->struct_def = target->struct_def;
             ab->func_def = target->func_def;
             ab->is_builtin = target->is_builtin;
@@ -1405,15 +1405,16 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) {
             TypeScope_set(scope, &stmt->data.data.Decl.name, &(TilType){TilType_TAG_FuncPtr}, -1, 0,
                        stmt->line, stmt->col, 0, 0);
-            TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
-            if (fb) fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
+            TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
+            fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
             continue;
         }
 
         // Named FuncSig form: name : Type = (names) { body }
         // Fill types from the named FuncSig before normal processing
         if (stmt->data.data.Decl.explicit_type.count > 0) {
-            TypeBinding *fsb = tscope_find(scope, &stmt->data.data.Decl.explicit_type);
+            ScopeFind *_sf6 = TypeScope_find(scope, &stmt->data.data.Decl.explicit_type);
+            TypeBinding *fsb = _sf6->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf6) : NULL;
             if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
                 Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
                 Expr *sig = fsb->func_def;
@@ -1447,8 +1448,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             rt = type_from_name_init(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
         }
         TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
-        if (fb) {
+        TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
+        {
             fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
             if (ft.tag == FuncType_TAG_ExtFunc || ft.tag == FuncType_TAG_ExtProc)
                 fb->is_builtin = 1;
