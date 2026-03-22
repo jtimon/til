@@ -48,4 +48,60 @@ can_implicit_usize_coerce := func(from: TilType, to: TilType, to_name: Str) retu
     }
 }
 
+literal_in_range := func(val_str: Str, target: TilType) returns shallow Bool {
+    switch target {
+    case TilType.I64: return true
+    case TilType.F32: return true
+    case TilType.U8:
+        val := val_str.to_i64()
+        return val.gte(0).and(val.lte(255))
+    case TilType.I16:
+        val := val_str.to_i64()
+        return val.gte(-32768).and(val.lte(32767))
+    case TilType.I32:
+        val := val_str.to_i64()
+        return val.gte(-2147483648).and(val.lte(2147483647))
+    case TilType.U32:
+        val := val_str.to_i64()
+        return val.gte(0).and(val.lte(4294967295))
+    case TilType.U64:
+        val := val_str.to_i64()
+        return val.gte(0)
+    case: return true
+    }
+}
+
+can_implicit_widen := func(from: TilType, to: TilType) returns shallow Bool {
+    if from.eq(to) { return false }
+    switch from {
+    case TilType.U8:
+        switch to {
+        case TilType.I16: return true
+        case TilType.I32: return true
+        case TilType.I64: return true
+        case TilType.U32: return true
+        case TilType.U64: return true
+        case: return false
+        }
+    case TilType.I16:
+        switch to {
+        case TilType.I32: return true
+        case TilType.I64: return true
+        case: return false
+        }
+    case TilType.U32:
+        switch to {
+        case TilType.U64: return true
+        case TilType.I64: return true
+        case: return false
+        }
+    case TilType.I32:
+        switch to {
+        case TilType.I64: return true
+        case: return false
+        }
+    case: return false
+    }
+}
+
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}

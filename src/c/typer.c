@@ -9,6 +9,8 @@ Bool is_numeric_type(TilType *t);
 Bool is_integral_numeric_type(TilType *t);
 Bool is_usize_name(Str *name);
 Bool can_implicit_usize_coerce(TilType *from, TilType *to, Str *to_name);
+Bool literal_in_range(Str *val_str, TilType *target);
+Bool can_implicit_widen(TilType *from, TilType *to);
 
 // --- Type inference/checking pass ---
 
@@ -93,39 +95,6 @@ static void narrow_dynamic(Expr *expr, TilType target, Str *target_struct_name) 
 }
 
 
-static Bool literal_in_range(const char *val_str, TilType target) {
-    long long val = strtoll(val_str, NULL, 10);
-    switch (target.tag) {
-        case TilType_TAG_U8:  return val >= 0 && val <= 255;
-        case TilType_TAG_I16: return val >= -32768 && val <= 32767;
-        case TilType_TAG_I32: return val >= -2147483648LL && val <= 2147483647LL;
-        case TilType_TAG_U32: return val >= 0 && val <= 4294967295LL;
-        case TilType_TAG_U64: return val >= 0;
-        case TilType_TAG_I64: return 1;
-        case TilType_TAG_F32: return 1;
-        default: return 1;
-    }
-}
-
-// Can 'from' be implicitly widened to 'to' without precision loss?
-// U8→U16/U32/U64/I16/I32/I64, U16→U32/U64/I32/I64, U32→U64/I64,
-// I16→I32/I64, I32→I64.  No signed→unsigned, no narrowing.
-static Bool can_implicit_widen(TilType from, TilType to) {
-    if (from.tag == to.tag) return 0;
-    switch (from.tag) {
-        case TilType_TAG_U8:
-            return to.tag == TilType_TAG_I16 || to.tag == TilType_TAG_I32 ||
-                   to.tag == TilType_TAG_I64 || to.tag == TilType_TAG_U32 ||
-                   to.tag == TilType_TAG_U64;
-        case TilType_TAG_I16:
-            return to.tag == TilType_TAG_I32 || to.tag == TilType_TAG_I64;
-        case TilType_TAG_U32:
-            return to.tag == TilType_TAG_U64 || to.tag == TilType_TAG_I64;
-        case TilType_TAG_I32:
-            return to.tag == TilType_TAG_I64;
-        default: return 0;
-    }
-}
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     switch (e->data.tag) {
@@ -563,7 +532,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype.tag == TilType_TAG_Dynamic) continue;
                 if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
-                    if (!literal_in_range((const char *)arg->data.data.Ident.c_str, ptype)) {
+                    if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                                  arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
@@ -571,7 +540,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                     arg->til_type = ptype; continue;
                 }
-                if (can_implicit_widen(arg->til_type, ptype) ||
+                if (can_implicit_widen(&arg->til_type, &ptype) ||
                     can_implicit_usize_coerce(&arg->til_type, &ptype, ptype_name)) {
                     arg->til_type = ptype; continue;
                 }
@@ -898,7 +867,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 TilType ptype = type_from_name(ptype_name, scope);
                 if (ptype.tag == TilType_TAG_Dynamic) { ci++; continue; }
                 if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
-                    if (!literal_in_range((const char *)arg->data.data.Ident.c_str, ptype)) {
+                    if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                                  arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
@@ -906,7 +875,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                     arg->til_type = ptype; ci++; continue;
                 }
-                if (can_implicit_widen(arg->til_type, ptype) ||
+                if (can_implicit_widen(&arg->til_type, &ptype) ||
                     can_implicit_usize_coerce(&arg->til_type, &ptype, ptype_name)) {
                     arg->til_type = ptype; ci++; continue;
                 }
@@ -2780,7 +2749,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum &&
                            (is_numeric_type(&declared) || declared.tag == TilType_TAG_Dynamic)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
-                    if (is_numeric_type(&declared) && !literal_in_range((const char *)Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, declared)) {
+                    if (is_numeric_type(&declared) && !literal_in_range(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident, &declared)) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                                  Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&declared)->c_str);
@@ -2920,7 +2889,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             stmt->path.c_str, b->line, b->col, aname->c_str);
                 }
             } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&existing)) {
-                if (!literal_in_range((const char *)Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, existing)) {
+                if (!literal_in_range(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident, &existing)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                              Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&existing)->c_str);
@@ -2974,7 +2943,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                                 type_error(stmt, buf);
                             }
                             if (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&field->til_type)) {
-                                if (!literal_in_range((const char *)Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident.c_str, field->til_type)) {
+                                if (!literal_in_range(&Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident, &field->til_type)) {
                                     char buf[128];
                                     snprintf(buf, sizeof(buf), "integer literal %s out of range for field '%s' (%s)",
                                              Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident.c_str, fname->c_str, til_type_name_c(&field->til_type)->c_str);

@@ -787,6 +787,8 @@ Bool is_numeric_type(TilType * t);
 Bool is_integral_numeric_type(TilType * t);
 Bool is_usize_name(Str * name);
 Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name);
+Bool literal_in_range(Str * val_str, TilType * target);
+Bool can_implicit_widen(TilType * from, TilType * to);
 I32 type_check(Expr * program, TypeScope * scope, Mode * m);
 void precomp(Expr * program);
 Str * qualified_name(Str * type_name, Str * method_name);
