@@ -23,6 +23,7 @@ Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name);
 Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope);
 Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope);
 Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr);
+I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
 void narrow_dynamic(Expr *expr, TilType *target, Str *target_struct_name);
 
 // --- Type inference/checking pass ---
@@ -42,7 +43,7 @@ static const char *type_to_name(TilType type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Expr *src);
 static Expr *make_ns_call(const char *sname, const char *method,
                            TilType ret_type, Str *ret_sname, Expr *src);
-static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
+
 
 
 
@@ -1771,28 +1772,6 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 
 
 // Check if a function call returns ref
-static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope) {
-    if (fcall->data.tag != ExprData_TAG_FCall) return 0;
-    Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
-    if (callee->data.tag == ExprData_TAG_Ident) {
-        ScopeFind *_sf_cb2 = TypeScope_find(scope, &callee->data.data.Ident);
-        TypeBinding *cb = _sf_cb2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_cb2) : NULL;
-        return (cb && cb->func_def) ? cb->func_def->data.data.FuncDef.return_is_ref : 0;
-    }
-    if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
-        Expr *sdef = TypeScope_get_struct(scope, &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident);
-        if (!sdef) return 0;
-        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-        for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = Expr_child(body, &(USize){(USize)(j)});
-            if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
-                *Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
-                Expr_child(f, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef)
-                return Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.return_is_ref;
-        }
-    }
-    return 0;
-}
 
 static I32 hoist_counter = 0;
 

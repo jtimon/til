@@ -802,6 +802,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope);
 Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr);
 void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name);
+I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
 I32 type_check(Expr * program, TypeScope * scope, Mode * m);
 void precomp(Expr * program);
 Str * qualified_name(Str * type_name, Str * method_name);

@@ -328,4 +328,34 @@ narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str)
     }
 }
 
+fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
+    if fcall.data.is_FCall().not() { return 0.to_i32() }
+    ref callee : Expr = Expr.child(fcall, 0)
+    if callee.data.is_Ident() {
+        switch TypeScope.find(scope, callee.data.get_Ident()) {
+        case ScopeFind.Found(cb):
+            if is_null(cb.func_def) { return 0.to_i32() }
+            return cb.func_def.data.get_FuncDef().return_is_ref
+        case: return 0.to_i32()
+        }
+    }
+    if callee.data.is_FieldAccess().and(callee.is_ns_field) {
+        ref sdef : Expr = TypeScope.get_struct(scope, Expr.child(callee, 0).data.get_Ident())
+        if is_null(sdef) { return 0.to_i32() }
+        ref body : Expr = Expr.child(sdef, 0)
+        for j in 0..Expr.child_count(body) {
+            ref f : Expr = Expr.child(body, j)
+            if f.data.is_Decl() {
+                fd := f.data.get_Decl()
+                if fd.is_namespace.and(fd.name.eq(callee.data.get_FieldAccess())) {
+                    if Expr.child(f, 0).data.is_FuncDef() {
+                        return Expr.child(f, 0).data.get_FuncDef().return_is_ref
+                    }
+                }
+            }
+        }
+    }
+    return 0.to_i32()
+}
+
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
