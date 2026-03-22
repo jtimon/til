@@ -34,6 +34,42 @@ align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
     return offset.add(align).sub(1).and(align.sub(1).xor(-1.to_i32()))
 }
 
+type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
+    if name.eq("I64")  { return TilType.I64 }
+    if name.eq("U8")   { return TilType.U8 }
+    if name.eq("I16")  { return TilType.I16 }
+    if name.eq("I32")  { return TilType.I32 }
+    if name.eq("U32")  { return TilType.U32 }
+    if name.eq("U64")  { return TilType.U64 }
+    if name.eq("USize") { return TilType.U32 }
+    if name.eq("Str")  { return TilType.Struct }
+    if name.eq("Bool") { return TilType.Bool }
+    if name.eq("StructDef") { return TilType.StructDef }
+    if name.eq("Dynamic")   { return TilType.Dynamic }
+    if is_null(scope).not() {
+        switch TypeScope.find(scope, name) {
+        case ScopeFind.Found(b):
+            if b.is_builtin {
+                if is_null(b.struct_def).not() { return b.type }
+            }
+            if is_null(b.func_def).not() {
+                if Expr.child_count(b.func_def).eq(0) {
+                    return TilType.FuncPtr
+                }
+            }
+        case: {}
+        }
+        ref sdef : Expr = TypeScope.get_struct(scope, name)
+        if is_null(sdef).not() {
+            if sdef.data.is_EnumDef() {
+                return TilType.Enum
+            }
+            return TilType.Struct
+        }
+    }
+    return TilType.Unknown
+}
+
 // C-facing declarations (still used by typer.c etc.)
 init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 Vec_take := ext_func(v: Vec) returns Dynamic {}

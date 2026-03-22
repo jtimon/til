@@ -4,8 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Forward declaration for til-generated function (initer.til)
+// Forward declarations for til-generated functions (initer.til)
 I32 align_up(I32 offset, I32 align);
+TilType *type_from_name_init(Str *name, TypeScope *scope);
 
 // --- Type scope implementation ---
 
@@ -22,34 +23,6 @@ I32 align_up(I32 offset, I32 align);
 
 
 
-// --- Resolve type name (simplified, for init phase) ---
-
-static TilType type_from_name_init(Str *name, TypeScope *scope) {
-    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return (TilType){TilType_TAG_I64};
-    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return (TilType){TilType_TAG_U8};
-    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return (TilType){TilType_TAG_I16};
-    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return (TilType){TilType_TAG_I32};
-    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return (TilType){TilType_TAG_U32};
-    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return (TilType){TilType_TAG_U64};
-    if ((name->count == 5 && memcmp(name->c_str, "USize", 5) == 0)) return (TilType){TilType_TAG_U32};
-    if ((name->count == 3 && memcmp(name->c_str, "Str", 3) == 0))  return (TilType){TilType_TAG_Struct};
-    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return (TilType){TilType_TAG_Bool};
-    if ((name->count == 9 && memcmp(name->c_str, "StructDef", 9) == 0))    return (TilType){TilType_TAG_StructDef};
-    // FunctionDef: regular struct (like Str), not builtin
-    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0))     return (TilType){TilType_TAG_Dynamic};
-    if (scope) {
-        // Check for builtin aliases first (e.g. USize := U64 has struct_def but type is U64)
-        ScopeFind *_sf = TypeScope_find(scope, name);
-        TypeBinding *b = _sf->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf) : NULL;
-        if (b && b->is_builtin && b->struct_def) return b->type;
-        Expr *sdef = TypeScope_get_struct(scope, name);
-        if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
-        // Named FuncSig type (bodyless func/proc)
-        if (b && b->func_def && b->func_def->children.count == 0)
-            return (TilType){TilType_TAG_FuncPtr};
-    }
-    return (TilType){TilType_TAG_Unknown};
-}
 
 // --- Flat struct layout computation ---
 
@@ -133,7 +106,7 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             else if ((ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  { fsz = 4; falign = 4; }
             else if ((ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  { fsz = 4; falign = 4; }
             else if ((ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) { fsz = 1; falign = 1; }
-            else if (type_from_name_init(ftype, scope).tag == TilType_TAG_FuncPtr) {
+            else if (type_from_name_init(ftype, scope)->tag == TilType_TAG_FuncPtr) {
                 // FuncSig-typed field: function pointer (void *)
                 fsz = 8; falign = 8;
             } else {
@@ -281,7 +254,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 I32 ref_flag = field->data.data.Decl.is_ref ? 1 : 0;
                 // FuncSig-typed fields are just pointers — treat like ref for clone (no .clone())
                 if (!ref_flag && field->data.data.Decl.explicit_type.count > 0 &&
-                    type_from_name_init(&field->data.data.Decl.explicit_type, scope).tag == TilType_TAG_FuncPtr)
+                    type_from_name_init(&field->data.data.Decl.explicit_type, scope)->tag == TilType_TAG_FuncPtr)
                     ref_flag = 1;
                 { I32 *_p = malloc(sizeof(I32)); *_p = ref_flag; Vec_push(&field_refs, _p); }
             }
@@ -412,7 +385,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 !field->data.data.Decl.is_ref) {
                 // Skip FuncSig-typed fields — func ptrs don't need delete
                 if ((field->data.data.Decl.explicit_type).count > 0 &&
-                    type_from_name_init(&field->data.data.Decl.explicit_type, scope).tag == TilType_TAG_FuncPtr)
+                    type_from_name_init(&field->data.data.Decl.explicit_type, scope)->tag == TilType_TAG_FuncPtr)
                     continue;
                 { Str **_p = malloc(sizeof(Str *)); *_p = &field->data.data.Decl.name; Vec_push(&field_names, _p); }
                 { I32 *_p = malloc(sizeof(I32)); *_p = field->data.data.Decl.is_own; Vec_push(&field_owns, _p); }
@@ -691,7 +664,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
                 if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
                     Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
-                    Bool is_funcsig = type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr;
+                    Bool is_funcsig = type_from_name_init(vtype, scope)->tag == TilType_TAG_FuncPtr;
 
                     // Payload variant:
                     //   if other.is_Vj().not() { return false }
@@ -990,7 +963,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
                     Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
                     Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
-                    if (vtype && (*vtype).count > 0 && type_from_name_init(vtype, scope).tag == TilType_TAG_FuncPtr) {
+                    if (vtype && (*vtype).count > 0 && type_from_name_init(vtype, scope)->tag == TilType_TAG_FuncPtr) {
                         // FuncSig payload: return "Variant(func)"
                         char buf[256];
                         snprintf(buf, sizeof(buf), "%s(func)", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
@@ -1444,7 +1417,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
         TilType rt = (TilType){TilType_TAG_None};
         if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
-            rt = type_from_name_init(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
+            rt = *type_from_name_init(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
         }
         TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
