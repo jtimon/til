@@ -1787,6 +1787,7 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     decl->data.data.Decl.is_mut = false;
     decl->data.data.Decl.is_namespace = false;
     decl->til_type = val->til_type;
+    decl->struct_name = val->struct_name;
     U32 val_line = val->line;
     U32 val_col = val->col;
     Str val_path = val->path;
