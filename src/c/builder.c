@@ -137,6 +137,16 @@ static Bool is_shallow_local(const char *name) {
     return r;
 }
 
+static void emit_field(FILE *f, const char *var, const char *field) {
+    fprintf(f, "%s%s%s", var, is_shallow_local(var) ? "." : "->", field);
+}
+
+static Bool use_dot_access(Expr *obj) {
+    if (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field) return 1;
+    if (obj->data.tag == ExprData_TAG_Ident && is_shallow_local((const char *)obj->data.data.Ident.c_str)) return 1;
+    return 0;
+}
+
 static const char *get_shallow_ctype(const char *name) {
     Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
     if (*Map_has(&shallow_local_types, s)) {
@@ -583,8 +593,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             if (e->til_type.tag == TilType_TAG_Enum) fprintf(f, "()");
         } else {
             emit_expr(f, obj, depth);
-            Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
-            fprintf(f, "%s%s", use_dot ? "." : "->", fname->c_str);
+            fprintf(f, "%s%s", use_dot_access(obj) ? "." : "->", fname->c_str);
         }
         break;
     }
@@ -615,7 +624,7 @@ static const char *til_type_to_c(TilType t) {
 
 // C type name without pointer — "Point" for structs, "I64" for I64, etc.
 static const char *c_type_name(TilType t, Str *struct_name) {
-    if ((t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) && struct_name) {
+    if ((t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) && struct_name && struct_name->count > 0) {
         static char buf[128];
         snprintf(buf, sizeof(buf), "%s", struct_name->c_str);
         return buf;
@@ -835,7 +844,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
         emit_indent(f, depth);
         if (is_ref) {
             // Ref field: store pointer directly (no deref)
-            fprintf(f, "%s->%s = ", var, fname);
+            emit_field(f, var, fname); fprintf(f, " = ");
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
         } else if (is_own && arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
@@ -848,9 +857,9 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ct, tmp, ct);
             emit_ctor_fields(f, tmp, arg, depth);
             emit_indent(f, depth);
-            fprintf(f, "%s->%s = %s;\n", var, fname, tmp);
+            emit_field(f, var, fname); fprintf(f, " = %s;\n", tmp);
         } else if (is_own) {
-            fprintf(f, "%s->%s = ", var, fname);
+            emit_field(f, var, fname); fprintf(f, " = ");
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
         } else if (arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
@@ -863,18 +872,18 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ct, tmp, ct);
             emit_ctor_fields(f, tmp, arg, depth);
             emit_indent(f, depth);
-            fprintf(f, "%s->%s = *%s; free(%s);\n", var, fname, tmp, tmp);
+            emit_field(f, var, fname); fprintf(f, " = *%s; free(%s);\n", tmp, tmp);
         } else if (arg->data.tag == ExprData_TAG_FCall) {
             // Unhoisted fcall for inline compound field: deref + free wrapper
             if (fcall_is_shallow_return(arg)) {
-                fprintf(f, "%s->%s = ", var, fname);
+                emit_field(f, var, fname); fprintf(f, " = ");
                 emit_expr(f, arg, depth);
                 fprintf(f, ";\n");
             } else {
                 const char *ftype = c_type_name(arg->til_type, &arg->struct_name);
                 fprintf(f, "{ %s *_ca = ", ftype);
                 emit_expr(f, arg, depth);
-                fprintf(f, "; %s->%s = *_ca; free(_ca); }\n", var, fname);
+                fprintf(f, "; "); emit_field(f, var, fname); fprintf(f, " = *_ca; free(_ca); }\n");
             }
         } else if (arg->til_type.tag == TilType_TAG_Struct || arg->til_type.tag == TilType_TAG_Enum) {
             // Inline compound field: clone to avoid shallow copy
@@ -885,16 +894,16 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             Bool shallow_clone = callee_returns_shallow(cn);
             Str_delete(cn, &(Bool){1});
             if (shallow_clone) {
-                fprintf(f, "%s->%s = %s_clone(", var, fname, arg->struct_name.c_str);
+                emit_field(f, var, fname); fprintf(f, " = %s_clone(", arg->struct_name.c_str);
                 emit_as_ptr(f, arg, depth);
                 fprintf(f, ");\n");
             } else {
                 fprintf(f, "{ %s *_ca = %s_clone(", ftype, arg->struct_name.c_str);
                 emit_as_ptr(f, arg, depth);
-                fprintf(f, "); %s->%s = *_ca; free(_ca); }\n", var, fname);
+                fprintf(f, "); "); emit_field(f, var, fname); fprintf(f, " = *_ca; free(_ca); }\n");
             }
         } else {
-            fprintf(f, "%s->%s = ", var, fname);
+            emit_field(f, var, fname); fprintf(f, " = ");
             emit_deref(f, arg, depth);
             fprintf(f, ";\n");
         }
@@ -927,13 +936,15 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             ;
         } else {
             if (e->data.data.Decl.is_ref) {
-                const char *ctype = c_type_name(e->til_type, &Expr_child(e, &(USize){(USize)(0)})->struct_name);
+                Str *_sn = (e->struct_name.count > 0) ? &e->struct_name : &Expr_child(e, &(USize){(USize)(0)})->struct_name;
+                const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 fprintf(f, "%s *%s = ", ctype, e->data.data.Decl.name.c_str);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
             } else {
-                const char *ctype = c_type_name(e->til_type, &Expr_child(e, &(USize){(USize)(0)})->struct_name);
+                Str *_sn = (e->struct_name.count > 0) ? &e->struct_name : &Expr_child(e, &(USize){(USize)(0)})->struct_name;
+                const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, &e->data.data.Decl.name);
                 Str *_uth_key = Str_clone(&e->data.data.Decl.name);
@@ -1071,8 +1082,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             if (fcall_is_shallow_return(Expr_child(e, &(USize){(USize)(1)}))) {
                 // Shallow-return fcall: value directly assigned to inline field
                 emit_expr(f, obj, depth);
-                Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
-                fprintf(f, "%s%s = ", use_dot ? "." : "->", fname->c_str);
+                fprintf(f, "%s%s = ", use_dot_access(obj) ? "." : "->", fname->c_str);
                 emit_expr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
                 fprintf(f, ";\n");
             } else {
@@ -1082,16 +1092,14 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 emit_expr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
                 fprintf(f, "; ");
                 emit_expr(f, obj, depth);
-                Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
-                fprintf(f, "%s%s = *_fa; free(_fa); }\n", use_dot ? "." : "->", fname->c_str);
+                fprintf(f, "%s%s = *_fa; free(_fa); }\n", use_dot_access(obj) ? "." : "->", fname->c_str);
             }
         } else {
             if (e->is_ns_field) {
                 fprintf(f, "%s_%s = ", obj->struct_name.c_str, fname->c_str);
             } else {
                 emit_expr(f, obj, depth);
-                Bool use_dot = (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field);
-                fprintf(f, "%s%s = ", use_dot ? "." : "->", fname->c_str);
+                fprintf(f, "%s%s = ", use_dot_access(obj) ? "." : "->", fname->c_str);
             }
             if (e->is_own_field) {
                 emit_expr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
