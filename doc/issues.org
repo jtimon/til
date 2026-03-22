@@ -8,16 +8,24 @@
 
 
 ** OPEN #104 Module-level mutable globals
+  :DEPENDENCY: #50
   ~mut counter := 0~ at module level segfaults both interpreter and
-  compiler. The builder needs to emit these as C ~static~ variables,
-  and the interpreter needs to store them in a module-level scope.
+  compiler. The initer only registers structs/funcs/enums in the
+  TypeScope -- top-level variable declarations are ignored, so the
+  typer never type-checks them and the builder reads garbage.
 
-  Many C modules use ~static~ globals (precomp.c: ~macros~, ~funcs~,
-  ~known~; scavenger.c: ~gc_strs~; typer.c: ~errors~,
-  ~current_mode~, ~hoist_counter~). Translating these to til requires
-  working module-level mutables.
+  Depends on #50 (stack allocation for all types): once all types are
+  stack-allocated, module-level globals are just ~static T varname~
+  in C. Without #50, globals would need a special heap-allocation
+  path (~static T *p = malloc(...)~) which is a dead end.
 
-  Blocker for #39: almost every remaining C module has static globals.
+  After #50: add Pass 3 to ~init_declarations~ to register top-level
+  variables in TypeScope, and update the interpreter to handle them
+  in a module-level scope.
+
+  Blocker for #39: almost every remaining C module has static globals
+  (precomp.c: ~macros~, ~funcs~, ~known~; scavenger.c: ~gc_strs~;
+  typer.c: ~errors~, ~current_mode~, ~hoist_counter~).
 
 ** OPEN #103 Typer: allow ref mut on enum get_* methods
   Auto-generated enum ~get_*~ methods (e.g. ~ExprData.get_Decl()~)
@@ -340,11 +348,22 @@
   Reproduce: ~bin/ctil run tmp/hello_pure.til~ with any pure-mode file.
   Interpreter also fails (~undefined variable 'I64'~ in str.til:3).
 
-** OPEN #50 Shallow types: stack allocation for structs/enums without own fields
-  Currently only primitive ext_structs (I64, U8, Bool, etc.) get the stack
-  allocation optimization — declared as stack variables instead of heap-allocated
-  pointers. This can be extended to any struct or enum that has no ~own~ fields
-  or payloads, recursively.
+** OPEN #50 Stack allocation for all struct/enum types
+  Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
+  allocation -- everything else is heap-allocated via malloc. This should
+  be extended to ALL struct/enum types, not just shallow ones.
+
+  The key insight: even types with ~own~ fields can be stack-allocated.
+  The existing delete-insertion logic already calls ~delete(call_free=false)~
+  for stack values. For types with ~own~ fields, ~delete(call_free=false)~
+  frees the owned inner data (e.g. Str's c_str buffer) without freeing
+  the struct itself. Containers (Vec, Map, Set) use malloc internally
+  for their buffers, which delete handles.
+
+  Prerequisite for #104 (module-level globals): static variables should
+  be stack-allocated (~static Point p = {0}~), not heap-allocated
+  (~static Point *p = malloc(...)~). Without #50, globals need a
+  special heap path which is a dead end.
 
 *** What makes a type "shallow"
 
