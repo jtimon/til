@@ -10,4 +10,42 @@ LocalInfo := struct {
     mut skip_delete := false
 }
 
+is_numeric_type := func(t: TilType) returns shallow Bool {
+    switch t {
+    case TilType.I64: return true
+    case TilType.U8:  return true
+    case TilType.I16: return true
+    case TilType.I32: return true
+    case TilType.U32: return true
+    case TilType.U64: return true
+    case TilType.F32: return true
+    case: return false
+    }
+}
+
+is_integral_numeric_type := func(t: TilType) returns shallow Bool {
+    switch t {
+    case TilType.I64: return true
+    case TilType.U8:  return true
+    case TilType.I16: return true
+    case TilType.I32: return true
+    case TilType.U32: return true
+    case TilType.U64: return true
+    case: return false
+    }
+}
+
+is_usize_name := func(name: Str) returns shallow Bool {
+    return name.eq("USize")
+}
+
+can_implicit_usize_coerce := func(from: TilType, to: TilType, to_name: Str) returns shallow Bool {
+    if is_usize_name(to_name).not() { return false }
+    switch to {
+    case TilType.U32:
+        return is_integral_numeric_type(from)
+    case: return false
+    }
+}
+
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
