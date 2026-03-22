@@ -2827,7 +2827,9 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                 if (Expr_child(field, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
                 Expr *fdef = Expr_child(field, &(USize){(USize)(0)});
                 FuncType fft = fdef->data.data.FuncDef.func_type;
-                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
+                if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) {
+                    if (stmt->is_core) continue;
+                }
                 const char *ret = "void";
                 if (fdef->data.data.FuncDef.return_type.count > 0)
                     ret = fdef->data.data.FuncDef.return_is_shallow
@@ -2841,7 +2843,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
             Expr *func_def = Expr_child(stmt, &(USize){(USize)(0)});
             if (func_def->children.count == 0) continue;
             FuncType fft = func_def->data.data.FuncDef.func_type;
-            if (fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) continue;
+            if ((fft.tag == FuncType_TAG_ExtFunc || fft.tag == FuncType_TAG_ExtProc) && stmt->is_core) continue;
             const char *ret = "void";
             if (func_def->data.data.FuncDef.return_type.count > 0)
                 ret = func_def->data.data.FuncDef.return_is_shallow

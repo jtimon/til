@@ -30,6 +30,16 @@ TypeBinding := struct {
     }
 }
 
+// C-facing declarations (old tscope_* names, still used by typer.c etc.)
+tscope_set := ext_proc(s: TypeScope, name: Str, type: TilType, shallow is_proc: I32, shallow is_mut: Bool, shallow line: U32, shallow col: U32, shallow is_param: Bool, shallow is_own: Bool) {}
+tscope_get := ext_func(s: TypeScope, name: Str) returns TilType {}
+tscope_is_proc := ext_func(s: TypeScope, name: Str) returns shallow I32 {}
+tscope_find := ext_func(s: TypeScope, name: Str) returns ref TypeBinding {}
+tscope_get_struct := ext_func(s: TypeScope, name: Str) returns ref Expr {}
+tscope_is_mut := ext_func(s: TypeScope, name: Str) returns shallow Bool {}
+init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
+Vec_take := ext_func(v: Vec) returns Dynamic {}
+
 ScopeFind := enum { NotFound, Found: TypeBinding }
 
 TypeScope := struct {
