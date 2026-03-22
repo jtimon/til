@@ -80,8 +80,6 @@ Use -> not ->, -- not --, * not bullet, ' and " not curly quotes.
 - Remote agents (GitHub Actions, Codex, etc.): do NOT include doc/totals.csv or img/totals.svg
 - Use `make test` before every commit (skip when only documentation changed)
 - Never run destructive git commands (revert, restore, stash, reset --hard, checkout -- files)
-- NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" — just do it. Stop wasting tokens on justifying why something doesn't need changing.
-- WHEN TOLD "IN THE WHOLE CODEBASE" THAT MEANS THE WHOLE CODEBASE. IT DOES NOT MEAN "THE WHOLE CODEBASE EXCEPT FOR THE PARTS YOU DON'T FEEL ARE RELEVANT." EVERY FILE, EVERY PATH, EVERY OCCURRENCE. NO EXCEPTIONS. NO FILTERING BY "RELEVANCE." NO SKIPPING THINGS BECAUSE THEY'RE "NOT HIT CURRENTLY."
-- When the user gives you an order, you obey, or you get punished with reading this file many times in a row, end of story.
+- NEVER look for excuses to reduce scope, skip changes, or defer work. If the user says to change something, CHANGE IT. Don't analyze whether it's "needed" or "used" — just do it.
+- When told "in the whole codebase", that means every file, every path, every occurrence. No exceptions.
 - When the user asks you a question, stop whatever you're doing and answer his questions. They're not rhetorical questions and even if they are, or socratic method, you answer them the best you can and completely honestly.
-- If you lie to the user, hide something from him or try to cheat to avoid obeying an order, you will read this document many more times, don't do it.
