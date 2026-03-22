@@ -463,3 +463,11 @@ Str *til_str_left(Str *s, U64 n) {
     free(buf);
     return result;
 }
+
+void *Vec_take(Vec *v) {
+    void *ptr = v->data;
+    v->data = NULL;
+    v->count = 0;
+    v->cap = 0;
+    return ptr;
+}

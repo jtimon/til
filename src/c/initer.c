@@ -8,15 +8,6 @@
 
 
 
-// --- Vec helper used by typer ---
-
-void *Vec_take(Vec *v) {
-    void *ptr = v->data;
-    v->data = NULL;
-    v->count = 0;
-    v->cap = 0;
-    return ptr;
-}
 
 
 TypeBinding *tscope_find(TypeScope *s, Str *name) {
