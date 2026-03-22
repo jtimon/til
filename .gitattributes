@@ -2,7 +2,7 @@
 *.til                       linguist-language=Zig
 
 # Mark auto-generated bootstrap C files so they don't skew language statistics
-bootstrap/** linguist-generated=true
+boot/** linguist-generated=true
 
 # Vendored libraries — exclude from language stats
 lib/** linguist-vendored=true
