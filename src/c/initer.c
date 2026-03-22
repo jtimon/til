@@ -35,10 +35,6 @@ Expr *tscope_get_struct(TypeScope *s, Str *name) {
     return b ? b->struct_def : NULL;
 }
 
-Bool tscope_is_mut(TypeScope *s, Str *name) {
-    TypeBinding *b = tscope_find(s, name);
-    return b ? b->is_mut : 0;
-}
 
 // --- Resolve type name (simplified, for init phase) ---
 

@@ -2899,7 +2899,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 char buf[128];
                 snprintf(buf, sizeof(buf), "undefined symbol '%s'", aname->c_str);
                 type_error(stmt, buf);
-            } else if (!tscope_is_mut(scope, aname)) {
+            } else if (!TypeScope_is_mut(scope, aname)) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "cannot assign to immutable variable '%s'", aname->c_str);
                 type_error(stmt, buf);
