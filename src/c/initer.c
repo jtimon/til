@@ -31,10 +31,7 @@ TilType tscope_get(TypeScope *s, Str *name) {
     return b ? b->type : (TilType){TilType_TAG_Unknown};
 }
 
-I32 tscope_is_proc(TypeScope *s, Str *name) {
-    TypeBinding *b = tscope_find(s, name);
-    return b ? b->is_proc : -1;
-}
+
 
 Expr *tscope_get_struct(TypeScope *s, Str *name) {
     TypeBinding *b = tscope_find(s, name);

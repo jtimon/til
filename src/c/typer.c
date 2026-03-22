@@ -1058,13 +1058,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         Bool debug_exempt = current_mode && current_mode->debug_prints &&
             ((name->count == 5 && memcmp(name->c_str, "print", 5) == 0) || (name->count == 7 && memcmp(name->c_str, "println", 7) == 0));
         if (fn_type.tag != TilType_TAG_FuncPtr &&
-            in_func && tscope_is_proc(scope, name) == 1 && !(name->count == 5 && memcmp(name->c_str, "panic", 5) == 0) && !debug_exempt) {
+            in_func && TypeScope_is_proc(scope, name) == 1 && !(name->count == 5 && memcmp(name->c_str, "panic", 5) == 0) && !debug_exempt) {
             char buf[128];
             snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name->c_str);
             type_error(e, buf);
         }
         // Check: test functions cannot be called by anyone
-        if (tscope_is_proc(scope, name) == 2) {
+        if (TypeScope_is_proc(scope, name) == 2) {
             char buf[128];
             snprintf(buf, sizeof(buf), "test functions cannot be called ('%s')", name->c_str);
             type_error(e, buf);
