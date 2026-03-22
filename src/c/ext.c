@@ -113,6 +113,7 @@ I32 I32_mod(I32 a, I32 b) { return (b == 0) ? 0 : a % b; }
 I32 I32_and(I32 a, I32 b) { return a & b; }
 I32 I32_or(I32 a, I32 b) { return a | b; }
 I32 I32_xor(I32 a, I32 b) { return a ^ b; }
+I32 I32_not(I32 a) { return ~a; }
 
 // I32 comparisons
 Bool I32_eq(I32 a, I32 b) { return a == b; }

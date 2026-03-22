@@ -82,6 +82,7 @@ I32 I32_mod(I32 a, I32 b);
 I32 I32_and(I32 a, I32 b);
 I32 I32_or(I32 a, I32 b);
 I32 I32_xor(I32 a, I32 b);
+I32 I32_not(I32 a);
 
 // I32 comparisons
 Bool I32_eq(I32 a, I32 b);
