@@ -264,11 +264,6 @@ static void collect_unsafe_to_hoist(Expr *body) {
     }
 }
 
-static Bool is_scalar_type(TilType t) {
-    return t.tag == TilType_TAG_I64 || t.tag == TilType_TAG_U8  || t.tag == TilType_TAG_I16 ||
-           t.tag == TilType_TAG_I32 || t.tag == TilType_TAG_U32 || t.tag == TilType_TAG_U64 ||
-           t.tag == TilType_TAG_F32 || t.tag == TilType_TAG_Bool;
-}
 
 static Bool is_shallow_param(const char *name) {
     if (!current_fdef) return 0;
@@ -784,8 +779,11 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "({ %s *_oa = malloc(sizeof(%s)); *_oa = ", ctype, ctype);
             emit_expr(f, e, depth);
             fprintf(f, "; _oa; })");
+        } else if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum) &&
+                   is_shallow_local((const char *)e->data.data.Ident.c_str)) {
+            fprintf(f, "&%s", e->data.data.Ident.c_str);
         } else {
-            // Read-only use — compound literal is fine
+            // Scalar value — compound literal wrapper
             const char *ctype = get_shallow_ctype((const char *)e->data.data.Ident.c_str);
             if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
             fprintf(f, "&(%s){", ctype);
@@ -871,7 +869,8 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_field(f, var, fname); fprintf(f, " = %s;\n", tmp);
         } else if (is_own) {
             emit_field(f, var, fname); fprintf(f, " = ");
-            emit_expr(f, arg, depth);
+            arg->is_own_arg = true;
+            emit_as_ptr(f, arg, depth);
             fprintf(f, ";\n");
         } else if (arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
                    *Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
@@ -963,17 +962,24 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, &e->data.data.Decl.name);
                 Str *_uth_key = Str_clone(&e->data.data.Decl.name);
-                Bool can_hoist = !is_global && !e->data.data.Decl.is_own && is_scalar_type(e->til_type) &&
+                Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
+                                 e->til_type.tag != TilType_TAG_FuncPtr &&
+                                 e->til_type.tag != TilType_TAG_Dynamic &&
                                  !*Set_has(&unsafe_to_hoist, _uth_key);
                 Str_delete(_uth_key, &(Bool){1});
                 if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
                     *Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
-                    // Struct constructor — malloc + field-by-field assignment (never scalar)
+                    // Struct constructor
                     const char *var = (const char *)e->data.data.Decl.name.c_str;
-                    if (is_global)
+                    if (is_global) {
                         fprintf(f, "%s = malloc(sizeof(%s));\n", var, ctype);
-                    else
+                    } else if (can_hoist) {
+                        fprintf(f, "%s %s; memset(&%s, 0, sizeof(%s));\n", ctype, var, var, ctype);
+                        Set_add(&shallow_locals, Str_clone(&e->data.data.Decl.name));
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(ctype), .count = (U64)strlen((const char*)(ctype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
+                    } else {
                         fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
+                    }
                     emit_ctor_fields(f, var, rhs, depth);
                 } else if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
                            (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
@@ -1008,6 +1014,12 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         fprintf(f, "; %s = *_hp; free(_hp); }\n", e->data.data.Decl.name.c_str);
                         Set_add(&shallow_locals, Str_clone(&e->data.data.Decl.name));
                         { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(htype), .count = (U64)strlen((const char*)(htype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
+                    } else if (can_hoist) {
+                        fprintf(f, "%s %s; { %s *_hp = (%s *)", ctype, e->data.data.Decl.name.c_str, ctype, ctype);
+                        emit_expr(f, rhs, depth);
+                        fprintf(f, "; %s = *_hp; free(_hp); }\n", e->data.data.Decl.name.c_str);
+                        Set_add(&shallow_locals, Str_clone(&e->data.data.Decl.name));
+                        { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(ctype), .count = (U64)strlen((const char*)(ctype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&shallow_local_types, _k, _vp); }
                     } else {
                         if (is_global)
                             fprintf(f, "%s = ", e->data.data.Decl.name.c_str);
@@ -1044,12 +1056,17 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
     case ExprData_TAG_Assign: {
         Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
         if (e->save_old_delete) {
-            // RHS references the variable being assigned — save old, assign new, delete old
-            // (only for struct/enum, never scalars)
             const char *ctype = c_type_name(e->til_type, &e->struct_name);
-            fprintf(f, "{ %s *_old = %s; %s = ", ctype, e->data.data.Assign.c_str, e->data.data.Assign.c_str);
-            emit_expr(f, rhs, depth);
-            fprintf(f, "; %s_delete(_old, &(Bool){1}); }\n", ctype);
+            if (is_shallow_local((const char *)e->data.data.Assign.c_str)) {
+                fprintf(f, "{ %s *_new = (%s *)", ctype, ctype);
+                emit_expr(f, rhs, depth);
+                fprintf(f, "; %s_delete(&%s, &(Bool){0}); %s = *_new; free(_new); }\n",
+                        ctype, e->data.data.Assign.c_str, e->data.data.Assign.c_str);
+            } else {
+                fprintf(f, "{ %s *_old = %s; %s = ", ctype, e->data.data.Assign.c_str, e->data.data.Assign.c_str);
+                emit_expr(f, rhs, depth);
+                fprintf(f, "; %s_delete(_old, &(Bool){1}); }\n", ctype);
+            }
             break;
         }
         Bool is_hoisted = is_shallow_local((const char *)e->data.data.Assign.c_str);
@@ -1117,7 +1134,8 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, "%s%s = ", use_dot_access(obj) ? "." : "->", fname->c_str);
             }
             if (e->is_own_field) {
-                emit_expr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
+                Expr_child(e, &(USize){(USize)(1)})->is_own_arg = true;
+                emit_as_ptr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
             } else {
                 emit_deref(f, Expr_child(e, &(USize){(USize)(1)}), depth);
             }
@@ -1126,12 +1144,14 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         break;
     }
     case ExprData_TAG_FCall:
-        // Suppress delete calls for hoisted scalar locals
+        // Suppress delete for hoisted scalars (no-op, avoids pre-existing type mismatch)
         if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
             (Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.count == 6 && memcmp(Expr_child(e, &(USize){(USize)(0)})->data.data.Ident.c_str, "delete", 6) == 0) &&
             e->children.count >= 2 &&
             Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident &&
-            is_shallow_local((const char *)Expr_child(e, &(USize){(USize)(1)})->data.data.Ident.c_str)) {
+            is_shallow_local((const char *)Expr_child(e, &(USize){(USize)(1)})->data.data.Ident.c_str) &&
+            Expr_child(e, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Struct &&
+            Expr_child(e, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Enum) {
             fprintf(f, ";\n");
             break;
         }

@@ -348,7 +348,7 @@
   Reproduce: ~bin/ctil run tmp/hello_pure.til~ with any pure-mode file.
   Interpreter also fails (~undefined variable 'I64'~ in str.til:3).
 
-** OPEN #50 Stack allocation for all struct/enum types
+** FIXED #50 Stack allocation for all struct/enum types
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
   allocation -- everything else is heap-allocated via malloc. This should
   be extended to ALL struct/enum types, not just shallow ones.
