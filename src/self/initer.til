@@ -70,6 +70,20 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
     return TilType.Unknown
 }
 
+compute_struct_layout := ext_proc(struct_def: Expr, scope: TypeScope) {}
+
+compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
+    for i in 0..Expr.child_count(program) {
+        ref stmt : Expr = Expr.child(program, i)
+        if stmt.data.is_Decl().not() { continue }
+        if Expr.child(stmt, 0).data.is_StructDef().not() { continue }
+        sname := stmt.data.get_Decl().name
+        if sname.eq("StructDef") { continue }
+        if sname.eq("Dynamic") { continue }
+        compute_struct_layout(Expr.child(stmt, 0), scope)
+    }
+}
+
 // C-facing declarations (still used by typer.c etc.)
 init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 Vec_take := ext_func(v: Vec) returns Dynamic {}

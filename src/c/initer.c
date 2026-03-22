@@ -7,6 +7,7 @@
 // Forward declarations for til-generated functions (initer.til)
 I32 align_up(I32 offset, I32 align);
 TilType *type_from_name_init(Str *name, TypeScope *scope);
+void compute_all_struct_layouts(Expr *program, TypeScope *scope);
 
 // --- Type scope implementation ---
 
@@ -28,7 +29,7 @@ TilType *type_from_name_init(Str *name, TypeScope *scope);
 
 // Compute field offsets and total size for a struct def.
 // Recursive: if a field is an inline struct, compute its layout first.
-static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
+void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
     if (struct_def->total_struct_size > 0) return; // already computed
 
     Expr *body = Expr_child(struct_def, &(USize){(USize)(0)});
@@ -142,19 +143,6 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
         struct_def->total_struct_size = 1; // empty structs need at least 1 byte
 }
 
-static void compute_all_struct_layouts(Expr *program, TypeScope *scope) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
-
-        Str *sname = &stmt->data.data.Decl.name;
-        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
-            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
-
-        compute_struct_layout(Expr_child(stmt, &(USize){(USize)(0)}), scope);
-    }
-}
 
 // --- Init phase: pre-scan top-level declarations ---
 
