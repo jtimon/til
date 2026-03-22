@@ -26,10 +26,7 @@ TypeBinding *tscope_find(TypeScope *s, Str *name) {
     return NULL;
 }
 
-TilType tscope_get(TypeScope *s, Str *name) {
-    TypeBinding *b = tscope_find(s, name);
-    return b ? b->type : (TilType){TilType_TAG_Unknown};
-}
+
 
 
 

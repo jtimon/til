@@ -871,7 +871,6 @@ Value *Value_Ptr(void *);
 void * Value_get_Ptr(Value *);
 #include "ext.h"
 
-TilType tscope_get(TypeScope *, Str *);
 TypeBinding * tscope_find(TypeScope *, Str *);
 Expr * tscope_get_struct(TypeScope *, Str *);
 Bool tscope_is_mut(TypeScope *, Str *);

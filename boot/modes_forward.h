@@ -755,7 +755,6 @@ Str * TypeBinding_to_str(TypeBinding * self);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 * TypeBinding_size(void);
-TilType tscope_get(TypeScope * s, Str * name);
 TypeBinding * tscope_find(TypeScope * s, Str * name);
 Expr * tscope_get_struct(TypeScope * s, Str * name);
 Bool tscope_is_mut(TypeScope * s, Str * name);

@@ -152,7 +152,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         e->til_type = (TilType){TilType_TAG_Dynamic};
         break;
     case ExprData_TAG_Ident: {
-        TilType t = tscope_get(scope, &e->data.data.Ident);
+        TilType t = *TypeScope_get_type(scope, &e->data.data.Ident);
         if (t.tag == TilType_TAG_Unknown) {
             char buf[128];
             snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->data.data.Ident.c_str);
@@ -990,7 +990,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
         }
         // Resolve return type from scope (covers builtins and user-defined)
-        TilType fn_type = tscope_get(scope, name);
+        TilType fn_type = *TypeScope_get_type(scope, name);
         if (fn_type.tag == TilType_TAG_Unknown) {
             char buf[128];
             snprintf(buf, sizeof(buf), "undefined function '%s'", name->c_str);
@@ -2894,7 +2894,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
             stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
             Str *aname = &stmt->data.data.Ident;
-            TilType existing = tscope_get(scope, aname);
+            TilType existing = *TypeScope_get_type(scope, aname);
             if (existing.tag == TilType_TAG_Unknown) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "undefined symbol '%s'", aname->c_str);
