@@ -782,6 +782,7 @@ void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);
 I32 type_check(Expr * program, TypeScope * scope, Mode * m);
 void precomp(Expr * program);
+Str * qualified_name(Str * type_name, Str * method_name);
 void scavenge(Expr * program, Mode * m, Bool run_tests);
 Bool StructInstance_eq(StructInstance * a, StructInstance * b);
 Str * StructInstance_to_str(StructInstance * self);

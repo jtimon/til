@@ -1,3 +1,7 @@
 mode lib
 
+qualified_name := func(type_name: Str, method_name: Str) returns Str {
+    return type_name.concat(".").concat(method_name)
+}
+
 scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}

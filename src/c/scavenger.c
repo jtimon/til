@@ -4,6 +4,9 @@
 #include "../../boot/modes.h"
 #include "pre70.h"
 
+// Forward declaration for til-generated function (scavenger.til)
+Str *qualified_name(Str *type_name, Str *method_name);
+
 // Name-to-Expr map (for top-level decls and namespace methods)
 static Expr *map_get_expr(Map *m, Str *key) {
     if (!*Map_has(m, key)) return NULL;
@@ -22,16 +25,6 @@ static void gc_free_all(void) {
     for (U32 i = 0; i < gc_strs.count; i++)
         Str_delete(*(Str **)Vec_get(&gc_strs, &(USize){(USize)(i)}), &(Bool){1});
     Vec_delete(&gc_strs, &(Bool){0});
-}
-
-// Build a qualified name "Type.method"
-static Str *qualified_name(Str *type_name, Str *method_name) {
-    U64 len = type_name->count + 1 + method_name->count;
-    char *buf = malloc(len + 1);
-    snprintf(buf, len + 1, "%s.%s", type_name->c_str, method_name->c_str);
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-    free(buf);
-    return gc_str(s);
 }
 
 // Collect all name references from an AST subtree into refs
@@ -55,7 +48,7 @@ static void collect_refs(Expr *e, Vec *refs) {
             Str *type_name = &Expr_child(fa, &(USize){(USize)(0)})->data.data.Ident;
             Str *method = &fa->data.data.FieldAccess;
             vec_push_str(refs, type_name);
-            vec_push_str(refs, qualified_name(type_name, method));
+            vec_push_str(refs, gc_str(qualified_name(type_name, method)));
             // Recurse into args (skip callee — already handled)
             for (U32 i = 1; i < e->children.count; i++)
                 collect_refs(Expr_child(e, &(USize){(USize)(i)}), refs);
@@ -68,14 +61,14 @@ static void collect_refs(Expr *e, Vec *refs) {
             // C code (ext.c/dispatch.c) which the scavenger can't see
             if (strcmp((const char *)cn->c_str, "array") == 0) {
                 Str *arr = gc_str(Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}));
-                vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}))));
-                vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}))));
-                vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
+                vec_push_str(refs, gc_str(qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT})))));
+                vec_push_str(refs, gc_str(qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT})))));
+                vec_push_str(refs, gc_str(qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT})))));
             } else if (strcmp((const char *)cn->c_str, "vec") == 0) {
                 Str *vec = gc_str(Str_clone(&(Str){.c_str = (U8*)"Vec", .count = 3, .cap = CAP_LIT}));
-                vec_push_str(refs, qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}))));
-                vec_push_str(refs, qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"push", .count = 4, .cap = CAP_LIT}))));
-                vec_push_str(refs, qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
+                vec_push_str(refs, gc_str(qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT})))));
+                vec_push_str(refs, gc_str(qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"push", .count = 4, .cap = CAP_LIT})))));
+                vec_push_str(refs, gc_str(qualified_name(vec, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT})))));
             }
         }
         break;
@@ -92,9 +85,9 @@ static void collect_refs(Expr *e, Vec *refs) {
             // Variadic param uses Array internally
             Str *arr = gc_str(Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}));
             vec_push_str(refs, arr);
-            vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}))));
-            vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}))));
-            vec_push_str(refs, qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
+            vec_push_str(refs, gc_str(qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT})))));
+            vec_push_str(refs, gc_str(qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT})))));
+            vec_push_str(refs, gc_str(qualified_name(arr, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT})))));
         }
         if (e->data.data.FuncDef.return_type.count > 0)
             vec_push_str(refs, &e->data.data.FuncDef.return_type);
@@ -106,7 +99,7 @@ static void collect_refs(Expr *e, Vec *refs) {
         if (e->is_ns_field && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
             Str *type_name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             vec_push_str(refs, type_name);
-            vec_push_str(refs, qualified_name(type_name, &e->data.data.FieldAccess));
+            vec_push_str(refs, gc_str(qualified_name(type_name, &e->data.data.FieldAccess)));
         }
         break;
 
@@ -115,7 +108,7 @@ static void collect_refs(Expr *e, Vec *refs) {
         if (e->is_ns_field && Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
             Str *type_name = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
             vec_push_str(refs, type_name);
-            vec_push_str(refs, qualified_name(type_name, &e->data.data.FieldAssign));
+            vec_push_str(refs, gc_str(qualified_name(type_name, &e->data.data.FieldAssign)));
         }
         break;
 
@@ -159,7 +152,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (!field->data.data.Decl.is_namespace) continue;
-            Str *qn = qualified_name(sname, &field->data.data.Decl.name);
+            Str *qn = gc_str(qualified_name(sname, &field->data.data.Decl.name));
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){qn->c_str, qn->count, CAP_VIEW}; void *_v = malloc(sizeof(field)); memcpy(_v, &field, sizeof(field)); Map_set(&methods, _k, _v); }
         }
     }
@@ -222,10 +215,10 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
                 }
                 // Always keep infrastructure methods — collections use dyn_call
                 // which scavenger can't trace (delete, clone, size, cmp)
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT}))));
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT}))));
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}))));
-                vec_push_str(&worklist, qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"cmp", .count = 3, .cap = CAP_LIT}))));
+                vec_push_str(&worklist, gc_str(qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT})))));
+                vec_push_str(&worklist, gc_str(qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT})))));
+                vec_push_str(&worklist, gc_str(qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT})))));
+                vec_push_str(&worklist, gc_str(qualified_name(name, gc_str(Str_clone(&(Str){.c_str = (U8*)"cmp", .count = 3, .cap = CAP_LIT})))));
             } else {
                 collect_refs(Expr_child(decl, &(USize){(USize)(0)}), &worklist);
             }
@@ -265,7 +258,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (field->data.data.Decl.is_namespace) {
-                Str *qn = qualified_name(sname, &field->data.data.Decl.name);
+                Str *qn = gc_str(qualified_name(sname, &field->data.data.Decl.name));
                 if (!*Set_has(&visited, qn)) continue;
             }
             *(Expr*)Vec_get(&body->children, &(USize){(USize)(bw++)}) = *field;
