@@ -318,4 +318,14 @@ alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bo
     return false
 }
 
+narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
+    if expr.til_type.is_Dynamic().not() { return }
+    if target.is_Dynamic() { return }
+    if target.is_Unknown() { return }
+    expr.til_type = target
+    if target.is_Struct().or(target.is_Enum()) {
+        expr.struct_name = target_struct_name
+    }
+}
+
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}

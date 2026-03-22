@@ -23,6 +23,7 @@ Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name);
 Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope);
 Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope);
 Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr);
+void narrow_dynamic(Expr *expr, TilType *target, Str *target_struct_name);
 
 // --- Type inference/checking pass ---
 
@@ -44,16 +45,6 @@ static Expr *make_ns_call(const char *sname, const char *method,
 static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
 
 
-// Narrow a Dynamic-typed expression to a concrete target type.
-// Used for both declarations with explicit types and function arguments.
-static void narrow_dynamic(Expr *expr, TilType target, Str *target_struct_name) {
-    if (expr->til_type.tag != TilType_TAG_Dynamic || target.tag == TilType_TAG_Dynamic ||
-        target.tag == TilType_TAG_Unknown)
-        return;
-    expr->til_type = target;
-    if (target.tag == TilType_TAG_Struct || target.tag == TilType_TAG_Enum)
-        expr->struct_name = *target_struct_name;
-}
 
 
 
@@ -284,7 +275,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         } else if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
                             // Dynamic receiver: narrow to first param type
                             TilType pt = *type_from_name(first_param, scope);
-                            narrow_dynamic(obj, pt, first_param);
+                            narrow_dynamic(obj, &pt, first_param);
                             ufcs_match = 1;
                         }
                     }
@@ -482,7 +473,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
                 Str *ptype = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
                 if (ptype)
-                    narrow_dynamic(Expr_child(e, &(USize){(USize)(i)}), *type_from_name(ptype, scope), ptype);
+                    narrow_dynamic(Expr_child(e, &(USize){(USize)(i)}), type_from_name(ptype, scope), ptype);
             }
             // Validate arg types against param types
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
@@ -813,7 +804,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
                 Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
                 if (ptype)
-                    narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), *type_from_name(ptype, scope), ptype);
+                    narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), type_from_name(ptype, scope), ptype);
                 ci++;
             }
             // Validate arg types against param types
@@ -2601,7 +2592,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn))
                     Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
                 // Narrow Dynamic RHS to declared type
-                narrow_dynamic(Expr_child(stmt, &(USize){(USize)(0)}), declared, etn);
+                narrow_dynamic(Expr_child(stmt, &(USize){(USize)(0)}), &declared, etn);
                 // For struct/enum types, propagate struct_name from explicit type (resolved through aliases)
                 if (declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) {
                     Expr_child(stmt, &(USize){(USize)(0)})->struct_name = *resolve_type_alias(scope, etn);
