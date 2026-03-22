@@ -2616,7 +2616,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     }
 
     // Script mode: wrap top-level statements in main()
-    if (!run_tests && is_script) {
+    if (!run_tests && is_script && !(mode && mode->needs_main)) {
         fprintf(f, "int main(void) {\n");
         emit_ns_inits(f, 1);
         // Collect unsafe-to-hoist for script-level statements
