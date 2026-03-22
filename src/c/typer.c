@@ -19,6 +19,10 @@ Bool expr_contains_fcall(Expr *e);
 Bool expr_uses_var(Expr *e, Str *name);
 Bool expr_contains_decl(Expr *e, Str *name);
 Bool expr_used_in_nested_func(Expr *e, Str *name);
+Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name);
+Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope);
+Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope);
+Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr);
 
 // --- Type inference/checking pass ---
 
@@ -2181,101 +2185,6 @@ static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Exp
 }
 
 
-// Helper: given a func_def, check if var_name is passed to an own param
-static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
-    if (!(fdef->data.data.FuncDef.params.count > 0)) return 0;
-    U32 np = fdef->data.data.FuncDef.nparam;
-    for (U32 i = 0; i < np && i + 1 < fcall->children.count; i++) {
-        if (((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->is_own && Expr_child(fcall, &(USize){(USize)(i + 1)})->data.tag == ExprData_TAG_Ident &&
-            *Str_eq(&Expr_child(fcall, &(USize){(USize)(i + 1)})->data.data.Ident, var_name)) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
-    if (fcall->data.tag != ExprData_TAG_FCall || fcall->children.count < 2) return 0;
-    // Struct constructor: check if var is in an own field position
-    if ((fcall->struct_name).count > 0 && Expr_child(fcall, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-        *Str_eq(&Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident, &fcall->struct_name)) {
-        Expr *sdef = TypeScope_get_struct(scope, &fcall->struct_name);
-        if (sdef) {
-            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-            U32 fi = 0;
-            for (U32 i = 0; i < body->children.count; i++) {
-                if (Expr_child(body, &(USize){(USize)(i)})->data.tag != ExprData_TAG_Decl ||
-                    Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) continue;
-                U32 arg_idx = fi + 1;
-                fi++;
-                if (arg_idx < fcall->children.count &&
-                    Expr_child(fcall, &(USize){(USize)(arg_idx)})->data.tag == ExprData_TAG_Ident &&
-                    *Str_eq(&Expr_child(fcall, &(USize){(USize)(arg_idx)})->data.data.Ident, var_name) &&
-                    Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_own) {
-                    return 1;
-                }
-            }
-        }
-    }
-    // Direct call: look up func def in scope
-    if (Expr_child(fcall, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-        Str *fn_name = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
-        ScopeFind *_sf_fb = TypeScope_find(scope, fn_name);
-        if (_sf_fb->tag != ScopeFind_TAG_Found) return 0;
-        TypeBinding *fb = ScopeFind_get_Found(_sf_fb);
-        if (!fb->func_def) return 0;
-        return check_own_args(fb->func_def, fcall, var_name);
-    }
-    // Namespace method call: look up in struct definition
-    if (Expr_child(fcall, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess && Expr_child(fcall, &(USize){(USize)(0)})->is_ns_field) {
-        Str *method = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
-        Expr *type_node = Expr_child(Expr_child(fcall, &(USize){(USize)(0)}), &(USize){0});
-        if (type_node->data.tag != ExprData_TAG_Ident) return 0;
-        Expr *sdef = TypeScope_get_struct(scope, &type_node->data.data.Ident);
-        if (!sdef) return 0;
-        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-        for (U32 i = 0; i < body->children.count; i++) {
-            Expr *field = Expr_child(body, &(USize){(USize)(i)});
-            if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
-                *Str_eq(&field->data.data.Decl.name, method) &&
-                Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                return check_own_args(Expr_child(field, &(USize){(USize)(0)}), fcall, var_name);
-            }
-        }
-    }
-    return 0;
-}
-
-static Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope) {
-    if (e->data.tag == ExprData_TAG_FuncDef) return 0;
-    if (fcall_has_own_arg(e, var_name, scope)) return 1;
-    // Own field assignment: RHS ownership transfers to the field
-    if (e->data.tag == ExprData_TAG_FieldAssign && e->is_own_field &&
-        Expr_child(e, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident &&
-        *Str_eq(&Expr_child(e, &(USize){(USize)(1)})->data.data.Ident, var_name)) {
-        return 1;
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_transfers_own(Expr_child(e, &(USize){(USize)(i)}), var_name, scope)) return 1;
-    }
-    return 0;
-}
-
-// LocalInfo defined in typer.til (generated into boot headers)
-
-// Check if any alias (ref decl sourced from 'name') is used in expr
-static Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr) {
-    for (U32 k = 0; k < body->children.count; k++) {
-        Expr *d = Expr_child(body, &(USize){(USize)(k)});
-        if (d->data.tag == ExprData_TAG_Decl && d->data.data.Decl.is_ref &&
-            Expr_child(d, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-            *Str_eq(&Expr_child(d, &(USize){(USize)(0)})->data.data.Ident, name)) {
-            if (expr_uses_var(expr, &d->data.data.Decl.name))
-                return 1;
-        }
-    }
-    return 0;
-}
 
 // Insert deletes for live parent-scope locals before early exits in body.
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
