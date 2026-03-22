@@ -115,6 +115,7 @@ static void emit_usize_ref(FILE *f, Expr *e, I32 depth);
 static void emit_expr(FILE *f, Expr *e, I32 depth);
 static void emit_stmt(FILE *f, Expr *e, I32 depth);
 static void emit_body(FILE *f, Expr *body, I32 depth);
+static void emit_body_scoped(FILE *f, Expr *body, I32 depth);
 static const char *c_type_name(TilType t, Str *struct_name);
 static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth);
 static I32 _ctor_seq;
@@ -156,6 +157,16 @@ static const char *get_shallow_ctype(const char *name) {
     }
     Str_delete(s, &(Bool){1});
     return NULL;
+}
+
+// Block-scoped emit_body: clone shallow_locals/shallow_local_types before
+// entering a block, restore after. Inner declarations stay local to the block.
+static void emit_body_scoped(FILE *f, Expr *body, I32 depth) {
+    Set saved_sl = shallow_locals;
+    { Set *_c = Set_clone(&shallow_locals); shallow_locals = *_c; free(_c); }
+    emit_body(f, body, depth);
+    Set_delete(&shallow_locals, &(Bool){0});
+    shallow_locals = saved_sl;
 }
 
 // Scan function body to find variables whose address might escape via ref.
@@ -1194,7 +1205,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         break;
     case ExprData_TAG_Body:
         fprintf(f, "{\n");
-        emit_body(f, e, depth + 1);
+        emit_body_scoped(f, e, depth + 1);
         emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
@@ -1202,11 +1213,11 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         fprintf(f, "if (");
         emit_deref(f, Expr_child(e, &(USize){(USize)(0)}), depth);
         fprintf(f, ") {\n");
-        emit_body(f, Expr_child(e, &(USize){(USize)(1)}), depth + 1);
+        emit_body_scoped(f, Expr_child(e, &(USize){(USize)(1)}), depth + 1);
         emit_indent(f, depth);
         if (e->children.count > 2) {
             fprintf(f, "} else {\n");
-            emit_body(f, Expr_child(e, &(USize){(USize)(2)}), depth + 1);
+            emit_body_scoped(f, Expr_child(e, &(USize){(USize)(2)}), depth + 1);
             emit_indent(f, depth);
         }
         fprintf(f, "}\n");
@@ -1215,7 +1226,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         fprintf(f, "while (");
         emit_deref(f, Expr_child(e, &(USize){(USize)(0)}), depth);
         fprintf(f, ") {\n");
-        emit_body(f, Expr_child(e, &(USize){(USize)(1)}), depth + 1);
+        emit_body_scoped(f, Expr_child(e, &(USize){(USize)(1)}), depth + 1);
         emit_indent(f, depth);
         fprintf(f, "}\n");
         break;
