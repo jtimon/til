@@ -240,17 +240,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 // Variadic param: bind as Array (element type already validated above)
                 if ((I32)i == e->data.data.FuncDef.variadic_index) {
                     _pi->is_own = true;
-                    tscope_set(func_scope, &_pi->name, (TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
+                    TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = tscope_find(func_scope, &_pi->name);
                     if (pb) pb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
                 } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
                     // Kwargs param: bind as Map
                     _pi->is_own = true;
-                    tscope_set(func_scope, &_pi->name, (TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
+                    TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = tscope_find(func_scope, &_pi->name);
                     if (pb) pb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
                 } else {
-                    tscope_set(func_scope, &_pi->name, pt, -1, pmut, e->line, e->col, 1, pown);
+                    TypeScope_set(func_scope, &_pi->name, &pt, -1, pmut, e->line, e->col, 1, pown);
                     // For struct/enum-typed params, store struct_name
                     if (pt.tag == TilType_TAG_Struct || pt.tag == TilType_TAG_Enum) {
                         TypeBinding *pb = tscope_find(func_scope, &_pi->name);
@@ -1248,7 +1248,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         decl->til_type = (TilType){TilType_TAG_Struct};
         Expr_add_child(decl, new_call);
 
-        tscope_set(scope, var_name, (TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
+        TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
         TypeBinding *vb = tscope_find(scope, var_name);
         if (vb) vb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT});
 
@@ -1379,7 +1379,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         Expr_add_child(decl, new_call);
 
         // Register in scope
-        tscope_set(scope, var_name, (TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
+        TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
         TypeBinding *vb = tscope_find(scope, var_name);
         if (vb) vb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
 
@@ -1573,7 +1573,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         Expr_add_child(va_decl, new_call);
 
         // Register _va in scope
-        tscope_set(scope, va_name, (TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
+        TypeScope_set(scope, va_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
         TypeBinding *vab = tscope_find(scope, va_name);
         if (vab) vab->struct_name = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
 
@@ -1749,7 +1749,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         Expr_add_child(kw_decl, new_call);
 
         // Register _kw in scope
-        tscope_set(scope, kw_name, (TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
+        TypeScope_set(scope, kw_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
         TypeBinding *kwb = tscope_find(scope, kw_name);
         if (kwb) kwb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
 
@@ -1907,7 +1907,7 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     ident->til_type = val_type;
     ident->struct_name = val_struct_name;
     ident->is_own_arg = val_is_own_arg;
-    tscope_set(scope, tname, val_type, -1, 0, val_line, val_col, 0, 0);
+    TypeScope_set(scope, tname, &val_type, -1, 0, val_line, val_col, 0, 0);
     TypeBinding *tb = tscope_find(scope, tname);
     if (tb) tb->struct_name = Str_clone(&val_struct_name);
     if (val_is_ref) {
@@ -2715,7 +2715,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 else if ((sname->count == 7 && memcmp(sname->c_str, "EnumDef", 7) == 0))      { builtin_type = (TilType){TilType_TAG_EnumDef};   is_builtin = 1; }
                 else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0))  { is_builtin = 0; } // regular struct like Str
                 else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))      { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
-                tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
+                TypeScope_set(scope, sname, &builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
                 // Store struct def pointer and builtin flag in the binding
                 TypeBinding *b = tscope_find(scope, sname);
                 b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
@@ -2741,7 +2741,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     rt = type_from_name(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
                 }
                 stmt->til_type = rt;
-                tscope_set(scope, &stmt->data.data.Decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
+                TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
                 // Store func_def pointer and builtin flag
                 TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
                 if (fb) {
@@ -2817,7 +2817,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     type_error(stmt, buf);
                 }
             }
-            tscope_set(scope, &stmt->data.data.Decl.name, stmt->til_type, -1, stmt->data.data.Decl.is_mut, stmt->line, stmt->col, 0, 0);
+            TypeScope_set(scope, &stmt->data.data.Decl.name, &stmt->til_type, -1, stmt->data.data.Decl.is_mut, stmt->line, stmt->col, 0, 0);
             if ((stmt->til_type.tag == TilType_TAG_Struct || stmt->til_type.tag == TilType_TAG_Enum) && (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)) {
                 TypeBinding *b = tscope_find(scope, &stmt->data.data.Decl.name);
                 if (b) b->struct_name = Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);

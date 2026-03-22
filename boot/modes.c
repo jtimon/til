@@ -701,11 +701,11 @@ Str * ScopeFind_to_str(ScopeFind * self);
 U32 * ScopeFind_size(void);
 TypeScope * TypeScope_new(TypeScope * parent);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
-TilType TypeScope_get_type(TypeScope * self, Str * name);
+TilType * TypeScope_get_type(TypeScope * self, Str * name);
 I32 TypeScope_is_proc(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
-void TypeScope_set(TypeScope * self, Str * name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
+void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 * TypeScope_size(void);
@@ -866,7 +866,6 @@ Value *Value_Ptr(void *);
 void * Value_get_Ptr(Value *);
 #include "ext.h"
 
-void tscope_set(TypeScope *, Str *, TilType, I32, Bool, U32, U32, Bool, Bool);
 TilType tscope_get(TypeScope *, Str *);
 I32 tscope_is_proc(TypeScope *, Str *);
 TypeBinding * tscope_find(TypeScope *, Str *);
@@ -874,6 +873,15 @@ Expr * tscope_get_struct(TypeScope *, Str *);
 Bool tscope_is_mut(TypeScope *, Str *);
 I32 init_declarations(Expr *, TypeScope *);
 void * Vec_take(Vec *);
+I32 type_check(Expr *, TypeScope *, Mode *);
+void precomp(Expr *);
+void scavenge(Expr *, Mode *, Bool);
+I32 build(Expr *, Mode *, Bool, Str *, Str *);
+I32 build_header(Expr *, Str *);
+I32 build_til_binding(Expr *, Str *, Str *);
+I32 build_forward_header(Expr *, Str *);
+I32 compile_c(Str *, Str *, Str *, Str *, Str *);
+I32 compile_lib(Str *, Str *, Str *, Str *, Str *);
 
 Str *Str_lit(const char *s, unsigned long long len);
 void print_single(Str *s);
@@ -1235,11 +1243,11 @@ Str * ScopeFind_to_str(ScopeFind * self);
 U32 * ScopeFind_size(void);
 TypeScope * TypeScope_new(TypeScope * parent);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
-TilType TypeScope_get_type(TypeScope * self, Str * name);
+TilType * TypeScope_get_type(TypeScope * self, Str * name);
 I32 TypeScope_is_proc(TypeScope * self, Str * name);
 Expr * TypeScope_get_struct(TypeScope * self, Str * name);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
-void TypeScope_set(TypeScope * self, Str * name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
+void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
 TypeScope * TypeScope_clone(TypeScope * self);
 void TypeScope_delete(TypeScope * self, Bool * call_free);
 U32 * TypeScope_size(void);
@@ -26935,7 +26943,7 @@ ScopeFind * TypeScope_find(TypeScope * self, Str * name) {
     return ScopeFind_NotFound();
 }
 
-TilType TypeScope_get_type(TypeScope * self, Str * name) {
+TilType * TypeScope_get_type(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
@@ -26948,12 +26956,11 @@ TilType TypeScope_get_type(TypeScope * self, Str * name) {
             (void)b;
             ScopeFind_delete(_sw4281, &(Bool){1});
             ;
-            return b->type;
+            { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
         } else {
             ScopeFind_delete(_sw4281, &(Bool){1});
             ;
-            TilType _t4281 = *TilType_Unknown();
-            return _t4281;
+            return TilType_Unknown();
         }
         ScopeFind_delete(_sw4281, &(Bool){1});
         ;
@@ -27045,7 +27052,7 @@ Bool TypeScope_is_mut(TypeScope * self, Str * name) {
     }
 }
 
-void TypeScope_set(TypeScope * self, Str * name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own) {
+void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own) {
     (void)self;
     (void)name;
     (void)type;
@@ -27061,7 +27068,7 @@ void TypeScope_set(TypeScope * self, Str * name, TilType type, I32 is_proc, Bool
         TypeBinding *b = Map_get(&self->bindings, name);
         (void)b;
         TilType_delete(&b->type, &(Bool){0});
-        { TilType *_fa = TilType_clone(&type); b->type = *_fa; free(_fa); }
+        { TilType *_fa = TilType_clone(type); b->type = *_fa; free(_fa); }
         I32 _t4294 = I32_clone(&(I32){is_proc});
         (void)_t4294;
         b->is_proc = _t4294;
@@ -27110,7 +27117,7 @@ void TypeScope_set(TypeScope * self, Str * name, TilType type, I32 is_proc, Bool
     (void)_t4309;
     TypeBinding *nb = malloc(sizeof(TypeBinding));
     nb->name = Str_clone(name);
-    { TilType *_ca = TilType_clone(&type); nb->type = *_ca; free(_ca); }
+    { TilType *_ca = TilType_clone(type); nb->type = *_ca; free(_ca); }
     nb->is_proc = _t4301;
     nb->is_mut = _t4302;
     nb->line = _t4303;
@@ -28337,7 +28344,7 @@ void *TypeScope_is_mut_dyn(void *_a0, void *_a1) {
     Bool *_r = malloc(sizeof(Bool)); *_r = TypeScope_is_mut(_a0, _a1); return _r;
 }
 void TypeScope_set_dyn(void *_a0, void *_a1, void *_a2, void *_a3, void *_a4, void *_a5, void *_a6, void *_a7, void *_a8) {
-    TypeScope_set(_a0, _a1, *(TilType *)_a2, *(I32 *)_a3, *(Bool *)_a4, *(U32 *)_a5, *(U32 *)_a6, *(Bool *)_a7, *(Bool *)_a8);
+    TypeScope_set(_a0, _a1, _a2, *(I32 *)_a3, *(Bool *)_a4, *(U32 *)_a5, *(U32 *)_a6, *(Bool *)_a7, *(Bool *)_a8);
 }
 void *StructInstance_eq_dyn(void *_a0, void *_a1) {
     Bool *_r = malloc(sizeof(Bool)); *_r = StructInstance_eq(_a0, _a1); return _r;
@@ -29149,3 +29156,4 @@ static void _til_lib_init(void) {
     (void)_t4471;
     Map_set(core_modes, _t4470, _t4471);
 }
+

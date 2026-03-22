@@ -18,22 +18,6 @@ void *Vec_take(Vec *v) {
     return ptr;
 }
 
-void tscope_set(TypeScope *s, Str *name, TilType type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own) {
-    if (*Map_has(&s->bindings, name)) {
-        TypeBinding *b = Map_get(&s->bindings, name);
-        b->type = type;
-        b->is_proc = is_proc;
-        b->is_mut = is_mut;
-        b->line = line;
-        b->col = col;
-        b->is_param = is_param;
-        b->is_own = is_own;
-        return;
-    }
-    Str *name_copy = Str_clone(name);
-    TypeBinding nb = {name_copy, type, is_proc, is_mut, line, col, is_param, is_own, 0, 0, 0, NULL, NULL, NULL, 0, 0, NULL};
-    { Str *_k = Str_clone(name); void *_v = malloc(sizeof(nb)); memcpy(_v, &nb, sizeof(nb)); Map_set(&s->bindings, _k, _v); }
-}
 
 TypeBinding *tscope_find(TypeScope *s, Str *name) {
     for (TypeScope *cur = s; cur; cur = cur->parent) {
@@ -263,7 +247,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0)){ is_builtin = 0; } // regular struct like Str
         else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))   { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
 
-        tscope_set(scope, sname, builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
+        TypeScope_set(scope, sname, &builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *b = tscope_find(scope, sname);
         b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
         b->is_builtin = is_builtin;
@@ -277,7 +261,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
         if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
         if (Expr_child(stmt, &(USize){(USize)(0)})->children.count != 0) continue; // bodyless = FuncSig
-        tscope_set(scope, &stmt->data.data.Decl.name, (TilType){TilType_TAG_FuncPtr}, -1, 0,
+        TypeScope_set(scope, &stmt->data.data.Decl.name, &(TilType){TilType_TAG_FuncPtr}, -1, 0,
                    stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
         if (fb) fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
@@ -569,7 +553,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         }
 
         // Register in type scope
-        tscope_set(scope, ename, (TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
+        TypeScope_set(scope, ename, &(TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
         TypeBinding *b = tscope_find(scope, ename);
         b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
 
@@ -1170,7 +1154,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Already registered (e.g. by Pass 1 or 1.1) — skip
         if (tscope_find(scope, &stmt->data.data.Decl.name)) continue;
         // Register alias with same type info as target
-        tscope_set(scope, &stmt->data.data.Decl.name, target->type, target->is_proc, 0,
+        TypeScope_set(scope, &stmt->data.data.Decl.name, &target->type, target->is_proc, 0,
                    stmt->line, stmt->col, 0, 0);
         TypeBinding *ab = tscope_find(scope, &stmt->data.data.Decl.name);
         if (ab) {
@@ -1441,7 +1425,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Bodyless func/proc = FuncSig type definition
         if (Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) {
-            tscope_set(scope, &stmt->data.data.Decl.name, (TilType){TilType_TAG_FuncPtr}, -1, 0,
+            TypeScope_set(scope, &stmt->data.data.Decl.name, &(TilType){TilType_TAG_FuncPtr}, -1, 0,
                        stmt->line, stmt->col, 0, 0);
             TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
             if (fb) fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
@@ -1484,7 +1468,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
             rt = type_from_name_init(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
         }
-        tscope_set(scope, &stmt->data.data.Decl.name, rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
+        TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = tscope_find(scope, &stmt->data.data.Decl.name);
         if (fb) {
             fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
