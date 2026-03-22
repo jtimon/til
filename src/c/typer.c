@@ -13,6 +13,8 @@ Bool literal_in_range(Str *val_str, TilType *target);
 Bool can_implicit_widen(TilType *from, TilType *to);
 TilType *type_from_name(Str *name, TypeScope *scope);
 Str *resolve_type_alias(TypeScope *scope, Str *name);
+Str *usize_name(TypeScope *scope);
+TilType *usize_type(TypeScope *scope);
 
 // --- Type inference/checking pass ---
 
@@ -33,15 +35,6 @@ static Expr *make_ns_call(const char *sname, const char *method,
                            TilType ret_type, Str *ret_sname, Expr *src);
 static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
 
-static Str *usize_name(TypeScope *scope) {
-    static Str usize = {.c_str = (U8*)"USize", .count = 5, .cap = CAP_LIT};
-    static Str u64 = {.c_str = (U8*)"U64", .count = 3, .cap = CAP_LIT};
-    return TypeScope_find(scope, &usize)->tag == ScopeFind_TAG_Found ? &usize : &u64;
-}
-
-static TilType usize_type(TypeScope *scope) {
-    return *type_from_name(usize_name(scope), scope);
-}
 
 // Narrow a Dynamic-typed expression to a concrete target type.
 // Used for both declarations with explicit types and function arguments.
@@ -1166,7 +1159,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         et_str->til_type = (TilType){TilType_TAG_Struct};
         et_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, et_str);
-        Expr *esz = make_ns_call(elem_type, "size", usize_type(scope), NULL, set_lit);
+        Expr *esz = make_ns_call(elem_type, "size", *usize_type(scope), NULL, set_lit);
         Expr_add_child(new_call, esz);
 
         Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, stmt->line, stmt->col, path);
@@ -1286,7 +1279,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         kt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, kt_str);
         // Arg 2: KeyType.size()
-        Expr *ksz = make_ns_call(key_type, "size", usize_type(scope), NULL, map_lit);
+        Expr *ksz = make_ns_call(key_type, "size", *usize_type(scope), NULL, map_lit);
         Expr_add_child(new_call, ksz);
         // Arg 3: val_type string
         Expr *vt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
@@ -1295,7 +1288,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         vt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, vt_str);
         // Arg 4: ValType.size()
-        Expr *vsz = make_ns_call(val_type, "size", usize_type(scope), NULL, map_lit);
+        Expr *vsz = make_ns_call(val_type, "size", *usize_type(scope), NULL, map_lit);
         Expr_add_child(new_call, vsz);
 
         // Build declaration node (mut, so .set can work)
@@ -1483,7 +1476,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         et->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, et);
         // Arg: ElemType.size()
-        Expr *sz = make_ns_call((const char *)elem_type->c_str, "size", usize_type(scope),
+        Expr *sz = make_ns_call((const char *)elem_type->c_str, "size", *usize_type(scope),
                                  NULL, fcall);
         Expr_add_child(new_call, sz);
         // Arg: count
@@ -1491,7 +1484,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         char cap_buf[16];
         snprintf(cap_buf, sizeof(cap_buf), "%d", vc);
         cap->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(cap_buf), .count = (U64)strlen((const char*)(cap_buf)), .cap = CAP_VIEW});
-        cap->til_type = usize_type(scope);
+        cap->til_type = *usize_type(scope);
         Expr_add_child(new_call, cap);
 
         // DECL _va := Array.new(...)
@@ -1522,7 +1515,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             char idx_buf[16];
             snprintf(idx_buf, sizeof(idx_buf), "%d", j);
             idx->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(idx_buf), .count = (U64)strlen((const char*)(idx_buf)), .cap = CAP_VIEW});
-            idx->til_type = usize_type(scope);
+            idx->til_type = *usize_type(scope);
             Expr_add_child(set_call, idx);
             // Arg: val — clone idents and field accesses so Array_set
             // doesn't free the caller's variable or an interior pointer
@@ -1658,7 +1651,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         kt->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, kt);
         // Arg: Str.size()
-        Expr *ksz = make_ns_call("Str", "size", usize_type(scope), NULL, fcall);
+        Expr *ksz = make_ns_call("Str", "size", *usize_type(scope), NULL, fcall);
         Expr_add_child(new_call, ksz);
         // Arg: val_type = "" (skip dyn_call on values)
         Expr *vt = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
@@ -1667,7 +1660,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         vt->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, vt);
         // Arg: val_size = widest type's .size()
-        Expr *vsz = make_ns_call(val_size_type, "size", usize_type(scope), NULL, fcall);
+        Expr *vsz = make_ns_call(val_size_type, "size", *usize_type(scope), NULL, fcall);
         Expr_add_child(new_call, vsz);
 
         // DECL _kw := Map.new(...)
@@ -1989,7 +1982,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
                 // arg2: Type.size() — hoist to temp so builder emits deref correctly
                 const char *tname = type_to_name(ab->type, ab->struct_name);
-                Expr *sz_call = make_ns_call(tname, "size", usize_type(scope), NULL, stmt);
+                Expr *sz_call = make_ns_call(tname, "size", *usize_type(scope), NULL, stmt);
                 Expr *sz = hoist_to_temp(sz_call, &hoisted, &nhoisted, &hcap, scope);
                 Expr_add_child(call, sz);
                 // Replace stmt in-place

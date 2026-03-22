@@ -153,4 +153,15 @@ resolve_type_alias := func(scope: TypeScope, name: Str) returns ref Str {
     return name
 }
 
+usize_name := func(scope: TypeScope) returns Str {
+    switch TypeScope.find(scope, "USize") {
+    case ScopeFind.Found: return "USize"
+    case: return "U64"
+    }
+}
+
+usize_type := func(scope: TypeScope) returns TilType {
+    return type_from_name(usize_name(scope), scope)
+}
+
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
