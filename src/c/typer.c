@@ -11,6 +11,8 @@ Bool is_usize_name(Str *name);
 Bool can_implicit_usize_coerce(TilType *from, TilType *to, Str *to_name);
 Bool literal_in_range(Str *val_str, TilType *target);
 Bool can_implicit_widen(TilType *from, TilType *to);
+TilType *type_from_name(Str *name, TypeScope *scope);
+Str *resolve_type_alias(TypeScope *scope, Str *name);
 
 // --- Type inference/checking pass ---
 
@@ -22,48 +24,6 @@ static void type_error(Expr *e, const char *msg) {
     errors++;
 }
 
-// Parse a type name string to TilType (scope-aware for user-defined struct types)
-static TilType type_from_name(Str *name, TypeScope *scope) {
-    if ((name->count == 3 && memcmp(name->c_str, "I64", 3) == 0))  return (TilType){TilType_TAG_I64};
-    if ((name->count == 2 && memcmp(name->c_str, "U8", 2) == 0))   return (TilType){TilType_TAG_U8};
-    if ((name->count == 3 && memcmp(name->c_str, "I16", 3) == 0))  return (TilType){TilType_TAG_I16};
-    if ((name->count == 3 && memcmp(name->c_str, "I32", 3) == 0))  return (TilType){TilType_TAG_I32};
-    if ((name->count == 3 && memcmp(name->c_str, "U32", 3) == 0))  return (TilType){TilType_TAG_U32};
-    if ((name->count == 3 && memcmp(name->c_str, "U64", 3) == 0))  return (TilType){TilType_TAG_U64};
-    if ((name->count == 3 && memcmp(name->c_str, "F32", 3) == 0))  return (TilType){TilType_TAG_F32};
-    if ((name->count == 3 && memcmp(name->c_str, "Str", 3) == 0))  return (TilType){TilType_TAG_Struct};
-    if ((name->count == 4 && memcmp(name->c_str, "Bool", 4) == 0)) return (TilType){TilType_TAG_Bool};
-    if ((name->count == 9 && memcmp(name->c_str, "StructDef", 9) == 0))    return (TilType){TilType_TAG_StructDef};
-    if ((name->count == 7 && memcmp(name->c_str, "EnumDef", 7) == 0))      return (TilType){TilType_TAG_EnumDef};
-    // FunctionDef: regular struct (like Str), resolved via scope lookup
-    if ((name->count == 2 && memcmp(name->c_str, "Fn", 2) == 0))          return (TilType){TilType_TAG_FuncPtr};
-    if ((name->count == 7 && memcmp(name->c_str, "Dynamic", 7) == 0))     return (TilType){TilType_TAG_Dynamic};
-    // Check scope for user-defined struct/enum types
-    if (scope) {
-        // Check for builtin aliases first (e.g. USize := U64 has struct_def but type is U64)
-        ScopeFind *_sf = TypeScope_find(scope, name);
-        TypeBinding *b = _sf->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf) : NULL;
-        if (b && b->is_builtin && b->struct_def) return b->type;
-        Expr *sdef = TypeScope_get_struct(scope, name);
-        if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
-        // Named FuncSig type (bodyless func/proc)
-        if (b && b->func_def && b->func_def->children.count == 0)
-            return (TilType){TilType_TAG_FuncPtr};
-    }
-    return (TilType){TilType_TAG_Unknown};
-}
-
-// Resolve a type name through alias chains to the canonical name.
-// E.g. if Point2 := Point, resolve_type_alias(scope, "Point2") returns "Point".
-// Returns the input name if it's not an alias.
-static Str *resolve_type_alias(TypeScope *scope, Str *name) {
-    ScopeFind *_sf = TypeScope_find(scope, name);
-    if (_sf->tag == ScopeFind_TAG_Found) {
-        TypeBinding *b = ScopeFind_get_Found(_sf);
-        if (b->is_type_alias && b->alias_target) return b->alias_target;
-    }
-    return name;
-}
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref);
@@ -80,7 +40,7 @@ static Str *usize_name(TypeScope *scope) {
 }
 
 static TilType usize_type(TypeScope *scope) {
-    return type_from_name(usize_name(scope), scope);
+    return *type_from_name(usize_name(scope), scope);
 }
 
 // Narrow a Dynamic-typed expression to a concrete target type.
@@ -175,7 +135,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
                 _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
                 Str *ptn = &_pi->ptype;
-                TilType pt = type_from_name(ptn, scope);
+                TilType pt = *type_from_name(ptn, scope);
                 if (pt.tag == TilType_TAG_Unknown) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", ptn->c_str);
@@ -322,7 +282,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             ufcs_match = 1; // known type matches first param
                         } else if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
                             // Dynamic receiver: narrow to first param type
-                            TilType pt = type_from_name(first_param, scope);
+                            TilType pt = *type_from_name(first_param, scope);
                             narrow_dynamic(obj, pt, first_param);
                             ufcs_match = 1;
                         }
@@ -373,7 +333,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                 }
                                 e->fn_sig = sig;
                                 if (sig->data.data.FuncDef.return_type.count > 0) {
-                                    e->til_type = type_from_name(&sig->data.data.FuncDef.return_type, scope);
+                                    e->til_type = *type_from_name(&sig->data.data.FuncDef.return_type, scope);
                                     if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum))
                                         e->struct_name = sig->data.data.FuncDef.return_type;
                                 } else {
@@ -521,7 +481,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
                 Str *ptype = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
                 if (ptype)
-                    narrow_dynamic(Expr_child(e, &(USize){(USize)(i)}), type_from_name(ptype, scope), ptype);
+                    narrow_dynamic(Expr_child(e, &(USize){(USize)(i)}), *type_from_name(ptype, scope), ptype);
             }
             // Validate arg types against param types
             for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
@@ -529,7 +489,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (!ptype_name) continue;
                 Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                 if (arg->til_type.tag == TilType_TAG_Dynamic) continue;
-                TilType ptype = type_from_name(ptype_name, scope);
+                TilType ptype = *type_from_name(ptype_name, scope);
                 if (ptype.tag == TilType_TAG_Dynamic) continue;
                 if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
                     if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
@@ -596,7 +556,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Set return type
             TilType rt = (TilType){TilType_TAG_None};
             if (ns_func->data.data.FuncDef.return_type.count > 0) {
-                rt = type_from_name(&ns_func->data.data.FuncDef.return_type, scope);
+                rt = *type_from_name(&ns_func->data.data.FuncDef.return_type, scope);
             }
             e->til_type = rt;
             if ((rt.tag == TilType_TAG_Struct || rt.tag == TilType_TAG_Enum) && (ns_func->data.data.FuncDef.return_type).count > 0) {
@@ -852,7 +812,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
                 Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
                 if (ptype)
-                    narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), type_from_name(ptype, scope), ptype);
+                    narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), *type_from_name(ptype, scope), ptype);
                 ci++;
             }
             // Validate arg types against param types
@@ -864,7 +824,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (!ptype_name) { ci++; continue; }
                 Expr *arg = Expr_child(e, &(USize){(USize)(ci)});
                 if (arg->til_type.tag == TilType_TAG_Dynamic) { ci++; continue; }
-                TilType ptype = type_from_name(ptype_name, scope);
+                TilType ptype = *type_from_name(ptype_name, scope);
                 if (ptype.tag == TilType_TAG_Dynamic) { ci++; continue; }
                 if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
                     if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
@@ -971,7 +931,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 e->fn_sig = callee_bind->func_def;
             if (callee_bind && callee_bind->func_def &&
                 (callee_bind->func_def->data.data.FuncDef.return_type).count > 0) {
-                TilType rt = type_from_name(&callee_bind->func_def->data.data.FuncDef.return_type, scope);
+                TilType rt = *type_from_name(&callee_bind->func_def->data.data.FuncDef.return_type, scope);
                 e->til_type = rt;
                 if ((rt.tag == TilType_TAG_Struct || rt.tag == TilType_TAG_Enum))
                     e->struct_name = callee_bind->func_def->data.data.FuncDef.return_type;
@@ -992,7 +952,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     Expr *arg = Expr_child(e, &(USize){(USize)(ai + 1)});
                     Str *expected_name = &((Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(ai)}))->ptype;
                     if (!expected_name) continue;
-                    TilType expected = type_from_name(expected_name, scope);
+                    TilType expected = *type_from_name(expected_name, scope);
                     if (expected.tag == TilType_TAG_Unknown || expected.tag == TilType_TAG_Dynamic) continue;
                     if (arg->til_type.tag == TilType_TAG_Dynamic) continue;
                     if (arg->til_type.tag != expected.tag) {
@@ -2648,7 +2608,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Bool is_enum = (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef);
                 // Check explicit type annotation if present
                 if (stmt->data.data.Decl.explicit_type.count > 0) {
-                    TilType declared = type_from_name(&stmt->data.data.Decl.explicit_type, scope);
+                    TilType declared = *type_from_name(&stmt->data.data.Decl.explicit_type, scope);
                     TilType expected = is_enum ? (TilType){TilType_TAG_EnumDef} : (TilType){TilType_TAG_StructDef};
                     if (declared.tag != expected.tag) {
                         char buf[128];
@@ -2712,7 +2672,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
                 TilType rt = (TilType){TilType_TAG_None};
                 if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
-                    rt = type_from_name(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
+                    rt = *type_from_name(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
                 }
                 stmt->til_type = rt;
                 TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
@@ -2736,7 +2696,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             if (stmt->data.data.Decl.explicit_type.count > 0) {
                 Str *etn = &stmt->data.data.Decl.explicit_type;
-                TilType declared = type_from_name(etn, scope);
+                TilType declared = *type_from_name(etn, scope);
                 if (declared.tag == TilType_TAG_Unknown) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
