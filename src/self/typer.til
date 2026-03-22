@@ -164,4 +164,49 @@ usize_type := func(scope: TypeScope) returns TilType {
     return type_from_name(usize_name(scope), scope)
 }
 
+expr_contains_fcall := func(e: Expr) returns shallow Bool {
+    if e.data.is_FCall() { return true }
+    for i in 0..Expr.child_count(e) {
+        if expr_contains_fcall(Expr.child(e, i)) { return true }
+    }
+    return false
+}
+
+expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
+    if e.data.is_FuncDef() { return false }
+    if e.data.is_Ident() { if e.data.get_Ident().eq(name) { return true } }
+    if e.data.is_Assign() { if e.data.get_Assign().eq(name) { return true } }
+    for i in 0..Expr.child_count(e) {
+        if expr_uses_var(Expr.child(e, i), name) { return true }
+    }
+    return false
+}
+
+expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
+    if e.data.is_FuncDef() { return false }
+    if e.data.is_Decl() { if e.data.get_Decl().name.eq(name) { return true } }
+    for i in 0..Expr.child_count(e) {
+        if expr_contains_decl(Expr.child(e, i), name) { return true }
+    }
+    return false
+}
+
+expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
+    if e.data.is_FuncDef() {
+        fdef := e.data.get_FuncDef()
+        for j in 0..fdef.nparam {
+            ref p : Param = fdef.params.get(j)
+            if p.name.eq(name) { return false }
+        }
+        if Expr.child_count(e).gt(0) {
+            return expr_uses_var(Expr.child(e, 0), name)
+        }
+        return false
+    }
+    for i in 0..Expr.child_count(e) {
+        if expr_used_in_nested_func(Expr.child(e, i), name) { return true }
+    }
+    return false
+}
+
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}

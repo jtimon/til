@@ -15,6 +15,10 @@ TilType *type_from_name(Str *name, TypeScope *scope);
 Str *resolve_type_alias(TypeScope *scope, Str *name);
 Str *usize_name(TypeScope *scope);
 TilType *usize_type(TypeScope *scope);
+Bool expr_contains_fcall(Expr *e);
+Bool expr_uses_var(Expr *e, Str *name);
+Bool expr_contains_decl(Expr *e, Str *name);
+Bool expr_used_in_nested_func(Expr *e, Str *name);
 
 // --- Type inference/checking pass ---
 
@@ -1770,13 +1774,6 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 
 // --- Argument hoisting ---
 
-static Bool expr_contains_fcall(Expr *e) {
-    if (e->data.tag == ExprData_TAG_FCall) return 1;
-    for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_contains_fcall(Expr_child(e, &(USize){(USize)(i)}))) return 1;
-    }
-    return 0;
-}
 
 // Check if a function call returns ref
 static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope) {
@@ -2183,42 +2180,6 @@ static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Exp
     return call;
 }
 
-static Bool expr_uses_var(Expr *e, Str *name) {
-    if (e->data.tag == ExprData_TAG_FuncDef) return 0;
-    if (e->data.tag == ExprData_TAG_Ident && *Str_eq(&e->data.data.Ident, name)) return 1;
-    if (e->data.tag == ExprData_TAG_Assign && *Str_eq(&e->data.data.Ident, name)) return 1;
-    for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_uses_var(Expr_child(e, &(USize){(USize)(i)}), name)) return 1;
-    }
-    return 0;
-}
-
-// Check if name is referenced inside any nested func/proc body in this subtree,
-// excluding cases where the name is shadowed by a parameter of that function.
-static Bool expr_used_in_nested_func(Expr *e, Str *name) {
-    if (e->data.tag == ExprData_TAG_FuncDef) {
-        // Check if name is shadowed by a parameter
-        for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-            if (*Str_eq(&((Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
-        }
-        // Not a param — recurse into body to find uses
-        if (e->children.count > 0) return expr_uses_var(Expr_child(e, &(USize){(USize)(0)}), name);
-        return 0;
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_used_in_nested_func(Expr_child(e, &(USize){(USize)(i)}), name)) return 1;
-    }
-    return 0;
-}
-
-static Bool expr_contains_decl(Expr *e, Str *name) {
-    if (e->data.tag == ExprData_TAG_FuncDef) return 0;
-    if (e->data.tag == ExprData_TAG_Decl && *Str_eq(&e->data.data.Decl.name, name)) return 1;
-    for (U32 i = 0; i < e->children.count; i++) {
-        if (expr_contains_decl(Expr_child(e, &(USize){(USize)(i)}), name)) return 1;
-    }
-    return 0;
-}
 
 // Helper: given a func_def, check if var_name is passed to an own param
 static Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name) {
