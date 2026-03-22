@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Forward declaration for til-generated function (initer.til)
+I32 align_up(I32 offset, I32 align);
+
 // --- Type scope implementation ---
 
 
@@ -49,10 +52,6 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
 }
 
 // --- Flat struct layout computation ---
-
-static I32 align_up(I32 offset, I32 align) {
-    return (offset + align - 1) & ~(align - 1);
-}
 
 // Compute field offsets and total size for a struct def.
 // Recursive: if a field is an inline struct, compute its layout first.

@@ -694,6 +694,7 @@ Str * TypeBinding_to_str(TypeBinding * self);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 * TypeBinding_size(void);
+I32 align_up(I32 offset, I32 align);
 Bool * ScopeFind_eq(ScopeFind * self, ScopeFind * other);
 ScopeFind * ScopeFind_clone(ScopeFind * self);
 void ScopeFind_delete(ScopeFind * self, Bool * call_free);
@@ -1231,6 +1232,7 @@ Str * TypeBinding_to_str(TypeBinding * self);
 TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 * TypeBinding_size(void);
+I32 align_up(I32 offset, I32 align);
 ScopeFind * ScopeFind_NotFound(void);
 ScopeFind * ScopeFind_Found(TypeBinding * val);
 TypeBinding * ScopeFind_get_Found(ScopeFind * self);
@@ -1559,67 +1561,67 @@ void print_flush() {
     putchar('\n');
 }
 
-static I64 *_t4456;
-static I64 *_t4457;
-static I64 *_t4458;
+static I64 *_t4467;
+static I64 *_t4468;
+static I64 *_t4469;
 static U32 *CAP_LIT;
-static I64 *_t4459;
-static I64 *_t4460;
-static I64 *_t4461;
+static I64 *_t4470;
+static I64 *_t4471;
+static I64 *_t4472;
 static U32 *CAP_VIEW;
-static Str *_t4462;
-static U32 *_t4463;
-static Str *_t4464;
-static U32 *_t4465;
+static Str *_t4473;
+static U32 *_t4474;
+static Str *_t4475;
+static U32 *_t4476;
 static Map *core_modes;
-static Bool *_t4466;
-static Bool *_t4467;
-static Bool *_t4468;
-static Bool *_t4469;
-static Str *_t4470;
-static Mode *_t4471;
-static Bool *_t4472;
-static Bool *_t4473;
-static Bool *_t4474;
-static Bool *_t4475;
-static Str *_t4476;
-static Mode *_t4477;
+static Bool *_t4477;
 static Bool *_t4478;
 static Bool *_t4479;
 static Bool *_t4480;
-static Bool *_t4481;
-static Str *_t4482;
-static Mode *_t4483;
+static Str *_t4481;
+static Mode *_t4482;
+static Bool *_t4483;
 static Bool *_t4484;
 static Bool *_t4485;
 static Bool *_t4486;
-static Bool *_t4487;
-static Str *_t4488;
-static Mode *_t4489;
+static Str *_t4487;
+static Mode *_t4488;
+static Bool *_t4489;
 static Bool *_t4490;
 static Bool *_t4491;
 static Bool *_t4492;
-static Bool *_t4493;
-static Str *_t4494;
-static Mode *_t4495;
+static Str *_t4493;
+static Mode *_t4494;
+static Bool *_t4495;
 static Bool *_t4496;
 static Bool *_t4497;
 static Bool *_t4498;
-static Bool *_t4499;
-static Str *_t4500;
-static Mode *_t4501;
+static Str *_t4499;
+static Mode *_t4500;
+static Bool *_t4501;
 static Bool *_t4502;
 static Bool *_t4503;
 static Bool *_t4504;
-static Bool *_t4505;
-static Str *_t4506;
-static Mode *_t4507;
+static Str *_t4505;
+static Mode *_t4506;
+static Bool *_t4507;
 static Bool *_t4508;
 static Bool *_t4509;
 static Bool *_t4510;
-static Bool *_t4511;
-static Str *_t4512;
-static Mode *_t4513;
+static Str *_t4511;
+static Mode *_t4512;
+static Bool *_t4513;
+static Bool *_t4514;
+static Bool *_t4515;
+static Bool *_t4516;
+static Str *_t4517;
+static Mode *_t4518;
+static Bool *_t4519;
+static Bool *_t4520;
+static Bool *_t4521;
+static Bool *_t4522;
+static Str *_t4523;
+static Mode *_t4524;
 
 EnumDef * EnumDef_clone(EnumDef * self) {
     (void)self;
@@ -26739,6 +26741,44 @@ U32 *TypeBinding_size(void) {
     return r;
 }
 
+I32 align_up(I32 offset, I32 align) {
+    (void)offset;
+    (void)align;
+    I32 _t4242 = I32_add(offset, align);
+    (void)_t4242;
+    I32 _t4243 = 1;
+    (void)_t4243;
+    I32 _t4244 = 1;
+    (void)_t4244;
+    I64 _t4245 = 0;
+    (void)_t4245;
+    I64 _t4246 = 1;
+    (void)_t4246;
+    I64 _t4247 = I64_sub(_t4245, _t4246);
+    (void)_t4247;
+    ;
+    ;
+    I32 _t4248 = I32_sub(align, _t4244);
+    (void)_t4248;
+    ;
+    I32 _t4249 = I64_to_i32(_t4247);
+    (void)_t4249;
+    ;
+    I32 _t4250 = I32_sub(_t4242, _t4243);
+    (void)_t4250;
+    ;
+    ;
+    I32 _t4251 = I32_xor(_t4248, _t4249);
+    (void)_t4251;
+    ;
+    ;
+    I32 _t4252 = I32_and(_t4250, _t4251);
+    (void)_t4252;
+    ;
+    ;
+    return _t4252;
+}
+
 ScopeFind *ScopeFind_NotFound() {
     ScopeFind *r = malloc(sizeof(ScopeFind));
     r->tag = ScopeFind_TAG_NotFound;
@@ -26766,63 +26806,63 @@ TypeBinding * ScopeFind_get_Found(ScopeFind *self) {
 Bool * ScopeFind_eq(ScopeFind * self, ScopeFind * other) {
     (void)self;
     (void)other;
-    Bool _t4249; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(self); _t4249 = *_hp; free(_hp); }
-    (void)_t4249;
-    if (_t4249) {
-        Bool _t4242; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(other); _t4242 = *_hp; free(_hp); }
-        (void)_t4242;
+    Bool _t4260; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(self); _t4260 = *_hp; free(_hp); }
+    (void)_t4260;
+    if (_t4260) {
+        Bool _t4253; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(other); _t4253 = *_hp; free(_hp); }
+        (void)_t4253;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4242; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4253; return _r; }
     }
     ;
-    Bool _t4250; { Bool *_hp = (Bool *)ScopeFind_is_Found(self); _t4250 = *_hp; free(_hp); }
-    (void)_t4250;
-    if (_t4250) {
-        Bool _t4244; { Bool *_hp = (Bool *)ScopeFind_is_Found(other); _t4244 = *_hp; free(_hp); }
-        (void)_t4244;
-        Bool _t4245 = Bool_not(_t4244);
-        (void)_t4245;
+    Bool _t4261; { Bool *_hp = (Bool *)ScopeFind_is_Found(self); _t4261 = *_hp; free(_hp); }
+    (void)_t4261;
+    if (_t4261) {
+        Bool _t4255; { Bool *_hp = (Bool *)ScopeFind_is_Found(other); _t4255 = *_hp; free(_hp); }
+        (void)_t4255;
+        Bool _t4256 = Bool_not(_t4255);
+        (void)_t4256;
         ;
-        if (_t4245) {
-            Bool _t4243 = 0;
-            (void)_t4243;
+        if (_t4256) {
+            Bool _t4254 = 0;
+            (void)_t4254;
             ;
             ;
-            { Bool *_r = malloc(sizeof(Bool)); *_r = _t4243; return _r; }
+            { Bool *_r = malloc(sizeof(Bool)); *_r = _t4254; return _r; }
         }
         ;
-        TypeBinding *_t4246 = ScopeFind_get_Found(self);
-        (void)_t4246;
-        TypeBinding *_t4247 = ScopeFind_get_Found(other);
-        (void)_t4247;
-        Bool _t4248 = TypeBinding_eq(_t4246, _t4247);
-        (void)_t4248;
-        TypeBinding_delete(_t4246, &(Bool){1});
-        TypeBinding_delete(_t4247, &(Bool){1});
+        TypeBinding *_t4257 = ScopeFind_get_Found(self);
+        (void)_t4257;
+        TypeBinding *_t4258 = ScopeFind_get_Found(other);
+        (void)_t4258;
+        Bool _t4259 = TypeBinding_eq(_t4257, _t4258);
+        (void)_t4259;
+        TypeBinding_delete(_t4257, &(Bool){1});
+        TypeBinding_delete(_t4258, &(Bool){1});
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4248; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4259; return _r; }
     }
     ;
-    Bool _t4251 = 0;
-    (void)_t4251;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4251; return _r; }
+    Bool _t4262 = 0;
+    (void)_t4262;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4262; return _r; }
 }
 
 ScopeFind * ScopeFind_clone(ScopeFind * self) {
     (void)self;
-    Bool _t4252; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(self); _t4252 = *_hp; free(_hp); }
-    (void)_t4252;
-    if (_t4252) {
+    Bool _t4263; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(self); _t4263 = *_hp; free(_hp); }
+    (void)_t4263;
+    if (_t4263) {
         ;
         return ScopeFind_NotFound();
     }
     ;
-    TypeBinding *_t4253 = ScopeFind_get_Found(self);
-    (void)_t4253;
-    ScopeFind *_t4254 = ScopeFind_Found(_t4253);
-    (void)_t4254;
-    TypeBinding_delete(_t4253, &(Bool){1});
-    return _t4254;
+    TypeBinding *_t4264 = ScopeFind_get_Found(self);
+    (void)_t4264;
+    ScopeFind *_t4265 = ScopeFind_Found(_t4264);
+    (void)_t4265;
+    TypeBinding_delete(_t4264, &(Bool){1});
+    return _t4265;
 }
 
 void ScopeFind_delete(ScopeFind * self, Bool * call_free) {
@@ -26836,59 +26876,59 @@ void ScopeFind_delete(ScopeFind * self, Bool * call_free) {
 
 Str * ScopeFind_to_str(ScopeFind * self) {
     (void)self;
-    Bool _t4267; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(self); _t4267 = *_hp; free(_hp); }
-    (void)_t4267;
-    if (_t4267) {
-        Str *_t4255 = Str_lit("NotFound", 8ULL);
-        (void)_t4255;
-        ;
-        return _t4255;
-    }
-    ;
-    Bool _t4268; { Bool *_hp = (Bool *)ScopeFind_is_Found(self); _t4268 = *_hp; free(_hp); }
-    (void)_t4268;
-    if (_t4268) {
-        Str *_t4256 = Str_lit("Str", 3ULL);
-        (void)_t4256;
-        U32 _t4257; { U32 *_hp = (U32 *)Str_size(); _t4257 = *_hp; free(_hp); }
-        (void)_t4257;
-        U32 _t4258 = 3;
-        (void)_t4258;
-        Array *_va78 = Array_new(_t4256, &(U32){_t4257}, &(U32){_t4258});
-        (void)_va78;
-        Str_delete(_t4256, &(Bool){1});
-        ;
-        ;
-        U32 _t4259 = 0;
-        (void)_t4259;
-        Str *_t4260 = Str_lit("Found(", 6ULL);
-        (void)_t4260;
-        Array_set(_va78, &(U32){_t4259}, _t4260);
-        ;
-        TypeBinding *_t4261 = ScopeFind_get_Found(self);
-        (void)_t4261;
-        U32 _t4262 = 1;
-        (void)_t4262;
-        Str *_t4263 = TypeBinding_to_str(_t4261);
-        (void)_t4263;
-        TypeBinding_delete(_t4261, &(Bool){1});
-        Array_set(_va78, &(U32){_t4262}, _t4263);
-        ;
-        U32 _t4264 = 2;
-        (void)_t4264;
-        Str *_t4265 = Str_lit(")", 1ULL);
-        (void)_t4265;
-        Array_set(_va78, &(U32){_t4264}, _t4265);
-        ;
-        Str *_t4266 = format(_va78);
+    Bool _t4278; { Bool *_hp = (Bool *)ScopeFind_is_NotFound(self); _t4278 = *_hp; free(_hp); }
+    (void)_t4278;
+    if (_t4278) {
+        Str *_t4266 = Str_lit("NotFound", 8ULL);
         (void)_t4266;
         ;
         return _t4266;
     }
     ;
-    Str *_t4269 = Str_lit("unknown", 7ULL);
-    (void)_t4269;
-    return _t4269;
+    Bool _t4279; { Bool *_hp = (Bool *)ScopeFind_is_Found(self); _t4279 = *_hp; free(_hp); }
+    (void)_t4279;
+    if (_t4279) {
+        Str *_t4267 = Str_lit("Str", 3ULL);
+        (void)_t4267;
+        U32 _t4268; { U32 *_hp = (U32 *)Str_size(); _t4268 = *_hp; free(_hp); }
+        (void)_t4268;
+        U32 _t4269 = 3;
+        (void)_t4269;
+        Array *_va78 = Array_new(_t4267, &(U32){_t4268}, &(U32){_t4269});
+        (void)_va78;
+        Str_delete(_t4267, &(Bool){1});
+        ;
+        ;
+        U32 _t4270 = 0;
+        (void)_t4270;
+        Str *_t4271 = Str_lit("Found(", 6ULL);
+        (void)_t4271;
+        Array_set(_va78, &(U32){_t4270}, _t4271);
+        ;
+        TypeBinding *_t4272 = ScopeFind_get_Found(self);
+        (void)_t4272;
+        U32 _t4273 = 1;
+        (void)_t4273;
+        Str *_t4274 = TypeBinding_to_str(_t4272);
+        (void)_t4274;
+        TypeBinding_delete(_t4272, &(Bool){1});
+        Array_set(_va78, &(U32){_t4273}, _t4274);
+        ;
+        U32 _t4275 = 2;
+        (void)_t4275;
+        Str *_t4276 = Str_lit(")", 1ULL);
+        (void)_t4276;
+        Array_set(_va78, &(U32){_t4275}, _t4276);
+        ;
+        Str *_t4277 = format(_va78);
+        (void)_t4277;
+        ;
+        return _t4277;
+    }
+    ;
+    Str *_t4280 = Str_lit("unknown", 7ULL);
+    (void)_t4280;
+    return _t4280;
 }
 
 U32 *ScopeFind_size(void) {
@@ -26900,49 +26940,49 @@ U32 *ScopeFind_size(void) {
 
 TypeScope * TypeScope_new(TypeScope * parent) {
     (void)parent;
-    Str *_t4271 = Str_lit("Str", 3ULL);
-    (void)_t4271;
-    U32 _t4272; { U32 *_hp = (U32 *)Str_size(); _t4272 = *_hp; free(_hp); }
-    (void)_t4272;
-    Str *_t4273 = Str_lit("TypeBinding", 11ULL);
-    (void)_t4273;
-    U32 _t4274; { U32 *_hp = (U32 *)TypeBinding_size(); _t4274 = *_hp; free(_hp); }
-    (void)_t4274;
-    TypeScope *_t4275 = malloc(sizeof(TypeScope));
-    { Map *_ca = Map_new(_t4271, &(U32){_t4272}, _t4273, &(U32){_t4274}); _t4275->bindings = *_ca; free(_ca); }
-    _t4275->parent = parent;
-    (void)_t4275;
-    Str_delete(_t4271, &(Bool){1});
+    Str *_t4282 = Str_lit("Str", 3ULL);
+    (void)_t4282;
+    U32 _t4283; { U32 *_hp = (U32 *)Str_size(); _t4283 = *_hp; free(_hp); }
+    (void)_t4283;
+    Str *_t4284 = Str_lit("TypeBinding", 11ULL);
+    (void)_t4284;
+    U32 _t4285; { U32 *_hp = (U32 *)TypeBinding_size(); _t4285 = *_hp; free(_hp); }
+    (void)_t4285;
+    TypeScope *_t4286 = malloc(sizeof(TypeScope));
+    { Map *_ca = Map_new(_t4282, &(U32){_t4283}, _t4284, &(U32){_t4285}); _t4286->bindings = *_ca; free(_ca); }
+    _t4286->parent = parent;
+    (void)_t4286;
+    Str_delete(_t4282, &(Bool){1});
     ;
-    Str_delete(_t4273, &(Bool){1});
+    Str_delete(_t4284, &(Bool){1});
     ;
-    return _t4275;
+    return _t4286;
 }
 
 ScopeFind * TypeScope_find(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
-    Bool _t4278; { Bool *_hp = (Bool *)Map_has(&self->bindings, name); _t4278 = *_hp; free(_hp); }
-    (void)_t4278;
-    if (_t4278) {
+    Bool _t4289; { Bool *_hp = (Bool *)Map_has(&self->bindings, name); _t4289 = *_hp; free(_hp); }
+    (void)_t4289;
+    if (_t4289) {
         TypeBinding *b = Map_get(&self->bindings, name);
         (void)b;
-        ScopeFind *_t4276 = ScopeFind_Found(b);
-        (void)_t4276;
+        ScopeFind *_t4287 = ScopeFind_Found(b);
+        (void)_t4287;
         ;
-        return _t4276;
+        return _t4287;
     }
     ;
-    Bool _t4279 = is_null(self->parent);
-    (void)_t4279;
-    Bool _t4280 = Bool_not(_t4279);
-    (void)_t4280;
+    Bool _t4290 = is_null(self->parent);
+    (void)_t4290;
+    Bool _t4291 = Bool_not(_t4290);
+    (void)_t4291;
     ;
-    if (_t4280) {
-        ScopeFind *_t4277 = TypeScope_find(self->parent, name);
-        (void)_t4277;
+    if (_t4291) {
+        ScopeFind *_t4288 = TypeScope_find(self->parent, name);
+        (void)_t4288;
         ;
-        return _t4277;
+        return _t4288;
     }
     ;
     return ScopeFind_NotFound();
@@ -26952,22 +26992,22 @@ TilType * TypeScope_get_type(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind *_sw4281 = TypeScope_find(self, name);
-        (void)_sw4281;
-        Bool _t4282; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4281); _t4282 = *_hp; free(_hp); }
-        (void)_t4282;
-        if (_t4282) {
-            TypeBinding *b = ScopeFind_get_Found(_sw4281);
+        ScopeFind *_sw4292 = TypeScope_find(self, name);
+        (void)_sw4292;
+        Bool _t4293; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4292); _t4293 = *_hp; free(_hp); }
+        (void)_t4293;
+        if (_t4293) {
+            TypeBinding *b = ScopeFind_get_Found(_sw4292);
             (void)b;
-            ScopeFind_delete(_sw4281, &(Bool){1});
+            ScopeFind_delete(_sw4292, &(Bool){1});
             ;
             { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
         } else {
-            ScopeFind_delete(_sw4281, &(Bool){1});
+            ScopeFind_delete(_sw4292, &(Bool){1});
             ;
             return TilType_Unknown();
         }
-        ScopeFind_delete(_sw4281, &(Bool){1});
+        ScopeFind_delete(_sw4292, &(Bool){1});
         ;
     }
 }
@@ -26976,33 +27016,33 @@ I32 TypeScope_is_proc(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind *_sw4283 = TypeScope_find(self, name);
-        (void)_sw4283;
-        Bool _t4288; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4283); _t4288 = *_hp; free(_hp); }
-        (void)_t4288;
-        if (_t4288) {
-            TypeBinding *b = ScopeFind_get_Found(_sw4283);
+        ScopeFind *_sw4294 = TypeScope_find(self, name);
+        (void)_sw4294;
+        Bool _t4299; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4294); _t4299 = *_hp; free(_hp); }
+        (void)_t4299;
+        if (_t4299) {
+            TypeBinding *b = ScopeFind_get_Found(_sw4294);
             (void)b;
-            ScopeFind_delete(_sw4283, &(Bool){1});
+            ScopeFind_delete(_sw4294, &(Bool){1});
             ;
             return b->is_proc;
         } else {
-            I64 _t4284 = 0;
-            (void)_t4284;
-            I64 _t4285 = 1;
-            (void)_t4285;
-            I64 _t4286 = I64_sub(_t4284, _t4285);
-            (void)_t4286;
+            I64 _t4295 = 0;
+            (void)_t4295;
+            I64 _t4296 = 1;
+            (void)_t4296;
+            I64 _t4297 = I64_sub(_t4295, _t4296);
+            (void)_t4297;
             ;
             ;
-            I32 _t4287 = I64_to_i32(_t4286);
-            (void)_t4287;
+            I32 _t4298 = I64_to_i32(_t4297);
+            (void)_t4298;
             ;
-            ScopeFind_delete(_sw4283, &(Bool){1});
+            ScopeFind_delete(_sw4294, &(Bool){1});
             ;
-            return _t4287;
+            return _t4298;
         }
-        ScopeFind_delete(_sw4283, &(Bool){1});
+        ScopeFind_delete(_sw4294, &(Bool){1});
         ;
     }
 }
@@ -27011,22 +27051,22 @@ Expr * TypeScope_get_struct(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind *_sw4289 = TypeScope_find(self, name);
-        (void)_sw4289;
-        Bool _t4290; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4289); _t4290 = *_hp; free(_hp); }
-        (void)_t4290;
-        if (_t4290) {
-            TypeBinding *b = ScopeFind_get_Found(_sw4289);
+        ScopeFind *_sw4300 = TypeScope_find(self, name);
+        (void)_sw4300;
+        Bool _t4301; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4300); _t4301 = *_hp; free(_hp); }
+        (void)_t4301;
+        if (_t4301) {
+            TypeBinding *b = ScopeFind_get_Found(_sw4300);
             (void)b;
-            ScopeFind_delete(_sw4289, &(Bool){1});
+            ScopeFind_delete(_sw4300, &(Bool){1});
             ;
             return b->struct_def;
         } else {
-            ScopeFind_delete(_sw4289, &(Bool){1});
+            ScopeFind_delete(_sw4300, &(Bool){1});
             ;
             return NULL;
         }
-        ScopeFind_delete(_sw4289, &(Bool){1});
+        ScopeFind_delete(_sw4300, &(Bool){1});
         ;
     }
 }
@@ -27035,24 +27075,24 @@ Bool TypeScope_is_mut(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind *_sw4291 = TypeScope_find(self, name);
-        (void)_sw4291;
-        Bool _t4293; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4291); _t4293 = *_hp; free(_hp); }
-        (void)_t4293;
-        if (_t4293) {
-            TypeBinding *b = ScopeFind_get_Found(_sw4291);
+        ScopeFind *_sw4302 = TypeScope_find(self, name);
+        (void)_sw4302;
+        Bool _t4304; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4302); _t4304 = *_hp; free(_hp); }
+        (void)_t4304;
+        if (_t4304) {
+            TypeBinding *b = ScopeFind_get_Found(_sw4302);
             (void)b;
-            ScopeFind_delete(_sw4291, &(Bool){1});
+            ScopeFind_delete(_sw4302, &(Bool){1});
             ;
             return b->is_mut;
         } else {
-            Bool _t4292 = 0;
-            (void)_t4292;
-            ScopeFind_delete(_sw4291, &(Bool){1});
+            Bool _t4303 = 0;
+            (void)_t4303;
+            ScopeFind_delete(_sw4302, &(Bool){1});
             ;
-            return _t4292;
+            return _t4303;
         }
-        ScopeFind_delete(_sw4291, &(Bool){1});
+        ScopeFind_delete(_sw4302, &(Bool){1});
         ;
     }
 }
@@ -27067,71 +27107,71 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bo
     (void)col;
     (void)is_param;
     (void)is_own;
-    Bool _t4300; { Bool *_hp = (Bool *)Map_has(&self->bindings, name); _t4300 = *_hp; free(_hp); }
-    (void)_t4300;
-    if (_t4300) {
+    Bool _t4311; { Bool *_hp = (Bool *)Map_has(&self->bindings, name); _t4311 = *_hp; free(_hp); }
+    (void)_t4311;
+    if (_t4311) {
         TypeBinding *b = Map_get(&self->bindings, name);
         (void)b;
         TilType_delete(&b->type, &(Bool){0});
         { TilType *_fa = TilType_clone(type); b->type = *_fa; free(_fa); }
-        I32 _t4294 = I32_clone(&(I32){is_proc});
-        (void)_t4294;
-        b->is_proc = _t4294;
+        I32 _t4305 = I32_clone(&(I32){is_proc});
+        (void)_t4305;
+        b->is_proc = _t4305;
         ;
-        Bool _t4295 = Bool_clone(&(Bool){is_mut});
-        (void)_t4295;
-        b->is_mut = _t4295;
+        Bool _t4306 = Bool_clone(&(Bool){is_mut});
+        (void)_t4306;
+        b->is_mut = _t4306;
         ;
-        U32 _t4296 = U32_clone(&(U32){line});
-        (void)_t4296;
-        b->line = _t4296;
+        U32 _t4307 = U32_clone(&(U32){line});
+        (void)_t4307;
+        b->line = _t4307;
         ;
-        U32 _t4297 = U32_clone(&(U32){col});
-        (void)_t4297;
-        b->col = _t4297;
+        U32 _t4308 = U32_clone(&(U32){col});
+        (void)_t4308;
+        b->col = _t4308;
         ;
-        Bool _t4298 = Bool_clone(&(Bool){is_param});
-        (void)_t4298;
-        b->is_param = _t4298;
+        Bool _t4309 = Bool_clone(&(Bool){is_param});
+        (void)_t4309;
+        b->is_param = _t4309;
         ;
-        Bool _t4299 = Bool_clone(&(Bool){is_own});
-        (void)_t4299;
-        b->is_own = _t4299;
+        Bool _t4310 = Bool_clone(&(Bool){is_own});
+        (void)_t4310;
+        b->is_own = _t4310;
         ;
         ;
         return;
     }
     ;
-    I32 _t4301 = I32_clone(&(I32){is_proc});
-    (void)_t4301;
-    Bool _t4302 = Bool_clone(&(Bool){is_mut});
-    (void)_t4302;
-    U32 _t4303 = U32_clone(&(U32){line});
-    (void)_t4303;
-    U32 _t4304 = U32_clone(&(U32){col});
-    (void)_t4304;
-    Bool _t4305 = Bool_clone(&(Bool){is_param});
-    (void)_t4305;
-    Bool _t4306 = Bool_clone(&(Bool){is_own});
-    (void)_t4306;
-    Bool _t4307 = 0;
-    (void)_t4307;
-    Bool _t4308 = 0;
-    (void)_t4308;
-    Bool _t4309 = 0;
-    (void)_t4309;
+    I32 _t4312 = I32_clone(&(I32){is_proc});
+    (void)_t4312;
+    Bool _t4313 = Bool_clone(&(Bool){is_mut});
+    (void)_t4313;
+    U32 _t4314 = U32_clone(&(U32){line});
+    (void)_t4314;
+    U32 _t4315 = U32_clone(&(U32){col});
+    (void)_t4315;
+    Bool _t4316 = Bool_clone(&(Bool){is_param});
+    (void)_t4316;
+    Bool _t4317 = Bool_clone(&(Bool){is_own});
+    (void)_t4317;
+    Bool _t4318 = 0;
+    (void)_t4318;
+    Bool _t4319 = 0;
+    (void)_t4319;
+    Bool _t4320 = 0;
+    (void)_t4320;
     TypeBinding *nb = malloc(sizeof(TypeBinding));
     nb->name = Str_clone(name);
     { TilType *_ca = TilType_clone(type); nb->type = *_ca; free(_ca); }
-    nb->is_proc = _t4301;
-    nb->is_mut = _t4302;
-    nb->line = _t4303;
-    nb->col = _t4304;
-    nb->is_param = _t4305;
-    nb->is_own = _t4306;
-    nb->is_ref = _t4307;
-    nb->is_alias = _t4308;
-    nb->is_type_alias = _t4309;
+    nb->is_proc = _t4312;
+    nb->is_mut = _t4313;
+    nb->line = _t4314;
+    nb->col = _t4315;
+    nb->is_param = _t4316;
+    nb->is_own = _t4317;
+    nb->is_ref = _t4318;
+    nb->is_alias = _t4319;
+    nb->is_type_alias = _t4320;
     nb->alias_target = NULL;
     nb->struct_def = NULL;
     nb->func_def = NULL;
@@ -27148,27 +27188,27 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bo
     ;
     ;
     ;
-    Str *_t4310 = Str_clone(name);
-    (void)_t4310;
-    Map_set(&self->bindings, _t4310, nb);
+    Str *_t4321 = Str_clone(name);
+    (void)_t4321;
+    Map_set(&self->bindings, _t4321, nb);
 }
 
 TypeScope * TypeScope_clone(TypeScope * self) {
     (void)self;
-    TypeScope *_t4311 = malloc(sizeof(TypeScope));
-    { Map *_ca = Map_clone(&self->bindings); _t4311->bindings = *_ca; free(_ca); }
-    _t4311->parent = self->parent;
-    (void)_t4311;
-    return _t4311;
+    TypeScope *_t4322 = malloc(sizeof(TypeScope));
+    { Map *_ca = Map_clone(&self->bindings); _t4322->bindings = *_ca; free(_ca); }
+    _t4322->parent = self->parent;
+    (void)_t4322;
+    return _t4322;
 }
 
 void TypeScope_delete(TypeScope * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4312 = 0;
-    (void)_t4312;
-    Map_delete(&self->bindings, &(Bool){_t4312});
+    Bool _t4323 = 0;
+    (void)_t4323;
+    Map_delete(&self->bindings, &(Bool){_t4323});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -27183,47 +27223,47 @@ U32 *TypeScope_size(void) {
 
 LocalInfo * LocalInfo_clone(LocalInfo * self) {
     (void)self;
-    I32 _t4314 = I32_clone(&self->own_transfer);
-    (void)_t4314;
-    Bool _t4315 = Bool_clone(&self->skip_delete);
-    (void)_t4315;
-    LocalInfo *_t4316 = malloc(sizeof(LocalInfo));
-    _t4316->name = self->name;
-    { TilType *_ca = TilType_clone(&self->type); _t4316->type = *_ca; free(_ca); }
-    _t4316->struct_name = self->struct_name;
-    _t4316->decl_index = I32_clone(&self->decl_index);
-    _t4316->last_use = I32_clone(&self->last_use);
-    _t4316->own_transfer = _t4314;
-    _t4316->skip_delete = _t4315;
-    (void)_t4316;
+    I32 _t4325 = I32_clone(&self->own_transfer);
+    (void)_t4325;
+    Bool _t4326 = Bool_clone(&self->skip_delete);
+    (void)_t4326;
+    LocalInfo *_t4327 = malloc(sizeof(LocalInfo));
+    _t4327->name = self->name;
+    { TilType *_ca = TilType_clone(&self->type); _t4327->type = *_ca; free(_ca); }
+    _t4327->struct_name = self->struct_name;
+    _t4327->decl_index = I32_clone(&self->decl_index);
+    _t4327->last_use = I32_clone(&self->last_use);
+    _t4327->own_transfer = _t4325;
+    _t4327->skip_delete = _t4326;
+    (void)_t4327;
     ;
     ;
-    return _t4316;
+    return _t4327;
 }
 
 void LocalInfo_delete(LocalInfo * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4317 = 0;
-    (void)_t4317;
-    TilType_delete(&self->type, &(Bool){_t4317});
+    Bool _t4328 = 0;
+    (void)_t4328;
+    TilType_delete(&self->type, &(Bool){_t4328});
     ;
-    Bool _t4318 = 0;
-    (void)_t4318;
-    I32_delete(&self->decl_index, &(Bool){_t4318});
+    Bool _t4329 = 0;
+    (void)_t4329;
+    I32_delete(&self->decl_index, &(Bool){_t4329});
     ;
-    Bool _t4319 = 0;
-    (void)_t4319;
-    I32_delete(&self->last_use, &(Bool){_t4319});
+    Bool _t4330 = 0;
+    (void)_t4330;
+    I32_delete(&self->last_use, &(Bool){_t4330});
     ;
-    Bool _t4320 = 0;
-    (void)_t4320;
-    I32_delete(&self->own_transfer, &(Bool){_t4320});
+    Bool _t4331 = 0;
+    (void)_t4331;
+    I32_delete(&self->own_transfer, &(Bool){_t4331});
     ;
-    Bool _t4321 = 0;
-    (void)_t4321;
-    Bool_delete(&self->skip_delete, &(Bool){_t4321});
+    Bool _t4332 = 0;
+    (void)_t4332;
+    Bool_delete(&self->skip_delete, &(Bool){_t4332});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -27239,103 +27279,103 @@ U32 *LocalInfo_size(void) {
 Bool is_numeric_type(TilType * t) {
     (void)t;
     {
-        TilType *_sw4323 = TilType_clone(t);
-        (void)_sw4323;
-        Bool _t4338; { Bool *_hp = (Bool *)TilType_eq(_sw4323, TilType_I64()); _t4338 = *_hp; free(_hp); }
-        (void)_t4338;
-        if (_t4338) {
-            Bool _t4324 = 1;
-            (void)_t4324;
-            TilType_delete(_sw4323, &(Bool){1});
+        TilType *_sw4334 = TilType_clone(t);
+        (void)_sw4334;
+        Bool _t4349; { Bool *_hp = (Bool *)TilType_eq(_sw4334, TilType_I64()); _t4349 = *_hp; free(_hp); }
+        (void)_t4349;
+        if (_t4349) {
+            Bool _t4335 = 1;
+            (void)_t4335;
+            TilType_delete(_sw4334, &(Bool){1});
             ;
-            return _t4324;
+            return _t4335;
         } else {
-            Bool _t4337; { Bool *_hp = (Bool *)TilType_eq(_sw4323, TilType_U8()); _t4337 = *_hp; free(_hp); }
-            (void)_t4337;
-            if (_t4337) {
-                Bool _t4325 = 1;
-                (void)_t4325;
-                ;
-                TilType_delete(_sw4323, &(Bool){1});
-                ;
-                return _t4325;
-            } else {
-                Bool _t4336; { Bool *_hp = (Bool *)TilType_eq(_sw4323, TilType_I16()); _t4336 = *_hp; free(_hp); }
+            Bool _t4348; { Bool *_hp = (Bool *)TilType_eq(_sw4334, TilType_U8()); _t4348 = *_hp; free(_hp); }
+            (void)_t4348;
+            if (_t4348) {
+                Bool _t4336 = 1;
                 (void)_t4336;
-                if (_t4336) {
-                    Bool _t4326 = 1;
-                    (void)_t4326;
+                ;
+                TilType_delete(_sw4334, &(Bool){1});
+                ;
+                return _t4336;
+            } else {
+                Bool _t4347; { Bool *_hp = (Bool *)TilType_eq(_sw4334, TilType_I16()); _t4347 = *_hp; free(_hp); }
+                (void)_t4347;
+                if (_t4347) {
+                    Bool _t4337 = 1;
+                    (void)_t4337;
                     ;
                     ;
-                    TilType_delete(_sw4323, &(Bool){1});
+                    TilType_delete(_sw4334, &(Bool){1});
                     ;
-                    return _t4326;
+                    return _t4337;
                 } else {
-                    Bool _t4335; { Bool *_hp = (Bool *)TilType_eq(_sw4323, TilType_I32()); _t4335 = *_hp; free(_hp); }
-                    (void)_t4335;
-                    if (_t4335) {
-                        Bool _t4327 = 1;
-                        (void)_t4327;
+                    Bool _t4346; { Bool *_hp = (Bool *)TilType_eq(_sw4334, TilType_I32()); _t4346 = *_hp; free(_hp); }
+                    (void)_t4346;
+                    if (_t4346) {
+                        Bool _t4338 = 1;
+                        (void)_t4338;
                         ;
                         ;
                         ;
-                        TilType_delete(_sw4323, &(Bool){1});
+                        TilType_delete(_sw4334, &(Bool){1});
                         ;
-                        return _t4327;
+                        return _t4338;
                     } else {
-                        Bool _t4334; { Bool *_hp = (Bool *)TilType_eq(_sw4323, TilType_U32()); _t4334 = *_hp; free(_hp); }
-                        (void)_t4334;
-                        if (_t4334) {
-                            Bool _t4328 = 1;
-                            (void)_t4328;
+                        Bool _t4345; { Bool *_hp = (Bool *)TilType_eq(_sw4334, TilType_U32()); _t4345 = *_hp; free(_hp); }
+                        (void)_t4345;
+                        if (_t4345) {
+                            Bool _t4339 = 1;
+                            (void)_t4339;
                             ;
                             ;
                             ;
                             ;
-                            TilType_delete(_sw4323, &(Bool){1});
+                            TilType_delete(_sw4334, &(Bool){1});
                             ;
-                            return _t4328;
+                            return _t4339;
                         } else {
-                            Bool _t4333; { Bool *_hp = (Bool *)TilType_eq(_sw4323, TilType_U64()); _t4333 = *_hp; free(_hp); }
-                            (void)_t4333;
-                            if (_t4333) {
-                                Bool _t4329 = 1;
-                                (void)_t4329;
+                            Bool _t4344; { Bool *_hp = (Bool *)TilType_eq(_sw4334, TilType_U64()); _t4344 = *_hp; free(_hp); }
+                            (void)_t4344;
+                            if (_t4344) {
+                                Bool _t4340 = 1;
+                                (void)_t4340;
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                TilType_delete(_sw4323, &(Bool){1});
+                                TilType_delete(_sw4334, &(Bool){1});
                                 ;
-                                return _t4329;
+                                return _t4340;
                             } else {
-                                Bool _t4332; { Bool *_hp = (Bool *)TilType_eq(_sw4323, TilType_F32()); _t4332 = *_hp; free(_hp); }
-                                (void)_t4332;
-                                if (_t4332) {
-                                    Bool _t4330 = 1;
-                                    (void)_t4330;
+                                Bool _t4343; { Bool *_hp = (Bool *)TilType_eq(_sw4334, TilType_F32()); _t4343 = *_hp; free(_hp); }
+                                (void)_t4343;
+                                if (_t4343) {
+                                    Bool _t4341 = 1;
+                                    (void)_t4341;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(_sw4323, &(Bool){1});
+                                    TilType_delete(_sw4334, &(Bool){1});
                                     ;
-                                    return _t4330;
+                                    return _t4341;
                                 } else {
-                                    Bool _t4331 = 0;
-                                    (void)_t4331;
+                                    Bool _t4342 = 0;
+                                    (void)_t4342;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(_sw4323, &(Bool){1});
+                                    TilType_delete(_sw4334, &(Bool){1});
                                     ;
-                                    return _t4331;
+                                    return _t4342;
                                 }
                                 ;
                             }
@@ -27349,7 +27389,7 @@ Bool is_numeric_type(TilType * t) {
             }
             ;
         }
-        TilType_delete(_sw4323, &(Bool){1});
+        TilType_delete(_sw4334, &(Bool){1});
         ;
     }
 }
@@ -27357,87 +27397,87 @@ Bool is_numeric_type(TilType * t) {
 Bool is_integral_numeric_type(TilType * t) {
     (void)t;
     {
-        TilType *_sw4339 = TilType_clone(t);
-        (void)_sw4339;
-        Bool _t4352; { Bool *_hp = (Bool *)TilType_eq(_sw4339, TilType_I64()); _t4352 = *_hp; free(_hp); }
-        (void)_t4352;
-        if (_t4352) {
-            Bool _t4340 = 1;
-            (void)_t4340;
-            TilType_delete(_sw4339, &(Bool){1});
-            ;
-            return _t4340;
-        } else {
-            Bool _t4351; { Bool *_hp = (Bool *)TilType_eq(_sw4339, TilType_U8()); _t4351 = *_hp; free(_hp); }
+        TilType *_sw4350 = TilType_clone(t);
+        (void)_sw4350;
+        Bool _t4363; { Bool *_hp = (Bool *)TilType_eq(_sw4350, TilType_I64()); _t4363 = *_hp; free(_hp); }
+        (void)_t4363;
+        if (_t4363) {
+            Bool _t4351 = 1;
             (void)_t4351;
-            if (_t4351) {
-                Bool _t4341 = 1;
-                (void)_t4341;
+            TilType_delete(_sw4350, &(Bool){1});
+            ;
+            return _t4351;
+        } else {
+            Bool _t4362; { Bool *_hp = (Bool *)TilType_eq(_sw4350, TilType_U8()); _t4362 = *_hp; free(_hp); }
+            (void)_t4362;
+            if (_t4362) {
+                Bool _t4352 = 1;
+                (void)_t4352;
                 ;
-                TilType_delete(_sw4339, &(Bool){1});
+                TilType_delete(_sw4350, &(Bool){1});
                 ;
-                return _t4341;
+                return _t4352;
             } else {
-                Bool _t4350; { Bool *_hp = (Bool *)TilType_eq(_sw4339, TilType_I16()); _t4350 = *_hp; free(_hp); }
-                (void)_t4350;
-                if (_t4350) {
-                    Bool _t4342 = 1;
-                    (void)_t4342;
+                Bool _t4361; { Bool *_hp = (Bool *)TilType_eq(_sw4350, TilType_I16()); _t4361 = *_hp; free(_hp); }
+                (void)_t4361;
+                if (_t4361) {
+                    Bool _t4353 = 1;
+                    (void)_t4353;
                     ;
                     ;
-                    TilType_delete(_sw4339, &(Bool){1});
+                    TilType_delete(_sw4350, &(Bool){1});
                     ;
-                    return _t4342;
+                    return _t4353;
                 } else {
-                    Bool _t4349; { Bool *_hp = (Bool *)TilType_eq(_sw4339, TilType_I32()); _t4349 = *_hp; free(_hp); }
-                    (void)_t4349;
-                    if (_t4349) {
-                        Bool _t4343 = 1;
-                        (void)_t4343;
+                    Bool _t4360; { Bool *_hp = (Bool *)TilType_eq(_sw4350, TilType_I32()); _t4360 = *_hp; free(_hp); }
+                    (void)_t4360;
+                    if (_t4360) {
+                        Bool _t4354 = 1;
+                        (void)_t4354;
                         ;
                         ;
                         ;
-                        TilType_delete(_sw4339, &(Bool){1});
+                        TilType_delete(_sw4350, &(Bool){1});
                         ;
-                        return _t4343;
+                        return _t4354;
                     } else {
-                        Bool _t4348; { Bool *_hp = (Bool *)TilType_eq(_sw4339, TilType_U32()); _t4348 = *_hp; free(_hp); }
-                        (void)_t4348;
-                        if (_t4348) {
-                            Bool _t4344 = 1;
-                            (void)_t4344;
+                        Bool _t4359; { Bool *_hp = (Bool *)TilType_eq(_sw4350, TilType_U32()); _t4359 = *_hp; free(_hp); }
+                        (void)_t4359;
+                        if (_t4359) {
+                            Bool _t4355 = 1;
+                            (void)_t4355;
                             ;
                             ;
                             ;
                             ;
-                            TilType_delete(_sw4339, &(Bool){1});
+                            TilType_delete(_sw4350, &(Bool){1});
                             ;
-                            return _t4344;
+                            return _t4355;
                         } else {
-                            Bool _t4347; { Bool *_hp = (Bool *)TilType_eq(_sw4339, TilType_U64()); _t4347 = *_hp; free(_hp); }
-                            (void)_t4347;
-                            if (_t4347) {
-                                Bool _t4345 = 1;
-                                (void)_t4345;
+                            Bool _t4358; { Bool *_hp = (Bool *)TilType_eq(_sw4350, TilType_U64()); _t4358 = *_hp; free(_hp); }
+                            (void)_t4358;
+                            if (_t4358) {
+                                Bool _t4356 = 1;
+                                (void)_t4356;
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                TilType_delete(_sw4339, &(Bool){1});
+                                TilType_delete(_sw4350, &(Bool){1});
                                 ;
-                                return _t4345;
+                                return _t4356;
                             } else {
-                                Bool _t4346 = 0;
-                                (void)_t4346;
+                                Bool _t4357 = 0;
+                                (void)_t4357;
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                TilType_delete(_sw4339, &(Bool){1});
+                                TilType_delete(_sw4350, &(Bool){1});
                                 ;
-                                return _t4346;
+                                return _t4357;
                             }
                             ;
                         }
@@ -27449,53 +27489,53 @@ Bool is_integral_numeric_type(TilType * t) {
             }
             ;
         }
-        TilType_delete(_sw4339, &(Bool){1});
+        TilType_delete(_sw4350, &(Bool){1});
         ;
     }
 }
 
 Bool is_usize_name(Str * name) {
     (void)name;
-    Str *_t4353 = Str_lit("USize", 5ULL);
-    (void)_t4353;
-    Bool _t4354; { Bool *_hp = (Bool *)Str_eq(name, _t4353); _t4354 = *_hp; free(_hp); }
-    (void)_t4354;
-    Str_delete(_t4353, &(Bool){1});
-    return _t4354;
+    Str *_t4364 = Str_lit("USize", 5ULL);
+    (void)_t4364;
+    Bool _t4365; { Bool *_hp = (Bool *)Str_eq(name, _t4364); _t4365 = *_hp; free(_hp); }
+    (void)_t4365;
+    Str_delete(_t4364, &(Bool){1});
+    return _t4365;
 }
 
 Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name) {
     (void)from;
     (void)to;
     (void)to_name;
-    Bool _t4360 = is_usize_name(to_name);
-    (void)_t4360;
-    Bool _t4361 = Bool_not(_t4360);
-    (void)_t4361;
+    Bool _t4371 = is_usize_name(to_name);
+    (void)_t4371;
+    Bool _t4372 = Bool_not(_t4371);
+    (void)_t4372;
     ;
-    if (_t4361) {
-        Bool _t4355 = 0;
-        (void)_t4355;
+    if (_t4372) {
+        Bool _t4366 = 0;
+        (void)_t4366;
         ;
-        return _t4355;
+        return _t4366;
     }
     ;
     {
-        TilType *_sw4356 = TilType_clone(to);
-        (void)_sw4356;
-        Bool _t4359; { Bool *_hp = (Bool *)TilType_eq(_sw4356, TilType_U32()); _t4359 = *_hp; free(_hp); }
-        (void)_t4359;
-        TilType_delete(_sw4356, &(Bool){1});
-        if (_t4359) {
-            Bool _t4357 = is_integral_numeric_type(from);
-            (void)_t4357;
+        TilType *_sw4367 = TilType_clone(to);
+        (void)_sw4367;
+        Bool _t4370; { Bool *_hp = (Bool *)TilType_eq(_sw4367, TilType_U32()); _t4370 = *_hp; free(_hp); }
+        (void)_t4370;
+        TilType_delete(_sw4367, &(Bool){1});
+        if (_t4370) {
+            Bool _t4368 = is_integral_numeric_type(from);
+            (void)_t4368;
             ;
-            return _t4357;
+            return _t4368;
         } else {
-            Bool _t4358 = 0;
-            (void)_t4358;
+            Bool _t4369 = 0;
+            (void)_t4369;
             ;
-            return _t4358;
+            return _t4369;
         }
         ;
     }
@@ -27504,50 +27544,50 @@ Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name) {
 Str * qualified_name(Str * type_name, Str * method_name) {
     (void)type_name;
     (void)method_name;
-    Str *_t4362 = Str_lit(".", 1ULL);
-    (void)_t4362;
-    Str *_t4363 = Str_concat(type_name, _t4362);
-    (void)_t4363;
-    Str_delete(_t4362, &(Bool){1});
-    Str *_t4364 = Str_concat(_t4363, method_name);
-    (void)_t4364;
-    Str_delete(_t4363, &(Bool){1});
-    return _t4364;
+    Str *_t4373 = Str_lit(".", 1ULL);
+    (void)_t4373;
+    Str *_t4374 = Str_concat(type_name, _t4373);
+    (void)_t4374;
+    Str_delete(_t4373, &(Bool){1});
+    Str *_t4375 = Str_concat(_t4374, method_name);
+    (void)_t4375;
+    Str_delete(_t4374, &(Bool){1});
+    return _t4375;
 }
 
 Bool StructInstance_eq(StructInstance * a, StructInstance * b) {
     (void)a;
     (void)b;
-    Bool _t4365; { Bool *_hp = (Bool *)Str_eq(a->struct_name, b->struct_name); _t4365 = *_hp; free(_hp); }
-    (void)_t4365;
-    return _t4365;
+    Bool _t4376; { Bool *_hp = (Bool *)Str_eq(a->struct_name, b->struct_name); _t4376 = *_hp; free(_hp); }
+    (void)_t4376;
+    return _t4376;
 }
 
 Str * StructInstance_to_str(StructInstance * self) {
     (void)self;
-    Bool _t4367 = is_null(self->struct_name);
-    (void)_t4367;
-    if (_t4367) {
-        Str *_t4366 = Str_lit("StructInstance", 14ULL);
-        (void)_t4366;
+    Bool _t4378 = is_null(self->struct_name);
+    (void)_t4378;
+    if (_t4378) {
+        Str *_t4377 = Str_lit("StructInstance", 14ULL);
+        (void)_t4377;
         ;
-        return _t4366;
+        return _t4377;
     }
     ;
-    Str *_t4368 = Str_clone(self->struct_name);
-    (void)_t4368;
-    return _t4368;
+    Str *_t4379 = Str_clone(self->struct_name);
+    (void)_t4379;
+    return _t4379;
 }
 
 StructInstance * StructInstance_clone(StructInstance * self) {
     (void)self;
-    StructInstance *_t4369 = malloc(sizeof(StructInstance));
-    _t4369->struct_name = self->struct_name;
-    _t4369->struct_def = self->struct_def;
-    _t4369->data = self->data;
-    _t4369->borrowed = self->borrowed;
-    (void)_t4369;
-    return _t4369;
+    StructInstance *_t4380 = malloc(sizeof(StructInstance));
+    _t4380->struct_name = self->struct_name;
+    _t4380->struct_def = self->struct_def;
+    _t4380->data = self->data;
+    _t4380->borrowed = self->borrowed;
+    (void)_t4380;
+    return _t4380;
 }
 
 void StructInstance_delete(StructInstance * self, Bool * call_free) {
@@ -27565,35 +27605,35 @@ U32 *StructInstance_size(void) {
 Bool EnumInstance_eq(EnumInstance * a, EnumInstance * b) {
     (void)a;
     (void)b;
-    Bool _t4371 = I32_eq(a->tag, b->tag);
-    (void)_t4371;
-    return _t4371;
+    Bool _t4382 = I32_eq(a->tag, b->tag);
+    (void)_t4382;
+    return _t4382;
 }
 
 Str * EnumInstance_to_str(EnumInstance * self) {
     (void)self;
-    Bool _t4373 = is_null(self->enum_name);
-    (void)_t4373;
-    if (_t4373) {
-        Str *_t4372 = Str_lit("EnumInstance", 12ULL);
-        (void)_t4372;
+    Bool _t4384 = is_null(self->enum_name);
+    (void)_t4384;
+    if (_t4384) {
+        Str *_t4383 = Str_lit("EnumInstance", 12ULL);
+        (void)_t4383;
         ;
-        return _t4372;
+        return _t4383;
     }
     ;
-    Str *_t4374 = Str_clone(self->enum_name);
-    (void)_t4374;
-    return _t4374;
+    Str *_t4385 = Str_clone(self->enum_name);
+    (void)_t4385;
+    return _t4385;
 }
 
 EnumInstance * EnumInstance_clone(EnumInstance * self) {
     (void)self;
-    EnumInstance *_t4375 = malloc(sizeof(EnumInstance));
-    _t4375->enum_name = self->enum_name;
-    _t4375->tag = self->tag;
-    _t4375->payload = self->payload;
-    (void)_t4375;
-    return _t4375;
+    EnumInstance *_t4386 = malloc(sizeof(EnumInstance));
+    _t4386->enum_name = self->enum_name;
+    _t4386->tag = self->tag;
+    _t4386->payload = self->payload;
+    (void)_t4386;
+    return _t4386;
 }
 
 void EnumInstance_delete(EnumInstance * self, Bool * call_free) {
@@ -27789,106 +27829,106 @@ void * Value_get_Ptr(Value *self) {
 Bool * Value_eq(Value * a, Value * b) {
     (void)a;
     (void)b;
-    Bool _t4384; { Bool *_hp = (Bool *)Value_is_None(a); _t4384 = *_hp; free(_hp); }
-    (void)_t4384;
-    Bool _t4385; { Bool *_hp = (Bool *)Value_is_None(b); _t4385 = *_hp; free(_hp); }
-    (void)_t4385;
-    Bool _t4386 = Bool_and(_t4384, _t4385);
-    (void)_t4386;
+    Bool _t4395; { Bool *_hp = (Bool *)Value_is_None(a); _t4395 = *_hp; free(_hp); }
+    (void)_t4395;
+    Bool _t4396; { Bool *_hp = (Bool *)Value_is_None(b); _t4396 = *_hp; free(_hp); }
+    (void)_t4396;
+    Bool _t4397 = Bool_and(_t4395, _t4396);
+    (void)_t4397;
     ;
     ;
-    if (_t4386) {
-        Bool _t4377 = 1;
-        (void)_t4377;
+    if (_t4397) {
+        Bool _t4388 = 1;
+        (void)_t4388;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4377; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4388; return _r; }
     }
     ;
-    Bool _t4387; { Bool *_hp = (Bool *)Value_is_Int(a); _t4387 = *_hp; free(_hp); }
-    (void)_t4387;
-    Bool _t4388; { Bool *_hp = (Bool *)Value_is_Int(b); _t4388 = *_hp; free(_hp); }
-    (void)_t4388;
-    Bool _t4389 = Bool_and(_t4387, _t4388);
-    (void)_t4389;
+    Bool _t4398; { Bool *_hp = (Bool *)Value_is_Int(a); _t4398 = *_hp; free(_hp); }
+    (void)_t4398;
+    Bool _t4399; { Bool *_hp = (Bool *)Value_is_Int(b); _t4399 = *_hp; free(_hp); }
+    (void)_t4399;
+    Bool _t4400 = Bool_and(_t4398, _t4399);
+    (void)_t4400;
     ;
     ;
-    if (_t4389) {
-        I64 _t4378; { I64 *_hp = (I64 *)Value_get_Int(a); _t4378 = *_hp; free(_hp); }
-        (void)_t4378;
-        I64 _t4379; { I64 *_hp = (I64 *)Value_get_Int(b); _t4379 = *_hp; free(_hp); }
-        (void)_t4379;
-        Bool _t4380 = I64_eq(_t4378, _t4379);
-        (void)_t4380;
+    if (_t4400) {
+        I64 _t4389; { I64 *_hp = (I64 *)Value_get_Int(a); _t4389 = *_hp; free(_hp); }
+        (void)_t4389;
+        I64 _t4390; { I64 *_hp = (I64 *)Value_get_Int(b); _t4390 = *_hp; free(_hp); }
+        (void)_t4390;
+        Bool _t4391 = I64_eq(_t4389, _t4390);
+        (void)_t4391;
         ;
         ;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4380; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4391; return _r; }
     }
     ;
-    Bool _t4390; { Bool *_hp = (Bool *)Value_is_Boolean(a); _t4390 = *_hp; free(_hp); }
-    (void)_t4390;
-    Bool _t4391; { Bool *_hp = (Bool *)Value_is_Boolean(b); _t4391 = *_hp; free(_hp); }
-    (void)_t4391;
-    Bool _t4392 = Bool_and(_t4390, _t4391);
-    (void)_t4392;
+    Bool _t4401; { Bool *_hp = (Bool *)Value_is_Boolean(a); _t4401 = *_hp; free(_hp); }
+    (void)_t4401;
+    Bool _t4402; { Bool *_hp = (Bool *)Value_is_Boolean(b); _t4402 = *_hp; free(_hp); }
+    (void)_t4402;
+    Bool _t4403 = Bool_and(_t4401, _t4402);
+    (void)_t4403;
     ;
     ;
-    if (_t4392) {
-        Bool _t4381; { Bool *_hp = (Bool *)Value_get_Boolean(a); _t4381 = *_hp; free(_hp); }
-        (void)_t4381;
-        Bool _t4382; { Bool *_hp = (Bool *)Value_get_Boolean(b); _t4382 = *_hp; free(_hp); }
-        (void)_t4382;
-        Bool _t4383 = Bool_eq(_t4381, _t4382);
-        (void)_t4383;
+    if (_t4403) {
+        Bool _t4392; { Bool *_hp = (Bool *)Value_get_Boolean(a); _t4392 = *_hp; free(_hp); }
+        (void)_t4392;
+        Bool _t4393; { Bool *_hp = (Bool *)Value_get_Boolean(b); _t4393 = *_hp; free(_hp); }
+        (void)_t4393;
+        Bool _t4394 = Bool_eq(_t4392, _t4393);
+        (void)_t4394;
         ;
         ;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4383; return _r; }
+        { Bool *_r = malloc(sizeof(Bool)); *_r = _t4394; return _r; }
     }
     ;
-    Bool _t4393 = 0;
-    (void)_t4393;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4393; return _r; }
+    Bool _t4404 = 0;
+    (void)_t4404;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4404; return _r; }
 }
 
 Str * Value_to_str(Value * self) {
     (void)self;
-    Bool _t4399; { Bool *_hp = (Bool *)Value_is_None(self); _t4399 = *_hp; free(_hp); }
-    (void)_t4399;
-    if (_t4399) {
-        Str *_t4394 = Str_lit("None", 4ULL);
-        (void)_t4394;
+    Bool _t4410; { Bool *_hp = (Bool *)Value_is_None(self); _t4410 = *_hp; free(_hp); }
+    (void)_t4410;
+    if (_t4410) {
+        Str *_t4405 = Str_lit("None", 4ULL);
+        (void)_t4405;
         ;
-        return _t4394;
+        return _t4405;
     }
     ;
-    Bool _t4400; { Bool *_hp = (Bool *)Value_is_Int(self); _t4400 = *_hp; free(_hp); }
-    (void)_t4400;
-    if (_t4400) {
-        I64 _t4395; { I64 *_hp = (I64 *)Value_get_Int(self); _t4395 = *_hp; free(_hp); }
-        (void)_t4395;
-        Str *_t4396 = I64_to_str(&(I64){_t4395});
-        (void)_t4396;
+    Bool _t4411; { Bool *_hp = (Bool *)Value_is_Int(self); _t4411 = *_hp; free(_hp); }
+    (void)_t4411;
+    if (_t4411) {
+        I64 _t4406; { I64 *_hp = (I64 *)Value_get_Int(self); _t4406 = *_hp; free(_hp); }
+        (void)_t4406;
+        Str *_t4407 = I64_to_str(&(I64){_t4406});
+        (void)_t4407;
         ;
         ;
-        return _t4396;
+        return _t4407;
     }
     ;
-    Bool _t4401; { Bool *_hp = (Bool *)Value_is_Boolean(self); _t4401 = *_hp; free(_hp); }
-    (void)_t4401;
-    if (_t4401) {
-        Bool _t4397; { Bool *_hp = (Bool *)Value_get_Boolean(self); _t4397 = *_hp; free(_hp); }
-        (void)_t4397;
-        Str *_t4398 = Bool_to_str(&(Bool){_t4397});
-        (void)_t4398;
+    Bool _t4412; { Bool *_hp = (Bool *)Value_is_Boolean(self); _t4412 = *_hp; free(_hp); }
+    (void)_t4412;
+    if (_t4412) {
+        Bool _t4408; { Bool *_hp = (Bool *)Value_get_Boolean(self); _t4408 = *_hp; free(_hp); }
+        (void)_t4408;
+        Str *_t4409 = Bool_to_str(&(Bool){_t4408});
+        (void)_t4409;
         ;
         ;
-        return _t4398;
+        return _t4409;
     }
     ;
-    Str *_t4402 = Str_lit("Value", 5ULL);
-    (void)_t4402;
-    return _t4402;
+    Str *_t4413 = Str_lit("Value", 5ULL);
+    (void)_t4413;
+    return _t4413;
 }
 
 Value * Value_clone(Value * self) {
@@ -27911,19 +27951,19 @@ U32 *Value_size(void) {
 
 Cell * Cell_clone(Cell * self) {
     (void)self;
-    Cell *_t4404 = malloc(sizeof(Cell));
-    { Value *_ca = Value_clone(&self->val); _t4404->val = *_ca; free(_ca); }
-    (void)_t4404;
-    return _t4404;
+    Cell *_t4415 = malloc(sizeof(Cell));
+    { Value *_ca = Value_clone(&self->val); _t4415->val = *_ca; free(_ca); }
+    (void)_t4415;
+    return _t4415;
 }
 
 void Cell_delete(Cell * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4405 = 0;
-    (void)_t4405;
-    Value_delete(&self->val, &(Bool){_t4405});
+    Bool _t4416 = 0;
+    (void)_t4416;
+    Value_delete(&self->val, &(Bool){_t4416});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -27938,21 +27978,21 @@ U32 *Cell_size(void) {
 
 Binding * Binding_clone(Binding * self) {
     (void)self;
-    Binding *_t4407 = malloc(sizeof(Binding));
-    _t4407->name = self->name;
-    _t4407->cell = self->cell;
-    _t4407->cell_is_local = Bool_clone(&self->cell_is_local);
-    (void)_t4407;
-    return _t4407;
+    Binding *_t4418 = malloc(sizeof(Binding));
+    _t4418->name = self->name;
+    _t4418->cell = self->cell;
+    _t4418->cell_is_local = Bool_clone(&self->cell_is_local);
+    (void)_t4418;
+    return _t4418;
 }
 
 void Binding_delete(Binding * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4408 = 0;
-    (void)_t4408;
-    Bool_delete(&self->cell_is_local, &(Bool){_t4408});
+    Bool _t4419 = 0;
+    (void)_t4419;
+    Bool_delete(&self->cell_is_local, &(Bool){_t4419});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -27967,20 +28007,20 @@ U32 *Binding_size(void) {
 
 Scope * Scope_clone(Scope * self) {
     (void)self;
-    Scope *_t4410 = malloc(sizeof(Scope));
-    { Map *_ca = Map_clone(&self->bindings); _t4410->bindings = *_ca; free(_ca); }
-    _t4410->parent = self->parent;
-    (void)_t4410;
-    return _t4410;
+    Scope *_t4421 = malloc(sizeof(Scope));
+    { Map *_ca = Map_clone(&self->bindings); _t4421->bindings = *_ca; free(_ca); }
+    _t4421->parent = self->parent;
+    (void)_t4421;
+    return _t4421;
 }
 
 void Scope_delete(Scope * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4411 = 0;
-    (void)_t4411;
-    Map_delete(&self->bindings, &(Bool){_t4411});
+    Bool _t4422 = 0;
+    (void)_t4422;
+    Map_delete(&self->bindings, &(Bool){_t4422});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -27995,20 +28035,20 @@ U32 *Scope_size(void) {
 
 CollectionInfo * CollectionInfo_clone(CollectionInfo * self) {
     (void)self;
-    CollectionInfo *_t4413 = malloc(sizeof(CollectionInfo));
-    _t4413->type_name = self->type_name;
-    _t4413->is_vec = I32_clone(&self->is_vec);
-    (void)_t4413;
-    return _t4413;
+    CollectionInfo *_t4424 = malloc(sizeof(CollectionInfo));
+    _t4424->type_name = self->type_name;
+    _t4424->is_vec = I32_clone(&self->is_vec);
+    (void)_t4424;
+    return _t4424;
 }
 
 void CollectionInfo_delete(CollectionInfo * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4414 = 0;
-    (void)_t4414;
-    I32_delete(&self->is_vec, &(Bool){_t4414});
+    Bool _t4425 = 0;
+    (void)_t4425;
+    I32_delete(&self->is_vec, &(Bool){_t4425});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -28023,28 +28063,28 @@ U32 *CollectionInfo_size(void) {
 
 DynCallInfo * DynCallInfo_clone(DynCallInfo * self) {
     (void)self;
-    Bool _t4416 = Bool_clone(&self->has_return);
-    (void)_t4416;
-    DynCallInfo *_t4417 = malloc(sizeof(DynCallInfo));
-    _t4417->method = self->method;
-    _t4417->nargs = I32_clone(&self->nargs);
-    _t4417->has_return = _t4416;
-    (void)_t4417;
+    Bool _t4427 = Bool_clone(&self->has_return);
+    (void)_t4427;
+    DynCallInfo *_t4428 = malloc(sizeof(DynCallInfo));
+    _t4428->method = self->method;
+    _t4428->nargs = I32_clone(&self->nargs);
+    _t4428->has_return = _t4427;
+    (void)_t4428;
     ;
-    return _t4417;
+    return _t4428;
 }
 
 void DynCallInfo_delete(DynCallInfo * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4418 = 0;
-    (void)_t4418;
-    I32_delete(&self->nargs, &(Bool){_t4418});
+    Bool _t4429 = 0;
+    (void)_t4429;
+    I32_delete(&self->nargs, &(Bool){_t4429});
     ;
-    Bool _t4419 = 0;
-    (void)_t4419;
-    Bool_delete(&self->has_return, &(Bool){_t4419});
+    Bool _t4430 = 0;
+    (void)_t4430;
+    Bool_delete(&self->has_return, &(Bool){_t4430});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -28059,31 +28099,31 @@ U32 *DynCallInfo_size(void) {
 
 ExtStr * ExtStr_clone(ExtStr * self) {
     (void)self;
-    U64 _t4421 = U64_clone(&self->count);
-    (void)_t4421;
-    U64 _t4422 = U64_clone(&self->cap);
-    (void)_t4422;
-    ExtStr *_t4423 = malloc(sizeof(ExtStr));
-    _t4423->data = self->data;
-    _t4423->count = _t4421;
-    _t4423->cap = _t4422;
-    (void)_t4423;
+    U64 _t4432 = U64_clone(&self->count);
+    (void)_t4432;
+    U64 _t4433 = U64_clone(&self->cap);
+    (void)_t4433;
+    ExtStr *_t4434 = malloc(sizeof(ExtStr));
+    _t4434->data = self->data;
+    _t4434->count = _t4432;
+    _t4434->cap = _t4433;
+    (void)_t4434;
     ;
     ;
-    return _t4423;
+    return _t4434;
 }
 
 void ExtStr_delete(ExtStr * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4424 = 0;
-    (void)_t4424;
-    U64_delete(&self->count, &(Bool){_t4424});
+    Bool _t4435 = 0;
+    (void)_t4435;
+    U64_delete(&self->count, &(Bool){_t4435});
     ;
-    Bool _t4425 = 0;
-    (void)_t4425;
-    U64_delete(&self->cap, &(Bool){_t4425});
+    Bool _t4436 = 0;
+    (void)_t4436;
+    U64_delete(&self->cap, &(Bool){_t4436});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -28099,63 +28139,63 @@ U32 *ExtStr_size(void) {
 Bool * Mode_eq(Mode * a, Mode * b) {
     (void)a;
     (void)b;
-    Bool _t4427; { Bool *_hp = (Bool *)Str_eq(&a->name, &b->name); _t4427 = *_hp; free(_hp); }
-    (void)_t4427;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4427; return _r; }
+    Bool _t4438; { Bool *_hp = (Bool *)Str_eq(&a->name, &b->name); _t4438 = *_hp; free(_hp); }
+    (void)_t4438;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4438; return _r; }
 }
 
 Mode * Mode_clone(Mode * self) {
     (void)self;
-    Bool _t4428 = Bool_clone(&self->needs_main);
-    (void)_t4428;
-    Bool _t4429 = Bool_clone(&self->decls_only);
-    (void)_t4429;
-    Bool _t4430 = Bool_clone(&self->is_pure);
-    (void)_t4430;
-    Bool _t4431 = Bool_clone(&self->debug_prints);
-    (void)_t4431;
-    Mode *_t4432 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(&self->name); _t4432->name = *_ca; free(_ca); }
-    _t4432->needs_main = _t4428;
-    _t4432->decls_only = _t4429;
-    { Str *_ca = Str_clone(&self->auto_import); _t4432->auto_import = *_ca; free(_ca); }
-    _t4432->is_pure = _t4430;
-    _t4432->debug_prints = _t4431;
-    (void)_t4432;
+    Bool _t4439 = Bool_clone(&self->needs_main);
+    (void)_t4439;
+    Bool _t4440 = Bool_clone(&self->decls_only);
+    (void)_t4440;
+    Bool _t4441 = Bool_clone(&self->is_pure);
+    (void)_t4441;
+    Bool _t4442 = Bool_clone(&self->debug_prints);
+    (void)_t4442;
+    Mode *_t4443 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(&self->name); _t4443->name = *_ca; free(_ca); }
+    _t4443->needs_main = _t4439;
+    _t4443->decls_only = _t4440;
+    { Str *_ca = Str_clone(&self->auto_import); _t4443->auto_import = *_ca; free(_ca); }
+    _t4443->is_pure = _t4441;
+    _t4443->debug_prints = _t4442;
+    (void)_t4443;
     ;
     ;
     ;
     ;
-    return _t4432;
+    return _t4443;
 }
 
 void Mode_delete(Mode * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t4433 = 0;
-    (void)_t4433;
-    Str_delete(&self->name, &(Bool){_t4433});
+    Bool _t4444 = 0;
+    (void)_t4444;
+    Str_delete(&self->name, &(Bool){_t4444});
     ;
-    Bool _t4434 = 0;
-    (void)_t4434;
-    Bool_delete(&self->needs_main, &(Bool){_t4434});
+    Bool _t4445 = 0;
+    (void)_t4445;
+    Bool_delete(&self->needs_main, &(Bool){_t4445});
     ;
-    Bool _t4435 = 0;
-    (void)_t4435;
-    Bool_delete(&self->decls_only, &(Bool){_t4435});
+    Bool _t4446 = 0;
+    (void)_t4446;
+    Bool_delete(&self->decls_only, &(Bool){_t4446});
     ;
-    Bool _t4436 = 0;
-    (void)_t4436;
-    Str_delete(&self->auto_import, &(Bool){_t4436});
+    Bool _t4447 = 0;
+    (void)_t4447;
+    Str_delete(&self->auto_import, &(Bool){_t4447});
     ;
-    Bool _t4437 = 0;
-    (void)_t4437;
-    Bool_delete(&self->is_pure, &(Bool){_t4437});
+    Bool _t4448 = 0;
+    (void)_t4448;
+    Bool_delete(&self->is_pure, &(Bool){_t4448});
     ;
-    Bool _t4438 = 0;
-    (void)_t4438;
-    Bool_delete(&self->debug_prints, &(Bool){_t4438});
+    Bool _t4449 = 0;
+    (void)_t4449;
+    Bool_delete(&self->debug_prints, &(Bool){_t4449});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -28177,50 +28217,13 @@ Mode * mode_resolve(Str * name) {
 
 Bool * mode_is_lib(Mode * m) {
     (void)m;
-    Str *_t4440 = Str_lit("lib", 3ULL);
-    (void)_t4440;
-    Str *_t4441 = Str_lit("liba", 4ULL);
-    (void)_t4441;
-    Bool _t4442; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4440); _t4442 = *_hp; free(_hp); }
-    (void)_t4442;
-    Str_delete(_t4440, &(Bool){1});
-    Bool _t4443; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4441); _t4443 = *_hp; free(_hp); }
-    (void)_t4443;
-    Str_delete(_t4441, &(Bool){1});
-    Bool _t4444 = Bool_or(_t4442, _t4443);
-    (void)_t4444;
-    ;
-    ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4444; return _r; }
-}
-
-Bool * mode_is_lib_output(Mode * m) {
-    (void)m;
-    Str *_t4445 = Str_lit("lib", 3ULL);
-    (void)_t4445;
-    Str *_t4446 = Str_lit("liba", 4ULL);
-    (void)_t4446;
-    Bool _t4447; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4445); _t4447 = *_hp; free(_hp); }
-    (void)_t4447;
-    Str_delete(_t4445, &(Bool){1});
-    Bool _t4448; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4446); _t4448 = *_hp; free(_hp); }
-    (void)_t4448;
-    Str_delete(_t4446, &(Bool){1});
-    Str *_t4449 = Str_lit("pure", 4ULL);
-    (void)_t4449;
-    Bool _t4450 = Bool_or(_t4447, _t4448);
-    (void)_t4450;
-    ;
-    ;
-    Bool _t4451; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4449); _t4451 = *_hp; free(_hp); }
+    Str *_t4451 = Str_lit("lib", 3ULL);
     (void)_t4451;
-    Str_delete(_t4449, &(Bool){1});
-    Str *_t4452 = Str_lit("pura", 4ULL);
+    Str *_t4452 = Str_lit("liba", 4ULL);
     (void)_t4452;
-    Bool _t4453 = Bool_or(_t4450, _t4451);
+    Bool _t4453; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4451); _t4453 = *_hp; free(_hp); }
     (void)_t4453;
-    ;
-    ;
+    Str_delete(_t4451, &(Bool){1});
     Bool _t4454; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4452); _t4454 = *_hp; free(_hp); }
     (void)_t4454;
     Str_delete(_t4452, &(Bool){1});
@@ -28229,6 +28232,43 @@ Bool * mode_is_lib_output(Mode * m) {
     ;
     ;
     { Bool *_r = malloc(sizeof(Bool)); *_r = _t4455; return _r; }
+}
+
+Bool * mode_is_lib_output(Mode * m) {
+    (void)m;
+    Str *_t4456 = Str_lit("lib", 3ULL);
+    (void)_t4456;
+    Str *_t4457 = Str_lit("liba", 4ULL);
+    (void)_t4457;
+    Bool _t4458; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4456); _t4458 = *_hp; free(_hp); }
+    (void)_t4458;
+    Str_delete(_t4456, &(Bool){1});
+    Bool _t4459; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4457); _t4459 = *_hp; free(_hp); }
+    (void)_t4459;
+    Str_delete(_t4457, &(Bool){1});
+    Str *_t4460 = Str_lit("pure", 4ULL);
+    (void)_t4460;
+    Bool _t4461 = Bool_or(_t4458, _t4459);
+    (void)_t4461;
+    ;
+    ;
+    Bool _t4462; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4460); _t4462 = *_hp; free(_hp); }
+    (void)_t4462;
+    Str_delete(_t4460, &(Bool){1});
+    Str *_t4463 = Str_lit("pura", 4ULL);
+    (void)_t4463;
+    Bool _t4464 = Bool_or(_t4461, _t4462);
+    (void)_t4464;
+    ;
+    ;
+    Bool _t4465; { Bool *_hp = (Bool *)Str_eq(&m->name, _t4463); _t4465 = *_hp; free(_hp); }
+    (void)_t4465;
+    Str_delete(_t4463, &(Bool){1});
+    Bool _t4466 = Bool_or(_t4464, _t4465);
+    (void)_t4466;
+    ;
+    ;
+    { Bool *_r = malloc(sizeof(Bool)); *_r = _t4466; return _r; }
 }
 
 void dyn_call_delete(Str *type_name, void *val, void *arg2) {
@@ -29225,176 +29265,133 @@ Bool dyn_has_cmp(Str *type_name) {
 
 __attribute__((constructor))
 static void _til_lib_init(void) {
-        _t4456 = malloc(sizeof(I64));
-    *_t4456 = 0;
-    (void)_t4456;
-    _t4457 = malloc(sizeof(I64));
-    *_t4457 = 1;
-    (void)_t4457;
-    _t4458 = malloc(sizeof(I64)); *_t4458 = I64_sub(DEREF(_t4456), DEREF(_t4457));
-    (void)_t4458;
-    CAP_LIT = malloc(sizeof(U32)); *CAP_LIT = I64_to_usize(DEREF(_t4458));
-    (void)CAP_LIT;
-    _t4459 = malloc(sizeof(I64));
-    *_t4459 = 0;
-    (void)_t4459;
-    _t4460 = malloc(sizeof(I64));
-    *_t4460 = 2;
-    (void)_t4460;
-    _t4461 = malloc(sizeof(I64)); *_t4461 = I64_sub(DEREF(_t4459), DEREF(_t4460));
-    (void)_t4461;
-    CAP_VIEW = malloc(sizeof(U32)); *CAP_VIEW = I64_to_usize(DEREF(_t4461));
-    (void)CAP_VIEW;
-    _t4462 = Str_lit("Str", 3ULL);
-    (void)_t4462;
-    _t4463 = Str_size();
-    (void)_t4463;
-    _t4464 = Str_lit("Mode", 4ULL);
-    (void)_t4464;
-    _t4465 = Mode_size();
-    (void)_t4465;
-    core_modes = Map_new(_t4462, _t4463, _t4464, _t4465);
-    (void)core_modes;
-    _t4466 = malloc(sizeof(Bool));
-    *_t4466 = 0;
-    (void)_t4466;
-    _t4467 = malloc(sizeof(Bool));
+        _t4467 = malloc(sizeof(I64));
     *_t4467 = 0;
     (void)_t4467;
-    _t4468 = malloc(sizeof(Bool));
-    *_t4468 = 0;
+    _t4468 = malloc(sizeof(I64));
+    *_t4468 = 1;
     (void)_t4468;
-    _t4469 = malloc(sizeof(Bool));
-    *_t4469 = 0;
+    _t4469 = malloc(sizeof(I64)); *_t4469 = I64_sub(DEREF(_t4467), DEREF(_t4468));
     (void)_t4469;
-    _t4470 = Str_lit("script", 6ULL);
+    CAP_LIT = malloc(sizeof(U32)); *CAP_LIT = I64_to_usize(DEREF(_t4469));
+    (void)CAP_LIT;
+    _t4470 = malloc(sizeof(I64));
+    *_t4470 = 0;
     (void)_t4470;
-    _t4471 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("script", 6ULL)); _t4471->name = *_ca; free(_ca); }
-    _t4471->needs_main = DEREF(_t4466);
-    _t4471->decls_only = DEREF(_t4467);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4471->auto_import = *_ca; free(_ca); }
-    _t4471->is_pure = DEREF(_t4468);
-    _t4471->debug_prints = DEREF(_t4469);
+    _t4471 = malloc(sizeof(I64));
+    *_t4471 = 2;
     (void)_t4471;
-    Map_set(core_modes, _t4470, _t4471);
-    _t4472 = malloc(sizeof(Bool));
-    *_t4472 = 1;
+    _t4472 = malloc(sizeof(I64)); *_t4472 = I64_sub(DEREF(_t4470), DEREF(_t4471));
     (void)_t4472;
-    _t4473 = malloc(sizeof(Bool));
-    *_t4473 = 1;
+    CAP_VIEW = malloc(sizeof(U32)); *CAP_VIEW = I64_to_usize(DEREF(_t4472));
+    (void)CAP_VIEW;
+    _t4473 = Str_lit("Str", 3ULL);
     (void)_t4473;
-    _t4474 = malloc(sizeof(Bool));
-    *_t4474 = 0;
+    _t4474 = Str_size();
     (void)_t4474;
-    _t4475 = malloc(sizeof(Bool));
-    *_t4475 = 0;
+    _t4475 = Str_lit("Mode", 4ULL);
     (void)_t4475;
-    _t4476 = Str_lit("cli", 3ULL);
+    _t4476 = Mode_size();
     (void)_t4476;
-    _t4477 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("cli", 3ULL)); _t4477->name = *_ca; free(_ca); }
-    _t4477->needs_main = DEREF(_t4472);
-    _t4477->decls_only = DEREF(_t4473);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4477->auto_import = *_ca; free(_ca); }
-    _t4477->is_pure = DEREF(_t4474);
-    _t4477->debug_prints = DEREF(_t4475);
+    core_modes = Map_new(_t4473, _t4474, _t4475, _t4476);
+    (void)core_modes;
+    _t4477 = malloc(sizeof(Bool));
+    *_t4477 = 0;
     (void)_t4477;
-    Map_set(core_modes, _t4476, _t4477);
     _t4478 = malloc(sizeof(Bool));
-    *_t4478 = 1;
+    *_t4478 = 0;
     (void)_t4478;
     _t4479 = malloc(sizeof(Bool));
-    *_t4479 = 1;
+    *_t4479 = 0;
     (void)_t4479;
     _t4480 = malloc(sizeof(Bool));
     *_t4480 = 0;
     (void)_t4480;
-    _t4481 = malloc(sizeof(Bool));
-    *_t4481 = 0;
+    _t4481 = Str_lit("script", 6ULL);
     (void)_t4481;
-    _t4482 = Str_lit("gui", 3ULL);
+    _t4482 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("script", 6ULL)); _t4482->name = *_ca; free(_ca); }
+    _t4482->needs_main = DEREF(_t4477);
+    _t4482->decls_only = DEREF(_t4478);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4482->auto_import = *_ca; free(_ca); }
+    _t4482->is_pure = DEREF(_t4479);
+    _t4482->debug_prints = DEREF(_t4480);
     (void)_t4482;
-    _t4483 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t4483->name = *_ca; free(_ca); }
-    _t4483->needs_main = DEREF(_t4478);
-    _t4483->decls_only = DEREF(_t4479);
-    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t4483->auto_import = *_ca; free(_ca); }
-    _t4483->is_pure = DEREF(_t4480);
-    _t4483->debug_prints = DEREF(_t4481);
+    Map_set(core_modes, _t4481, _t4482);
+    _t4483 = malloc(sizeof(Bool));
+    *_t4483 = 1;
     (void)_t4483;
-    Map_set(core_modes, _t4482, _t4483);
     _t4484 = malloc(sizeof(Bool));
-    *_t4484 = 0;
+    *_t4484 = 1;
     (void)_t4484;
     _t4485 = malloc(sizeof(Bool));
-    *_t4485 = 1;
+    *_t4485 = 0;
     (void)_t4485;
     _t4486 = malloc(sizeof(Bool));
     *_t4486 = 0;
     (void)_t4486;
-    _t4487 = malloc(sizeof(Bool));
-    *_t4487 = 0;
+    _t4487 = Str_lit("cli", 3ULL);
     (void)_t4487;
-    _t4488 = Str_lit("test", 4ULL);
+    _t4488 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("cli", 3ULL)); _t4488->name = *_ca; free(_ca); }
+    _t4488->needs_main = DEREF(_t4483);
+    _t4488->decls_only = DEREF(_t4484);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4488->auto_import = *_ca; free(_ca); }
+    _t4488->is_pure = DEREF(_t4485);
+    _t4488->debug_prints = DEREF(_t4486);
     (void)_t4488;
-    _t4489 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("test", 4ULL)); _t4489->name = *_ca; free(_ca); }
-    _t4489->needs_main = DEREF(_t4484);
-    _t4489->decls_only = DEREF(_t4485);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4489->auto_import = *_ca; free(_ca); }
-    _t4489->is_pure = DEREF(_t4486);
-    _t4489->debug_prints = DEREF(_t4487);
+    Map_set(core_modes, _t4487, _t4488);
+    _t4489 = malloc(sizeof(Bool));
+    *_t4489 = 1;
     (void)_t4489;
-    Map_set(core_modes, _t4488, _t4489);
     _t4490 = malloc(sizeof(Bool));
-    *_t4490 = 0;
+    *_t4490 = 1;
     (void)_t4490;
     _t4491 = malloc(sizeof(Bool));
-    *_t4491 = 1;
+    *_t4491 = 0;
     (void)_t4491;
     _t4492 = malloc(sizeof(Bool));
-    *_t4492 = 1;
+    *_t4492 = 0;
     (void)_t4492;
-    _t4493 = malloc(sizeof(Bool));
-    *_t4493 = 0;
+    _t4493 = Str_lit("gui", 3ULL);
     (void)_t4493;
-    _t4494 = Str_lit("pure", 4ULL);
+    _t4494 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t4494->name = *_ca; free(_ca); }
+    _t4494->needs_main = DEREF(_t4489);
+    _t4494->decls_only = DEREF(_t4490);
+    { Str *_ca = Str_clone(Str_lit("gui", 3ULL)); _t4494->auto_import = *_ca; free(_ca); }
+    _t4494->is_pure = DEREF(_t4491);
+    _t4494->debug_prints = DEREF(_t4492);
     (void)_t4494;
-    _t4495 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("pure", 4ULL)); _t4495->name = *_ca; free(_ca); }
-    _t4495->needs_main = DEREF(_t4490);
-    _t4495->decls_only = DEREF(_t4491);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4495->auto_import = *_ca; free(_ca); }
-    _t4495->is_pure = DEREF(_t4492);
-    _t4495->debug_prints = DEREF(_t4493);
+    Map_set(core_modes, _t4493, _t4494);
+    _t4495 = malloc(sizeof(Bool));
+    *_t4495 = 0;
     (void)_t4495;
-    Map_set(core_modes, _t4494, _t4495);
     _t4496 = malloc(sizeof(Bool));
-    *_t4496 = 0;
+    *_t4496 = 1;
     (void)_t4496;
     _t4497 = malloc(sizeof(Bool));
-    *_t4497 = 1;
+    *_t4497 = 0;
     (void)_t4497;
     _t4498 = malloc(sizeof(Bool));
-    *_t4498 = 1;
+    *_t4498 = 0;
     (void)_t4498;
-    _t4499 = malloc(sizeof(Bool));
-    *_t4499 = 1;
+    _t4499 = Str_lit("test", 4ULL);
     (void)_t4499;
-    _t4500 = Str_lit("pura", 4ULL);
+    _t4500 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("test", 4ULL)); _t4500->name = *_ca; free(_ca); }
+    _t4500->needs_main = DEREF(_t4495);
+    _t4500->decls_only = DEREF(_t4496);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4500->auto_import = *_ca; free(_ca); }
+    _t4500->is_pure = DEREF(_t4497);
+    _t4500->debug_prints = DEREF(_t4498);
     (void)_t4500;
-    _t4501 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("pura", 4ULL)); _t4501->name = *_ca; free(_ca); }
-    _t4501->needs_main = DEREF(_t4496);
-    _t4501->decls_only = DEREF(_t4497);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4501->auto_import = *_ca; free(_ca); }
-    _t4501->is_pure = DEREF(_t4498);
-    _t4501->debug_prints = DEREF(_t4499);
+    Map_set(core_modes, _t4499, _t4500);
+    _t4501 = malloc(sizeof(Bool));
+    *_t4501 = 0;
     (void)_t4501;
-    Map_set(core_modes, _t4500, _t4501);
     _t4502 = malloc(sizeof(Bool));
-    *_t4502 = 0;
+    *_t4502 = 1;
     (void)_t4502;
     _t4503 = malloc(sizeof(Bool));
     *_t4503 = 1;
@@ -29402,42 +29399,85 @@ static void _til_lib_init(void) {
     _t4504 = malloc(sizeof(Bool));
     *_t4504 = 0;
     (void)_t4504;
-    _t4505 = malloc(sizeof(Bool));
-    *_t4505 = 0;
+    _t4505 = Str_lit("pure", 4ULL);
     (void)_t4505;
-    _t4506 = Str_lit("lib", 3ULL);
+    _t4506 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("pure", 4ULL)); _t4506->name = *_ca; free(_ca); }
+    _t4506->needs_main = DEREF(_t4501);
+    _t4506->decls_only = DEREF(_t4502);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4506->auto_import = *_ca; free(_ca); }
+    _t4506->is_pure = DEREF(_t4503);
+    _t4506->debug_prints = DEREF(_t4504);
     (void)_t4506;
-    _t4507 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("lib", 3ULL)); _t4507->name = *_ca; free(_ca); }
-    _t4507->needs_main = DEREF(_t4502);
-    _t4507->decls_only = DEREF(_t4503);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4507->auto_import = *_ca; free(_ca); }
-    _t4507->is_pure = DEREF(_t4504);
-    _t4507->debug_prints = DEREF(_t4505);
+    Map_set(core_modes, _t4505, _t4506);
+    _t4507 = malloc(sizeof(Bool));
+    *_t4507 = 0;
     (void)_t4507;
-    Map_set(core_modes, _t4506, _t4507);
     _t4508 = malloc(sizeof(Bool));
-    *_t4508 = 0;
+    *_t4508 = 1;
     (void)_t4508;
     _t4509 = malloc(sizeof(Bool));
     *_t4509 = 1;
     (void)_t4509;
     _t4510 = malloc(sizeof(Bool));
-    *_t4510 = 0;
+    *_t4510 = 1;
     (void)_t4510;
-    _t4511 = malloc(sizeof(Bool));
-    *_t4511 = 1;
+    _t4511 = Str_lit("pura", 4ULL);
     (void)_t4511;
-    _t4512 = Str_lit("liba", 4ULL);
+    _t4512 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("pura", 4ULL)); _t4512->name = *_ca; free(_ca); }
+    _t4512->needs_main = DEREF(_t4507);
+    _t4512->decls_only = DEREF(_t4508);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4512->auto_import = *_ca; free(_ca); }
+    _t4512->is_pure = DEREF(_t4509);
+    _t4512->debug_prints = DEREF(_t4510);
     (void)_t4512;
-    _t4513 = malloc(sizeof(Mode));
-    { Str *_ca = Str_clone(Str_lit("liba", 4ULL)); _t4513->name = *_ca; free(_ca); }
-    _t4513->needs_main = DEREF(_t4508);
-    _t4513->decls_only = DEREF(_t4509);
-    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4513->auto_import = *_ca; free(_ca); }
-    _t4513->is_pure = DEREF(_t4510);
-    _t4513->debug_prints = DEREF(_t4511);
+    Map_set(core_modes, _t4511, _t4512);
+    _t4513 = malloc(sizeof(Bool));
+    *_t4513 = 0;
     (void)_t4513;
-    Map_set(core_modes, _t4512, _t4513);
+    _t4514 = malloc(sizeof(Bool));
+    *_t4514 = 1;
+    (void)_t4514;
+    _t4515 = malloc(sizeof(Bool));
+    *_t4515 = 0;
+    (void)_t4515;
+    _t4516 = malloc(sizeof(Bool));
+    *_t4516 = 0;
+    (void)_t4516;
+    _t4517 = Str_lit("lib", 3ULL);
+    (void)_t4517;
+    _t4518 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("lib", 3ULL)); _t4518->name = *_ca; free(_ca); }
+    _t4518->needs_main = DEREF(_t4513);
+    _t4518->decls_only = DEREF(_t4514);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4518->auto_import = *_ca; free(_ca); }
+    _t4518->is_pure = DEREF(_t4515);
+    _t4518->debug_prints = DEREF(_t4516);
+    (void)_t4518;
+    Map_set(core_modes, _t4517, _t4518);
+    _t4519 = malloc(sizeof(Bool));
+    *_t4519 = 0;
+    (void)_t4519;
+    _t4520 = malloc(sizeof(Bool));
+    *_t4520 = 1;
+    (void)_t4520;
+    _t4521 = malloc(sizeof(Bool));
+    *_t4521 = 0;
+    (void)_t4521;
+    _t4522 = malloc(sizeof(Bool));
+    *_t4522 = 1;
+    (void)_t4522;
+    _t4523 = Str_lit("liba", 4ULL);
+    (void)_t4523;
+    _t4524 = malloc(sizeof(Mode));
+    { Str *_ca = Str_clone(Str_lit("liba", 4ULL)); _t4524->name = *_ca; free(_ca); }
+    _t4524->needs_main = DEREF(_t4519);
+    _t4524->decls_only = DEREF(_t4520);
+    { Str *_ca = Str_clone(Str_lit("", 0ULL)); _t4524->auto_import = *_ca; free(_ca); }
+    _t4524->is_pure = DEREF(_t4521);
+    _t4524->debug_prints = DEREF(_t4522);
+    (void)_t4524;
+    Map_set(core_modes, _t4523, _t4524);
 }
 

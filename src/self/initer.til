@@ -30,6 +30,10 @@ TypeBinding := struct {
     }
 }
 
+align_up := func(shallow offset: I32, shallow align: I32) returns shallow I32 {
+    return offset.add(align).sub(1).and(align.sub(1).xor(-1.to_i32()))
+}
+
 // C-facing declarations (still used by typer.c etc.)
 init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 Vec_take := ext_func(v: Vec) returns Dynamic {}
