@@ -1,1 +1,3 @@
 mode lib
+
+precomp := ext_proc(program: Expr) {}

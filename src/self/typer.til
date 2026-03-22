@@ -9,3 +9,5 @@ LocalInfo := struct {
     mut own_transfer : I32 = -1.to_i32()
     mut skip_delete := false
 }
+
+type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}

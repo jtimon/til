@@ -1,4 +1,3 @@
-#include "typer.h"
 #include "../../boot/modes.h"
 #include "pre70.h"
 #include <stdio.h>

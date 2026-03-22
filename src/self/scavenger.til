@@ -1,1 +1,3 @@
 mode lib
+
+scavenge := ext_proc(program: Expr, m: Mode, run_tests: Bool) {}

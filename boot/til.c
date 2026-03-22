@@ -871,6 +871,14 @@ Value *Value_Ptr(void *);
 void * Value_get_Ptr(Value *);
 #include "ext.h"
 
+void tscope_set(TypeScope *, Str *, TilType *, I32, Bool, U32, U32, Bool, Bool);
+TilType * tscope_get(TypeScope *, Str *);
+I32 tscope_is_proc(TypeScope *, Str *);
+TypeBinding * tscope_find(TypeScope *, Str *);
+Expr * tscope_get_struct(TypeScope *, Str *);
+Bool tscope_is_mut(TypeScope *, Str *);
+I32 init_declarations(Expr *, TypeScope *);
+void * Vec_take(Vec *);
 Vec * tokenize(Str *, Str *);
 I32 init_declarations(Expr *, TypeScope *);
 I32 type_check(Expr *, TypeScope *, Mode *);

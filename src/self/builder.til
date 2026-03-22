@@ -10,3 +10,11 @@ DynCallInfo := struct {
     mut nargs : I32 = 1
     mut has_return := false
 }
+
+build := ext_func(program: Expr, m: Mode, run_tests: Bool, path: Str, c_output_path: Str) returns shallow I32 {}
+build_header := ext_func(program: Expr, h_path: Str) returns shallow I32 {}
+build_til_binding := ext_func(program: Expr, til_path: Str, lib_name: Str) returns shallow I32 {}
+build_forward_header := ext_func(program: Expr, fwd_path: Str) returns shallow I32 {}
+compile_c := ext_func(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str) returns shallow I32 {}
+compile_lib := ext_func(c_path: Str, lib_name: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str) returns shallow I32 {}
+

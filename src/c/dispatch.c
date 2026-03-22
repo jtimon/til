@@ -1,6 +1,5 @@
 #include "dispatch.h"
 #include "../../boot/modes.h"
-#include "builder.h"
 #include "pre70.h"
 #include "ext.h"
 #include <stdio.h>

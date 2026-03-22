@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "precomp.h"
 #include "../../boot/modes.h"
 #include "pre70.h"
 #include "interpreter.h"
