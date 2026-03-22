@@ -936,14 +936,18 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             ;
         } else {
             if (e->data.data.Decl.is_ref) {
-                Str *_sn = (e->struct_name.count > 0) ? &e->struct_name : &Expr_child(e, &(USize){(USize)(0)})->struct_name;
+                Str *_sn = &e->struct_name;
+                if (_sn->count == 0) _sn = &Expr_child(e, &(USize){(USize)(0)})->struct_name;
+                if (_sn->count == 0) _sn = &e->data.data.Decl.explicit_type;
                 const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 fprintf(f, "%s *%s = ", ctype, e->data.data.Decl.name.c_str);
                 emit_expr(f, rhs, depth);
                 fprintf(f, ";\n");
             } else {
-                Str *_sn = (e->struct_name.count > 0) ? &e->struct_name : &Expr_child(e, &(USize){(USize)(0)})->struct_name;
+                Str *_sn = &e->struct_name;
+                if (_sn->count == 0) _sn = &Expr_child(e, &(USize){(USize)(0)})->struct_name;
+                if (_sn->count == 0) _sn = &e->data.data.Decl.explicit_type;
                 const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, &e->data.data.Decl.name);
