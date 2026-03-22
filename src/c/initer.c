@@ -9,11 +9,6 @@
 
 
 
-// --- FFI clone/delete for Mode ---
-
-Mode *Mode_clone(Mode *m) { return m; }
-void Mode_delete(Mode *m, Bool *call_free) { (void)m; (void)call_free; }
-
 // --- Vec helper used by typer ---
 
 void *Vec_take(Vec *v) {
