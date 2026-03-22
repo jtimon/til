@@ -30,10 +30,7 @@ TypeBinding *tscope_find(TypeScope *s, Str *name) {
 
 
 
-Expr *tscope_get_struct(TypeScope *s, Str *name) {
-    TypeBinding *b = tscope_find(s, name);
-    return b ? b->struct_def : NULL;
-}
+
 
 
 // --- Resolve type name (simplified, for init phase) ---
@@ -55,7 +52,7 @@ static TilType type_from_name_init(Str *name, TypeScope *scope) {
         // Check for builtin aliases first (e.g. USize := U64 has struct_def but type is U64)
         TypeBinding *b = tscope_find(scope, name);
         if (b && b->is_builtin && b->struct_def) return b->type;
-        Expr *sdef = tscope_get_struct(scope, name);
+        Expr *sdef = TypeScope_get_struct(scope, name);
         if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
         // Named FuncSig type (bodyless func/proc)
         if (b && b->func_def && b->func_def->children.count == 0)
@@ -98,7 +95,7 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                 if (ftype->count > 0) field->data.data.Decl.explicit_type = *ftype;
             }
             if (ftype->count > 0 && !(ftype->count == 3 && memcmp(ftype->c_str, "I64", 3) == 0) && !(ftype->count == 2 && memcmp(ftype->c_str, "U8", 2) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I16", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0) && !(ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0) && !(ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) {
-                Expr *nested_def = tscope_get_struct(scope, ftype);
+                Expr *nested_def = TypeScope_get_struct(scope, ftype);
                 if (nested_def && !nested_def->is_ext) {
                     // Don't recurse — own/ref fields are pointer-sized regardless.
                     // Avoids infinite recursion on indirect cycles (e.g. EnumInstance <-> Value).
@@ -154,7 +151,7 @@ static void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                 fsz = 8; falign = 8;
             } else {
                 // Inline struct/enum field
-                Expr *nested_def = tscope_get_struct(scope, ftype);
+                Expr *nested_def = TypeScope_get_struct(scope, ftype);
                 if (nested_def && nested_def->data.tag == ExprData_TAG_EnumDef) {
                     if (*enum_has_payloads(nested_def)) {
                         fsz = 8; falign = 8; // tagged enum: pointer to EnumInstance

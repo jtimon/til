@@ -35,7 +35,7 @@ static TilType type_from_name(Str *name, TypeScope *scope) {
         // Check for builtin aliases first (e.g. USize := U64 has struct_def but type is U64)
         TypeBinding *b = tscope_find(scope, name);
         if (b && b->is_builtin && b->struct_def) return b->type;
-        Expr *sdef = tscope_get_struct(scope, name);
+        Expr *sdef = TypeScope_get_struct(scope, name);
         if (sdef) return (sdef->data.tag == ExprData_TAG_EnumDef) ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
         // Named FuncSig type (bodyless func/proc)
         if (b && b->func_def && b->func_def->children.count == 0)
@@ -335,7 +335,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 else if ((obj->til_type.tag == TilType_TAG_Struct || obj->til_type.tag == TilType_TAG_Enum) && obj->struct_name.count > 0)
                     type_name = &obj->struct_name;
 
-                Expr *sdef = type_name ? tscope_get_struct(scope, type_name) : NULL;
+                Expr *sdef = type_name ? TypeScope_get_struct(scope, type_name) : NULL;
                 Expr *ns_func = NULL;
                 if (sdef) {
                     Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
@@ -460,7 +460,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             if (obj->til_type.tag == TilType_TAG_Unknown) {
                 infer_expr(scope, obj, in_func);
             }
-            Expr *sdef = (obj->struct_name).count > 0 ? tscope_get_struct(scope, &obj->struct_name) : NULL;
+            Expr *sdef = (obj->struct_name).count > 0 ? TypeScope_get_struct(scope, &obj->struct_name) : NULL;
             Expr *ns_func = NULL;
             if (sdef) {
                 Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
@@ -653,7 +653,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             _name_val = *resolved_name;
         }
         // Struct instantiation: Point() or Point(x=1, y=2)
-        Expr *sdef = tscope_get_struct(scope, name);
+        Expr *sdef = TypeScope_get_struct(scope, name);
         if (sdef) {
             TypeBinding *sb = tscope_find(scope, name);
             if (sb && sb->is_builtin && !sb->is_ext) {
@@ -1076,7 +1076,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         if (obj->struct_name.count > 0) {
-            Expr *sdef = tscope_get_struct(scope, &obj->struct_name);
+            Expr *sdef = TypeScope_get_struct(scope, &obj->struct_name);
             if (sdef) {
                 Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
                 Str *fname = &e->data.data.Ident;
@@ -1165,7 +1165,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 // --- Collection literal helpers ---
 
 static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
-    Expr *sdef = tscope_get_struct(scope, Str_clone(&(Str){.c_str = (U8*)(type_name), .count = (U64)strlen((const char*)(type_name)), .cap = CAP_VIEW}));
+    Expr *sdef = TypeScope_get_struct(scope, Str_clone(&(Str){.c_str = (U8*)(type_name), .count = (U64)strlen((const char*)(type_name)), .cap = CAP_VIEW}));
     if (!sdef) return 0;
     Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1489,7 +1489,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         } else if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
             Expr *type_node = Expr_child(callee, &(USize){(USize)(0)});
             if (type_node->data.tag == ExprData_TAG_Ident) {
-                Expr *sdef = tscope_get_struct(scope, &type_node->data.data.Ident);
+                Expr *sdef = TypeScope_get_struct(scope, &type_node->data.data.Ident);
                 if (sdef) {
                     Expr *sbody = Expr_child(sdef, &(USize){(USize)(0)});
                     for (U32 j = 0; j < sbody->children.count; j++) {
@@ -1866,7 +1866,7 @@ static I32 fcall_returns_ref(Expr *fcall, TypeScope *scope) {
         return (cb && cb->func_def) ? cb->func_def->data.data.FuncDef.return_is_ref : 0;
     }
     if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
-        Expr *sdef = tscope_get_struct(scope, &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident);
+        Expr *sdef = TypeScope_get_struct(scope, &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident);
         if (!sdef) return 0;
         Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
         for (U32 j = 0; j < body->children.count; j++) {
@@ -1937,7 +1937,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
     Expr *ctor_body = NULL;
     if ((e->struct_name).count > 0 && e->children.count > 0 &&
         *Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
-        Expr *sdef = tscope_get_struct(scope, &e->struct_name);
+        Expr *sdef = TypeScope_get_struct(scope, &e->struct_name);
         if (sdef) ctor_body = Expr_child(sdef, &(USize){(USize)(0)});
     }
 
@@ -2314,7 +2314,7 @@ static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
     // Struct constructor: check if var is in an own field position
     if ((fcall->struct_name).count > 0 && Expr_child(fcall, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
         *Str_eq(&Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident, &fcall->struct_name)) {
-        Expr *sdef = tscope_get_struct(scope, &fcall->struct_name);
+        Expr *sdef = TypeScope_get_struct(scope, &fcall->struct_name);
         if (sdef) {
             Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
             U32 fi = 0;
@@ -2344,7 +2344,7 @@ static Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope) {
         Str *method = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
         Expr *type_node = Expr_child(Expr_child(fcall, &(USize){(USize)(0)}), &(USize){0});
         if (type_node->data.tag != ExprData_TAG_Ident) return 0;
-        Expr *sdef = tscope_get_struct(scope, &type_node->data.data.Ident);
+        Expr *sdef = TypeScope_get_struct(scope, &type_node->data.data.Ident);
         if (!sdef) return 0;
         Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
         for (U32 i = 0; i < body->children.count; i++) {
@@ -2949,7 +2949,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Expr *obj = Expr_child(stmt, &(USize){(USize)(0)});
             Str *fname = &stmt->data.data.Ident;
             if (obj->struct_name.count > 0) {
-                Expr *sdef = tscope_get_struct(scope, &obj->struct_name);
+                Expr *sdef = TypeScope_get_struct(scope, &obj->struct_name);
                 if (sdef) {
                     Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
                     Bool found = 0;
@@ -3248,7 +3248,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Str *type_name = &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident;
                     Str *variant_name = &callee->data.data.Ident;
                     Str *binding_name = &Expr_child(match_expr, &(USize){(USize)(1)})->data.data.Ident;
-                    Expr *enum_def = tscope_get_struct(scope, type_name);
+                    Expr *enum_def = TypeScope_get_struct(scope, type_name);
                     if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
                         I32 tag = *enum_variant_tag(enum_def, variant_name);
                         Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
@@ -3305,7 +3305,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
                     Str *type_name = &Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident;
                     Str *variant_name = &match_expr->data.data.FieldAccess;
-                    Expr *enum_def = tscope_get_struct(scope, type_name);
+                    Expr *enum_def = TypeScope_get_struct(scope, type_name);
                     if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
                         I32 tag = *enum_variant_tag(enum_def, variant_name);
                         Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
@@ -3526,7 +3526,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 break;
             }
 
-            Expr *sdef = tscope_get_struct(scope, type_name);
+            Expr *sdef = TypeScope_get_struct(scope, type_name);
             if (!sdef) {
                 type_error(stmt, "for-in requires a collection type with get() and len() methods");
                 break;

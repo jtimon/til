@@ -756,7 +756,6 @@ TypeBinding * TypeBinding_clone(TypeBinding * self);
 void TypeBinding_delete(TypeBinding * self, Bool * call_free);
 U32 * TypeBinding_size(void);
 TypeBinding * tscope_find(TypeScope * s, Str * name);
-Expr * tscope_get_struct(TypeScope * s, Str * name);
 I32 init_declarations(Expr * program, TypeScope * scope);
 void * Vec_take(Vec * v);
 ScopeFind * ScopeFind_NotFound(void);

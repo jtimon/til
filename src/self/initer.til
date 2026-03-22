@@ -32,7 +32,6 @@ TypeBinding := struct {
 
 // C-facing declarations (old tscope_* names, still used by typer.c etc.)
 tscope_find := ext_func(s: TypeScope, name: Str) returns ref TypeBinding {}
-tscope_get_struct := ext_func(s: TypeScope, name: Str) returns ref Expr {}
 init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 Vec_take := ext_func(v: Vec) returns Dynamic {}
 
