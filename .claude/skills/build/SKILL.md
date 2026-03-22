@@ -6,61 +6,25 @@ user-invocable: true
 
 # Build workflow for til
 
-Follow these steps EXACTLY. Never skip steps. Never add extra steps.
-Never run `make clean` unless explicitly asked by the user.
+Read doc/self.org and run `make help` for context.
 
 ## Step 1: Build and test
-
-Run `make test` with memory limit:
 
 ```bash
 systemd-run --user --scope -p MemoryMax=64G make test > tmp/build.log 2>&1
 ```
 
-This does:
-1. Builds `bin/til_boot` from last commit (via git, always safe)
-2. Builds `bin/til_current` via `til_boot build src/til.til`
-3. Builds test programs and runs the test suite
+Then check results by reading tmp/build.log (use Read/Grep tools).
 
-Then check results:
+If tests fail, the bug is in YOUR changes. Fix and repeat.
 
-```bash
-grep 'Passed:\|FAIL\|error:' tmp/build.log | head -10
-```
+## Step 2: Commit
 
-If tests fail, the bug is in YOUR changes. Fix the source code
-(.til or C) and repeat step 1. Never blame the build system.
-
-## Step 2: Regenerate boot/ and commit
-
-Before committing, regenerate boot/ so the next commit has
-up-to-date generated C:
-
-```bash
-make til_core
-```
-
-Then commit ALL modified files including boot/:
-
-```bash
-git add <all changed files including boot/ doc/totals.csv img/totals.svg>
-git commit -m "message"
-```
-
-## Recovery
-
-If til_boot can't compile (last commit had broken boot/):
-
-```bash
-make revert_boot
-make test
-```
+Include ALL modified files: .til, C, boot/, doc/totals.csv, img/totals.svg.
 
 ## Rules
 
-- ALL changes go in ONE commit. Never split into multiple commits.
-- `make test` then `make til_core` then commit. Every time.
-- Never run `make clean` during this workflow.
+- `make test` does everything. That's the only command you need.
 - Never edit boot/ files manually.
-- If `make test` fails, fix your code and repeat.
+- If tests fail, fix your code and repeat.
 - Redirect build output to tmp/build.log, then Read/Grep that file.
