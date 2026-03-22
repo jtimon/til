@@ -2345,7 +2345,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < (I32)i &&
                     (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
             }
@@ -2393,7 +2393,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                         stmt->save_old_delete = true;
                         if (locals[j].struct_name) stmt->struct_name = *locals[j].struct_name;
                     } else {
-                        Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
+                        Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
                         if (del) Vec_push(&new_ch, del);
                     }
                 }
@@ -2410,12 +2410,12 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].skip_delete) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
                 // Never used after declaration: free immediately
                 if (locals[j].last_use == -1 && locals[j].decl_index == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, true, true, stmt);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
             }
@@ -2579,6 +2579,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
             } else {
                 stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
+                if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
+                    stmt->struct_name = Expr_child(stmt, &(USize){(USize)(0)})->struct_name;
                 if (stmt->til_type.tag == TilType_TAG_Dynamic) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add a type annotation like '%s : Type = ...' to specify the concrete type",
@@ -2663,6 +2665,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
         case ExprData_TAG_Assign: {
             infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
             stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
+            if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
+                stmt->struct_name = Expr_child(stmt, &(USize){(USize)(0)})->struct_name;
             Str *aname = &stmt->data.data.Ident;
             TilType existing = *TypeScope_get_type(scope, aname);
             if (existing.tag == TilType_TAG_Unknown) {
