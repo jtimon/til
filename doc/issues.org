@@ -1,11 +1,33 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 103
+# NEXT_ISSUE: 104
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
 
+
+** OPEN #103 Typer: allow ref mut on enum get_* methods
+  Auto-generated enum ~get_*~ methods (e.g. ~ExprData.get_Decl()~)
+  return a pointer in C (~Declaration *~), but the typer does not
+  recognize them as ref-returning. This means ~ref mut decl :
+  Declaration = field.data.get_Decl()~ is rejected with:
+
+  #+begin_example
+  type error: 'ref' declaration requires null, a ref-returning
+  function, or ref/param variable
+  #+end_example
+
+  The fix must not break existing non-ref usage (~decl :=
+  field.data.get_Decl()~ must still work as a copy). Only the ref
+  validation check in ~fcall_returns_ref~ needs to recognize enum
+  ~get_*~ as ref-returning.
+
+  Two-commit bootstrap fix: commit the typer.c change first (so
+  boot/ picks it up), then use ~ref mut~ in the next commit.
+
+  Blocker for translating ~compute_struct_layout~ from initer.c to
+  initer.til (#39).
 
 ** OPEN #102 Auto-generate eq and to_str for structs
   Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get
