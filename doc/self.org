@@ -10,14 +10,14 @@
   - ~bin/til~: built by til_boot from ALL current sources (.til AND
     src/c/). Both .til and C changes take effect immediately.
   - ~boot/~: generated C, committed for til_boot. Regenerated every
-    build by ~bin/til translate~ so the next commit's til_boot has
-    current code.
+    build by ~til_boot translate~ (before ~til_boot build~) so
+    src/c/ files see current signatures via boot/ headers.
 
 ** Bootstrap does NOT constrain commit structure
 
-  til_boot is frozen at HEAD. It compiles current .til AND current
-  src/c/ into bin/til. Then bin/til regenerates boot/. All in one
-  ~make test~ run.
+  til_boot is frozen at HEAD. It translates current .til to
+  regenerate boot/, then compiles current .til AND current src/c/
+  into bin/til. All in one ~make test~ run.
 
   This means the bootstrap NEVER forces you to split changes across
   multiple commits. You can change .til files, src/c/ files, or both
@@ -31,5 +31,7 @@
 
   - ~make test~ does everything (uses xvfb-run). Commit includes boot/.
   - ~make test_nogui~ skips GUI build tests (no xvfb needed).
+  - ~make bin/til_asan~ ASAN build for memory debugging.
+  - ~make bin/til_debug~ debug build for gdb.
   - ~make clean && make test~ always works.
   - ~make revert_boot~ for recovery.

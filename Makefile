@@ -51,20 +51,27 @@ bin/til_boot: $(RAYLIB_LIB) lib/libffi/.built
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
 bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
-	bin/til_boot build -o bin/til src/til.til
 	bin/til_boot translate src/self/modes.til
 	cp gen/til/modes*.c gen/til/modes*.h boot/ 2>/dev/null || true
 	bin/til_boot translate src/til.til
 	cp gen/til/til*.c gen/til/til*.h boot/ 2>/dev/null || true
+	bin/til_boot build -o bin/til src/til.til
 
 # --- ASAN build (for memory debugging) ---
 
-bin/til_asan: bin/til $(CORE) $(SELF) src/til.til
-	bin/til translate src/til.til
+bin/til_asan: bin/til
 	cc -fsanitize=address -fno-omit-frame-pointer -g -Wno-all \
-	  -Igen/til -Isrc -Isrc/c gen/til/til.c src/c/*.c \
+	  -Iboot -Isrc -Isrc/c boot/til.c boot/modes.c src/c/*.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) \
 	  -fsanitize=address -o bin/til_asan
+
+# --- Debug build (for gdb) ---
+
+bin/til_debug: bin/til
+	cc -g -O0 -Wno-all \
+	  -Iboot -Isrc -Isrc/c boot/til.c boot/modes.c src/c/*.c \
+	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) \
+	  -o bin/til_debug
 
 # --- Test programs ---
 

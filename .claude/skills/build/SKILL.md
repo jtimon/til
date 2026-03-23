@@ -38,6 +38,8 @@ Include ALL modified files: .til, C, boot/, doc/totals.csv, img/totals.svg.
 
 - `make test` does everything (uses xvfb-run for GUI tests).
 - `make test_nogui` skips GUI build tests (no xvfb needed).
+- `make bin/til_asan` ASAN build for memory debugging.
+- `make bin/til_debug` debug build for gdb.
 - Remote agents: use `make test_nogui`.
 - Never edit boot/ files manually.
 - If tests fail, fix your code and repeat.
