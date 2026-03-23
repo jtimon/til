@@ -1,5 +1,20 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #107 Core methods return shallow where possible
+  All frequently-called methods now return by value instead of
+  heap-allocated pointers:
+  - str.til: contains, starts_with, ends_with, is_empty (shallow Bool),
+    find, rfind, to_i64 (shallow I64)
+  - vec.til: len (shallow USize)
+  - ast.til: Expr.child_count (shallow USize),
+    enum_has_payloads (shallow Bool)
+  - map.til: has (shallow Bool)
+  - set.til: has (shallow Bool)
+  - Auto-generated comparison methods (eq, lt, gt, neq, lte, gte)
+    via GEN_CMP_FUNC return_is_shallow in initer.c
+  - All C dereferences (*Str_eq, *Map_has, *Set_has, *Str_rfind,
+    *enum_has_payloads) removed from src/c/ callers
+
 * FIXED #50 Stack allocation for all struct/enum types
   All non-own, non-global, non-ref struct/enum local variables are now
   stack-allocated instead of heap-allocated via malloc.

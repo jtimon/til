@@ -7,17 +7,7 @@
 * [0/12] Pre
 
 
-** OPEN #107 Core methods should return shallow where possible
-  Many frequently-called methods return heap-allocated values that
-  are immediately unboxed and freed by callers:
-  - ~Vec.len~, ~Str.len~, ~Expr.child_count~ return ~USize *~
-  - Auto-generated comparison methods (~eq~, ~neq~, ~lt~, ~gt~,
-    ~lte~, ~gte~) return ~Bool *~
 
-  These should return shallow (~USize~ / ~Bool~ by value). Blocked
-  by C callers in src/c/ that dereference the return (~*func()~).
-  As #39 translates more C to til, fewer callers need updating.
-  Can be done incrementally per function as its C callers disappear.
 
 ** OPEN #106 For-in loop counter should be stack-allocated after #50
   The for-in loop counter is still heap-allocated:
