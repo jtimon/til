@@ -303,10 +303,11 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
 main := proc(args: ..Str) {
     wall_start := clock_ms()
 
-    // Parse args: -jN, -no-interp, -no-run
+    // Parse args: -jN, -no-interp, -no-run, --no-gui
     mut j : USize = get_thread_count().to_usize()
     mut en_interp := 1
     mut en_run := 1
+    mut en_gui := 1
     mut i : USize = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
@@ -316,6 +317,7 @@ main := proc(args: ..Str) {
         }
         if arg.eq("-no-interp") { en_interp = 0 }
         if arg.eq("-no-run") { en_run = 0 }
+        if arg.eq("--no-gui") { en_gui = 0 }
         i = i.add(1)
     }
 
@@ -426,21 +428,23 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "")
 
     // === build tests (build + run with timeout) ===
-    gui_files := array("Str",
-        "src/examples/gui_hello.til", "src/examples/snake.til",
-        "src/examples/piano.til", "src/examples/music.til",
-        "src/examples/font_test.til", "src/examples/minesweeper.til",
-        "src/examples/popcorn.til", "src/examples/chess.til",
-        "src/examples/go.til", "src/examples/editor.til",
-        "src/examples/game_of_life.til")
-    for gf : Str in gui_files {
-        bn := test_basename(gf)
-        mut run_args := ""
-        if bn.eq("popcorn") { run_args = " --mute" }
-        add_single(tests, "build_".concat(bn), "build", 124, "",
-                   TIL.concat(" build ").concat(gf)
-                       .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
-                       .concat(" bin/").concat(bn).concat(run_args))
+    if en_gui.eq(1) {
+        gui_files := array("Str",
+            "src/examples/gui_hello.til", "src/examples/snake.til",
+            "src/examples/piano.til", "src/examples/music.til",
+            "src/examples/font_test.til", "src/examples/minesweeper.til",
+            "src/examples/popcorn.til", "src/examples/chess.til",
+            "src/examples/go.til", "src/examples/editor.til",
+            "src/examples/game_of_life.til")
+        for gf : Str in gui_files {
+            bn := test_basename(gf)
+            mut run_args := ""
+            if bn.eq("popcorn") { run_args = " --mute" }
+            add_single(tests, "build_".concat(bn), "build", 124, "",
+                       TIL.concat(" build ").concat(gf)
+                           .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                           .concat(" bin/").concat(bn).concat(run_args))
+        }
     }
 
     // === Run all tests in parallel ===

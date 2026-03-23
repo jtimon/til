@@ -5,13 +5,14 @@
 # make clean    Remove all build artifacts
 # make help     Show this help
 #
-# bin/til_boot  Built from last commit via git. Always safe. Never fails.
-# bin/til       Built by til_boot from current .til sources.
-#               When changes break things, bin/til fails -- til_boot is fine.
+# bin/til_boot  Built from last commit via git (boot/ + src/c/ from HEAD).
+#               Completely isolated from uncommitted changes. Always safe.
+# bin/til       Built by til_boot from ALL current sources (.til + src/c/).
+#               Both .til and C changes take effect immediately.
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_headless revert_boot help
+.PHONY: all clean test test_nogui revert_boot help
 
 all: bin/til
 
@@ -79,10 +80,10 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 # --- Test suite ---
 
 test: bin/til bin/test_runner bin/plot bin/tests
-	bin/tests $(if $(J),-j$(J))
-
-test_headless: bin/til bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
+
+test_nogui: bin/til bin/test_runner bin/plot bin/tests
+	bin/tests --no-gui $(if $(J),-j$(J))
 
 # --- Utilities ---
 

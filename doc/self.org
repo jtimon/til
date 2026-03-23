@@ -2,10 +2,34 @@
 
   See Makefile header comments and ~make help~ for the full reference.
 
-  Key concepts:
-  - ~bin/til_boot~: built from last commit via git. Always works.
-  - ~bin/til~: built by til_boot from current .til sources.
-  - ~boot/~: generated C, committed for til_boot. Regenerated every build.
-  - ~make test~ does everything. Commit includes boot/.
+** Key concepts
+
+  - ~bin/til_boot~: built entirely from the last commit via git.
+    Uses HEAD's boot/ AND HEAD's src/c/. Completely isolated from
+    any uncommitted changes. Always safe. Never fails.
+  - ~bin/til~: built by til_boot from ALL current sources (.til AND
+    src/c/). Both .til and C changes take effect immediately.
+  - ~boot/~: generated C, committed for til_boot. Regenerated every
+    build by ~bin/til translate~ so the next commit's til_boot has
+    current code.
+
+** Bootstrap does NOT constrain commit structure
+
+  til_boot is frozen at HEAD. It compiles current .til AND current
+  src/c/ into bin/til. Then bin/til regenerates boot/. All in one
+  ~make test~ run.
+
+  This means the bootstrap NEVER forces you to split changes across
+  multiple commits. You can change .til files, src/c/ files, or both
+  at the same time. Commit structure is purely a matter of what makes
+  sense for the work -- the self-hosting build imposes no constraints.
+
+  If you think you need multiple commits "for bootstrap reasons",
+  you are wrong. Re-read this section.
+
+** Commands
+
+  - ~make test~ does everything (uses xvfb-run). Commit includes boot/.
+  - ~make test_nogui~ skips GUI build tests (no xvfb needed).
   - ~make clean && make test~ always works.
   - ~make revert_boot~ for recovery.

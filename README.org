@@ -6,7 +6,16 @@ A programming language with ownership semantics, type inference, and compile-tim
 garbage collection. This is the second implementation attempt, written in C. The
 first attempt in Rust lives at https://github.com/jtimon/rstil.
 
+** Dependencies
+
+- ~gcc~ and ~make~
+- ~xvfb~ (for GUI tests)
+
 ** Build
+
+~bin/til_boot~ is built entirely from the last commit (via git).
+~bin/til~ is built from all current sources (.til and C). The
+self-hosting bootstrap does not constrain commit structure.
 
 #+begin_src sh
 make
@@ -16,18 +25,23 @@ make
 
 Interpret a program:
 #+begin_src sh
-bin/til_bootstrap interpret program.til
+bin/til interpret program.til
 #+end_src
 
 Compile to C and run:
 #+begin_src sh
-bin/til_bootstrap run program.til
+bin/til run program.til
 #+end_src
 
 ** Test
 
 #+begin_src sh
 make test
+#+end_src
+
+Without GUI tests (no xvfb needed):
+#+begin_src sh
+make test_nogui
 #+end_src
 
 ** Performance

@@ -1,5 +1,14 @@
 * Codex Environment Notes
 
+** Bootstrap
+
+=til_boot= is built entirely from HEAD (boot/ + src/c/ via git).
+Completely isolated from uncommitted changes. =bin/til= is built from
+ALL current sources (.til AND src/c/). The self-hosting bootstrap does
+NOT constrain commit structure -- it never forces splitting changes
+across commits. Commit structure is a matter of what makes sense for
+the work. See =doc/self.org= for details.
+
 ** Headless Test Workflow
 
 In Codex sessions, normal shell commands may run inside a remapped user
@@ -10,7 +19,7 @@ build tests fail with =exit=139 expected=124=.
 
 Symptoms:
 
-- =make test= or =make test_headless= from the sandboxed shell reports the GUI
+- =make test= from the sandboxed shell reports the GUI
   build tests failing with =exit=139 expected=124=
 - direct GUI runs show =X11: Failed to open display=
 - =xvfb-run= stderr contains:
@@ -21,10 +30,10 @@ Verified fix for Codex:
 
 - run GUI/headless validation outside the sandboxed user namespace
 - in practice, use an escalated command for:
-  - =make clean && make test_headless=
+  - =make clean && make test=
 
 Verified result:
 
-- host-namespace run of =make clean && make test_headless= passes with =73/73=
+- host-namespace run of =make clean && make test= passes with =73/73=
 - sandboxed run is not a trustworthy gate for GUI/headless validation in this
   repo
