@@ -51,9 +51,9 @@ bin/til_boot: $(RAYLIB_LIB) lib/libffi/.built
 
 bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	bin/til_boot build -o bin/til src/til.til
-	bin/til_boot translate src/self/modes.til
+	bin/til translate src/self/modes.til
 	cp gen/til/modes*.c gen/til/modes*.h boot/ 2>/dev/null || true
-	bin/til_boot translate src/til.til
+	bin/til translate src/til.til
 	cp gen/til/til*.c gen/til/til*.h boot/ 2>/dev/null || true
 
 # --- ASAN build (for memory debugging) ---

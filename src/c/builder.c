@@ -129,7 +129,7 @@ static Expr *find_callee_fdef(Str *name);
 // Track hoisted scalar locals (stack values instead of heap pointers)
 static Set shallow_locals;
 static Map shallow_local_types; // name → C type string (for pointer-sign correctness)
-static Set unsafe_to_hoist;
+static Set unsafe_to_hoist; // variables passed as own args (can't stack-allocate, callee frees)
 
 static Bool is_shallow_local(const char *name) {
     Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
@@ -148,16 +148,6 @@ static Bool use_dot_access(Expr *obj) {
     return 0;
 }
 
-static const char *get_shallow_ctype(const char *name) {
-    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
-    if (*Map_has(&shallow_local_types, s)) {
-        Str **p = Map_get(&shallow_local_types, s);
-        Str_delete(s, &(Bool){1});
-        return (const char *)(*p)->c_str;
-    }
-    Str_delete(s, &(Bool){1});
-    return NULL;
-}
 
 // Block-scoped emit_body: clone shallow_locals/shallow_local_types before
 // entering a block, restore after. Inner declarations stay local to the block.
@@ -173,6 +163,33 @@ static void emit_body_scoped(FILE *f, Expr *body, I32 depth) {
 // A variable is unsafe to hoist if:
 // - It appears in a ref declaration RHS: "ref y : T = x"
 // - It's passed as arg to a ref-returning function
+// Mark variables passed as own args as unsafe to hoist (callee will free them)
+static void collect_unsafe_to_hoist(Expr *body) {
+    for (U32 i = 0; i < body->children.count; i++) {
+        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
+        // Check fcalls for own-param args
+        if (stmt->data.tag == ExprData_TAG_FCall || (stmt->data.tag == ExprData_TAG_Decl && stmt->children.count > 0)) {
+            Expr *fc = (stmt->data.tag == ExprData_TAG_FCall) ? stmt : Expr_child(stmt, &(USize){(USize)(0)});
+            if (fc->data.tag == ExprData_TAG_FCall) {
+                for (U32 a = 1; a < fc->children.count; a++) {
+                    Expr *arg = Expr_child(fc, &(USize){(USize)(a)});
+                    if (arg->data.tag == ExprData_TAG_Ident && arg->is_own_arg) {
+                        Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
+                    }
+                }
+            }
+        }
+        if (stmt->data.tag == ExprData_TAG_If) {
+            for (U32 c = 1; c < stmt->children.count; c++)
+                collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(c)}));
+        }
+        if (stmt->data.tag == ExprData_TAG_While && stmt->children.count > 1)
+            collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(1)}));
+        if (stmt->data.tag == ExprData_TAG_Body)
+            collect_unsafe_to_hoist(stmt);
+    }
+}
+
 // Resolve the callee name from an fcall's first child
 static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
     *allocated = 0;
@@ -191,78 +208,6 @@ static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
     return NULL;
 }
 
-// Check all fcalls in an expression tree and mark idents passed to mut params as unsafe
-static void check_fcall_mut_args(Expr *e) {
-    if (!e) return;
-    if (e->data.tag == ExprData_TAG_FCall) {
-        // Check fn_sig for function pointer calls
-        Expr *fdef = e->fn_sig;
-        if (!fdef) {
-            Bool allocated = 0;
-            Str *callee = resolve_callee_name(e, &allocated);
-            if (callee) {
-                fdef = find_callee_fdef(callee);
-                if (allocated) Str_delete(callee, &(Bool){1});
-            }
-        }
-        if (fdef && fdef->data.data.FuncDef.params.count > 0) {
-            for (U32 a = 1; a < e->children.count; a++) {
-                U32 pi = a - 1;
-                if (pi < fdef->data.data.FuncDef.nparam && ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->is_mut) {
-                    Expr *arg = Expr_child(e, &(USize){(USize)(a)});
-                    if (arg->data.tag == ExprData_TAG_Ident) {
-                        Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
-                    }
-                }
-            }
-        }
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        check_fcall_mut_args(Expr_child(e, &(USize){(USize)(i)}));
-    }
-}
-
-static void collect_unsafe_to_hoist(Expr *body) {
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-
-        // Check all fcalls for mut param args
-        check_fcall_mut_args(stmt);
-
-        if (stmt->data.tag == ExprData_TAG_Decl && stmt->data.data.Decl.is_ref) {
-            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (rhs->data.tag == ExprData_TAG_Ident) {
-                Set_add(&unsafe_to_hoist, Str_clone(&rhs->data.data.Ident));
-            }
-            if (rhs->data.tag == ExprData_TAG_FCall) {
-                Bool allocated = 0;
-                Str *callee = resolve_callee_name(rhs, &allocated);
-                if (callee) {
-                    Expr *fdef = find_callee_fdef(callee);
-                    if (fdef && fdef->data.data.FuncDef.return_is_ref) {
-                        for (U32 a = 1; a < rhs->children.count; a++) {
-                            Expr *arg = Expr_child(rhs, &(USize){(USize)(a)});
-                            if (arg->data.tag == ExprData_TAG_Ident) {
-                                Set_add(&unsafe_to_hoist, Str_clone(&arg->data.data.Ident));
-                            }
-                        }
-                    }
-                    if (allocated) Str_delete(callee, &(Bool){1});
-                }
-            }
-        }
-        if (stmt->data.tag == ExprData_TAG_If) {
-            for (U32 c = 1; c < stmt->children.count; c++)
-                collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(c)}));
-        }
-        if (stmt->data.tag == ExprData_TAG_While && stmt->children.count > 1) {
-            collect_unsafe_to_hoist(Expr_child(stmt, &(USize){(USize)(1)}));
-        }
-        if (stmt->data.tag == ExprData_TAG_Body) {
-            collect_unsafe_to_hoist(stmt);
-        }
-    }
-}
 
 
 static Bool is_shallow_param(const char *name) {
@@ -771,24 +716,13 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
     if (e->data.tag == ExprData_TAG_Ident &&
         (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
          is_shallow_local((const char *)e->data.data.Ident.c_str))) {
-        // Shallow param/local is a value — need a pointer
         if (e->is_own_arg) {
-            // Callee will free() this pointer — must malloc a copy
-            const char *ctype = get_shallow_ctype((const char *)e->data.data.Ident.c_str);
-            if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
-            fprintf(f, "({ %s *_oa = malloc(sizeof(%s)); *_oa = ", ctype, ctype);
-            emit_expr(f, e, depth);
-            fprintf(f, "; _oa; })");
-        } else if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum) &&
-                   is_shallow_local((const char *)e->data.data.Ident.c_str)) {
-            fprintf(f, "&%s", e->data.data.Ident.c_str);
+            // Callee takes ownership and frees — must malloc a copy
+            const char *ctype = c_type_name(e->til_type, &e->struct_name);
+            fprintf(f, "({ %s *_oa = malloc(sizeof(%s)); *_oa = %s; _oa; })", ctype, ctype, e->data.data.Ident.c_str);
         } else {
-            // Scalar value — compound literal wrapper
-            const char *ctype = get_shallow_ctype((const char *)e->data.data.Ident.c_str);
-            if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
-            fprintf(f, "&(%s){", ctype);
-            emit_expr(f, e, depth);
-            fprintf(f, "}");
+            // Stack variable — take address directly
+            fprintf(f, "&%s", e->data.data.Ident.c_str);
         }
     } else if (e->data.tag == ExprData_TAG_FCall && e->struct_name.count > 0 && e->children.count > 0 &&
                Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
@@ -952,7 +886,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 fprintf(f, "%s *%s = ", ctype, e->data.data.Decl.name.c_str);
-                emit_expr(f, rhs, depth);
+                emit_as_ptr(f, rhs, depth);
                 fprintf(f, ";\n");
             } else {
                 Str *_sn = &e->struct_name;
@@ -961,12 +895,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, &e->data.data.Decl.name);
-                Str *_uth_key = Str_clone(&e->data.data.Decl.name);
                 Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
                                  e->til_type.tag != TilType_TAG_FuncPtr &&
                                  e->til_type.tag != TilType_TAG_Dynamic &&
-                                 !*Set_has(&unsafe_to_hoist, _uth_key);
-                Str_delete(_uth_key, &(Bool){1});
+                                 !*Set_has(&unsafe_to_hoist, &e->data.data.Decl.name);
                 if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
                     *Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
                     // Struct constructor
@@ -1765,7 +1697,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
     // Build func_def lookup map (for shallow param lookup at call sites)
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
-    // Initialize shallow_locals and unsafe_to_hoist sets for scalar local hoisting
+    // Initialize shallow_locals and unsafe_to_hoist
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
@@ -2289,6 +2221,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         fprintf(f, "\n");
+        // Collect variables passed as own args (can't stack-allocate)
+        Set_delete(&unsafe_to_hoist, &(Bool){0});
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+        collect_unsafe_to_hoist(program);
     }
 
     // Emit function bodies — all into main .c (#89: monolithic)
@@ -2663,9 +2599,6 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         fprintf(f, "int main(void) {\n");
         emit_ns_inits(f, 1);
         // Collect unsafe-to-hoist for script-level statements
-        Set_delete(&unsafe_to_hoist, &(Bool){0});
-        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
-        collect_unsafe_to_hoist(program);
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             // Skip func/proc/struct defs (already emitted above)

@@ -2345,7 +2345,9 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < (I32)i &&
                     (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+                    Bool is_own_local = (locals[j].decl_index >= 0 &&
+                        Expr_child(body, &(USize){(USize)(locals[j].decl_index)})->data.data.Decl.is_own);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, is_own_local, is_own_local, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
             }
@@ -2393,7 +2395,9 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                         stmt->save_old_delete = true;
                         if (locals[j].struct_name) stmt->struct_name = *locals[j].struct_name;
                     } else {
-                        Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+                        Bool is_own_local = (locals[j].decl_index >= 0 &&
+                        Expr_child(body, &(USize){(USize)(locals[j].decl_index)})->data.data.Decl.is_own);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, is_own_local, is_own_local, stmt);
                         if (del) Vec_push(&new_ch, del);
                     }
                 }
@@ -2410,12 +2414,16 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (locals[j].skip_delete) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+                    Bool is_own_local = (locals[j].decl_index >= 0 &&
+                        Expr_child(body, &(USize){(USize)(locals[j].decl_index)})->data.data.Decl.is_own);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, is_own_local, is_own_local, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
                 // Never used after declaration: free immediately
                 if (locals[j].last_use == -1 && locals[j].decl_index == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+                    Bool is_own_local = (locals[j].decl_index >= 0 &&
+                        Expr_child(body, &(USize){(USize)(locals[j].decl_index)})->data.data.Decl.is_own);
+                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, is_own_local, is_own_local, stmt);
                     if (del) Vec_push(&new_ch, del);
                 }
             }
