@@ -334,8 +334,9 @@ typedef struct StructInstance {
 
 typedef struct EnumInstance {
     Str *enum_name;
-    I32 tag;
-    Value *payload;
+    Expr *enum_def;
+    U8 *data;
+    I32 data_size;
 } EnumInstance;
 
 

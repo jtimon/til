@@ -272,9 +272,7 @@ static Bool h_free(Scope *s, Expr *e, Value *r) {
         if (!cell->val.data.Struct.borrowed)
             free(cell->val.data.Struct.data);
     } else if (cell->val.tag == Value_TAG_Enum) {
-        Value payload = *cell->val.data.Enum.payload;
-        (void)payload;
-        free(cell->val.data.Enum.payload);
+        free(cell->val.data.Enum.data);
     } else if (cell->val.tag == Value_TAG_Ptr) {
         free(cell->val.data.Ptr);
     }
@@ -802,6 +800,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                         case Value_TAG_Boolean: { Bool *p = malloc(sizeof(Bool)); *p = v.data.Boolean; args[i] = p; break; }
                         case Value_TAG_Ptr:    args[i] = v.data.Ptr; break;
                         case Value_TAG_Struct: args[i] = v.data.Struct.data; break;
+                        case Value_TAG_Enum:  args[i] = v.data.Enum.data; break;
                         default:         args[i] = NULL; break;
                     }
                 }
@@ -922,18 +921,93 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         // Payload enum: constructor, get_Variant
         I32 ctor_tag = *enum_variant_tag(enum_def, method);
         if (ctor_tag >= 0) {
-            if (enum_variant_type(enum_def, ctor_tag)->count > 0) {
+            Str *vtype = enum_variant_type(enum_def, ctor_tag);
+            if (vtype->count > 0) {
+                // Payload constructor: eval arg, write into flat buffer
                 Value payload = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
-                *result = val_enum(enum_name, ctor_tag, clone_value(payload));
+                void *pdata = NULL;
+                I32 psz = 0;
+                switch (payload.tag) {
+                case Value_TAG_Int:    pdata = &payload.data.Int; psz = sizeof(I64); break;
+                case Value_TAG_Byte:   pdata = &payload.data.Byte; psz = sizeof(U8); break;
+                case Value_TAG_Short:  pdata = &payload.data.Short; psz = sizeof(I16); break;
+                case Value_TAG_Int32:  pdata = &payload.data.Int32; psz = sizeof(I32); break;
+                case Value_TAG_Uint32: pdata = &payload.data.Uint32; psz = sizeof(U32); break;
+                case Value_TAG_Uint64: pdata = &payload.data.Uint64; psz = sizeof(U64); break;
+                case Value_TAG_Float:  pdata = &payload.data.Float; psz = sizeof(F32); break;
+                case Value_TAG_Boolean: pdata = &payload.data.Boolean; psz = sizeof(Bool); break;
+                case Value_TAG_Struct: pdata = payload.data.Struct.data;
+                    psz = payload.data.Struct.struct_def ? payload.data.Struct.struct_def->total_struct_size : 0;
+                    break;
+                case Value_TAG_Enum:   pdata = payload.data.Enum.data;
+                    psz = payload.data.Enum.data_size;
+                    break;
+                case Value_TAG_Ptr:    pdata = &payload.data.Ptr; psz = sizeof(void *); break;
+                case Value_TAG_Func:   pdata = &payload.data.Func; psz = sizeof(void *); break;
+                default: break;
+                }
+                *result = val_enum_flat(enum_name, enum_def, ctor_tag, pdata, psz);
             } else {
-                *result = val_enum(enum_name, ctor_tag, val_none());
+                // No-payload variant of a payload enum (e.g. Token.Eof)
+                *result = val_enum_flat(enum_name, enum_def, ctor_tag, NULL, 0);
             }
             return 1;
         }
         if (method->count > 4 && memcmp(method->c_str, "get_", 4) == 0) {
             Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
-            *result = clone_value(*v.data.Enum.payload);
-            return 1;
+            // Read payload from flat buffer
+            Str var_name = {.c_str = method->c_str + 4, .count = method->count - 4};
+            I32 vtag = *enum_variant_tag(enum_def, &var_name);
+            Str *vtype = enum_variant_type(enum_def, vtag);
+            void *pptr = enum_payload_ptr(v);
+            // Convert raw payload bytes back to Value
+            if (vtype->count == 3 && memcmp(vtype->c_str, "I64", 3) == 0) { *result = val_i64(*(I64 *)pptr); return 1; }
+            if (vtype->count == 2 && memcmp(vtype->c_str, "U8", 2) == 0) { *result = val_u8(*(U8 *)pptr); return 1; }
+            if (vtype->count == 3 && memcmp(vtype->c_str, "I16", 3) == 0) { *result = val_i16(*(I16 *)pptr); return 1; }
+            if (vtype->count == 3 && memcmp(vtype->c_str, "I32", 3) == 0) { *result = val_i32(*(I32 *)pptr); return 1; }
+            if (vtype->count == 3 && memcmp(vtype->c_str, "U32", 3) == 0) { *result = val_u32(*(U32 *)pptr); return 1; }
+            if (vtype->count == 3 && memcmp(vtype->c_str, "U64", 3) == 0) { *result = val_u64(*(U64 *)pptr); return 1; }
+            if (vtype->count == 3 && memcmp(vtype->c_str, "F32", 3) == 0) { *result = val_f32(*(F32 *)pptr); return 1; }
+            if (vtype->count == 4 && memcmp(vtype->c_str, "Bool", 4) == 0) { *result = val_bool(*(Bool *)pptr); return 1; }
+            if (vtype->count == 3 && memcmp(vtype->c_str, "Str", 3) == 0) {
+                *result = make_str_value((const char *)((Str *)pptr)->c_str, ((Str *)pptr)->count);
+                return 1;
+            }
+            // Check for function pointer (FuncSig) payload
+            {
+                Cell *tc = scope_get(scope, vtype);
+                if (tc && tc->val.tag == Value_TAG_Func) {
+                    Expr *def = (Expr *)tc->val.data.Func;
+                    if (def->data.tag == ExprData_TAG_FuncDef) {
+                        // FuncSig: payload is a function pointer (void *)
+                        void *fp = *(void **)pptr;
+                        *result = (Value){.tag = Value_TAG_Func, .data.Func = fp};
+                        return 1;
+                    }
+                }
+            }
+            // Struct/enum payload: copy raw bytes, look up struct def
+            {
+                Expr *payload_sdef = NULL;
+                Cell *tc = scope_get(scope, vtype);
+                if (tc && tc->val.tag == Value_TAG_Func) {
+                    Expr *def = (Expr *)tc->val.data.Func;
+                    if (def->data.tag == ExprData_TAG_StructDef || def->data.tag == ExprData_TAG_EnumDef)
+                        payload_sdef = def;
+                }
+                I32 psz = payload_sdef ? payload_sdef->total_struct_size : (enum_flat_size(enum_def) - ENUM_PAYLOAD_OFFSET);
+                if (psz <= 0) psz = sizeof(I64);
+                U8 *copy = malloc(psz);
+                memcpy(copy, pptr, psz);
+                Value result_v;
+                result_v.tag = Value_TAG_Struct;
+                result_v.data.Struct.struct_name = vtype;
+                result_v.data.Struct.struct_def = payload_sdef;
+                result_v.data.Struct.data = copy;
+                result_v.data.Struct.borrowed = 0;
+                *result = result_v;
+                return 1;
+            }
         }
     }
 
@@ -943,7 +1017,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
         I32 tag = *enum_variant_tag(enum_def, &var_name);
         Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(1)}));
         if (v.tag == Value_TAG_Enum)
-            *result = val_bool(v.data.Enum.tag == tag);
+            *result = val_bool(enum_tag(v) == tag);
         else
             *result = val_bool(v.data.Int32 == tag);
         return 1;

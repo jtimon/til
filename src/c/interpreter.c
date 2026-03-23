@@ -213,13 +213,19 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u32(*(U32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return val_f32(*(F32 *)ptr);
     if (ftype && (ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return val_bool(*(Bool *)ptr);
-    // Enum field: tagged enums stored as pointer to EnumInstance, simple enums as I32
+    // Enum field: payload enums stored as EnumInstance *, simple enums as I32
     if (fdecl->data.data.Decl.field_struct_def &&
         fdecl->data.data.Decl.field_struct_def->data.tag == ExprData_TAG_EnumDef) {
-        if (enum_has_payloads(fdecl->data.data.Decl.field_struct_def)) {
+        Expr *edef = fdecl->data.data.Decl.field_struct_def;
+        if (enum_has_payloads(edef)) {
             EnumInstance *ei = *(EnumInstance **)ptr;
-            if (ei) return val_enum(ei->enum_name, ei->tag, clone_value(*ei->payload));
-            return val_i32(0);
+            if (!ei) return val_enum_simple(ftype, 0);
+            // Clone: allocate new flat buffer, copy data
+            I32 etag = *(I32 *)ei->data;
+            I32 psz = ei->data_size - ENUM_PAYLOAD_OFFSET;
+            if (psz < 0) psz = 0;
+            return val_enum_flat(ei->enum_name, edef, etag,
+                                 ei->data + ENUM_PAYLOAD_OFFSET, psz);
         }
         return val_i32(*(I32 *)ptr);
     }
@@ -281,9 +287,15 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
         break;
     case Value_TAG_Enum: {
         EnumInstance *existing = *(EnumInstance **)ptr;
-        if (existing) { free_value(*existing->payload); free(existing->payload); free(existing); }
-        *(EnumInstance **)ptr = malloc(sizeof(EnumInstance));
-        **(EnumInstance **)ptr = val.data.Enum;
+        if (existing) { free(existing->data); free(existing); }
+        EnumInstance *ei = malloc(sizeof(EnumInstance));
+        *ei = val.data.Enum;
+        // Deep-copy the flat data buffer
+        I32 total = val.data.Enum.data_size;
+        if (total < (I32)sizeof(I64)) total = sizeof(I64);
+        ei->data = malloc(total);
+        memcpy(ei->data, val.data.Enum.data, total);
+        *(EnumInstance **)ptr = ei;
         break;
     }
     case Value_TAG_Ptr:  *(void **)ptr = val.data.Ptr; break;
@@ -344,8 +356,18 @@ Value clone_value(Value v) {
     case Value_TAG_Uint64:  return val_u64(v.data.Uint64);
     case Value_TAG_Float:  return val_f32(v.data.Float);
     case Value_TAG_Boolean: return val_bool(v.data.Boolean);
-    case Value_TAG_Enum: return val_enum(v.data.Enum.enum_name, v.data.Enum.tag,
-                                    clone_value(*v.data.Enum.payload));
+    case Value_TAG_Enum: {
+        EnumInstance *src = &v.data.Enum;
+        I32 total = src->data_size;
+        U8 *buf = malloc(total);
+        memcpy(buf, src->data, total);
+        Value r;
+        r.tag = Value_TAG_Enum;
+        r.data.Enum.enum_name = src->enum_name;
+        r.data.Enum.enum_def = src->enum_def;
+        r.data.Enum.data = buf;
+        return r;
+    }
     case Value_TAG_Struct: {
         StructInstance *src = &v.data.Struct;
         StructInstance *dst = malloc(sizeof(StructInstance));
@@ -401,17 +423,20 @@ Value clone_value(Value v) {
                 }
                 continue;
             }
-            // Tagged enum fields: clone the EnumInstance pointer
+            // Tagged enum fields: clone the EnumInstance pointer + flat buffer
             if (field->data.data.Decl.field_struct_def &&
                 field->data.data.Decl.field_struct_def->data.tag == ExprData_TAG_EnumDef &&
                 enum_has_payloads(field->data.data.Decl.field_struct_def)) {
                 EnumInstance *ei = *(EnumInstance **)((char *)src->data + foff);
                 if (ei) {
+                    Expr *edef = field->data.data.Decl.field_struct_def;
+                    I32 total = edef->total_struct_size;
+                    if (total < (I32)sizeof(I64)) total = sizeof(I64);
                     EnumInstance *clone = malloc(sizeof(EnumInstance));
                     clone->enum_name = ei->enum_name;
-                    clone->tag = ei->tag;
-                    clone->payload = malloc(sizeof(Value));
-                    *clone->payload = clone_value(*ei->payload);
+                    clone->enum_def = ei->enum_def;
+                    clone->data = malloc(total);
+                    memcpy(clone->data, ei->data, total);
                     *(EnumInstance **)((char *)dst->data + foff) = clone;
                 }
                 continue;
@@ -459,9 +484,8 @@ void free_value(Value v) {
     case Value_TAG_Float:  break;
     case Value_TAG_Boolean: break;
     case Value_TAG_Enum:
-        if (v.data.Enum.payload) {
-            free_value(*v.data.Enum.payload);
-            free(v.data.Enum.payload);
+        if (v.data.Enum.data) {
+            free(v.data.Enum.data);
         }
         break;
     case Value_TAG_Ptr:
@@ -484,9 +508,16 @@ Bool values_equal(Value a, Value b) {
     case Value_TAG_Float:  return a.data.Float == b.data.Float;
     case Value_TAG_Byte:   return a.data.Byte == b.data.Byte;
     case Value_TAG_Boolean: return a.data.Boolean == b.data.Boolean;
-    case Value_TAG_Enum:
-        if (a.data.Enum.tag != b.data.Enum.tag) return 0;
-        return values_equal(*a.data.Enum.payload, *b.data.Enum.payload);
+    case Value_TAG_Enum: {
+        I32 at = enum_tag(a), bt = enum_tag(b);
+        if (at != bt) return 0;
+        // Compare payload bytes if both have enum_def
+        {
+            I32 psz = a.data.Enum.data_size - ENUM_PAYLOAD_OFFSET;
+            if (psz > 0) return memcmp(enum_payload_ptr(a), enum_payload_ptr(b), psz) == 0;
+        }
+        return 1;
+    }
     case Value_TAG_Ptr:  return a.data.Ptr == b.data.Ptr;
     case Value_TAG_Func: return a.data.Func == b.data.Func;
     case Value_TAG_None:
@@ -863,8 +894,9 @@ Value eval_expr(Scope *scope, Expr *e) {
                     if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
                         I32 tag = *enum_variant_tag(((Expr*)tc->val.data.Func), fname);
                         if (tag >= 0) {
-                            if (enum_has_payloads(((Expr*)tc->val.data.Func)))
-                                return val_enum(sname, tag, val_none());
+                            Expr *edef = (Expr*)tc->val.data.Func;
+                            if (enum_has_payloads(edef))
+                                return val_enum_flat(sname, edef, tag, NULL, 0);
                             else
                                 return val_i32(tag);
                         }
@@ -1101,9 +1133,14 @@ static void eval_body(Scope *scope, Expr *body) {
                         break;
                     case Value_TAG_Enum: {
                         EnumInstance *existing = *(EnumInstance **)ptr;
-                        if (existing) { free_value(*existing->payload); free(existing->payload); free(existing); }
-                        *(EnumInstance **)ptr = malloc(sizeof(EnumInstance));
-                        **(EnumInstance **)ptr = val.data.Enum;
+                        if (existing) { free(existing->data); free(existing); }
+                        EnumInstance *ei = malloc(sizeof(EnumInstance));
+                        *ei = val.data.Enum;
+                        I32 etotal = val.data.Enum.data_size;
+                        if (etotal < (I32)sizeof(I64)) etotal = sizeof(I64);
+                        ei->data = malloc(etotal);
+                        memcpy(ei->data, val.data.Enum.data, etotal);
+                        *(EnumInstance **)ptr = ei;
                         break;
                     }
                     case Value_TAG_Ptr: *(void **)ptr = val.data.Ptr; break;

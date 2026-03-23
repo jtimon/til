@@ -9,17 +9,6 @@
 
 
 
-** OPEN #108 Unify interpreter and builder memory layouts
-  The interpreter uses different memory representations than the
-  compiled C code. For example, enums are stored as ~EnumInstance~
-  (~Str *enum_name~, ~I32 tag~, ~Value *payload~) in the interpreter,
-  but as ~{ tag_enum tag; union data; }~ in compiled C. This prevents
-  generic ext_funcs like ~is_variant~ and ~get_payload~ from working
-  in interpreted mode (they assume the compiled layout).
-
-  Structs and other types may have similar mismatches. The interpreter
-  should use the same memory layout as the builder so that ext_funcs
-  work identically in both modes.
 
 ** OPEN #106 For-in loop counter should be stack-allocated after #50
   The for-in loop counter is still heap-allocated:
@@ -29,7 +18,6 @@
   delete~). Both should use stack allocation. Easy builder fix.
 
 ** WIP #105 Replace per-variant is_*/get_* with generic ext_funcs
-  :DEPENDENCY: #108
   Auto-generated ~is_Variant()~ and ~get_Variant()~ methods generate
   N functions per enum. Replace with generic ~is_variant(self, other)~
   and ~get_payload(self)~ ext_funcs (declared in core.til, implemented
@@ -37,8 +25,13 @@
 
   Progress:
   - ~is_variant~ and ~get_payload~ ext_funcs added (ext.c, core.til)
-  - Work in compiled mode, pass all tests
+  - Work in both compiled and interpreted modes (#108 fixed)
   - is_* methods now return shallow Bool (#107 fixed this)
+
+  Remaining:
+  - Replace all .is_X() calls with .is_variant() across codebase
+  - Replace all .get_X() calls with .get_payload()
+  - Remove auto-generation from initer.c and builder.c
 
   Remaining:
   - Fix #108 so is_variant/get_payload work in interpreter

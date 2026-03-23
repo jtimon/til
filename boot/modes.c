@@ -339,8 +339,9 @@ typedef struct StructInstance {
 
 typedef struct EnumInstance {
     Str *enum_name;
-    I32 tag;
-    Value *payload;
+    Expr *enum_def;
+    U8 *data;
+    I32 data_size;
 } EnumInstance;
 
 
@@ -30516,7 +30517,7 @@ U32 *StructInstance_size(void) {
 Bool EnumInstance_eq(EnumInstance * a, EnumInstance * b) {
     (void)a;
     (void)b;
-    Bool _t4871 = I32_eq(a->tag, b->tag);
+    Bool _t4871 = is_variant(a, b);
     (void)_t4871;
     return _t4871;
 }
@@ -30541,8 +30542,9 @@ EnumInstance * EnumInstance_clone(EnumInstance * self) {
     (void)self;
     EnumInstance _t4875; memset(&_t4875, 0, sizeof(EnumInstance));
     _t4875.enum_name = self->enum_name;
-    _t4875.tag = self->tag;
-    _t4875.payload = self->payload;
+    _t4875.enum_def = self->enum_def;
+    _t4875.data = self->data;
+    _t4875.data_size = 0;
     (void)_t4875;
     { EnumInstance *_r = malloc(sizeof(EnumInstance)); *_r = _t4875; return _r; }
 }

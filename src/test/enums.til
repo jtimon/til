@@ -295,27 +295,44 @@ test_variant_func_arg := test() {
     expect(__LOC__, check_variant(Token.Eof, "Eof"), "Eof starts with Eof")
 }
 
-// --- is_variant / get_payload (generic tag comparison + payload access) ---
-// These ext_funcs work in compiled mode but not interpreted mode
-// because the interpreter uses a different memory layout for enums
-// (EnumInstance with Str *enum_name) vs compiled C (tag + union).
-// See #108 for unifying interpreter/builder memory layouts.
-//
-// test_is_variant_simple := test() {
-//     c := Color.Green
-//     expect(__LOC__, is_variant(c, Color.Green), "Green is_variant Green")
-//     expect(__LOC__, is_variant(c, Color.Red).not(), "Green not is_variant Red")
-// }
-//
-// test_is_variant_payload := test() {
-//     t := Token.Num(42)
-//     expect(__LOC__, is_variant(t, Token.Num(0)), "Num is_variant Num")
-//     expect(__LOC__, is_variant(t, Token.Eof).not(), "Num not is_variant Eof")
-//     expect(__LOC__, is_variant(t, Token.Name("")).not(), "Num not is_variant Name")
-// }
-//
-// test_get_payload := test() {
-//     t := Token.Num(42)
-//     ref val : I64 = get_payload(t)
-//     assert_eq(__LOC__, val, 42)
-// }
+# --- is_variant (generic tag comparison) ---
+
+test_is_variant_simple := test() {
+    c := Color.Green
+    expect(__LOC__, is_variant(c, Color.Green), "Green is_variant Green")
+    expect(__LOC__, is_variant(c, Color.Red).not(), "Green not is_variant Red")
+}
+
+test_is_variant_payload := test() {
+    t := Token.Num(42)
+    expect(__LOC__, is_variant(t, Token.Num(0)), "Num is_variant Num")
+    expect(__LOC__, is_variant(t, Token.Eof).not(), "Num not is_variant Eof")
+    expect(__LOC__, is_variant(t, Token.Name("")).not(), "Num not is_variant Name")
+}
+
+test_is_variant_payload_eof := test() {
+    t := Token.Eof
+    expect(__LOC__, is_variant(t, Token.Eof), "Eof is_variant Eof")
+    expect(__LOC__, is_variant(t, Token.Num(0)).not(), "Eof not is_variant Num")
+}
+
+# --- get_payload (generic payload access) ---
+
+test_get_payload := test() {
+    t := Token.Num(42)
+    ref val : I64 = get_payload(t)
+    assert_eq(__LOC__, val, 42)
+}
+
+test_get_payload_str := test() {
+    t := Token.Name("hello")
+    ref val : Str = get_payload(t)
+    assert_eq_str(__LOC__, val, "hello")
+}
+
+test_get_payload_struct := test() {
+    s := Shape.Dot(Point(x = 3, y = 4))
+    ref p : Point = get_payload(s)
+    assert_eq(__LOC__, p.x, 3)
+    assert_eq(__LOC__, p.y, 4)
+}

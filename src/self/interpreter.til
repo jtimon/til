@@ -25,11 +25,12 @@ StructInstance := struct {
 
 EnumInstance := struct {
     ref mut enum_name : Str = NULL
-    mut tag : I32 = 0
-    ref mut payload : Value = NULL
+    ref mut enum_def : Expr = NULL
+    ref mut data : U8 = NULL
+    mut data_size : I32 = 0
     namespace:
     eq := func(a: EnumInstance, b: EnumInstance) returns shallow Bool {
-        return a.tag.eq(b.tag)
+        return is_variant(a, b)
     }
     to_str := func(self: EnumInstance) returns Str {
         if is_null(self.enum_name) { return "EnumInstance" }
@@ -37,8 +38,8 @@ EnumInstance := struct {
     }
     clone := func(self: EnumInstance) returns EnumInstance {
         return EnumInstance(enum_name = self.enum_name,
-                           tag = self.tag,
-                           payload = self.payload)
+                           enum_def = self.enum_def,
+                           data = self.data)
     }
     delete := proc(own self: EnumInstance, call_free: Bool = true) {}
 }

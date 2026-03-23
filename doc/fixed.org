@@ -1,5 +1,18 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #108 Unify interpreter and builder enum memory layout
+  Changed EnumInstance from ~{ Str *enum_name, I32 tag, Value *payload }~
+  to ~{ Str *enum_name, Expr *enum_def, U8 *data, I32 data_size }~.
+  The ~data~ buffer uses the same flat layout as compiled C:
+  ~{ I32 tag; payload... }~ at ENUM_PAYLOAD_OFFSET (8 bytes).
+
+  Updated all interpreter enum operations (read_field, write_field,
+  clone_value, free_value, values_equal, constructors, is_Variant,
+  get_Variant, FFI arg passing) to use the flat buffer layout.
+
+  This enables generic ~is_variant~ and ~get_payload~ ext_funcs to
+  work in both interpreted and compiled modes.
+
 * FIXED #107 Core methods return shallow where possible
   All frequently-called methods now return by value instead of
   heap-allocated pointers:
