@@ -5,11 +5,6 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
-
-
-
-
-
 ** OPEN #106 For-in loop counter should be stack-allocated after #50
   The for-in loop counter is still heap-allocated:
   ~U32 *_rc = malloc(sizeof(U32))~. After #50 (stack allocation for
@@ -28,10 +23,95 @@
   - Work in both compiled and interpreted modes (#108 fixed)
   - is_* methods now return shallow Bool (#107 fixed this)
 
-  Remaining:
-  - Replace all .is_X() calls with .is_variant() across codebase
-  - Replace all .get_X() calls with .get_payload()
-  - Remove auto-generation from initer.c and builder.c
+*** Step 1: Builder fix for bare payload variant references
+
+  When ~Token.Num~ (payload variant without args) is used as an
+  expression, the builder emits ~Token_Num()~ which fails because
+  the constructor needs payload args.
+
+  Fix: handle it the same way ~switch~ already handles
+  ~case Token.Num:~ (without payload). The switch desugaring in
+  typer.c (line ~3077) already supports bare variant references
+  for payload enums. Study how it works and apply the same approach
+  in the builder's ~emit_expr~ for ~ExprData_TAG_FieldAccess~.
+
+  The builder needs to emit a value with just the tag set (no
+  payload) when a payload variant is referenced without args.
+  One approach: emit a compound literal ~(Token){.tag = Token_TAG_Num}~.
+
+  Implementation notes from previous attempt:
+
+  1. ~emit_expr~ case ~ExprData_TAG_FieldAccess~ (line ~596):
+     When ~is_ns_field~ and ~TilType_TAG_Enum~, look up the enum
+     body in ~struct_bodies~. If any variant has ~explicit_type~
+     (meaning payloads exist), emit compound literal instead of
+     constructor call. Use ~obj->data.data.Ident~ as fallback if
+     ~obj->struct_name~ is empty.
+
+  2. ~emit_deref~ enum variant path (line ~770):
+     Same logic -- if payload enum, the compound literal is already
+     a value (no ~(*...)~ dereference needed). Simple enums still
+     call the constructor which returns a pointer.
+
+  3. ~struct_bodies~ registration (line ~1799):
+     Add ~ExprData_TAG_EnumDef~ alongside ~ExprData_TAG_StructDef~
+     so enum bodies are in the map.
+
+  4. Can NOT use ~enum_has_payloads()~ because ~struct_bodies~ stores
+     the body (child 0 of EnumDef), not the EnumDef itself. Instead,
+     iterate body children checking ~explicit_type.count > 0~.
+
+  Known issue from previous attempt: after applying the fix,
+  tests.til failed with "incompatible types when returning type
+  'TestKind' but 'TestKind *' was expected" in generated C. The
+  failing .til source line was NOT investigated before the changes
+  were reverted (mistake). The fix: READ the error, find the .til
+  line that generates it, understand why it expects a pointer,
+  and fix that specific issue. Do NOT revert.
+
+*** Step 2: Add tests for bare variant references
+
+  In src/test/enums.til, add tests like:
+  #+begin_src til
+  test_is_variant_bare_payload := test() {
+      t := Token.Num(42)
+      expect(__LOC__, is_variant(t, Token.Num), "bare variant ref")
+  }
+  #+end_src
+
+*** Step 3: Replace all .is_X() with is_variant() in .til files
+
+  Mechanical replacement: ~e.data.is_FCall()~ becomes
+  ~is_variant(e.data, ExprData.FCall)~. Note: ~is_variant~ is a
+  top-level function, NOT a method. Use ~is_variant(x, y)~ syntax,
+  not ~x.is_variant(y)~.
+
+  For chained ~.and()~ / ~.or()~: ~a.is_X().and(b.is_Y())~ becomes
+  ~is_variant(a, X).and(is_variant(b, Y))~.
+
+  Heavy files: typer.til (32), parser.til (8), interpreter.til (6),
+  til.til (6), tests.til (5), ast.til (3), test files (23).
+
+  Watch out for sed mangling expressions like
+  ~Expr.child(x, 0).data.is_X()~ -- the ~0)~ can confuse sed.
+  Verify manually after sed.
+
+*** Step 4: Replace all .get_X() with get_payload() in .til files
+
+  ~e.data.get_Decl()~ becomes ~ref decl : Declaration = get_payload(e.data)~.
+  The caller needs to specify the payload type via ~ref~ declaration.
+
+*** Step 5: Remove auto-generation from initer.c
+
+  Remove the is_Variant ext_func generation loop (lines 598-620).
+  Remove the get_Variant ext_func generation (lines 572-596).
+  Keep C function emission in builder.c for C callers.
+
+*** Step 6: Update switch desugaring in typer.c
+
+  The switch desugaring (typer.c lines 3033-3100) generates
+  ~_sw.is_Variant()~ and ~_sw.get_Variant()~ calls. Update to use
+  ~is_variant(_sw, EnumType.Variant)~ and ~get_payload(_sw)~.
 
   Remaining:
   - Fix #108 so is_variant/get_payload work in interpreter
@@ -162,7 +242,6 @@
   ~CALL1~, ~RET~, ~CMP_EQ~, ~NEG1~, ~GEN_CMP_FUNC~ for building
   comparison method AST nodes inline.
 
-
 ** OPEN #91 Containers: store clone/delete as function pointers instead of dyn_call
   Vec/Map/Set currently dispatch clone/delete by type name string via
   ~dyn_call~, which does a linear scan of if/memcmp chains every time.
@@ -263,7 +342,6 @@
 
   Keep ~dyn_call~ as a general-purpose runtime dispatch mechanism
   (it's useful for other things), but containers no longer use it.
-
 
 ** OPEN #86 Typer error for unused declarations
   Unused variables, function parameters, and imports should be

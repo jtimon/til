@@ -5,7 +5,7 @@ if echo "$cmd" | grep -qP '(^|[|;&])\s*(echo|cat|head|tail)\b'; then
     exit 2
 fi
 
-if echo "$cmd" | grep -qP 'git\s+(restore|stash)'; then
-    echo "BLOCKED: Never use git restore or git stash — these are destructive." >&2
+if echo "$cmd" | grep -qP 'git\s+(restore|stash|checkout\s+--)'; then
+    echo "BLOCKED: Never use git restore, git stash, or git checkout -- these are destructive." >&2
     exit 2
 fi
