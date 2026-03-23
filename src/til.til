@@ -1,5 +1,7 @@
 mode cli
 
+VERSION := "0.0.1"
+
 // Import self-hosted modules (gives real types: Expr, Mode, TypeScope, etc.)
 import("self/modes.til")
 
@@ -169,6 +171,10 @@ main := proc(args: ..Str) {
     mut path_idx : USize = 1
 
     if args.len().eq(1) {
+        if command.eq("--version").or(command.eq("-v")) {
+            println(VERSION)
+            return
+        }
         if command.eq("help").or(command.eq("--help")) {
             usage()
             return
