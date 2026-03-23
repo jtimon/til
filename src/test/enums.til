@@ -310,6 +310,18 @@ test_is_variant_payload := test() {
     expect(__LOC__, is_variant(t, Token.Name("")).not(), "Num not is_variant Name")
 }
 
+test_is_variant_bare_payload := test() {
+    s := Shape.Dot(Point(x = 3, y = 4))
+    expect(__LOC__, is_variant(s, Shape.Dot), "Dot is_variant Shape.Dot")
+    expect(__LOC__, is_variant(s, Shape.Empty).not(), "Dot not is_variant Shape.Empty")
+    expect(__LOC__, is_variant(s, Shape.Line).not(), "Dot not is_variant Shape.Line")
+    // Also test with Token enum bare payload variants
+    t := Token.Num(42)
+    expect(__LOC__, is_variant(t, Token.Num), "Num is_variant Token.Num")
+    expect(__LOC__, is_variant(t, Token.Name).not(), "Num not is_variant Token.Name")
+    expect(__LOC__, is_variant(t, Token.Eof).not(), "Num not is_variant Token.Eof")
+}
+
 test_is_variant_payload_eof := test() {
     t := Token.Eof
     expect(__LOC__, is_variant(t, Token.Eof), "Eof is_variant Eof")

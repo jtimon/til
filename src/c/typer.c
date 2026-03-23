@@ -1019,6 +1019,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         // Enum variant access: override type to enum for:
                         // 1. I64 literal variants (simple enums)
                         // 2. Zero-arg ext_func constructors (no-payload in payload enums)
+                        // 3. Payload variant constructors used bare (Shape.Dot without args)
                         if (sdef->data.tag == ExprData_TAG_EnumDef &&
                             field->data.data.Decl.is_namespace &&
                             field->children.count > 0) {
@@ -1028,10 +1029,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                 e->til_type = (TilType){TilType_TAG_Enum};
                                 e->struct_name = obj->struct_name;
                             } else if (fc->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
-                                       fc->data.data.FuncDef.nparam == 0 &&
                                        (fc->data.data.FuncDef.return_type).count > 0 &&
                                        Str_eq(&fc->data.data.FuncDef.return_type, &obj->struct_name)) {
-                                // Zero-arg ext_func constructor (auto-callable)
+                                // Variant constructor (zero-arg or payload) -- bare reference
                                 e->til_type = (TilType){TilType_TAG_Enum};
                                 e->struct_name = obj->struct_name;
                             }

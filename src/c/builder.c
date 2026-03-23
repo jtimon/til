@@ -594,9 +594,13 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAccess;
         if (e->is_ns_field) {
-            fprintf(f, "%s_%s", obj->struct_name.c_str, fname->c_str);
-            // Auto-call enum variant constructors (Color.Red → Color_Red())
-            if (e->til_type.tag == TilType_TAG_Enum) fprintf(f, "()");
+            if (e->til_type.tag == TilType_TAG_Enum) {
+                // Bare variant ref: emit tag-only compound literal (no malloc)
+                fprintf(f, "&(%s){.tag = %s_TAG_%s}",
+                        obj->struct_name.c_str, obj->struct_name.c_str, fname->c_str);
+            } else {
+                fprintf(f, "%s_%s", obj->struct_name.c_str, fname->c_str);
+            }
         } else {
             emit_expr(f, obj, depth);
             fprintf(f, "%s%s", use_dot_access(obj) ? "." : "->", fname->c_str);
@@ -1210,6 +1214,12 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     : c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = %s; return _r; }\n",
                         ctype, ctype, rv->data.data.Ident.c_str);
+            } else if (rv->data.tag == ExprData_TAG_FieldAccess && rv->is_ns_field &&
+                       rv->til_type.tag == TilType_TAG_Enum) {
+                // Bare variant ref return: heap-allocate (compound literal is stack-only)
+                Str *sn = &Expr_child(rv, &(USize){(USize)(0)})->struct_name;
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); _r->tag = %s_TAG_%s; return _r; }\n",
+                        sn->c_str, sn->c_str, sn->c_str, rv->data.data.FieldAccess.c_str);
             } else {
                 fprintf(f, "return ");
                 emit_expr(f, rv, depth);
@@ -1765,7 +1775,8 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef) {
+        if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
+                                                     Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
             Str *sname = &stmt->data.data.Decl.name;
             Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             { Str *_k = malloc(sizeof(Str)); *_k = (Str){sname->c_str, sname->count, CAP_VIEW}; void *_v = malloc(sizeof(body)); memcpy(_v, &body, sizeof(body)); Map_set(&struct_bodies, _k, _v); }
