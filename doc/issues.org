@@ -373,22 +373,53 @@
   Reproduce: ~bin/ctil run tmp/hello_pure.til~ with any pure-mode file.
   Interpreter also fails (~undefined variable 'I64'~ in str.til:3).
 
-** FIXED #50 Stack allocation for all struct/enum types
-  Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
-  allocation -- everything else is heap-allocated via malloc. This should
-  be extended to ALL struct/enum types, not just shallow ones.
+** OPEN #50 Stack allocation for all struct/enum types
+  Partially done. Non-global, non-own locals are stack-allocated.
+  Remaining work blocked by #104 (globals) and own-local semantics.
 
-  The key insight: even types with ~own~ fields can be stack-allocated.
-  The existing delete-insertion logic already calls ~delete(call_free=false)~
-  for stack values. For types with ~own~ fields, ~delete(call_free=false)~
-  frees the owned inner data (e.g. Str's c_str buffer) without freeing
-  the struct itself. Containers (Vec, Map, Set) use malloc internally
-  for their buffers, which delete handles.
+*** Done
+    - Removed ~is_scalar_type~ gate from ~can_hoist~
+    - Block-scoped ~shallow_locals~ (~emit_body_scoped~)
+    - ~emit_field~ and ~use_dot_access~ helpers for ~->~ vs ~.~
+    - ~emit_as_ptr~ uses ~&var~ for all stack locals (no compound literals)
+    - ~ref~ declaration RHS uses ~emit_as_ptr~
+    - Removed mut-param from ~unsafe_to_hoist~ (only own-arg check remains)
+    - For-in loop counters and variables stack-allocated (#106)
+    - Typer: ~make_delete_call~ checks ~Decl.is_own~ at ~decl_index~;
+      own locals get ~call_free=true~ (heap), non-own get ~false~ (stack)
+    - Typer: propagate ~struct_name~ on Decl/Assign
+    - ~c_type_name~: check ~struct_name->count > 0~
+    - ~hoist_to_temp~: copy ~struct_name~ to Decl node
+    - ~save_old_delete~ adapted for stack vars
 
-  Prerequisite for #104 (module-level globals): static variables should
-  be stack-allocated (~static Point p = {0}~), not heap-allocated
-  (~static Point *p = malloc(...)~). Without #50, globals need a
-  special heap path which is a dead end.
+*** Remaining: is_global removal (blocked by #104)
+    Removing ~is_global~ from ~can_hoist~ requires a ~shallow_globals~
+    set that persists across ALL functions. ~shallow_locals~ is cleared
+    per function, so globals declared in one scope aren't visible in
+    others.
+
+    Changes needed:
+    - Add ~shallow_globals~ Set to builder (initialized once, never cleared)
+    - Rename ~is_shallow_local~ to ~is_stack_value~, check both sets
+    - Change global declarations: ~static Type var = {0}~ not ~static Type *var~
+    - Remove ~!is_global~ from ~can_hoist~
+    - Global init paths skip declaration (already static), just assign fields
+
+    Depends on #104 for initer Pass 3 (register globals in TypeScope)
+    and precomp handling of complex global initializers (#70).
+
+*** Remaining: own locals
+    Explicit ~own~ locals (~own buf : U8 = malloc(n)~, ~own c := cmp()~)
+    are currently heap-allocated pointer variables. These are semantically
+    different from regular locals -- ~own~ on a scalar means raw pointer.
+    Changing them requires rethinking the ~free(own content)~ pattern in
+    core.til.
+
+*** Remaining: compound literal constructors
+    Replace ~Type var = {0}; var.x = val1; var.y = val2;~ with
+    ~Type var = {.x = val1, .y = val2};~. Cleaner C, potentially
+    better optimization. Requires changing ~emit_ctor_fields~ to emit
+    initializer syntax instead of statement-level assignment.
 
 *** What makes a type "shallow"
 
