@@ -398,59 +398,7 @@ test_switch_range_boundary := test() {
     assert(__LOC__, result)
 }
 
-// Phase 3: Enum matching (works via .eq() from Phase 1)
-Color := enum { Red, Green, Blue }
-
-test_switch_enum := test() {
-    mut result := ""
-    switch Color.Green {
-    case Color.Red: result = "red"
-    case Color.Green: result = "green"
-    case Color.Blue: result = "blue"
-    }
-    assert_eq_str(__LOC__, result, "green")
-}
-
-// Phase 4: Payload extraction
-Token := enum { Num: I64, Name: Str, Eof }
-
-test_switch_payload := test() {
-    mut result := 0
-    switch Token.Num(42) {
-    case Token.Num(value): result = value
-    case Token.Name(s): result = -1
-    case Token.Eof: result = -2
-    }
-    assert_eq(__LOC__, result, 42)
-}
-
-test_switch_payload_multi := test() {
-    mut num_val := 0
-    mut str_val := ""
-    mut is_eof := false
-
-    switch Token.Name("hello") {
-    case Token.Num(n):
-        num_val = n
-    case Token.Name(s):
-        str_val = s
-    case Token.Eof:
-        is_eof = true
-    }
-    assert_eq(__LOC__, num_val, 0)
-    assert_eq_str(__LOC__, str_val, "hello")
-    assert(__LOC__, is_eof.not())
-}
-
-test_switch_payload_with_default := test() {
-    mut result := ""
-    switch Token.Eof {
-    case Token.Num(n): result = "num"
-    case Token.Name(s): result = "name"
-    case: result = "other"
-    }
-    assert_eq_str(__LOC__, result, "other")
-}
+// Enum switch tests moved to src/test/enums.til
 
 // --- NULL literal + ref struct fields ---
 
