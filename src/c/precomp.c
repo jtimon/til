@@ -110,7 +110,7 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
     if (e->data.tag == ExprData_TAG_Ident) {
         Str *name = &e->data.data.Ident;
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
-            if (*Str_eq(&((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
+            if (Str_eq(&((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
         }
         if (Map_has(&known, name)) return 0;
         if (scope_get(precomp_scope, name)) return 0;

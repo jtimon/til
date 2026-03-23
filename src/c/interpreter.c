@@ -162,7 +162,7 @@ Expr *find_field_decl(Expr *struct_def, Str *fname) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *f = Expr_child(body, &(USize){(USize)(i)});
         if (f->data.tag == ExprData_TAG_Decl && !f->data.data.Decl.is_namespace &&
-            *Str_eq(&f->data.data.Decl.name, fname))
+            Str_eq(&f->data.data.Decl.name, fname))
             return f;
     }
     return NULL;

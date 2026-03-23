@@ -29,7 +29,7 @@ static void collect_collection_builtins(Expr *e, Vec *infos) {
             Str *type_name = &Expr_child(e, &(USize){(USize)(1)})->data.data.Ident;
             for (U32 i = 0; i < infos->count; i++) {
                 CollectionInfo *existing = Vec_get(infos, &(USize){(USize)(i)});
-                if (*Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
+                if (Str_eq(existing->type_name, type_name) && existing->is_vec == is_vec) return;
             }
             CollectionInfo info = {type_name, is_vec};
             { CollectionInfo *_p = malloc(sizeof(CollectionInfo)); *_p = info; Vec_push(infos, _p); }
@@ -63,7 +63,7 @@ static void collect_dyn_methods(Expr *e, Vec *methods) {
             }
             for (U32 i = 0; i < methods->count; i++) {
                 DynCallInfo *existing = Vec_get(methods, &(USize){(USize)(i)});
-                if (*Str_eq(existing->method, method)) return;
+                if (Str_eq(existing->method, method)) return;
             }
             DynCallInfo info = {.method = method, .nargs = nargs, .has_return = returns};
             { DynCallInfo *_p = malloc(sizeof(DynCallInfo)); *_p = info; Vec_push(methods, _p); }
@@ -83,7 +83,7 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
         Str *method = &Expr_child(e, &(USize){(USize)(2)})->data.data.Ident;
         for (U32 i = 0; i < methods->count; i++) {
             Str **existing = Vec_get(methods, &(USize){(USize)(i)});
-            if (*Str_eq(*existing, method)) return;
+            if (Str_eq(*existing, method)) return;
         }
         { Str **_p = malloc(sizeof(Str *)); *_p = method; Vec_push(methods, _p); }
     }
@@ -507,7 +507,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "dyn_has_%s(", method->c_str);
             emit_as_ptr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
             fprintf(f, ")");
-        } else if ((e->struct_name).count > 0 && *Str_eq(name, &e->struct_name)) {
+        } else if ((e->struct_name).count > 0 && Str_eq(name, &e->struct_name)) {
             // Struct constructor in expression context: hoist to temp via statement-expr
             const char *ctype = c_type_name(e->til_type, &e->struct_name);
             I32 id = _ctor_seq++;
@@ -786,7 +786,7 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
         }
     } else if (e->data.tag == ExprData_TAG_FCall && e->struct_name.count > 0 && e->children.count > 0 &&
                Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-               *Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
+               Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
         // Struct constructor in expression context: hoist to temp via statement-expr
         const char *ctype = c_type_name(e->til_type, &e->struct_name);
         I32 id = _ctor_seq++;
@@ -851,7 +851,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_expr(f, arg, depth);
             fprintf(f, ";\n");
         } else if (is_own && arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
-            *Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
+            Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
             // Nested struct constructor for own field: emit as temp, assign pointer
             const char *ct = c_type_name(arg->til_type, &arg->struct_name);
             I32 id = _ctor_seq++;
@@ -867,7 +867,7 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_as_ptr(f, arg, depth);
             fprintf(f, ";\n");
         } else if (arg->data.tag == ExprData_TAG_FCall && arg->struct_name.count > 0 &&
-                   *Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
+                   Str_eq(&Expr_child(arg, &(USize){(USize)(0)})->data.data.Ident, &arg->struct_name)) {
             // Inline struct field: nested constructor — build in-place
             const char *ct = c_type_name(arg->til_type, &arg->struct_name);
             I32 id = _ctor_seq++;
@@ -962,7 +962,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                                  !Set_has(&unsafe_to_hoist, _uth_key);
                 Str_delete(_uth_key, &(Bool){1});
                 if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
-                    *Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
+                    Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
                     // Struct constructor
                     const char *var = (const char *)e->data.data.Decl.name.c_str;
                     if (is_global) {
@@ -1149,7 +1149,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             fprintf(f, ";\n");
             break;
         }
-        if ((e->struct_name).count > 0 && *Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
+        if ((e->struct_name).count > 0 && Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
             // Bare struct constructor statement — discard result
             fprintf(f, "/* discarded struct constructor */;\n");
         } else {
@@ -1166,7 +1166,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
         } else {
             Expr *rv = Expr_child(e, &(USize){(USize)(0)});
             if (rv->data.tag == ExprData_TAG_FCall && rv->struct_name.count > 0 &&
-                *Str_eq(&Expr_child(rv, &(USize){(USize)(0)})->data.data.Ident, &rv->struct_name)) {
+                Str_eq(&Expr_child(rv, &(USize){(USize)(0)})->data.data.Ident, &rv->struct_name)) {
                 // Struct constructor return — malloc + field-by-field
                 const char *ctype = c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s));\n", ctype, ctype);
@@ -2328,7 +2328,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *field = Expr_child(body, &(USize){(USize)(j)});
                     if (field->data.data.Decl.is_namespace &&
-                        *Str_eq(&field->data.data.Decl.name, method) &&
+                        Str_eq(&field->data.data.Decl.name, method) &&
                         field->children.count > 0 &&
                         Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
                         method_fdef = Expr_child(field, &(USize){(USize)(0)});
@@ -2509,7 +2509,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 for (U32 j = 0; j < body->children.count; j++) {
                     Expr *field = Expr_child(body, &(USize){(USize)(j)});
                     if (field->data.data.Decl.is_namespace &&
-                        *Str_eq(&field->data.data.Decl.name, method)) {
+                        Str_eq(&field->data.data.Decl.name, method)) {
                         found = 1;
                         break;
                     }

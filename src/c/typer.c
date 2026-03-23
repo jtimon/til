@@ -255,7 +255,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     for (U32 i = 0; i < body->children.count; i++) {
                         Expr *field = Expr_child(body, &(USize){(USize)(i)});
                         if (field->data.data.Decl.is_namespace &&
-                            *Str_eq(&field->data.data.Decl.name, method) &&
+                            Str_eq(&field->data.data.Decl.name, method) &&
                             Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
                             ns_func = Expr_child(field, &(USize){(USize)(0)});
                             break;
@@ -271,7 +271,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         top->func_def->data.data.FuncDef.nparam > 0 &&
                         ((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype.count > 0) {
                         Str *first_param = &((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype;
-                        if (type_name && *Str_eq(first_param, type_name)) {
+                        if (type_name && Str_eq(first_param, type_name)) {
                             ufcs_match = 1; // known type matches first param
                         } else if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
                             // Dynamic receiver: narrow to first param type
@@ -303,7 +303,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         for (U32 fi = 0; fi < body->children.count; fi++) {
                             Expr *field = Expr_child(body, &(USize){(USize)(fi)});
                             if (field->data.tag != ExprData_TAG_Decl || field->data.data.Decl.is_namespace) continue;
-                            if (!*Str_eq(&field->data.data.Decl.name, method)) continue;
+                            if (!Str_eq(&field->data.data.Decl.name, method)) continue;
                             if (field->data.data.Decl.explicit_type.count == 0) continue;
                             ScopeFind *_sf_ftb = TypeScope_find(scope, &field->data.data.Decl.explicit_type);
                             TypeBinding *ftb = _sf_ftb->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ftb) : NULL;
@@ -382,7 +382,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 for (U32 i = 0; i < body->children.count; i++) {
                     Expr *field = Expr_child(body, &(USize){(USize)(i)});
                     if (field->data.data.Decl.is_namespace &&
-                        *Str_eq(&field->data.data.Decl.name, method) &&
+                        Str_eq(&field->data.data.Decl.name, method) &&
                         Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
                         ns_func = Expr_child(field, &(USize){(USize)(0)});
                         break;
@@ -410,7 +410,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         Str *aname = &arg->data.data.Ident;
                         I32 slot = -1;
                         for (U32 j = 0; j < np; j++) {
-                            if (*Str_eq(&((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
+                            if (Str_eq(&((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
                                 slot = j;
                                 break;
                             }
@@ -504,7 +504,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                              ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
                     type_error(arg, buf);
                 } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
-                           (arg->struct_name).count > 0 && !*Str_eq(ptype_name, &arg->struct_name)) {
+                           (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
                              ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
@@ -604,7 +604,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Str *aname = &arg->data.data.Ident;
                 I32 slot = -1;
                 for (U32 j = 0; j < nfields; j++) {
-                    if (*Str_eq(&Expr_child(body, &(USize){(USize)(field_idx[j])})->data.data.Decl.name, aname)) {
+                    if (Str_eq(&Expr_child(body, &(USize){(USize)(field_idx[j])})->data.data.Decl.name, aname)) {
                         slot = j;
                         break;
                     }
@@ -704,7 +704,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     for (U32 j = 0; j < nparam; j++) {
                         if ((I32)j == vi) continue; // can't name the variadic param
                         if ((I32)j == kwi) continue; // can't name the kwargs param
-                        if (*Str_eq(&((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
+                        if (Str_eq(&((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
                             slot = j;
                             break;
                         }
@@ -839,7 +839,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                              ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
                     type_error(arg, buf);
                 } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
-                           (arg->struct_name).count > 0 && !*Str_eq(ptype_name, &arg->struct_name)) {
+                           (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
                              ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
@@ -1006,7 +1006,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     // Skip variant registry entries (non-namespace) in enum bodies
                     if (sdef->data.tag == ExprData_TAG_EnumDef && !field->data.data.Decl.is_namespace)
                         continue;
-                    if (*Str_eq(&field->data.data.Decl.name, fname)) {
+                    if (Str_eq(&field->data.data.Decl.name, fname)) {
                         e->til_type = field->til_type;
                         e->is_ns_field = field->data.data.Decl.is_namespace;
                         e->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
@@ -1030,7 +1030,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             } else if (fc->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
                                        fc->data.data.FuncDef.nparam == 0 &&
                                        (fc->data.data.FuncDef.return_type).count > 0 &&
-                                       *Str_eq(&fc->data.data.FuncDef.return_type, &obj->struct_name)) {
+                                       Str_eq(&fc->data.data.FuncDef.return_type, &obj->struct_name)) {
                                 // Zero-arg ext_func constructor (auto-callable)
                                 e->til_type = (TilType){TilType_TAG_Enum};
                                 e->struct_name = obj->struct_name;
@@ -1416,7 +1416,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
                     for (U32 j = 0; j < sbody->children.count; j++) {
                         Expr *f = Expr_child(sbody, &(USize){(USize)(j)});
                         if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
-                            *Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
+                            Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
                             Expr_child(f, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
                             I32 fvi = Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.variadic_index;
                             if (fvi >= 0)
@@ -1830,7 +1830,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
     // For struct constructors, find field info to skip hoisting inline compound args
     Expr *ctor_body = NULL;
     if ((e->struct_name).count > 0 && e->children.count > 0 &&
-        *Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
+        Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
         Expr *sdef = TypeScope_get_struct(scope, &e->struct_name);
         if (sdef) ctor_body = Expr_child(sdef, &(USize){(USize)(0)});
     }
@@ -2207,7 +2207,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         I32 decl_idx = -1;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *s = Expr_child(body, &(USize){(USize)(j)});
-            if (s->data.tag == ExprData_TAG_Decl && *Str_eq(&s->data.data.Decl.name, b->name)) {
+            if (s->data.tag == ExprData_TAG_Decl && Str_eq(&s->data.data.Decl.name, b->name)) {
                 decl_idx = j;
                 break;
             }
@@ -2280,7 +2280,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             }
             if (ref_last == -1) ref_last = i;
             for (U32 j = 0; j < n_locals; j++) {
-                if (*Str_eq(locals[j].name, &stmt->data.data.Decl.name) && locals[j].last_use > ref_last)
+                if (Str_eq(locals[j].name, &stmt->data.data.Decl.name) && locals[j].last_use > ref_last)
                     ref_last = locals[j].last_use;
             }
 
@@ -2288,7 +2288,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 // Direct alias: source must outlive alias
                 Str *src_name = &rhs->data.data.Ident;
                 for (U32 j = 0; j < n_locals; j++) {
-                    if (*Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last) {
+                    if (Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last) {
                         locals[j].last_use = ref_last;
                         ref_changed = 1;
                     }
@@ -2305,7 +2305,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (arg->data.tag != ExprData_TAG_Ident) continue;
                 Str *aname = &arg->data.data.Ident;
                 for (U32 j = 0; j < n_locals; j++) {
-                    if (*Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
+                    if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
                         locals[j].last_use = ref_last;
                         ref_changed = 1;
                     }
@@ -2382,7 +2382,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         if (stmt->data.tag == ExprData_TAG_Assign) {
             Str *vname = &stmt->data.data.Ident;
             for (U32 j = 0; j < n_locals; j++) {
-                if (!*Str_eq(locals[j].name, vname)) continue;
+                if (!Str_eq(locals[j].name, vname)) continue;
                 if (locals[j].skip_delete) break;
                 TilType t = locals[j].type;
                 if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) {
@@ -2562,7 +2562,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     type_error(stmt, buf);
                 } else if ((declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) &&
                            (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0) &&
-                           !*Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(USize){(USize)(0)})->struct_name)) {
+                           !Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(USize){(USize)(0)})->struct_name)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                              stmt->data.data.Decl.name.c_str, etn->c_str, Expr_child(stmt, &(USize){(USize)(0)})->struct_name.c_str);
@@ -2730,7 +2730,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Bool found = 0;
                     for (U32 i = 0; i < body->children.count; i++) {
                         Expr *field = Expr_child(body, &(USize){(USize)(i)});
-                        if (*Str_eq(&field->data.data.Decl.name, fname)) {
+                        if (Str_eq(&field->data.data.Decl.name, fname)) {
                             found = 1;
                             stmt->is_ns_field = field->data.data.Decl.is_namespace;
                             stmt->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
@@ -3340,7 +3340,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 break;
             }
             if (get_func->data.data.FuncDef.nparam != 2 || ((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype.count == 0 ||
-                !*Str_eq(&((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype, idx_type)) {
+                !Str_eq(&((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype, idx_type)) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' get() second param must match len() return type for for-in", type_name->c_str);
                 type_error(stmt, buf);
