@@ -594,9 +594,29 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         Expr *obj = Expr_child(e, &(USize){(USize)(0)});
         Str *fname = &e->data.data.FieldAccess;
         if (e->is_ns_field) {
-            fprintf(f, "%s_%s", obj->struct_name.c_str, fname->c_str);
-            // Auto-call enum variant constructors (Color.Red → Color_Red())
-            if (e->til_type.tag == TilType_TAG_Enum) fprintf(f, "()");
+            if (e->til_type.tag == TilType_TAG_Enum) {
+                // Check if this is a payload variant used bare (Shape.Dot without args)
+                Expr *edef = find_struct_body(&obj->struct_name);
+                Bool is_payload_variant = 0;
+                if (edef) {
+                    I32 vtag = *enum_variant_tag(edef, fname);
+                    if (vtag >= 0) {
+                        Str *vtype = enum_variant_type(edef, vtag);
+                        if (vtype && vtype->count > 0) is_payload_variant = 1;
+                    }
+                }
+                if (is_payload_variant) {
+                    // Bare payload variant: heap-allocate with just the tag set
+                    fprintf(f, "({ %s *_bv = malloc(sizeof(%s)); _bv->tag = %s_TAG_%s; _bv; })",
+                            obj->struct_name.c_str, obj->struct_name.c_str,
+                            obj->struct_name.c_str, fname->c_str);
+                } else {
+                    // Simple variant or no-payload: call constructor
+                    fprintf(f, "%s_%s()", obj->struct_name.c_str, fname->c_str);
+                }
+            } else {
+                fprintf(f, "%s_%s", obj->struct_name.c_str, fname->c_str);
+            }
         } else {
             emit_expr(f, obj, depth);
             fprintf(f, "%s%s", use_dot_access(obj) ? "." : "->", fname->c_str);

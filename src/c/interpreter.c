@@ -885,11 +885,12 @@ Value eval_expr(Scope *scope, Expr *e) {
                 // Fresh copy of scalar values (prevents alias to namespace map)
                 if (nsv->tag == Value_TAG_Int) return val_i64(nsv->data.Int);
                 if (nsv->tag == Value_TAG_Int32) return val_i32(nsv->data.Int32);
-                // Auto-call zero-arg enum constructors (Token.Eof without parens)
+                // Auto-call enum variant constructors used bare (without parens)
+                // Check til_type == Enum to distinguish bare refs from FCall callees
                 if (nsv->tag == Value_TAG_Func && nsv->data.Func &&
                     ((Expr*)nsv->data.Func)->data.tag == ExprData_TAG_FuncDef &&
                     ((Expr*)nsv->data.Func)->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
-                    ((Expr*)nsv->data.Func)->data.data.FuncDef.nparam == 0) {
+                    e->til_type.tag == TilType_TAG_Enum) {
                     Cell *tc = scope_get(scope, sname);
                     if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
                         I32 tag = *enum_variant_tag(((Expr*)tc->val.data.Func), fname);
