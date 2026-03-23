@@ -19,12 +19,6 @@
   As #39 translates more C to til, fewer callers need updating.
   Can be done incrementally per function as its C callers disappear.
 
-** OPEN #106 For-in loop counter should be stack-allocated after #50
-  The for-in loop counter is still heap-allocated:
-  ~U32 *_rc = malloc(sizeof(U32))~. After #50 (stack allocation for
-  all types), it should be ~U32 _rc = 0~ on the stack. The loop
-  variable ~i~ is also heap-allocated per iteration (~malloc + clone +
-  delete~). Both should use stack allocation. Easy builder fix.
 
 ** OPEN #105 Auto-generated enum is_* methods should return shallow Bool
   Enum ~is_*~ methods (e.g. ~ExprData_is_FCall~) currently return

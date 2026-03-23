@@ -1,5 +1,19 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #106 For-in loop counter stack-allocated after #50
+  ~unsafe_to_hoist~ simplified: removed mut-param check, only checks
+  own args now. For-in counters (~_rcN~) and loop variables (~i~) are
+  stack-allocated: ~U32 _rc = 0~ instead of ~U32 *_rc = malloc(...)~.
+
+  ~emit_as_ptr~ unified: emits ~&var~ for all stack locals (scalars
+  and structs alike) instead of compound literals ~&(Type){var}~.
+  Ref declaration RHS uses ~emit_as_ptr~ so stack variables get ~&var~.
+
+  Typer fix: ~make_delete_call~ checks ~Decl.is_own~ on the body node
+  at ~locals[j].decl_index~ to set ~call_free~. Own locals (heap-
+  allocated) get ~call_free=true~; regular stack locals get ~false~.
+  Without this, own locals leaked their heap wrapper.
+
 * FIXED #50 Stack allocation for all struct/enum types
   All non-own, non-global, non-ref struct/enum local variables are now
   stack-allocated instead of heap-allocated via malloc.
