@@ -1,11 +1,23 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 105
+# NEXT_ISSUE: 106
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
 
+
+** OPEN #105 Auto-generated enum is_* methods should return shallow Bool
+  Enum ~is_*~ methods (e.g. ~ExprData_is_FCall~) currently return
+  ~Bool *~ (heap-allocated). Each call does ~malloc(sizeof(Bool))~ +
+  ~free()~ just to return a tag comparison. Should return ~Bool~ by
+  value (shallow). These are hot-path functions called recursively on
+  every AST node -- the heap overhead causes measurable performance
+  regression when C functions using direct tag checks are translated
+  to til using ~.is_*()~ calls.
+
+  Similarly, auto-generated ~get_*~ methods could benefit from the
+  same treatment where applicable.
 
 ** OPEN #104 Module-level mutable globals
   :DEPENDENCY: #50
