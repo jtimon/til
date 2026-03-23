@@ -6,19 +6,7 @@ user-invocable: true
 
 # Build workflow for til
 
-Read doc/self.org and run `make help` for context.
-
-## Bootstrap does NOT constrain commit structure
-
-til_boot is built entirely from HEAD (boot/ + src/c/ via git).
-Completely isolated from uncommitted changes. bin/til is built from
-ALL current sources (.til AND src/c/). Both .til and C changes take
-effect immediately in bin/til.
-
-The bootstrap NEVER forces you to split changes across multiple
-commits. Commit structure is purely a matter of what makes sense for
-the work. If you think you need multiple commits "for bootstrap
-reasons", you are WRONG. Re-read doc/self.org.
+Read doc/self.org for the bootstrap model and `make help` for targets.
 
 ## Step 1: Build and test
 
@@ -36,11 +24,6 @@ Include ALL modified files: .til, C, boot/, doc/totals.csv, img/totals.svg.
 
 ## Rules
 
-- `make test` does everything (uses xvfb-run for GUI tests).
-- `make test_nogui` skips GUI build tests (no xvfb needed).
-- `make bin/til_asan` ASAN build for memory debugging.
-- `make bin/til_debug` debug build for gdb.
-- Remote agents: use `make test_nogui`.
 - Never edit boot/ files manually.
 - If tests fail, fix your code and repeat.
 - Redirect build output to tmp/build.log, then Read/Grep that file.

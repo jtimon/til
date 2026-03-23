@@ -36,23 +36,11 @@ HEAD via git. See doc/self.org for the build workflow.
 
 ## Build & Run
 
-Read `doc/self.org` and `make help` for the full reference.
+Read `doc/self.org` for the bootstrap model and `make help` for targets.
+Use the `/build` skill for the full workflow.
 
-til_boot is built entirely from HEAD (boot/ + src/c/ via git).
-Completely isolated from uncommitted changes. bin/til is built from
-ALL current sources (.til AND src/c/). Both .til and C changes take
-effect immediately. The self-hosting bootstrap does NOT constrain
-commit structure -- it NEVER forces splitting changes across commits.
-
-- `make test` -- build everything + run tests. The only command you need.
-- `make test_nogui` -- skips GUI build tests (no xvfb needed).
-- `make bin/til_asan` -- ASAN build for memory debugging.
-- `make bin/til_debug` -- debug build for gdb.
-- `bin/til run file.til` -- compile and run.
-- `bin/til interpret file.til` -- interpret directly.
-- Use `tmp/` dir for ad-hoc test files.
 - NEVER edit boot/ files. Fix .til or src/c/ sources instead.
-- Remote agents: use `make test_nogui`.
+- Use `tmp/` dir for ad-hoc test files.
 
 ## Issue Tracking
 

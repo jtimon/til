@@ -2,12 +2,7 @@
 
 ** Bootstrap
 
-=til_boot= is built entirely from HEAD (boot/ + src/c/ via git).
-Completely isolated from uncommitted changes. =bin/til= is built from
-ALL current sources (.til AND src/c/). The self-hosting bootstrap does
-NOT constrain commit structure -- it never forces splitting changes
-across commits. Commit structure is a matter of what makes sense for
-the work. See =doc/self.org= for details.
+See =doc/self.org= for the bootstrap model.
 
 ** Headless Test Workflow
 
