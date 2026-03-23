@@ -56,6 +56,15 @@ bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	bin/til_boot translate src/til.til
 	cp gen/til/til*.c gen/til/til*.h boot/ 2>/dev/null || true
 
+# --- ASAN build (for memory debugging) ---
+
+bin/til_asan: bin/til $(CORE) $(SELF) src/til.til
+	bin/til translate src/til.til
+	cc -fsanitize=address -fno-omit-frame-pointer -g -Wno-all \
+	  -Igen/til -Isrc -Isrc/c gen/til/til.c src/c/*.c \
+	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) \
+	  -fsanitize=address -o bin/til_asan
+
 # --- Test programs ---
 
 bin/test_runner: bin/til $(CORE) $(SELF) src/test_runner.til
