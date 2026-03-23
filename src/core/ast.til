@@ -160,7 +160,7 @@ Expr := struct {
         ref c : Expr = parent.children.get(i)
         return c
     }
-    child_count := func(parent: Expr) returns USize {
+    child_count := func(parent: Expr) returns shallow USize {
         return parent.children.len()
     }
     new := func(data: ExprData, shallow line: U32, shallow col: U32, path: Str) returns Expr {
@@ -272,7 +272,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
 
 // --- Enum helpers ---
 
-enum_has_payloads := func(enum_def: Expr) returns Bool {
+enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
     ref body : Expr = Expr.child(enum_def, 0)
     for i in 0..Expr.child_count(body) {
         ref f : Expr = Expr.child(body, i)

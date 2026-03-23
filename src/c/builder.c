@@ -93,7 +93,7 @@ static void collect_dyn_has_methods(Expr *e, Vec *methods) {
 }
 
 static Expr *find_struct_body(Str *name) {
-    if (!*Map_has(&struct_bodies, name)) return NULL;
+    if (!Map_has(&struct_bodies, name)) return NULL;
     Expr **p = Map_get(&struct_bodies, name);
     return *p;
 }
@@ -133,7 +133,7 @@ static Set unsafe_to_hoist;
 
 static Bool is_shallow_local(const char *name) {
     Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
-    Bool r = *Set_has(&shallow_locals, s);
+    Bool r = Set_has(&shallow_locals, s);
     Str_delete(s, &(Bool){1});
     return r;
 }
@@ -150,7 +150,7 @@ static Bool use_dot_access(Expr *obj) {
 
 static const char *get_shallow_ctype(const char *name) {
     Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
-    if (*Map_has(&shallow_local_types, s)) {
+    if (Map_has(&shallow_local_types, s)) {
         Str **p = Map_get(&shallow_local_types, s);
         Str_delete(s, &(Bool){1});
         return (const char *)(*p)->c_str;
@@ -278,7 +278,7 @@ static Bool is_shallow_param(const char *name) {
 
 // Check if callee's i-th parameter is shallow (for call site emission)
 static Expr *find_callee_fdef(Str *name) {
-    if (!*Map_has(&func_defs, name)) return NULL;
+    if (!Map_has(&func_defs, name)) return NULL;
     Expr **p = Map_get(&func_defs, name);
     return *p;
 }
@@ -655,9 +655,7 @@ static const char *type_name_to_c(Str *name) {
     // Named FuncSig type → void * (opaque function pointer)
     if (has_funcsig_names) {
         Str key = {name->c_str, name->count, CAP_VIEW};
-        Bool *r = Set_has(&funcsig_names, &key);
-        Bool hit = *r; free(r);
-        if (hit) return "void *";
+        if (Set_has(&funcsig_names, &key)) return "void *";
     }
     // User-defined struct type — pointer
     static char buf[128];
@@ -681,9 +679,7 @@ static const char *type_name_to_c_value(Str *name) {
     // Named FuncSig type → void * (opaque function pointer)
     if (has_funcsig_names) {
         Str key = {name->c_str, name->count, CAP_VIEW};
-        Bool *r = Set_has(&funcsig_names, &key);
-        Bool hit = *r; free(r);
-        if (hit) return "void *";
+        if (Set_has(&funcsig_names, &key)) return "void *";
     }
     static char buf2[128];
     snprintf(buf2, sizeof(buf2), "%s", name->c_str);
@@ -699,9 +695,7 @@ static Bool is_primitive_type(Str *name) {
 static Bool is_funcsig_type(Str *name) {
     if (!has_funcsig_names) return 0;
     Str key = {name->c_str, name->count, CAP_VIEW};
-    Bool *r = Set_has(&funcsig_names, &key);
-    Bool hit = *r; free(r);
-    return hit;
+    return Set_has(&funcsig_names, &key);
 }
 
 // Emit a function parameter list (with variadic support)
@@ -960,12 +954,12 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 if (_sn->count == 0) _sn = &e->data.data.Decl.explicit_type;
                 const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
-                Bool is_global = has_script_globals && !in_func_def && *Set_has(&script_globals, &e->data.data.Decl.name);
+                Bool is_global = has_script_globals && !in_func_def && Set_has(&script_globals, &e->data.data.Decl.name);
                 Str *_uth_key = Str_clone(&e->data.data.Decl.name);
                 Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
                                  e->til_type.tag != TilType_TAG_FuncPtr &&
                                  e->til_type.tag != TilType_TAG_Dynamic &&
-                                 !*Set_has(&unsafe_to_hoist, _uth_key);
+                                 !Set_has(&unsafe_to_hoist, _uth_key);
                 Str_delete(_uth_key, &(Bool){1});
                 if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
                     *Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
@@ -1573,7 +1567,7 @@ static void emit_struct_funcs(FILE *f, Str *name, Expr *struct_def, Bool is_lib,
 
 static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     Expr *body = Expr_child(enum_def, &(USize){(USize)(0)});
-    Bool hp = *enum_has_payloads(enum_def);
+    Bool hp = enum_has_payloads(enum_def);
 
     // Find eq fdef to determine if is_Variant should also return shallow Bool
     Bool is_variant_shallow = 0;
@@ -1821,7 +1815,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         if (stmt->data.tag == ExprData_TAG_Decl && stmt->til_type.tag == TilType_TAG_None &&
             Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
             Str *rhs_name = &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident;
-            if (*Set_has(&funcsig_names, rhs_name)) {
+            if (Set_has(&funcsig_names, rhs_name)) {
                 Str *n = &stmt->data.data.Decl.name;
                 { Str *_p = malloc(sizeof(Str)); *_p = (Str){n->c_str, n->count, CAP_VIEW}; Set_add(&funcsig_names, _p); }
             }
@@ -1835,8 +1829,8 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
 
     // Emit per-program forward.h alongside the .c file (e.g. gen/c/foo_forward.h)
     {
-        I64 slash = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        I64 dot = *Str_rfind(c_output_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+        I64 slash = Str_rfind(c_output_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        I64 dot = Str_rfind(c_output_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
         Str *base = (dot > slash) ? Str_substr(c_output_path, &(USize){0}, &(USize){(USize)dot}) : c_output_path;
         Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
         build_forward_header(program, fwd_path);
@@ -1894,7 +1888,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                             if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
                                 (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
                                 (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
-                                if (!*Set_has(&emitted_mh, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
+                                if (!Set_has(&emitted_mh, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
                                     deps_ok = 0;
                                     break;
                                 }
@@ -1908,7 +1902,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                             if ((v->data.data.Decl.explicit_type).count > 0 &&
                                 !is_primitive_type(&v->data.data.Decl.explicit_type) &&
                                 !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
-                                if (!*Set_has(&emitted_mh, &v->data.data.Decl.explicit_type)) {
+                                if (!Set_has(&emitted_mh, &v->data.data.Decl.explicit_type)) {
                                     deps_ok = 0;
                                     break;
                                 }
@@ -1924,7 +1918,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                     } else {
                         Str *ename = name;
                         Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                        Bool hp = *enum_has_payloads(def);
+                        Bool hp = enum_has_payloads(def);
                         fprintf(hf, "struct %s {\n", ename->c_str);
                         fprintf(hf, "    %s_tag tag;\n", ename->c_str);
                         if (hp) {
@@ -1959,7 +1953,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                         } else {
                             Str *ename = &stmt->data.data.Decl.name;
                             Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                            Bool hp = *enum_has_payloads(def);
+                            Bool hp = enum_has_payloads(def);
                             fprintf(hf, "struct %s {\n", ename->c_str);
                             fprintf(hf, "    %s_tag tag;\n", ename->c_str);
                             if (hp) {
@@ -2034,7 +2028,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             if (stmt->is_core) continue;
             if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
                 Str *sname = &stmt->data.data.Decl.name;
-                Bool hp = *enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
+                Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
                 Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
                 Expr *eq_fdef = NULL;
                 for (U32 j = 0; j < ebody->children.count; j++) {
@@ -2145,7 +2139,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
-            Bool hp = *enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
+            Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             // Find eq fdef to check return_is_shallow
             Expr *eq_fdef = NULL;
@@ -2763,7 +2757,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                         if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
                             (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
                             (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
-                            if (!*Set_has(&emitted_h, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
+                            if (!Set_has(&emitted_h, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
                                 deps_ok = 0;
                                 break;
                             }
@@ -2777,7 +2771,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                         if ((v->data.data.Decl.explicit_type).count > 0 &&
                             !is_primitive_type(&v->data.data.Decl.explicit_type) &&
                             !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
-                            if (!*Set_has(&emitted_h, &v->data.data.Decl.explicit_type)) {
+                            if (!Set_has(&emitted_h, &v->data.data.Decl.explicit_type)) {
                                 deps_ok = 0;
                                 break;
                             }
@@ -2793,7 +2787,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                 } else {
                     Str *ename = name;
                     Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                    Bool hp = *enum_has_payloads(def);
+                    Bool hp = enum_has_payloads(def);
                     fprintf(f, "struct %s {\n", ename->c_str);
                     fprintf(f, "    %s_tag tag;\n", ename->c_str);
                     if (hp) {
@@ -2828,7 +2822,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
                     } else {
                         Str *ename = &stmt->data.data.Decl.name;
                         Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                        Bool hp = *enum_has_payloads(def);
+                        Bool hp = enum_has_payloads(def);
                         fprintf(f, "struct %s {\n", ename->c_str);
                         fprintf(f, "    %s_tag tag;\n", ename->c_str);
                         if (hp) {
@@ -2903,7 +2897,7 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
         if (stmt->is_core) continue;
         if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
-            Bool hp = *enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
+            Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             Expr *eq_fdef = NULL;
             for (U32 j = 0; j < ebody->children.count; j++) {
@@ -2967,8 +2961,8 @@ I32 build_header(Expr *program, Str *h_path) {
     }
     // Emit per-program forward.h alongside the .h file
     {
-        I64 slash = *Str_rfind(h_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-        I64 dot = *Str_rfind(h_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+        I64 slash = Str_rfind(h_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        I64 dot = Str_rfind(h_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
         Str *base = (dot > slash) ? Str_substr(h_path, &(USize){0}, &(USize){(USize)dot}) : h_path;
         Str *fwd_path = Str_concat(base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
         build_forward_header(program, fwd_path);
@@ -3031,7 +3025,7 @@ I32 build_header(Expr *program, Str *h_path) {
                         if (!field->data.data.Decl.is_own && !field->data.data.Decl.is_ref &&
                             (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) &&
                             (Expr_child(field, &(USize){(USize)(0)})->struct_name.count > 0)) {
-                            if (!*Set_has(&emitted_h, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
+                            if (!Set_has(&emitted_h, &Expr_child(field, &(USize){(USize)(0)})->struct_name)) {
                                 deps_ok = 0;
                                 break;
                             }
@@ -3045,7 +3039,7 @@ I32 build_header(Expr *program, Str *h_path) {
                         if ((v->data.data.Decl.explicit_type).count > 0 &&
                             !is_primitive_type(&v->data.data.Decl.explicit_type) &&
                             !is_funcsig_type(&v->data.data.Decl.explicit_type)) {
-                            if (!*Set_has(&emitted_h, &v->data.data.Decl.explicit_type)) {
+                            if (!Set_has(&emitted_h, &v->data.data.Decl.explicit_type)) {
                                 deps_ok = 0;
                                 break;
                             }
@@ -3061,7 +3055,7 @@ I32 build_header(Expr *program, Str *h_path) {
                 } else {
                     Str *ename = name;
                     Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                    Bool hp = *enum_has_payloads(def);
+                    Bool hp = enum_has_payloads(def);
                     fprintf(f, "struct %s {\n", ename->c_str);
                     fprintf(f, "    %s_tag tag;\n", ename->c_str);
                     if (hp) {
@@ -3096,7 +3090,7 @@ I32 build_header(Expr *program, Str *h_path) {
                     } else {
                         Str *ename = &stmt->data.data.Decl.name;
                         Expr *ebody = Expr_child(def, &(USize){(USize)(0)});
-                        Bool hp = *enum_has_payloads(def);
+                        Bool hp = enum_has_payloads(def);
                         fprintf(f, "struct %s {\n", ename->c_str);
                         fprintf(f, "    %s_tag tag;\n", ename->c_str);
                         if (hp) {
@@ -3169,7 +3163,7 @@ I32 build_header(Expr *program, Str *h_path) {
         if (stmt->is_core) continue;
         if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
-            Bool hp = *enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
+            Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             // Find eq fdef to check return_is_shallow
             Expr *eq_fdef = NULL;
@@ -3380,7 +3374,7 @@ I32 compile_lib(Str *c_path, Str *lib_name,
     Str *ext_dir;
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
     {
-        I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        I64 slash = Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
         ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
     }
 
@@ -3459,7 +3453,7 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     Str *ext_dir;
     Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
     {
-        I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        I64 slash = Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
         ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
     }
 
@@ -3471,9 +3465,9 @@ I32 compile_c(Str *c_path, Str *bin_path, Str *ext_c_path, Str *user_c_path, Str
     // If link_c files present, compile each to .o separately with -include forward.h
     Str *user_part = &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
     if (user_c_path) {
-        I64 c_slash = *Str_rfind(c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        I64 c_slash = Str_rfind(c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
         Str *c_dir = c_slash >= 0 ? Str_substr(c_path, &(USize){0}, &(USize){(USize)c_slash}) : &_dot_str;
-        I64 c_dot = *Str_rfind(c_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
+        I64 c_dot = Str_rfind(c_path, &(Str){.c_str = (U8*)".", .count = 1, .cap = CAP_LIT});
         Str *c_base = (c_dot > c_slash) ? Str_substr(c_path, &(USize){0}, &(USize){(USize)c_dot}) : c_path;
         Str *fwd_path = Str_concat(c_base, &(Str){.c_str = (U8*)"_forward.h", .count = 10, .cap = CAP_LIT});
 

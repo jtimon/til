@@ -105,7 +105,7 @@ static ffi_type *shallow_ffi_type(Str *type_name) {
     if ((type_name->count == 3 && memcmp(type_name->c_str, "F32", 3) == 0))  return &ffi_type_float;
     if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) return &ffi_type_uint8;
     // Struct type: look up def and build ffi_type
-    if (*Map_has(&ffi_struct_defs, type_name)) {
+    if (Map_has(&ffi_struct_defs, type_name)) {
         Expr **sdef = Map_get(&ffi_struct_defs, type_name);
         return build_struct_ffi_type(*sdef);
     }
@@ -329,7 +329,7 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
         U32 nargs = fake_call.children.count - 1;
         for (U32 i = nargs; i < nparam; i++) {
             Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
-            if (*Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
+            if (Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
                 Expr *def_arg = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
                 Vec_push(&fake_call.children, def_arg);
             }
@@ -744,14 +744,14 @@ static void dispatch_init(void) {
 Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     if (!dispatch_inited) dispatch_init();
 
-    if (*Map_has(&dispatch_map, name)) {
+    if (Map_has(&dispatch_map, name)) {
         DispatchFn *fn = Map_get(&dispatch_map, name);
         return (*fn)(scope, e, result);
     }
 
     // FFI dispatch via libffi
     if (ffi_loaded) {
-        if (*Map_has(&ffi_map, name)) {
+        if (Map_has(&ffi_map, name)) {
             FFIEntry *fe = Map_get(&ffi_map, name);
             U32 nargs = e->children.count - 1;
             void *args[nargs > 0 ? nargs : 1];
@@ -813,7 +813,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             Expr **ret_sdef = NULL;
             if (fe->return_is_shallow && fe->return_type &&
                 fe->cif.rtype->type == FFI_TYPE_STRUCT &&
-                *Map_has(&ffi_struct_defs, fe->return_type))
+                Map_has(&ffi_struct_defs, fe->return_type))
                 ret_sdef = Map_get(&ffi_struct_defs, fe->return_type);
             union {
                 void *ptr;
@@ -893,7 +893,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
                 *result = (Value){.tag = Value_TAG_Ptr, .data.Ptr = raw.ptr};
             } else {
                 // Struct return -- look up struct def by return type name
-                if (*Map_has(&ffi_struct_defs, fe->return_type)) {
+                if (Map_has(&ffi_struct_defs, fe->return_type)) {
                     Expr **sdef = Map_get(&ffi_struct_defs, fe->return_type);
                     StructInstance *inst = malloc(sizeof(StructInstance));
                     inst->struct_name = fe->return_type;
@@ -916,7 +916,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
 Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                          Str *enum_name, Expr *e,
                          Value *result) {
-    Bool hp = *enum_has_payloads(enum_def);
+    Bool hp = enum_has_payloads(enum_def);
 
     if (hp) {
         // Payload enum: constructor, get_Variant
@@ -1010,7 +1010,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
         Str *ext_dir;
         Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
         {
-            I64 slash = *Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+            I64 slash = Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
             ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
         }
         char pid_buf[32];

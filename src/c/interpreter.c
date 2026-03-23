@@ -36,7 +36,7 @@ static Str *ns_qname(Str *sname, Str *fname) {
 
 Value *ns_get(Str *sname, Str *fname) {
     Str *qn = ns_qname(sname, fname);
-    if (!*Map_has(&ns_fields, qn)) return NULL;
+    if (!Map_has(&ns_fields, qn)) return NULL;
     return Map_get(&ns_fields, qn);
 }
 
@@ -120,7 +120,7 @@ void scope_free(Scope *s) {
 }
 
 void scope_set_owned(Scope *s, Str *name, Value val) {
-    if (*Map_has(&s->bindings, name)) {
+    if (Map_has(&s->bindings, name)) {
         Binding *b = Map_get(&s->bindings, name);
         b->cell->val = val;
         return;
@@ -138,7 +138,7 @@ static void scope_set_borrowed(Scope *s, Str *name, Cell *cell) {
 
 Cell *scope_get(Scope *s, Str *name) {
     for (Scope *cur = s; cur; cur = cur->parent) {
-        if (*Map_has(&cur->bindings, name)) {
+        if (Map_has(&cur->bindings, name)) {
             Binding *b = Map_get(&cur->bindings, name);
             return b->cell;
         }
@@ -216,7 +216,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     // Enum field: tagged enums stored as pointer to EnumInstance, simple enums as I32
     if (fdecl->data.data.Decl.field_struct_def &&
         fdecl->data.data.Decl.field_struct_def->data.tag == ExprData_TAG_EnumDef) {
-        if (*enum_has_payloads(fdecl->data.data.Decl.field_struct_def)) {
+        if (enum_has_payloads(fdecl->data.data.Decl.field_struct_def)) {
             EnumInstance *ei = *(EnumInstance **)ptr;
             if (ei) return val_enum(ei->enum_name, ei->tag, clone_value(*ei->payload));
             return val_i32(0);
@@ -404,7 +404,7 @@ Value clone_value(Value v) {
             // Tagged enum fields: clone the EnumInstance pointer
             if (field->data.data.Decl.field_struct_def &&
                 field->data.data.Decl.field_struct_def->data.tag == ExprData_TAG_EnumDef &&
-                *enum_has_payloads(field->data.data.Decl.field_struct_def)) {
+                enum_has_payloads(field->data.data.Decl.field_struct_def)) {
                 EnumInstance *ei = *(EnumInstance **)((char *)src->data + foff);
                 if (ei) {
                     EnumInstance *clone = malloc(sizeof(EnumInstance));
@@ -519,7 +519,7 @@ Value eval_call(Scope *scope, Expr *e) {
                 // Search ns_keys for the entry whose Value.func matches func_def
                 for (U32 ki = 0; ki < ns_keys.count; ki++) {
                     Str *qn = *(Str **)Vec_get(&ns_keys, &(USize){(USize)(ki)});
-                    if (!*Map_has(&ns_fields, qn)) continue;
+                    if (!Map_has(&ns_fields, qn)) continue;
                     Value *nsv = Map_get(&ns_fields, qn);
                     if (nsv->tag == Value_TAG_Func && nsv->data.Func == func_def) {
                         // qn is "Type.method" — build flat name "Type_method"
@@ -863,7 +863,7 @@ Value eval_expr(Scope *scope, Expr *e) {
                     if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
                         I32 tag = *enum_variant_tag(((Expr*)tc->val.data.Func), fname);
                         if (tag >= 0) {
-                            if (*enum_has_payloads(((Expr*)tc->val.data.Func)))
+                            if (enum_has_payloads(((Expr*)tc->val.data.Func)))
                                 return val_enum(sname, tag, val_none());
                             else
                                 return val_i32(tag);
@@ -1194,7 +1194,7 @@ void interpreter_init_ns(Scope *global, Expr *program) {
                 if (field->data.data.Decl.is_namespace) {
                     Value fval = eval_expr(global, Expr_child(field, &(USize){(USize)(0)}));
                     // Simple enum variant tags: convert I64 literal to I32 (matching C enum)
-                    if (sdef->data.tag == ExprData_TAG_EnumDef && !*enum_has_payloads(sdef) &&
+                    if (sdef->data.tag == ExprData_TAG_EnumDef && !enum_has_payloads(sdef) &&
                         fval.tag == Value_TAG_Int) {
                         I32 tag = (I32)fval.data.Int;
                         fval = val_i32(tag);

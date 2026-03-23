@@ -85,7 +85,7 @@ namespace:
         return Str(c_str = ptr_add(s.c_str, st), count = ln, cap = CAP_VIEW)
     }
 
-    contains := func(a: Str, b: Str) returns Bool {
+    contains := func(a: Str, b: Str) returns shallow Bool {
         if b.count.eq(0) { return true }
         if b.count.gt(a.count) { return false }
         for i in 0..a.count.sub(b.count).add(1) {
@@ -100,7 +100,7 @@ namespace:
         return false
     }
 
-    starts_with := func(a: Str, b: Str) returns Bool {
+    starts_with := func(a: Str, b: Str) returns shallow Bool {
         if b.count.gt(a.count) { return false }
         for i in 0..b.count {
             ref ac : U8 = a.get(i)
@@ -110,7 +110,7 @@ namespace:
         return true
     }
 
-    ends_with := func(a: Str, b: Str) returns Bool {
+    ends_with := func(a: Str, b: Str) returns shallow Bool {
         if b.count.gt(a.count) { return false }
         offset := a.count.sub(b.count)
         for i in 0..b.count {
@@ -121,11 +121,11 @@ namespace:
         return true
     }
 
-    is_empty := func(self: Str) returns Bool {
+    is_empty := func(self: Str) returns shallow Bool {
         return self.count.eq(0)
     }
 
-    find := func(self: Str, needle: Str) returns I64 {
+    find := func(self: Str, needle: Str) returns shallow I64 {
         if needle.count.eq(0) { return -1 }
         if needle.count.gt(self.count) { return -1 }
         for i in 0..self.count.sub(needle.count).add(1) {
@@ -140,7 +140,7 @@ namespace:
         return -1
     }
 
-    rfind := func(self: Str, needle: Str) returns I64 {
+    rfind := func(self: Str, needle: Str) returns shallow I64 {
         if needle.count.eq(0) { return -1 }
         if needle.count.gt(self.count) { return -1 }
         mut last := -1
@@ -203,7 +203,7 @@ namespace:
         return Str(c_str = buf, count = 1, cap = 1)
     }
 
-    to_i64 := func(self: Str) returns I64 {
+    to_i64 := func(self: Str) returns shallow I64 {
         if self.count.eq(0) { panic(__LOC__, "Str.to_i64: empty string") }
         mut result := 0
         mut start : USize = 0

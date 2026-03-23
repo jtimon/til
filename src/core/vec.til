@@ -21,7 +21,7 @@ namespace:
                    elem_delete = dyn_fn(elem_type, "delete"))
     }
 
-    len := func(self: Vec) returns USize { return self.count }
+    len := func(self: Vec) returns shallow USize { return self.count }
 
     push := func(mut self: Vec, own val: Dynamic) {
         if self.count.eq(self.cap) {

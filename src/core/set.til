@@ -25,7 +25,7 @@ namespace:
 
     len := func(self: Set) returns USize { return self.count }
 
-    has := func(self: Set, val: Dynamic) returns Bool {
+    has := func(self: Set, val: Dynamic) returns shallow Bool {
         mut lo : USize = 0
         mut hi := self.count
         while lo.lt(hi) {

@@ -9,7 +9,7 @@ Str *qualified_name(Str *type_name, Str *method_name);
 
 // Name-to-Expr map (for top-level decls and namespace methods)
 static Expr *map_get_expr(Map *m, Str *key) {
-    if (!*Map_has(m, key)) return NULL;
+    if (!Map_has(m, key)) return NULL;
     return *(Expr **)Map_get(m, key);
 }
 
@@ -198,7 +198,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     U32 cursor = 0;
     while (cursor < worklist.count) {
         Str *name = *(Str **)Vec_get(&worklist, &(USize){(USize)(cursor++)});
-        if (*Set_has(&visited, name)) continue;
+        if (Set_has(&visited, name)) continue;
         { Str *_p = malloc(sizeof(Str)); *_p = (Str){name->c_str, name->count, CAP_VIEW}; Set_add(&visited, _p); }
 
         // Top-level declaration?
@@ -240,7 +240,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
              Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef)) {
             Str *dname = &stmt->data.data.Decl.name;
-            if (!*Set_has(&visited, dname)) continue;
+            if (!Set_has(&visited, dname)) continue;
         }
         *(Expr*)Vec_get(&program->children, &(USize){(USize)(w++)}) = *stmt;
     }
@@ -259,7 +259,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
             Expr *field = Expr_child(body, &(USize){(USize)(j)});
             if (field->data.data.Decl.is_namespace) {
                 Str *qn = gc_str(qualified_name(sname, &field->data.data.Decl.name));
-                if (!*Set_has(&visited, qn)) continue;
+                if (!Set_has(&visited, qn)) continue;
             }
             *(Expr*)Vec_get(&body->children, &(USize){(USize)(bw++)}) = *field;
         }

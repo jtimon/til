@@ -41,7 +41,7 @@ namespace:
 
     len := func(self: Map) returns USize { return self.count }
 
-    has := func(self: Map, key: Dynamic) returns Bool {
+    has := func(self: Map, key: Dynamic) returns shallow Bool {
         mut lo : USize = 0
         mut hi := self.count
         while lo.lt(hi) {

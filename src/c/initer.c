@@ -114,7 +114,7 @@ void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
                 // Inline struct/enum field
                 Expr *nested_def = TypeScope_get_struct(scope, ftype);
                 if (nested_def && nested_def->data.tag == ExprData_TAG_EnumDef) {
-                    if (*enum_has_payloads(nested_def)) {
+                    if (enum_has_payloads(nested_def)) {
                         fsz = 8; falign = 8; // tagged enum: pointer to EnumInstance
                     } else {
                         fsz = 4; falign = 4; // simple enum: I32 tag (matches C enum)
@@ -1148,7 +1148,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Use computed total_struct_size for structs, 8 for enums (I64 or pointer)
         I32 sz = def->data.tag == ExprData_TAG_EnumDef
-            ? (*enum_has_payloads(def) ? 8 : 4)
+            ? (enum_has_payloads(def) ? 8 : 4)
             : def->total_struct_size;
         char sz_buf[16];
         snprintf(sz_buf, sizeof(sz_buf), "%d", sz);

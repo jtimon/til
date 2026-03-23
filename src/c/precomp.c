@@ -81,7 +81,7 @@ static Bool is_known(Expr *e, Value *out) {
         return 1;
     }
     if (e->data.tag == ExprData_TAG_Ident) {
-        if (*Map_has(&known, &e->data.data.Ident)) { *out = *(Value *)Map_get(&known, &e->data.data.Ident); return 1; }
+        if (Map_has(&known, &e->data.data.Ident)) { *out = *(Value *)Map_get(&known, &e->data.data.Ident); return 1; }
     }
     return 0;
 }
@@ -91,7 +91,7 @@ static Bool is_macro_call(Expr *e) {
     return e->data.tag == ExprData_TAG_FCall &&
            e->children.count > 0 &&
            Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-           *Set_has(&macros, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
+           Set_has(&macros, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
 }
 
 // Check if a ExprData_TAG_FCall is a pure func call
@@ -99,7 +99,7 @@ static Bool is_func_call(Expr *e) {
     return e->data.tag == ExprData_TAG_FCall &&
            e->children.count > 0 &&
            Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-           *Set_has(&funcs, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
+           Set_has(&funcs, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
 }
 
 // Check if a func body references identifiers not available at precomp time.
@@ -112,7 +112,7 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
         for (U32 i = 0; i < func_def->data.data.FuncDef.nparam; i++) {
             if (*Str_eq(&((Param*)Vec_get(&func_def->data.data.FuncDef.params, &(USize){(USize)(i)}))->name, name)) return 0;
         }
-        if (*Map_has(&known, name)) return 0;
+        if (Map_has(&known, name)) return 0;
         if (scope_get(precomp_scope, name)) return 0;
         return 1;
     }

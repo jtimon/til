@@ -547,7 +547,7 @@ Array * Array_clone(Array * self);
 U32 * Array_size(void);
 Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size);
 U32 * Map_len(Map * self);
-Bool * Map_has(Map * self, void * key);
+Bool Map_has(Map * self, void * key);
 void * Map_get(Map * self, void * key);
 void Map_set(Map * self, void * key, void * val);
 void Map_delete(Map * self, Bool * call_free);
@@ -555,7 +555,7 @@ Map * Map_clone(Map * self);
 U32 * Map_size(void);
 Set * Set_new(Str * elem_type, U32 * elem_size);
 U32 * Set_len(Set * self);
-Bool * Set_has(Set * self, void * val);
+Bool Set_has(Set * self, void * val);
 void Set_add(Set * self, void * val);
 void Set_delete(Set * self, Bool * call_free);
 Set * Set_clone(Set * self);
@@ -571,18 +571,18 @@ Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool * call_free);
 Str * Str_to_str(Str * val);
 Str * Str_substr(Str * s, U32 * start, U32 * n);
-Bool * Str_contains(Str * a, Str * b);
-Bool * Str_starts_with(Str * a, Str * b);
-Bool * Str_ends_with(Str * a, Str * b);
-Bool * Str_is_empty(Str * self);
-I64 * Str_find(Str * self, Str * needle);
-I64 * Str_rfind(Str * self, Str * needle);
+Bool Str_contains(Str * a, Str * b);
+Bool Str_starts_with(Str * a, Str * b);
+Bool Str_ends_with(Str * a, Str * b);
+Bool Str_is_empty(Str * self);
+I64 Str_find(Str * self, Str * needle);
+I64 Str_rfind(Str * self, Str * needle);
 Str * Str_replace(Str * self, Str * from, Str * to);
 Str * Str_get_char(Str * self, U32 * i);
 Str * Str_strip_prefix(Str * self, Str * prefix);
 Str * Str_strip_suffix(Str * self, Str * suffix);
 Str * Str_from_byte(U8 * byte);
-I64 * Str_to_i64(Str * self);
+I64 Str_to_i64(Str * self);
 Vec * Str_split(Str * self, Str * delim);
 U32 * Str_size(void);
 Bool * Str_eq(Str * a, Str * b);
@@ -593,7 +593,7 @@ Bool * Str_lte(Str * a, Str * b);
 Bool * Str_gte(Str * a, Str * b);
 Str * join(Vec * parts, Str * sep);
 Vec * Vec_new(Str * elem_type, U32 * elem_size);
-U32 * Vec_len(Vec * self);
+U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void * Vec_get(Vec * self, U32 * i);
 void Vec_delete(Vec * self, Bool * call_free);
@@ -644,7 +644,7 @@ void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
 void Expr_swap_children(Expr * self, Vec * new_children);
 Expr * Expr_child(Expr * parent, U32 * i);
-U32 * Expr_child_count(Expr * parent);
+U32 Expr_child_count(Expr * parent);
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
@@ -652,7 +652,7 @@ U32 * Expr_size(void);
 Str * node_name(ExprData * data);
 Str * func_type_name(FuncType * ft);
 void ast_print(Expr * e, U32 indent);
-Bool * enum_has_payloads(Expr * enum_def);
+Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Bool * TokenType_eq(TokenType * self, TokenType * other);
@@ -1059,7 +1059,7 @@ Array * Array_clone(Array * self);
 U32 * Array_size(void);
 Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size);
 U32 * Map_len(Map * self);
-Bool * Map_has(Map * self, void * key);
+Bool Map_has(Map * self, void * key);
 void * Map_get(Map * self, void * key);
 void Map_set(Map * self, void * key, void * val);
 void Map_delete(Map * self, Bool * call_free);
@@ -1067,7 +1067,7 @@ Map * Map_clone(Map * self);
 U32 * Map_size(void);
 Set * Set_new(Str * elem_type, U32 * elem_size);
 U32 * Set_len(Set * self);
-Bool * Set_has(Set * self, void * val);
+Bool Set_has(Set * self, void * val);
 void Set_add(Set * self, void * val);
 void Set_delete(Set * self, Bool * call_free);
 Set * Set_clone(Set * self);
@@ -1083,18 +1083,18 @@ Str * Str_clone(Str * val);
 void Str_delete(Str * self, Bool * call_free);
 Str * Str_to_str(Str * val);
 Str * Str_substr(Str * s, U32 * start, U32 * n);
-Bool * Str_contains(Str * a, Str * b);
-Bool * Str_starts_with(Str * a, Str * b);
-Bool * Str_ends_with(Str * a, Str * b);
-Bool * Str_is_empty(Str * self);
-I64 * Str_find(Str * self, Str * needle);
-I64 * Str_rfind(Str * self, Str * needle);
+Bool Str_contains(Str * a, Str * b);
+Bool Str_starts_with(Str * a, Str * b);
+Bool Str_ends_with(Str * a, Str * b);
+Bool Str_is_empty(Str * self);
+I64 Str_find(Str * self, Str * needle);
+I64 Str_rfind(Str * self, Str * needle);
 Str * Str_replace(Str * self, Str * from, Str * to);
 Str * Str_get_char(Str * self, U32 * i);
 Str * Str_strip_prefix(Str * self, Str * prefix);
 Str * Str_strip_suffix(Str * self, Str * suffix);
 Str * Str_from_byte(U8 * byte);
-I64 * Str_to_i64(Str * self);
+I64 Str_to_i64(Str * self);
 Vec * Str_split(Str * self, Str * delim);
 U32 * Str_size(void);
 Bool * Str_eq(Str * a, Str * b);
@@ -1105,7 +1105,7 @@ Bool * Str_lte(Str * a, Str * b);
 Bool * Str_gte(Str * a, Str * b);
 Str * join(Vec * parts, Str * sep);
 Vec * Vec_new(Str * elem_type, U32 * elem_size);
-U32 * Vec_len(Vec * self);
+U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void * Vec_get(Vec * self, U32 * i);
 void Vec_delete(Vec * self, Bool * call_free);
@@ -1156,7 +1156,7 @@ void Expr_add_child(Expr * self, Expr * child);
 void Expr_push_child_clone(Expr * self, Expr * child);
 void Expr_swap_children(Expr * self, Vec * new_children);
 Expr * Expr_child(Expr * parent, U32 * i);
-U32 * Expr_child_count(Expr * parent);
+U32 Expr_child_count(Expr * parent);
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
@@ -1164,7 +1164,7 @@ U32 * Expr_size(void);
 Str * node_name(ExprData * data);
 Str * func_type_name(FuncType * ft);
 void ast_print(Expr * e, U32 indent);
-Bool * enum_has_payloads(Expr * enum_def);
+Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
 Bool * TokenType_is_Eof(TokenType * self);
@@ -3810,7 +3810,7 @@ Array * Array_new(Str * elem_type, U32 * elem_size, U32 * cap) {
     (void)elem_type;
     (void)elem_size;
     (void)cap;
-    Bool _t429; { Bool *_hp = (Bool *)Str_is_empty(elem_type); _t429 = *_hp; free(_hp); }
+    Bool _t429 = Str_is_empty(elem_type);
     (void)_t429;
     if (_t429) {
         Str _t423; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t423 = *_hp; free(_hp); }
@@ -4172,7 +4172,7 @@ Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size) {
     (void)key_size;
     (void)val_type;
     (void)val_size;
-    Bool _t525; { Bool *_hp = (Bool *)Str_is_empty(key_type); _t525 = *_hp; free(_hp); }
+    Bool _t525 = Str_is_empty(key_type);
     (void)_t525;
     if (_t525) {
         Str _t499; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t499 = *_hp; free(_hp); }
@@ -4239,7 +4239,7 @@ Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size) {
         Str_delete(&_t514, &(Bool){0});
     }
     ;
-    Bool _t528; { Bool *_hp = (Bool *)Str_is_empty(val_type); _t528 = *_hp; free(_hp); }
+    Bool _t528 = Str_is_empty(val_type);
     (void)_t528;
     if (_t528) {
         void *_t515 = malloc(DEREF(key_size));
@@ -4332,7 +4332,7 @@ U32 * Map_len(Map * self) {
     { U32 *_r = malloc(sizeof(U32)); *_r = self->count; return _r; }
 }
 
-Bool * Map_has(Map * self, void * key) {
+Bool Map_has(Map * self, void * key) {
     (void)self;
     (void)key;
     U32 lo = 0;
@@ -4399,7 +4399,7 @@ Bool * Map_has(Map * self, void * key) {
                 U32_delete(mid, &(Bool){1});
                 ;
                 ;
-                { Bool *_r = malloc(sizeof(Bool)); *_r = _t545; return _r; }
+                return _t545;
             }
             ;
         }
@@ -4411,7 +4411,7 @@ Bool * Map_has(Map * self, void * key) {
     ;
     Bool _t555 = 0;
     (void)_t555;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t555; return _r; }
+    return _t555;
 }
 
 void * Map_get(Map * self, void * key) {
@@ -4607,7 +4607,7 @@ void Map_set(Map * self, void * key, void * val) {
     }
     ;
     if (found) {
-        Bool _t599; { Bool *_hp = (Bool *)Str_is_empty(&self->key_type); _t599 = *_hp; free(_hp); }
+        Bool _t599 = Str_is_empty(&self->key_type);
         (void)_t599;
         Bool _t600 = Bool_not(_t599);
         (void)_t600;
@@ -4620,7 +4620,7 @@ void Map_set(Map * self, void * key, void * val) {
         }
         ;
         free(key);
-        Bool _t601; { Bool *_hp = (Bool *)Str_is_empty(&self->val_type); _t601 = *_hp; free(_hp); }
+        Bool _t601 = Str_is_empty(&self->val_type);
         (void)_t601;
         Bool _t602 = Bool_not(_t601);
         (void)_t602;
@@ -4748,7 +4748,7 @@ void Map_delete(Map * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t656; { Bool *_hp = (Bool *)Str_is_empty(&self->key_type); _t656 = *_hp; free(_hp); }
+    Bool _t656 = Str_is_empty(&self->key_type);
     (void)_t656;
     Bool _t657 = Bool_not(_t656);
     (void)_t657;
@@ -4817,7 +4817,7 @@ void Map_delete(Map * self, Bool * call_free) {
         }
     }
     ;
-    Bool _t658; { Bool *_hp = (Bool *)Str_is_empty(&self->val_type); _t658 = *_hp; free(_hp); }
+    Bool _t658 = Str_is_empty(&self->val_type);
     (void)_t658;
     Bool _t659 = Bool_not(_t658);
     (void)_t659;
@@ -4888,7 +4888,7 @@ void Map_delete(Map * self, Bool * call_free) {
     ;
     free(self->key_data);
     free(self->val_data);
-    Bool _t660; { Bool *_hp = (Bool *)Str_is_empty(&self->key_type); _t660 = *_hp; free(_hp); }
+    Bool _t660 = Str_is_empty(&self->key_type);
     (void)_t660;
     Bool _t661 = Bool_not(_t660);
     (void)_t661;
@@ -4900,7 +4900,7 @@ void Map_delete(Map * self, Bool * call_free) {
         ;
     }
     ;
-    Bool _t662; { Bool *_hp = (Bool *)Str_is_empty(&self->val_type); _t662 = *_hp; free(_hp); }
+    Bool _t662 = Str_is_empty(&self->val_type);
     (void)_t662;
     Bool _t663 = Bool_not(_t662);
     (void)_t663;
@@ -5055,7 +5055,7 @@ U32 *Map_size(void) {
 Set * Set_new(Str * elem_type, U32 * elem_size) {
     (void)elem_type;
     (void)elem_size;
-    Bool _t704; { Bool *_hp = (Bool *)Str_is_empty(elem_type); _t704 = *_hp; free(_hp); }
+    Bool _t704 = Str_is_empty(elem_type);
     (void)_t704;
     if (_t704) {
         Str _t688; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t688 = *_hp; free(_hp); }
@@ -5157,7 +5157,7 @@ U32 * Set_len(Set * self) {
     { U32 *_r = malloc(sizeof(U32)); *_r = self->count; return _r; }
 }
 
-Bool * Set_has(Set * self, void * val) {
+Bool Set_has(Set * self, void * val) {
     (void)self;
     (void)val;
     U32 lo = 0;
@@ -5224,7 +5224,7 @@ Bool * Set_has(Set * self, void * val) {
                 U32_delete(mid, &(Bool){1});
                 ;
                 ;
-                { Bool *_r = malloc(sizeof(Bool)); *_r = _t719; return _r; }
+                return _t719;
             }
             ;
         }
@@ -5236,7 +5236,7 @@ Bool * Set_has(Set * self, void * val) {
     ;
     Bool _t729 = 0;
     (void)_t729;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t729; return _r; }
+    return _t729;
 }
 
 void Set_add(Set * self, void * val) {
@@ -5321,7 +5321,7 @@ void Set_add(Set * self, void * val) {
     }
     ;
     if (found) {
-        Bool _t747; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t747 = *_hp; free(_hp); }
+        Bool _t747 = Str_is_empty(&self->elem_type);
         (void)_t747;
         Bool _t748 = Bool_not(_t747);
         (void)_t748;
@@ -5402,7 +5402,7 @@ void Set_delete(Set * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t777; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t777 = *_hp; free(_hp); }
+    Bool _t777 = Str_is_empty(&self->elem_type);
     (void)_t777;
     Bool _t778 = Bool_not(_t777);
     (void)_t778;
@@ -5472,7 +5472,7 @@ void Set_delete(Set * self, Bool * call_free) {
     }
     ;
     free(self->data);
-    Bool _t779; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t779 = *_hp; free(_hp); }
+    Bool _t779 = Str_is_empty(&self->elem_type);
     (void)_t779;
     Bool _t780 = Bool_not(_t779);
     (void)_t780;
@@ -5975,7 +5975,7 @@ Str * Str_substr(Str * s, U32 * start, U32 * n) {
     { Str *_r = malloc(sizeof(Str)); *_r = _t865; return _r; }
 }
 
-Bool * Str_contains(Str * a, Str * b) {
+Bool Str_contains(Str * a, Str * b) {
     (void)a;
     (void)b;
     U32 _t896 = 0;
@@ -5987,7 +5987,7 @@ Bool * Str_contains(Str * a, Str * b) {
         Bool _t866 = 1;
         (void)_t866;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t866; return _r; }
+        return _t866;
     }
     ;
     Bool _t898; { Bool *_hp = (Bool *)U32_gt(&b->count, &a->count); _t898 = *_hp; free(_hp); }
@@ -5996,7 +5996,7 @@ Bool * Str_contains(Str * a, Str * b) {
         Bool _t867 = 0;
         (void)_t867;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t867; return _r; }
+        return _t867;
     }
     ;
     {
@@ -6111,7 +6111,7 @@ Bool * Str_contains(Str * a, Str * b) {
                     U32_delete(_rc868, &(Bool){1});
                     ;
                     ;
-                    { Bool *_r = malloc(sizeof(Bool)); *_r = _t880; return _r; }
+                    return _t880;
                 }
                 ;
             }
@@ -6213,7 +6213,7 @@ Bool * Str_contains(Str * a, Str * b) {
                     U32_delete(_rc868, &(Bool){1});
                     ;
                     ;
-                    { Bool *_r = malloc(sizeof(Bool)); *_r = _t892; return _r; }
+                    return _t892;
                 }
                 ;
             }
@@ -6224,10 +6224,10 @@ Bool * Str_contains(Str * a, Str * b) {
     }
     Bool _t899 = 0;
     (void)_t899;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t899; return _r; }
+    return _t899;
 }
 
-Bool * Str_starts_with(Str * a, Str * b) {
+Bool Str_starts_with(Str * a, Str * b) {
     (void)a;
     (void)b;
     Bool _t909; { Bool *_hp = (Bool *)U32_gt(&b->count, &a->count); _t909 = *_hp; free(_hp); }
@@ -6236,7 +6236,7 @@ Bool * Str_starts_with(Str * a, Str * b) {
         Bool _t900 = 0;
         (void)_t900;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t900; return _r; }
+        return _t900;
     }
     ;
     {
@@ -6274,7 +6274,7 @@ Bool * Str_starts_with(Str * a, Str * b) {
                     U32_delete(_rc901, &(Bool){1});
                     ;
                     ;
-                    { Bool *_r = malloc(sizeof(Bool)); *_r = _t903; return _r; }
+                    return _t903;
                 }
                 ;
             }
@@ -6305,7 +6305,7 @@ Bool * Str_starts_with(Str * a, Str * b) {
                     U32_delete(_rc901, &(Bool){1});
                     ;
                     ;
-                    { Bool *_r = malloc(sizeof(Bool)); *_r = _t906; return _r; }
+                    return _t906;
                 }
                 ;
             }
@@ -6316,10 +6316,10 @@ Bool * Str_starts_with(Str * a, Str * b) {
     }
     Bool _t910 = 1;
     (void)_t910;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t910; return _r; }
+    return _t910;
 }
 
-Bool * Str_ends_with(Str * a, Str * b) {
+Bool Str_ends_with(Str * a, Str * b) {
     (void)a;
     (void)b;
     Bool _t922; { Bool *_hp = (Bool *)U32_gt(&b->count, &a->count); _t922 = *_hp; free(_hp); }
@@ -6328,7 +6328,7 @@ Bool * Str_ends_with(Str * a, Str * b) {
         Bool _t911 = 0;
         (void)_t911;
         ;
-        { Bool *_r = malloc(sizeof(Bool)); *_r = _t911; return _r; }
+        return _t911;
     }
     ;
     U32 offset = U32_sub(a->count, b->count);
@@ -6371,7 +6371,7 @@ Bool * Str_ends_with(Str * a, Str * b) {
                     U32_delete(_rc912, &(Bool){1});
                     ;
                     ;
-                    { Bool *_r = malloc(sizeof(Bool)); *_r = _t914; return _r; }
+                    return _t914;
                 }
                 ;
             }
@@ -6405,7 +6405,7 @@ Bool * Str_ends_with(Str * a, Str * b) {
                     U32_delete(_rc912, &(Bool){1});
                     ;
                     ;
-                    { Bool *_r = malloc(sizeof(Bool)); *_r = _t918; return _r; }
+                    return _t918;
                 }
                 ;
             }
@@ -6417,20 +6417,20 @@ Bool * Str_ends_with(Str * a, Str * b) {
     ;
     Bool _t923 = 1;
     (void)_t923;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t923; return _r; }
+    return _t923;
 }
 
-Bool * Str_is_empty(Str * self) {
+Bool Str_is_empty(Str * self) {
     (void)self;
     U32 _t924 = 0;
     (void)_t924;
     Bool _t925 = U32_eq(self->count, _t924);
     (void)_t925;
     ;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t925; return _r; }
+    return _t925;
 }
 
-I64 * Str_find(Str * self, Str * needle) {
+I64 Str_find(Str * self, Str * needle) {
     (void)self;
     (void)needle;
     U32 _t960 = 0;
@@ -6448,7 +6448,7 @@ I64 * Str_find(Str * self, Str * needle) {
         ;
         ;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t928; return _r; }
+        return _t928;
     }
     ;
     Bool _t962; { Bool *_hp = (Bool *)U32_gt(&needle->count, &self->count); _t962 = *_hp; free(_hp); }
@@ -6463,7 +6463,7 @@ I64 * Str_find(Str * self, Str * needle) {
         ;
         ;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t931; return _r; }
+        return _t931;
     }
     ;
     {
@@ -6578,7 +6578,7 @@ I64 * Str_find(Str * self, Str * needle) {
                     U32_delete(_rc932, &(Bool){1});
                     ;
                     ;
-                    { I64 *_r = malloc(sizeof(I64)); *_r = _t944; return _r; }
+                    return _t944;
                 }
                 ;
                 ;
@@ -6681,7 +6681,7 @@ I64 * Str_find(Str * self, Str * needle) {
                     U32_delete(_rc932, &(Bool){1});
                     ;
                     ;
-                    { I64 *_r = malloc(sizeof(I64)); *_r = _t956; return _r; }
+                    return _t956;
                 }
                 ;
                 ;
@@ -6699,10 +6699,10 @@ I64 * Str_find(Str * self, Str * needle) {
     (void)_t965;
     ;
     ;
-    { I64 *_r = malloc(sizeof(I64)); *_r = _t965; return _r; }
+    return _t965;
 }
 
-I64 * Str_rfind(Str * self, Str * needle) {
+I64 Str_rfind(Str * self, Str * needle) {
     (void)self;
     (void)needle;
     U32 _t1000 = 0;
@@ -6720,7 +6720,7 @@ I64 * Str_rfind(Str * self, Str * needle) {
         ;
         ;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t968; return _r; }
+        return _t968;
     }
     ;
     Bool _t1002; { Bool *_hp = (Bool *)U32_gt(&needle->count, &self->count); _t1002 = *_hp; free(_hp); }
@@ -6735,7 +6735,7 @@ I64 * Str_rfind(Str * self, Str * needle) {
         ;
         ;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t971; return _r; }
+        return _t971;
     }
     ;
     I64 _t1003 = 0;
@@ -6963,7 +6963,7 @@ I64 * Str_rfind(Str * self, Str * needle) {
         ;
         ;
     }
-    { I64 *_r = malloc(sizeof(I64)); *_r = last; return _r; }
+    return last;
 }
 
 Str * Str_replace(Str * self, Str * from, Str * to) {
@@ -7003,7 +7003,7 @@ Str * Str_replace(Str * self, Str * from, Str * to) {
         Str rest; { Str *_hp = (Str *)Str_substr(self, &(U32){start}, &(U32){_t1008}); rest = *_hp; free(_hp); }
         (void)rest;
         ;
-        I64 pos; { I64 *_hp = (I64 *)Str_find(&rest, from); pos = *_hp; free(_hp); }
+        I64 pos = Str_find(&rest, from);
         (void)pos;
         I64 _t1009 = 0;
         (void)_t1009;
@@ -7073,7 +7073,7 @@ Str * Str_get_char(Str * self, U32 * i) {
 Str * Str_strip_prefix(Str * self, Str * prefix) {
     (void)self;
     (void)prefix;
-    Bool _t1025; { Bool *_hp = (Bool *)Str_starts_with(self, prefix); _t1025 = *_hp; free(_hp); }
+    Bool _t1025 = Str_starts_with(self, prefix);
     (void)_t1025;
     if (_t1025) {
         U32 _t1023 = U32_sub(self->count, prefix->count);
@@ -7093,7 +7093,7 @@ Str * Str_strip_prefix(Str * self, Str * prefix) {
 Str * Str_strip_suffix(Str * self, Str * suffix) {
     (void)self;
     (void)suffix;
-    Bool _t1030; { Bool *_hp = (Bool *)Str_ends_with(self, suffix); _t1030 = *_hp; free(_hp); }
+    Bool _t1030 = Str_ends_with(self, suffix);
     (void)_t1030;
     if (_t1030) {
         U32 _t1027 = 0;
@@ -7151,7 +7151,7 @@ Str * Str_from_byte(U8 * byte) {
     { Str *_r = malloc(sizeof(Str)); *_r = _t1040; return _r; }
 }
 
-I64 * Str_to_i64(Str * self) {
+I64 Str_to_i64(Str * self) {
     (void)self;
     U32 _t1101 = 0;
     (void)_t1101;
@@ -7429,10 +7429,10 @@ I64 * Str_to_i64(Str * self) {
         ;
         ;
         ;
-        { I64 *_r = malloc(sizeof(I64)); *_r = _t1100; return _r; }
+        return _t1100;
     }
     ;
-    { I64 *_r = malloc(sizeof(I64)); *_r = result; return _r; }
+    return result;
 }
 
 Vec * Str_split(Str * self, Str * delim) {
@@ -7631,7 +7631,7 @@ Bool * Str_gte(Str * a, Str * b) {
 Str * join(Vec * parts, Str * sep) {
     (void)parts;
     (void)sep;
-    U32 _t1159; { U32 *_hp = (U32 *)Vec_len(parts); _t1159 = *_hp; free(_hp); }
+    U32 _t1159 = Vec_len(parts);
     (void)_t1159;
     U32 _t1160 = 0;
     (void)_t1160;
@@ -7649,7 +7649,7 @@ Str * join(Vec * parts, Str * sep) {
     Str result; { Str *_hp = (Str *)Str_lit("", 0ULL); result = *_hp; free(_hp); }
     (void)result;
     {
-        U32 _re1151; { U32 *_hp = (U32 *)Vec_len(parts); _re1151 = *_hp; free(_hp); }
+        U32 _re1151 = Vec_len(parts);
         (void)_re1151;
         U32 *_rc1151 = malloc(sizeof(U32));
         *_rc1151 = 0;
@@ -7721,7 +7721,7 @@ Str * join(Vec * parts, Str * sep) {
 Vec * Vec_new(Str * elem_type, U32 * elem_size) {
     (void)elem_type;
     (void)elem_size;
-    Bool _t1167; { Bool *_hp = (Bool *)Str_is_empty(elem_type); _t1167 = *_hp; free(_hp); }
+    Bool _t1167 = Str_is_empty(elem_type);
     (void)_t1167;
     if (_t1167) {
         void *_t1162 = malloc(DEREF(elem_size));
@@ -7775,9 +7775,9 @@ Vec * Vec_new(Str * elem_type, U32 * elem_size) {
     { Vec *_r = malloc(sizeof(Vec)); *_r = _t1174; return _r; }
 }
 
-U32 * Vec_len(Vec * self) {
+U32 Vec_len(Vec * self) {
     (void)self;
-    { U32 *_r = malloc(sizeof(U32)); *_r = self->count; return _r; }
+    return self->count;
 }
 
 void Vec_push(Vec * self, void * val) {
@@ -7885,7 +7885,7 @@ void Vec_delete(Vec * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t1212; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1212 = *_hp; free(_hp); }
+    Bool _t1212 = Str_is_empty(&self->elem_type);
     (void)_t1212;
     Bool _t1213 = Bool_not(_t1212);
     (void)_t1213;
@@ -7955,7 +7955,7 @@ void Vec_delete(Vec * self, Bool * call_free) {
     }
     ;
     free(self->data);
-    Bool _t1214; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1214 = *_hp; free(_hp); }
+    Bool _t1214 = Str_is_empty(&self->elem_type);
     (void)_t1214;
     Bool _t1215 = Bool_not(_t1214);
     (void)_t1215;
@@ -7979,7 +7979,7 @@ Vec * Vec_clone(Vec * self) {
     U8 *new_data = malloc(_t1229);
     (void)new_data;
     ;
-    Bool _t1230; { Bool *_hp = (Bool *)Str_is_empty(&self->elem_type); _t1230 = *_hp; free(_hp); }
+    Bool _t1230 = Str_is_empty(&self->elem_type);
     (void)_t1230;
     Bool _t1231 = Bool_not(_t1230);
     (void)_t1231;
@@ -8117,7 +8117,7 @@ Tuple * Tuple_new(void) {
 
 U32 * Tuple_len(Tuple * self) {
     (void)self;
-    U32 _t1243; { U32 *_hp = (U32 *)Vec_len(&self->type_names); _t1243 = *_hp; free(_hp); }
+    U32 _t1243 = Vec_len(&self->type_names);
     (void)_t1243;
     { U32 *_r = malloc(sizeof(U32)); *_r = _t1243; return _r; }
 }
@@ -8184,7 +8184,7 @@ void Tuple_push(Tuple * self, Str * elem_type, U32 * elem_size, void * val) {
 void * Tuple_get(Tuple * self, U32 * i) {
     (void)self;
     (void)i;
-    U32 _t1276; { U32 *_hp = (U32 *)Vec_len(&self->type_names); _t1276 = *_hp; free(_hp); }
+    U32 _t1276 = Vec_len(&self->type_names);
     (void)_t1276;
     Bool _t1277; { Bool *_hp = (Bool *)U32_gte(i, &(U32){_t1276}); _t1277 = *_hp; free(_hp); }
     (void)_t1277;
@@ -8219,7 +8219,7 @@ void * Tuple_get(Tuple * self, U32 * i) {
         (void)_t1263;
         Array_set(&_va23, &(U32){_t1262}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t1263; _oa; }));
         ;
-        U32 _t1264; { U32 *_hp = (U32 *)Vec_len(&self->type_names); _t1264 = *_hp; free(_hp); }
+        U32 _t1264 = Vec_len(&self->type_names);
         (void)_t1264;
         U32 _t1265 = 3;
         (void)_t1265;
@@ -8328,7 +8328,7 @@ void Tuple_delete(Tuple * self, Bool * call_free) {
     *offset = 0;
     (void)offset;
     {
-        U32 _re1281; { U32 *_hp = (U32 *)Vec_len(&self->type_names); _re1281 = *_hp; free(_hp); }
+        U32 _re1281 = Vec_len(&self->type_names);
         (void)_re1281;
         U32 *_rc1281 = malloc(sizeof(U32));
         *_rc1281 = 0;
@@ -8435,7 +8435,7 @@ Tuple * Tuple_clone(Tuple * self) {
     *offset = 0;
     (void)offset;
     {
-        U32 _re1294; { U32 *_hp = (U32 *)Vec_len(&self->type_names); _re1294 = *_hp; free(_hp); }
+        U32 _re1294 = Vec_len(&self->type_names);
         (void)_re1294;
         U32 *_rc1294 = malloc(sizeof(U32));
         *_rc1294 = 0;
@@ -11699,11 +11699,11 @@ Expr * Expr_child(Expr * parent, U32 * i) {
     return c;
 }
 
-U32 * Expr_child_count(Expr * parent) {
+U32 Expr_child_count(Expr * parent) {
     (void)parent;
-    U32 _t1852; { U32 *_hp = (U32 *)Vec_len(&parent->children); _t1852 = *_hp; free(_hp); }
+    U32 _t1852 = Vec_len(&parent->children);
     (void)_t1852;
-    { U32 *_r = malloc(sizeof(U32)); *_r = _t1852; return _r; }
+    return _t1852;
 }
 
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path) {
@@ -11817,7 +11817,7 @@ Expr * Expr_clone(Expr * self) {
     Str_delete(&_t1881, &(Bool){0});
     ;
     {
-        U32 _re1877; { U32 *_hp = (U32 *)Vec_len(&self->children); _re1877 = *_hp; free(_hp); }
+        U32 _re1877 = Vec_len(&self->children);
         (void)_re1877;
         U32 *_rc1877 = malloc(sizeof(U32));
         *_rc1877 = 0;
@@ -13197,7 +13197,7 @@ void ast_print(Expr * e, U32 indent) {
         ExprData_delete(&_sw1993, &(Bool){0});
         ;
     }
-    U32 _t2120; { U32 *_hp = (U32 *)Vec_len(&e->children); _t2120 = *_hp; free(_hp); }
+    U32 _t2120 = Vec_len(&e->children);
     (void)_t2120;
     U32 _t2121 = 0;
     (void)_t2121;
@@ -13225,7 +13225,7 @@ void ast_print(Expr * e, U32 indent) {
         ;
         println(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va53; _oa; }));
         {
-            U32 _re2081; { U32 *_hp = (U32 *)Vec_len(&e->children); _re2081 = *_hp; free(_hp); }
+            U32 _re2081 = Vec_len(&e->children);
             (void)_re2081;
             U32 *_rc2081 = malloc(sizeof(U32));
             *_rc2081 = 0;
@@ -13389,7 +13389,7 @@ void ast_print(Expr * e, U32 indent) {
     println(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va55; _oa; }));
 }
 
-Bool * enum_has_payloads(Expr * enum_def) {
+Bool enum_has_payloads(Expr * enum_def) {
     (void)enum_def;
     U32 *_t2146 = malloc(sizeof(U32));
     *_t2146 = 0;
@@ -13397,7 +13397,7 @@ Bool * enum_has_payloads(Expr * enum_def) {
     Expr *body = Expr_child(enum_def, _t2146);
     (void)body;
     {
-        U32 _re2128; { U32 *_hp = (U32 *)Expr_child_count(body); _re2128 = *_hp; free(_hp); }
+        U32 _re2128 = Expr_child_count(body);
         (void)_re2128;
         U32 *_rc2128 = malloc(sizeof(U32));
         *_rc2128 = 0;
@@ -13448,7 +13448,7 @@ Bool * enum_has_payloads(Expr * enum_def) {
                         U32_delete(_rc2128, &(Bool){1});
                         ;
                         ;
-                        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2130; return _r; }
+                        return _t2130;
                     }
                     ;
                 }
@@ -13499,7 +13499,7 @@ Bool * enum_has_payloads(Expr * enum_def) {
                         U32_delete(_rc2128, &(Bool){1});
                         ;
                         ;
-                        { Bool *_r = malloc(sizeof(Bool)); *_r = _t2138; return _r; }
+                        return _t2138;
                     }
                     ;
                 }
@@ -13514,7 +13514,7 @@ Bool * enum_has_payloads(Expr * enum_def) {
     U32_delete(_t2146, &(Bool){0});
     Bool _t2147 = 0;
     (void)_t2147;
-    { Bool *_r = malloc(sizeof(Bool)); *_r = _t2147; return _r; }
+    return _t2147;
 }
 
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
@@ -13528,7 +13528,7 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
     I32 tag = 0;
     (void)tag;
     {
-        U32 _re2148; { U32 *_hp = (U32 *)Expr_child_count(body); _re2148 = *_hp; free(_hp); }
+        U32 _re2148 = Expr_child_count(body);
         (void)_re2148;
         U32 *_rc2148 = malloc(sizeof(U32));
         *_rc2148 = 0;
@@ -13669,7 +13669,7 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
     I32 idx = 0;
     (void)idx;
     {
-        U32 _re2167; { U32 *_hp = (U32 *)Expr_child_count(body); _re2167 = *_hp; free(_hp); }
+        U32 _re2167 = Expr_child_count(body);
         (void)_re2167;
         U32 *_rc2167 = malloc(sizeof(U32));
         *_rc2167 = 0;
@@ -22114,7 +22114,7 @@ Str * parse_fn_signature(Parser * p, U32 line, U32 col) {
     Str name; { Str *_hp = (Str *)Str_lit("_Fn", 3ULL); name = *_hp; free(_hp); }
     (void)name;
     {
-        U32 _re3174; { U32 *_hp = (U32 *)Vec_len(ptypes); _re3174 = *_hp; free(_hp); }
+        U32 _re3174 = Vec_len(ptypes);
         (void)_re3174;
         U32 *_rc3174 = malloc(sizeof(U32));
         *_rc3174 = 0;
@@ -22318,7 +22318,7 @@ Str * parse_fn_signature(Parser * p, U32 line, U32 col) {
     fd.kwargs_index = _t3236;
     ;
     {
-        U32 _re3183; { U32 *_hp = (U32 *)Vec_len(ptypes); _re3183 = *_hp; free(_hp); }
+        U32 _re3183 = Vec_len(ptypes);
         (void)_re3183;
         U32 *_rc3183 = malloc(sizeof(U32));
         *_rc3183 = 0;
@@ -22404,7 +22404,7 @@ Str * parse_fn_signature(Parser * p, U32 line, U32 col) {
     }
     Vec_delete(pmuts, &(Bool){0});
     Vec_delete(ptypes, &(Bool){0});
-    U32 _t3237; { U32 *_hp = (U32 *)Vec_len(&fd.params); _t3237 = *_hp; free(_hp); }
+    U32 _t3237 = Vec_len(&fd.params);
     (void)_t3237;
     fd.nparam = _t3237;
     ;
@@ -22864,7 +22864,7 @@ Expr * parse_func_def(Parser * p) {
                     Str_delete(&_t3305, &(Bool){0});
                 }
                 ;
-                U32 _t3319; { U32 *_hp = (U32 *)Vec_len(&fd.params); _t3319 = *_hp; free(_hp); }
+                U32 _t3319 = Vec_len(&fd.params);
                 (void)_t3319;
                 I64 _t3320 = U32_to_i64(_t3319);
                 (void)_t3320;
@@ -23031,7 +23031,7 @@ Expr * parse_func_def(Parser * p) {
                         Str_delete(&_t3352, &(Bool){0});
                     }
                     ;
-                    U32 _t3364; { U32 *_hp = (U32 *)Vec_len(&fd.params); _t3364 = *_hp; free(_hp); }
+                    U32 _t3364 = Vec_len(&fd.params);
                     (void)_t3364;
                     I64 _t3365 = U32_to_i64(_t3364);
                     (void)_t3365;
@@ -23220,7 +23220,7 @@ Expr * parse_func_def(Parser * p) {
         { Str *_fa = expect_text(p, TokenType_Ident()); fd.return_type = *_fa; free(_fa); }
     }
     ;
-    U32 _t3466; { U32 *_hp = (U32 *)Vec_len(&fd.params); _t3466 = *_hp; free(_hp); }
+    U32 _t3466 = Vec_len(&fd.params);
     (void)_t3466;
     fd.nparam = _t3466;
     ;
@@ -23629,7 +23629,7 @@ Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col) {
             U32 _t3526 = U32_add(p->pos, _t3525);
             (void)_t3526;
             ;
-            U32 _t3527; { U32 *_hp = (U32 *)Vec_len(&p->tokens); _t3527 = *_hp; free(_hp); }
+            U32 _t3527 = Vec_len(&p->tokens);
             (void)_t3527;
             Bool _t3528; { Bool *_hp = (Bool *)U32_lt(&(U32){_t3526}, &(U32){_t3527}); _t3528 = *_hp; free(_hp); }
             (void)_t3528;
@@ -23810,7 +23810,7 @@ Expr * parse_expression(Parser * p) {
         U32 _t3570 = U32_add(p->pos, _t3569);
         (void)_t3570;
         ;
-        U32 _t3571; { U32 *_hp = (U32 *)Vec_len(&p->tokens); _t3571 = *_hp; free(_hp); }
+        U32 _t3571 = Vec_len(&p->tokens);
         (void)_t3571;
         Bool _t3572; { Bool *_hp = (Bool *)U32_lt(&(U32){_t3570}, &(U32){_t3571}); _t3572 = *_hp; free(_hp); }
         (void)_t3572;
@@ -24607,7 +24607,7 @@ Expr * parse_expression(Parser * p) {
                     U32 _t3720 = U32_add(p->pos, _t3719);
                     (void)_t3720;
                     ;
-                    U32 _t3721; { U32 *_hp = (U32 *)Vec_len(&p->tokens); _t3721 = *_hp; free(_hp); }
+                    U32 _t3721 = Vec_len(&p->tokens);
                     (void)_t3721;
                     Bool _t3722; { Bool *_hp = (Bool *)U32_lt(&(U32){_t3720}, &(U32){_t3721}); _t3722 = *_hp; free(_hp); }
                     (void)_t3722;
@@ -24858,7 +24858,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
                 ;
                 Vec_delete(&new_names, &(Bool){0});
                 {
-                    U32 _re3808; { U32 *_hp = (U32 *)Vec_len(&sfd.params); _re3808 = *_hp; free(_hp); }
+                    U32 _re3808 = Vec_len(&sfd.params);
                     (void)_re3808;
                     U32 *_rc3808 = malloc(sizeof(U32));
                     *_rc3808 = 0;
@@ -25241,7 +25241,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
                 ;
                 ffd.kwargs_index = _t3899;
                 ;
-                U32 *np = Vec_len(pnames);
+                U32 *np = malloc(sizeof(U32)); *np = Vec_len(pnames);
                 (void)np;
                 {
                     U32 *_re3858 = np;
@@ -25533,7 +25533,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
                     U32 _t3947 = U32_add(p->pos, _t3946);
                     (void)_t3947;
                     ;
-                    U32 _t3948; { U32 *_hp = (U32 *)Vec_len(&p->tokens); _t3948 = *_hp; free(_hp); }
+                    U32 _t3948 = Vec_len(&p->tokens);
                     (void)_t3948;
                     Bool _t3949; { Bool *_hp = (Bool *)U32_lt(&(U32){_t3947}, &(U32){_t3948}); _t3949 = *_hp; free(_hp); }
                     (void)_t3949;
@@ -26245,7 +26245,7 @@ Expr * parse_statement(Parser * p) {
                 U32 _t4100 = U32_add(p->pos, _t4099);
                 (void)_t4100;
                 ;
-                U32 _t4101; { U32 *_hp = (U32 *)Vec_len(&p->tokens); _t4101 = *_hp; free(_hp); }
+                U32 _t4101 = Vec_len(&p->tokens);
                 (void)_t4101;
                 Bool _t4102; { Bool *_hp = (Bool *)U32_lt(&(U32){_t4100}, &(U32){_t4101}); _t4102 = *_hp; free(_hp); }
                 (void)_t4102;
@@ -26359,7 +26359,7 @@ Expr * parse_statement(Parser * p) {
         Expr cur; { Expr *_hp = (Expr *)Expr_clone(&expr); cur = *_hp; free(_hp); }
         (void)cur;
         while (1) {
-            U32 _t4122; { U32 *_hp = (U32 *)Vec_len(&cur.children); _t4122 = *_hp; free(_hp); }
+            U32 _t4122 = Vec_len(&cur.children);
             (void)_t4122;
             U32 _t4123 = 0;
             (void)_t4123;
@@ -26398,7 +26398,7 @@ Expr * parse_statement(Parser * p) {
         cur.is_own_arg = _t4138;
         ;
         Expr_delete(&cur, &(Bool){0});
-        U32 _t4139; { U32 *_hp = (U32 *)Vec_len(&expr.children); _t4139 = *_hp; free(_hp); }
+        U32 _t4139 = Vec_len(&expr.children);
         (void)_t4139;
         U32 _t4140 = 0;
         (void)_t4140;
@@ -26613,7 +26613,7 @@ Expr * parse(Vec * tokens, Str * path, Str * mode_out) {
         Expr_add_child(root, ({ Expr *_oa = malloc(sizeof(Expr)); *_oa = _t4202; _oa; }));
     }
     {
-        U32 _re4203; { U32 *_hp = (U32 *)Vec_len(&p->fn_sig_decls); _re4203 = *_hp; free(_hp); }
+        U32 _re4203 = Vec_len(&p->fn_sig_decls);
         (void)_re4203;
         U32 *_rc4203 = malloc(sizeof(U32));
         *_rc4203 = 0;
@@ -26992,7 +26992,7 @@ TilType * type_from_name_init(Str * name, TypeScope * scope) {
                 (void)_t4260;
                 ;
                 if (_t4260) {
-                    U32 _t4256; { U32 *_hp = (U32 *)Expr_child_count(b.func_def); _t4256 = *_hp; free(_hp); }
+                    U32 _t4256 = Expr_child_count(b.func_def);
                     (void)_t4256;
                     U32 _t4257 = 0;
                     (void)_t4257;
@@ -27050,7 +27050,7 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope) {
     (void)program;
     (void)scope;
     {
-        U32 _re4289; { U32 *_hp = (U32 *)Expr_child_count(program); _re4289 = *_hp; free(_hp); }
+        U32 _re4289 = Expr_child_count(program);
         (void)_re4289;
         U32 *_rc4289 = malloc(sizeof(U32));
         *_rc4289 = 0;
@@ -27397,7 +27397,7 @@ TypeScope * TypeScope_new(TypeScope * parent) {
 ScopeFind * TypeScope_find(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
-    Bool _t4351; { Bool *_hp = (Bool *)Map_has(&self->bindings, name); _t4351 = *_hp; free(_hp); }
+    Bool _t4351 = Map_has(&self->bindings, name);
     (void)_t4351;
     if (_t4351) {
         TypeBinding *b = Map_get(&self->bindings, name);
@@ -27542,7 +27542,7 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bo
     (void)col;
     (void)is_param;
     (void)is_own;
-    Bool _t4373; { Bool *_hp = (Bool *)Map_has(&self->bindings, name); _t4373 = *_hp; free(_hp); }
+    Bool _t4373 = Map_has(&self->bindings, name);
     (void)_t4373;
     if (_t4373) {
         TypeBinding *b = Map_get(&self->bindings, name);
@@ -28004,7 +28004,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                 Bool _t4469; { Bool *_hp = (Bool *)TilType_eq(&_sw4435, TilType_U8()); _t4469 = *_hp; free(_hp); }
                 (void)_t4469;
                 if (_t4469) {
-                    I64 val; { I64 *_hp = (I64 *)Str_to_i64(val_str); val = *_hp; free(_hp); }
+                    I64 val = Str_to_i64(val_str);
                     (void)val;
                     I64 _t4438 = 0;
                     (void)_t4438;
@@ -28030,7 +28030,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                     Bool _t4468; { Bool *_hp = (Bool *)TilType_eq(&_sw4435, TilType_I16()); _t4468 = *_hp; free(_hp); }
                     (void)_t4468;
                     if (_t4468) {
-                        I64 val; { I64 *_hp = (I64 *)Str_to_i64(val_str); val = *_hp; free(_hp); }
+                        I64 val = Str_to_i64(val_str);
                         (void)val;
                         I64 _t4443 = 0;
                         (void)_t4443;
@@ -28063,7 +28063,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                         Bool _t4467; { Bool *_hp = (Bool *)TilType_eq(&_sw4435, TilType_I32()); _t4467 = *_hp; free(_hp); }
                         (void)_t4467;
                         if (_t4467) {
-                            I64 val; { I64 *_hp = (I64 *)Str_to_i64(val_str); val = *_hp; free(_hp); }
+                            I64 val = Str_to_i64(val_str);
                             (void)val;
                             I64 _t4450 = 0;
                             (void)_t4450;
@@ -28097,7 +28097,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                             Bool _t4466; { Bool *_hp = (Bool *)TilType_eq(&_sw4435, TilType_U32()); _t4466 = *_hp; free(_hp); }
                             (void)_t4466;
                             if (_t4466) {
-                                I64 val; { I64 *_hp = (I64 *)Str_to_i64(val_str); val = *_hp; free(_hp); }
+                                I64 val = Str_to_i64(val_str);
                                 (void)val;
                                 I64 _t4457 = 0;
                                 (void)_t4457;
@@ -28126,7 +28126,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                                 Bool _t4465; { Bool *_hp = (Bool *)TilType_eq(&_sw4435, TilType_U64()); _t4465 = *_hp; free(_hp); }
                                 (void)_t4465;
                                 if (_t4465) {
-                                    I64 val; { I64 *_hp = (I64 *)Str_to_i64(val_str); val = *_hp; free(_hp); }
+                                    I64 val = Str_to_i64(val_str);
                                     (void)val;
                                     I64 _t4462 = 0;
                                     (void)_t4462;
@@ -28557,7 +28557,7 @@ TilType * type_from_name(Str * name, TypeScope * scope) {
                 (void)_t4515;
                 ;
                 if (_t4515) {
-                    U32 _t4511; { U32 *_hp = (U32 *)Expr_child_count(b.func_def); _t4511 = *_hp; free(_hp); }
+                    U32 _t4511 = Expr_child_count(b.func_def);
                     (void)_t4511;
                     U32 _t4512 = 0;
                     (void)_t4512;
@@ -28695,7 +28695,7 @@ Bool expr_contains_fcall(Expr * e) {
     }
     ;
     {
-        U32 _re4560; { U32 *_hp = (U32 *)Expr_child_count(e); _re4560 = *_hp; free(_hp); }
+        U32 _re4560 = Expr_child_count(e);
         (void)_re4560;
         U32 *_rc4560 = malloc(sizeof(U32));
         *_rc4560 = 0;
@@ -28819,7 +28819,7 @@ Bool expr_uses_var(Expr * e, Str * name) {
     }
     ;
     {
-        U32 _re4579; { U32 *_hp = (U32 *)Expr_child_count(e); _re4579 = *_hp; free(_hp); }
+        U32 _re4579 = Expr_child_count(e);
         (void)_re4579;
         U32 *_rc4579 = malloc(sizeof(U32));
         *_rc4579 = 0;
@@ -28922,7 +28922,7 @@ Bool expr_contains_decl(Expr * e, Str * name) {
     }
     ;
     {
-        U32 _re4596; { U32 *_hp = (U32 *)Expr_child_count(e); _re4596 = *_hp; free(_hp); }
+        U32 _re4596 = Expr_child_count(e);
         (void)_re4596;
         U32 *_rc4596 = malloc(sizeof(U32));
         *_rc4596 = 0;
@@ -29077,7 +29077,7 @@ Bool expr_used_in_nested_func(Expr * e, Str * name) {
             ;
         }
         FunctionDef_delete(&fdef, &(Bool){0});
-        U32 _t4620; { U32 *_hp = (U32 *)Expr_child_count(e); _t4620 = *_hp; free(_hp); }
+        U32 _t4620 = Expr_child_count(e);
         (void)_t4620;
         U32 _t4621 = 0;
         (void)_t4621;
@@ -29106,7 +29106,7 @@ Bool expr_used_in_nested_func(Expr * e, Str * name) {
     }
     ;
     {
-        U32 _re4624; { U32 *_hp = (U32 *)Expr_child_count(e); _re4624 = *_hp; free(_hp); }
+        U32 _re4624 = Expr_child_count(e);
         (void)_re4624;
         U32 *_rc4624 = malloc(sizeof(U32));
         *_rc4624 = 0;
@@ -29187,7 +29187,7 @@ Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name) {
     (void)var_name;
     FunctionDef fd; { FunctionDef *_hp = (FunctionDef *)ExprData_get_FuncDef(&fdef->data); fd = *_hp; free(_hp); }
     (void)fd;
-    U32 _t4663; { U32 *_hp = (U32 *)Vec_len(&fd.params); _t4663 = *_hp; free(_hp); }
+    U32 _t4663 = Vec_len(&fd.params);
     (void)_t4663;
     U32 _t4664 = 0;
     (void)_t4664;
@@ -29229,7 +29229,7 @@ Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name) {
                 U32 _t4647 = U32_add(DEREF(i), _t4646);
                 (void)_t4647;
                 ;
-                U32 _t4648; { U32 *_hp = (U32 *)Expr_child_count(fcall); _t4648 = *_hp; free(_hp); }
+                U32 _t4648 = Expr_child_count(fcall);
                 (void)_t4648;
                 Bool _t4649; { Bool *_hp = (Bool *)U32_gte(&(U32){_t4647}, &(U32){_t4648}); _t4649 = *_hp; free(_hp); }
                 (void)_t4649;
@@ -29301,7 +29301,7 @@ Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name) {
                 U32 _t4659 = U32_add(DEREF(i), _t4658);
                 (void)_t4659;
                 ;
-                U32 _t4660; { U32 *_hp = (U32 *)Expr_child_count(fcall); _t4660 = *_hp; free(_hp); }
+                U32 _t4660 = Expr_child_count(fcall);
                 (void)_t4660;
                 Bool _t4661; { Bool *_hp = (Bool *)U32_gte(&(U32){_t4659}, &(U32){_t4660}); _t4661 = *_hp; free(_hp); }
                 (void)_t4661;
@@ -29382,7 +29382,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
         return _t4667;
     }
     ;
-    U32 _t4745; { U32 *_hp = (U32 *)Expr_child_count(fcall); _t4745 = *_hp; free(_hp); }
+    U32 _t4745 = Expr_child_count(fcall);
     (void)_t4745;
     U32 _t4746 = 2;
     (void)_t4746;
@@ -29437,7 +29437,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                     U32 fi = 0;
                     (void)fi;
                     {
-                        U32 _re4669; { U32 *_hp = (U32 *)Expr_child_count(body); _re4669 = *_hp; free(_hp); }
+                        U32 _re4669 = Expr_child_count(body);
                         (void)_re4669;
                         U32 *_rc4669 = malloc(sizeof(U32));
                         *_rc4669 = 0;
@@ -29489,7 +29489,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                                 ;
                                 fi = _t4680;
                                 ;
-                                U32 _t4681; { U32 *_hp = (U32 *)Expr_child_count(fcall); _t4681 = *_hp; free(_hp); }
+                                U32 _t4681 = Expr_child_count(fcall);
                                 (void)_t4681;
                                 Bool _t4682; { Bool *_hp = (Bool *)U32_lt(arg_idx, &(U32){_t4681}); _t4682 = *_hp; free(_hp); }
                                 (void)_t4682;
@@ -29574,7 +29574,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                                 ;
                                 fi = _t4693;
                                 ;
-                                U32 _t4694; { U32 *_hp = (U32 *)Expr_child_count(fcall); _t4694 = *_hp; free(_hp); }
+                                U32 _t4694 = Expr_child_count(fcall);
                                 (void)_t4694;
                                 Bool _t4695; { Bool *_hp = (Bool *)U32_lt(arg_idx, &(U32){_t4694}); _t4695 = *_hp; free(_hp); }
                                 (void)_t4695;
@@ -29746,7 +29746,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
         Expr *body = Expr_child(sdef, _t4742);
         (void)body;
         {
-            U32 _re4714; { U32 *_hp = (U32 *)Expr_child_count(body); _re4714 = *_hp; free(_hp); }
+            U32 _re4714 = Expr_child_count(body);
             (void)_re4714;
             U32 *_rc4714 = malloc(sizeof(U32));
             *_rc4714 = 0;
@@ -29910,7 +29910,7 @@ Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope) {
     (void)_t4782;
     ;
     if (_t4782) {
-        U32 _t4766; { U32 *_hp = (U32 *)Expr_child_count(e); _t4766 = *_hp; free(_hp); }
+        U32 _t4766 = Expr_child_count(e);
         (void)_t4766;
         U32 _t4767 = 1;
         (void)_t4767;
@@ -29950,7 +29950,7 @@ Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope) {
     }
     ;
     {
-        U32 _re4769; { U32 *_hp = (U32 *)Expr_child_count(e); _re4769 = *_hp; free(_hp); }
+        U32 _re4769 = Expr_child_count(e);
         (void)_re4769;
         U32 *_rc4769 = malloc(sizeof(U32));
         *_rc4769 = 0;
@@ -30030,7 +30030,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr) {
     (void)name;
     (void)expr;
     {
-        U32 _re4784; { U32 *_hp = (U32 *)Expr_child_count(body); _re4784 = *_hp; free(_hp); }
+        U32 _re4784 = Expr_child_count(body);
         (void)_re4784;
         U32 *_rc4784 = malloc(sizeof(U32));
         *_rc4784 = 0;
@@ -30057,7 +30057,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr) {
                 if (_t4797) {
                     Declaration dd; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&d->data); dd = *_hp; free(_hp); }
                     (void)dd;
-                    U32 _t4793; { U32 *_hp = (U32 *)Expr_child_count(d); _t4793 = *_hp; free(_hp); }
+                    U32 _t4793 = Expr_child_count(d);
                     (void)_t4793;
                     U32 _t4794 = 0;
                     (void)_t4794;
@@ -30133,7 +30133,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr) {
                 if (_t4810) {
                     Declaration dd; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&d->data); dd = *_hp; free(_hp); }
                     (void)dd;
-                    U32 _t4806; { U32 *_hp = (U32 *)Expr_child_count(d); _t4806 = *_hp; free(_hp); }
+                    U32 _t4806 = Expr_child_count(d);
                     (void)_t4806;
                     U32 _t4807 = 0;
                     (void)_t4807;
@@ -30348,7 +30348,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
         Expr *body = Expr_child(sdef, _t4853);
         (void)body;
         {
-            U32 _re4832; { U32 *_hp = (U32 *)Expr_child_count(body); _re4832 = *_hp; free(_hp); }
+            U32 _re4832 = Expr_child_count(body);
             (void)_re4832;
             U32 *_rc4832 = malloc(sizeof(U32));
             *_rc4832 = 0;
@@ -31326,7 +31326,7 @@ Vec * extract_imports(Expr * body) {
     Str_delete(&_t5023, &(Bool){0});
     ;
     {
-        U32 _re4981; { U32 *_hp = (U32 *)Expr_child_count(body); _re4981 = *_hp; free(_hp); }
+        U32 _re4981 = Expr_child_count(body);
         (void)_re4981;
         U32 *_rc4981 = malloc(sizeof(U32));
         *_rc4981 = 0;
@@ -31350,7 +31350,7 @@ Vec * extract_imports(Expr * body) {
                 (void)stmt;
                 Bool is_import = 0;
                 (void)is_import;
-                U32 _t4996; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t4996 = *_hp; free(_hp); }
+                U32 _t4996 = Expr_child_count(stmt);
                 (void)_t4996;
                 U32 _t4997 = 2;
                 (void)_t4997;
@@ -31435,7 +31435,7 @@ Vec * extract_imports(Expr * body) {
                 (void)stmt;
                 Bool is_import = 0;
                 (void)is_import;
-                U32 _t5015; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t5015 = *_hp; free(_hp); }
+                U32 _t5015 = Expr_child_count(stmt);
                 (void)_t5015;
                 U32 _t5016 = 2;
                 (void)_t5016;
@@ -31520,7 +31520,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
     (void)merged;
     (void)lib_dir;
     {
-        U32 _re5025; { U32 *_hp = (U32 *)Vec_len(import_paths); _re5025 = *_hp; free(_hp); }
+        U32 _re5025 = Vec_len(import_paths);
         (void)_re5025;
         U32 *_rc5025 = malloc(sizeof(U32));
         *_rc5025 = 0;
@@ -31635,7 +31635,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 }
                 ;
                 U32_delete(i, &(Bool){0});
-                Bool _t5067; { Bool *_hp = (Bool *)Set_has(resolved_set, abs); _t5067 = *_hp; free(_hp); }
+                Bool _t5067 = Set_has(resolved_set, abs);
                 (void)_t5067;
                 if (_t5067) {
                     ;
@@ -31705,7 +31705,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 (void)sub_dir;
                 Str_delete(abs, &(Bool){0});
                 U32_delete(last_slash, &(Bool){0});
-                U32 _t5072; { U32 *_hp = (U32 *)Vec_len(&sub_imports); _t5072 = *_hp; free(_hp); }
+                U32 _t5072 = Vec_len(&sub_imports);
                 (void)_t5072;
                 U32 _t5073 = 0;
                 (void)_t5073;
@@ -31739,7 +31739,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str_delete(&sub_dir, &(Bool){0});
                 Vec_delete(&sub_imports, &(Bool){0});
                 {
-                    U32 _re5051; { U32 *_hp = (U32 *)Expr_child_count(sub_ast); _re5051 = *_hp; free(_hp); }
+                    U32 _re5051 = Expr_child_count(sub_ast);
                     (void)_re5051;
                     U32 *_rc5051 = malloc(sizeof(U32));
                     *_rc5051 = 0;
@@ -31901,7 +31901,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 }
                 ;
                 U32_delete(i, &(Bool){0});
-                Bool _t5116; { Bool *_hp = (Bool *)Set_has(resolved_set, abs); _t5116 = *_hp; free(_hp); }
+                Bool _t5116 = Set_has(resolved_set, abs);
                 (void)_t5116;
                 if (_t5116) {
                     ;
@@ -31971,7 +31971,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 (void)sub_dir;
                 Str_delete(abs, &(Bool){0});
                 U32_delete(last_slash, &(Bool){0});
-                U32 _t5121; { U32 *_hp = (U32 *)Vec_len(&sub_imports); _t5121 = *_hp; free(_hp); }
+                U32 _t5121 = Vec_len(&sub_imports);
                 (void)_t5121;
                 U32 _t5122 = 0;
                 (void)_t5122;
@@ -32005,7 +32005,7 @@ I32 * resolve_imports(Vec * import_paths, Str * base_dir, Set * resolved_set, Ve
                 Str_delete(&sub_dir, &(Bool){0});
                 Vec_delete(&sub_imports, &(Bool){0});
                 {
-                    U32 _re5100; { U32 *_hp = (U32 *)Expr_child_count(sub_ast); _re5100 = *_hp; free(_hp); }
+                    U32 _re5100 = Expr_child_count(sub_ast);
                     (void)_re5100;
                     U32 *_rc5100 = malloc(sizeof(U32));
                     *_rc5100 = 0;
@@ -32241,7 +32241,7 @@ void mark_core(Expr * e) {
     e->is_core = _t5177;
     ;
     {
-        U32 _re5171; { U32 *_hp = (U32 *)Expr_child_count(e); _re5171 = *_hp; free(_hp); }
+        U32 _re5171 = Expr_child_count(e);
         (void)_re5171;
         U32 *_rc5171 = malloc(sizeof(U32));
         *_rc5171 = 0;
@@ -32898,7 +32898,7 @@ int main(int argc, char **argv) {
     ;
     ;
     if (_t5616) {
-        Bool _t5235; { Bool *_hp = (Bool *)Set_has(resolved, &core_abs); _t5235 = *_hp; free(_hp); }
+        Bool _t5235 = Set_has(resolved, &core_abs);
         (void)_t5235;
         if (_t5235) {
             Bool _t5234 = 1;
@@ -32923,7 +32923,7 @@ int main(int argc, char **argv) {
     ;
     Vec core_imports; { Vec *_hp = (Vec *)extract_imports(core_ast); core_imports = *_hp; free(_hp); }
     (void)core_imports;
-    U32 _t5619; { U32 *_hp = (U32 *)Vec_len(&core_imports); _t5619 = *_hp; free(_hp); }
+    U32 _t5619 = Vec_len(&core_imports);
     (void)_t5619;
     U32 _t5620 = 0;
     (void)_t5620;
@@ -33065,7 +33065,7 @@ int main(int argc, char **argv) {
     (void)import_decls;
     Str_delete(&_t5629, &(Bool){0});
     ;
-    U32 _t5631; { U32 *_hp = (U32 *)Vec_len(&imports); _t5631 = *_hp; free(_hp); }
+    U32 _t5631 = Vec_len(&imports);
     (void)_t5631;
     U32 _t5632 = 0;
     (void)_t5632;
@@ -33131,7 +33131,7 @@ int main(int argc, char **argv) {
     ;
     if (_t5636) {
         {
-            U32 _re5268; { U32 *_hp = (U32 *)Expr_child_count(core_ast); _re5268 = *_hp; free(_hp); }
+            U32 _re5268 = Expr_child_count(core_ast);
             (void)_re5268;
             U32 *_rc5268 = malloc(sizeof(U32));
             *_rc5268 = 0;
@@ -33186,7 +33186,7 @@ int main(int argc, char **argv) {
             ;
         }
         {
-            U32 _re5274; { U32 *_hp = (U32 *)Vec_len(core_import_decls); _re5274 = *_hp; free(_hp); }
+            U32 _re5274 = Vec_len(core_import_decls);
             (void)_re5274;
             U32 *_rc5274 = malloc(sizeof(U32));
             *_rc5274 = 0;
@@ -33283,7 +33283,7 @@ int main(int argc, char **argv) {
         Str_delete(&_t5290, &(Bool){0});
         Vec_delete(&mode_tokens, &(Bool){0});
         {
-            U32 _re5280; { U32 *_hp = (U32 *)Expr_child_count(mode_ast); _re5280 = *_hp; free(_hp); }
+            U32 _re5280 = Expr_child_count(mode_ast);
             (void)_re5280;
             U32 *_rc5280 = malloc(sizeof(U32));
             *_rc5280 = 0;
@@ -33341,7 +33341,7 @@ int main(int argc, char **argv) {
     Str_delete(&auto_import, &(Bool){0});
     Str_delete(&bin_dir, &(Bool){0});
     {
-        U32 _re5291; { U32 *_hp = (U32 *)Vec_len(import_decls); _re5291 = *_hp; free(_hp); }
+        U32 _re5291 = Vec_len(import_decls);
         (void)_re5291;
         U32 *_rc5291 = malloc(sizeof(U32));
         *_rc5291 = 0;
@@ -33395,7 +33395,7 @@ int main(int argc, char **argv) {
     }
     Vec_delete(import_decls, &(Bool){0});
     {
-        U32 _re5297; { U32 *_hp = (U32 *)Expr_child_count(ast); _re5297 = *_hp; free(_hp); }
+        U32 _re5297 = Expr_child_count(ast);
         (void)_re5297;
         U32 *_rc5297 = malloc(sizeof(U32));
         *_rc5297 = 0;
@@ -33461,7 +33461,7 @@ int main(int argc, char **argv) {
     Str_delete(&_t5640, &(Bool){0});
     ;
     {
-        U32 _re5303; { U32 *_hp = (U32 *)Expr_child_count(ast); _re5303 = *_hp; free(_hp); }
+        U32 _re5303 = Expr_child_count(ast);
         (void)_re5303;
         U32 *_rc5303 = malloc(sizeof(U32));
         *_rc5303 = 0;
@@ -33485,7 +33485,7 @@ int main(int argc, char **argv) {
                 (void)stmt;
                 Bool is_directive = 0;
                 (void)is_directive;
-                U32 _t5325; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t5325 = *_hp; free(_hp); }
+                U32 _t5325 = Expr_child_count(stmt);
                 (void)_t5325;
                 U32 _t5326 = 2;
                 (void)_t5326;
@@ -33605,7 +33605,7 @@ int main(int argc, char **argv) {
                 (void)stmt;
                 Bool is_directive = 0;
                 (void)is_directive;
-                U32 _t5351; { U32 *_hp = (U32 *)Expr_child_count(stmt); _t5351 = *_hp; free(_hp); }
+                U32 _t5351 = Expr_child_count(stmt);
                 (void)_t5351;
                 U32 _t5352 = 2;
                 (void)_t5352;
@@ -33891,7 +33891,7 @@ int main(int argc, char **argv) {
         (void)arg;
         Str _t5382; { Str *_hp = (Str *)Str_lit("-l", 2ULL); _t5382 = *_hp; free(_hp); }
         (void)_t5382;
-        Bool _t5383; { Bool *_hp = (Bool *)Str_starts_with(arg, &_t5382); _t5383 = *_hp; free(_hp); }
+        Bool _t5383 = Str_starts_with(arg, &_t5382);
         (void)_t5383;
         Str_delete(&_t5382, &(Bool){0});
         if (_t5383) {
@@ -34090,7 +34090,7 @@ int main(int argc, char **argv) {
             ;
             Str _t5520; { Str *_hp = (Str *)Str_lit("/", 1ULL); _t5520 = *_hp; free(_hp); }
             (void)_t5520;
-            I64 *last_slash = Str_rfind(&path, &_t5520);
+            I64 *last_slash = malloc(sizeof(I64)); *last_slash = Str_rfind(&path, &_t5520);
             (void)last_slash;
             Str_delete(&_t5520, &(Bool){0});
             Str basename; { Str *_hp = (Str *)Str_clone(&path); basename = *_hp; free(_hp); }
@@ -34130,7 +34130,7 @@ int main(int argc, char **argv) {
             (void)name_len;
             Str _t5523; { Str *_hp = (Str *)Str_lit(".til", 4ULL); _t5523 = *_hp; free(_hp); }
             (void)_t5523;
-            Bool _t5524; { Bool *_hp = (Bool *)Str_ends_with(&basename, &_t5523); _t5524 = *_hp; free(_hp); }
+            Bool _t5524 = Str_ends_with(&basename, &_t5523);
             (void)_t5524;
             Str_delete(&_t5523, &(Bool){0});
             if (_t5524) {
@@ -34214,12 +34214,12 @@ int main(int argc, char **argv) {
             } else {
                 Str _t5414; { Str *_hp = (Str *)Str_lit("/", 1ULL); _t5414 = *_hp; free(_hp); }
                 (void)_t5414;
-                I64 cp_slash; { I64 *_hp = (I64 *)Str_rfind(&c_path, &_t5414); cp_slash = *_hp; free(_hp); }
+                I64 cp_slash = Str_rfind(&c_path, &_t5414);
                 (void)cp_slash;
                 Str_delete(&_t5414, &(Bool){0});
                 Str _t5415; { Str *_hp = (Str *)Str_lit("/", 1ULL); _t5415 = *_hp; free(_hp); }
                 (void)_t5415;
-                I64 bp_slash; { I64 *_hp = (I64 *)Str_rfind(&bin_path, &_t5415); bp_slash = *_hp; free(_hp); }
+                I64 bp_slash = Str_rfind(&bin_path, &_t5415);
                 (void)bp_slash;
                 Str_delete(&_t5415, &(Bool){0});
                 Str cp_dir; { Str *_hp = (Str *)Str_lit("gen/til", 7ULL); cp_dir = *_hp; free(_hp); }
@@ -34664,7 +34664,7 @@ int main(int argc, char **argv) {
                 *ui = 0;
                 (void)ui;
                 while (1) {
-                    U32 _t5509; { U32 *_hp = (U32 *)Vec_len(user_argv); _t5509 = *_hp; free(_hp); }
+                    U32 _t5509 = Vec_len(user_argv);
                     (void)_t5509;
                     Bool _wcond5508; { Bool *_hp = (Bool *)U32_lt(ui, &(U32){_t5509}); _wcond5508 = *_hp; free(_hp); }
                     (void)_wcond5508;
@@ -35182,6 +35182,39 @@ void *Bool_eq_dyn(void *_a0, void *_a1) {
 void *Bool_clone_dyn(void *_a0) {
     Bool *_r = malloc(sizeof(Bool)); *_r = Bool_clone(_a0); return _r;
 }
+void *Map_has_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Map_has(_a0, _a1); return _r;
+}
+void *Set_has_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Set_has(_a0, _a1); return _r;
+}
+void *Str_contains_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Str_contains(_a0, _a1); return _r;
+}
+void *Str_starts_with_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Str_starts_with(_a0, _a1); return _r;
+}
+void *Str_ends_with_dyn(void *_a0, void *_a1) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Str_ends_with(_a0, _a1); return _r;
+}
+void *Str_is_empty_dyn(void *_a0) {
+    Bool *_r = malloc(sizeof(Bool)); *_r = Str_is_empty(_a0); return _r;
+}
+void *Str_find_dyn(void *_a0, void *_a1) {
+    I64 *_r = malloc(sizeof(I64)); *_r = Str_find(_a0, _a1); return _r;
+}
+void *Str_rfind_dyn(void *_a0, void *_a1) {
+    I64 *_r = malloc(sizeof(I64)); *_r = Str_rfind(_a0, _a1); return _r;
+}
+void *Str_to_i64_dyn(void *_a0) {
+    I64 *_r = malloc(sizeof(I64)); *_r = Str_to_i64(_a0); return _r;
+}
+void *Vec_len_dyn(void *_a0) {
+    U32 *_r = malloc(sizeof(U32)); *_r = Vec_len(_a0); return _r;
+}
+void *Expr_child_count_dyn(void *_a0) {
+    U32 *_r = malloc(sizeof(U32)); *_r = Expr_child_count(_a0); return _r;
+}
 void *Expr_new_dyn(void *_a0, void *_a1, void *_a2, void *_a3) {
     return (void *)Expr_new(_a0, *(U32 *)_a1, *(U32 *)_a2, _a3);
 }
@@ -35408,7 +35441,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 5ULL && memcmp(type_name->c_str, "Array", 5ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Array_size;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)Map_new;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "len", 3ULL) == 0) return (void*)Map_len;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "has", 3ULL) == 0) return (void*)Map_has;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "has", 3ULL) == 0) return (void*)Map_has_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "get", 3ULL) == 0) return (void*)Map_get;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "set", 3ULL) == 0) return (void*)Map_set;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Map_delete;
@@ -35416,7 +35449,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Map", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Map_size;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)Set_new;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "len", 3ULL) == 0) return (void*)Set_len;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "has", 3ULL) == 0) return (void*)Set_has;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "has", 3ULL) == 0) return (void*)Set_has_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "add", 3ULL) == 0) return (void*)Set_add;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Set_delete;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Set", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Set_clone;
@@ -35432,18 +35465,18 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Str_delete;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)Str_to_str;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "substr", 6ULL) == 0) return (void*)Str_substr;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "contains", 8ULL) == 0) return (void*)Str_contains;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "starts_with", 11ULL) == 0) return (void*)Str_starts_with;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "ends_with", 9ULL) == 0) return (void*)Str_ends_with;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "is_empty", 8ULL) == 0) return (void*)Str_is_empty;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "find", 4ULL) == 0) return (void*)Str_find;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "rfind", 5ULL) == 0) return (void*)Str_rfind;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "contains", 8ULL) == 0) return (void*)Str_contains_dyn;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "starts_with", 11ULL) == 0) return (void*)Str_starts_with_dyn;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "ends_with", 9ULL) == 0) return (void*)Str_ends_with_dyn;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "is_empty", 8ULL) == 0) return (void*)Str_is_empty_dyn;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "find", 4ULL) == 0) return (void*)Str_find_dyn;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "rfind", 5ULL) == 0) return (void*)Str_rfind_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "replace", 7ULL) == 0) return (void*)Str_replace;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "get_char", 8ULL) == 0) return (void*)Str_get_char;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 12ULL && memcmp(method->c_str, "strip_prefix", 12ULL) == 0) return (void*)Str_strip_prefix;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 12ULL && memcmp(method->c_str, "strip_suffix", 12ULL) == 0) return (void*)Str_strip_suffix;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 9ULL && memcmp(method->c_str, "from_byte", 9ULL) == 0) return (void*)Str_from_byte;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_i64", 6ULL) == 0) return (void*)Str_to_i64;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_i64", 6ULL) == 0) return (void*)Str_to_i64_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "split", 5ULL) == 0) return (void*)Str_split;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)Str_size;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 2ULL && memcmp(method->c_str, "eq", 2ULL) == 0) return (void*)Str_eq;
@@ -35453,7 +35486,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "lte", 3ULL) == 0) return (void*)Str_lte;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Str", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "gte", 3ULL) == 0) return (void*)Str_gte;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)Vec_new;
-    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "len", 3ULL) == 0) return (void*)Vec_len;
+    if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "len", 3ULL) == 0) return (void*)Vec_len_dyn;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "push", 4ULL) == 0) return (void*)Vec_push;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "get", 3ULL) == 0) return (void*)Vec_get;
     if (type_name->count == 3ULL && memcmp(type_name->c_str, "Vec", 3ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Vec_delete;
@@ -35587,7 +35620,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 16ULL && memcmp(method->c_str, "push_child_clone", 16ULL) == 0) return (void*)Expr_push_child_clone;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 13ULL && memcmp(method->c_str, "swap_children", 13ULL) == 0) return (void*)Expr_swap_children;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "child", 5ULL) == 0) return (void*)Expr_child;
-    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "child_count", 11ULL) == 0) return (void*)Expr_child_count;
+    if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "child_count", 11ULL) == 0) return (void*)Expr_child_count_dyn;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)Expr_new_dyn;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 5ULL && memcmp(method->c_str, "clone", 5ULL) == 0) return (void*)Expr_clone;
     if (type_name->count == 4ULL && memcmp(type_name->c_str, "Expr", 4ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "delete", 6ULL) == 0) return (void*)Expr_delete;

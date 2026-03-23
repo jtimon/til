@@ -440,7 +440,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 for (U32 i = 0; i < np; i++) {
                     if (!new_args[i]) {
                         Str *_pn = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
-                        if (*Map_has(&ns_func->data.data.FuncDef.param_defaults, _pn)) {
+                        if (Map_has(&ns_func->data.data.FuncDef.param_defaults, _pn)) {
                             new_args[i] = Expr_clone((Expr*)Map_get(&ns_func->data.data.FuncDef.param_defaults, _pn));
                         } else {
                             char buf[128];
@@ -742,7 +742,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if ((I32)i == kwi) continue; // kwargs param handled separately
                 if (!new_args[i]) {
                     Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
-                    if (*Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
+                    if (Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
                         new_args[i] = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
                     } else {
                         char buf[128];
