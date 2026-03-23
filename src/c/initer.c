@@ -1255,6 +1255,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
               Vec_push(&fd->data.data.FuncDef.params, _p); } \
             { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fd->data.data.FuncDef.param_defaults = *_mp; free(_mp); } \
             fd->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT}; \
+            fd->data.data.FuncDef.return_is_shallow = true; \
             fd->data.data.FuncDef.variadic_index = -1; \
             fd->data.data.FuncDef.kwargs_index = -1; \
             Expr_add_child(fd, fb); \
