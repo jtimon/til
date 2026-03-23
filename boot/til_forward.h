@@ -892,6 +892,7 @@ U32 * Mode_size(void);
 Mode * mode_resolve(Str * name);
 Bool * mode_is_lib(Mode * m);
 Bool * mode_is_lib_output(Mode * m);
+Str get_version(void);
 Vec * tokenize(Str * source, Str * path);
 I32 init_declarations(Expr * program, TypeScope * scope);
 I32 type_check(Expr * program, TypeScope * scope, Mode * m);
