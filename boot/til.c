@@ -13354,7 +13354,7 @@ Bool enum_has_payloads(Expr * enum_def) {
                 U32_inc(_rc2084);
                 Expr *f = Expr_child(body, i);
                 (void)f;
-                Bool _t2092; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2092 = *_hp; free(_hp); }
+                Bool _t2092 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t2092;
                 if (_t2092) {
                     Declaration *decl = get_payload(&f->data);
@@ -13404,7 +13404,7 @@ Bool enum_has_payloads(Expr * enum_def) {
                 U32_dec(_rc2084);
                 Expr *f = Expr_child(body, i);
                 (void)f;
-                Bool _t2100; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2100 = *_hp; free(_hp); }
+                Bool _t2100 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t2100;
                 if (_t2100) {
                     Declaration *decl = get_payload(&f->data);
@@ -13483,7 +13483,7 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
                 U32_inc(_rc2104);
                 Expr *f = Expr_child(body, i);
                 (void)f;
-                Bool _t2110; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2110 = *_hp; free(_hp); }
+                Bool _t2110 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t2110;
                 if (_t2110) {
                     Declaration *decl = get_payload(&f->data);
@@ -13532,7 +13532,7 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
                 U32_dec(_rc2104);
                 Expr *f = Expr_child(body, i);
                 (void)f;
-                Bool _t2116; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2116 = *_hp; free(_hp); }
+                Bool _t2116 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t2116;
                 if (_t2116) {
                     Declaration *decl = get_payload(&f->data);
@@ -13620,7 +13620,7 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                 U32_inc(_rc2123);
                 Expr *f = Expr_child(body, i);
                 (void)f;
-                Bool _t2129; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2129 = *_hp; free(_hp); }
+                Bool _t2129 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t2129;
                 if (_t2129) {
                     Declaration *decl = get_payload(&f->data);
@@ -13669,7 +13669,7 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                 U32_dec(_rc2123);
                 Expr *f = Expr_child(body, i);
                 (void)f;
-                Bool _t2135; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2135 = *_hp; free(_hp); }
+                Bool _t2135 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t2135;
                 if (_t2135) {
                     Declaration *decl = get_payload(&f->data);
