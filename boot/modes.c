@@ -23294,13 +23294,13 @@ Expr * parse_struct_def(Parser * p) {
         ;
         Expr stmt; { Expr *_hp = (Expr *)parse_statement(p); stmt = *_hp; free(_hp); }
         (void)stmt;
-        Bool _t3436; { Bool *_hp = (Bool *)ExprData_is_Decl(&stmt.data); _t3436 = *_hp; free(_hp); }
+        Bool _t3436 = is_variant(&stmt.data, &(ExprData){.tag = ExprData_TAG_Decl});
         (void)_t3436;
         Bool _t3437 = Bool_and(in_namespace, _t3436);
         (void)_t3437;
         ;
         if (_t3437) {
-            Bool _t3430; { Bool *_hp = (Bool *)ExprData_is_Decl(&stmt.data); _t3430 = *_hp; free(_hp); }
+            Bool _t3430 = is_variant(&stmt.data, &(ExprData){.tag = ExprData_TAG_Decl});
             (void)_t3430;
             if (_t3430) {
                 Declaration *dd = get_payload(&stmt.data);
@@ -23385,10 +23385,10 @@ Expr * parse_enum_def(Parser * p) {
         if (in_namespace) {
             Expr stmt; { Expr *_hp = (Expr *)parse_statement(p); stmt = *_hp; free(_hp); }
             (void)stmt;
-            Bool _t3450; { Bool *_hp = (Bool *)ExprData_is_Decl(&stmt.data); _t3450 = *_hp; free(_hp); }
+            Bool _t3450 = is_variant(&stmt.data, &(ExprData){.tag = ExprData_TAG_Decl});
             (void)_t3450;
             if (_t3450) {
-                Bool _t3449; { Bool *_hp = (Bool *)ExprData_is_Decl(&stmt.data); _t3449 = *_hp; free(_hp); }
+                Bool _t3449 = is_variant(&stmt.data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t3449;
                 if (_t3449) {
                     Declaration *dd = get_payload(&stmt.data);
@@ -24735,7 +24735,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
             (void)_t3777;
             Token *_t3778 = expect_token(p, &(TokenType){.tag = TokenType_TAG_LParen});
             (void)_t3778;
-            Bool _t3779; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&sig->data); _t3779 = *_hp; free(_hp); }
+            Bool _t3779 = is_variant(&sig->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
             (void)_t3779;
             if (_t3779) {
                 FunctionDef *sfd = get_payload(&sig->data);
@@ -26254,9 +26254,9 @@ Expr * parse_statement(Parser * p) {
             (void)_t4078;
             U32 _t4079 = 0;
             (void)_t4079;
-            Bool _t4080; { Bool *_hp = (Bool *)ExprData_is_FCall(&cur.data); _t4080 = *_hp; free(_hp); }
+            Bool _t4080 = is_variant(&cur.data, &(ExprData){.tag = ExprData_TAG_FCall});
             (void)_t4080;
-            Bool _t4081; { Bool *_hp = (Bool *)ExprData_is_FieldAccess(&cur.data); _t4081 = *_hp; free(_hp); }
+            Bool _t4081 = is_variant(&cur.data, &(ExprData){.tag = ExprData_TAG_FieldAccess});
             (void)_t4081;
             Bool _t4082 = U32_gt(&(U32){_t4078}, &(U32){_t4079});
             (void)_t4082;
@@ -26293,7 +26293,7 @@ Expr * parse_statement(Parser * p) {
         (void)_t4095;
         U32 _t4096 = 0;
         (void)_t4096;
-        Bool _t4097; { Bool *_hp = (Bool *)ExprData_is_FCall(&expr.data); _t4097 = *_hp; free(_hp); }
+        Bool _t4097 = is_variant(&expr.data, &(ExprData){.tag = ExprData_TAG_FCall});
         (void)_t4097;
         Bool _t4098 = U32_gt(&(U32){_t4095}, &(U32){_t4096});
         (void)_t4098;
@@ -26309,7 +26309,7 @@ Expr * parse_statement(Parser * p) {
             (void)_t4086;
             Expr *callee = Vec_get(&expr.children, _t4086);
             (void)callee;
-            Bool _t4087; { Bool *_hp = (Bool *)ExprData_is_FieldAccess(&callee->data); _t4087 = *_hp; free(_hp); }
+            Bool _t4087 = is_variant(&callee->data, &(ExprData){.tag = ExprData_TAG_FieldAccess});
             (void)_t4087;
             if (_t4087) {
                 Bool _t4085 = 1;
@@ -26916,7 +26916,7 @@ TilType * type_from_name_init(Str * name, TypeScope * scope) {
         (void)_t4220;
         ;
         if (_t4220) {
-            Bool _t4218; { Bool *_hp = (Bool *)ExprData_is_EnumDef(&sdef->data); _t4218 = *_hp; free(_hp); }
+            Bool _t4218 = is_variant(&sdef->data, &(ExprData){.tag = ExprData_TAG_EnumDef});
             (void)_t4218;
             if (_t4218) {
                 ;
@@ -26961,7 +26961,7 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope) {
                 U32_inc(_rc4245);
                 Expr *stmt = Expr_child(program, i);
                 (void)stmt;
-                Bool _t4247; { Bool *_hp = (Bool *)ExprData_is_Decl(&stmt->data); _t4247 = *_hp; free(_hp); }
+                Bool _t4247 = is_variant(&stmt->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t4247;
                 Bool _t4248 = Bool_not(_t4247);
                 (void)_t4248;
@@ -26974,7 +26974,7 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope) {
                 ;
                 U32 _t4249 = 0;
                 (void)_t4249;
-                Bool _t4250; { Bool *_hp = (Bool *)ExprData_is_StructDef(&Expr_child(stmt, &(U32){_t4249})->data); _t4250 = *_hp; free(_hp); }
+                Bool _t4250 = is_variant(&Expr_child(stmt, &(U32){_t4249})->data, &(ExprData){.tag = ExprData_TAG_StructDef});
                 (void)_t4250;
                 ;
                 Bool _t4251 = Bool_not(_t4250);
@@ -27038,7 +27038,7 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope) {
                 U32_dec(_rc4245);
                 Expr *stmt = Expr_child(program, i);
                 (void)stmt;
-                Bool _t4259; { Bool *_hp = (Bool *)ExprData_is_Decl(&stmt->data); _t4259 = *_hp; free(_hp); }
+                Bool _t4259 = is_variant(&stmt->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t4259;
                 Bool _t4260 = Bool_not(_t4259);
                 (void)_t4260;
@@ -27051,7 +27051,7 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope) {
                 ;
                 U32 _t4261 = 0;
                 (void)_t4261;
-                Bool _t4262; { Bool *_hp = (Bool *)ExprData_is_StructDef(&Expr_child(stmt, &(U32){_t4261})->data); _t4262 = *_hp; free(_hp); }
+                Bool _t4262 = is_variant(&Expr_child(stmt, &(U32){_t4261})->data, &(ExprData){.tag = ExprData_TAG_StructDef});
                 (void)_t4262;
                 ;
                 Bool _t4263 = Bool_not(_t4262);
@@ -28479,7 +28479,7 @@ TilType * type_from_name(Str * name, TypeScope * scope) {
         (void)_t4471;
         ;
         if (_t4471) {
-            Bool _t4469; { Bool *_hp = (Bool *)ExprData_is_EnumDef(&sdef->data); _t4469 = *_hp; free(_hp); }
+            Bool _t4469 = is_variant(&sdef->data, &(ExprData){.tag = ExprData_TAG_EnumDef});
             (void)_t4469;
             if (_t4469) {
                 ;
@@ -28571,7 +28571,7 @@ TilType * usize_type(TypeScope * scope) {
 
 Bool expr_contains_fcall(Expr * e) {
     (void)e;
-    Bool _t4522; { Bool *_hp = (Bool *)ExprData_is_FCall(&e->data); _t4522 = *_hp; free(_hp); }
+    Bool _t4522 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_FCall});
     (void)_t4522;
     if (_t4522) {
         Bool _t4511 = 1;
@@ -28659,7 +28659,7 @@ Bool expr_contains_fcall(Expr * e) {
 Bool expr_uses_var(Expr * e, Str * name) {
     (void)e;
     (void)name;
-    Bool _t4539; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&e->data); _t4539 = *_hp; free(_hp); }
+    Bool _t4539 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
     (void)_t4539;
     if (_t4539) {
         Bool _t4524 = 0;
@@ -28668,7 +28668,7 @@ Bool expr_uses_var(Expr * e, Str * name) {
         return _t4524;
     }
     ;
-    Bool _t4540; { Bool *_hp = (Bool *)ExprData_is_Ident(&e->data); _t4540 = *_hp; free(_hp); }
+    Bool _t4540 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_Ident});
     (void)_t4540;
     if (_t4540) {
         Str *_id = get_payload(&e->data);
@@ -28685,7 +28685,7 @@ Bool expr_uses_var(Expr * e, Str * name) {
         ;
     }
     ;
-    Bool _t4541; { Bool *_hp = (Bool *)ExprData_is_Assign(&e->data); _t4541 = *_hp; free(_hp); }
+    Bool _t4541 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_Assign});
     (void)_t4541;
     if (_t4541) {
         Str *_as = get_payload(&e->data);
@@ -28781,7 +28781,7 @@ Bool expr_uses_var(Expr * e, Str * name) {
 Bool expr_contains_decl(Expr * e, Str * name) {
     (void)e;
     (void)name;
-    Bool _t4556; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&e->data); _t4556 = *_hp; free(_hp); }
+    Bool _t4556 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
     (void)_t4556;
     if (_t4556) {
         Bool _t4543 = 0;
@@ -28790,7 +28790,7 @@ Bool expr_contains_decl(Expr * e, Str * name) {
         return _t4543;
     }
     ;
-    Bool _t4557; { Bool *_hp = (Bool *)ExprData_is_Decl(&e->data); _t4557 = *_hp; free(_hp); }
+    Bool _t4557 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_Decl});
     (void)_t4557;
     if (_t4557) {
         Declaration *_dd = get_payload(&e->data);
@@ -28886,7 +28886,7 @@ Bool expr_contains_decl(Expr * e, Str * name) {
 Bool expr_used_in_nested_func(Expr * e, Str * name) {
     (void)e;
     (void)name;
-    Bool _t4584; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&e->data); _t4584 = *_hp; free(_hp); }
+    Bool _t4584 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
     (void)_t4584;
     if (_t4584) {
         FunctionDef *fdef = get_payload(&e->data);
@@ -29140,7 +29140,7 @@ Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name) {
                     ;
                     Expr *arg = Expr_child(fcall, _t4593);
                     (void)arg;
-                    Bool _t4594; { Bool *_hp = (Bool *)ExprData_is_Ident(&arg->data); _t4594 = *_hp; free(_hp); }
+                    Bool _t4594 = is_variant(&arg->data, &(ExprData){.tag = ExprData_TAG_Ident});
                     (void)_t4594;
                     if (_t4594) {
                         Str *_ai = get_payload(&arg->data);
@@ -29211,7 +29211,7 @@ Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name) {
                     ;
                     Expr *arg = Expr_child(fcall, _t4604);
                     (void)arg;
-                    Bool _t4605; { Bool *_hp = (Bool *)ExprData_is_Ident(&arg->data); _t4605 = *_hp; free(_hp); }
+                    Bool _t4605 = is_variant(&arg->data, &(ExprData){.tag = ExprData_TAG_Ident});
                     (void)_t4605;
                     if (_t4605) {
                         Str *_ai = get_payload(&arg->data);
@@ -29251,7 +29251,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
     (void)fcall;
     (void)var_name;
     (void)scope;
-    Bool _t4687; { Bool *_hp = (Bool *)ExprData_is_FCall(&fcall->data); _t4687 = *_hp; free(_hp); }
+    Bool _t4687 = is_variant(&fcall->data, &(ExprData){.tag = ExprData_TAG_FCall});
     (void)_t4687;
     Bool _t4688 = Bool_not(_t4687);
     (void)_t4688;
@@ -29289,7 +29289,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
     if (_t4694) {
         U32 _t4648 = 0;
         (void)_t4648;
-        Bool _t4649; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(fcall, &(U32){_t4648})->data); _t4649 = *_hp; free(_hp); }
+        Bool _t4649 = is_variant(&Expr_child(fcall, &(U32){_t4648})->data, &(ExprData){.tag = ExprData_TAG_Ident});
         (void)_t4649;
         ;
         if (_t4649) {
@@ -29339,7 +29339,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                                 U32_inc(_rc4617);
                                 Expr *fld = Expr_child(body, i);
                                 (void)fld;
-                                Bool _t4623; { Bool *_hp = (Bool *)ExprData_is_Decl(&fld->data); _t4623 = *_hp; free(_hp); }
+                                Bool _t4623 = is_variant(&fld->data, &(ExprData){.tag = ExprData_TAG_Decl});
                                 (void)_t4623;
                                 Bool _t4624 = Bool_not(_t4623);
                                 (void)_t4624;
@@ -29376,7 +29376,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                                 if (_t4629) {
                                     Expr *arg = Expr_child(fcall, arg_idx);
                                     (void)arg;
-                                    Bool _t4622; { Bool *_hp = (Bool *)ExprData_is_Ident(&arg->data); _t4622 = *_hp; free(_hp); }
+                                    Bool _t4622 = is_variant(&arg->data, &(ExprData){.tag = ExprData_TAG_Ident});
                                     (void)_t4622;
                                     if (_t4622) {
                                         Str *_an = get_payload(&arg->data);
@@ -29422,7 +29422,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                                 U32_dec(_rc4617);
                                 Expr *fld = Expr_child(body, i);
                                 (void)fld;
-                                Bool _t4635; { Bool *_hp = (Bool *)ExprData_is_Decl(&fld->data); _t4635 = *_hp; free(_hp); }
+                                Bool _t4635 = is_variant(&fld->data, &(ExprData){.tag = ExprData_TAG_Decl});
                                 (void)_t4635;
                                 Bool _t4636 = Bool_not(_t4635);
                                 (void)_t4636;
@@ -29459,7 +29459,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                                 if (_t4641) {
                                     Expr *arg = Expr_child(fcall, arg_idx);
                                     (void)arg;
-                                    Bool _t4634; { Bool *_hp = (Bool *)ExprData_is_Ident(&arg->data); _t4634 = *_hp; free(_hp); }
+                                    Bool _t4634 = is_variant(&arg->data, &(ExprData){.tag = ExprData_TAG_Ident});
                                     (void)_t4634;
                                     if (_t4634) {
                                         Str *_an = get_payload(&arg->data);
@@ -29507,7 +29507,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
     ;
     U32 _t4695 = 0;
     (void)_t4695;
-    Bool _t4696; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(fcall, &(U32){_t4695})->data); _t4696 = *_hp; free(_hp); }
+    Bool _t4696 = is_variant(&Expr_child(fcall, &(U32){_t4695})->data, &(ExprData){.tag = ExprData_TAG_Ident});
     (void)_t4696;
     ;
     if (_t4696) {
@@ -29556,7 +29556,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
     (void)_t4697;
     U32 _t4698 = 0;
     (void)_t4698;
-    Bool _t4699; { Bool *_hp = (Bool *)ExprData_is_FieldAccess(&Expr_child(fcall, &(U32){_t4697})->data); _t4699 = *_hp; free(_hp); }
+    Bool _t4699 = is_variant(&Expr_child(fcall, &(U32){_t4697})->data, &(ExprData){.tag = ExprData_TAG_FieldAccess});
     (void)_t4699;
     ;
     Bool _t4700 = Bool_and(_t4699, Expr_child(fcall, &(U32){_t4698})->is_ns_field);
@@ -29579,7 +29579,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
         (void)_t4682;
         Expr *type_node = Expr_child(_t4681, _t4682);
         (void)type_node;
-        Bool _t4683; { Bool *_hp = (Bool *)ExprData_is_Ident(&type_node->data); _t4683 = *_hp; free(_hp); }
+        Bool _t4683 = is_variant(&type_node->data, &(ExprData){.tag = ExprData_TAG_Ident});
         (void)_t4683;
         Bool _t4684 = Bool_not(_t4683);
         (void)_t4684;
@@ -29638,7 +29638,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                     U32_inc(_rc4659);
                     Expr *field = Expr_child(body, i);
                     (void)field;
-                    Bool _t4668; { Bool *_hp = (Bool *)ExprData_is_Decl(&field->data); _t4668 = *_hp; free(_hp); }
+                    Bool _t4668 = is_variant(&field->data, &(ExprData){.tag = ExprData_TAG_Decl});
                     (void)_t4668;
                     if (_t4668) {
                         Declaration *fd = get_payload(&field->data);
@@ -29651,7 +29651,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                         if (_t4667) {
                             U32 _t4664 = 0;
                             (void)_t4664;
-                            Bool _t4665; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&Expr_child(field, &(U32){_t4664})->data); _t4665 = *_hp; free(_hp); }
+                            Bool _t4665 = is_variant(&Expr_child(field, &(U32){_t4664})->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
                             (void)_t4665;
                             ;
                             if (_t4665) {
@@ -29694,7 +29694,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                     U32_dec(_rc4659);
                     Expr *field = Expr_child(body, i);
                     (void)field;
-                    Bool _t4677; { Bool *_hp = (Bool *)ExprData_is_Decl(&field->data); _t4677 = *_hp; free(_hp); }
+                    Bool _t4677 = is_variant(&field->data, &(ExprData){.tag = ExprData_TAG_Decl});
                     (void)_t4677;
                     if (_t4677) {
                         Declaration *fd = get_payload(&field->data);
@@ -29707,7 +29707,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
                         if (_t4676) {
                             U32 _t4673 = 0;
                             (void)_t4673;
-                            Bool _t4674; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&Expr_child(field, &(U32){_t4673})->data); _t4674 = *_hp; free(_hp); }
+                            Bool _t4674 = is_variant(&Expr_child(field, &(U32){_t4673})->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
                             (void)_t4674;
                             ;
                             if (_t4674) {
@@ -29754,7 +29754,7 @@ Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope) {
     (void)e;
     (void)var_name;
     (void)scope;
-    Bool _t4722; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&e->data); _t4722 = *_hp; free(_hp); }
+    Bool _t4722 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
     (void)_t4722;
     if (_t4722) {
         Bool _t4702 = 0;
@@ -29772,7 +29772,7 @@ Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope) {
         return _t4703;
     }
     ;
-    Bool _t4724; { Bool *_hp = (Bool *)ExprData_is_FieldAssign(&e->data); _t4724 = *_hp; free(_hp); }
+    Bool _t4724 = is_variant(&e->data, &(ExprData){.tag = ExprData_TAG_FieldAssign});
     (void)_t4724;
     Bool _t4725 = Bool_and(_t4724, e->is_own_field);
     (void)_t4725;
@@ -29789,7 +29789,7 @@ Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope) {
         if (_t4711) {
             U32 _t4707 = 1;
             (void)_t4707;
-            Bool _t4708; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(e, &(U32){_t4707})->data); _t4708 = *_hp; free(_hp); }
+            Bool _t4708 = is_variant(&Expr_child(e, &(U32){_t4707})->data, &(ExprData){.tag = ExprData_TAG_Ident});
             (void)_t4708;
             ;
             if (_t4708) {
@@ -29919,7 +29919,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr) {
                 U32_inc(_rc4727);
                 Expr *d = Expr_child(body, k);
                 (void)d;
-                Bool _t4739; { Bool *_hp = (Bool *)ExprData_is_Decl(&d->data); _t4739 = *_hp; free(_hp); }
+                Bool _t4739 = is_variant(&d->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t4739;
                 if (_t4739) {
                     Declaration *dd = get_payload(&d->data);
@@ -29938,7 +29938,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr) {
                     if (_t4738) {
                         U32 _t4733 = 0;
                         (void)_t4733;
-                        Bool _t4734; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(d, &(U32){_t4733})->data); _t4734 = *_hp; free(_hp); }
+                        Bool _t4734 = is_variant(&Expr_child(d, &(U32){_t4733})->data, &(ExprData){.tag = ExprData_TAG_Ident});
                         (void)_t4734;
                         ;
                         if (_t4734) {
@@ -29992,7 +29992,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr) {
                 U32_dec(_rc4727);
                 Expr *d = Expr_child(body, k);
                 (void)d;
-                Bool _t4751; { Bool *_hp = (Bool *)ExprData_is_Decl(&d->data); _t4751 = *_hp; free(_hp); }
+                Bool _t4751 = is_variant(&d->data, &(ExprData){.tag = ExprData_TAG_Decl});
                 (void)_t4751;
                 if (_t4751) {
                     Declaration *dd = get_payload(&d->data);
@@ -30011,7 +30011,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr) {
                     if (_t4750) {
                         U32 _t4745 = 0;
                         (void)_t4745;
-                        Bool _t4746; { Bool *_hp = (Bool *)ExprData_is_Ident(&Expr_child(d, &(U32){_t4745})->data); _t4746 = *_hp; free(_hp); }
+                        Bool _t4746 = is_variant(&Expr_child(d, &(U32){_t4745})->data, &(ExprData){.tag = ExprData_TAG_Ident});
                         (void)_t4746;
                         ;
                         if (_t4746) {
@@ -30064,7 +30064,7 @@ void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name) {
     (void)expr;
     (void)target;
     (void)target_struct_name;
-    Bool _t4754; { Bool *_hp = (Bool *)TilType_is_Dynamic(&expr->til_type); _t4754 = *_hp; free(_hp); }
+    Bool _t4754 = is_variant(&expr->til_type, &(TilType){.tag = TilType_TAG_Dynamic});
     (void)_t4754;
     Bool _t4755 = Bool_not(_t4754);
     (void)_t4755;
@@ -30074,14 +30074,14 @@ void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name) {
         return;
     }
     ;
-    Bool _t4756; { Bool *_hp = (Bool *)TilType_is_Dynamic(target); _t4756 = *_hp; free(_hp); }
+    Bool _t4756 = is_variant(target, &(TilType){.tag = TilType_TAG_Dynamic});
     (void)_t4756;
     if (_t4756) {
         ;
         return;
     }
     ;
-    Bool _t4757; { Bool *_hp = (Bool *)TilType_is_Unknown(target); _t4757 = *_hp; free(_hp); }
+    Bool _t4757 = is_variant(target, &(TilType){.tag = TilType_TAG_Unknown});
     (void)_t4757;
     if (_t4757) {
         ;
@@ -30090,9 +30090,9 @@ void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name) {
     ;
     TilType_delete(&expr->til_type, &(Bool){0});
     { TilType *_fa = TilType_clone(target); expr->til_type = *_fa; free(_fa); }
-    Bool _t4758; { Bool *_hp = (Bool *)TilType_is_Struct(target); _t4758 = *_hp; free(_hp); }
+    Bool _t4758 = is_variant(target, &(TilType){.tag = TilType_TAG_Struct});
     (void)_t4758;
-    Bool _t4759; { Bool *_hp = (Bool *)TilType_is_Enum(target); _t4759 = *_hp; free(_hp); }
+    Bool _t4759 = is_variant(target, &(TilType){.tag = TilType_TAG_Enum});
     (void)_t4759;
     Bool _t4760 = Bool_or(_t4758, _t4759);
     (void)_t4760;
@@ -30108,7 +30108,7 @@ void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name) {
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
     (void)fcall;
     (void)scope;
-    Bool _t4791; { Bool *_hp = (Bool *)ExprData_is_FCall(&fcall->data); _t4791 = *_hp; free(_hp); }
+    Bool _t4791 = is_variant(&fcall->data, &(ExprData){.tag = ExprData_TAG_FCall});
     (void)_t4791;
     Bool _t4792 = Bool_not(_t4791);
     (void)_t4792;
@@ -30128,7 +30128,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
     (void)_t4793;
     Expr *callee = Expr_child(fcall, _t4793);
     (void)callee;
-    Bool _t4794; { Bool *_hp = (Bool *)ExprData_is_Ident(&callee->data); _t4794 = *_hp; free(_hp); }
+    Bool _t4794 = is_variant(&callee->data, &(ExprData){.tag = ExprData_TAG_Ident});
     (void)_t4794;
     if (_t4794) {
         Str *_cn = get_payload(&callee->data);
@@ -30175,7 +30175,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
         }
     }
     ;
-    Bool _t4795; { Bool *_hp = (Bool *)ExprData_is_FieldAccess(&callee->data); _t4795 = *_hp; free(_hp); }
+    Bool _t4795 = is_variant(&callee->data, &(ExprData){.tag = ExprData_TAG_FieldAccess});
     (void)_t4795;
     Bool _t4796 = Bool_and(_t4795, callee->is_ns_field);
     (void)_t4796;
@@ -30232,7 +30232,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
                     U32_inc(_rc4772);
                     Expr *f = Expr_child(body, j);
                     (void)f;
-                    Bool _t4779; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t4779 = *_hp; free(_hp); }
+                    Bool _t4779 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                     (void)_t4779;
                     if (_t4779) {
                         Declaration *fd = get_payload(&f->data);
@@ -30245,7 +30245,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
                         if (_t4778) {
                             U32 _t4775 = 0;
                             (void)_t4775;
-                            Bool _t4776; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&Expr_child(f, &(U32){_t4775})->data); _t4776 = *_hp; free(_hp); }
+                            Bool _t4776 = is_variant(&Expr_child(f, &(U32){_t4775})->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
                             (void)_t4776;
                             ;
                             if (_t4776) {
@@ -30285,7 +30285,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
                     U32_dec(_rc4772);
                     Expr *f = Expr_child(body, j);
                     (void)f;
-                    Bool _t4786; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t4786 = *_hp; free(_hp); }
+                    Bool _t4786 = is_variant(&f->data, &(ExprData){.tag = ExprData_TAG_Decl});
                     (void)_t4786;
                     if (_t4786) {
                         Declaration *fd = get_payload(&f->data);
@@ -30298,7 +30298,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
                         if (_t4785) {
                             U32 _t4782 = 0;
                             (void)_t4782;
-                            Bool _t4783; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&Expr_child(f, &(U32){_t4782})->data); _t4783 = *_hp; free(_hp); }
+                            Bool _t4783 = is_variant(&Expr_child(f, &(U32){_t4782})->data, &(ExprData){.tag = ExprData_TAG_FuncDef});
                             (void)_t4783;
                             ;
                             if (_t4783) {
@@ -30629,9 +30629,9 @@ void * Value_get_Ptr(Value *self) {
 Bool * Value_eq(Value * a, Value * b) {
     (void)a;
     (void)b;
-    Bool _t4817; { Bool *_hp = (Bool *)Value_is_None(a); _t4817 = *_hp; free(_hp); }
+    Bool _t4817 = is_variant(a, &(Value){.tag = Value_TAG_None});
     (void)_t4817;
-    Bool _t4818; { Bool *_hp = (Bool *)Value_is_None(b); _t4818 = *_hp; free(_hp); }
+    Bool _t4818 = is_variant(b, &(Value){.tag = Value_TAG_None});
     (void)_t4818;
     Bool _t4819 = Bool_and(_t4817, _t4818);
     (void)_t4819;
@@ -30644,9 +30644,9 @@ Bool * Value_eq(Value * a, Value * b) {
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t4814; return _r; }
     }
     ;
-    Bool _t4820; { Bool *_hp = (Bool *)Value_is_Int(a); _t4820 = *_hp; free(_hp); }
+    Bool _t4820 = is_variant(a, &(Value){.tag = Value_TAG_Int});
     (void)_t4820;
-    Bool _t4821; { Bool *_hp = (Bool *)Value_is_Int(b); _t4821 = *_hp; free(_hp); }
+    Bool _t4821 = is_variant(b, &(Value){.tag = Value_TAG_Int});
     (void)_t4821;
     Bool _t4822 = Bool_and(_t4820, _t4821);
     (void)_t4822;
@@ -30663,9 +30663,9 @@ Bool * Value_eq(Value * a, Value * b) {
         { Bool *_r = malloc(sizeof(Bool)); *_r = _t4815; return _r; }
     }
     ;
-    Bool _t4823; { Bool *_hp = (Bool *)Value_is_Boolean(a); _t4823 = *_hp; free(_hp); }
+    Bool _t4823 = is_variant(a, &(Value){.tag = Value_TAG_Boolean});
     (void)_t4823;
-    Bool _t4824; { Bool *_hp = (Bool *)Value_is_Boolean(b); _t4824 = *_hp; free(_hp); }
+    Bool _t4824 = is_variant(b, &(Value){.tag = Value_TAG_Boolean});
     (void)_t4824;
     Bool _t4825 = Bool_and(_t4823, _t4824);
     (void)_t4825;
@@ -30689,7 +30689,7 @@ Bool * Value_eq(Value * a, Value * b) {
 
 Str * Value_to_str(Value * self) {
     (void)self;
-    Bool _t4830; { Bool *_hp = (Bool *)Value_is_None(self); _t4830 = *_hp; free(_hp); }
+    Bool _t4830 = is_variant(self, &(Value){.tag = Value_TAG_None});
     (void)_t4830;
     if (_t4830) {
         Str _t4827; { Str *_hp = (Str *)Str_lit("None", 4ULL); _t4827 = *_hp; free(_hp); }
@@ -30698,7 +30698,7 @@ Str * Value_to_str(Value * self) {
         { Str *_r = malloc(sizeof(Str)); *_r = _t4827; return _r; }
     }
     ;
-    Bool _t4831; { Bool *_hp = (Bool *)Value_is_Int(self); _t4831 = *_hp; free(_hp); }
+    Bool _t4831 = is_variant(self, &(Value){.tag = Value_TAG_Int});
     (void)_t4831;
     if (_t4831) {
         I64 *_si = get_payload(self);
@@ -30709,7 +30709,7 @@ Str * Value_to_str(Value * self) {
         { Str *_r = malloc(sizeof(Str)); *_r = _t4828; return _r; }
     }
     ;
-    Bool _t4832; { Bool *_hp = (Bool *)Value_is_Boolean(self); _t4832 = *_hp; free(_hp); }
+    Bool _t4832 = is_variant(self, &(Value){.tag = Value_TAG_Boolean});
     (void)_t4832;
     if (_t4832) {
         Bool *_sb = get_payload(self);

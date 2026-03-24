@@ -61,7 +61,7 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
         }
         ref sdef : Expr = TypeScope.get_struct(scope, name)
         if is_null(sdef).not() {
-            if sdef.data.is_EnumDef() {
+            if is_variant(sdef.data, ExprData.EnumDef) {
                 return TilType.Enum
             }
             return TilType.Struct
@@ -75,8 +75,8 @@ compute_struct_layout := ext_proc(struct_def: Expr, scope: TypeScope) {}
 compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
     for i in 0..Expr.child_count(program) {
         ref stmt : Expr = Expr.child(program, i)
-        if stmt.data.is_Decl().not() { continue }
-        if Expr.child(stmt, 0).data.is_StructDef().not() { continue }
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        if is_variant(Expr.child(stmt, 0).data, ExprData.StructDef).not() { continue }
         ref _sd : Declaration = get_payload(stmt.data)
         sname := _sd.name
         if sname.eq("StructDef") { continue }

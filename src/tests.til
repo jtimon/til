@@ -131,7 +131,7 @@ Slot := struct {
 // --- Output helpers ---
 
 print_test_result := proc(t: Test) {
-    if t.kind.is_Mode() {
+    if is_variant(t.kind, TestKind.Mode) {
         ref md : ModeData = get_payload(t.kind)
         mut line := pad_right(t.label, 42)
         if t.has_interp.eq(1) { line = line.concat("interp: ").concat(pad_right(ms_to_str(md.interp_ms), 9)) }
@@ -250,7 +250,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                     t.ok = parse_kv(result_line, "ok")
                     t.ms = parse_kv(result_line, "ms")
                     // Parse mode-specific fields into payload
-                    if t.kind.is_Mode() {
+                    if is_variant(t.kind, TestKind.Mode) {
                         ref md : ModeData = get_payload(t.kind)
                         md.interp_ms = parse_kv(result_line, "interp_ms")
                         md.interp_ok = parse_kv(result_line, "interp_ok")
@@ -468,7 +468,7 @@ main := proc(args: ..Str) {
     mut pi : USize = 0
     while pi.lt(tests.len()) {
         ref t : Test = tests.get(pi)
-        if t.kind.is_Mode() {
+        if is_variant(t.kind, TestKind.Mode) {
             mode_total = mode_total.add(1)
             ref md : ModeData = get_payload(t.kind)
             if t.has_interp.eq(1) { total_interp_ms = total_interp_ms.add(md.interp_ms) }
@@ -492,7 +492,7 @@ main := proc(args: ..Str) {
     pi = 0
     while pi.lt(tests.len()) {
         ref t : Test = tests.get(pi)
-        if t.kind.is_Mode().not() {
+        if is_variant(t.kind, TestKind.Mode).not() {
             other_total = other_total.add(1)
             if t.ok.eq(1) { other_passed = other_passed.add(1) }
             if t.category.eq("ffi") { ffi_ms = ffi_ms.add(t.ms) }
@@ -572,7 +572,7 @@ main := proc(args: ..Str) {
     mut bi : USize = 0
     while bi.lt(tests.len()) {
         ref bt : Test = tests.get(bi)
-        if bt.kind.is_Mode() {
+        if is_variant(bt.kind, TestKind.Mode) {
             ref bmd : ModeData = get_payload(bt.kind)
             bench.push_str(format(commit, ",", bt.label, ",",
                                   bmd.interp_ms.to_str(), ",", bmd.compile_ms.to_str(), ",",

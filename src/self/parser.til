@@ -283,8 +283,8 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
             continue
         }
         mut stmt := parse_statement(p)
-        if in_namespace.and(stmt.data.is_Decl()) {
-            if stmt.data.is_Decl() {
+        if in_namespace.and(is_variant(stmt.data, ExprData.Decl)) {
+            if is_variant(stmt.data, ExprData.Decl) {
                 ref mut dd : Declaration = get_payload(stmt.data)
                 dd.is_namespace = true
             }
@@ -316,8 +316,8 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
         }
         if in_namespace {
             mut stmt := parse_statement(p)
-            if stmt.data.is_Decl() {
-                if stmt.data.is_Decl() {
+            if is_variant(stmt.data, ExprData.Decl) {
+                if is_variant(stmt.data, ExprData.Decl) {
                     ref mut dd : Declaration = get_payload(stmt.data)
                     dd.is_namespace = true
                 }
@@ -626,7 +626,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             expect_token(p, TokenType.Eq)
             // Parse (name1, name2, ...) — just identifiers
             expect_token(p, TokenType.LParen)
-            if sig.data.is_FuncDef() {
+            if is_variant(sig.data, ExprData.FuncDef) {
                 ref mut sfd : FunctionDef = get_payload(sig.data)
                 mut new_names := Vec.new("Str", Str.size())
                 for pi in 0..sfd.params.len() {
@@ -937,16 +937,16 @@ parse_statement := proc(mut p: Parser) returns Expr {
         // Find the deepest child[0] that is FCALL or FIELD_ACCESS
         mut cur := expr
         while cur.children.len().gt(0).and(
-            cur.data.is_FCall().or(cur.data.is_FieldAccess())) {
+            is_variant(cur.data, ExprData.FCall).or(is_variant(cur.data, ExprData.FieldAccess))) {
             ref ch : Expr = cur.children.get(0)
             cur = ch
         }
         cur.is_own_arg = true
         // Also mark the FCall/FieldAccess chain so the typer can propagate
         // through UFCS desugaring (#88)
-        if expr.data.is_FCall().and(expr.children.len().gt(0)) {
+        if is_variant(expr.data, ExprData.FCall).and(expr.children.len().gt(0)) {
             ref callee : Expr = expr.children.get(0)
-            if callee.data.is_FieldAccess() {
+            if is_variant(callee.data, ExprData.FieldAccess) {
                 callee.is_own_arg = true
             }
         }

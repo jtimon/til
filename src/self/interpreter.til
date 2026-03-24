@@ -60,13 +60,13 @@ Value := enum {
     Ptr: Dynamic
     namespace:
     eq := func(a: Value, b: Value) returns Bool {
-        if a.is_None().and(b.is_None()) { return true }
-        if a.is_Int().and(b.is_Int()) {
+        if is_variant(a, Value.None).and(is_variant(b, Value.None)) { return true }
+        if is_variant(a, Value.Int).and(is_variant(b, Value.Int)) {
             ref _ai : I64 = get_payload(a)
             ref _bi : I64 = get_payload(b)
             return _ai.eq(_bi)
         }
-        if a.is_Boolean().and(b.is_Boolean()) {
+        if is_variant(a, Value.Boolean).and(is_variant(b, Value.Boolean)) {
             ref _ab : Bool = get_payload(a)
             ref _bb : Bool = get_payload(b)
             return _ab.eq(_bb)
@@ -74,12 +74,12 @@ Value := enum {
         return false
     }
     to_str := func(self: Value) returns Str {
-        if self.is_None() { return "None" }
-        if self.is_Int() {
+        if is_variant(self, Value.None) { return "None" }
+        if is_variant(self, Value.Int) {
             ref _si : I64 = get_payload(self)
             return _si.to_str()
         }
-        if self.is_Boolean() {
+        if is_variant(self, Value.Boolean) {
             ref _sb : Bool = get_payload(self)
             return _sb.to_str()
         }
