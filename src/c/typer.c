@@ -3041,23 +3041,21 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
                             Expr_add_child(condition, is_acc);
 
-                            // Prepend binding: binding_name := _sw.get_Variant()
-                            char get_buf[256];
-                            snprintf(get_buf, sizeof(get_buf), "get_%s", variant_name->c_str);
+                            // Prepend binding: ref binding_name : PayloadType = get_payload(_sw)
+                            Expr *gp_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                            gp_ident->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
                             Expr *sw_id2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
                             sw_id2->data.data.Ident = *sw_name;
-                            Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-                            get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
-                            Expr_add_child(get_acc, sw_id2);
                             Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-                            Expr_add_child(get_call, get_acc);
+                            Expr_add_child(get_call, gp_ident);
+                            Expr_add_child(get_call, sw_id2);
 
                             Expr *bind_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, sw_line, sw_col, sw_path);
                             bind_decl->data.data.Decl.name = *binding_name;
                             bind_decl->data.data.Decl.explicit_type = *payload_type;
                             bind_decl->data.data.Decl.is_mut = false;
                             bind_decl->data.data.Decl.is_namespace = false;
-                            bind_decl->data.data.Decl.is_ref = false;
+                            bind_decl->data.data.Decl.is_ref = true;
                             bind_decl->data.data.Decl.is_own = false;
                             Expr_add_child(bind_decl, get_call);
 

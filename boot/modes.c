@@ -12818,12 +12818,12 @@ void ast_print(Expr * e, U32 indent) {
     }
     ;
     {
-        ExprData _sw1993; { ExprData *_hp = (ExprData *)ExprData_clone(&e->data); _sw1993 = *_hp; free(_hp); }
+        ExprData *_sw1993 = ExprData_clone(&e->data);
         (void)_sw1993;
-        Bool _t2080; { Bool *_hp = (Bool *)ExprData_is_Ident(&_sw1993); _t2080 = *_hp; free(_hp); }
+        Bool _t2080; { Bool *_hp = (Bool *)ExprData_is_Ident(_sw1993); _t2080 = *_hp; free(_hp); }
         (void)_t2080;
         if (_t2080) {
-            Str s; { Str *_hp = (Str *)ExprData_get_Ident(&_sw1993); s = *_hp; free(_hp); }
+            Str *s = get_payload(_sw1993);
             (void)s;
             Str _t1994; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t1994 = *_hp; free(_hp); }
             (void)_t1994;
@@ -12844,9 +12844,8 @@ void ast_print(Expr * e, U32 indent) {
             ;
             U32 _t1999 = 1;
             (void)_t1999;
-            Str _t2000; { Str *_hp = (Str *)Str_clone(&s); _t2000 = *_hp; free(_hp); }
+            Str _t2000; { Str *_hp = (Str *)Str_clone(s); _t2000 = *_hp; free(_hp); }
             (void)_t2000;
-            Str_delete(&s, &(Bool){0});
             Array_set(&_va41, &(U32){_t1999}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2000; _oa; }));
             ;
             U32 _t2001 = 2;
@@ -12857,10 +12856,10 @@ void ast_print(Expr * e, U32 indent) {
             ;
             print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va41; _oa; }));
         } else {
-            Bool _t2079; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&_sw1993); _t2079 = *_hp; free(_hp); }
+            Bool _t2079; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(_sw1993); _t2079 = *_hp; free(_hp); }
             (void)_t2079;
             if (_t2079) {
-                Str s; { Str *_hp = (Str *)ExprData_get_LiteralStr(&_sw1993); s = *_hp; free(_hp); }
+                Str *s = get_payload(_sw1993);
                 (void)s;
                 Str _t2003; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2003 = *_hp; free(_hp); }
                 (void)_t2003;
@@ -12881,9 +12880,8 @@ void ast_print(Expr * e, U32 indent) {
                 ;
                 U32 _t2008 = 1;
                 (void)_t2008;
-                Str _t2009; { Str *_hp = (Str *)Str_clone(&s); _t2009 = *_hp; free(_hp); }
+                Str _t2009; { Str *_hp = (Str *)Str_clone(s); _t2009 = *_hp; free(_hp); }
                 (void)_t2009;
-                Str_delete(&s, &(Bool){0});
                 Array_set(&_va42, &(U32){_t2008}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2009; _oa; }));
                 ;
                 U32 _t2010 = 2;
@@ -12894,10 +12892,10 @@ void ast_print(Expr * e, U32 indent) {
                 ;
                 print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va42; _oa; }));
             } else {
-                Bool _t2078; { Bool *_hp = (Bool *)ExprData_is_LiteralNum(&_sw1993); _t2078 = *_hp; free(_hp); }
+                Bool _t2078; { Bool *_hp = (Bool *)ExprData_is_LiteralNum(_sw1993); _t2078 = *_hp; free(_hp); }
                 (void)_t2078;
                 if (_t2078) {
-                    Str s; { Str *_hp = (Str *)ExprData_get_LiteralNum(&_sw1993); s = *_hp; free(_hp); }
+                    Str *s = get_payload(_sw1993);
                     (void)s;
                     Str _t2012; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2012 = *_hp; free(_hp); }
                     (void)_t2012;
@@ -12918,9 +12916,8 @@ void ast_print(Expr * e, U32 indent) {
                     ;
                     U32 _t2017 = 1;
                     (void)_t2017;
-                    Str _t2018; { Str *_hp = (Str *)Str_clone(&s); _t2018 = *_hp; free(_hp); }
+                    Str _t2018; { Str *_hp = (Str *)Str_clone(s); _t2018 = *_hp; free(_hp); }
                     (void)_t2018;
-                    Str_delete(&s, &(Bool){0});
                     Array_set(&_va43, &(U32){_t2017}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2018; _oa; }));
                     ;
                     U32 _t2019 = 2;
@@ -12931,10 +12928,10 @@ void ast_print(Expr * e, U32 indent) {
                     ;
                     print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va43; _oa; }));
                 } else {
-                    Bool _t2077; { Bool *_hp = (Bool *)ExprData_is_LiteralBool(&_sw1993); _t2077 = *_hp; free(_hp); }
+                    Bool _t2077; { Bool *_hp = (Bool *)ExprData_is_LiteralBool(_sw1993); _t2077 = *_hp; free(_hp); }
                     (void)_t2077;
                     if (_t2077) {
-                        Str s; { Str *_hp = (Str *)ExprData_get_LiteralBool(&_sw1993); s = *_hp; free(_hp); }
+                        Str *s = get_payload(_sw1993);
                         (void)s;
                         Str _t2021; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2021 = *_hp; free(_hp); }
                         (void)_t2021;
@@ -12955,9 +12952,8 @@ void ast_print(Expr * e, U32 indent) {
                         ;
                         U32 _t2026 = 1;
                         (void)_t2026;
-                        Str _t2027; { Str *_hp = (Str *)Str_clone(&s); _t2027 = *_hp; free(_hp); }
+                        Str _t2027; { Str *_hp = (Str *)Str_clone(s); _t2027 = *_hp; free(_hp); }
                         (void)_t2027;
-                        Str_delete(&s, &(Bool){0});
                         Array_set(&_va44, &(U32){_t2026}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2027; _oa; }));
                         ;
                         U32 _t2028 = 2;
@@ -12968,10 +12964,10 @@ void ast_print(Expr * e, U32 indent) {
                         ;
                         print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va44; _oa; }));
                     } else {
-                        Bool _t2076; { Bool *_hp = (Bool *)ExprData_is_ForIn(&_sw1993); _t2076 = *_hp; free(_hp); }
+                        Bool _t2076; { Bool *_hp = (Bool *)ExprData_is_ForIn(_sw1993); _t2076 = *_hp; free(_hp); }
                         (void)_t2076;
                         if (_t2076) {
-                            Str s; { Str *_hp = (Str *)ExprData_get_ForIn(&_sw1993); s = *_hp; free(_hp); }
+                            Str *s = get_payload(_sw1993);
                             (void)s;
                             Str _t2030; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2030 = *_hp; free(_hp); }
                             (void)_t2030;
@@ -12992,9 +12988,8 @@ void ast_print(Expr * e, U32 indent) {
                             ;
                             U32 _t2035 = 1;
                             (void)_t2035;
-                            Str _t2036; { Str *_hp = (Str *)Str_clone(&s); _t2036 = *_hp; free(_hp); }
+                            Str _t2036; { Str *_hp = (Str *)Str_clone(s); _t2036 = *_hp; free(_hp); }
                             (void)_t2036;
-                            Str_delete(&s, &(Bool){0});
                             Array_set(&_va45, &(U32){_t2035}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2036; _oa; }));
                             ;
                             U32 _t2037 = 2;
@@ -13005,12 +13000,12 @@ void ast_print(Expr * e, U32 indent) {
                             ;
                             print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va45; _oa; }));
                         } else {
-                            Bool _t2075; { Bool *_hp = (Bool *)ExprData_is_Decl(&_sw1993); _t2075 = *_hp; free(_hp); }
+                            Bool _t2075; { Bool *_hp = (Bool *)ExprData_is_Decl(_sw1993); _t2075 = *_hp; free(_hp); }
                             (void)_t2075;
                             if (_t2075) {
-                                Declaration decl; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&_sw1993); decl = *_hp; free(_hp); }
+                                Declaration *decl = get_payload(_sw1993);
                                 (void)decl;
-                                if (decl.is_mut) {
+                                if (decl->is_mut) {
                                     Str _t2039; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2039 = *_hp; free(_hp); }
                                     (void)_t2039;
                                     U32 _t2040; { U32 *_hp = (U32 *)Str_size(); _t2040 = *_hp; free(_hp); }
@@ -13049,17 +13044,16 @@ void ast_print(Expr * e, U32 indent) {
                                 ;
                                 U32 _t2049 = 1;
                                 (void)_t2049;
-                                Str _t2050; { Str *_hp = (Str *)Str_clone(&decl.name); _t2050 = *_hp; free(_hp); }
+                                Str _t2050; { Str *_hp = (Str *)Str_clone(&decl->name); _t2050 = *_hp; free(_hp); }
                                 (void)_t2050;
-                                Declaration_delete(&decl, &(Bool){0});
                                 Array_set(&_va47, &(U32){_t2049}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2050; _oa; }));
                                 ;
                                 print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va47; _oa; }));
                             } else {
-                                Bool _t2074; { Bool *_hp = (Bool *)ExprData_is_Assign(&_sw1993); _t2074 = *_hp; free(_hp); }
+                                Bool _t2074; { Bool *_hp = (Bool *)ExprData_is_Assign(_sw1993); _t2074 = *_hp; free(_hp); }
                                 (void)_t2074;
                                 if (_t2074) {
-                                    Str s; { Str *_hp = (Str *)ExprData_get_Assign(&_sw1993); s = *_hp; free(_hp); }
+                                    Str *s = get_payload(_sw1993);
                                     (void)s;
                                     Str _t2051; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2051 = *_hp; free(_hp); }
                                     (void)_t2051;
@@ -13080,17 +13074,16 @@ void ast_print(Expr * e, U32 indent) {
                                     ;
                                     U32 _t2056 = 1;
                                     (void)_t2056;
-                                    Str _t2057; { Str *_hp = (Str *)Str_clone(&s); _t2057 = *_hp; free(_hp); }
+                                    Str _t2057; { Str *_hp = (Str *)Str_clone(s); _t2057 = *_hp; free(_hp); }
                                     (void)_t2057;
-                                    Str_delete(&s, &(Bool){0});
                                     Array_set(&_va48, &(U32){_t2056}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2057; _oa; }));
                                     ;
                                     print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va48; _oa; }));
                                 } else {
-                                    Bool _t2073; { Bool *_hp = (Bool *)ExprData_is_NamedArg(&_sw1993); _t2073 = *_hp; free(_hp); }
+                                    Bool _t2073; { Bool *_hp = (Bool *)ExprData_is_NamedArg(_sw1993); _t2073 = *_hp; free(_hp); }
                                     (void)_t2073;
                                     if (_t2073) {
-                                        Str s; { Str *_hp = (Str *)ExprData_get_NamedArg(&_sw1993); s = *_hp; free(_hp); }
+                                        Str *s = get_payload(_sw1993);
                                         (void)s;
                                         Str _t2058; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2058 = *_hp; free(_hp); }
                                         (void)_t2058;
@@ -13111,17 +13104,16 @@ void ast_print(Expr * e, U32 indent) {
                                         ;
                                         U32 _t2063 = 1;
                                         (void)_t2063;
-                                        Str _t2064; { Str *_hp = (Str *)Str_clone(&s); _t2064 = *_hp; free(_hp); }
+                                        Str _t2064; { Str *_hp = (Str *)Str_clone(s); _t2064 = *_hp; free(_hp); }
                                         (void)_t2064;
-                                        Str_delete(&s, &(Bool){0});
                                         Array_set(&_va49, &(U32){_t2063}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2064; _oa; }));
                                         ;
                                         print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va49; _oa; }));
                                     } else {
-                                        Bool _t2072; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&_sw1993); _t2072 = *_hp; free(_hp); }
+                                        Bool _t2072; { Bool *_hp = (Bool *)ExprData_is_FuncDef(_sw1993); _t2072 = *_hp; free(_hp); }
                                         (void)_t2072;
                                         if (_t2072) {
-                                            FunctionDef fdef; { FunctionDef *_hp = (FunctionDef *)ExprData_get_FuncDef(&_sw1993); fdef = *_hp; free(_hp); }
+                                            FunctionDef *fdef = get_payload(_sw1993);
                                             (void)fdef;
                                             Str _t2065; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t2065 = *_hp; free(_hp); }
                                             (void)_t2065;
@@ -13142,9 +13134,8 @@ void ast_print(Expr * e, U32 indent) {
                                             ;
                                             U32 _t2070 = 1;
                                             (void)_t2070;
-                                            Str _t2071; { Str *_hp = (Str *)func_type_name(&fdef.func_type); _t2071 = *_hp; free(_hp); }
+                                            Str _t2071; { Str *_hp = (Str *)func_type_name(&fdef->func_type); _t2071 = *_hp; free(_hp); }
                                             (void)_t2071;
-                                            FunctionDef_delete(&fdef, &(Bool){0});
                                             Array_set(&_va50, &(U32){_t2070}, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t2071; _oa; }));
                                             ;
                                             print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va50; _oa; }));
@@ -13166,7 +13157,7 @@ void ast_print(Expr * e, U32 indent) {
             }
             ;
         }
-        ExprData_delete(&_sw1993, &(Bool){0});
+        ExprData_delete(_sw1993, &(Bool){0});
         ;
     }
     U32 _t2120 = Vec_len(&e->children);
@@ -26922,34 +26913,34 @@ TilType * type_from_name_init(Str * name, TypeScope * scope) {
     ;
     if (_t4288) {
         {
-            ScopeFind _sw4253; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(scope, name); _sw4253 = *_hp; free(_hp); }
+            ScopeFind *_sw4253 = TypeScope_find(scope, name);
             (void)_sw4253;
-            Bool _t4261; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4253); _t4261 = *_hp; free(_hp); }
+            Bool _t4261; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4253); _t4261 = *_hp; free(_hp); }
             (void)_t4261;
             if (_t4261) {
-                TypeBinding b; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4253); b = *_hp; free(_hp); }
+                TypeBinding *b = get_payload(_sw4253);
                 (void)b;
-                if (b.is_builtin) {
-                    Bool _t4254 = is_null(b.struct_def);
+                if (b->is_builtin) {
+                    Bool _t4254 = is_null(b->struct_def);
                     (void)_t4254;
                     Bool _t4255 = Bool_not(_t4254);
                     (void)_t4255;
                     ;
                     if (_t4255) {
                         ;
-                        ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4253; _oa; }), &(Bool){1});
+                        ScopeFind_delete(_sw4253, &(Bool){1});
                         ;
-                        { TilType *_r = malloc(sizeof(TilType)); *_r = b.type; return _r; }
+                        { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
                     }
                     ;
                 }
-                Bool _t4259 = is_null(b.func_def);
+                Bool _t4259 = is_null(b->func_def);
                 (void)_t4259;
                 Bool _t4260 = Bool_not(_t4259);
                 (void)_t4260;
                 ;
                 if (_t4260) {
-                    U32 _t4256 = Expr_child_count(b.func_def);
+                    U32 _t4256 = Expr_child_count(b->func_def);
                     (void)_t4256;
                     U32 _t4257 = 0;
                     (void)_t4257;
@@ -26960,20 +26951,18 @@ TilType * type_from_name_init(Str * name, TypeScope * scope) {
                     if (_t4258) {
                         ;
                         ;
-                        TypeBinding_delete(({ TypeBinding *_oa = malloc(sizeof(TypeBinding)); *_oa = b; _oa; }), &(Bool){1});
-                        ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4253; _oa; }), &(Bool){1});
+                        ScopeFind_delete(_sw4253, &(Bool){1});
                         ;
                         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
                     }
                     ;
                 }
                 ;
-                TypeBinding_delete(&b, &(Bool){0});
             } else {
                 {
                 }
             }
-            ScopeFind_delete(&_sw4253, &(Bool){0});
+            ScopeFind_delete(_sw4253, &(Bool){0});
             ;
         }
         Expr *sdef = TypeScope_get_struct(scope, name);
@@ -27388,22 +27377,22 @@ TilType * TypeScope_get_type(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind _sw4354; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(self, name); _sw4354 = *_hp; free(_hp); }
+        ScopeFind *_sw4354 = TypeScope_find(self, name);
         (void)_sw4354;
-        Bool _t4355; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4354); _t4355 = *_hp; free(_hp); }
+        Bool _t4355; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4354); _t4355 = *_hp; free(_hp); }
         (void)_t4355;
         if (_t4355) {
-            TypeBinding b; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4354); b = *_hp; free(_hp); }
+            TypeBinding *b = get_payload(_sw4354);
             (void)b;
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4354; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4354, &(Bool){1});
             ;
-            { TilType *_r = malloc(sizeof(TilType)); *_r = b.type; return _r; }
+            { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
         } else {
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4354; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4354, &(Bool){1});
             ;
             { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Unknown; return _r; }
         }
-        ScopeFind_delete(&_sw4354, &(Bool){0});
+        ScopeFind_delete(_sw4354, &(Bool){0});
         ;
     }
 }
@@ -27412,16 +27401,16 @@ I32 TypeScope_is_proc(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind _sw4356; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(self, name); _sw4356 = *_hp; free(_hp); }
+        ScopeFind *_sw4356 = TypeScope_find(self, name);
         (void)_sw4356;
-        Bool _t4361; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4356); _t4361 = *_hp; free(_hp); }
+        Bool _t4361; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4356); _t4361 = *_hp; free(_hp); }
         (void)_t4361;
         if (_t4361) {
-            TypeBinding b; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4356); b = *_hp; free(_hp); }
+            TypeBinding *b = get_payload(_sw4356);
             (void)b;
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4356; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4356, &(Bool){1});
             ;
-            return b.is_proc;
+            return b->is_proc;
         } else {
             I64 _t4357 = 0;
             (void)_t4357;
@@ -27434,11 +27423,11 @@ I32 TypeScope_is_proc(TypeScope * self, Str * name) {
             I32 _t4360 = I64_to_i32(_t4359);
             (void)_t4360;
             ;
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4356; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4356, &(Bool){1});
             ;
             return _t4360;
         }
-        ScopeFind_delete(&_sw4356, &(Bool){0});
+        ScopeFind_delete(_sw4356, &(Bool){0});
         ;
     }
 }
@@ -27447,22 +27436,22 @@ Expr * TypeScope_get_struct(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind _sw4362; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(self, name); _sw4362 = *_hp; free(_hp); }
+        ScopeFind *_sw4362 = TypeScope_find(self, name);
         (void)_sw4362;
-        Bool _t4363; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4362); _t4363 = *_hp; free(_hp); }
+        Bool _t4363; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4362); _t4363 = *_hp; free(_hp); }
         (void)_t4363;
         if (_t4363) {
-            TypeBinding b; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4362); b = *_hp; free(_hp); }
+            TypeBinding *b = get_payload(_sw4362);
             (void)b;
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4362; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4362, &(Bool){1});
             ;
-            return b.struct_def;
+            return b->struct_def;
         } else {
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4362; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4362, &(Bool){1});
             ;
             return NULL;
         }
-        ScopeFind_delete(&_sw4362, &(Bool){0});
+        ScopeFind_delete(_sw4362, &(Bool){0});
         ;
     }
 }
@@ -27471,24 +27460,24 @@ Bool TypeScope_is_mut(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
     {
-        ScopeFind _sw4364; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(self, name); _sw4364 = *_hp; free(_hp); }
+        ScopeFind *_sw4364 = TypeScope_find(self, name);
         (void)_sw4364;
-        Bool _t4366; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4364); _t4366 = *_hp; free(_hp); }
+        Bool _t4366; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4364); _t4366 = *_hp; free(_hp); }
         (void)_t4366;
         if (_t4366) {
-            TypeBinding b; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4364); b = *_hp; free(_hp); }
+            TypeBinding *b = get_payload(_sw4364);
             (void)b;
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4364; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4364, &(Bool){1});
             ;
-            return b.is_mut;
+            return b->is_mut;
         } else {
             Bool _t4365 = 0;
             (void)_t4365;
-            ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4364; _oa; }), &(Bool){1});
+            ScopeFind_delete(_sw4364, &(Bool){1});
             ;
             return _t4365;
         }
-        ScopeFind_delete(&_sw4364, &(Bool){0});
+        ScopeFind_delete(_sw4364, &(Bool){0});
         ;
     }
 }
@@ -28491,34 +28480,34 @@ TilType * type_from_name(Str * name, TypeScope * scope) {
     ;
     if (_t4547) {
         {
-            ScopeFind _sw4508; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(scope, name); _sw4508 = *_hp; free(_hp); }
+            ScopeFind *_sw4508 = TypeScope_find(scope, name);
             (void)_sw4508;
-            Bool _t4516; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4508); _t4516 = *_hp; free(_hp); }
+            Bool _t4516; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4508); _t4516 = *_hp; free(_hp); }
             (void)_t4516;
             if (_t4516) {
-                TypeBinding b; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4508); b = *_hp; free(_hp); }
+                TypeBinding *b = get_payload(_sw4508);
                 (void)b;
-                if (b.is_builtin) {
-                    Bool _t4509 = is_null(b.struct_def);
+                if (b->is_builtin) {
+                    Bool _t4509 = is_null(b->struct_def);
                     (void)_t4509;
                     Bool _t4510 = Bool_not(_t4509);
                     (void)_t4510;
                     ;
                     if (_t4510) {
                         ;
-                        ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4508; _oa; }), &(Bool){1});
+                        ScopeFind_delete(_sw4508, &(Bool){1});
                         ;
-                        { TilType *_r = malloc(sizeof(TilType)); *_r = b.type; return _r; }
+                        { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
                     }
                     ;
                 }
-                Bool _t4514 = is_null(b.func_def);
+                Bool _t4514 = is_null(b->func_def);
                 (void)_t4514;
                 Bool _t4515 = Bool_not(_t4514);
                 (void)_t4515;
                 ;
                 if (_t4515) {
-                    U32 _t4511 = Expr_child_count(b.func_def);
+                    U32 _t4511 = Expr_child_count(b->func_def);
                     (void)_t4511;
                     U32 _t4512 = 0;
                     (void)_t4512;
@@ -28529,20 +28518,18 @@ TilType * type_from_name(Str * name, TypeScope * scope) {
                     if (_t4513) {
                         ;
                         ;
-                        TypeBinding_delete(({ TypeBinding *_oa = malloc(sizeof(TypeBinding)); *_oa = b; _oa; }), &(Bool){1});
-                        ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4508; _oa; }), &(Bool){1});
+                        ScopeFind_delete(_sw4508, &(Bool){1});
                         ;
                         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
                     }
                     ;
                 }
                 ;
-                TypeBinding_delete(&b, &(Bool){0});
             } else {
                 {
                 }
             }
-            ScopeFind_delete(&_sw4508, &(Bool){0});
+            ScopeFind_delete(_sw4508, &(Bool){0});
             ;
         }
         Expr *sdef = TypeScope_get_struct(scope, name);
@@ -28576,33 +28563,32 @@ Str * resolve_type_alias(TypeScope * scope, Str * name) {
     (void)scope;
     (void)name;
     {
-        ScopeFind _sw4548; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(scope, name); _sw4548 = *_hp; free(_hp); }
+        ScopeFind *_sw4548 = TypeScope_find(scope, name);
         (void)_sw4548;
-        Bool _t4551; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4548); _t4551 = *_hp; free(_hp); }
+        Bool _t4551; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4548); _t4551 = *_hp; free(_hp); }
         (void)_t4551;
         if (_t4551) {
-            TypeBinding b; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4548); b = *_hp; free(_hp); }
+            TypeBinding *b = get_payload(_sw4548);
             (void)b;
-            if (b.is_type_alias) {
-                Bool _t4549 = is_null(b.alias_target);
+            if (b->is_type_alias) {
+                Bool _t4549 = is_null(b->alias_target);
                 (void)_t4549;
                 Bool _t4550 = Bool_not(_t4549);
                 (void)_t4550;
                 ;
                 if (_t4550) {
                     ;
-                    ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4548; _oa; }), &(Bool){1});
+                    ScopeFind_delete(_sw4548, &(Bool){1});
                     ;
-                    return b.alias_target;
+                    return b->alias_target;
                 }
                 ;
             }
-            TypeBinding_delete(&b, &(Bool){0});
         } else {
             {
             }
         }
-        ScopeFind_delete(&_sw4548, &(Bool){0});
+        ScopeFind_delete(_sw4548, &(Bool){0});
         ;
     }
     return name;
@@ -29592,39 +29578,37 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
         (void)fn_name;
         ;
         {
-            ScopeFind _sw4698; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(scope, fn_name); _sw4698 = *_hp; free(_hp); }
+            ScopeFind *_sw4698 = TypeScope_find(scope, fn_name);
             (void)_sw4698;
-            Bool _t4703; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4698); _t4703 = *_hp; free(_hp); }
+            Bool _t4703; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4698); _t4703 = *_hp; free(_hp); }
             (void)_t4703;
             if (_t4703) {
-                TypeBinding fb; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4698); fb = *_hp; free(_hp); }
+                TypeBinding *fb = get_payload(_sw4698);
                 (void)fb;
-                Bool _t4700 = is_null(fb.func_def);
+                Bool _t4700 = is_null(fb->func_def);
                 (void)_t4700;
                 if (_t4700) {
                     Bool _t4699 = 0;
                     (void)_t4699;
                     ;
-                    TypeBinding_delete(({ TypeBinding *_oa = malloc(sizeof(TypeBinding)); *_oa = fb; _oa; }), &(Bool){1});
-                    ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4698; _oa; }), &(Bool){1});
+                    ScopeFind_delete(_sw4698, &(Bool){1});
                     ;
                     return _t4699;
                 }
                 ;
-                Bool _t4701 = check_own_args(fb.func_def, fcall, var_name);
+                Bool _t4701 = check_own_args(fb->func_def, fcall, var_name);
                 (void)_t4701;
-                TypeBinding_delete(&fb, &(Bool){0});
-                ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4698; _oa; }), &(Bool){1});
+                ScopeFind_delete(_sw4698, &(Bool){1});
                 ;
                 return _t4701;
             } else {
                 Bool _t4702 = 0;
                 (void)_t4702;
-                ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4698; _oa; }), &(Bool){1});
+                ScopeFind_delete(_sw4698, &(Bool){1});
                 ;
                 return _t4702;
             }
-            ScopeFind_delete(&_sw4698, &(Bool){0});
+            ScopeFind_delete(_sw4698, &(Bool){0});
             ;
         }
     }
@@ -30211,14 +30195,14 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
         Str *_cn = get_payload(&callee->data);
         (void)_cn;
         {
-            ScopeFind _sw4811; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(scope, _cn); _sw4811 = *_hp; free(_hp); }
+            ScopeFind *_sw4811 = TypeScope_find(scope, _cn);
             (void)_sw4811;
-            Bool _t4817; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4811); _t4817 = *_hp; free(_hp); }
+            Bool _t4817; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4811); _t4817 = *_hp; free(_hp); }
             (void)_t4817;
             if (_t4817) {
-                TypeBinding cb; { TypeBinding *_hp = (TypeBinding *)ScopeFind_get_Found(&_sw4811); cb = *_hp; free(_hp); }
+                TypeBinding *cb = get_payload(_sw4811);
                 (void)cb;
-                Bool _t4814 = is_null(cb.func_def);
+                Bool _t4814 = is_null(cb->func_def);
                 (void)_t4814;
                 if (_t4814) {
                     I64 _t4812 = 0;
@@ -30227,16 +30211,14 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
                     (void)_t4813;
                     ;
                     ;
-                    TypeBinding_delete(({ TypeBinding *_oa = malloc(sizeof(TypeBinding)); *_oa = cb; _oa; }), &(Bool){1});
-                    ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4811; _oa; }), &(Bool){1});
+                    ScopeFind_delete(_sw4811, &(Bool){1});
                     ;
                     return _t4813;
                 }
                 ;
-                FunctionDef *_cfd = get_payload(&cb.func_def->data);
+                FunctionDef *_cfd = get_payload(&cb->func_def->data);
                 (void)_cfd;
-                TypeBinding_delete(&cb, &(Bool){0});
-                ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4811; _oa; }), &(Bool){1});
+                ScopeFind_delete(_sw4811, &(Bool){1});
                 ;
                 return _cfd->return_is_ref;
             } else {
@@ -30245,11 +30227,11 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
                 I32 _t4816 = I64_to_i32(_t4815);
                 (void)_t4816;
                 ;
-                ScopeFind_delete(({ ScopeFind *_oa = malloc(sizeof(ScopeFind)); *_oa = _sw4811; _oa; }), &(Bool){1});
+                ScopeFind_delete(_sw4811, &(Bool){1});
                 ;
                 return _t4816;
             }
-            ScopeFind_delete(&_sw4811, &(Bool){0});
+            ScopeFind_delete(_sw4811, &(Bool){0});
             ;
         }
     }
