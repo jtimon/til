@@ -1,21 +1,23 @@
 [[https://github.com/jtimon/til/raw/master/img/logo.svg]]
 
-* til
+* Til
 
 A programming language with ownership semantics, type inference, and compile-time
 garbage collection. This is the second implementation attempt, written in C. The
 first attempt in Rust lives at [[https://github.com/jtimon/rstil][rstil]].
 
-** Dependencies
+* Dependencies
 
 - ~make~
 - ~gcc~
 - ~xvfb~ (for GUI tests)
 
-** Internal dependencies (bundled in the repository)
+* Internal dependencies (bundled in the repository)
 
 - [[https://github.com/libffi/libffi][libffi]]
 - [[https://github.com/raysan5/raylib][raylib]]
+
+* Usage
 
 ** Build
 
@@ -50,6 +52,6 @@ Without GUI tests (no xvfb needed):
 make test_nogui
 #+end_src
 
-** Performance
+* Performance
 
 [[file:img/totals.svg]]
