@@ -851,50 +851,22 @@ TokenType *TokenType_KwFalse();
 TokenType *TokenType_KwNull();
 TokenType *TokenType_Error();
 Bool * ScopeFind_eq(ScopeFind *, ScopeFind *);
-Bool * ScopeFind_is_NotFound(ScopeFind *);
 ScopeFind *ScopeFind_NotFound();
-Bool * ScopeFind_is_Found(ScopeFind *);
 ScopeFind *ScopeFind_Found(TypeBinding *);
-TypeBinding * ScopeFind_get_Found(ScopeFind *);
 Bool * Value_eq(Value *, Value *);
-Bool * Value_is_None(Value *);
 Value *Value_None();
-Bool * Value_is_Int(Value *);
 Value *Value_Int(I64 *);
-I64 * Value_get_Int(Value *);
-Bool * Value_is_Byte(Value *);
 Value *Value_Byte(U8 *);
-U8 * Value_get_Byte(Value *);
-Bool * Value_is_Short(Value *);
 Value *Value_Short(I16 *);
-I16 * Value_get_Short(Value *);
-Bool * Value_is_Int32(Value *);
 Value *Value_Int32(I32 *);
-I32 * Value_get_Int32(Value *);
-Bool * Value_is_Uint32(Value *);
 Value *Value_Uint32(U32 *);
-U32 * Value_get_Uint32(Value *);
-Bool * Value_is_Uint64(Value *);
 Value *Value_Uint64(U64 *);
-U64 * Value_get_Uint64(Value *);
-Bool * Value_is_Float(Value *);
 Value *Value_Float(F32 *);
-F32 * Value_get_Float(Value *);
-Bool * Value_is_Boolean(Value *);
 Value *Value_Boolean(Bool *);
-Bool * Value_get_Boolean(Value *);
-Bool * Value_is_Func(Value *);
 Value *Value_Func(void *);
-void * Value_get_Func(Value *);
-Bool * Value_is_Struct(Value *);
 Value *Value_Struct(StructInstance *);
-StructInstance * Value_get_Struct(Value *);
-Bool * Value_is_Enum(Value *);
 Value *Value_Enum(EnumInstance *);
-EnumInstance * Value_get_Enum(Value *);
-Bool * Value_is_Ptr(Value *);
 Value *Value_Ptr(void *);
-void * Value_get_Ptr(Value *);
 #include "ext.h"
 
 void compute_struct_layout(Expr *, TypeScope *);
@@ -1336,66 +1308,30 @@ FuncType *FuncType_Macro();
 FuncType *FuncType_ExtFunc();
 FuncType *FuncType_ExtProc();
 Bool * ExprData_eq(ExprData *, ExprData *);
-Bool * ExprData_is_Body(ExprData *);
 ExprData *ExprData_Body();
-Bool * ExprData_is_LiteralStr(ExprData *);
 ExprData *ExprData_LiteralStr(Str *);
-Str * ExprData_get_LiteralStr(ExprData *);
-Bool * ExprData_is_LiteralNum(ExprData *);
 ExprData *ExprData_LiteralNum(Str *);
-Str * ExprData_get_LiteralNum(ExprData *);
-Bool * ExprData_is_LiteralBool(ExprData *);
 ExprData *ExprData_LiteralBool(Str *);
-Str * ExprData_get_LiteralBool(ExprData *);
-Bool * ExprData_is_LiteralNull(ExprData *);
 ExprData *ExprData_LiteralNull();
-Bool * ExprData_is_Ident(ExprData *);
 ExprData *ExprData_Ident(Str *);
-Str * ExprData_get_Ident(ExprData *);
-Bool * ExprData_is_Decl(ExprData *);
 ExprData *ExprData_Decl(Declaration *);
-Declaration * ExprData_get_Decl(ExprData *);
-Bool * ExprData_is_Assign(ExprData *);
 ExprData *ExprData_Assign(Str *);
-Str * ExprData_get_Assign(ExprData *);
-Bool * ExprData_is_FCall(ExprData *);
 ExprData *ExprData_FCall();
-Bool * ExprData_is_FuncDef(ExprData *);
 ExprData *ExprData_FuncDef(FunctionDef *);
-FunctionDef * ExprData_get_FuncDef(ExprData *);
-Bool * ExprData_is_StructDef(ExprData *);
 ExprData *ExprData_StructDef();
-Bool * ExprData_is_EnumDef(ExprData *);
 ExprData *ExprData_EnumDef();
-Bool * ExprData_is_FieldAccess(ExprData *);
 ExprData *ExprData_FieldAccess(Str *);
-Str * ExprData_get_FieldAccess(ExprData *);
-Bool * ExprData_is_FieldAssign(ExprData *);
 ExprData *ExprData_FieldAssign(Str *);
-Str * ExprData_get_FieldAssign(ExprData *);
-Bool * ExprData_is_Return(ExprData *);
 ExprData *ExprData_Return();
-Bool * ExprData_is_If(ExprData *);
 ExprData *ExprData_If();
-Bool * ExprData_is_While(ExprData *);
 ExprData *ExprData_While();
-Bool * ExprData_is_ForIn(ExprData *);
 ExprData *ExprData_ForIn(Str *);
-Str * ExprData_get_ForIn(ExprData *);
-Bool * ExprData_is_NamedArg(ExprData *);
 ExprData *ExprData_NamedArg(Str *);
-Str * ExprData_get_NamedArg(ExprData *);
-Bool * ExprData_is_Break(ExprData *);
 ExprData *ExprData_Break();
-Bool * ExprData_is_Continue(ExprData *);
 ExprData *ExprData_Continue();
-Bool * ExprData_is_MapLit(ExprData *);
 ExprData *ExprData_MapLit();
-Bool * ExprData_is_SetLit(ExprData *);
 ExprData *ExprData_SetLit();
-Bool * ExprData_is_Switch(ExprData *);
 ExprData *ExprData_Switch();
-Bool * ExprData_is_Case(ExprData *);
 ExprData *ExprData_Case();
 Bool * TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();
@@ -1465,50 +1401,22 @@ TokenType *TokenType_KwFalse();
 TokenType *TokenType_KwNull();
 TokenType *TokenType_Error();
 Bool * ScopeFind_eq(ScopeFind *, ScopeFind *);
-Bool * ScopeFind_is_NotFound(ScopeFind *);
 ScopeFind *ScopeFind_NotFound();
-Bool * ScopeFind_is_Found(ScopeFind *);
 ScopeFind *ScopeFind_Found(TypeBinding *);
-TypeBinding * ScopeFind_get_Found(ScopeFind *);
 Bool * Value_eq(Value *, Value *);
-Bool * Value_is_None(Value *);
 Value *Value_None();
-Bool * Value_is_Int(Value *);
 Value *Value_Int(I64 *);
-I64 * Value_get_Int(Value *);
-Bool * Value_is_Byte(Value *);
 Value *Value_Byte(U8 *);
-U8 * Value_get_Byte(Value *);
-Bool * Value_is_Short(Value *);
 Value *Value_Short(I16 *);
-I16 * Value_get_Short(Value *);
-Bool * Value_is_Int32(Value *);
 Value *Value_Int32(I32 *);
-I32 * Value_get_Int32(Value *);
-Bool * Value_is_Uint32(Value *);
 Value *Value_Uint32(U32 *);
-U32 * Value_get_Uint32(Value *);
-Bool * Value_is_Uint64(Value *);
 Value *Value_Uint64(U64 *);
-U64 * Value_get_Uint64(Value *);
-Bool * Value_is_Float(Value *);
 Value *Value_Float(F32 *);
-F32 * Value_get_Float(Value *);
-Bool * Value_is_Boolean(Value *);
 Value *Value_Boolean(Bool *);
-Bool * Value_get_Boolean(Value *);
-Bool * Value_is_Func(Value *);
 Value *Value_Func(void *);
-void * Value_get_Func(Value *);
-Bool * Value_is_Struct(Value *);
 Value *Value_Struct(StructInstance *);
-StructInstance * Value_get_Struct(Value *);
-Bool * Value_is_Enum(Value *);
 Value *Value_Enum(EnumInstance *);
-EnumInstance * Value_get_Enum(Value *);
-Bool * Value_is_Ptr(Value *);
 Value *Value_Ptr(void *);
-void * Value_get_Ptr(Value *);
 
 void dyn_call_delete(Str *type_name, void *val, void *arg2);
 void *dyn_call_clone(Str *type_name, void *val);
@@ -8528,91 +8436,6 @@ TilType *TilType_Dynamic() {
     *r = (TilType){ .tag = TilType_TAG_Dynamic };
     return r;
 }
-Bool *TilType_is_Unknown(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_Unknown);
-    return r;
-}
-Bool *TilType_is_None(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_None);
-    return r;
-}
-Bool *TilType_is_I64(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_I64);
-    return r;
-}
-Bool *TilType_is_U8(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_U8);
-    return r;
-}
-Bool *TilType_is_I16(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_I16);
-    return r;
-}
-Bool *TilType_is_I32(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_I32);
-    return r;
-}
-Bool *TilType_is_U32(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_U32);
-    return r;
-}
-Bool *TilType_is_U64(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_U64);
-    return r;
-}
-Bool *TilType_is_F32(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_F32);
-    return r;
-}
-Bool *TilType_is_Bool(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_Bool);
-    return r;
-}
-Bool *TilType_is_Struct(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_Struct);
-    return r;
-}
-Bool *TilType_is_StructDef(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_StructDef);
-    return r;
-}
-Bool *TilType_is_Enum(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_Enum);
-    return r;
-}
-Bool *TilType_is_EnumDef(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_EnumDef);
-    return r;
-}
-Bool *TilType_is_FuncDef(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_FuncDef);
-    return r;
-}
-Bool *TilType_is_FuncPtr(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_FuncPtr);
-    return r;
-}
-Bool *TilType_is_Dynamic(TilType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TilType_TAG_Dynamic);
-    return r;
-}
 Bool * TilType_eq(TilType * self, TilType * other) {
     (void)self;
     (void)other;
@@ -9545,36 +9368,6 @@ FuncType *FuncType_ExtProc() {
     *r = (FuncType){ .tag = FuncType_TAG_ExtProc };
     return r;
 }
-Bool *FuncType_is_Func(FuncType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == FuncType_TAG_Func);
-    return r;
-}
-Bool *FuncType_is_Proc(FuncType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == FuncType_TAG_Proc);
-    return r;
-}
-Bool *FuncType_is_Test(FuncType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == FuncType_TAG_Test);
-    return r;
-}
-Bool *FuncType_is_Macro(FuncType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == FuncType_TAG_Macro);
-    return r;
-}
-Bool *FuncType_is_ExtFunc(FuncType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == FuncType_TAG_ExtFunc);
-    return r;
-}
-Bool *FuncType_is_ExtProc(FuncType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == FuncType_TAG_ExtProc);
-    return r;
-}
 Bool * FuncType_eq(FuncType * self, FuncType * other) {
     (void)self;
     (void)other;
@@ -10041,164 +9834,6 @@ ExprData *ExprData_Case() {
     r->tag = ExprData_TAG_Case;
     return r;
 }
-Bool *ExprData_is_Body(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Body);
-    return r;
-}
-Bool *ExprData_is_LiteralStr(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_LiteralStr);
-    return r;
-}
-Bool *ExprData_is_LiteralNum(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_LiteralNum);
-    return r;
-}
-Bool *ExprData_is_LiteralBool(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_LiteralBool);
-    return r;
-}
-Bool *ExprData_is_LiteralNull(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_LiteralNull);
-    return r;
-}
-Bool *ExprData_is_Ident(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Ident);
-    return r;
-}
-Bool *ExprData_is_Decl(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Decl);
-    return r;
-}
-Bool *ExprData_is_Assign(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Assign);
-    return r;
-}
-Bool *ExprData_is_FCall(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_FCall);
-    return r;
-}
-Bool *ExprData_is_FuncDef(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_FuncDef);
-    return r;
-}
-Bool *ExprData_is_StructDef(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_StructDef);
-    return r;
-}
-Bool *ExprData_is_EnumDef(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_EnumDef);
-    return r;
-}
-Bool *ExprData_is_FieldAccess(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_FieldAccess);
-    return r;
-}
-Bool *ExprData_is_FieldAssign(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_FieldAssign);
-    return r;
-}
-Bool *ExprData_is_Return(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Return);
-    return r;
-}
-Bool *ExprData_is_If(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_If);
-    return r;
-}
-Bool *ExprData_is_While(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_While);
-    return r;
-}
-Bool *ExprData_is_ForIn(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_ForIn);
-    return r;
-}
-Bool *ExprData_is_NamedArg(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_NamedArg);
-    return r;
-}
-Bool *ExprData_is_Break(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Break);
-    return r;
-}
-Bool *ExprData_is_Continue(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Continue);
-    return r;
-}
-Bool *ExprData_is_MapLit(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_MapLit);
-    return r;
-}
-Bool *ExprData_is_SetLit(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_SetLit);
-    return r;
-}
-Bool *ExprData_is_Switch(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Switch);
-    return r;
-}
-Bool *ExprData_is_Case(ExprData *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ExprData_TAG_Case);
-    return r;
-}
-Str * ExprData_get_LiteralStr(ExprData *self) {
-    return Str_clone(&self->data.LiteralStr);
-}
-Str * ExprData_get_LiteralNum(ExprData *self) {
-    return Str_clone(&self->data.LiteralNum);
-}
-Str * ExprData_get_LiteralBool(ExprData *self) {
-    return Str_clone(&self->data.LiteralBool);
-}
-Str * ExprData_get_Ident(ExprData *self) {
-    return Str_clone(&self->data.Ident);
-}
-Declaration * ExprData_get_Decl(ExprData *self) {
-    return Declaration_clone(&self->data.Decl);
-}
-Str * ExprData_get_Assign(ExprData *self) {
-    return Str_clone(&self->data.Assign);
-}
-FunctionDef * ExprData_get_FuncDef(ExprData *self) {
-    return FunctionDef_clone(&self->data.FuncDef);
-}
-Str * ExprData_get_FieldAccess(ExprData *self) {
-    return Str_clone(&self->data.FieldAccess);
-}
-Str * ExprData_get_FieldAssign(ExprData *self) {
-    return Str_clone(&self->data.FieldAssign);
-}
-Str * ExprData_get_ForIn(ExprData *self) {
-    return Str_clone(&self->data.ForIn);
-}
-Str * ExprData_get_NamedArg(ExprData *self) {
-    return Str_clone(&self->data.NamedArg);
-}
 Bool * ExprData_eq(ExprData * self, ExprData * other) {
     (void)self;
     (void)other;
@@ -10628,33 +10263,33 @@ ExprData * ExprData_clone(ExprData * self) {
         { ExprData *_r = malloc(sizeof(ExprData)); _r->tag = ExprData_TAG_Body; return _r; }
     }
     ;
-    Str *_p1 = get_payload(self);
-    (void)_p1;
     Bool _t1606 = is_variant(self, &(ExprData){.tag = ExprData_TAG_LiteralStr});
     (void)_t1606;
     if (_t1606) {
+        Str *_p1 = get_payload(self);
+        (void)_p1;
         ExprData _t1594; { ExprData *_hp = (ExprData *)ExprData_LiteralStr(_p1); _t1594 = *_hp; free(_hp); }
         (void)_t1594;
         ;
         { ExprData *_r = malloc(sizeof(ExprData)); *_r = _t1594; return _r; }
     }
     ;
-    Str *_p2 = get_payload(self);
-    (void)_p2;
     Bool _t1607 = is_variant(self, &(ExprData){.tag = ExprData_TAG_LiteralNum});
     (void)_t1607;
     if (_t1607) {
+        Str *_p2 = get_payload(self);
+        (void)_p2;
         ExprData _t1595; { ExprData *_hp = (ExprData *)ExprData_LiteralNum(_p2); _t1595 = *_hp; free(_hp); }
         (void)_t1595;
         ;
         { ExprData *_r = malloc(sizeof(ExprData)); *_r = _t1595; return _r; }
     }
     ;
-    Str *_p3 = get_payload(self);
-    (void)_p3;
     Bool _t1608 = is_variant(self, &(ExprData){.tag = ExprData_TAG_LiteralBool});
     (void)_t1608;
     if (_t1608) {
+        Str *_p3 = get_payload(self);
+        (void)_p3;
         ExprData _t1596; { ExprData *_hp = (ExprData *)ExprData_LiteralBool(_p3); _t1596 = *_hp; free(_hp); }
         (void)_t1596;
         ;
@@ -10668,33 +10303,33 @@ ExprData * ExprData_clone(ExprData * self) {
         { ExprData *_r = malloc(sizeof(ExprData)); _r->tag = ExprData_TAG_LiteralNull; return _r; }
     }
     ;
-    Str *_p5 = get_payload(self);
-    (void)_p5;
     Bool _t1610 = is_variant(self, &(ExprData){.tag = ExprData_TAG_Ident});
     (void)_t1610;
     if (_t1610) {
+        Str *_p5 = get_payload(self);
+        (void)_p5;
         ExprData _t1597; { ExprData *_hp = (ExprData *)ExprData_Ident(_p5); _t1597 = *_hp; free(_hp); }
         (void)_t1597;
         ;
         { ExprData *_r = malloc(sizeof(ExprData)); *_r = _t1597; return _r; }
     }
     ;
-    Declaration *_p6 = get_payload(self);
-    (void)_p6;
     Bool _t1611 = is_variant(self, &(ExprData){.tag = ExprData_TAG_Decl});
     (void)_t1611;
     if (_t1611) {
+        Declaration *_p6 = get_payload(self);
+        (void)_p6;
         ExprData _t1598; { ExprData *_hp = (ExprData *)ExprData_Decl(_p6); _t1598 = *_hp; free(_hp); }
         (void)_t1598;
         ;
         { ExprData *_r = malloc(sizeof(ExprData)); *_r = _t1598; return _r; }
     }
     ;
-    Str *_p7 = get_payload(self);
-    (void)_p7;
     Bool _t1612 = is_variant(self, &(ExprData){.tag = ExprData_TAG_Assign});
     (void)_t1612;
     if (_t1612) {
+        Str *_p7 = get_payload(self);
+        (void)_p7;
         ExprData _t1599; { ExprData *_hp = (ExprData *)ExprData_Assign(_p7); _t1599 = *_hp; free(_hp); }
         (void)_t1599;
         ;
@@ -10708,11 +10343,11 @@ ExprData * ExprData_clone(ExprData * self) {
         { ExprData *_r = malloc(sizeof(ExprData)); _r->tag = ExprData_TAG_FCall; return _r; }
     }
     ;
-    FunctionDef *_p9 = get_payload(self);
-    (void)_p9;
     Bool _t1614 = is_variant(self, &(ExprData){.tag = ExprData_TAG_FuncDef});
     (void)_t1614;
     if (_t1614) {
+        FunctionDef *_p9 = get_payload(self);
+        (void)_p9;
         ExprData _t1600; { ExprData *_hp = (ExprData *)ExprData_FuncDef(_p9); _t1600 = *_hp; free(_hp); }
         (void)_t1600;
         ;
@@ -10733,22 +10368,22 @@ ExprData * ExprData_clone(ExprData * self) {
         { ExprData *_r = malloc(sizeof(ExprData)); _r->tag = ExprData_TAG_EnumDef; return _r; }
     }
     ;
-    Str *_p12 = get_payload(self);
-    (void)_p12;
     Bool _t1617 = is_variant(self, &(ExprData){.tag = ExprData_TAG_FieldAccess});
     (void)_t1617;
     if (_t1617) {
+        Str *_p12 = get_payload(self);
+        (void)_p12;
         ExprData _t1601; { ExprData *_hp = (ExprData *)ExprData_FieldAccess(_p12); _t1601 = *_hp; free(_hp); }
         (void)_t1601;
         ;
         { ExprData *_r = malloc(sizeof(ExprData)); *_r = _t1601; return _r; }
     }
     ;
-    Str *_p13 = get_payload(self);
-    (void)_p13;
     Bool _t1618 = is_variant(self, &(ExprData){.tag = ExprData_TAG_FieldAssign});
     (void)_t1618;
     if (_t1618) {
+        Str *_p13 = get_payload(self);
+        (void)_p13;
         ExprData _t1602; { ExprData *_hp = (ExprData *)ExprData_FieldAssign(_p13); _t1602 = *_hp; free(_hp); }
         (void)_t1602;
         ;
@@ -10776,22 +10411,22 @@ ExprData * ExprData_clone(ExprData * self) {
         { ExprData *_r = malloc(sizeof(ExprData)); _r->tag = ExprData_TAG_While; return _r; }
     }
     ;
-    Str *_p17 = get_payload(self);
-    (void)_p17;
     Bool _t1622 = is_variant(self, &(ExprData){.tag = ExprData_TAG_ForIn});
     (void)_t1622;
     if (_t1622) {
+        Str *_p17 = get_payload(self);
+        (void)_p17;
         ExprData _t1603; { ExprData *_hp = (ExprData *)ExprData_ForIn(_p17); _t1603 = *_hp; free(_hp); }
         (void)_t1603;
         ;
         { ExprData *_r = malloc(sizeof(ExprData)); *_r = _t1603; return _r; }
     }
     ;
-    Str *_p18 = get_payload(self);
-    (void)_p18;
     Bool _t1623 = is_variant(self, &(ExprData){.tag = ExprData_TAG_NamedArg});
     (void)_t1623;
     if (_t1623) {
+        Str *_p18 = get_payload(self);
+        (void)_p18;
         ExprData _t1604; { ExprData *_hp = (ExprData *)ExprData_NamedArg(_p18); _t1604 = *_hp; free(_hp); }
         (void)_t1604;
         ;
@@ -13962,336 +13597,6 @@ TokenType *TokenType_KwNull() {
 TokenType *TokenType_Error() {
     TokenType *r = malloc(sizeof(TokenType));
     *r = (TokenType){ .tag = TokenType_TAG_Error };
-    return r;
-}
-Bool *TokenType_is_Eof(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Eof);
-    return r;
-}
-Bool *TokenType_is_LParen(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_LParen);
-    return r;
-}
-Bool *TokenType_is_RParen(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_RParen);
-    return r;
-}
-Bool *TokenType_is_LBrace(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_LBrace);
-    return r;
-}
-Bool *TokenType_is_RBrace(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_RBrace);
-    return r;
-}
-Bool *TokenType_is_LBracket(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_LBracket);
-    return r;
-}
-Bool *TokenType_is_RBracket(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_RBracket);
-    return r;
-}
-Bool *TokenType_is_Comma(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Comma);
-    return r;
-}
-Bool *TokenType_is_Colon(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Colon);
-    return r;
-}
-Bool *TokenType_is_Question(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Question);
-    return r;
-}
-Bool *TokenType_is_Bang(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Bang);
-    return r;
-}
-Bool *TokenType_is_Minus(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Minus);
-    return r;
-}
-Bool *TokenType_is_Plus(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Plus);
-    return r;
-}
-Bool *TokenType_is_Star(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Star);
-    return r;
-}
-Bool *TokenType_is_Slash(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Slash);
-    return r;
-}
-Bool *TokenType_is_Dot(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Dot);
-    return r;
-}
-Bool *TokenType_is_DotDot(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_DotDot);
-    return r;
-}
-Bool *TokenType_is_DotDotDot(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_DotDotDot);
-    return r;
-}
-Bool *TokenType_is_Eq(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Eq);
-    return r;
-}
-Bool *TokenType_is_EqEq(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_EqEq);
-    return r;
-}
-Bool *TokenType_is_Neq(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Neq);
-    return r;
-}
-Bool *TokenType_is_Lt(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Lt);
-    return r;
-}
-Bool *TokenType_is_LtEq(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_LtEq);
-    return r;
-}
-Bool *TokenType_is_Gt(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Gt);
-    return r;
-}
-Bool *TokenType_is_GtEq(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_GtEq);
-    return r;
-}
-Bool *TokenType_is_ColonEq(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_ColonEq);
-    return r;
-}
-Bool *TokenType_is_Ident(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Ident);
-    return r;
-}
-Bool *TokenType_is_StringTok(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_StringTok);
-    return r;
-}
-Bool *TokenType_is_Number(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Number);
-    return r;
-}
-Bool *TokenType_is_Char(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Char);
-    return r;
-}
-Bool *TokenType_is_KwMode(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwMode);
-    return r;
-}
-Bool *TokenType_is_KwMut(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwMut);
-    return r;
-}
-Bool *TokenType_is_KwOwn(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwOwn);
-    return r;
-}
-Bool *TokenType_is_KwRef(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwRef);
-    return r;
-}
-Bool *TokenType_is_KwShallow(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwShallow);
-    return r;
-}
-Bool *TokenType_is_KwStruct(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwStruct);
-    return r;
-}
-Bool *TokenType_is_KwExtStruct(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwExtStruct);
-    return r;
-}
-Bool *TokenType_is_KwEnum(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwEnum);
-    return r;
-}
-Bool *TokenType_is_KwNamespace(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwNamespace);
-    return r;
-}
-Bool *TokenType_is_KwFunc(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwFunc);
-    return r;
-}
-Bool *TokenType_is_KwProc(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwProc);
-    return r;
-}
-Bool *TokenType_is_KwTest(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwTest);
-    return r;
-}
-Bool *TokenType_is_KwMacro(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwMacro);
-    return r;
-}
-Bool *TokenType_is_KwExtFunc(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwExtFunc);
-    return r;
-}
-Bool *TokenType_is_KwExtProc(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwExtProc);
-    return r;
-}
-Bool *TokenType_is_KwReturns(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwReturns);
-    return r;
-}
-Bool *TokenType_is_KwThrows(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwThrows);
-    return r;
-}
-Bool *TokenType_is_KwIf(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwIf);
-    return r;
-}
-Bool *TokenType_is_KwElse(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwElse);
-    return r;
-}
-Bool *TokenType_is_KwWhile(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwWhile);
-    return r;
-}
-Bool *TokenType_is_KwFor(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwFor);
-    return r;
-}
-Bool *TokenType_is_KwIn(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwIn);
-    return r;
-}
-Bool *TokenType_is_KwSwitch(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwSwitch);
-    return r;
-}
-Bool *TokenType_is_KwMatch(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwMatch);
-    return r;
-}
-Bool *TokenType_is_KwCase(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwCase);
-    return r;
-}
-Bool *TokenType_is_KwDefault(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwDefault);
-    return r;
-}
-Bool *TokenType_is_KwReturn(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwReturn);
-    return r;
-}
-Bool *TokenType_is_KwThrow(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwThrow);
-    return r;
-}
-Bool *TokenType_is_KwCatch(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwCatch);
-    return r;
-}
-Bool *TokenType_is_KwBreak(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwBreak);
-    return r;
-}
-Bool *TokenType_is_KwContinue(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwContinue);
-    return r;
-}
-Bool *TokenType_is_KwDefer(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwDefer);
-    return r;
-}
-Bool *TokenType_is_KwTrue(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwTrue);
-    return r;
-}
-Bool *TokenType_is_KwFalse(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwFalse);
-    return r;
-}
-Bool *TokenType_is_KwNull(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_KwNull);
-    return r;
-}
-Bool *TokenType_is_Error(TokenType *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == TokenType_TAG_Error);
     return r;
 }
 Bool * TokenType_eq(TokenType * self, TokenType * other) {
@@ -27066,19 +26371,6 @@ ScopeFind *ScopeFind_Found(TypeBinding * val) {
     { TypeBinding * _tmp = TypeBinding_clone(val); r->data.Found = *_tmp; free(_tmp); }
     return r;
 }
-Bool *ScopeFind_is_NotFound(ScopeFind *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ScopeFind_TAG_NotFound);
-    return r;
-}
-Bool *ScopeFind_is_Found(ScopeFind *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == ScopeFind_TAG_Found);
-    return r;
-}
-TypeBinding * ScopeFind_get_Found(ScopeFind *self) {
-    return TypeBinding_clone(&self->data.Found);
-}
 Bool * ScopeFind_eq(ScopeFind * self, ScopeFind * other) {
     (void)self;
     (void)other;
@@ -30472,107 +29764,6 @@ Value *Value_Ptr(void * val) {
     r->tag = Value_TAG_Ptr;
     r->data.Ptr = val;
     return r;
-}
-Bool *Value_is_None(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_None);
-    return r;
-}
-Bool *Value_is_Int(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Int);
-    return r;
-}
-Bool *Value_is_Byte(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Byte);
-    return r;
-}
-Bool *Value_is_Short(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Short);
-    return r;
-}
-Bool *Value_is_Int32(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Int32);
-    return r;
-}
-Bool *Value_is_Uint32(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Uint32);
-    return r;
-}
-Bool *Value_is_Uint64(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Uint64);
-    return r;
-}
-Bool *Value_is_Float(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Float);
-    return r;
-}
-Bool *Value_is_Boolean(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Boolean);
-    return r;
-}
-Bool *Value_is_Func(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Func);
-    return r;
-}
-Bool *Value_is_Struct(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Struct);
-    return r;
-}
-Bool *Value_is_Enum(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Enum);
-    return r;
-}
-Bool *Value_is_Ptr(Value *self) {
-    Bool *r = malloc(sizeof(Bool));
-    *r = (self->tag == Value_TAG_Ptr);
-    return r;
-}
-I64 * Value_get_Int(Value *self) {
-    I64 * r = malloc(sizeof(I64)); *r = self->data.Int; return r;
-}
-U8 * Value_get_Byte(Value *self) {
-    U8 * r = malloc(sizeof(U8)); *r = self->data.Byte; return r;
-}
-I16 * Value_get_Short(Value *self) {
-    I16 * r = malloc(sizeof(I16)); *r = self->data.Short; return r;
-}
-I32 * Value_get_Int32(Value *self) {
-    I32 * r = malloc(sizeof(I32)); *r = self->data.Int32; return r;
-}
-U32 * Value_get_Uint32(Value *self) {
-    U32 * r = malloc(sizeof(U32)); *r = self->data.Uint32; return r;
-}
-U64 * Value_get_Uint64(Value *self) {
-    U64 * r = malloc(sizeof(U64)); *r = self->data.Uint64; return r;
-}
-F32 * Value_get_Float(Value *self) {
-    F32 * r = malloc(sizeof(F32)); *r = self->data.Float; return r;
-}
-Bool * Value_get_Boolean(Value *self) {
-    Bool * r = malloc(sizeof(Bool)); *r = self->data.Boolean; return r;
-}
-void * Value_get_Func(Value *self) {
-    return self->data.Func;
-}
-StructInstance * Value_get_Struct(Value *self) {
-    return StructInstance_clone(&self->data.Struct);
-}
-EnumInstance * Value_get_Enum(Value *self) {
-    return EnumInstance_clone(&self->data.Enum);
-}
-void * Value_get_Ptr(Value *self) {
-    return self->data.Ptr;
 }
 Bool * Value_eq(Value * a, Value * b) {
     (void)a;

@@ -94,7 +94,7 @@ void compute_struct_layout(Expr *struct_def, TypeScope *scope) {
             // Resolve type alias (e.g. USize → U64) for both size computation and interpreter
             {
                 ScopeFind *_sf2 = TypeScope_find(scope, ftype);
-                TypeBinding *ab = _sf2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf2) : NULL;
+                TypeBinding *ab = _sf2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf2) : NULL;
                 if (ab && ab->is_type_alias && ab->alias_target) {
                     ftype = ab->alias_target;
                     field->data.data.Decl.explicit_type = *ftype;
@@ -159,7 +159,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Check for redeclaration: if a struct/ext_struct with this name already exists, error
         ScopeFind *_sf3 = TypeScope_find(scope, sname);
-        TypeBinding *existing = _sf3->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf3) : NULL;
+        TypeBinding *existing = _sf3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf3) : NULL;
         if (existing && existing->struct_def) {
             fprintf(stderr, "%s:%u:%u: error: struct '%s' already declared at %s:%u:%u\n",
                     stmt->path.c_str, stmt->line, stmt->col, sname->c_str,
@@ -480,7 +480,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         // Check for redeclaration
         ScopeFind *_sf4 = TypeScope_find(scope, ename);
-        TypeBinding *existing = _sf4->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf4) : NULL;
+        TypeBinding *existing = _sf4->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf4) : NULL;
         if (existing && existing->struct_def) {
             fprintf(stderr, "%s:%u:%u: error: enum '%s' already declared at %s:%u:%u\n",
                     path->c_str, line, col, ename->c_str,
@@ -769,8 +769,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 Expr_add_child(ctor_acc, ename_id);
 
                 Expr *ctor_expr;
+                Expr *pd = NULL;
                 if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
                     // Payload variant: ref _pN : Type = get_payload(self); return E.V(_pN)
+                    // pd is added to then_body below, not func_body
                     Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
                     char pn_buf[32];
                     snprintf(pn_buf, sizeof(pn_buf), "_p%u", j);
@@ -781,12 +783,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     self_g->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
                     Expr *gc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
                     Expr_add_child(gc, gp); Expr_add_child(gc, self_g);
-                    Expr *pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                    pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
                     pd->data.data.Decl.name = pn;
                     pd->data.data.Decl.explicit_type = *vtype;
                     pd->data.data.Decl.is_ref = true;
                     Expr_add_child(pd, gc);
-                    Expr_add_child(func_body, pd);
                     Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
                     Expr_add_child(ctor_call, ctor_acc);
                     Expr *p_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
@@ -840,6 +841,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     }
 
                     Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+                    if (pd) Expr_add_child(then_body, pd);
                     Expr_add_child(then_body, ret);
 
                     Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
@@ -847,7 +849,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Expr_add_child(if_node, then_body);
                     Expr_add_child(func_body, if_node);
                 } else {
-                    // Last variant: bare return
+                    // Last variant: bare return (add pd for payload variants)
+                    if (pd) Expr_add_child(func_body, pd);
                     Expr_add_child(func_body, ret);
                 }
             }
@@ -1092,7 +1095,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Str *target_name = &rhs->data.data.Ident;
         ScopeFind *_sf5 = TypeScope_find(scope, target_name);
         if (_sf5->tag != ScopeFind_TAG_Found) continue;
-        TypeBinding *target = ScopeFind_get_Found(_sf5);
+        TypeBinding *target = (TypeBinding*)get_payload(_sf5);
         // Must be a type definition: struct_def (struct/enum) or builtin or funcSig
         if (!target->struct_def && !target->is_builtin &&
             !(target->func_def && target->func_def->children.count == 0)) continue;
@@ -1382,7 +1385,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         // Fill types from the named FuncSig before normal processing
         if (stmt->data.data.Decl.explicit_type.count > 0) {
             ScopeFind *_sf6 = TypeScope_find(scope, &stmt->data.data.Decl.explicit_type);
-            TypeBinding *fsb = _sf6->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf6) : NULL;
+            TypeBinding *fsb = _sf6->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf6) : NULL;
             if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
                 Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
                 Expr *sig = fsb->func_def;

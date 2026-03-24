@@ -74,7 +74,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         e->til_type = t;
         ScopeFind *_sf_id = TypeScope_find(scope, &e->data.data.Ident);
-        TypeBinding *ib = _sf_id->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_id) : NULL;
+        TypeBinding *ib = _sf_id->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_id) : NULL;
         if (ib && (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)) {
             if (ib->struct_name) e->struct_name = *ib->struct_name;
         }
@@ -170,7 +170,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     // For Fn-typed params, resolve func_def by type name from scope
                     if (pt.tag == TilType_TAG_FuncPtr) {
                         ScopeFind *_sf_fsb = TypeScope_find(scope, ptn);
-                        TypeBinding *fsb = _sf_fsb->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_fsb) : NULL;
+                        TypeBinding *fsb = _sf_fsb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_fsb) : NULL;
                         if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
                             pb->func_def = fsb->func_def;
                         }
@@ -192,7 +192,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     Bool ok = 0;
                     if (rv->data.tag == ExprData_TAG_Ident) {
                         ScopeFind *_sf_rb = TypeScope_find(func_scope, &rv->data.data.Ident);
-                        TypeBinding *rb = _sf_rb->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_rb) : NULL;
+                        TypeBinding *rb = _sf_rb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_rb) : NULL;
                         if (rb && (rb->is_param || rb->is_ref)) ok = 1;
                     }
                     if (rv->data.tag == ExprData_TAG_FCall && fcall_returns_ref(rv, func_scope)) ok = 1;
@@ -236,7 +236,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Check: is obj a type name (has struct_def) or an instance/value?
             ScopeFind *_sf_tb = (obj->data.tag == ExprData_TAG_Ident)
                 ? TypeScope_find(scope, &obj->data.data.Ident) : NULL;
-            TypeBinding *tb = (_sf_tb && _sf_tb->tag == ScopeFind_TAG_Found) ? ScopeFind_get_Found(_sf_tb) : NULL;
+            TypeBinding *tb = (_sf_tb && _sf_tb->tag == ScopeFind_TAG_Found) ? (TypeBinding*)get_payload(_sf_tb) : NULL;
             Bool obj_is_type = (tb && tb->struct_def);
 
             Bool ufcs_desugared = 0; // #88: true if UFCS rewrote instance.method → Type.method(instance)
@@ -265,7 +265,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (!ns_func) {
                     // UFCS fallback: check top-level for f(a: T, ...)
                     ScopeFind *_sf_top = TypeScope_find(scope, method);
-                    TypeBinding *top = _sf_top->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_top) : NULL;
+                    TypeBinding *top = _sf_top->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_top) : NULL;
                     Bool ufcs_match = 0;
                     if (top && top->func_def &&
                         top->func_def->data.data.FuncDef.nparam > 0 &&
@@ -306,7 +306,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             if (!Str_eq(&field->data.data.Decl.name, method)) continue;
                             if (field->data.data.Decl.explicit_type.count == 0) continue;
                             ScopeFind *_sf_ftb = TypeScope_find(scope, &field->data.data.Decl.explicit_type);
-                            TypeBinding *ftb = _sf_ftb->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ftb) : NULL;
+                            TypeBinding *ftb = _sf_ftb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ftb) : NULL;
                             if (ftb && ftb->func_def && ftb->func_def->children.count == 0) {
                                 // Rewrite: h.on_click(3, 5) → indirect call through field access
                                 // The field access node becomes the callee, typed as FUNC_PTR
@@ -536,7 +536,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         }
                         if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident) {
                             ScopeFind *_sf_ab = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(i)})->data.data.Ident);
-                            TypeBinding *ab = _sf_ab->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ab) : NULL;
+                            TypeBinding *ab = _sf_ab->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab) : NULL;
                             if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(i)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
                         }
                         if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
@@ -572,7 +572,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         Expr *sdef = TypeScope_get_struct(scope, name);
         if (sdef) {
             ScopeFind *_sf_sb = TypeScope_find(scope, name);
-            TypeBinding *sb = _sf_sb->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_sb) : NULL;
+            TypeBinding *sb = _sf_sb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_sb) : NULL;
             if (sb && sb->is_builtin && !sb->is_ext) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "cannot instantiate builtin type '%s'", name->c_str);
@@ -681,7 +681,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         // Desugar named/optional args for user-defined functions (skip core builtins)
         ScopeFind *_sf_cb = TypeScope_find(scope, name);
-        TypeBinding *callee_bind = _sf_cb->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_cb) : NULL;
+        TypeBinding *callee_bind = _sf_cb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_cb) : NULL;
         if (callee_bind && callee_bind->func_def &&
             (!callee_bind->is_builtin || !callee_bind->func_def->is_core)) {
             Expr *fdef = callee_bind->func_def;
@@ -898,7 +898,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
                 if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_Ident) {
                     ScopeFind *_sf_ab2 = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(ci)})->data.data.Ident);
-                    TypeBinding *ab = _sf_ab2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ab2) : NULL;
+                    TypeBinding *ab = _sf_ab2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab2) : NULL;
                     if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(ci)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
                 }
                 if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
@@ -968,7 +968,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             if (fn_type.tag == TilType_TAG_FuncPtr && callee_bind && callee_bind->func_def &&
                 (callee_bind->func_def->data.data.FuncDef.return_type).count > 0) {
                 ScopeFind *_sf_rsb = TypeScope_find(scope, &callee_bind->func_def->data.data.FuncDef.return_type);
-                TypeBinding *rsb = _sf_rsb->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_rsb) : NULL;
+                TypeBinding *rsb = _sf_rsb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_rsb) : NULL;
                 if (rsb && rsb->func_def && rsb->func_def->children.count == 0)
                     e->fn_sig = rsb->func_def;
             }
@@ -1401,7 +1401,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
         if (callee->data.tag == ExprData_TAG_Ident) {
             ScopeFind *_sf_tb2 = TypeScope_find(scope, &callee->data.data.Ident);
-            TypeBinding *tb = _sf_tb2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_tb2) : NULL;
+            TypeBinding *tb = _sf_tb2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_tb2) : NULL;
             if (tb && tb->func_def) {
                 I32 fvi = tb->func_def->data.data.FuncDef.variadic_index;
                 if (fvi >= 0)
@@ -1917,7 +1917,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             // Keep hoisting for scalars (deref-assign) and params (write-through).
             Bool do_hoist = 1;
             ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
-            TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ab3) : NULL;
+            TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
             if (ab && !ab->is_param) {
                 TilType t = ab->type;
                 if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)
@@ -1933,7 +1933,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
             // ASAP delete of the temp frees the OLD value, not the new one.
             // Re-query: hoist_to_temp may have realloc'd the Map, invalidating ab.
             _sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
-            ab = _sf_ab3->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ab3) : NULL;
+            ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
             if (ab && ab->is_param && ab->is_mut &&
                 (ab->type.tag == TilType_TAG_Struct || ab->type.tag == TilType_TAG_Enum)) {
                 I32 line = stmt->line, col = stmt->col;
@@ -2457,7 +2457,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
                 // Check for redeclaration: existing binding with a different struct_def
                 ScopeFind *_sf_ex = TypeScope_find(scope, sname);
-                TypeBinding *existing = _sf_ex->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ex) : NULL;
+                TypeBinding *existing = _sf_ex->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ex) : NULL;
                 if (existing && existing->struct_def && existing->struct_def != Expr_child(stmt, &(USize){(USize)(0)})) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "%s '%s' already declared at %s:%u:%u",
@@ -2522,7 +2522,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             // Type alias: Decl where RHS is Ident referring to a type (already registered by initer)
             if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
                 ScopeFind *_sf_al = TypeScope_find(scope, &stmt->data.data.Decl.name);
-                TypeBinding *alias_b = _sf_al->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_al) : NULL;
+                TypeBinding *alias_b = _sf_al->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_al) : NULL;
                 if (alias_b && alias_b->is_type_alias) {
                     stmt->til_type = (TilType){TilType_TAG_None};
                     break;
@@ -2600,7 +2600,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     _decl_b->func_def = stmt->data.data.Decl.fn_sig;
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
                     ScopeFind *_sf_src = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-                    TypeBinding *src = _sf_src->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_src) : NULL;
+                    TypeBinding *src = _sf_src->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_src) : NULL;
                     if (src && src->func_def) _decl_b->func_def = src->func_def;
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->fn_sig) {
                     _decl_b->func_def = Expr_child(stmt, &(USize){(USize)(0)})->fn_sig;
@@ -2608,7 +2608,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Named FuncSig type in explicit type position
                 if (!_decl_b->func_def && stmt->data.data.Decl.explicit_type.count > 0) {
                     ScopeFind *_sf_fsb2 = TypeScope_find(scope, &stmt->data.data.Decl.explicit_type);
-                    TypeBinding *fsb = _sf_fsb2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_fsb2) : NULL;
+                    TypeBinding *fsb = _sf_fsb2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_fsb2) : NULL;
                     if (fsb && fsb->func_def && fsb->func_def->children.count == 0)
                         _decl_b->func_def = fsb->func_def;
                 }
@@ -2622,7 +2622,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (rhs->data.tag == ExprData_TAG_FCall && fcall_returns_ref(rhs, scope)) ok = 1;
                 if (rhs->data.tag == ExprData_TAG_Ident) {
                     ScopeFind *_sf_rb2 = TypeScope_find(scope, &rhs->data.data.Ident);
-                    TypeBinding *rb = _sf_rb2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_rb2) : NULL;
+                    TypeBinding *rb = _sf_rb2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_rb2) : NULL;
                     if (rb && (rb->is_ref || (rb->is_param && !rb->is_own))) ok = 1;
                 }
                 if (!ok) type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable");
@@ -2640,7 +2640,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 stmt->til_type.tag != TilType_TAG_FuncPtr &&
                 Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
                 ScopeFind *_sf_rb3 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-                TypeBinding *rb = _sf_rb3->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_rb3) : NULL;
+                TypeBinding *rb = _sf_rb3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_rb3) : NULL;
                 if (rb && !rb->is_mut && !rb->is_own &&
                     (!rb->is_ref || rb->is_alias) && !rb->is_param) {
                     stmt->data.data.Decl.is_ref = true;
@@ -2678,7 +2678,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 snprintf(buf, sizeof(buf), "cannot assign to immutable variable '%s'", aname->c_str);
                 type_error(stmt, buf);
                 ScopeFind *_sf_asgn = TypeScope_find(scope, aname);
-                TypeBinding *b = _sf_asgn->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_asgn) : NULL;
+                TypeBinding *b = _sf_asgn->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_asgn) : NULL;
                 if (b && b->is_param) {
                     fprintf(stderr, "%s:%u:%u: note: '%s' is a function parameter\n",
                             stmt->path.c_str, b->line, b->col, aname->c_str);
@@ -2800,7 +2800,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Error: returning an explicit ref variable from a non-ref function
                 if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
                     ScopeFind *_sf_ret1 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-                    TypeBinding *b = _sf_ret1->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ret1) : NULL;
+                    TypeBinding *b = _sf_ret1->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret1) : NULL;
                     if (b && b->is_ref && !b->is_alias && !b->is_param) {
                         type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'");
                     }
@@ -2810,7 +2810,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 //  params are borrowed — both need cloning to return safely)
                 if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
                     ScopeFind *_sf_ret2 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-                    TypeBinding *b = _sf_ret2->tag == ScopeFind_TAG_Found ? ScopeFind_get_Found(_sf_ret2) : NULL;
+                    TypeBinding *b = _sf_ret2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret2) : NULL;
                     if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
                         const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
                         if (tname) {

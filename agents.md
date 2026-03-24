@@ -8,6 +8,8 @@ NEVER take decisions without the user's explicit approval. When you encounter a 
 
 When the user tells you to do something, DO IT. Do not analyze the order. Do not try to understand why. Do not add extra steps. Do not ls before rm. Do not check before writing. Do not investigate before acting. Just execute the exact command or action the user specified. Nothing more, nothing less. You are not paid to think about orders — you are paid to follow them.
 
+Always pay attention to what the user says. Always follow the user's instructions. Do not force the user to repeat himself or beg you to do what he asks.
+
 ## Showing Code
 
 When the user says "show me the code", use the Read tool to show the actual code. Do not paraphrase it, do not explain it, do not summarize it. Show the code.

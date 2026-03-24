@@ -1610,18 +1610,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
     Expr *body = Expr_child(enum_def, &(USize){(USize)(0)});
     Bool hp = enum_has_payloads(enum_def);
 
-    // Find eq fdef to determine if is_Variant should also return shallow Bool
-    Bool is_variant_shallow = 0;
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *field = Expr_child(body, &(USize){(USize)(i)});
-        if (field->data.data.Decl.is_namespace && (field->data.data.Decl.name.count == 2 && memcmp(field->data.data.Decl.name.c_str, "eq", 2) == 0) &&
-            Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
-            Expr_child(field, &(USize){(USize)(0)})->data.data.FuncDef.return_is_shallow) {
-            is_variant_shallow = 1;
-            break;
-        }
-    }
-
     if (!hp) {
         // === SIMPLE ENUM ===
 
@@ -1641,21 +1629,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
             fprintf(f, "    %s *r = malloc(sizeof(%s));\n", name->c_str, name->c_str);
             fprintf(f, "    *r = (%s){ .tag = %s_TAG_%s };\n", name->c_str, name->c_str, vn->c_str);
             fprintf(f, "    return r;\n");
-            fprintf(f, "}\n");
-        }
-
-        // is_Variant functions
-        for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
-            if (is_variant_shallow) {
-                fprintf(f, "Bool %s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
-                fprintf(f, "    return (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
-            } else {
-                fprintf(f, "Bool *%s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
-                fprintf(f, "    Bool *r = malloc(sizeof(Bool));\n");
-                fprintf(f, "    *r = (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
-                fprintf(f, "    return r;\n");
-            }
             fprintf(f, "}\n");
         }
 
@@ -1705,43 +1678,6 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
                         type_name_to_c(vt), vt->c_str, vn->c_str);
             }
             fprintf(f, "    return r;\n");
-            fprintf(f, "}\n");
-        }
-
-        // is_Variant functions
-        for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
-            if (is_variant_shallow) {
-                fprintf(f, "Bool %s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
-                fprintf(f, "    return (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
-            } else {
-                fprintf(f, "Bool *%s_is_%s(%s *self) {\n", name->c_str, vn->c_str, name->c_str);
-                fprintf(f, "    Bool *r = malloc(sizeof(Bool));\n");
-                fprintf(f, "    *r = (self->tag == %s_TAG_%s);\n", name->c_str, vn->c_str);
-                fprintf(f, "    return r;\n");
-            }
-            fprintf(f, "}\n");
-        }
-
-        // get_Variant functions (payload variants only)
-        for (U32 i = 0; i < vnames.count; i++) {
-            Str *vn = *(Str **)Vec_get(&vnames, &(USize){(USize)(i)});
-            Str *vt = *(Str **)Vec_get(&vtypes, &(USize){(USize)(i)});
-            if (vt->count == 0) continue;
-            const char *ptype = type_name_to_c(vt);
-            fprintf(f, "%s %s_get_%s(%s *self) {\n", ptype, name->c_str, vn->c_str, name->c_str);
-            // Read from inline storage
-            if (is_primitive_type(vt)) {
-                fprintf(f, "    %s r = malloc(sizeof(%s)); *r = self->data.%s; return r;\n",
-                        ptype, type_name_to_c_value(vt), vn->c_str);
-            } else if (is_funcsig_type(vt) ||
-                       (vt->count == 7 && memcmp(vt->c_str, "Dynamic", 7) == 0)) {
-                // FuncSig/Dynamic: return pointer directly
-                fprintf(f, "    return self->data.%s;\n", vn->c_str);
-            } else {
-                // Struct/enum: clone from inline address
-                fprintf(f, "    return %s_clone(&self->data.%s);\n", vt->c_str, vn->c_str);
-            }
             fprintf(f, "}\n");
         }
 
@@ -2071,7 +2007,6 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             if (stmt->is_core) continue;
             if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
                 Str *sname = &stmt->data.data.Decl.name;
-                Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
                 Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
                 Expr *eq_fdef = NULL;
                 for (U32 j = 0; j < ebody->children.count; j++) {
@@ -2084,19 +2019,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
                 }
                 const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
                 fprintf(hf, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
-                const char *is_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
                 for (U32 j = 0; j < ebody->children.count; j++) {
                     Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                     if (v->data.data.Decl.is_namespace) continue;
-                    if (hp) {
-                        fprintf(hf, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
-                    }
                     if (v->data.data.Decl.explicit_type.count > 0) {
                         fprintf(hf, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
                                 v->data.data.Decl.name.c_str, type_name_to_c(&v->data.data.Decl.explicit_type));
-                        fprintf(hf, "%s %s_get_%s(%s *);\n",
-                                type_name_to_c(&v->data.data.Decl.explicit_type),
-                                sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                     } else {
                         fprintf(hf, "%s *%s_%s();\n", sname->c_str, sname->c_str,
                                 v->data.data.Decl.name.c_str);
@@ -2182,7 +2110,6 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
-            Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             // Find eq fdef to check return_is_shallow
             Expr *eq_fdef = NULL;
@@ -2199,19 +2126,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                 if (v->data.data.Decl.is_namespace) continue;
-                const char *is_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
-                if (hp) {
-                    // is_Variant
-                    fprintf(f, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
-                }
                 if (v->data.data.Decl.explicit_type.count > 0) {
                     // Payload constructor
                     fprintf(f, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
                             v->data.data.Decl.name.c_str, type_name_to_c(&v->data.data.Decl.explicit_type));
-                    // get_Variant
-                    fprintf(f, "%s %s_get_%s(%s *);\n",
-                            type_name_to_c(&v->data.data.Decl.explicit_type),
-                            sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                 } else {
                     // Zero-arg constructor
                     fprintf(f, "%s *%s_%s();\n", sname->c_str, sname->c_str,
@@ -2940,7 +2858,6 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
         if (stmt->is_core) continue;
         if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
-            Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             Expr *eq_fdef = NULL;
             for (U32 j = 0; j < ebody->children.count; j++) {
@@ -2953,19 +2870,12 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
             }
             const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
             fprintf(f, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
-            const char *is_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                 if (v->data.data.Decl.is_namespace) continue;
-                if (hp) {
-                    fprintf(f, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
-                }
                 if (v->data.data.Decl.explicit_type.count > 0) {
                     fprintf(f, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
                             v->data.data.Decl.name.c_str, type_name_to_c(&v->data.data.Decl.explicit_type));
-                    fprintf(f, "%s %s_get_%s(%s *);\n",
-                            type_name_to_c(&v->data.data.Decl.explicit_type),
-                            sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                 } else {
                     fprintf(f, "%s *%s_%s();\n", sname->c_str, sname->c_str,
                             v->data.data.Decl.name.c_str);
@@ -3206,7 +3116,6 @@ I32 build_header(Expr *program, Str *h_path) {
         if (stmt->is_core) continue;
         if (stmt->data.tag == ExprData_TAG_Decl && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
             Str *sname = &stmt->data.data.Decl.name;
-            Bool hp = enum_has_payloads(Expr_child(stmt, &(USize){(USize)(0)}));
             Expr *ebody = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){0});
             // Find eq fdef to check return_is_shallow
             Expr *eq_fdef = NULL;
@@ -3220,19 +3129,12 @@ I32 build_header(Expr *program, Str *h_path) {
             }
             const char *eq_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
             fprintf(f, "%s %s_eq(%s *, %s *);\n", eq_ret, sname->c_str, sname->c_str, sname->c_str);
-            const char *is_ret = (eq_fdef && eq_fdef->data.data.FuncDef.return_is_shallow) ? "Bool" : "Bool *";
             for (U32 j = 0; j < ebody->children.count; j++) {
                 Expr *v = Expr_child(ebody, &(USize){(USize)(j)});
                 if (v->data.data.Decl.is_namespace) continue;
-                if (hp) {
-                    fprintf(f, "%s %s_is_%s(%s *);\n", is_ret, sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
-                }
                 if (v->data.data.Decl.explicit_type.count > 0) {
                     fprintf(f, "%s *%s_%s(%s);\n", sname->c_str, sname->c_str,
                             v->data.data.Decl.name.c_str, type_name_to_c(&v->data.data.Decl.explicit_type));
-                    fprintf(f, "%s %s_get_%s(%s *);\n",
-                            type_name_to_c(&v->data.data.Decl.explicit_type),
-                            sname->c_str, v->data.data.Decl.name.c_str, sname->c_str);
                 } else {
                     fprintf(f, "%s *%s_%s();\n", sname->c_str, sname->c_str,
                             v->data.data.Decl.name.c_str);
