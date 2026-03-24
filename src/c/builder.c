@@ -128,12 +128,20 @@ static Expr *find_callee_fdef(Str *name);
 
 // Track hoisted scalar locals (stack values instead of heap pointers)
 static Set shallow_locals;
-static Map shallow_local_types; // name → C type string (for pointer-sign correctness)
+static Map shallow_local_types; // name -> C type string (for pointer-sign correctness)
 static Set unsafe_to_hoist;
+static Set ref_locals; // track ref-declared locals (need DEREF in some contexts)
 
 static Bool is_shallow_local(const char *name) {
     Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
     Bool r = Set_has(&shallow_locals, s);
+    Str_delete(s, &(Bool){1});
+    return r;
+}
+
+static Bool is_ref_local(const char *name) {
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
+    Bool r = Set_has(&ref_locals, s);
     Str_delete(s, &(Bool){1});
     return r;
 }
@@ -159,14 +167,18 @@ static const char *get_shallow_ctype(const char *name) {
     return NULL;
 }
 
-// Block-scoped emit_body: clone shallow_locals/shallow_local_types before
+// Block-scoped emit_body: clone shallow_locals/ref_locals before
 // entering a block, restore after. Inner declarations stay local to the block.
 static void emit_body_scoped(FILE *f, Expr *body, I32 depth) {
     Set saved_sl = shallow_locals;
+    Set saved_rl = ref_locals;
     { Set *_c = Set_clone(&shallow_locals); shallow_locals = *_c; free(_c); }
+    { Set *_c = Set_clone(&ref_locals); ref_locals = *_c; free(_c); }
     emit_body(f, body, depth);
     Set_delete(&shallow_locals, &(Bool){0});
+    Set_delete(&ref_locals, &(Bool){0});
     shallow_locals = saved_sl;
+    ref_locals = saved_rl;
 }
 
 // Scan function body to find variables whose address might escape via ref.
@@ -561,7 +573,10 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
                 fprintf(f, "%s", arg_c);
             }
             if (e->children.count == 1) fprintf(f, "void");
-            fprintf(f, "))%s)(", name->c_str);
+            if (is_ref_local((const char *)name->c_str))
+                fprintf(f, "))(*%s))(", name->c_str);
+            else
+                fprintf(f, "))%s)(", name->c_str);
             for (U32 i = 1; i < e->children.count; i++) {
                 if (i > 1) fprintf(f, ", ");
                 Bool arg_shallow2 = 0;
@@ -738,9 +753,16 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         // Dynamic (void *) IS the value — no dereference needed
         emit_expr(f, e, depth);
     } else if (e->til_type.tag == TilType_TAG_FuncPtr) {
-        // Function pointer: cast to void *, no dereference
-        fprintf(f, "(void *)");
-        emit_expr(f, e, depth);
+        // Function pointer: cast to void *
+        // ref locals need DEREF (pointer to fn-ptr -> fn-ptr)
+        if (e->data.tag == ExprData_TAG_Ident && is_ref_local((const char *)e->data.data.Ident.c_str)) {
+            fprintf(f, "(void *)DEREF(");
+            emit_expr(f, e, depth);
+            fprintf(f, ")");
+        } else {
+            fprintf(f, "(void *)");
+            emit_expr(f, e, depth);
+        }
     } else if (e->data.tag == ExprData_TAG_Ident) {
         if (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
             is_shallow_local((const char *)e->data.data.Ident.c_str)) {
@@ -924,8 +946,8 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
     emit_indent(f, depth);
     switch (e->data.tag) {
     case ExprData_TAG_Decl:
-        if (e->til_type.tag == TilType_TAG_FuncPtr && Expr_child(e, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) {
-            // Function pointer variable: void *f = (void *)func_name;
+        if (e->til_type.tag == TilType_TAG_FuncPtr && !e->data.data.Decl.is_ref && Expr_child(e, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) {
+            // Function pointer variable (non-ref): void *f = (void *)func_name;
             fprintf(f, "void *%s = ", e->data.data.Decl.name.c_str);
             emit_expr(f, Expr_child(e, &(USize){(USize)(0)}), depth);
             fprintf(f, ";\n");
@@ -944,6 +966,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             ;
         } else {
             if (e->data.data.Decl.is_ref) {
+                Set_add(&ref_locals, Str_clone(&e->data.data.Decl.name));
                 Str *_sn = &e->struct_name;
                 if (_sn->count == 0) _sn = &Expr_child(e, &(USize){(USize)(0)})->struct_name;
                 if (_sn->count == 0) _sn = &e->data.data.Decl.explicit_type;
@@ -1413,9 +1436,11 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
             Set saved_shallow = shallow_locals;
             Map saved_stypes = shallow_local_types;
             Set saved_unsafe = unsafe_to_hoist;
+            Set saved_refs = ref_locals;
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
             { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+            { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
             collect_unsafe_to_hoist(body);
             in_main_func = 1;
             emit_body(f, body, 1);
@@ -1423,9 +1448,11 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
             Set_delete(&shallow_locals, &(Bool){0});
             Map_delete(&shallow_local_types, &(Bool){0});
             Set_delete(&unsafe_to_hoist, &(Bool){0});
+            Set_delete(&ref_locals, &(Bool){0});
             shallow_locals = saved_shallow;
             shallow_local_types = saved_stypes;
             unsafe_to_hoist = saved_unsafe;
+            ref_locals = saved_refs;
         }
         fprintf(f, "    return 0;\n");
         fprintf(f, "}\n");
@@ -1451,21 +1478,25 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
             fprintf(f, "    if (!self) return;\n");
         in_func_def = 1;
         current_fdef = func_def;
-        // Save/restore shallow_locals and unsafe_to_hoist per function
+        // Save/restore shallow_locals, ref_locals, and unsafe_to_hoist per function
         Set saved_shallow = shallow_locals;
         Map saved_stypes = shallow_local_types;
         Set saved_unsafe = unsafe_to_hoist;
+        Set saved_refs = ref_locals;
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
         { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+        { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
         collect_unsafe_to_hoist(body);
         emit_body(f, body, 1);
         Set_delete(&shallow_locals, &(Bool){0});
         Map_delete(&shallow_local_types, &(Bool){0});
         Set_delete(&unsafe_to_hoist, &(Bool){0});
+        Set_delete(&ref_locals, &(Bool){0});
         shallow_locals = saved_shallow;
         shallow_local_types = saved_stypes;
         unsafe_to_hoist = saved_unsafe;
+        ref_locals = saved_refs;
         current_fdef = NULL;
         in_func_def = 0;
         fprintf(f, "}\n");
@@ -1769,10 +1800,11 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
     // Build func_def lookup map (for shallow param lookup at call sites)
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
-    // Initialize shallow_locals and unsafe_to_hoist sets for scalar local hoisting
+    // Initialize shallow_locals, ref_locals, and unsafe_to_hoist sets
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); shallow_locals = *_sp; free(_sp); }
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); shallow_local_types = *_mp; free(_mp); }
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
+    { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||

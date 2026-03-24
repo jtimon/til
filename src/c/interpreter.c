@@ -1005,9 +1005,29 @@ static void eval_body(Scope *scope, Expr *body) {
                         val = make_str_value_own((char *)sp->c_str, sp->count);
                     }
                     else {
-                        // User-defined struct: wrap ptr in borrowed StructInstance
+                        // Check for FuncSig type: dereference to get function pointer
                         Cell *tc = scope_get(scope, etype);
-                        if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
+                        if (tc && tc->val.tag == Value_TAG_Func &&
+                            ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_FuncDef &&
+                            ((Expr*)tc->val.data.Func)->children.count == 0) {
+                            // FuncSig: payload is a function pointer (void *)
+                            void *fp = *(void **)val.data.Ptr;
+                            val = (Value){.tag = Value_TAG_Func, .data.Func = fp};
+                        }
+                        // EnumDef: wrap in EnumInstance
+                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
+                            Expr *edef = (Expr*)tc->val.data.Func;
+                            I32 esz = edef->total_struct_size > 0 ? edef->total_struct_size : (I32)sizeof(I64);
+                            U8 *ecopy = malloc(esz);
+                            memcpy(ecopy, val.data.Ptr, esz);
+                            val.tag = Value_TAG_Enum;
+                            val.data.Enum.enum_name = etype;
+                            val.data.Enum.enum_def = edef;
+                            val.data.Enum.data = ecopy;
+                            val.data.Enum.data_size = esz;
+                        }
+                        // User-defined struct: wrap ptr in borrowed StructInstance
+                        else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_StructDef) {
                             void *saved_ptr = val.data.Ptr;
                             val.tag = Value_TAG_Struct;
                             val.data.Struct.struct_name = etype;
