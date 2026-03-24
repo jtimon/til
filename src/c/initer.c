@@ -571,30 +571,6 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         }
 
-        // Generate is_Variant ext_func for every variant (all enums)
-        for (U32 j = 0; j < variant_names.count; j++) {
-            char name_buf[256];
-            snprintf(name_buf, sizeof(name_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
-            fdef->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-              _p->ptype = *ename;
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-            fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
-            fdef->data.data.FuncDef.variadic_index = -1;
-            fdef->data.data.FuncDef.kwargs_index = -1;
-            Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
-            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-            decl->data.data.Decl.name = *Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
-            decl->data.data.Decl.is_namespace = true;
-            Expr_add_child(decl, fdef);
-            Expr_add_child(body, decl);
-        }
-
         // Check existing methods
         Bool has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
         for (U32 j = 0; j < body->children.count; j++) {
@@ -608,21 +584,25 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         }
 
         // Auto-generate eq := func(self: E, other: E) returns Bool { if-chain }
-        // Uses is_Variant() for all variants, get_Variant().eq() for payloads
+        // Uses is_variant() for all variants, get_payload().eq() for payloads
         if (!has_eq) {
             Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
             for (U32 j = 0; j < variant_names.count; j++) {
-                // Build self.is_Vj() call
+                // Build is_variant(self, E.Vj) call
+                Str *vn = (Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
+                Expr *iv1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                iv1->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
                 Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                char is_buf[256];
-                snprintf(is_buf, sizeof(is_buf), "is_%s",
-                         ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
-                Expr_add_child(is_acc, self_id);
+                Expr *et1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                et1->data.data.Ident = *ename;
+                Expr *vr1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                vr1->data.data.FieldAccess = *vn;
+                Expr_add_child(vr1, et1);
                 Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                Expr_add_child(is_call, is_acc);
+                Expr_add_child(is_call, iv1);
+                Expr_add_child(is_call, self_id);
+                Expr_add_child(is_call, vr1);
 
                 Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
 
@@ -631,16 +611,22 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     Bool is_funcsig = type_from_name_init(vtype, scope)->tag == TilType_TAG_FuncPtr;
 
                     // Payload variant:
-                    //   if other.is_Vj().not() { return false }
+                    //   if is_variant(other, E.Vj).not() { return false }
                     //   FuncSig: return true (tag-only eq)
-                    //   Other:   return self.get_Vj().eq(other.get_Vj())
+                    //   Other:   ref _sp = get_payload(self); ref _op = get_payload(other); return _sp.eq(_op)
+                    Expr *iv2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    iv2->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
                     Expr *other_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     other_id->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
-                    Expr *is_acc2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    is_acc2->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
-                    Expr_add_child(is_acc2, other_id);
+                    Expr *et2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    et2->data.data.Ident = *ename;
+                    Expr *vr2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    vr2->data.data.FieldAccess = *vn;
+                    Expr_add_child(vr2, et2);
                     Expr *is_call2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(is_call2, is_acc2);
+                    Expr_add_child(is_call2, iv2);
+                    Expr_add_child(is_call2, other_id);
+                    Expr_add_child(is_call2, vr2);
                     Expr *not_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                     not_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"not", .count = 3, .cap = CAP_LIT};
                     Expr_add_child(not_acc, is_call2);
@@ -713,16 +699,22 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr_add_child(then_body, ret_eq);
                     }
                 } else {
-                    // No-payload variant: return other.is_Vj()
+                    // No-payload variant: return is_variant(other, E.Vj)
+                    Expr *iv3 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    iv3->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
                     Expr *other_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     other_id->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
-                    Expr *is_acc2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    is_acc2->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
-                    Expr_add_child(is_acc2, other_id);
-                    Expr *is_call2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(is_call2, is_acc2);
+                    Expr *et3 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    et3->data.data.Ident = *ename;
+                    Expr *vr3 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    vr3->data.data.FieldAccess = *vn;
+                    Expr_add_child(vr3, et3);
+                    Expr *is_call3 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(is_call3, iv3);
+                    Expr_add_child(is_call3, other_id);
+                    Expr_add_child(is_call3, vr3);
                     Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-                    Expr_add_child(ret, is_call2);
+                    Expr_add_child(ret, is_call3);
                     Expr_add_child(then_body, ret);
                 }
 
@@ -813,16 +805,21 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     // Condition: payload uses is_V(), simple uses eq(E.V())
                     Expr *cond;
                     if (has_payloads) {
+                        // is_variant(self, E.V)
+                        Str *cvn = (Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
+                        Expr *civ = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        civ->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
                         Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                        char is_buf[256];
-                        snprintf(is_buf, sizeof(is_buf), "is_%s",
-                                 ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                        Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
-                        Expr_add_child(is_acc, self_id);
+                        Expr *cet = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        cet->data.data.Ident = *ename;
+                        Expr *cvr = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        cvr->data.data.FieldAccess = *cvn;
+                        Expr_add_child(cvr, cet);
                         cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(cond, is_acc);
+                        Expr_add_child(cond, civ);
+                        Expr_add_child(cond, self_id);
+                        Expr_add_child(cond, cvr);
                     } else {
                         // self.eq(E.V) — bare field access as eq arg
                         Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
@@ -935,17 +932,21 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
             for (U32 j = 0; j < variant_names.count; j++) {
                 if (has_payloads) {
-                    // Payload enum to_str uses is_/get_ methods
-                    // if self.is_Variant() { ... }
+                    // Payload enum to_str: if is_variant(self, E.V) { ... }
+                    Str *tvn = (Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
+                    Expr *tiv = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    tiv->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
                     Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                    char is_buf[256];
-                    snprintf(is_buf, sizeof(is_buf), "is_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                    Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
-                    Expr_add_child(is_acc, self_id);
+                    Expr *tet = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    tet->data.data.Ident = *ename;
+                    Expr *tvr = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                    tvr->data.data.FieldAccess = *tvn;
+                    Expr_add_child(tvr, tet);
                     Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(is_call, is_acc);
+                    Expr_add_child(is_call, tiv);
+                    Expr_add_child(is_call, self_id);
+                    Expr_add_child(is_call, tvr);
 
                     Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
                     Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
