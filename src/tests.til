@@ -188,11 +188,12 @@ add_count := proc(tests: Vec, label: Str, category: Str,
 }
 
 add_cli_pair := proc(tests: Vec, name: Str, file: Str,
-                     cli_args: Str, expected_exit: I64, expected_out: Str) {
-    mut cmd_i := TIL.concat(" interpret ").concat(file)
+                     cli_args: Str, expected_exit: I64, expected_out: Str,
+                     til: Str) {
+    mut cmd_i := til.concat(" interpret ").concat(file)
     if cli_args.len().gt(0) { cmd_i = cmd_i.concat(" ").concat(cli_args) }
     add_single(tests, name.concat("_i"), "cli", expected_exit, expected_out, cmd_i)
-    mut cmd_r := TIL.concat(" run -o bin/c/").concat(name)
+    mut cmd_r := til.concat(" run -o bin/c/").concat(name)
         .concat(" -c gen/c/").concat(name).concat(".c ")
         .concat(file)
     if cli_args.len().gt(0) { cmd_r = cmd_r.concat(" ").concat(cli_args) }
@@ -303,11 +304,12 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
 main := proc(args: ..Str) {
     wall_start := clock_ms()
 
-    // Parse args: -jN, -no-interp, -no-run, --no-gui
+    // Parse args: -jN, -no-interp, -no-run, --no-gui, --til-bin <path>
     mut j : USize = get_thread_count().to_usize()
     mut en_interp := 1
     mut en_run := 1
     mut en_gui := 1
+    mut til_bin := TIL
     mut i : USize = 0
     while i.lt(args.len()) {
         ref arg : Str = args.get(i)
@@ -318,6 +320,11 @@ main := proc(args: ..Str) {
         if arg.eq("-no-interp") { en_interp = 0 }
         if arg.eq("-no-run") { en_run = 0 }
         if arg.eq("--no-gui") { en_gui = 0 }
+        if arg.eq("--til-bin").and(i.add(1).lt(args.len())) {
+            i = i.add(1)
+            ref val : Str = args.get(i)
+            til_bin = val.clone()
+        }
         i = i.add(1)
     }
 
@@ -375,57 +382,57 @@ main := proc(args: ..Str) {
     ffi_exp := "gen/out/expected/ffi.out"
     writefile(ffi_exp, "hello world".concat(NL).concat("hello universe").concat(NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
-               TIL.concat(" interpret src/examples/ffi/ext_module.til"))
+               til_bin.concat(" interpret src/examples/ffi/ext_module.til"))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
-               TIL.concat(" run src/examples/ffi/ext_module.til"))
+               til_bin.concat(" run src/examples/ffi/ext_module.til"))
 
     // === 1 typer errors test ===
     add_count(tests, "typer_errors", "typer", "type error:", 51,
-              TIL.concat(" interpret src/test/typer_errors.til"))
+              til_bin.concat(" interpret src/test/typer_errors.til"))
 
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
 
     writefile(exp.concat("cli_args_hello.out"), "hello".concat(NL).concat("world").concat(NL))
     add_cli_pair(tests, "cli_args_hello", "src/examples/cli_args.til",
-                 "hello world", 0, exp.concat("cli_args_hello.out"))
+                 "hello world", 0, exp.concat("cli_args_hello.out"), til_bin)
 
     writefile(exp.concat("cli_args_empty.out"), "")
     add_cli_pair(tests, "cli_args_empty", "src/examples/cli_args.til",
-                 "", 0, exp.concat("cli_args_empty.out"))
+                 "", 0, exp.concat("cli_args_empty.out"), til_bin)
 
     writefile(exp.concat("cli_typed_alice42.out"), "alice 42".concat(NL))
     add_cli_pair(tests, "cli_typed_alice42", "src/examples/cli_typed.til",
-                 "alice 42", 0, exp.concat("cli_typed_alice42.out"))
+                 "alice 42", 0, exp.concat("cli_typed_alice42.out"), til_bin)
 
     writefile(exp.concat("hello_cli.out"), "Hello World!".concat(NL))
     add_cli_pair(tests, "hello_cli", "src/examples/hello_cli.til",
-                 "", 0, exp.concat("hello_cli.out"))
+                 "", 0, exp.concat("hello_cli.out"), til_bin)
 
     writefile(exp.concat("variadic_add.out"), "60".concat(NL))
     add_cli_pair(tests, "variadic_add", "src/examples/cli_variadic_i64.til",
-                 "add 10 20 30", 0, exp.concat("variadic_add.out"))
+                 "add 10 20 30", 0, exp.concat("variadic_add.out"), til_bin)
 
     writefile(exp.concat("variadic_mul.out"), "24".concat(NL))
     add_cli_pair(tests, "variadic_mul", "src/examples/cli_variadic_i64.til",
-                 "mul 2 3 4", 0, exp.concat("variadic_mul.out"))
+                 "mul 2 3 4", 0, exp.concat("variadic_mul.out"), til_bin)
 
     writefile(exp.concat("variadic_add0.out"), "0".concat(NL))
     add_cli_pair(tests, "variadic_add0", "src/examples/cli_variadic_i64.til",
-                 "add", 0, exp.concat("variadic_add0.out"))
+                 "add", 0, exp.concat("variadic_add0.out"), til_bin)
 
     writefile(exp.concat("variadic_bool_f.out"), "false".concat(NL))
     add_cli_pair(tests, "variadic_bool_f", "src/examples/cli_variadic_bool.til",
-                 "true true false", 0, exp.concat("variadic_bool_f.out"))
+                 "true true false", 0, exp.concat("variadic_bool_f.out"), til_bin)
 
     writefile(exp.concat("variadic_bool_t.out"), "true".concat(NL))
     add_cli_pair(tests, "variadic_bool_t", "src/examples/cli_variadic_bool.til",
-                 "true true", 0, exp.concat("variadic_bool_t.out"))
+                 "true true", 0, exp.concat("variadic_bool_t.out"), til_bin)
 
     // Error cases (exit=1, no output check)
-    add_cli_pair(tests, "cli_typed_err1", "src/examples/cli_typed.til", "alice", 1, "")
-    add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "")
-    add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "")
+    add_cli_pair(tests, "cli_typed_err1", "src/examples/cli_typed.til", "alice", 1, "", til_bin)
+    add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "", til_bin)
+    add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "", til_bin)
 
     // === build tests (build + run with timeout) ===
     if en_gui.eq(1) {
@@ -441,7 +448,7 @@ main := proc(args: ..Str) {
             mut run_args := ""
             if bn.eq("popcorn") { run_args = " --mute" }
             add_single(tests, "build_".concat(bn), "build", 124, "",
-                       TIL.concat(" build ").concat(gf)
+                       til_bin.concat(" build ").concat(gf)
                            .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
                            .concat(" bin/").concat(bn).concat(run_args))
         }

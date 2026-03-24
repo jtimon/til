@@ -12,7 +12,7 @@
 # boot/         Generated C checked into repo. Regenerated every build
 #               so the next commit's til_boot has current code.
 
-.PHONY: all clean test test_nogui revert_boot help
+.PHONY: all clean test test_asan test_nogui revert_boot help
 
 all: bin/til
 
@@ -93,6 +93,9 @@ bin/tests: bin/til $(CORE) $(SELF) src/tests.til
 
 test: bin/til bin/test_runner bin/plot bin/tests
 	xvfb-run --auto-servernum bin/tests $(if $(J),-j$(J))
+
+test_asan: bin/til bin/til_asan bin/test_runner bin/plot bin/tests
+	xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan $(if $(J),-j$(J))
 
 test_nogui: bin/til bin/test_runner bin/plot bin/tests
 	bin/tests --no-gui $(if $(J),-j$(J))
