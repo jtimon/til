@@ -11920,7 +11920,7 @@ Str * node_name(ExprData * data) {
             ;
             { Str *_r = malloc(sizeof(Str)); *_r = _t1862; return _r; }
         } else {
-            Bool _t1911; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(&_sw1861); _t1911 = *_hp; free(_hp); }
+            Bool _t1911 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_LiteralStr});
             (void)_t1911;
             if (_t1911) {
                 Str _t1863; { Str *_hp = (Str *)Str_lit("str", 3ULL); _t1863 = *_hp; free(_hp); }
@@ -11930,7 +11930,7 @@ Str * node_name(ExprData * data) {
                 ;
                 { Str *_r = malloc(sizeof(Str)); *_r = _t1863; return _r; }
             } else {
-                Bool _t1910; { Bool *_hp = (Bool *)ExprData_is_LiteralNum(&_sw1861); _t1910 = *_hp; free(_hp); }
+                Bool _t1910 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_LiteralNum});
                 (void)_t1910;
                 if (_t1910) {
                     Str _t1864; { Str *_hp = (Str *)Str_lit("num", 3ULL); _t1864 = *_hp; free(_hp); }
@@ -11941,7 +11941,7 @@ Str * node_name(ExprData * data) {
                     ;
                     { Str *_r = malloc(sizeof(Str)); *_r = _t1864; return _r; }
                 } else {
-                    Bool _t1909; { Bool *_hp = (Bool *)ExprData_is_LiteralBool(&_sw1861); _t1909 = *_hp; free(_hp); }
+                    Bool _t1909 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_LiteralBool});
                     (void)_t1909;
                     if (_t1909) {
                         Str _t1865; { Str *_hp = (Str *)Str_lit("bool", 4ULL); _t1865 = *_hp; free(_hp); }
@@ -11966,7 +11966,7 @@ Str * node_name(ExprData * data) {
                             ;
                             { Str *_r = malloc(sizeof(Str)); *_r = _t1866; return _r; }
                         } else {
-                            Bool _t1907; { Bool *_hp = (Bool *)ExprData_is_Ident(&_sw1861); _t1907 = *_hp; free(_hp); }
+                            Bool _t1907 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_Ident});
                             (void)_t1907;
                             if (_t1907) {
                                 Str _t1867; { Str *_hp = (Str *)Str_lit("ident", 5ULL); _t1867 = *_hp; free(_hp); }
@@ -11980,7 +11980,7 @@ Str * node_name(ExprData * data) {
                                 ;
                                 { Str *_r = malloc(sizeof(Str)); *_r = _t1867; return _r; }
                             } else {
-                                Bool _t1906; { Bool *_hp = (Bool *)ExprData_is_Decl(&_sw1861); _t1906 = *_hp; free(_hp); }
+                                Bool _t1906 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_Decl});
                                 (void)_t1906;
                                 if (_t1906) {
                                     Str _t1868; { Str *_hp = (Str *)Str_lit("decl", 4ULL); _t1868 = *_hp; free(_hp); }
@@ -11995,7 +11995,7 @@ Str * node_name(ExprData * data) {
                                     ;
                                     { Str *_r = malloc(sizeof(Str)); *_r = _t1868; return _r; }
                                 } else {
-                                    Bool _t1905; { Bool *_hp = (Bool *)ExprData_is_Assign(&_sw1861); _t1905 = *_hp; free(_hp); }
+                                    Bool _t1905 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_Assign});
                                     (void)_t1905;
                                     if (_t1905) {
                                         Str _t1869; { Str *_hp = (Str *)Str_lit("assign", 6ULL); _t1869 = *_hp; free(_hp); }
@@ -12028,7 +12028,7 @@ Str * node_name(ExprData * data) {
                                             ;
                                             { Str *_r = malloc(sizeof(Str)); *_r = _t1870; return _r; }
                                         } else {
-                                            Bool _t1903; { Bool *_hp = (Bool *)ExprData_is_FuncDef(&_sw1861); _t1903 = *_hp; free(_hp); }
+                                            Bool _t1903 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_FuncDef});
                                             (void)_t1903;
                                             if (_t1903) {
                                                 Str _t1871; { Str *_hp = (Str *)Str_lit("func_def", 8ULL); _t1871 = *_hp; free(_hp); }
@@ -12085,7 +12085,7 @@ Str * node_name(ExprData * data) {
                                                         ;
                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t1873; return _r; }
                                                     } else {
-                                                        Bool _t1900; { Bool *_hp = (Bool *)ExprData_is_FieldAccess(&_sw1861); _t1900 = *_hp; free(_hp); }
+                                                        Bool _t1900 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_FieldAccess});
                                                         (void)_t1900;
                                                         if (_t1900) {
                                                             Str _t1874; { Str *_hp = (Str *)Str_lit("field_access", 12ULL); _t1874 = *_hp; free(_hp); }
@@ -12106,7 +12106,7 @@ Str * node_name(ExprData * data) {
                                                             ;
                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t1874; return _r; }
                                                         } else {
-                                                            Bool _t1899; { Bool *_hp = (Bool *)ExprData_is_FieldAssign(&_sw1861); _t1899 = *_hp; free(_hp); }
+                                                            Bool _t1899 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_FieldAssign});
                                                             (void)_t1899;
                                                             if (_t1899) {
                                                                 Str _t1875; { Str *_hp = (Str *)Str_lit("field_assign", 12ULL); _t1875 = *_hp; free(_hp); }
@@ -12200,7 +12200,7 @@ Str * node_name(ExprData * data) {
                                                                             ;
                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t1878; return _r; }
                                                                         } else {
-                                                                            Bool _t1895; { Bool *_hp = (Bool *)ExprData_is_ForIn(&_sw1861); _t1895 = *_hp; free(_hp); }
+                                                                            Bool _t1895 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_ForIn});
                                                                             (void)_t1895;
                                                                             if (_t1895) {
                                                                                 Str _t1879; { Str *_hp = (Str *)Str_lit("for_in", 6ULL); _t1879 = *_hp; free(_hp); }
@@ -12226,7 +12226,7 @@ Str * node_name(ExprData * data) {
                                                                                 ;
                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t1879; return _r; }
                                                                             } else {
-                                                                                Bool _t1894; { Bool *_hp = (Bool *)ExprData_is_NamedArg(&_sw1861); _t1894 = *_hp; free(_hp); }
+                                                                                Bool _t1894 = is_variant(&_sw1861, &(ExprData){.tag = ExprData_TAG_NamedArg});
                                                                                 (void)_t1894;
                                                                                 if (_t1894) {
                                                                                     Str _t1880; { Str *_hp = (Str *)Str_lit("named_arg", 9ULL); _t1880 = *_hp; free(_hp); }
@@ -12763,7 +12763,7 @@ void ast_print(Expr * e, U32 indent) {
     {
         ExprData *_sw1949 = ExprData_clone(&e->data);
         (void)_sw1949;
-        Bool _t2036; { Bool *_hp = (Bool *)ExprData_is_Ident(_sw1949); _t2036 = *_hp; free(_hp); }
+        Bool _t2036 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_Ident});
         (void)_t2036;
         if (_t2036) {
             Str *s = get_payload(_sw1949);
@@ -12799,7 +12799,7 @@ void ast_print(Expr * e, U32 indent) {
             ;
             print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va41; _oa; }));
         } else {
-            Bool _t2035; { Bool *_hp = (Bool *)ExprData_is_LiteralStr(_sw1949); _t2035 = *_hp; free(_hp); }
+            Bool _t2035 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_LiteralStr});
             (void)_t2035;
             if (_t2035) {
                 Str *s = get_payload(_sw1949);
@@ -12835,7 +12835,7 @@ void ast_print(Expr * e, U32 indent) {
                 ;
                 print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va42; _oa; }));
             } else {
-                Bool _t2034; { Bool *_hp = (Bool *)ExprData_is_LiteralNum(_sw1949); _t2034 = *_hp; free(_hp); }
+                Bool _t2034 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_LiteralNum});
                 (void)_t2034;
                 if (_t2034) {
                     Str *s = get_payload(_sw1949);
@@ -12871,7 +12871,7 @@ void ast_print(Expr * e, U32 indent) {
                     ;
                     print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va43; _oa; }));
                 } else {
-                    Bool _t2033; { Bool *_hp = (Bool *)ExprData_is_LiteralBool(_sw1949); _t2033 = *_hp; free(_hp); }
+                    Bool _t2033 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_LiteralBool});
                     (void)_t2033;
                     if (_t2033) {
                         Str *s = get_payload(_sw1949);
@@ -12907,7 +12907,7 @@ void ast_print(Expr * e, U32 indent) {
                         ;
                         print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va44; _oa; }));
                     } else {
-                        Bool _t2032; { Bool *_hp = (Bool *)ExprData_is_ForIn(_sw1949); _t2032 = *_hp; free(_hp); }
+                        Bool _t2032 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_ForIn});
                         (void)_t2032;
                         if (_t2032) {
                             Str *s = get_payload(_sw1949);
@@ -12943,7 +12943,7 @@ void ast_print(Expr * e, U32 indent) {
                             ;
                             print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va45; _oa; }));
                         } else {
-                            Bool _t2031; { Bool *_hp = (Bool *)ExprData_is_Decl(_sw1949); _t2031 = *_hp; free(_hp); }
+                            Bool _t2031 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_Decl});
                             (void)_t2031;
                             if (_t2031) {
                                 Declaration *decl = get_payload(_sw1949);
@@ -12993,7 +12993,7 @@ void ast_print(Expr * e, U32 indent) {
                                 ;
                                 print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va47; _oa; }));
                             } else {
-                                Bool _t2030; { Bool *_hp = (Bool *)ExprData_is_Assign(_sw1949); _t2030 = *_hp; free(_hp); }
+                                Bool _t2030 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_Assign});
                                 (void)_t2030;
                                 if (_t2030) {
                                     Str *s = get_payload(_sw1949);
@@ -13023,7 +13023,7 @@ void ast_print(Expr * e, U32 indent) {
                                     ;
                                     print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va48; _oa; }));
                                 } else {
-                                    Bool _t2029; { Bool *_hp = (Bool *)ExprData_is_NamedArg(_sw1949); _t2029 = *_hp; free(_hp); }
+                                    Bool _t2029 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_NamedArg});
                                     (void)_t2029;
                                     if (_t2029) {
                                         Str *s = get_payload(_sw1949);
@@ -13053,7 +13053,7 @@ void ast_print(Expr * e, U32 indent) {
                                         ;
                                         print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va49; _oa; }));
                                     } else {
-                                        Bool _t2028; { Bool *_hp = (Bool *)ExprData_is_FuncDef(_sw1949); _t2028 = *_hp; free(_hp); }
+                                        Bool _t2028 = is_variant(_sw1949, &(ExprData){.tag = ExprData_TAG_FuncDef});
                                         (void)_t2028;
                                         if (_t2028) {
                                             FunctionDef *fdef = get_payload(_sw1949);
@@ -26858,7 +26858,7 @@ TilType * type_from_name_init(Str * name, TypeScope * scope) {
         {
             ScopeFind *_sw4209 = TypeScope_find(scope, name);
             (void)_sw4209;
-            Bool _t4217; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4209); _t4217 = *_hp; free(_hp); }
+            Bool _t4217 = is_variant(_sw4209, &(ScopeFind){.tag = ScopeFind_TAG_Found});
             (void)_t4217;
             if (_t4217) {
                 TypeBinding *b = get_payload(_sw4209);
@@ -27318,7 +27318,7 @@ TilType * TypeScope_get_type(TypeScope * self, Str * name) {
     {
         ScopeFind *_sw4306 = TypeScope_find(self, name);
         (void)_sw4306;
-        Bool _t4307; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4306); _t4307 = *_hp; free(_hp); }
+        Bool _t4307 = is_variant(_sw4306, &(ScopeFind){.tag = ScopeFind_TAG_Found});
         (void)_t4307;
         if (_t4307) {
             TypeBinding *b = get_payload(_sw4306);
@@ -27342,7 +27342,7 @@ I32 TypeScope_is_proc(TypeScope * self, Str * name) {
     {
         ScopeFind *_sw4308 = TypeScope_find(self, name);
         (void)_sw4308;
-        Bool _t4313; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4308); _t4313 = *_hp; free(_hp); }
+        Bool _t4313 = is_variant(_sw4308, &(ScopeFind){.tag = ScopeFind_TAG_Found});
         (void)_t4313;
         if (_t4313) {
             TypeBinding *b = get_payload(_sw4308);
@@ -27377,7 +27377,7 @@ Expr * TypeScope_get_struct(TypeScope * self, Str * name) {
     {
         ScopeFind *_sw4314 = TypeScope_find(self, name);
         (void)_sw4314;
-        Bool _t4315; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4314); _t4315 = *_hp; free(_hp); }
+        Bool _t4315 = is_variant(_sw4314, &(ScopeFind){.tag = ScopeFind_TAG_Found});
         (void)_t4315;
         if (_t4315) {
             TypeBinding *b = get_payload(_sw4314);
@@ -27401,7 +27401,7 @@ Bool TypeScope_is_mut(TypeScope * self, Str * name) {
     {
         ScopeFind *_sw4316 = TypeScope_find(self, name);
         (void)_sw4316;
-        Bool _t4318; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4316); _t4318 = *_hp; free(_hp); }
+        Bool _t4318 = is_variant(_sw4316, &(ScopeFind){.tag = ScopeFind_TAG_Found});
         (void)_t4318;
         if (_t4318) {
             TypeBinding *b = get_payload(_sw4316);
@@ -28421,7 +28421,7 @@ TilType * type_from_name(Str * name, TypeScope * scope) {
         {
             ScopeFind *_sw4460 = TypeScope_find(scope, name);
             (void)_sw4460;
-            Bool _t4468; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4460); _t4468 = *_hp; free(_hp); }
+            Bool _t4468 = is_variant(_sw4460, &(ScopeFind){.tag = ScopeFind_TAG_Found});
             (void)_t4468;
             if (_t4468) {
                 TypeBinding *b = get_payload(_sw4460);
@@ -28504,7 +28504,7 @@ Str * resolve_type_alias(TypeScope * scope, Str * name) {
     {
         ScopeFind *_sw4500 = TypeScope_find(scope, name);
         (void)_sw4500;
-        Bool _t4503; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4500); _t4503 = *_hp; free(_hp); }
+        Bool _t4503 = is_variant(_sw4500, &(ScopeFind){.tag = ScopeFind_TAG_Found});
         (void)_t4503;
         if (_t4503) {
             TypeBinding *b = get_payload(_sw4500);
@@ -28541,7 +28541,7 @@ Str * usize_name(TypeScope * scope) {
         ScopeFind _sw4504; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(scope, &_t4507); _sw4504 = *_hp; free(_hp); }
         (void)_sw4504;
         Str_delete(&_t4507, &(Bool){0});
-        Bool _t4508; { Bool *_hp = (Bool *)ScopeFind_is_Found(&_sw4504); _t4508 = *_hp; free(_hp); }
+        Bool _t4508 = is_variant(&_sw4504, &(ScopeFind){.tag = ScopeFind_TAG_Found});
         (void)_t4508;
         ScopeFind_delete(&_sw4504, &(Bool){0});
         if (_t4508) {
@@ -29519,7 +29519,7 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
         {
             ScopeFind *_sw4650 = TypeScope_find(scope, fn_name);
             (void)_sw4650;
-            Bool _t4655; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4650); _t4655 = *_hp; free(_hp); }
+            Bool _t4655 = is_variant(_sw4650, &(ScopeFind){.tag = ScopeFind_TAG_Found});
             (void)_t4655;
             if (_t4655) {
                 TypeBinding *fb = get_payload(_sw4650);
@@ -30136,7 +30136,7 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
         {
             ScopeFind *_sw4763 = TypeScope_find(scope, _cn);
             (void)_sw4763;
-            Bool _t4769; { Bool *_hp = (Bool *)ScopeFind_is_Found(_sw4763); _t4769 = *_hp; free(_hp); }
+            Bool _t4769 = is_variant(_sw4763, &(ScopeFind){.tag = ScopeFind_TAG_Found});
             (void)_t4769;
             if (_t4769) {
                 TypeBinding *cb = get_payload(_sw4763);

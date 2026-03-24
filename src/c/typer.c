@@ -3030,16 +3030,20 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         I32 tag = *enum_variant_tag(enum_def, variant_name);
                         Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
                         if (payload_type && payload_type->count > 0) {
-                            // Build _sw.is_Variant()
-                            char is_buf[256];
-                            snprintf(is_buf, sizeof(is_buf), "is_%s", variant_name->c_str);
+                            // Build is_variant(_sw, EnumType.Variant)
+                            Expr *iv_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                            iv_id->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
                             Expr *sw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
                             sw_id->data.data.Ident = *sw_name;
-                            Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-                            is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
-                            Expr_add_child(is_acc, sw_id);
+                            Expr *vtype_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                            vtype_id->data.data.Ident = *type_name;
+                            Expr *vref = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+                            vref->data.data.FieldAccess = *variant_name;
+                            Expr_add_child(vref, vtype_id);
                             condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-                            Expr_add_child(condition, is_acc);
+                            Expr_add_child(condition, iv_id);
+                            Expr_add_child(condition, sw_id);
+                            Expr_add_child(condition, vref);
 
                             // Prepend binding: ref binding_name : PayloadType = get_payload(_sw)
                             Expr *gp_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
@@ -3085,16 +3089,20 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         I32 tag = *enum_variant_tag(enum_def, variant_name);
                         Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
                         if (payload_type && payload_type->count > 0) {
-                            // Payload variant without binding — use is_Variant()
-                            char is_buf[256];
-                            snprintf(is_buf, sizeof(is_buf), "is_%s", variant_name->c_str);
+                            // Payload variant without binding — use is_variant(_sw, E.V)
+                            Expr *iv_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                            iv_id->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
                             Expr *sw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
                             sw_id->data.data.Ident = *sw_name;
-                            Expr *is_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-                            is_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(is_buf), .count = (U64)strlen((const char*)(is_buf)), .cap = CAP_VIEW});
-                            Expr_add_child(is_acc, sw_id);
+                            Expr *vtype_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                            vtype_id->data.data.Ident = *type_name;
+                            Expr *vref = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+                            vref->data.data.FieldAccess = *variant_name;
+                            Expr_add_child(vref, vtype_id);
                             condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-                            Expr_add_child(condition, is_acc);
+                            Expr_add_child(condition, iv_id);
+                            Expr_add_child(condition, sw_id);
+                            Expr_add_child(condition, vref);
                         }
                     }
                 }
