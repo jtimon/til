@@ -569,30 +569,6 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 }
             }
 
-            // Generate get_Variant ext_func for payload variants
-            for (U32 j = 0; j < variant_names.count; j++) {
-                if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count == 0) continue;
-                char name_buf[256];
-                snprintf(name_buf, sizeof(name_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-                fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
-                fdef->data.data.FuncDef.nparam = 1;
-                { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-                { Param *_p = calloc(1, sizeof(Param));
-                  _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                  _p->ptype = *ename;
-                  Vec_push(&fdef->data.data.FuncDef.params, _p); }
-                { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-                fdef->data.data.FuncDef.return_type = *(Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
-                fdef->data.data.FuncDef.variadic_index = -1;
-                fdef->data.data.FuncDef.kwargs_index = -1;
-                Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
-                Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                decl->data.data.Decl.name = *Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
-                decl->data.data.Decl.is_namespace = true;
-                Expr_add_child(decl, fdef);
-                Expr_add_child(body, decl);
-            }
         }
 
         // Generate is_Variant ext_func for every variant (all enums)
@@ -690,33 +666,47 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr_add_child(ret_true, true_lit);
                         Expr_add_child(then_body, ret_true);
                     } else {
-                        // return self.get_Vj().eq(other.get_Vj())
-                        char get_buf[256];
-                        snprintf(get_buf, sizeof(get_buf), "get_%s",
-                                 ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
+                        // ref _sp : PayloadType = get_payload(self)
+                        // ref _op : PayloadType = get_payload(other)
+                        // return _sp.eq(_op)
+                        Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
+
+                        Expr *gp1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        gp1->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
                         Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                        Expr *get_acc1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        get_acc1->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
-                        Expr_add_child(get_acc1, self2);
-                        Expr *get_call1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(get_call1, get_acc1);
+                        Expr *gc1 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(gc1, gp1); Expr_add_child(gc1, self2);
+                        Expr *sd1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                        sd1->data.data.Decl.name = (Str){.c_str = (U8*)"_sp", .count = 3, .cap = CAP_LIT};
+                        sd1->data.data.Decl.explicit_type = *vtype;
+                        sd1->data.data.Decl.is_ref = true;
+                        Expr_add_child(sd1, gc1);
+                        Expr_add_child(then_body, sd1);
 
-                        Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
-                        Expr_add_child(eq_acc, get_call1);
-
+                        Expr *gp2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        gp2->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
                         Expr *other2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         other2->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
-                        Expr *get_acc2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        get_acc2->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
-                        Expr_add_child(get_acc2, other2);
-                        Expr *get_call2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(get_call2, get_acc2);
+                        Expr *gc2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(gc2, gp2); Expr_add_child(gc2, other2);
+                        Expr *sd2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                        sd2->data.data.Decl.name = (Str){.c_str = (U8*)"_op", .count = 3, .cap = CAP_LIT};
+                        sd2->data.data.Decl.explicit_type = *vtype;
+                        sd2->data.data.Decl.is_ref = true;
+                        Expr_add_child(sd2, gc2);
+                        Expr_add_child(then_body, sd2);
 
+                        Expr *sp_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        sp_id->data.data.Ident = (Str){.c_str = (U8*)"_sp", .count = 3, .cap = CAP_LIT};
+                        Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                        eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+                        Expr_add_child(eq_acc, sp_id);
+                        Expr *op_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        op_id->data.data.Ident = (Str){.c_str = (U8*)"_op", .count = 3, .cap = CAP_LIT};
                         Expr *eq_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
                         Expr_add_child(eq_call, eq_acc);
-                        Expr_add_child(eq_call, get_call2);
+                        Expr_add_child(eq_call, op_id);
 
                         Expr *ret_eq = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
                         Expr_add_child(ret_eq, eq_call);
@@ -788,20 +778,28 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
                 Expr *ctor_expr;
                 if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
-                    // Payload variant: E.V(self.get_V())
-                    Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(ctor_call, ctor_acc);
+                    // Payload variant: ref _pN : Type = get_payload(self); return E.V(_pN)
+                    Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
+                    char pn_buf[32];
+                    snprintf(pn_buf, sizeof(pn_buf), "_p%u", j);
+                    Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
+                    Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
                     Expr *self_g = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     self_g->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                    char get_buf[256];
-                    snprintf(get_buf, sizeof(get_buf), "get_%s",
-                             ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                    Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
-                    Expr_add_child(get_acc, self_g);
-                    Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(get_call, get_acc);
-                    Expr_add_child(ctor_call, get_call);
+                    Expr *gc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(gc, gp); Expr_add_child(gc, self_g);
+                    Expr *pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                    pd->data.data.Decl.name = pn;
+                    pd->data.data.Decl.explicit_type = *vtype;
+                    pd->data.data.Decl.is_ref = true;
+                    Expr_add_child(pd, gc);
+                    Expr_add_child(func_body, pd);
+                    Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                    Expr_add_child(ctor_call, ctor_acc);
+                    Expr *p_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                    p_id->data.data.Ident = pn;
+                    Expr_add_child(ctor_call, p_id);
                     ctor_expr = ctor_call;
                 } else {
                     // No-payload variant: bare E.V (auto-called at runtime)
@@ -961,7 +959,23 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr_add_child(ret, ret_str);
                         Expr_add_child(then_body, ret);
                     } else if (vtype->count > 0) {
-                        // return format("Variant(", self.get_Variant().to_str(), ")")
+                        // ref _pN : Type = get_payload(self); return format("V(", _pN.to_str(), ")")
+                        char pn_buf[32];
+                        snprintf(pn_buf, sizeof(pn_buf), "_p%u", j);
+                        Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
+                        Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
+                        Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                        Expr *gc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                        Expr_add_child(gc, gp); Expr_add_child(gc, self2);
+                        Expr *pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                        pd->data.data.Decl.name = pn;
+                        pd->data.data.Decl.explicit_type = *vtype;
+                        pd->data.data.Decl.is_ref = true;
+                        Expr_add_child(pd, gc);
+                        Expr_add_child(then_body, pd);
+
                         Expr *fmt_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
                         Expr *fmt_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         fmt_id->data.data.Ident = (Str){.c_str = (U8*)"format", .count = 6, .cap = CAP_LIT};
@@ -973,19 +987,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         prefix->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(prefix_buf), .count = (U64)strlen((const char*)(prefix_buf)), .cap = CAP_VIEW});
                         Expr_add_child(fmt_call, prefix);
 
-                        // self.get_Variant().to_str()
-                        Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                        char get_buf[256];
-                        snprintf(get_buf, sizeof(get_buf), "get_%s", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                        Expr *get_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        get_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)(get_buf), .count = (U64)strlen((const char*)(get_buf)), .cap = CAP_VIEW});
-                        Expr_add_child(get_acc, self2);
-                        Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(get_call, get_acc);
+                        Expr *p_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                        p_id->data.data.Ident = pn;
                         Expr *tostr_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
                         tostr_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"to_str", .count = 6, .cap = CAP_LIT};
-                        Expr_add_child(tostr_acc, get_call);
+                        Expr_add_child(tostr_acc, p_id);
                         Expr *tostr_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
                         Expr_add_child(tostr_call, tostr_acc);
                         Expr_add_child(fmt_call, tostr_call);
