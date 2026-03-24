@@ -61,14 +61,28 @@ Value := enum {
     namespace:
     eq := func(a: Value, b: Value) returns Bool {
         if a.is_None().and(b.is_None()) { return true }
-        if a.is_Int().and(b.is_Int()) { return a.get_Int().eq(b.get_Int()) }
-        if a.is_Boolean().and(b.is_Boolean()) { return a.get_Boolean().eq(b.get_Boolean()) }
+        if a.is_Int().and(b.is_Int()) {
+            ref _ai : I64 = get_payload(a)
+            ref _bi : I64 = get_payload(b)
+            return _ai.eq(_bi)
+        }
+        if a.is_Boolean().and(b.is_Boolean()) {
+            ref _ab : Bool = get_payload(a)
+            ref _bb : Bool = get_payload(b)
+            return _ab.eq(_bb)
+        }
         return false
     }
     to_str := func(self: Value) returns Str {
         if self.is_None() { return "None" }
-        if self.is_Int() { return self.get_Int().to_str() }
-        if self.is_Boolean() { return self.get_Boolean().to_str() }
+        if self.is_Int() {
+            ref _si : I64 = get_payload(self)
+            return _si.to_str()
+        }
+        if self.is_Boolean() {
+            ref _sb : Bool = get_payload(self)
+            return _sb.to_str()
+        }
         return "Value"
     }
     clone := func(self: Value) returns Value {

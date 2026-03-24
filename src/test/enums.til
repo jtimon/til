@@ -78,13 +78,6 @@ test_payload_construction := test() {
     expect(__LOC__, t3.is_Name(), "Name is_Name")
 }
 
-test_payload_get := test() {
-    t := Token.Num(42)
-    t3 := Token.Name("hello")
-    assert_eq(__LOC__, t.get_Num(), 42)
-    assert_eq_str(__LOC__, t3.get_Name(), "hello")
-}
-
 test_payload_to_str := test() {
     assert_eq_str(__LOC__, Token.Num(42).to_str(), "Num(42)")
     assert_eq_str(__LOC__, Token.Eof.to_str(), "Eof")
@@ -101,7 +94,8 @@ test_payload_eq := test() {
 
 test_payload_clone := test() {
     t4 := Token.Num(7)
-    assert_eq(__LOC__, t4.get_Num(), 7)
+    ref _tn4 : I64 = get_payload(t4)
+    assert_eq(__LOC__, _tn4, 7)
 }
 
 # --- enum as struct field ---
@@ -150,7 +144,7 @@ test_struct_payload := test() {
     s := Shape.Dot(Point(x = 3, y = 4))
     expect(__LOC__, s.is_Dot(), "Dot is_Dot")
     expect(__LOC__, s.is_Empty().not(), "Dot not is_Empty")
-    p := s.get_Dot()
+    ref p : Point = get_payload(s)
     assert_eq(__LOC__, p.x, 3)
     assert_eq(__LOC__, p.y, 4)
 }
@@ -167,7 +161,7 @@ test_struct_payload_eq := test() {
 test_struct_payload_clone := test() {
     s := Shape.Dot(Point(x = 5, y = 6))
     s2 := s.clone()
-    p := s2.get_Dot()
+    ref p : Point = get_payload(s2)
     assert_eq(__LOC__, p.x, 5)
     assert_eq(__LOC__, p.y, 6)
 }
@@ -193,7 +187,7 @@ test_payload_enum_field := test() {
     c := Container(name = "test", kind = Kind.A(Data(x = 3, y = 4)))
     assert_eq_str(__LOC__, c.kind.to_str(), "A(3,4)")
     expect(__LOC__, c.kind.is_A(), "kind.is_A()")
-    d := c.kind.get_A()
+    ref d : Data = get_payload(c.kind)
     assert_eq(__LOC__, d.x, 3)
     assert_eq(__LOC__, d.y, 4)
     assert_eq_str(__LOC__, d.to_str(), "3,4")
@@ -203,7 +197,8 @@ test_payload_enum_field_b := test() {
     c := Container(name = "test", kind = Kind.B(42))
     expect(__LOC__, c.kind.is_B(), "kind.is_B()")
     expect(__LOC__, c.kind.is_A().not(), "kind not is_A()")
-    assert_eq(__LOC__, c.kind.get_B(), 42)
+    ref _kb : I64 = get_payload(c.kind)
+    assert_eq(__LOC__, _kb, 42)
 }
 
 test_payload_enum_field_default := test() {
@@ -216,7 +211,7 @@ test_payload_enum_field_mut := test() {
     expect(__LOC__, c.kind.is_C(), "initially C")
     c.kind = Kind.A(Data(x = 7, y = 8))
     expect(__LOC__, c.kind.is_A(), "after set: is_A()")
-    d := c.kind.get_A()
+    ref d : Data = get_payload(c.kind)
     assert_eq(__LOC__, d.x, 7)
     assert_eq(__LOC__, d.y, 8)
 }

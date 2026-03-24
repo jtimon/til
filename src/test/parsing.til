@@ -23,7 +23,7 @@ test_declaration := proc() {
     ref decl : Expr = root.children.get(0)
     assert_eq_str(__LOC__, node_name(decl.data), "decl")
     assert(__LOC__, decl.data.is_Decl())
-    dd := decl.data.get_Decl()
+    ref dd : Declaration = get_payload(decl.data)
     assert_eq_str(__LOC__, dd.name, "x")
     assert_eq_str(__LOC__, dd.explicit_type, "")
     assert_eq(__LOC__, decl.children.len().to_i64(), 1)
@@ -35,7 +35,7 @@ test_typed_decl := proc() {
     root := parse_src("x : I64 = 0")
     ref decl : Expr = root.children.get(0)
     assert(__LOC__, decl.data.is_Decl())
-    dd := decl.data.get_Decl()
+    ref dd : Declaration = get_payload(decl.data)
     assert_eq_str(__LOC__, dd.name, "x")
     assert_eq_str(__LOC__, dd.explicit_type, "I64")
 }
@@ -45,7 +45,8 @@ test_assignment := proc() {
     ref assign : Expr = root.children.get(0)
     assert_eq_str(__LOC__, node_name(assign.data), "assign")
     assert(__LOC__, assign.data.is_Assign())
-    assert_eq_str(__LOC__, assign.data.get_Assign(), "x")
+    ref _as : Str = get_payload(assign.data)
+    assert_eq_str(__LOC__, _as, "x")
     assert_eq(__LOC__, assign.children.len().to_i64(), 1)
 }
 
@@ -56,7 +57,8 @@ test_call := proc() {
     assert_eq(__LOC__, call.children.len().to_i64(), 3)
     ref callee : Expr = call.children.get(0)
     assert_eq_str(__LOC__, node_name(callee.data), "ident")
-    assert_eq_str(__LOC__, callee.data.get_Ident(), "foo")
+    ref _ci : Str = get_payload(callee.data)
+    assert_eq_str(__LOC__, _ci, "foo")
 }
 
 test_method_call := proc() {
@@ -66,7 +68,8 @@ test_method_call := proc() {
     assert_eq(__LOC__, call.children.len().to_i64(), 2)
     ref callee : Expr = call.children.get(0)
     assert_eq_str(__LOC__, node_name(callee.data), "field_access")
-    assert_eq_str(__LOC__, callee.data.get_FieldAccess(), "foo")
+    ref _cf : Str = get_payload(callee.data)
+    assert_eq_str(__LOC__, _cf, "foo")
 }
 
 test_if_else := proc() {
@@ -91,7 +94,7 @@ test_func_def := proc() {
     ref fdef : Expr = decl.children.get(0)
     assert_eq_str(__LOC__, node_name(fdef.data), "func_def")
     assert(__LOC__, fdef.data.is_FuncDef())
-    fd := fdef.data.get_FuncDef()
+    ref fd : FunctionDef = get_payload(fdef.data)
     assert_eq_str(__LOC__, func_type_name(fd.func_type), "func")
     assert_eq_str(__LOC__, fd.return_type, "I64")
     assert_eq(__LOC__, fd.param_names.len().to_i64(), 1)
@@ -122,7 +125,8 @@ test_for_in := proc() {
     root := parse_src("for i in 0..10 { x = i }")
     ref node : Expr = root.children.get(0)
     assert_eq_str(__LOC__, node_name(node.data), "for_in")
-    assert_eq_str(__LOC__, node.data.get_ForIn(), "i")
+    ref _fi : Str = get_payload(node.data)
+    assert_eq_str(__LOC__, _fi, "i")
     assert_eq(__LOC__, node.children.len().to_i64(), 2)
 }
 

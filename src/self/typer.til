@@ -174,8 +174,14 @@ expr_contains_fcall := func(e: Expr) returns shallow Bool {
 
 expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
     if e.data.is_FuncDef() { return false }
-    if e.data.is_Ident() { if e.data.get_Ident().eq(name) { return true } }
-    if e.data.is_Assign() { if e.data.get_Assign().eq(name) { return true } }
+    if e.data.is_Ident() {
+        ref _id : Str = get_payload(e.data)
+        if _id.eq(name) { return true }
+    }
+    if e.data.is_Assign() {
+        ref _as : Str = get_payload(e.data)
+        if _as.eq(name) { return true }
+    }
     for i in 0..Expr.child_count(e) {
         if expr_uses_var(Expr.child(e, i), name) { return true }
     }
@@ -184,7 +190,10 @@ expr_uses_var := func(e: Expr, name: Str) returns shallow Bool {
 
 expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
     if e.data.is_FuncDef() { return false }
-    if e.data.is_Decl() { if e.data.get_Decl().name.eq(name) { return true } }
+    if e.data.is_Decl() {
+        ref _dd : Declaration = get_payload(e.data)
+        if _dd.name.eq(name) { return true }
+    }
     for i in 0..Expr.child_count(e) {
         if expr_contains_decl(Expr.child(e, i), name) { return true }
     }
@@ -193,7 +202,7 @@ expr_contains_decl := func(e: Expr, name: Str) returns shallow Bool {
 
 expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
     if e.data.is_FuncDef() {
-        fdef := e.data.get_FuncDef()
+        ref fdef : FunctionDef = get_payload(e.data)
         for j in 0..fdef.nparam {
             ref p : Param = fdef.params.get(j)
             if p.name.eq(name) { return false }
@@ -210,7 +219,7 @@ expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
 }
 
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
-    fd := fdef.data.get_FuncDef()
+    ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }
     for i in 0..fd.nparam {
         if i.add(1).gte(Expr.child_count(fcall)) { return false }
@@ -218,7 +227,8 @@ check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow B
         if p.is_own {
             ref arg : Expr = Expr.child(fcall, i.add(1))
             if arg.data.is_Ident() {
-                if arg.data.get_Ident().eq(var_name) { return true }
+                ref _ai : Str = get_payload(arg.data)
+                if _ai.eq(var_name) { return true }
             }
         }
     }
@@ -229,7 +239,9 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
     if fcall.data.is_FCall().not() { return false }
     if Expr.child_count(fcall).lt(2) { return false }
     // Struct constructor
-    if fcall.struct_name.len().gt(0) { if Expr.child(fcall, 0).data.is_Ident() { if Expr.child(fcall, 0).data.get_Ident().eq(fcall.struct_name) {
+    if fcall.struct_name.len().gt(0) { if Expr.child(fcall, 0).data.is_Ident() {
+        ref _c0s : Str = get_payload(Expr.child(fcall, 0).data)
+        if _c0s.eq(fcall.struct_name) {
         ref sdef : Expr = TypeScope.get_struct(scope, fcall.struct_name)
         if is_null(sdef).not() {
             ref body : Expr = Expr.child(sdef, 0)
@@ -237,14 +249,15 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
             for i in 0..Expr.child_count(body) {
                 ref fld : Expr = Expr.child(body, i)
                 if fld.data.is_Decl().not() { continue }
-                fld_decl := fld.data.get_Decl()
+                ref fld_decl : Declaration = get_payload(fld.data)
                 if fld_decl.is_namespace { continue }
                 arg_idx := fi.add(1)
                 fi = fi.add(1)
                 if arg_idx.lt(Expr.child_count(fcall)) {
                     ref arg : Expr = Expr.child(fcall, arg_idx)
                     if arg.data.is_Ident() {
-                        if arg.data.get_Ident().eq(var_name).and(fld_decl.is_own) {
+                        ref _an : Str = get_payload(arg.data)
+                        if _an.eq(var_name).and(fld_decl.is_own) {
                             return true
                         }
                     }
@@ -254,7 +267,7 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
     } } }
     // Direct call
     if Expr.child(fcall, 0).data.is_Ident() {
-        fn_name := Expr.child(fcall, 0).data.get_Ident()
+        ref fn_name : Str = get_payload(Expr.child(fcall, 0).data)
         switch TypeScope.find(scope, fn_name) {
         case ScopeFind.Found(fb):
             if is_null(fb.func_def) { return false }
@@ -264,16 +277,17 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
     }
     // Namespace method call
     if Expr.child(fcall, 0).data.is_FieldAccess().and(Expr.child(fcall, 0).is_ns_field) {
-        method := Expr.child(fcall, 0).data.get_FieldAccess()
+        ref method : Str = get_payload(Expr.child(fcall, 0).data)
         ref type_node : Expr = Expr.child(Expr.child(fcall, 0), 0)
         if type_node.data.is_Ident().not() { return false }
-        ref sdef : Expr = TypeScope.get_struct(scope, type_node.data.get_Ident())
+        ref _tn : Str = get_payload(type_node.data)
+        ref sdef : Expr = TypeScope.get_struct(scope, _tn)
         if is_null(sdef) { return false }
         ref body : Expr = Expr.child(sdef, 0)
         for i in 0..Expr.child_count(body) {
             ref field : Expr = Expr.child(body, i)
             if field.data.is_Decl() {
-                fd := field.data.get_Decl()
+                ref fd : Declaration = get_payload(field.data)
                 if fd.is_namespace.and(fd.name.eq(method)) {
                     if Expr.child(field, 0).data.is_FuncDef() {
                         return check_own_args(Expr.child(field, 0), fcall, var_name)
@@ -291,7 +305,8 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns sha
     if e.data.is_FieldAssign().and(e.is_own_field) {
         if Expr.child_count(e).gt(1) {
             if Expr.child(e, 1).data.is_Ident() {
-                if Expr.child(e, 1).data.get_Ident().eq(var_name) { return true }
+                ref _ei : Str = get_payload(Expr.child(e, 1).data)
+                if _ei.eq(var_name) { return true }
             }
         }
     }
@@ -305,10 +320,11 @@ alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bo
     for k in 0..Expr.child_count(body) {
         ref d : Expr = Expr.child(body, k)
         if d.data.is_Decl() {
-            dd := d.data.get_Decl()
+            ref dd : Declaration = get_payload(d.data)
             if dd.is_ref.and(Expr.child_count(d).gt(0)) {
                 if Expr.child(d, 0).data.is_Ident() {
-                    if Expr.child(d, 0).data.get_Ident().eq(name) {
+                    ref _di : Str = get_payload(Expr.child(d, 0).data)
+                    if _di.eq(name) {
                         if expr_uses_var(expr, dd.name) { return true }
                     }
                 }
@@ -332,24 +348,29 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
     if fcall.data.is_FCall().not() { return 0.to_i32() }
     ref callee : Expr = Expr.child(fcall, 0)
     if callee.data.is_Ident() {
-        switch TypeScope.find(scope, callee.data.get_Ident()) {
+        ref _cn : Str = get_payload(callee.data)
+        switch TypeScope.find(scope, _cn) {
         case ScopeFind.Found(cb):
             if is_null(cb.func_def) { return 0.to_i32() }
-            return cb.func_def.data.get_FuncDef().return_is_ref
+            ref _cfd : FunctionDef = get_payload(cb.func_def.data)
+            return _cfd.return_is_ref
         case: return 0.to_i32()
         }
     }
     if callee.data.is_FieldAccess().and(callee.is_ns_field) {
-        ref sdef : Expr = TypeScope.get_struct(scope, Expr.child(callee, 0).data.get_Ident())
+        ref _cti : Str = get_payload(Expr.child(callee, 0).data)
+        ref sdef : Expr = TypeScope.get_struct(scope, _cti)
         if is_null(sdef) { return 0.to_i32() }
         ref body : Expr = Expr.child(sdef, 0)
+        ref _cfa : Str = get_payload(callee.data)
         for j in 0..Expr.child_count(body) {
             ref f : Expr = Expr.child(body, j)
             if f.data.is_Decl() {
-                fd := f.data.get_Decl()
-                if fd.is_namespace.and(fd.name.eq(callee.data.get_FieldAccess())) {
+                ref fd : Declaration = get_payload(f.data)
+                if fd.is_namespace.and(fd.name.eq(_cfa)) {
                     if Expr.child(f, 0).data.is_FuncDef() {
-                        return Expr.child(f, 0).data.get_FuncDef().return_is_ref
+                        ref _ffd : FunctionDef = get_payload(Expr.child(f, 0).data)
+                        return _ffd.return_is_ref
                     }
                 }
             }

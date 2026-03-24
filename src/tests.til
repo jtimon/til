@@ -132,7 +132,7 @@ Slot := struct {
 
 print_test_result := proc(t: Test) {
     if t.kind.is_Mode() {
-        md := t.kind.get_Mode()
+        ref md : ModeData = get_payload(t.kind)
         mut line := pad_right(t.label, 42)
         if t.has_interp.eq(1) { line = line.concat("interp: ").concat(pad_right(ms_to_str(md.interp_ms), 9)) }
         if t.has_run.eq(1) { line = line.concat("compile: ").concat(pad_right(ms_to_str(md.compile_ms), 9)).concat("run: ").concat(pad_right(ms_to_str(md.run_ms), 9)) }
@@ -250,7 +250,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
                     t.ms = parse_kv(result_line, "ms")
                     // Parse mode-specific fields into payload
                     if t.kind.is_Mode() {
-                        md := t.kind.get_Mode()
+                        ref md : ModeData = get_payload(t.kind)
                         md.interp_ms = parse_kv(result_line, "interp_ms")
                         md.interp_ok = parse_kv(result_line, "interp_ok")
                         md.compile_ms = parse_kv(result_line, "compile_ms")
@@ -463,7 +463,7 @@ main := proc(args: ..Str) {
         ref t : Test = tests.get(pi)
         if t.kind.is_Mode() {
             mode_total = mode_total.add(1)
-            md := t.kind.get_Mode()
+            ref md : ModeData = get_payload(t.kind)
             if t.has_interp.eq(1) { total_interp_ms = total_interp_ms.add(md.interp_ms) }
             if t.has_run.eq(1) {
                 total_compile_ms = total_compile_ms.add(md.compile_ms)
@@ -566,7 +566,7 @@ main := proc(args: ..Str) {
     while bi.lt(tests.len()) {
         ref bt : Test = tests.get(bi)
         if bt.kind.is_Mode() {
-            bmd := bt.kind.get_Mode()
+            ref bmd : ModeData = get_payload(bt.kind)
             bench.push_str(format(commit, ",", bt.label, ",",
                                   bmd.interp_ms.to_str(), ",", bmd.compile_ms.to_str(), ",",
                                   bmd.run_ms.to_str(), ",",

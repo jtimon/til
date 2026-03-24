@@ -285,9 +285,8 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
         mut stmt := parse_statement(p)
         if in_namespace.and(stmt.data.is_Decl()) {
             if stmt.data.is_Decl() {
-                mut dd := stmt.data.get_Decl()
+                ref mut dd : Declaration = get_payload(stmt.data)
                 dd.is_namespace = true
-                stmt.data = ExprData.Decl(dd)
             }
         }
         Expr.add_child(body, own stmt)
@@ -319,9 +318,8 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
             mut stmt := parse_statement(p)
             if stmt.data.is_Decl() {
                 if stmt.data.is_Decl() {
-                    mut dd := stmt.data.get_Decl()
+                    ref mut dd : Declaration = get_payload(stmt.data)
                     dd.is_namespace = true
-                    stmt.data = ExprData.Decl(dd)
                 }
             }
             Expr.add_child(body, own stmt)
@@ -629,7 +627,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             // Parse (name1, name2, ...) — just identifiers
             expect_token(p, TokenType.LParen)
             if sig.data.is_FuncDef() {
-                mut sfd := sig.data.get_FuncDef()
+                ref mut sfd : FunctionDef = get_payload(sig.data)
                 mut new_names := Vec.new("Str", Str.size())
                 for pi in 0..sfd.params.len() {
                     if pi.gt(0) { expect_token(p, TokenType.Comma) }
