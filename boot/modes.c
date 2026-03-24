@@ -13394,15 +13394,14 @@ Bool enum_has_payloads(Expr * enum_def) {
                 Bool _t2136; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2136 = *_hp; free(_hp); }
                 (void)_t2136;
                 if (_t2136) {
-                    Declaration decl; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&f->data); decl = *_hp; free(_hp); }
+                    Declaration *decl = get_payload(&f->data);
                     (void)decl;
-                    U32 _t2131; { U32 *_hp = (U32 *)Str_len(&decl.explicit_type); _t2131 = *_hp; free(_hp); }
+                    U32 _t2131; { U32 *_hp = (U32 *)Str_len(&decl->explicit_type); _t2131 = *_hp; free(_hp); }
                     (void)_t2131;
                     U32 _t2132 = 0;
                     (void)_t2132;
-                    Bool _t2133 = Bool_not(decl.is_namespace);
+                    Bool _t2133 = Bool_not(decl->is_namespace);
                     (void)_t2133;
-                    Declaration_delete(&decl, &(Bool){0});
                     Bool _t2134 = U32_gt(&(U32){_t2131}, &(U32){_t2132});
                     (void)_t2134;
                     ;
@@ -13445,15 +13444,14 @@ Bool enum_has_payloads(Expr * enum_def) {
                 Bool _t2144; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2144 = *_hp; free(_hp); }
                 (void)_t2144;
                 if (_t2144) {
-                    Declaration decl; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&f->data); decl = *_hp; free(_hp); }
+                    Declaration *decl = get_payload(&f->data);
                     (void)decl;
-                    U32 _t2139; { U32 *_hp = (U32 *)Str_len(&decl.explicit_type); _t2139 = *_hp; free(_hp); }
+                    U32 _t2139; { U32 *_hp = (U32 *)Str_len(&decl->explicit_type); _t2139 = *_hp; free(_hp); }
                     (void)_t2139;
                     U32 _t2140 = 0;
                     (void)_t2140;
-                    Bool _t2141 = Bool_not(decl.is_namespace);
+                    Bool _t2141 = Bool_not(decl->is_namespace);
                     (void)_t2141;
-                    Declaration_delete(&decl, &(Bool){0});
                     Bool _t2142 = U32_gt(&(U32){_t2139}, &(U32){_t2140});
                     (void)_t2142;
                     ;
@@ -13525,17 +13523,16 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
                 Bool _t2154; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2154 = *_hp; free(_hp); }
                 (void)_t2154;
                 if (_t2154) {
-                    Declaration decl; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&f->data); decl = *_hp; free(_hp); }
+                    Declaration *decl = get_payload(&f->data);
                     (void)decl;
-                    Bool _t2153 = Bool_not(decl.is_namespace);
+                    Bool _t2153 = Bool_not(decl->is_namespace);
                     (void)_t2153;
                     if (_t2153) {
-                        Bool _t2150 = Str_eq(&decl.name, variant_name);
+                        Bool _t2150 = Str_eq(&decl->name, variant_name);
                         (void)_t2150;
                         if (_t2150) {
                             ;
                             ;
-                            Declaration_delete(({ Declaration *_oa = malloc(sizeof(Declaration)); *_oa = decl; _oa; }), &(Bool){1});
                             ;
                             U32_delete(i, &(Bool){1});
                             U32_delete(_rc2148, &(Bool){1});
@@ -13553,7 +13550,6 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
                         ;
                     }
                     ;
-                    Declaration_delete(&decl, &(Bool){0});
                 }
                 ;
                 U32_delete(i, &(Bool){0});
@@ -13576,17 +13572,16 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
                 Bool _t2160; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2160 = *_hp; free(_hp); }
                 (void)_t2160;
                 if (_t2160) {
-                    Declaration decl; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&f->data); decl = *_hp; free(_hp); }
+                    Declaration *decl = get_payload(&f->data);
                     (void)decl;
-                    Bool _t2159 = Bool_not(decl.is_namespace);
+                    Bool _t2159 = Bool_not(decl->is_namespace);
                     (void)_t2159;
                     if (_t2159) {
-                        Bool _t2156 = Str_eq(&decl.name, variant_name);
+                        Bool _t2156 = Str_eq(&decl->name, variant_name);
                         (void)_t2156;
                         if (_t2156) {
                             ;
                             ;
-                            Declaration_delete(({ Declaration *_oa = malloc(sizeof(Declaration)); *_oa = decl; _oa; }), &(Bool){1});
                             ;
                             U32_delete(i, &(Bool){1});
                             U32_delete(_rc2148, &(Bool){1});
@@ -13604,7 +13599,6 @@ I32 * enum_variant_tag(Expr * enum_def, Str * variant_name) {
                         ;
                     }
                     ;
-                    Declaration_delete(&decl, &(Bool){0});
                 }
                 ;
                 U32_delete(i, &(Bool){0});
@@ -13666,9 +13660,9 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                 Bool _t2173; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2173 = *_hp; free(_hp); }
                 (void)_t2173;
                 if (_t2173) {
-                    Declaration decl; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&f->data); decl = *_hp; free(_hp); }
+                    Declaration *decl = get_payload(&f->data);
                     (void)decl;
-                    Bool _t2172 = Bool_not(decl.is_namespace);
+                    Bool _t2172 = Bool_not(decl->is_namespace);
                     (void)_t2172;
                     if (_t2172) {
                         Bool _t2169 = I32_eq(idx, tag);
@@ -13681,7 +13675,7 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                             U32_delete(_rc2167, &(Bool){1});
                             ;
                             ;
-                            { Str *_r = malloc(sizeof(Str)); *_r = decl.explicit_type; return _r; }
+                            { Str *_r = malloc(sizeof(Str)); *_r = decl->explicit_type; return _r; }
                         }
                         ;
                         I32 _t2170 = 1;
@@ -13693,7 +13687,6 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                         ;
                     }
                     ;
-                    Declaration_delete(&decl, &(Bool){0});
                 }
                 ;
                 U32_delete(i, &(Bool){0});
@@ -13716,9 +13709,9 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                 Bool _t2179; { Bool *_hp = (Bool *)ExprData_is_Decl(&f->data); _t2179 = *_hp; free(_hp); }
                 (void)_t2179;
                 if (_t2179) {
-                    Declaration decl; { Declaration *_hp = (Declaration *)ExprData_get_Decl(&f->data); decl = *_hp; free(_hp); }
+                    Declaration *decl = get_payload(&f->data);
                     (void)decl;
-                    Bool _t2178 = Bool_not(decl.is_namespace);
+                    Bool _t2178 = Bool_not(decl->is_namespace);
                     (void)_t2178;
                     if (_t2178) {
                         Bool _t2175 = I32_eq(idx, tag);
@@ -13731,7 +13724,7 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                             U32_delete(_rc2167, &(Bool){1});
                             ;
                             ;
-                            { Str *_r = malloc(sizeof(Str)); *_r = decl.explicit_type; return _r; }
+                            { Str *_r = malloc(sizeof(Str)); *_r = decl->explicit_type; return _r; }
                         }
                         ;
                         I32 _t2176 = 1;
@@ -13743,7 +13736,6 @@ Str * enum_variant_type(Expr * enum_def, I32 tag) {
                         ;
                     }
                     ;
-                    Declaration_delete(&decl, &(Bool){0});
                 }
                 ;
                 U32_delete(i, &(Bool){0});
@@ -27069,7 +27061,9 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope) {
                     continue;
                 }
                 ;
-                Str sname; { Str *_hp = (Str *)Str_clone(&ExprData_get_Decl(&stmt->data)->name); sname = *_hp; free(_hp); }
+                Declaration *_sd = get_payload(&stmt->data);
+                (void)_sd;
+                Str sname; { Str *_hp = (Str *)Str_clone(&_sd->name); sname = *_hp; free(_hp); }
                 (void)sname;
                 Str _t4296; { Str *_hp = (Str *)Str_lit("StructDef", 9ULL); _t4296 = *_hp; free(_hp); }
                 (void)_t4296;
@@ -27144,7 +27138,9 @@ void compute_all_struct_layouts(Expr * program, TypeScope * scope) {
                     continue;
                 }
                 ;
-                Str sname; { Str *_hp = (Str *)Str_clone(&ExprData_get_Decl(&stmt->data)->name); sname = *_hp; free(_hp); }
+                Declaration *_sd = get_payload(&stmt->data);
+                (void)_sd;
+                Str sname; { Str *_hp = (Str *)Str_clone(&_sd->name); sname = *_hp; free(_hp); }
                 (void)sname;
                 Str _t4308; { Str *_hp = (Str *)Str_lit("StructDef", 9ULL); _t4308 = *_hp; free(_hp); }
                 (void)_t4308;

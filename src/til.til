@@ -71,14 +71,16 @@ extract_imports := proc(mut body: Expr) returns Vec {
         mut is_import := false
         if stmt.data.is_FCall().and(Expr.child_count(stmt).eq(2)) {
             if Expr.child(stmt, 0).data.is_Ident()
-                .and(Expr.child(stmt, 0).data.get_Ident().eq("import"))
                 .and(Expr.child(stmt, 1).data.is_LiteralStr()) {
-                is_import = true
+                ref _c0id : Str = get_payload(Expr.child(stmt, 0).data)
+                if _c0id.eq("import") {
+                    is_import = true
+                }
             }
         }
         if is_import {
-            path := Expr.child(stmt, 1).data.get_LiteralStr()
-            paths.push(own path)
+            ref path : Str = get_payload(Expr.child(stmt, 1).data)
+            paths.push(own path.clone())
         } else {
             kept.push(own Expr.clone(stmt))
         }
@@ -352,8 +354,8 @@ main := proc(args: ..Str) {
             }
         }
         if is_directive {
-            fname := Expr.child(stmt, 0).data.get_Ident()
-            arg := Expr.child(stmt, 1).data.get_LiteralStr()
+            ref fname : Str = get_payload(Expr.child(stmt, 0).data)
+            ref arg : Str = get_payload(Expr.child(stmt, 1).data)
             if fname.eq("link") {
                 link_flags = link_flags.concat(" -l").concat(arg)
             } else if fname.eq("link_c") {

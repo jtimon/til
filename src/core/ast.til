@@ -277,7 +277,7 @@ enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
     for i in 0..Expr.child_count(body) {
         ref f : Expr = Expr.child(body, i)
         if f.data.is_Decl() {
-            decl := f.data.get_Decl()
+            ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not().and(decl.explicit_type.len().gt(0)) {
                 return true
             }
@@ -292,7 +292,7 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
     for i in 0..Expr.child_count(body) {
         ref f : Expr = Expr.child(body, i)
         if f.data.is_Decl() {
-            decl := f.data.get_Decl()
+            ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
                 if decl.name.eq(variant_name) { return tag }
                 tag = tag.add(1)
@@ -308,7 +308,7 @@ enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
     for i in 0..Expr.child_count(body) {
         ref f : Expr = Expr.child(body, i)
         if f.data.is_Decl() {
-            decl := f.data.get_Decl()
+            ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
                 if idx.eq(tag) { return decl.explicit_type }
                 idx = idx.add(1)
