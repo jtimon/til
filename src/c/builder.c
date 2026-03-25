@@ -1237,6 +1237,15 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     : c_type_name(rv->til_type, &rv->struct_name);
                 fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = %s; return _r; }\n",
                         ctype, ctype, rv->data.data.Ident.c_str);
+            } else if (rv->data.tag == ExprData_TAG_Ident &&
+                       has_script_globals && Set_has(&script_globals, &rv->data.data.Ident) &&
+                       !(current_fdef && current_fdef->data.data.FuncDef.return_is_shallow)) {
+                // Global returned from non-shallow function: copy to heap
+                const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
+                    ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
+                    : c_type_name(rv->til_type, &rv->struct_name);
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = DEREF(%s); return _r; }\n",
+                        ctype, ctype, rv->data.data.Ident.c_str);
             } else if (rv->data.tag == ExprData_TAG_FieldAccess && rv->is_ns_field &&
                        rv->til_type.tag == TilType_TAG_Enum) {
                 // Bare variant ref return: heap-allocate (compound literal is stack-only)

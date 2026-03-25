@@ -208,8 +208,10 @@ static void process_body(Scope *scope, Expr *body) {
                 }
                 break;
             }
-            // ref declarations must keep the function call — no folding
+            // ref declarations must keep the function call -- no folding
             if (stmt->data.data.Decl.is_ref) break;
+            // mut declarations are not compile-time constants -- no folding
+            if (stmt->data.data.Decl.is_mut) break;
             // Check if RHS is a macro or pure func call
             if (is_macro_call(Expr_child(stmt, &(USize){(USize)(0)}))) {
                 Expr *lit = try_eval_call(scope, Expr_child(stmt, &(USize){(USize)(0)}), 1);

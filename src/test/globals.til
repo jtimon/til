@@ -25,4 +25,23 @@ assert(__LOC__, f().eq(42))
 g()
 h()
 
+// mut global modified by proc
+mut counter := 0
+
+inc := proc() {
+    counter = counter.add(1)
+}
+
+get_counter := func() returns I64 {
+    return counter
+}
+
+inc()
+inc()
+inc()
+assert(__LOC__, get_counter().eq(3))
+assert(__LOC__, counter.eq(3))
+counter = 100
+assert(__LOC__, counter.eq(100))
+
 println("globals: ok")
