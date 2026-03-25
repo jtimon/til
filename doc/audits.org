@@ -1,0 +1,140 @@
+# Audit notes separated from fixed/issues tracking.
+
+* AUDIT #96 Multiple passes in initer and other phases
+  Original issue:
+  The initer has many sub-passes (1.5, 1.6, 1.7, 1.9, 1.95, etc.)
+  iterating over the full AST each time. Explore whether some passes
+  can be merged, whether the ordering constraints are necessary, and
+  whether other phases (typer, builder) have similar multi-pass
+  patterns worth consolidating.
+
+  *Audit results (2026-03-20):*
+
+  *1. Initer: 10 full AST walks (src/c/initer.c:245-1511)*
+
+  | Pass | Lines     | Purpose                                            |
+  |------+-----------+----------------------------------------------------|
+  |    1 | 248-285   | Register struct definitions                        |
+  |  1.1 | 287-298   | Pre-register bodyless func/proc as FuncSig aliases |
+  |  1.5 | 300-430   | Auto-generate clone() methods for structs          |
+  |  1.7 | 432-563   | Auto-generate delete() methods for structs         |
+  |  1.8 | 565-1168  | Register enums, generate variant constructors      |
+  | 1.85 | 1170-1200 | Register type aliases (Name := ExistingType)       |
+  |  1.9 | 1202-1204 | Compute flat struct layouts (field offsets/sizes)  |
+  | 1.92 | 1206-1274 | Auto-generate size() methods for structs/enums     |
+  | 1.95 | 1276-1448 | Auto-generate derived cmp/arithmetic methods       |
+  |    2 | 1450-1508 | Register all func/proc definitions                 |
+
+  All 10 passes iterate the full ~program->children.count~.
+
+  *2. Ordering constraints*
+
+  - Pass 1 before 1.85 (struct types must exist for alias resolution)
+  - Pass 1.1 before 1.5/1.7 (FuncSig recognition in struct fields)
+  - Pass 1.8 before 1.85 (enums must be registered)
+  - Pass 1.9 before 1.92 (layout needed before size() generation)
+  - Pass 2 must be last (depends on all type registration)
+
+  *3. Merge candidates (10 walks -> 7)*
+
+  - Pass 1 + 1.1: both register types, no interdependency (saves 1 walk)
+  - Pass 1.5 + 1.7: both generate struct methods, no interdependency (saves 1 walk)
+  - Pass 1.92 + 1.95: both synthesize derived methods, run 1.92 first in loop (saves 1 walk)
+
+  *4. Not mergeable*
+
+  - Pass 1.8 (enums, 600 lines): depends on Pass 1, depended on by 1.85
+  - Pass 1.85: depends on 1, 1.1, 1.8 (documented at line 1171)
+  - Pass 1.9: must run after struct registration, before 1.92
+
+  *5. Other phases*
+
+  | Phase     | File                  | Passes          | Merge opportunity |
+  |-----------+-----------------------+-----------------+-------------------|
+  | Typer     | src/c/typer.c:3559    | 1 (recursive)   | None needed       |
+  | Builder   | src/c/builder.c:1638  | 1 + setup walks | Minor             |
+  | Precomp   | src/c/precomp.c:270   | 2 (collect+run) | Minimal           |
+  | Scavenger | src/c/scavenger.c:137 | BFS worklist    | None needed       |
+
+  Only the initer has significant multi-pass overhead.
+
+* AUDIT #95 C macros in compiler for til translation
+  Original issue:
+  Explore C preprocessor macros across the compiler C sources
+  (initer.c, builder.c, typer.c, etc.) to understand which ones:
+  - Can be replaced with til functions/macros when self-hosting
+  - Are useful temporarily for AST construction (e.g. MK, ID, ACC
+    in initer.c pass 1.95)
+  - Could cause issues during C→til translation
+
+  Example: initer.c pass 1.95 uses ~MK~, ~ID~, ~NUM~, ~ACC~, ~CALL0~,
+  ~CALL1~, ~RET~, ~CMP_EQ~, ~NEG1~, ~GEN_CMP_FUNC~ for building
+  comparison method AST nodes inline.
+
+  *Audit results (2026-03-25):*
+
+  Found 12 macro definitions across 3 files. All locally scoped
+  (define/undef pairs) except the 2 global constants in pre70.h.
+
+  *1. pre70.h — Capacity sentinel constants (lines 5-6)*
+  - ~CAP_LIT~ = (USize)-1 — marks string literals (never freed)
+  - ~CAP_VIEW~ = (USize)-2 — marks borrowed string views (never freed)
+  - *Til translation:* Replace with named constants (e.g. ~CAP_LIT := USize.max~).
+    These are fundamental to Str's ownership model and will survive as-is.
+  - *Issues:* None. Pure value constants, trivial to translate.
+
+  *2. dispatch.c — REG macro (lines 637-640, undef 688)*
+  - ~REG(name, fn)~ — registers a C dispatch function in the dispatch map.
+    Used ~50 times in ~dispatch_init~ to wire up built-in handlers.
+  - *Til translation:* Replace with a til helper function
+    ~dispatch_register(name: Str, fn: DispatchFn)~. The macro only exists
+    to avoid repeating boilerplate ~Str_clone~ + ~Map_set~.
+  - *Issues:* None for C→til. The dispatch system itself may be replaced
+    by native method dispatch in self-hosted til.
+
+  *3. initer.c — AST builder macros (lines 1319-1358, undef 1367-1376)*
+  Nine macros used exclusively in pass 1.95 (auto-generate comparison
+  methods for types that define ~cmp~):
+  - ~MK(type)~ — create Expr node with given tag
+  - ~ID(s)~ — create Ident node
+  - ~NUM(s)~ — create LiteralNum node
+  - ~ACC(obj, field)~ — create FieldAccess node
+  - ~CALL0(callee)~ — create FCall with 0 args
+  - ~CALL1(callee, arg)~ — create FCall with 1 arg
+  - ~RET(val)~ — create Return node
+  - ~CMP_EQ(n)~ — build ~return a.cmp(b).eq(n)~
+  - ~NEG1()~ — build ~0.sub(1)~ (literal -1)
+  - ~GEN_CMP_FUNC(name, body)~ — build full func decl with 2 params
+  Used in 6 calls (lines 1360-1365) to generate eq/lt/gt/neq/lte/gte.
+  - *Til translation:* Replace with til helper functions. MK/ID/NUM/ACC/
+    CALL0/CALL1/RET become ~Expr~ constructor helpers. GEN_CMP_FUNC
+    becomes a regular function. The GCC statement-expression extension
+    ~({ ... })~ used by ID/NUM/ACC/CALL/RET has no C equivalent; in til
+    these are just functions returning Expr.
+  - *Issues:* The ~({ })~ GCC extension is non-portable C but irrelevant
+    for til translation since til has proper expression-returning functions.
+    GEN_CMP_FUNC captures ~line~, ~col~, ~path~, ~sname~, ~body~ from
+    the enclosing scope; in til these become explicit parameters or
+    closure captures.
+
+  *4. builder.c — Emitted macros in generated C output (lines 2262, 2265)*
+  - ~DEREF(p)~ — null-check dereference, emitted into generated C code
+  - ~TIL_CAP_LIT~ — capacity sentinel, emitted into generated C code
+  These are not compiler macros; they're emitted into the generated C
+  output by the builder. They exist in the *target* language, not the
+  *compiler* language.
+  - *Til translation:* These survive as long as til compiles to C. When
+    til compiles to native code, ~DEREF~ becomes an instruction sequence
+    and ~TIL_CAP_LIT~ becomes a constant. No action needed for self-hosting.
+  - *Issues:* None. These are codegen output, not compiler internals.
+
+  *Summary:*
+  | Location    | Macros | Til action                          |
+  |-------------+--------+-------------------------------------|
+  | pre70.h     |      2 | Replace with named constants        |
+  | dispatch.c  |      1 | Replace with helper function        |
+  | initer.c    |      9 | Replace with Expr builder functions |
+  | builder.c   |      2 | Keep (codegen output, not compiler) |
+
+  No macros found in ~typer.c~, ~parser.c~, ~lexer.c~, or other
+  ~src/c/~ files. None of the macros block C→til translation.
