@@ -46,7 +46,7 @@ namespace:
         mut hi := self.count
         while lo.lt(hi) {
             mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = self.key_cmp(
+            c : I64 = self.key_cmp(
                           ptr_add(self.key_data, mid.mul(self.key_size)), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -62,7 +62,7 @@ namespace:
         mut hi := self.count
         while lo.lt(hi) {
             mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = self.key_cmp(
+            c : I64 = self.key_cmp(
                           ptr_add(self.key_data, mid.mul(self.key_size)), key)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -80,7 +80,7 @@ namespace:
         mut found := false
         while lo.lt(hi) {
             mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = self.key_cmp(
+            c : I64 = self.key_cmp(
                           ptr_add(self.key_data, mid.mul(self.key_size)), key)
             if c.lt(0) { lo = mid.add(1) }
             else {

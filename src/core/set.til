@@ -30,7 +30,7 @@ namespace:
         mut hi := self.count
         while lo.lt(hi) {
             mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = self.elem_cmp(
+            c : I64 = self.elem_cmp(
                           ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c.lt(0) { lo = mid.add(1) }
             else {
@@ -47,7 +47,7 @@ namespace:
         mut found := false
         while lo.lt(hi) {
             mid := lo.add(hi.sub(lo).div(2))
-            own c : I64 = self.elem_cmp(
+            c : I64 = self.elem_cmp(
                           ptr_add(self.data, mid.mul(self.elem_size)), val)
             if c.lt(0) { lo = mid.add(1) }
             else {

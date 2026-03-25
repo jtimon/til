@@ -4273,12 +4273,12 @@ Bool Map_has(Map * self, void * key) {
         (void)_t_U64_551;
         void *_t_v_552 = ptr_add(self->key_data, DEREF(_t_U64_551));
         (void)_t_v_552;
-        I64 *c = ((I64 * (*)(void *, void *))(self->key_cmp))(_t_v_552, key);
+        I64 c; { I64 *_hp = (I64 *)((I64 * (*)(void *, void *))(self->key_cmp))(_t_v_552, key); c = *_hp; free(_hp); }
         (void)c;
         U64_delete(_t_U64_551, &(Bool){0});
         I64 _t_I64_553 = 0;
         (void)_t_I64_553;
-        Bool _t_Bool_554 = I64_lt(c, &(I64){_t_I64_553});
+        Bool _t_Bool_554 = I64_lt(&(I64){c}, &(I64){_t_I64_553});
         (void)_t_Bool_554;
         ;
         if (_t_Bool_554) {
@@ -4292,7 +4292,7 @@ Bool Map_has(Map * self, void * key) {
         } else {
             I64 _t_I64_546 = 0;
             (void)_t_I64_546;
-            Bool _t_Bool_547 = I64_gt(c, &(I64){_t_I64_546});
+            Bool _t_Bool_547 = I64_gt(&(I64){c}, &(I64){_t_I64_546});
             (void)_t_Bool_547;
             ;
             if (_t_Bool_547) {
@@ -4305,7 +4305,7 @@ Bool Map_has(Map * self, void * key) {
                 (void)_t_Bool_545;
                 ;
                 ;
-                I64_delete(c, &(Bool){1});
+                ;
                 ;
                 ;
                 ;
@@ -4314,7 +4314,7 @@ Bool Map_has(Map * self, void * key) {
             ;
         }
         ;
-        I64_delete(c, &(Bool){0});
+        ;
         ;
     }
     ;
@@ -4355,12 +4355,12 @@ void * Map_get(Map * self, void * key) {
         (void)_t_U64_567;
         void *_t_v_568 = ptr_add(self->key_data, DEREF(_t_U64_567));
         (void)_t_v_568;
-        I64 *c = ((I64 * (*)(void *, void *))(self->key_cmp))(_t_v_568, key);
+        I64 c; { I64 *_hp = (I64 *)((I64 * (*)(void *, void *))(self->key_cmp))(_t_v_568, key); c = *_hp; free(_hp); }
         (void)c;
         U64_delete(_t_U64_567, &(Bool){0});
         I64 _t_I64_569 = 0;
         (void)_t_I64_569;
-        Bool _t_Bool_570 = I64_lt(c, &(I64){_t_I64_569});
+        Bool _t_Bool_570 = I64_lt(&(I64){c}, &(I64){_t_I64_569});
         (void)_t_Bool_570;
         ;
         if (_t_Bool_570) {
@@ -4374,7 +4374,7 @@ void * Map_get(Map * self, void * key) {
         } else {
             I64 _t_I64_562 = 0;
             (void)_t_I64_562;
-            Bool _t_Bool_563 = I64_gt(c, &(I64){_t_I64_562});
+            Bool _t_Bool_563 = I64_gt(&(I64){c}, &(I64){_t_I64_562});
             (void)_t_Bool_563;
             ;
             if (_t_Bool_563) {
@@ -4390,7 +4390,7 @@ void * Map_get(Map * self, void * key) {
                 U64_delete(_t_U64_560, &(Bool){0});
                 ;
                 ;
-                I64_delete(c, &(Bool){1});
+                ;
                 ;
                 ;
                 ;
@@ -4399,7 +4399,7 @@ void * Map_get(Map * self, void * key) {
             ;
         }
         ;
-        I64_delete(c, &(Bool){0});
+        ;
         ;
     }
     ;
@@ -4468,12 +4468,12 @@ void Map_set(Map * self, void * key, void * val) {
         (void)_t_U64_591;
         void *_t_v_592 = ptr_add(self->key_data, DEREF(_t_U64_591));
         (void)_t_v_592;
-        I64 *c = ((I64 * (*)(void *, void *))(self->key_cmp))(_t_v_592, key);
+        I64 c; { I64 *_hp = (I64 *)((I64 * (*)(void *, void *))(self->key_cmp))(_t_v_592, key); c = *_hp; free(_hp); }
         (void)c;
         U64_delete(_t_U64_591, &(Bool){0});
         I64 _t_I64_593 = 0;
         (void)_t_I64_593;
-        Bool _t_Bool_594 = I64_lt(c, &(I64){_t_I64_593});
+        Bool _t_Bool_594 = I64_lt(&(I64){c}, &(I64){_t_I64_593});
         (void)_t_Bool_594;
         ;
         if (_t_Bool_594) {
@@ -4487,7 +4487,7 @@ void Map_set(Map * self, void * key, void * val) {
         } else {
             I64 _t_I64_586 = 0;
             (void)_t_I64_586;
-            Bool _t_Bool_587 = I64_gt(c, &(I64){_t_I64_586});
+            Bool _t_Bool_587 = I64_gt(&(I64){c}, &(I64){_t_I64_586});
             (void)_t_Bool_587;
             ;
             if (_t_Bool_587) {
@@ -4512,7 +4512,7 @@ void Map_set(Map * self, void * key, void * val) {
             ;
         }
         ;
-        I64_delete(c, &(Bool){0});
+        ;
         ;
     }
     ;
@@ -5098,12 +5098,12 @@ Bool Set_has(Set * self, void * val) {
         (void)_t_U64_725;
         void *_t_v_726 = ptr_add(self->data, DEREF(_t_U64_725));
         (void)_t_v_726;
-        I64 *c = ((I64 * (*)(void *, void *))(self->elem_cmp))(_t_v_726, val);
+        I64 c; { I64 *_hp = (I64 *)((I64 * (*)(void *, void *))(self->elem_cmp))(_t_v_726, val); c = *_hp; free(_hp); }
         (void)c;
         U64_delete(_t_U64_725, &(Bool){0});
         I64 _t_I64_727 = 0;
         (void)_t_I64_727;
-        Bool _t_Bool_728 = I64_lt(c, &(I64){_t_I64_727});
+        Bool _t_Bool_728 = I64_lt(&(I64){c}, &(I64){_t_I64_727});
         (void)_t_Bool_728;
         ;
         if (_t_Bool_728) {
@@ -5117,7 +5117,7 @@ Bool Set_has(Set * self, void * val) {
         } else {
             I64 _t_I64_720 = 0;
             (void)_t_I64_720;
-            Bool _t_Bool_721 = I64_gt(c, &(I64){_t_I64_720});
+            Bool _t_Bool_721 = I64_gt(&(I64){c}, &(I64){_t_I64_720});
             (void)_t_Bool_721;
             ;
             if (_t_Bool_721) {
@@ -5130,7 +5130,7 @@ Bool Set_has(Set * self, void * val) {
                 (void)_t_Bool_719;
                 ;
                 ;
-                I64_delete(c, &(Bool){1});
+                ;
                 ;
                 ;
                 ;
@@ -5139,7 +5139,7 @@ Bool Set_has(Set * self, void * val) {
             ;
         }
         ;
-        I64_delete(c, &(Bool){0});
+        ;
         ;
     }
     ;
@@ -5182,12 +5182,12 @@ void Set_add(Set * self, void * val) {
         (void)_t_U64_742;
         void *_t_v_743 = ptr_add(self->data, DEREF(_t_U64_742));
         (void)_t_v_743;
-        I64 *c = ((I64 * (*)(void *, void *))(self->elem_cmp))(_t_v_743, val);
+        I64 c; { I64 *_hp = (I64 *)((I64 * (*)(void *, void *))(self->elem_cmp))(_t_v_743, val); c = *_hp; free(_hp); }
         (void)c;
         U64_delete(_t_U64_742, &(Bool){0});
         I64 _t_I64_744 = 0;
         (void)_t_I64_744;
-        Bool _t_Bool_745 = I64_lt(c, &(I64){_t_I64_744});
+        Bool _t_Bool_745 = I64_lt(&(I64){c}, &(I64){_t_I64_744});
         (void)_t_Bool_745;
         ;
         if (_t_Bool_745) {
@@ -5201,7 +5201,7 @@ void Set_add(Set * self, void * val) {
         } else {
             I64 _t_I64_737 = 0;
             (void)_t_I64_737;
-            Bool _t_Bool_738 = I64_gt(c, &(I64){_t_I64_737});
+            Bool _t_Bool_738 = I64_gt(&(I64){c}, &(I64){_t_I64_737});
             (void)_t_Bool_738;
             ;
             if (_t_Bool_738) {
@@ -5226,7 +5226,7 @@ void Set_add(Set * self, void * val) {
             ;
         }
         ;
-        I64_delete(c, &(Bool){0});
+        ;
         ;
     }
     ;
