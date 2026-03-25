@@ -402,13 +402,20 @@
   - Return emission
   - Delete emission
 
+  Raw heap buffers are a separate case from normal value locals:
+  ~malloc~ / ~realloc~ / dynamic clone paths should stay under the
+  ~Dynamic~ exception (~Dynamic~ = til ~void *~), not as typed locals
+  like ~buf : U8 = malloc(...)~. Typed access should happen through
+  borrowed views such as ~ref b : U8 = ptr_add(buf, 0)~.
+
   Each emit path switches on the current stack-local tracking. Extending
   this to compound types means auditing ALL paths. The safest path is:
   1. preparation refactor with no behavior change
-  2. widen to owned primitive/leaf locals first
-  3. widen to shallow compounds
-  4. widen to deep compounds
-  5. only then flip globals to static values for #104
+  2. normalize raw-allocation locals to the ~Dynamic~ exception
+  3. widen ordinary non-~ref~, non-~Dynamic~ locals
+  4. widen to shallow compounds
+  5. widen to deep compounds
+  6. only then flip globals to static values for #104
 
 *** Done (partial -- scalars only)
 
@@ -423,12 +430,14 @@
 
   1. Preparation: rename the current scalar-only builder machinery so
      stack-backed locals are explicit in the implementation.
-  2. Primitive/leaf locals: make default owned locals stack-backed
-     whether ~mut~ or not.
-  3. Shallow compounds: structs/enums with no owned payloads/fields.
-  4. Deep compounds: outer object on stack, delete still runs with
+  2. Rewrite raw ~malloc~/~realloc~ locals from typed pointer spellings
+     like ~buf : U8 = malloc(...)~ to owned ~Dynamic~ locals.
+  3. Ordinary locals: make default owned non-~ref~, non-~Dynamic~ locals
+     stack-backed whether ~mut~ or not.
+  4. Shallow compounds: structs/enums with no owned payloads/fields.
+  5. Deep compounds: outer object on stack, delete still runs with
      ~call_free=false~.
-  5. Globals (#104): emit ~static T x~ instead of ~static T *x~ and add
+  6. Globals (#104): emit ~static T x~ instead of ~static T *x~ and add
      top-level variable registration to ~init_declarations~.
 
 *** (old version ) #50 Stack allocation for all struct/enum types

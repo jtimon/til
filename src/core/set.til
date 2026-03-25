@@ -90,7 +90,7 @@ namespace:
     }
 
     clone := func(self: Set) returns Set {
-        new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.count {
             cloned : Dynamic = self.elem_clone(
                          ptr_add(self.data, i.mul(self.elem_size)))

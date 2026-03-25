@@ -145,8 +145,8 @@ namespace:
     }
 
     clone := func(self: Map) returns Map {
-        new_keys : U8 = malloc(self.cap.mul(self.key_size))
-        new_vals : U8 = malloc(self.cap.mul(self.val_size))
+        new_keys : Dynamic = malloc(self.cap.mul(self.key_size))
+        new_vals : Dynamic = malloc(self.cap.mul(self.val_size))
         for i in 0..self.count {
             ck : Dynamic = self.key_clone(
                      ptr_add(self.key_data, i.mul(self.key_size)))

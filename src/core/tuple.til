@@ -68,7 +68,7 @@ namespace:
     clone := func(self: Tuple) returns Tuple {
         mut new_cap := self.cap
         if new_cap.eq(0) { new_cap = 8 }
-        new_data : U8 = malloc(new_cap)
+        new_data : Dynamic = malloc(new_cap)
         mut offset : USize = 0
         for i in 0..self.type_names.len() {
             ref tn : Str = self.type_names.get(i)

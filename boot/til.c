@@ -2522,7 +2522,7 @@ Str * I64_to_str(I64 * val) {
     if (_t_Bool_225) {
         U64 _t_U64_188 = 2;
         (void)_t_U64_188;
-        U8 *buf = malloc(_t_U64_188);
+        void * buf = malloc(_t_U64_188);
         (void)buf;
         ;
         I64 _t_I64_189 = 48;
@@ -2632,7 +2632,7 @@ Str * I64_to_str(I64 * val) {
     U64 _t_U64_229 = U64_add(DEREF(total), _t_U64_228);
     (void)_t_U64_229;
     ;
-    U8 *buf = malloc(_t_U64_229);
+    void * buf = malloc(_t_U64_229);
     (void)buf;
     ;
     if (is_neg) {
@@ -3214,7 +3214,7 @@ Str * format(Array * parts) {
         Array_delete(_fc_Array_314, &(Bool){0});
         U32_delete(_fi_USize_314, &(Bool){0});
     }
-    U8 *buf = malloc(total);
+    void * buf = malloc(total);
     (void)buf;
     U32 *offset = malloc(sizeof(U32));
     *offset = 0;
@@ -4087,7 +4087,7 @@ Array * Array_clone(Array * self) {
     (void)self;
     U32 _t_U64_515 = U32_mul(self->cap, self->elem_size);
     (void)_t_U64_515;
-    U8 *new_data = malloc(_t_U64_515);
+    void * new_data = malloc(_t_U64_515);
     (void)new_data;
     ;
     {
@@ -4930,12 +4930,12 @@ Map * Map_clone(Map * self) {
     (void)self;
     U32 _t_U64_703 = U32_mul(self->cap, self->key_size);
     (void)_t_U64_703;
-    U8 *new_keys = malloc(_t_U64_703);
+    void * new_keys = malloc(_t_U64_703);
     (void)new_keys;
     ;
     U32 _t_U64_704 = U32_mul(self->cap, self->val_size);
     (void)_t_U64_704;
-    U8 *new_vals = malloc(_t_U64_704);
+    void * new_vals = malloc(_t_U64_704);
     (void)new_vals;
     ;
     {
@@ -5498,7 +5498,7 @@ Set * Set_clone(Set * self) {
     (void)self;
     U32 _t_U64_812 = U32_mul(self->cap, self->elem_size);
     (void)_t_U64_812;
-    U8 *new_data = malloc(_t_U64_812);
+    void * new_data = malloc(_t_U64_812);
     (void)new_data;
     ;
     {
@@ -5746,7 +5746,7 @@ Str * Str_concat(Str * a, Str * b) {
     U32 _t_U64_835 = U32_add(DEREF(new_len), _t_U32_834);
     (void)_t_U64_835;
     ;
-    U8 *new_data = malloc(_t_U64_835);
+    void * new_data = malloc(_t_U64_835);
     (void)new_data;
     ;
     memcpy(new_data, a->c_str, a->count);
@@ -5784,7 +5784,7 @@ Str * Str_with_capacity(U32 * n) {
     U32 _t_U64_844 = U32_add(DEREF(n), _t_U32_843);
     (void)_t_U64_844;
     ;
-    U8 *buf = malloc(_t_U64_844);
+    void * buf = malloc(_t_U64_844);
     (void)buf;
     ;
     I32 _t_I32_845 = 0;
@@ -5891,7 +5891,7 @@ Str * Str_clone(Str * val) {
     U32 _t_U64_870 = U32_add(val->count, _t_U32_869);
     (void)_t_U64_870;
     ;
-    U8 *new_data = malloc(_t_U64_870);
+    void * new_data = malloc(_t_U64_870);
     (void)new_data;
     ;
     memcpy(new_data, val->c_str, val->count);
@@ -7120,7 +7120,7 @@ Str * Str_from_byte(U8 * byte) {
     (void)byte;
     U64 _t_U64_1051 = 2;
     (void)_t_U64_1051;
-    U8 *buf = malloc(_t_U64_1051);
+    void * buf = malloc(_t_U64_1051);
     (void)buf;
     ;
     U64 _t_U64_1052 = 1;
@@ -8042,7 +8042,7 @@ Vec * Vec_clone(Vec * self) {
     (void)self;
     U32 _t_U64_1265 = U32_mul(self->cap, self->elem_size);
     (void)_t_U64_1265;
-    U8 *new_data = malloc(_t_U64_1265);
+    void * new_data = malloc(_t_U64_1265);
     (void)new_data;
     ;
     Bool _t_Bool_1266 = Str_is_empty(&self->elem_type);
@@ -8493,7 +8493,7 @@ Tuple * Tuple_clone(Tuple * self) {
         ;
     }
     ;
-    U8 *new_data = malloc(new_cap);
+    void * new_data = malloc(new_cap);
     (void)new_data;
     U32 *offset = malloc(sizeof(U32));
     *offset = 0;

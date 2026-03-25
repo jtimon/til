@@ -47,7 +47,7 @@ namespace:
     }
 
     clone := func(self: Array) returns Array {
-        new_data : U8 = malloc(self.cap.mul(self.elem_size))
+        new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
         for i in 0..self.cap {
             cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
