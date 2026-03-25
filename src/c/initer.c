@@ -774,8 +774,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                     // Payload variant: ref _pN : Type = get_payload(self); return E.V(_pN)
                     // pd is added to then_body below, not func_body
                     Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
-                    char pn_buf[32];
-                    snprintf(pn_buf, sizeof(pn_buf), "_p%u", j);
+                    char pn_buf[128];
+                    snprintf(pn_buf, sizeof(pn_buf), "_p_%s_%u", vtype->c_str, j);
                     Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
                     Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
@@ -964,8 +964,8 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                         Expr_add_child(then_body, ret);
                     } else if (vtype->count > 0) {
                         // ref _pN : Type = get_payload(self); return format("V(", _pN.to_str(), ")")
-                        char pn_buf[32];
-                        snprintf(pn_buf, sizeof(pn_buf), "_p%u", j);
+                        char pn_buf[128];
+                        snprintf(pn_buf, sizeof(pn_buf), "_p_%s_%u", vtype->c_str, j);
                         Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
                         Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                         gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};

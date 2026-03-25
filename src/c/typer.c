@@ -1462,8 +1462,8 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         }
 
         // Create temp variable name
-        char buf[32];
-        snprintf(buf, sizeof(buf), "_va%d", _va_counter++);
+        char buf[128];
+        snprintf(buf, sizeof(buf), "_va_Array_%d", _va_counter++);
         Str *va_name = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
 
         // 1. _va := Array.new(elem_type_str, ElemType.size(), count)
@@ -1775,11 +1775,30 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 
 static I32 hoist_counter = 0;
 
+static const char *type_prefix(TilType t, Str *sname) {
+    switch (t.tag) {
+    case TilType_TAG_I64:  return "I64";
+    case TilType_TAG_U8:   return "U8";
+    case TilType_TAG_I16:  return "I16";
+    case TilType_TAG_I32:  return "I32";
+    case TilType_TAG_U32:  return "U32";
+    case TilType_TAG_U64:  return "U64";
+    case TilType_TAG_F32:  return "F32";
+    case TilType_TAG_Bool: return "Bool";
+    case TilType_TAG_None: return "None";
+    case TilType_TAG_Struct:
+    case TilType_TAG_Enum:
+        if (sname && sname->count > 0) return (const char *)sname->c_str;
+        return "compound";
+    default: return "v";
+    }
+}
+
 // Create a temp decl for an expression, register in scope, return the replacement ident.
 // Adds the decl to the hoisted list.
 static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
-    char name_buf[32];
-    snprintf(name_buf, sizeof(name_buf), "_t%d", hoist_counter++);
+    char name_buf[128];
+    snprintf(name_buf, sizeof(name_buf), "_t_%s_%d", type_prefix(val->til_type, &val->struct_name), hoist_counter++);
     Str *tname = Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
     Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, val->line, val->col, &val->path);
     decl->data.data.Decl.name = *tname;
@@ -2882,8 +2901,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Str *path = &cond->path;
                 Expr *body = Expr_child(stmt, &(USize){(USize)(1)});
                 // _wcondN := COND
-                char name_buf[32];
-                snprintf(name_buf, sizeof(name_buf), "_wcond%d", hoist_counter++);
+                char name_buf[128];
+                snprintf(name_buf, sizeof(name_buf), "_wcond_Bool_%d", hoist_counter++);
                 Str *wname = Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
                 Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
                 decl->data.data.Decl.name = *wname;
@@ -2939,8 +2958,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Str *sw_path = &stmt->path;
 
             // Unique switch variable name
-            char sw_buf[32];
-            snprintf(sw_buf, sizeof(sw_buf), "_sw%d", hoist_counter++);
+            char sw_buf[128];
+            snprintf(sw_buf, sizeof(sw_buf), "_sw_%s_%d", type_prefix(sw_expr->til_type, &sw_expr->struct_name), hoist_counter++);
             Str *sw_name = Str_clone(&(Str){.c_str = (U8*)(sw_buf), .count = (U64)strlen((const char*)(sw_buf)), .cap = CAP_VIEW});
 
             // Outer anonymous scope
@@ -3199,9 +3218,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 I32 line = stmt->line, col = stmt->col;
                 Str *path = &stmt->path;
                 int counter = hoist_counter++;
-                char end_buf[32], cur_buf[32];
-                snprintf(end_buf, sizeof(end_buf), "_re%d", counter);
-                snprintf(cur_buf, sizeof(cur_buf), "_rc%d", counter);
+                char end_buf[128], cur_buf[128];
+                snprintf(end_buf, sizeof(end_buf), "_re_%s_%d", elem_type->c_str, counter);
+                snprintf(cur_buf, sizeof(cur_buf), "_rc_%s_%d", elem_type->c_str, counter);
                 Str *end_name = Str_clone(&(Str){.c_str = (U8*)(end_buf), .count = (U64)strlen((const char*)(end_buf)), .cap = CAP_VIEW});
                 Str *cur_name = Str_clone(&(Str){.c_str = (U8*)(cur_buf), .count = (U64)strlen((const char*)(cur_buf)), .cap = CAP_VIEW});
 
@@ -3386,9 +3405,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // Unique variable names
             int counter = hoist_counter++;
-            char col_buf[32], idx_buf[32];
-            snprintf(col_buf, sizeof(col_buf), "_fc%d", counter);
-            snprintf(idx_buf, sizeof(idx_buf), "_fi%d", counter);
+            char col_buf[128], idx_buf[128];
+            snprintf(col_buf, sizeof(col_buf), "_fc_%s_%d", type_name->c_str, counter);
+            snprintf(idx_buf, sizeof(idx_buf), "_fi_USize_%d", counter);
             Str *col_name = Str_clone(&(Str){.c_str = (U8*)(col_buf), .count = (U64)strlen((const char*)(col_buf)), .cap = CAP_VIEW});
             Str *idx_name = Str_clone(&(Str){.c_str = (U8*)(idx_buf), .count = (U64)strlen((const char*)(idx_buf)), .cap = CAP_VIEW});
 
