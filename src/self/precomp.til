@@ -7,58 +7,58 @@ try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool
 track_literal := ext_proc(scope: Scope, name: Str, rhs: Expr) {}
 
 process_body := proc(scope: Scope, body: Expr) {
-    for i in 0..Expr.child_count(body) {
-        ref stmt : Expr = Expr.child(body, i)
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
         if is_variant(stmt.data, ExprData.Decl) {
             ref dd : Declaration = get_payload(stmt.data)
-            if Expr.child_count(stmt).eq(0) { }
-            else if is_variant(Expr.child(stmt, 0).data, ExprData.FuncDef)
-                .or(is_variant(Expr.child(stmt, 0).data, ExprData.StructDef))
-                .or(is_variant(Expr.child(stmt, 0).data, ExprData.EnumDef)) {
-                if is_variant(Expr.child(stmt, 0).data, ExprData.FuncDef)
-                    .and(Expr.child_count(Expr.child(stmt, 0)).gt(0)) {
-                    process_body(scope, Expr.child(Expr.child(stmt, 0), 0))
+            if stmt.child_count().eq(0) { }
+            else if is_variant(stmt.child(0).data, ExprData.FuncDef)
+                .or(is_variant(stmt.child(0).data, ExprData.StructDef))
+                .or(is_variant(stmt.child(0).data, ExprData.EnumDef)) {
+                if is_variant(stmt.child(0).data, ExprData.FuncDef)
+                    .and(stmt.child(0).child_count().gt(0)) {
+                    process_body(scope, stmt.child(0).child(0))
                 }
             } else if dd.is_ref { }
             else if dd.is_mut { }
-            else if is_macro_call(Expr.child(stmt, 0)) {
-                ref lit : Expr = try_eval_call(scope, Expr.child(stmt, 0), true)
+            else if is_macro_call(stmt.child(0)) {
+                ref lit : Expr = try_eval_call(scope, stmt.child(0), true)
                 if is_null(lit).not() {
-                    stmt.children.set(0, own Expr.clone(lit))
+                    stmt.children.set(0, own lit.clone())
                     track_literal(scope, dd.name, lit)
                 }
-            } else if is_func_call(Expr.child(stmt, 0)) {
-                ref lit : Expr = try_eval_call(scope, Expr.child(stmt, 0), false)
+            } else if is_func_call(stmt.child(0)) {
+                ref lit : Expr = try_eval_call(scope, stmt.child(0), false)
                 if is_null(lit).not() {
-                    stmt.children.set(0, own Expr.clone(lit))
+                    stmt.children.set(0, own lit.clone())
                     track_literal(scope, dd.name, lit)
                 } else {
-                    track_literal(scope, dd.name, Expr.child(stmt, 0))
+                    track_literal(scope, dd.name, stmt.child(0))
                 }
             } else {
-                track_literal(scope, dd.name, Expr.child(stmt, 0))
+                track_literal(scope, dd.name, stmt.child(0))
             }
         } else if is_variant(stmt.data, ExprData.If) {
-            if Expr.child_count(stmt).gt(1) {
-                process_body(scope, Expr.child(stmt, 1))
+            if stmt.child_count().gt(1) {
+                process_body(scope, stmt.child(1))
             }
-            if Expr.child_count(stmt).gt(2) {
-                process_body(scope, Expr.child(stmt, 2))
+            if stmt.child_count().gt(2) {
+                process_body(scope, stmt.child(2))
             }
         } else if is_variant(stmt.data, ExprData.While) {
-            if Expr.child_count(stmt).gt(1) {
-                process_body(scope, Expr.child(stmt, 1))
+            if stmt.child_count().gt(1) {
+                process_body(scope, stmt.child(1))
             }
         } else if is_variant(stmt.data, ExprData.FCall) {
             if is_macro_call(stmt) {
                 ref lit : Expr = try_eval_call(scope, stmt, true)
                 if is_null(lit).not() {
-                    body.children.set(i, own Expr.clone(lit))
+                    body.children.set(i, own lit.clone())
                 }
             } else if is_func_call(stmt) {
                 ref lit : Expr = try_eval_call(scope, stmt, false)
                 if is_null(lit).not() {
-                    body.children.set(i, own Expr.clone(lit))
+                    body.children.set(i, own lit.clone())
                 }
             }
         }

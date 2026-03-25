@@ -140,18 +140,18 @@ Expr := struct {
         println(self.path, ":", self.line.to_str(), ":", self.col.to_str(), ": error: ", msg)
     }
     todo_error := proc(self: Expr, msg: Str) {
-        Expr.error(self, msg)
+        self.error( msg)
         println("  note: this language feature is not implemented yet")
     }
     lang_error := proc(self: Expr, msg: Str) {
-        Expr.error(self, msg)
+        self.error( msg)
         println("  note: this is a bug in the language, please report it")
     }
     add_child := proc(mut self: Expr, own child: Expr) {
         self.children.push(own child)
     }
     push_child_clone := proc(mut self: Expr, child: Expr) {
-        self.children.push(own Expr.clone(child))
+        self.children.push(own child.clone())
     }
     swap_children := proc(mut self: Expr, own new_children: Vec) {
         self.children = new_children
@@ -170,7 +170,7 @@ Expr := struct {
         mut new_children := Vec.new("", Expr.size())
         for i in 0..self.children.len() {
             ref c : Expr = self.children.get(i)
-            own cloned := Expr.clone(c)
+            own cloned := c.clone()
             new_children.push(own cloned)
         }
         return Expr(data = self.data, til_type = self.til_type,
@@ -261,7 +261,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     if e.children.len().gt(0) {
         println("")
         for i in 0..e.children.len() {
-            ast_print(Expr.child(e, i), indent.add(1))
+            ast_print(e.child(i), indent.add(1))
         }
         for i in 0..indent.to_i64().to_u64() {
             print("  ")
@@ -273,9 +273,9 @@ ast_print := proc(e: Expr, shallow indent: U32) {
 // --- Enum helpers ---
 
 enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
-    ref body : Expr = Expr.child(enum_def, 0)
-    for i in 0..Expr.child_count(body) {
-        ref f : Expr = Expr.child(body, i)
+    ref body : Expr = enum_def.child(0)
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
         if is_variant(f.data, ExprData.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not().and(decl.explicit_type.len().gt(0)) {
@@ -287,10 +287,10 @@ enum_has_payloads := func(enum_def: Expr) returns shallow Bool {
 }
 
 enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
-    ref body : Expr = Expr.child(enum_def, 0)
+    ref body : Expr = enum_def.child(0)
     mut tag : I32 = 0
-    for i in 0..Expr.child_count(body) {
-        ref f : Expr = Expr.child(body, i)
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
         if is_variant(f.data, ExprData.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
@@ -303,10 +303,10 @@ enum_variant_tag := func(enum_def: Expr, variant_name: Str) returns I32 {
 }
 
 enum_variant_type := func(enum_def: Expr, shallow tag: I32) returns Str {
-    ref body : Expr = Expr.child(enum_def, 0)
+    ref body : Expr = enum_def.child(0)
     mut idx : I32 = 0
-    for i in 0..Expr.child_count(body) {
-        ref f : Expr = Expr.child(body, i)
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
         if is_variant(f.data, ExprData.Decl) {
             ref decl : Declaration = get_payload(f.data)
             if decl.is_namespace.not() {
