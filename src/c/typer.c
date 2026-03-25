@@ -2603,6 +2603,14 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
                     type_error(stmt, "null can only be assigned to 'ref' declarations");
+                } else if (!stmt->data.data.Decl.is_ref &&
+                           declared.tag != TilType_TAG_Dynamic &&
+                           Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Dynamic) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf),
+                             "cannot store owned Dynamic in '%s'; write '%s : Dynamic = ...' and borrow with 'ref' for typed access",
+                             stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
+                    type_error(stmt, buf);
                 } else if (!can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn) &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Dynamic) {

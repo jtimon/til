@@ -385,7 +385,7 @@ main := proc(args: ..Str) {
                til_bin.concat(" run src/examples/ffi/ext_module.til"))
 
     // === parser / typer diagnostics ===
-    add_count(tests, "typer_errors", "typer", "type error:", 53,
+    add_count(tests, "typer_errors", "typer", "type error:", 57,
               til_bin.concat(" interpret src/test/typer_errors.til"))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
