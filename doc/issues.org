@@ -53,11 +53,11 @@
 
   1. #111 Fix ~TypeScope~ / ~ScopeFind~ ASAN use-after-free
   2. #50 incremental rework (type by type):
-     a. Remove ~unsafe_to_hoist~ for scalars only (no compound type changes)
-     b. Simple enums (tag-only, no payload)
-     c. Payload enums
-     d. Simple structs (no own fields)
-     e. Structs with own fields (Str, Vec, etc.)
+     a. Preparation: rename scalar-only ~shallow_locals~ machinery to an
+        explicit stack-local model with no behavior change
+     b. Owned primitive/leaf locals as stack values, whether ~mut~ or not
+     c. Shallow enums/structs (no own payloads/fields)
+     d. Deep enums/structs (Str, Vec, Map, Set, etc.)
   3. #106 For-in loop counter stack alloc (falls out of #50)
   4. #104 Mut globals (needs #50 done)
   5. #109 Remaining leaks + error-path cleanup
@@ -381,7 +381,7 @@
   :REOPENED: Was falsely flagged as FIXED.
 
   Current state: scalars (I64, U32, Bool) stack-allocated via
-  ~can_hoist~ + ~shallow_locals~. Compound types (Str, structs,
+  ~can_hoist~ + the current stack-local tracking machinery. Compound types (Str, structs,
   enums) always heap-allocated: ~Type *x = malloc(sizeof(Type))~.
 
   Goal: ALL non-own, non-ref locals on stack: ~Type x = {...}~.
@@ -389,30 +389,47 @@
   C mapping.
 
   The ~unsafe_to_hoist~ mechanism prevents hoisting scalars passed
-  to ~mut~ params. This is unnecessary: ~mut~ params are caller-owned,
-  ~&stack_local~ works the same as heap pointer. But removing
-  ~unsafe_to_hoist~ without restricting to scalars breaks compound
-  type emit paths (builder assumes compound locals are pointers).
+  to ~mut~ params. This is unnecessary for the final model: ~mut~ params
+  are caller-owned, ~&stack_local~ works the same as heap pointer. But
+  removing ~unsafe_to_hoist~ without restricting to scalars breaks compound
+  type emit paths (builder still assumes many compound locals are pointers).
 
-  The builder's hoisting is ad-hoc with many special cases in:
+  The builder's current stack-allocation logic is ad-hoc with many special
+  cases in:
   - ~emit_expr~ / ~emit_as_ptr~ / ~emit_deref~ for Ident nodes
   - Decl emission (6+ code paths)
   - Assignment emission
   - Return emission
   - Delete emission
 
-  Each emit path switches on ~is_shallow_local~. Extending to compound
-  types means auditing ALL paths. Incremental approach: one type class
-  at a time (see #110 roadmap).
+  Each emit path switches on the current stack-local tracking. Extending
+  this to compound types means auditing ALL paths. The safest path is:
+  1. preparation refactor with no behavior change
+  2. widen to owned primitive/leaf locals first
+  3. widen to shallow compounds
+  4. widen to deep compounds
+  5. only then flip globals to static values for #104
 
 *** Done (partial -- scalars only)
 
   - ~can_hoist~ for scalars (I64, U32, Bool, etc.)
-  - ~shallow_locals~ Set tracks which locals are stack-allocated
-  - ~shallow_local_types~ Map for pointer-sign correctness
+  - current stack-local Set tracks which locals are stack-allocated
+  - current stack-local type map keeps pointer-sign correctness
   - ~emit_as_ptr~: ~&(Type){x}~ for scalars, ~&x~ for structs
-  - ~emit_body_scoped~: block-scoped shallow_locals
+  - ~emit_body_scoped~: block-scoped stack-local tracking
   - Delete suppression for hoisted scalars
+
+*** Next incremental commits
+
+  1. Preparation: rename the current scalar-only builder machinery so
+     stack-backed locals are explicit in the implementation.
+  2. Primitive/leaf locals: make default owned locals stack-backed
+     whether ~mut~ or not.
+  3. Shallow compounds: structs/enums with no owned payloads/fields.
+  4. Deep compounds: outer object on stack, delete still runs with
+     ~call_free=false~.
+  5. Globals (#104): emit ~static T x~ instead of ~static T *x~ and add
+     top-level variable registration to ~init_declarations~.
 
 *** (old version ) #50 Stack allocation for all struct/enum types
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
