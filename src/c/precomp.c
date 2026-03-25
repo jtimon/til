@@ -87,7 +87,7 @@ static Bool is_known(Expr *e, Value *out) {
 }
 
 // Check if a ExprData_TAG_FCall is a macro call
-static Bool is_macro_call(Expr *e) {
+Bool is_macro_call(Expr *e) {
     return e->data.tag == ExprData_TAG_FCall &&
            e->children.count > 0 &&
            Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
@@ -95,7 +95,7 @@ static Bool is_macro_call(Expr *e) {
 }
 
 // Check if a ExprData_TAG_FCall is a pure func call
-static Bool is_func_call(Expr *e) {
+Bool is_func_call(Expr *e) {
     return e->data.tag == ExprData_TAG_FCall &&
            e->children.count > 0 &&
            Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
@@ -124,7 +124,7 @@ static Bool func_uses_unknown_globals(Expr *e, Expr *func_def, Scope *precomp_sc
 
 // Try to evaluate a call at compile time.
 // require_known=1 (macro): error if arg not known. require_known=0 (func): return NULL silently.
-static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
+Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
     // Check if the function body references unknown globals
     Str *callee_name = &Expr_child(fcall, &(USize){(USize)(0)})->data.data.Ident;
     Cell *fn_cell = scope_get(scope, callee_name);
@@ -182,7 +182,7 @@ static Expr *try_eval_call(Scope *scope, Expr *fcall, Bool require_known) {
 
 // Track a literal value from a declaration — also add to precomp scope
 // so the interpreter can find it when folding func calls
-static void track_literal(Scope *scope, Str *name, Expr *rhs) {
+void track_literal(Scope *scope, Str *name, Expr *rhs) {
     Value v;
     if (is_known(rhs, &v)) {
         { Str *_k = Str_clone(name); void *_v = malloc(sizeof(v)); memcpy(_v, &v, sizeof(v)); Map_set(&known, _k, _v); }
@@ -190,83 +190,6 @@ static void track_literal(Scope *scope, Str *name, Expr *rhs) {
     }
 }
 
-// Process a body, replacing macro calls with literals
-static void process_body(Scope *scope, Expr *body) {
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-
-        switch (stmt->data.tag) {
-        case ExprData_TAG_Decl:
-            if (stmt->children.count == 0) break; // variant registry (payload enums)
-            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef ||
-                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
-                // Recurse into func/proc/macro bodies
-                if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef &&
-                    Expr_child(stmt, &(USize){(USize)(0)})->children.count > 0) {
-                    process_body(scope, Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)}));
-                }
-                break;
-            }
-            // ref declarations must keep the function call -- no folding
-            if (stmt->data.data.Decl.is_ref) break;
-            // mut declarations are not compile-time constants -- no folding
-            if (stmt->data.data.Decl.is_mut) break;
-            // Check if RHS is a macro or pure func call
-            if (is_macro_call(Expr_child(stmt, &(USize){(USize)(0)}))) {
-                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(USize){(USize)(0)}), 1);
-                if (lit) {
-                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *lit;
-                    track_literal(scope, (&stmt->data.data.Decl.name), lit);
-                }
-            } else if (is_func_call(Expr_child(stmt, &(USize){(USize)(0)}))) {
-                Expr *lit = try_eval_call(scope, Expr_child(stmt, &(USize){(USize)(0)}), 0);
-                if (lit) {
-                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *lit;
-                    track_literal(scope, (&stmt->data.data.Decl.name), lit);
-                } else {
-                    track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(USize){(USize)(0)}));
-                }
-            } else {
-                // Track compile-time known value
-                track_literal(scope, (&stmt->data.data.Decl.name), Expr_child(stmt, &(USize){(USize)(0)}));
-            }
-            break;
-
-        case ExprData_TAG_If:
-            if (stmt->children.count > 1)
-                process_body(scope, Expr_child(stmt, &(USize){(USize)(1)}));
-            if (stmt->children.count > 2)
-                process_body(scope, Expr_child(stmt, &(USize){(USize)(2)}));
-            break;
-
-        case ExprData_TAG_While:
-            if (stmt->children.count > 1)
-                process_body(scope, Expr_child(stmt, &(USize){(USize)(1)}));
-            break;
-
-        case ExprData_TAG_FCall:
-            // Bare macro or pure func call (not in a declaration)
-            if (is_macro_call(stmt)) {
-                Expr *lit = try_eval_call(scope, stmt, 1);
-                if (lit) {
-                    Expr_delete(stmt, &(Bool){1});
-                    *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *lit;
-                }
-            } else if (is_func_call(stmt)) {
-                Expr *lit = try_eval_call(scope, stmt, 0);
-                if (lit) {
-                    Expr_delete(stmt, &(Bool){1});
-                    *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *lit;
-                }
-            }
-            break;
-
-        default:
-            break;
-        }
-    }
-}
 
 void precomp(Expr *program) {
     // 1. Collect macro and pure func names
