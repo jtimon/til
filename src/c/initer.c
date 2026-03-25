@@ -11,18 +11,10 @@ void compute_all_struct_layouts(Expr *program, TypeScope *scope);
 
 // --- Type scope implementation ---
 
-
-
-
-
-
-
-
-
-
-
-
-
+Expr *TypeScope_get_struct(TypeScope *self, Str *name) {
+    TypeBinding *b = TypeScope_get_binding(self, name);
+    return b ? b->struct_def : NULL;
+}
 
 
 // --- Flat struct layout computation ---

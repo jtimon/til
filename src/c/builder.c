@@ -973,7 +973,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 fprintf(f, "%s *%s = ", ctype, e->data.data.Decl.name.c_str);
-                emit_expr(f, rhs, depth);
+                emit_as_ptr(f, rhs, depth);
                 fprintf(f, ";\n");
             } else {
                 Str *_sn = &e->struct_name;
@@ -1200,6 +1200,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 emit_ctor_fields(f, "_r", rv, depth);
                 emit_indent(f, depth);
                 fprintf(f, "return _r; }\n");
+            } else if (current_fdef && current_fdef->data.data.FuncDef.return_is_ref) {
+                fprintf(f, "return ");
+                emit_as_ptr(f, rv, depth);
+                fprintf(f, ";\n");
             } else if (current_fdef && current_fdef->data.data.FuncDef.return_is_shallow) {
                 // Shallow-return function — return value directly
                 if (rv->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rv)) {

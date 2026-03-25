@@ -44,6 +44,49 @@ static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Exp
 static Expr *make_ns_call(const char *sname, const char *method,
                            TilType ret_type, Str *ret_sname, Expr *src);
 
+static Bool expr_is_borrow_source(Expr *e, TypeScope *scope) {
+    if (!e) return 0;
+    if (e->data.tag == ExprData_TAG_LiteralNull) return 1;
+    if (e->data.tag == ExprData_TAG_FCall && fcall_returns_ref(e, scope)) return 1;
+    if (e->data.tag == ExprData_TAG_Ident) {
+        ScopeFind *_sf = TypeScope_find(scope, &e->data.data.Ident);
+        TypeBinding *b = _sf->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf) : NULL;
+        if (b && (b->is_ref || b->is_param)) return 1;
+    }
+    if (e->data.tag == ExprData_TAG_FieldAccess) {
+        if (e->is_ns_field) return 0;
+        return expr_is_borrow_source(Expr_child(e, &(USize){(USize)(0)}), scope);
+    }
+    return 0;
+}
+
+static Bool expr_is_stable_field_base(Expr *e, TypeScope *scope) {
+    if (!e) return 0;
+    if (expr_is_borrow_source(e, scope)) return 1;
+    if (e->data.tag == ExprData_TAG_Ident) {
+        ScopeFind *_sf = TypeScope_find(scope, &e->data.data.Ident);
+        TypeBinding *b = _sf->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf) : NULL;
+        if (!b) return 0;
+        if (b->func_def || b->struct_def) return 0;
+        return 1;
+    }
+    if (e->data.tag == ExprData_TAG_FieldAccess) {
+        if (e->is_ns_field) return 0;
+        return expr_is_stable_field_base(Expr_child(e, &(USize){(USize)(0)}), scope);
+    }
+    return 0;
+}
+
+static Bool expr_is_ref_decl_source(Expr *e, TypeScope *scope) {
+    if (!e) return 0;
+    if (expr_is_borrow_source(e, scope)) return 1;
+    if (e->data.tag == ExprData_TAG_FieldAccess) {
+        if (e->is_ns_field) return 0;
+        return expr_is_stable_field_base(Expr_child(e, &(USize){(USize)(0)}), scope);
+    }
+    return 0;
+}
+
 
 
 
@@ -189,13 +232,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     Expr *s = Expr_child(body, &(USize){(USize)(ri)});
                     if (s->data.tag != ExprData_TAG_Return || s->children.count == 0) continue;
                     Expr *rv = Expr_child(s, &(USize){(USize)(0)});
-                    Bool ok = 0;
-                    if (rv->data.tag == ExprData_TAG_Ident) {
-                        ScopeFind *_sf_rb = TypeScope_find(func_scope, &rv->data.data.Ident);
-                        TypeBinding *rb = _sf_rb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_rb) : NULL;
-                        if (rb && (rb->is_param || rb->is_ref)) ok = 1;
-                    }
-                    if (rv->data.tag == ExprData_TAG_FCall && fcall_returns_ref(rv, func_scope)) ok = 1;
+                    Bool ok = expr_is_borrow_source(rv, func_scope);
                     if (!ok) type_error(s, "ref function must return a parameter or ref variable");
                 }
             }
@@ -2636,14 +2673,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 _decl_b->is_ref = 1;
                 // Validate ref RHS: must be null, a ref-returning fcall, or a ref/param variable
                 Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-                Bool ok = 0;
-                if (rhs->data.tag == ExprData_TAG_LiteralNull) ok = 1;
-                if (rhs->data.tag == ExprData_TAG_FCall && fcall_returns_ref(rhs, scope)) ok = 1;
-                if (rhs->data.tag == ExprData_TAG_Ident) {
-                    ScopeFind *_sf_rb2 = TypeScope_find(scope, &rhs->data.data.Ident);
-                    TypeBinding *rb = _sf_rb2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_rb2) : NULL;
-                    if (rb && (rb->is_ref || (rb->is_param && !rb->is_own))) ok = 1;
-                }
+                Bool ok = expr_is_ref_decl_source(rhs, scope);
                 if (!ok) type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable");
             }
             // Error: owning result of ref-returning function without ref

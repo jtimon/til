@@ -119,8 +119,8 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
     if name.eq("Fn")        { return TilType.FuncPtr }
     if name.eq("Dynamic")   { return TilType.Dynamic }
     if is_null(scope).not() {
-        switch scope.find(name) {
-        case ScopeFind.Found(b):
+        ref b : TypeBinding = scope.get_binding(name)
+        if is_null(b).not() {
             if b.is_builtin {
                 if is_null(b.struct_def).not() { return b.type }
             }
@@ -129,7 +129,6 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
                     return TilType.FuncPtr
                 }
             }
-        case: {}
         }
         ref sdef : Expr = scope.get_struct(name)
         if is_null(sdef).not() {
@@ -143,21 +142,18 @@ type_from_name := func(name: Str, scope: TypeScope) returns TilType {
 }
 
 resolve_type_alias := func(scope: TypeScope, name: Str) returns ref Str {
-    switch scope.find(name) {
-    case ScopeFind.Found(b):
+    ref b : TypeBinding = scope.get_binding(name)
+    if is_null(b).not() {
         if b.is_type_alias {
             if is_null(b.alias_target).not() { return b.alias_target }
         }
-    case: {}
     }
     return name
 }
 
 usize_name := func(scope: TypeScope) returns Str {
-    switch scope.find("USize") {
-    case ScopeFind.Found: return "USize"
-    case: return "U64"
-    }
+    if is_null(scope.get_binding("USize")).not() { return "USize" }
+    return "U64"
 }
 
 usize_type := func(scope: TypeScope) returns TilType {
@@ -268,12 +264,12 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
     // Direct call
     if is_variant(fcall.child(0).data, ExprData.Ident) {
         ref fn_name : Str = get_payload(fcall.child(0).data)
-        switch scope.find(fn_name) {
-        case ScopeFind.Found(fb):
+        ref fb : TypeBinding = scope.get_binding(fn_name)
+        if is_null(fb).not() {
             if is_null(fb.func_def) { return false }
             return check_own_args(fb.func_def, fcall, var_name)
-        case: return false
         }
+        return false
     }
     // Namespace method call
     if is_variant(fcall.child(0).data, ExprData.FieldAccess).and(fcall.child(0).is_ns_field) {
@@ -349,13 +345,13 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {
         ref _cn : Str = get_payload(callee.data)
-        switch scope.find(_cn) {
-        case ScopeFind.Found(cb):
+        ref cb : TypeBinding = scope.get_binding(_cn)
+        if is_null(cb).not() {
             if is_null(cb.func_def) { return 0.to_i32() }
             ref _cfd : FunctionDef = get_payload(cb.func_def.data)
             return _cfd.return_is_ref
-        case: return 0.to_i32()
         }
+        return 0.to_i32()
     }
     if is_variant(callee.data, ExprData.FieldAccess).and(callee.is_ns_field) {
         ref _cti : Str = get_payload(callee.child(0).data)

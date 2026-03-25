@@ -37,3 +37,25 @@ test_ref_from_param := test() {
     ref r := identity(v)
     assert_eq(__LOC__, r, 42)
 }
+
+# --- ref from field access ---
+
+RefBox := struct {
+    mut n := 0
+    namespace:
+    get_n := func(self: RefBox) returns ref I64 {
+        return self.n
+    }
+}
+
+test_ref_from_field_return := test() {
+    b := RefBox(n = 9)
+    ref n : I64 = b.get_n()
+    assert_eq(__LOC__, n, 9)
+}
+
+test_ref_decl_from_field := test() {
+    b := RefBox(n = 11)
+    ref n : I64 = b.n
+    assert_eq(__LOC__, n, 11)
+}

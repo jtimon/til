@@ -706,6 +706,7 @@ void ScopeFind_delete(ScopeFind * self, Bool * call_free);
 Str * ScopeFind_to_str(ScopeFind * self);
 U32 * ScopeFind_size(void);
 TypeScope * TypeScope_new(TypeScope * parent);
+TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 TilType * TypeScope_get_type(TypeScope * self, Str * name);
 I32 TypeScope_is_proc(TypeScope * self, Str * name);

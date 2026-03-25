@@ -706,10 +706,10 @@ void ScopeFind_delete(ScopeFind * self, Bool * call_free);
 Str * ScopeFind_to_str(ScopeFind * self);
 U32 * ScopeFind_size(void);
 TypeScope * TypeScope_new(TypeScope * parent);
+TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 TilType * TypeScope_get_type(TypeScope * self, Str * name);
 I32 TypeScope_is_proc(TypeScope * self, Str * name);
-Expr * TypeScope_get_struct(TypeScope * self, Str * name);
 Bool TypeScope_is_mut(TypeScope * self, Str * name);
 void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own);
 TypeScope * TypeScope_clone(TypeScope * self);
@@ -1204,6 +1204,7 @@ void ScopeFind_delete(ScopeFind * self, Bool * call_free);
 Str * ScopeFind_to_str(ScopeFind * self);
 U32 * ScopeFind_size(void);
 TypeScope * TypeScope_new(TypeScope * parent);
+TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name);
 ScopeFind * TypeScope_find(TypeScope * self, Str * name);
 TilType * TypeScope_get_type(TypeScope * self, Str * name);
 I32 TypeScope_is_proc(TypeScope * self, Str * name);
@@ -26265,59 +26266,54 @@ TilType * type_from_name_init(Str * name, TypeScope * scope) {
     (void)_t_Bool_4261;
     ;
     if (_t_Bool_4261) {
-        {
-            ScopeFind *_sw_v_4226 = TypeScope_find(scope, name);
-            (void)_sw_v_4226;
-            Bool _t_Bool_4234 = is_variant(_sw_v_4226, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-            (void)_t_Bool_4234;
-            if (_t_Bool_4234) {
-                TypeBinding *b = get_payload(_sw_v_4226);
-                (void)b;
-                if (b->is_builtin) {
-                    Bool _t_Bool_4227 = is_null(b->struct_def);
-                    (void)_t_Bool_4227;
-                    Bool _t_Bool_4228 = Bool_not(_t_Bool_4227);
-                    (void)_t_Bool_4228;
-                    ;
-                    if (_t_Bool_4228) {
-                        ;
-                        ScopeFind_delete(_sw_v_4226, &(Bool){1});
-                        ;
-                        { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
-                    }
-                    ;
-                }
-                Bool _t_Bool_4232 = is_null(b->func_def);
-                (void)_t_Bool_4232;
-                Bool _t_Bool_4233 = Bool_not(_t_Bool_4232);
-                (void)_t_Bool_4233;
+        TypeBinding *b = TypeScope_get_binding(scope, name);
+        (void)b;
+        Bool _t_Bool_4234 = is_null(b);
+        (void)_t_Bool_4234;
+        Bool _t_Bool_4235 = Bool_not(_t_Bool_4234);
+        (void)_t_Bool_4235;
+        ;
+        if (_t_Bool_4235) {
+            if (b->is_builtin) {
+                Bool _t_Bool_4226 = is_null(b->struct_def);
+                (void)_t_Bool_4226;
+                Bool _t_Bool_4227 = Bool_not(_t_Bool_4226);
+                (void)_t_Bool_4227;
                 ;
-                if (_t_Bool_4233) {
-                    U32 _t_U32_4229 = Expr_child_count(b->func_def);
-                    (void)_t_U32_4229;
-                    U32 _t_U32_4230 = 0;
-                    (void)_t_U32_4230;
-                    Bool _t_Bool_4231 = U32_eq(_t_U32_4229, _t_U32_4230);
-                    (void)_t_Bool_4231;
+                if (_t_Bool_4227) {
                     ;
                     ;
-                    if (_t_Bool_4231) {
-                        ;
-                        ;
-                        ScopeFind_delete(_sw_v_4226, &(Bool){1});
-                        ;
-                        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
-                    }
                     ;
+                    { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
                 }
                 ;
-            } else {
-                {
-                }
             }
-            ScopeFind_delete(_sw_v_4226, &(Bool){0});
+            Bool _t_Bool_4231 = is_null(b->func_def);
+            (void)_t_Bool_4231;
+            Bool _t_Bool_4232 = Bool_not(_t_Bool_4231);
+            (void)_t_Bool_4232;
+            ;
+            if (_t_Bool_4232) {
+                U32 _t_U32_4228 = Expr_child_count(b->func_def);
+                (void)_t_U32_4228;
+                U32 _t_U32_4229 = 0;
+                (void)_t_U32_4229;
+                Bool _t_Bool_4230 = U32_eq(_t_U32_4228, _t_U32_4229);
+                (void)_t_Bool_4230;
+                ;
+                ;
+                if (_t_Bool_4230) {
+                    ;
+                    ;
+                    ;
+                    ;
+                    { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
+                }
+                ;
+            }
             ;
         }
+        ;
         Expr *sdef = TypeScope_get_struct(scope, name);
         (void)sdef;
         Bool _t_Bool_4236 = is_null(sdef);
@@ -26326,9 +26322,9 @@ TilType * type_from_name_init(Str * name, TypeScope * scope) {
         (void)_t_Bool_4237;
         ;
         if (_t_Bool_4237) {
-            Bool _t_Bool_4235 = is_variant(&sdef->data, &(ExprData){.tag = ExprData_TAG_EnumDef});
-            (void)_t_Bool_4235;
-            if (_t_Bool_4235) {
+            Bool _t_Bool_4233 = is_variant(&sdef->data, &(ExprData){.tag = ExprData_TAG_EnumDef});
+            (void)_t_Bool_4233;
+            if (_t_Bool_4233) {
                 ;
                 ;
                 ;
@@ -26680,30 +26676,50 @@ TypeScope * TypeScope_new(TypeScope * parent) {
     { TypeScope *_r = malloc(sizeof(TypeScope)); *_r = _t_TypeScope_4317; return _r; }
 }
 
+TypeBinding * TypeScope_get_binding(TypeScope * self, Str * name) {
+    (void)self;
+    (void)name;
+    Bool _t_Bool_4318 = Map_has(&self->bindings, name);
+    (void)_t_Bool_4318;
+    if (_t_Bool_4318) {
+        TypeBinding *b = Map_get(&self->bindings, name);
+        (void)b;
+        ;
+        return b;
+    }
+    ;
+    Bool _t_Bool_4319 = is_null(self->parent);
+    (void)_t_Bool_4319;
+    Bool _t_Bool_4320 = Bool_not(_t_Bool_4319);
+    (void)_t_Bool_4320;
+    ;
+    if (_t_Bool_4320) {
+        TypeBinding *pb = TypeScope_get_binding(self->parent, name);
+        (void)pb;
+        ;
+        return pb;
+    }
+    ;
+    TypeBinding *none = NULL;
+    (void)none;
+    return none;
+}
+
 ScopeFind * TypeScope_find(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
-    Bool _t_Bool_4320 = Map_has(&self->bindings, name);
-    (void)_t_Bool_4320;
-    if (_t_Bool_4320) {
-        TypeBinding *b = Map_get(&self->bindings, name);
-        (void)b;
-        ScopeFind _t_ScopeFind_4318; { ScopeFind *_hp = (ScopeFind *)ScopeFind_Found(b); _t_ScopeFind_4318 = *_hp; free(_hp); }
-        (void)_t_ScopeFind_4318;
-        ;
-        { ScopeFind *_r = malloc(sizeof(ScopeFind)); *_r = _t_ScopeFind_4318; return _r; }
-    }
-    ;
-    Bool _t_Bool_4321 = is_null(self->parent);
-    (void)_t_Bool_4321;
-    Bool _t_Bool_4322 = Bool_not(_t_Bool_4321);
+    TypeBinding *b = TypeScope_get_binding(self, name);
+    (void)b;
+    Bool _t_Bool_4322 = is_null(b);
     (void)_t_Bool_4322;
+    Bool _t_Bool_4323 = Bool_not(_t_Bool_4322);
+    (void)_t_Bool_4323;
     ;
-    if (_t_Bool_4322) {
-        ScopeFind _t_ScopeFind_4319; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(self->parent, name); _t_ScopeFind_4319 = *_hp; free(_hp); }
-        (void)_t_ScopeFind_4319;
+    if (_t_Bool_4323) {
+        ScopeFind _t_ScopeFind_4321; { ScopeFind *_hp = (ScopeFind *)ScopeFind_Found(b); _t_ScopeFind_4321 = *_hp; free(_hp); }
+        (void)_t_ScopeFind_4321;
         ;
-        { ScopeFind *_r = malloc(sizeof(ScopeFind)); *_r = _t_ScopeFind_4319; return _r; }
+        { ScopeFind *_r = malloc(sizeof(ScopeFind)); *_r = _t_ScopeFind_4321; return _r; }
     }
     ;
     { ScopeFind *_r = malloc(sizeof(ScopeFind)); _r->tag = ScopeFind_TAG_NotFound; return _r; }
@@ -26712,110 +26728,68 @@ ScopeFind * TypeScope_find(TypeScope * self, Str * name) {
 TilType * TypeScope_get_type(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
-    {
-        ScopeFind *_sw_v_4323 = TypeScope_find(self, name);
-        (void)_sw_v_4323;
-        Bool _t_Bool_4324 = is_variant(_sw_v_4323, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-        (void)_t_Bool_4324;
-        if (_t_Bool_4324) {
-            TypeBinding *b = get_payload(_sw_v_4323);
-            (void)b;
-            ScopeFind_delete(_sw_v_4323, &(Bool){1});
-            ;
-            { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
-        } else {
-            ScopeFind_delete(_sw_v_4323, &(Bool){1});
-            ;
-            { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Unknown; return _r; }
-        }
-        ScopeFind_delete(_sw_v_4323, &(Bool){0});
+    TypeBinding *b = TypeScope_get_binding(self, name);
+    (void)b;
+    Bool _t_Bool_4324 = is_null(b);
+    (void)_t_Bool_4324;
+    Bool _t_Bool_4325 = Bool_not(_t_Bool_4324);
+    (void)_t_Bool_4325;
+    ;
+    if (_t_Bool_4325) {
         ;
+        { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
     }
+    ;
+    { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Unknown; return _r; }
 }
 
 I32 TypeScope_is_proc(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
-    {
-        ScopeFind *_sw_v_4325 = TypeScope_find(self, name);
-        (void)_sw_v_4325;
-        Bool _t_Bool_4330 = is_variant(_sw_v_4325, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-        (void)_t_Bool_4330;
-        if (_t_Bool_4330) {
-            TypeBinding *b = get_payload(_sw_v_4325);
-            (void)b;
-            ScopeFind_delete(_sw_v_4325, &(Bool){1});
-            ;
-            return b->is_proc;
-        } else {
-            I64 _t_I64_4326 = 0;
-            (void)_t_I64_4326;
-            I64 _t_I64_4327 = 1;
-            (void)_t_I64_4327;
-            I64 _t_I64_4328 = I64_sub(_t_I64_4326, _t_I64_4327);
-            (void)_t_I64_4328;
-            ;
-            ;
-            I32 _t_I32_4329 = I64_to_i32(_t_I64_4328);
-            (void)_t_I32_4329;
-            ;
-            ScopeFind_delete(_sw_v_4325, &(Bool){1});
-            ;
-            return _t_I32_4329;
-        }
-        ScopeFind_delete(_sw_v_4325, &(Bool){0});
+    TypeBinding *b = TypeScope_get_binding(self, name);
+    (void)b;
+    Bool _t_Bool_4326 = is_null(b);
+    (void)_t_Bool_4326;
+    Bool _t_Bool_4327 = Bool_not(_t_Bool_4326);
+    (void)_t_Bool_4327;
+    ;
+    if (_t_Bool_4327) {
         ;
+        return b->is_proc;
     }
-}
-
-Expr * TypeScope_get_struct(TypeScope * self, Str * name) {
-    (void)self;
-    (void)name;
-    {
-        ScopeFind *_sw_v_4331 = TypeScope_find(self, name);
-        (void)_sw_v_4331;
-        Bool _t_Bool_4332 = is_variant(_sw_v_4331, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-        (void)_t_Bool_4332;
-        if (_t_Bool_4332) {
-            TypeBinding *b = get_payload(_sw_v_4331);
-            (void)b;
-            ScopeFind_delete(_sw_v_4331, &(Bool){1});
-            ;
-            return b->struct_def;
-        } else {
-            ScopeFind_delete(_sw_v_4331, &(Bool){1});
-            ;
-            return NULL;
-        }
-        ScopeFind_delete(_sw_v_4331, &(Bool){0});
-        ;
-    }
+    ;
+    I64 _t_I64_4328 = 0;
+    (void)_t_I64_4328;
+    I64 _t_I64_4329 = 1;
+    (void)_t_I64_4329;
+    I64 _t_I64_4330 = I64_sub(_t_I64_4328, _t_I64_4329);
+    (void)_t_I64_4330;
+    ;
+    ;
+    I32 _t_I32_4331 = I64_to_i32(_t_I64_4330);
+    (void)_t_I32_4331;
+    ;
+    return _t_I32_4331;
 }
 
 Bool TypeScope_is_mut(TypeScope * self, Str * name) {
     (void)self;
     (void)name;
-    {
-        ScopeFind *_sw_v_4333 = TypeScope_find(self, name);
-        (void)_sw_v_4333;
-        Bool _t_Bool_4335 = is_variant(_sw_v_4333, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-        (void)_t_Bool_4335;
-        if (_t_Bool_4335) {
-            TypeBinding *b = get_payload(_sw_v_4333);
-            (void)b;
-            ScopeFind_delete(_sw_v_4333, &(Bool){1});
-            ;
-            return b->is_mut;
-        } else {
-            Bool _t_Bool_4334 = 0;
-            (void)_t_Bool_4334;
-            ScopeFind_delete(_sw_v_4333, &(Bool){1});
-            ;
-            return _t_Bool_4334;
-        }
-        ScopeFind_delete(_sw_v_4333, &(Bool){0});
+    TypeBinding *b = TypeScope_get_binding(self, name);
+    (void)b;
+    Bool _t_Bool_4332 = is_null(b);
+    (void)_t_Bool_4332;
+    Bool _t_Bool_4333 = Bool_not(_t_Bool_4332);
+    (void)_t_Bool_4333;
+    ;
+    if (_t_Bool_4333) {
         ;
+        return b->is_mut;
     }
+    ;
+    Bool _t_Bool_4334 = 0;
+    (void)_t_Bool_4334;
+    return _t_Bool_4334;
 }
 
 void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bool is_mut, U32 line, U32 col, Bool is_param, Bool is_own) {
@@ -26828,71 +26802,71 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bo
     (void)col;
     (void)is_param;
     (void)is_own;
-    Bool _t_Bool_4342 = Map_has(&self->bindings, name);
-    (void)_t_Bool_4342;
-    if (_t_Bool_4342) {
+    Bool _t_Bool_4341 = Map_has(&self->bindings, name);
+    (void)_t_Bool_4341;
+    if (_t_Bool_4341) {
         TypeBinding *b = Map_get(&self->bindings, name);
         (void)b;
         TilType_delete(&b->type, &(Bool){0});
         { TilType *_fa = TilType_clone(type); b->type = *_fa; free(_fa); }
-        I32 _t_I32_4336 = I32_clone(&(I32){is_proc});
-        (void)_t_I32_4336;
-        b->is_proc = _t_I32_4336;
+        I32 _t_I32_4335 = I32_clone(&(I32){is_proc});
+        (void)_t_I32_4335;
+        b->is_proc = _t_I32_4335;
         ;
-        Bool _t_Bool_4337 = Bool_clone(&(Bool){is_mut});
-        (void)_t_Bool_4337;
-        b->is_mut = _t_Bool_4337;
+        Bool _t_Bool_4336 = Bool_clone(&(Bool){is_mut});
+        (void)_t_Bool_4336;
+        b->is_mut = _t_Bool_4336;
         ;
-        U32 _t_U32_4338 = U32_clone(&(U32){line});
+        U32 _t_U32_4337 = U32_clone(&(U32){line});
+        (void)_t_U32_4337;
+        b->line = _t_U32_4337;
+        ;
+        U32 _t_U32_4338 = U32_clone(&(U32){col});
         (void)_t_U32_4338;
-        b->line = _t_U32_4338;
+        b->col = _t_U32_4338;
         ;
-        U32 _t_U32_4339 = U32_clone(&(U32){col});
-        (void)_t_U32_4339;
-        b->col = _t_U32_4339;
+        Bool _t_Bool_4339 = Bool_clone(&(Bool){is_param});
+        (void)_t_Bool_4339;
+        b->is_param = _t_Bool_4339;
         ;
-        Bool _t_Bool_4340 = Bool_clone(&(Bool){is_param});
+        Bool _t_Bool_4340 = Bool_clone(&(Bool){is_own});
         (void)_t_Bool_4340;
-        b->is_param = _t_Bool_4340;
-        ;
-        Bool _t_Bool_4341 = Bool_clone(&(Bool){is_own});
-        (void)_t_Bool_4341;
-        b->is_own = _t_Bool_4341;
+        b->is_own = _t_Bool_4340;
         ;
         ;
         return;
     }
     ;
-    I32 _t_I32_4343 = I32_clone(&(I32){is_proc});
-    (void)_t_I32_4343;
-    Bool _t_Bool_4344 = Bool_clone(&(Bool){is_mut});
-    (void)_t_Bool_4344;
-    U32 _t_U32_4345 = U32_clone(&(U32){line});
+    I32 _t_I32_4342 = I32_clone(&(I32){is_proc});
+    (void)_t_I32_4342;
+    Bool _t_Bool_4343 = Bool_clone(&(Bool){is_mut});
+    (void)_t_Bool_4343;
+    U32 _t_U32_4344 = U32_clone(&(U32){line});
+    (void)_t_U32_4344;
+    U32 _t_U32_4345 = U32_clone(&(U32){col});
     (void)_t_U32_4345;
-    U32 _t_U32_4346 = U32_clone(&(U32){col});
-    (void)_t_U32_4346;
-    Bool _t_Bool_4347 = Bool_clone(&(Bool){is_param});
+    Bool _t_Bool_4346 = Bool_clone(&(Bool){is_param});
+    (void)_t_Bool_4346;
+    Bool _t_Bool_4347 = Bool_clone(&(Bool){is_own});
     (void)_t_Bool_4347;
-    Bool _t_Bool_4348 = Bool_clone(&(Bool){is_own});
+    Bool _t_Bool_4348 = 0;
     (void)_t_Bool_4348;
     Bool _t_Bool_4349 = 0;
     (void)_t_Bool_4349;
     Bool _t_Bool_4350 = 0;
     (void)_t_Bool_4350;
-    Bool _t_Bool_4351 = 0;
-    (void)_t_Bool_4351;
     TypeBinding *nb = malloc(sizeof(TypeBinding));
     nb->name = Str_clone(name);
     { TilType *_ca = TilType_clone(type); nb->type = *_ca; free(_ca); }
-    nb->is_proc = _t_I32_4343;
-    nb->is_mut = _t_Bool_4344;
-    nb->line = _t_U32_4345;
-    nb->col = _t_U32_4346;
-    nb->is_param = _t_Bool_4347;
-    nb->is_own = _t_Bool_4348;
-    nb->is_ref = _t_Bool_4349;
-    nb->is_alias = _t_Bool_4350;
-    nb->is_type_alias = _t_Bool_4351;
+    nb->is_proc = _t_I32_4342;
+    nb->is_mut = _t_Bool_4343;
+    nb->line = _t_U32_4344;
+    nb->col = _t_U32_4345;
+    nb->is_param = _t_Bool_4346;
+    nb->is_own = _t_Bool_4347;
+    nb->is_ref = _t_Bool_4348;
+    nb->is_alias = _t_Bool_4349;
+    nb->is_type_alias = _t_Bool_4350;
     nb->alias_target = NULL;
     nb->struct_def = NULL;
     nb->func_def = NULL;
@@ -26909,27 +26883,27 @@ void TypeScope_set(TypeScope * self, Str * name, TilType * type, I32 is_proc, Bo
     ;
     ;
     ;
-    Str _t_Str_4352; { Str *_hp = (Str *)Str_clone(name); _t_Str_4352 = *_hp; free(_hp); }
-    (void)_t_Str_4352;
-    Map_set(&self->bindings, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_4352; _oa; }), nb);
+    Str _t_Str_4351; { Str *_hp = (Str *)Str_clone(name); _t_Str_4351 = *_hp; free(_hp); }
+    (void)_t_Str_4351;
+    Map_set(&self->bindings, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_4351; _oa; }), nb);
 }
 
 TypeScope * TypeScope_clone(TypeScope * self) {
     (void)self;
-    TypeScope _t_TypeScope_4353; memset(&_t_TypeScope_4353, 0, sizeof(TypeScope));
-    { Map *_ca = Map_clone(&self->bindings); _t_TypeScope_4353.bindings = *_ca; free(_ca); }
-    _t_TypeScope_4353.parent = self->parent;
-    (void)_t_TypeScope_4353;
-    { TypeScope *_r = malloc(sizeof(TypeScope)); *_r = _t_TypeScope_4353; return _r; }
+    TypeScope _t_TypeScope_4352; memset(&_t_TypeScope_4352, 0, sizeof(TypeScope));
+    { Map *_ca = Map_clone(&self->bindings); _t_TypeScope_4352.bindings = *_ca; free(_ca); }
+    _t_TypeScope_4352.parent = self->parent;
+    (void)_t_TypeScope_4352;
+    { TypeScope *_r = malloc(sizeof(TypeScope)); *_r = _t_TypeScope_4352; return _r; }
 }
 
 void TypeScope_delete(TypeScope * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
-    Bool _t_Bool_4354 = 0;
-    (void)_t_Bool_4354;
-    Map_delete(&self->bindings, &(Bool){_t_Bool_4354});
+    Bool _t_Bool_4353 = 0;
+    (void)_t_Bool_4353;
+    Map_delete(&self->bindings, &(Bool){_t_Bool_4353});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -26944,47 +26918,47 @@ U32 *TypeScope_size(void) {
 
 LocalInfo * LocalInfo_clone(LocalInfo * self) {
     (void)self;
-    I32 _t_I32_4356 = I32_clone(&self->own_transfer);
-    (void)_t_I32_4356;
-    Bool _t_Bool_4357 = Bool_clone(&self->skip_delete);
-    (void)_t_Bool_4357;
-    LocalInfo _t_LocalInfo_4358; memset(&_t_LocalInfo_4358, 0, sizeof(LocalInfo));
-    _t_LocalInfo_4358.name = self->name;
-    { TilType *_ca = TilType_clone(&self->type); _t_LocalInfo_4358.type = *_ca; free(_ca); }
-    _t_LocalInfo_4358.struct_name = self->struct_name;
-    _t_LocalInfo_4358.decl_index = I32_clone(&self->decl_index);
-    _t_LocalInfo_4358.last_use = I32_clone(&self->last_use);
-    _t_LocalInfo_4358.own_transfer = _t_I32_4356;
-    _t_LocalInfo_4358.skip_delete = _t_Bool_4357;
-    (void)_t_LocalInfo_4358;
+    I32 _t_I32_4355 = I32_clone(&self->own_transfer);
+    (void)_t_I32_4355;
+    Bool _t_Bool_4356 = Bool_clone(&self->skip_delete);
+    (void)_t_Bool_4356;
+    LocalInfo _t_LocalInfo_4357; memset(&_t_LocalInfo_4357, 0, sizeof(LocalInfo));
+    _t_LocalInfo_4357.name = self->name;
+    { TilType *_ca = TilType_clone(&self->type); _t_LocalInfo_4357.type = *_ca; free(_ca); }
+    _t_LocalInfo_4357.struct_name = self->struct_name;
+    _t_LocalInfo_4357.decl_index = I32_clone(&self->decl_index);
+    _t_LocalInfo_4357.last_use = I32_clone(&self->last_use);
+    _t_LocalInfo_4357.own_transfer = _t_I32_4355;
+    _t_LocalInfo_4357.skip_delete = _t_Bool_4356;
+    (void)_t_LocalInfo_4357;
     ;
     ;
-    { LocalInfo *_r = malloc(sizeof(LocalInfo)); *_r = _t_LocalInfo_4358; return _r; }
+    { LocalInfo *_r = malloc(sizeof(LocalInfo)); *_r = _t_LocalInfo_4357; return _r; }
 }
 
 void LocalInfo_delete(LocalInfo * self, Bool * call_free) {
     (void)self;
     (void)call_free;
     if (!self) return;
+    Bool _t_Bool_4358 = 0;
+    (void)_t_Bool_4358;
+    TilType_delete(&self->type, &(Bool){_t_Bool_4358});
+    ;
     Bool _t_Bool_4359 = 0;
     (void)_t_Bool_4359;
-    TilType_delete(&self->type, &(Bool){_t_Bool_4359});
+    I32_delete(&self->decl_index, &(Bool){_t_Bool_4359});
     ;
     Bool _t_Bool_4360 = 0;
     (void)_t_Bool_4360;
-    I32_delete(&self->decl_index, &(Bool){_t_Bool_4360});
+    I32_delete(&self->last_use, &(Bool){_t_Bool_4360});
     ;
     Bool _t_Bool_4361 = 0;
     (void)_t_Bool_4361;
-    I32_delete(&self->last_use, &(Bool){_t_Bool_4361});
+    I32_delete(&self->own_transfer, &(Bool){_t_Bool_4361});
     ;
     Bool _t_Bool_4362 = 0;
     (void)_t_Bool_4362;
-    I32_delete(&self->own_transfer, &(Bool){_t_Bool_4362});
-    ;
-    Bool _t_Bool_4363 = 0;
-    (void)_t_Bool_4363;
-    Bool_delete(&self->skip_delete, &(Bool){_t_Bool_4363});
+    Bool_delete(&self->skip_delete, &(Bool){_t_Bool_4362});
     ;
     if (DEREF(call_free)) {
         free(self);
@@ -27000,81 +26974,93 @@ U32 *LocalInfo_size(void) {
 Bool is_numeric_type(TilType * t) {
     (void)t;
     {
-        TilType _sw_v_4365; { TilType *_hp = (TilType *)TilType_clone(t); _sw_v_4365 = *_hp; free(_hp); }
-        (void)_sw_v_4365;
-        Bool _t_Bool_4380; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4365, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4380 = *_hp; free(_hp); }
-        (void)_t_Bool_4380;
-        if (_t_Bool_4380) {
-            Bool _t_Bool_4366 = 1;
-            (void)_t_Bool_4366;
-            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
+        TilType _sw_v_4364; { TilType *_hp = (TilType *)TilType_clone(t); _sw_v_4364 = *_hp; free(_hp); }
+        (void)_sw_v_4364;
+        Bool _t_Bool_4379; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4364, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4379 = *_hp; free(_hp); }
+        (void)_t_Bool_4379;
+        if (_t_Bool_4379) {
+            Bool _t_Bool_4365 = 1;
+            (void)_t_Bool_4365;
+            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
             ;
-            return _t_Bool_4366;
+            return _t_Bool_4365;
         } else {
-            Bool _t_Bool_4379; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4365, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4379 = *_hp; free(_hp); }
-            (void)_t_Bool_4379;
-            if (_t_Bool_4379) {
-                Bool _t_Bool_4367 = 1;
-                (void)_t_Bool_4367;
+            Bool _t_Bool_4378; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4364, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4378 = *_hp; free(_hp); }
+            (void)_t_Bool_4378;
+            if (_t_Bool_4378) {
+                Bool _t_Bool_4366 = 1;
+                (void)_t_Bool_4366;
                 ;
-                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
+                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
                 ;
-                return _t_Bool_4367;
+                return _t_Bool_4366;
             } else {
-                Bool _t_Bool_4378; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4365, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4378 = *_hp; free(_hp); }
-                (void)_t_Bool_4378;
-                if (_t_Bool_4378) {
-                    Bool _t_Bool_4368 = 1;
-                    (void)_t_Bool_4368;
+                Bool _t_Bool_4377; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4364, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4377 = *_hp; free(_hp); }
+                (void)_t_Bool_4377;
+                if (_t_Bool_4377) {
+                    Bool _t_Bool_4367 = 1;
+                    (void)_t_Bool_4367;
                     ;
                     ;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
                     ;
-                    return _t_Bool_4368;
+                    return _t_Bool_4367;
                 } else {
-                    Bool _t_Bool_4377; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4365, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4377 = *_hp; free(_hp); }
-                    (void)_t_Bool_4377;
-                    if (_t_Bool_4377) {
-                        Bool _t_Bool_4369 = 1;
-                        (void)_t_Bool_4369;
+                    Bool _t_Bool_4376; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4364, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4376 = *_hp; free(_hp); }
+                    (void)_t_Bool_4376;
+                    if (_t_Bool_4376) {
+                        Bool _t_Bool_4368 = 1;
+                        (void)_t_Bool_4368;
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
                         ;
-                        return _t_Bool_4369;
+                        return _t_Bool_4368;
                     } else {
-                        Bool _t_Bool_4376; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4365, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4376 = *_hp; free(_hp); }
-                        (void)_t_Bool_4376;
-                        if (_t_Bool_4376) {
-                            Bool _t_Bool_4370 = 1;
-                            (void)_t_Bool_4370;
+                        Bool _t_Bool_4375; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4364, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4375 = *_hp; free(_hp); }
+                        (void)_t_Bool_4375;
+                        if (_t_Bool_4375) {
+                            Bool _t_Bool_4369 = 1;
+                            (void)_t_Bool_4369;
                             ;
                             ;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
                             ;
-                            return _t_Bool_4370;
+                            return _t_Bool_4369;
                         } else {
-                            Bool _t_Bool_4375; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4365, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4375 = *_hp; free(_hp); }
-                            (void)_t_Bool_4375;
-                            if (_t_Bool_4375) {
-                                Bool _t_Bool_4371 = 1;
-                                (void)_t_Bool_4371;
+                            Bool _t_Bool_4374; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4364, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4374 = *_hp; free(_hp); }
+                            (void)_t_Bool_4374;
+                            if (_t_Bool_4374) {
+                                Bool _t_Bool_4370 = 1;
+                                (void)_t_Bool_4370;
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
                                 ;
-                                return _t_Bool_4371;
+                                return _t_Bool_4370;
                             } else {
-                                Bool _t_Bool_4374; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4365, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4374 = *_hp; free(_hp); }
-                                (void)_t_Bool_4374;
-                                if (_t_Bool_4374) {
-                                    Bool _t_Bool_4372 = 1;
+                                Bool _t_Bool_4373; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4364, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4373 = *_hp; free(_hp); }
+                                (void)_t_Bool_4373;
+                                if (_t_Bool_4373) {
+                                    Bool _t_Bool_4371 = 1;
+                                    (void)_t_Bool_4371;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
+                                    ;
+                                    return _t_Bool_4371;
+                                } else {
+                                    Bool _t_Bool_4372 = 0;
                                     (void)_t_Bool_4372;
                                     ;
                                     ;
@@ -27082,21 +27068,9 @@ Bool is_numeric_type(TilType * t) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4364; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4372;
-                                } else {
-                                    Bool _t_Bool_4373 = 0;
-                                    (void)_t_Bool_4373;
-                                    ;
-                                    ;
-                                    ;
-                                    ;
-                                    ;
-                                    ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4365; _oa; }), &(Bool){1});
-                                    ;
-                                    return _t_Bool_4373;
                                 }
                                 ;
                             }
@@ -27110,7 +27084,7 @@ Bool is_numeric_type(TilType * t) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4365, &(Bool){0});
+        TilType_delete(&_sw_v_4364, &(Bool){0});
         ;
     }
 }
@@ -27118,87 +27092,87 @@ Bool is_numeric_type(TilType * t) {
 Bool is_integral_numeric_type(TilType * t) {
     (void)t;
     {
-        TilType _sw_v_4381; { TilType *_hp = (TilType *)TilType_clone(t); _sw_v_4381 = *_hp; free(_hp); }
-        (void)_sw_v_4381;
-        Bool _t_Bool_4394; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4381, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4394 = *_hp; free(_hp); }
-        (void)_t_Bool_4394;
-        if (_t_Bool_4394) {
-            Bool _t_Bool_4382 = 1;
-            (void)_t_Bool_4382;
-            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4381; _oa; }), &(Bool){1});
+        TilType _sw_v_4380; { TilType *_hp = (TilType *)TilType_clone(t); _sw_v_4380 = *_hp; free(_hp); }
+        (void)_sw_v_4380;
+        Bool _t_Bool_4393; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4380, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4393 = *_hp; free(_hp); }
+        (void)_t_Bool_4393;
+        if (_t_Bool_4393) {
+            Bool _t_Bool_4381 = 1;
+            (void)_t_Bool_4381;
+            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4380; _oa; }), &(Bool){1});
             ;
-            return _t_Bool_4382;
+            return _t_Bool_4381;
         } else {
-            Bool _t_Bool_4393; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4381, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4393 = *_hp; free(_hp); }
-            (void)_t_Bool_4393;
-            if (_t_Bool_4393) {
-                Bool _t_Bool_4383 = 1;
-                (void)_t_Bool_4383;
+            Bool _t_Bool_4392; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4380, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4392 = *_hp; free(_hp); }
+            (void)_t_Bool_4392;
+            if (_t_Bool_4392) {
+                Bool _t_Bool_4382 = 1;
+                (void)_t_Bool_4382;
                 ;
-                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4381; _oa; }), &(Bool){1});
+                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4380; _oa; }), &(Bool){1});
                 ;
-                return _t_Bool_4383;
+                return _t_Bool_4382;
             } else {
-                Bool _t_Bool_4392; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4381, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4392 = *_hp; free(_hp); }
-                (void)_t_Bool_4392;
-                if (_t_Bool_4392) {
-                    Bool _t_Bool_4384 = 1;
-                    (void)_t_Bool_4384;
+                Bool _t_Bool_4391; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4380, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4391 = *_hp; free(_hp); }
+                (void)_t_Bool_4391;
+                if (_t_Bool_4391) {
+                    Bool _t_Bool_4383 = 1;
+                    (void)_t_Bool_4383;
                     ;
                     ;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4381; _oa; }), &(Bool){1});
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4380; _oa; }), &(Bool){1});
                     ;
-                    return _t_Bool_4384;
+                    return _t_Bool_4383;
                 } else {
-                    Bool _t_Bool_4391; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4381, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4391 = *_hp; free(_hp); }
-                    (void)_t_Bool_4391;
-                    if (_t_Bool_4391) {
-                        Bool _t_Bool_4385 = 1;
-                        (void)_t_Bool_4385;
+                    Bool _t_Bool_4390; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4380, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4390 = *_hp; free(_hp); }
+                    (void)_t_Bool_4390;
+                    if (_t_Bool_4390) {
+                        Bool _t_Bool_4384 = 1;
+                        (void)_t_Bool_4384;
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4381; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4380; _oa; }), &(Bool){1});
                         ;
-                        return _t_Bool_4385;
+                        return _t_Bool_4384;
                     } else {
-                        Bool _t_Bool_4390; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4381, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4390 = *_hp; free(_hp); }
-                        (void)_t_Bool_4390;
-                        if (_t_Bool_4390) {
-                            Bool _t_Bool_4386 = 1;
-                            (void)_t_Bool_4386;
+                        Bool _t_Bool_4389; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4380, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4389 = *_hp; free(_hp); }
+                        (void)_t_Bool_4389;
+                        if (_t_Bool_4389) {
+                            Bool _t_Bool_4385 = 1;
+                            (void)_t_Bool_4385;
                             ;
                             ;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4381; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4380; _oa; }), &(Bool){1});
                             ;
-                            return _t_Bool_4386;
+                            return _t_Bool_4385;
                         } else {
-                            Bool _t_Bool_4389; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4381, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4389 = *_hp; free(_hp); }
-                            (void)_t_Bool_4389;
-                            if (_t_Bool_4389) {
-                                Bool _t_Bool_4387 = 1;
+                            Bool _t_Bool_4388; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4380, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4388 = *_hp; free(_hp); }
+                            (void)_t_Bool_4388;
+                            if (_t_Bool_4388) {
+                                Bool _t_Bool_4386 = 1;
+                                (void)_t_Bool_4386;
+                                ;
+                                ;
+                                ;
+                                ;
+                                ;
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4380; _oa; }), &(Bool){1});
+                                ;
+                                return _t_Bool_4386;
+                            } else {
+                                Bool _t_Bool_4387 = 0;
                                 (void)_t_Bool_4387;
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4381; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4380; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4387;
-                            } else {
-                                Bool _t_Bool_4388 = 0;
-                                (void)_t_Bool_4388;
-                                ;
-                                ;
-                                ;
-                                ;
-                                ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4381; _oa; }), &(Bool){1});
-                                ;
-                                return _t_Bool_4388;
                             }
                             ;
                         }
@@ -27210,53 +27184,53 @@ Bool is_integral_numeric_type(TilType * t) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4381, &(Bool){0});
+        TilType_delete(&_sw_v_4380, &(Bool){0});
         ;
     }
 }
 
 Bool is_usize_name(Str * name) {
     (void)name;
-    Str _t_Str_4395; { Str *_hp = (Str *)Str_lit("USize", 5ULL); _t_Str_4395 = *_hp; free(_hp); }
-    (void)_t_Str_4395;
-    Bool _t_Bool_4396 = Str_eq(name, &_t_Str_4395);
-    (void)_t_Bool_4396;
-    Str_delete(&_t_Str_4395, &(Bool){0});
-    return _t_Bool_4396;
+    Str _t_Str_4394; { Str *_hp = (Str *)Str_lit("USize", 5ULL); _t_Str_4394 = *_hp; free(_hp); }
+    (void)_t_Str_4394;
+    Bool _t_Bool_4395 = Str_eq(name, &_t_Str_4394);
+    (void)_t_Bool_4395;
+    Str_delete(&_t_Str_4394, &(Bool){0});
+    return _t_Bool_4395;
 }
 
 Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name) {
     (void)from;
     (void)to;
     (void)to_name;
-    Bool _t_Bool_4402 = is_usize_name(to_name);
+    Bool _t_Bool_4401 = is_usize_name(to_name);
+    (void)_t_Bool_4401;
+    Bool _t_Bool_4402 = Bool_not(_t_Bool_4401);
     (void)_t_Bool_4402;
-    Bool _t_Bool_4403 = Bool_not(_t_Bool_4402);
-    (void)_t_Bool_4403;
     ;
-    if (_t_Bool_4403) {
-        Bool _t_Bool_4397 = 0;
-        (void)_t_Bool_4397;
+    if (_t_Bool_4402) {
+        Bool _t_Bool_4396 = 0;
+        (void)_t_Bool_4396;
         ;
-        return _t_Bool_4397;
+        return _t_Bool_4396;
     }
     ;
     {
-        TilType _sw_v_4398; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4398 = *_hp; free(_hp); }
-        (void)_sw_v_4398;
-        Bool _t_Bool_4401; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4398, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4401 = *_hp; free(_hp); }
-        (void)_t_Bool_4401;
-        TilType_delete(&_sw_v_4398, &(Bool){0});
-        if (_t_Bool_4401) {
-            Bool _t_Bool_4399 = is_integral_numeric_type(from);
+        TilType _sw_v_4397; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4397 = *_hp; free(_hp); }
+        (void)_sw_v_4397;
+        Bool _t_Bool_4400; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4397, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4400 = *_hp; free(_hp); }
+        (void)_t_Bool_4400;
+        TilType_delete(&_sw_v_4397, &(Bool){0});
+        if (_t_Bool_4400) {
+            Bool _t_Bool_4398 = is_integral_numeric_type(from);
+            (void)_t_Bool_4398;
+            ;
+            return _t_Bool_4398;
+        } else {
+            Bool _t_Bool_4399 = 0;
             (void)_t_Bool_4399;
             ;
             return _t_Bool_4399;
-        } else {
-            Bool _t_Bool_4400 = 0;
-            (void)_t_Bool_4400;
-            ;
-            return _t_Bool_4400;
         }
         ;
     }
@@ -27266,157 +27240,171 @@ Bool literal_in_range(Str * val_str, TilType * target) {
     (void)val_str;
     (void)target;
     {
-        TilType _sw_v_4404; { TilType *_hp = (TilType *)TilType_clone(target); _sw_v_4404 = *_hp; free(_hp); }
-        (void)_sw_v_4404;
-        Bool _t_Bool_4440; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4404, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4440 = *_hp; free(_hp); }
-        (void)_t_Bool_4440;
-        if (_t_Bool_4440) {
-            Bool _t_Bool_4405 = 1;
-            (void)_t_Bool_4405;
-            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
+        TilType _sw_v_4403; { TilType *_hp = (TilType *)TilType_clone(target); _sw_v_4403 = *_hp; free(_hp); }
+        (void)_sw_v_4403;
+        Bool _t_Bool_4439; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4403, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4439 = *_hp; free(_hp); }
+        (void)_t_Bool_4439;
+        if (_t_Bool_4439) {
+            Bool _t_Bool_4404 = 1;
+            (void)_t_Bool_4404;
+            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
             ;
-            return _t_Bool_4405;
+            return _t_Bool_4404;
         } else {
-            Bool _t_Bool_4439; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4404, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4439 = *_hp; free(_hp); }
-            (void)_t_Bool_4439;
-            if (_t_Bool_4439) {
-                Bool _t_Bool_4406 = 1;
-                (void)_t_Bool_4406;
+            Bool _t_Bool_4438; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4403, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4438 = *_hp; free(_hp); }
+            (void)_t_Bool_4438;
+            if (_t_Bool_4438) {
+                Bool _t_Bool_4405 = 1;
+                (void)_t_Bool_4405;
                 ;
-                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
+                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
                 ;
-                return _t_Bool_4406;
+                return _t_Bool_4405;
             } else {
-                Bool _t_Bool_4438; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4404, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4438 = *_hp; free(_hp); }
-                (void)_t_Bool_4438;
-                if (_t_Bool_4438) {
+                Bool _t_Bool_4437; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4403, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4437 = *_hp; free(_hp); }
+                (void)_t_Bool_4437;
+                if (_t_Bool_4437) {
                     I64 val = Str_to_i64(val_str);
                     (void)val;
-                    I64 _t_I64_4407 = 0;
+                    I64 _t_I64_4406 = 0;
+                    (void)_t_I64_4406;
+                    I64 _t_I64_4407 = 255;
                     (void)_t_I64_4407;
-                    I64 _t_I64_4408 = 255;
-                    (void)_t_I64_4408;
-                    Bool _t_Bool_4409 = I64_gte(&(I64){val}, &(I64){_t_I64_4407});
+                    Bool _t_Bool_4408 = I64_gte(&(I64){val}, &(I64){_t_I64_4406});
+                    (void)_t_Bool_4408;
+                    ;
+                    Bool _t_Bool_4409 = I64_lte(&(I64){val}, &(I64){_t_I64_4407});
                     (void)_t_Bool_4409;
                     ;
-                    Bool _t_Bool_4410 = I64_lte(&(I64){val}, &(I64){_t_I64_4408});
+                    ;
+                    Bool _t_Bool_4410 = Bool_and(_t_Bool_4408, _t_Bool_4409);
                     (void)_t_Bool_4410;
                     ;
                     ;
-                    Bool _t_Bool_4411 = Bool_and(_t_Bool_4409, _t_Bool_4410);
-                    (void)_t_Bool_4411;
                     ;
                     ;
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
                     ;
-                    ;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
-                    ;
-                    return _t_Bool_4411;
+                    return _t_Bool_4410;
                 } else {
-                    Bool _t_Bool_4437; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4404, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4437 = *_hp; free(_hp); }
-                    (void)_t_Bool_4437;
-                    if (_t_Bool_4437) {
+                    Bool _t_Bool_4436; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4403, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4436 = *_hp; free(_hp); }
+                    (void)_t_Bool_4436;
+                    if (_t_Bool_4436) {
                         I64 val = Str_to_i64(val_str);
                         (void)val;
-                        I64 _t_I64_4412 = 0;
+                        I64 _t_I64_4411 = 0;
+                        (void)_t_I64_4411;
+                        I64 _t_I64_4412 = 32768;
                         (void)_t_I64_4412;
-                        I64 _t_I64_4413 = 32768;
+                        I64 _t_I64_4413 = I64_sub(_t_I64_4411, _t_I64_4412);
                         (void)_t_I64_4413;
-                        I64 _t_I64_4414 = I64_sub(_t_I64_4412, _t_I64_4413);
+                        ;
+                        ;
+                        I64 _t_I64_4414 = 32767;
                         (void)_t_I64_4414;
+                        Bool _t_Bool_4415 = I64_gte(&(I64){val}, &(I64){_t_I64_4413});
+                        (void)_t_Bool_4415;
                         ;
-                        ;
-                        I64 _t_I64_4415 = 32767;
-                        (void)_t_I64_4415;
-                        Bool _t_Bool_4416 = I64_gte(&(I64){val}, &(I64){_t_I64_4414});
+                        Bool _t_Bool_4416 = I64_lte(&(I64){val}, &(I64){_t_I64_4414});
                         (void)_t_Bool_4416;
                         ;
-                        Bool _t_Bool_4417 = I64_lte(&(I64){val}, &(I64){_t_I64_4415});
+                        ;
+                        Bool _t_Bool_4417 = Bool_and(_t_Bool_4415, _t_Bool_4416);
                         (void)_t_Bool_4417;
                         ;
                         ;
-                        Bool _t_Bool_4418 = Bool_and(_t_Bool_4416, _t_Bool_4417);
-                        (void)_t_Bool_4418;
                         ;
                         ;
                         ;
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
                         ;
-                        ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
-                        ;
-                        return _t_Bool_4418;
+                        return _t_Bool_4417;
                     } else {
-                        Bool _t_Bool_4436; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4404, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4436 = *_hp; free(_hp); }
-                        (void)_t_Bool_4436;
-                        if (_t_Bool_4436) {
+                        Bool _t_Bool_4435; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4403, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4435 = *_hp; free(_hp); }
+                        (void)_t_Bool_4435;
+                        if (_t_Bool_4435) {
                             I64 val = Str_to_i64(val_str);
                             (void)val;
-                            I64 _t_I64_4419 = 0;
+                            I64 _t_I64_4418 = 0;
+                            (void)_t_I64_4418;
+                            I64 _t_I64_4419 = 2147483648;
                             (void)_t_I64_4419;
-                            I64 _t_I64_4420 = 2147483648;
+                            I64 _t_I64_4420 = I64_sub(_t_I64_4418, _t_I64_4419);
                             (void)_t_I64_4420;
-                            I64 _t_I64_4421 = I64_sub(_t_I64_4419, _t_I64_4420);
+                            ;
+                            ;
+                            I64 _t_I64_4421 = 2147483647;
                             (void)_t_I64_4421;
+                            Bool _t_Bool_4422 = I64_gte(&(I64){val}, &(I64){_t_I64_4420});
+                            (void)_t_Bool_4422;
                             ;
-                            ;
-                            I64 _t_I64_4422 = 2147483647;
-                            (void)_t_I64_4422;
-                            Bool _t_Bool_4423 = I64_gte(&(I64){val}, &(I64){_t_I64_4421});
+                            Bool _t_Bool_4423 = I64_lte(&(I64){val}, &(I64){_t_I64_4421});
                             (void)_t_Bool_4423;
                             ;
-                            Bool _t_Bool_4424 = I64_lte(&(I64){val}, &(I64){_t_I64_4422});
+                            ;
+                            Bool _t_Bool_4424 = Bool_and(_t_Bool_4422, _t_Bool_4423);
                             (void)_t_Bool_4424;
                             ;
                             ;
-                            Bool _t_Bool_4425 = Bool_and(_t_Bool_4423, _t_Bool_4424);
-                            (void)_t_Bool_4425;
                             ;
                             ;
                             ;
                             ;
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
                             ;
-                            ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
-                            ;
-                            return _t_Bool_4425;
+                            return _t_Bool_4424;
                         } else {
-                            Bool _t_Bool_4435; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4404, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4435 = *_hp; free(_hp); }
-                            (void)_t_Bool_4435;
-                            if (_t_Bool_4435) {
+                            Bool _t_Bool_4434; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4403, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4434 = *_hp; free(_hp); }
+                            (void)_t_Bool_4434;
+                            if (_t_Bool_4434) {
                                 I64 val = Str_to_i64(val_str);
                                 (void)val;
-                                I64 _t_I64_4426 = 0;
+                                I64 _t_I64_4425 = 0;
+                                (void)_t_I64_4425;
+                                I64 _t_I64_4426 = 4294967295;
                                 (void)_t_I64_4426;
-                                I64 _t_I64_4427 = 4294967295;
-                                (void)_t_I64_4427;
-                                Bool _t_Bool_4428 = I64_gte(&(I64){val}, &(I64){_t_I64_4426});
+                                Bool _t_Bool_4427 = I64_gte(&(I64){val}, &(I64){_t_I64_4425});
+                                (void)_t_Bool_4427;
+                                ;
+                                Bool _t_Bool_4428 = I64_lte(&(I64){val}, &(I64){_t_I64_4426});
                                 (void)_t_Bool_4428;
                                 ;
-                                Bool _t_Bool_4429 = I64_lte(&(I64){val}, &(I64){_t_I64_4427});
+                                ;
+                                Bool _t_Bool_4429 = Bool_and(_t_Bool_4427, _t_Bool_4428);
                                 (void)_t_Bool_4429;
                                 ;
                                 ;
-                                Bool _t_Bool_4430 = Bool_and(_t_Bool_4428, _t_Bool_4429);
-                                (void)_t_Bool_4430;
                                 ;
                                 ;
                                 ;
                                 ;
                                 ;
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
                                 ;
-                                ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
-                                ;
-                                return _t_Bool_4430;
+                                return _t_Bool_4429;
                             } else {
-                                Bool _t_Bool_4434; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4404, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4434 = *_hp; free(_hp); }
-                                (void)_t_Bool_4434;
-                                if (_t_Bool_4434) {
+                                Bool _t_Bool_4433; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4403, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4433 = *_hp; free(_hp); }
+                                (void)_t_Bool_4433;
+                                if (_t_Bool_4433) {
                                     I64 val = Str_to_i64(val_str);
                                     (void)val;
-                                    I64 _t_I64_4431 = 0;
-                                    (void)_t_I64_4431;
-                                    Bool _t_Bool_4432 = I64_gte(&(I64){val}, &(I64){_t_I64_4431});
+                                    I64 _t_I64_4430 = 0;
+                                    (void)_t_I64_4430;
+                                    Bool _t_Bool_4431 = I64_gte(&(I64){val}, &(I64){_t_I64_4430});
+                                    (void)_t_Bool_4431;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
+                                    ;
+                                    return _t_Bool_4431;
+                                } else {
+                                    Bool _t_Bool_4432 = 1;
                                     (void)_t_Bool_4432;
                                     ;
                                     ;
@@ -27424,23 +27412,9 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                                     ;
                                     ;
                                     ;
-                                    ;
-                                    ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4403; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4432;
-                                } else {
-                                    Bool _t_Bool_4433 = 1;
-                                    (void)_t_Bool_4433;
-                                    ;
-                                    ;
-                                    ;
-                                    ;
-                                    ;
-                                    ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4404; _oa; }), &(Bool){1});
-                                    ;
-                                    return _t_Bool_4433;
                                 }
                                 ;
                             }
@@ -27454,7 +27428,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4404, &(Bool){0});
+        TilType_delete(&_sw_v_4403, &(Bool){0});
         ;
     }
 }
@@ -27462,88 +27436,88 @@ Bool literal_in_range(Str * val_str, TilType * target) {
 Bool can_implicit_widen(TilType * from, TilType * to) {
     (void)from;
     (void)to;
-    Bool _t_Bool_4476; { Bool *_hp = (Bool *)TilType_eq(from, to); _t_Bool_4476 = *_hp; free(_hp); }
-    (void)_t_Bool_4476;
-    if (_t_Bool_4476) {
-        Bool _t_Bool_4441 = 0;
-        (void)_t_Bool_4441;
+    Bool _t_Bool_4475; { Bool *_hp = (Bool *)TilType_eq(from, to); _t_Bool_4475 = *_hp; free(_hp); }
+    (void)_t_Bool_4475;
+    if (_t_Bool_4475) {
+        Bool _t_Bool_4440 = 0;
+        (void)_t_Bool_4440;
         ;
-        return _t_Bool_4441;
+        return _t_Bool_4440;
     }
     ;
     {
-        TilType _sw_v_4442; { TilType *_hp = (TilType *)TilType_clone(from); _sw_v_4442 = *_hp; free(_hp); }
-        (void)_sw_v_4442;
-        Bool _t_Bool_4475; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4475 = *_hp; free(_hp); }
-        (void)_t_Bool_4475;
-        if (_t_Bool_4475) {
+        TilType _sw_v_4441; { TilType *_hp = (TilType *)TilType_clone(from); _sw_v_4441 = *_hp; free(_hp); }
+        (void)_sw_v_4441;
+        Bool _t_Bool_4474; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4441, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4474 = *_hp; free(_hp); }
+        (void)_t_Bool_4474;
+        if (_t_Bool_4474) {
             {
-                TilType _sw_v_4443; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4443 = *_hp; free(_hp); }
-                (void)_sw_v_4443;
-                Bool _t_Bool_4454; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4443, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4454 = *_hp; free(_hp); }
-                (void)_t_Bool_4454;
-                if (_t_Bool_4454) {
-                    Bool _t_Bool_4444 = 1;
-                    (void)_t_Bool_4444;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4443; _oa; }), &(Bool){1});
+                TilType _sw_v_4442; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4442 = *_hp; free(_hp); }
+                (void)_sw_v_4442;
+                Bool _t_Bool_4453; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4453 = *_hp; free(_hp); }
+                (void)_t_Bool_4453;
+                if (_t_Bool_4453) {
+                    Bool _t_Bool_4443 = 1;
+                    (void)_t_Bool_4443;
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4442; _oa; }), &(Bool){1});
                     ;
-                    return _t_Bool_4444;
+                    return _t_Bool_4443;
                 } else {
-                    Bool _t_Bool_4453; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4443, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4453 = *_hp; free(_hp); }
-                    (void)_t_Bool_4453;
-                    if (_t_Bool_4453) {
-                        Bool _t_Bool_4445 = 1;
-                        (void)_t_Bool_4445;
+                    Bool _t_Bool_4452; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4452 = *_hp; free(_hp); }
+                    (void)_t_Bool_4452;
+                    if (_t_Bool_4452) {
+                        Bool _t_Bool_4444 = 1;
+                        (void)_t_Bool_4444;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4443; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4442; _oa; }), &(Bool){1});
                         ;
-                        return _t_Bool_4445;
+                        return _t_Bool_4444;
                     } else {
-                        Bool _t_Bool_4452; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4443, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4452 = *_hp; free(_hp); }
-                        (void)_t_Bool_4452;
-                        if (_t_Bool_4452) {
-                            Bool _t_Bool_4446 = 1;
-                            (void)_t_Bool_4446;
+                        Bool _t_Bool_4451; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4451 = *_hp; free(_hp); }
+                        (void)_t_Bool_4451;
+                        if (_t_Bool_4451) {
+                            Bool _t_Bool_4445 = 1;
+                            (void)_t_Bool_4445;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4443; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4442; _oa; }), &(Bool){1});
                             ;
-                            return _t_Bool_4446;
+                            return _t_Bool_4445;
                         } else {
-                            Bool _t_Bool_4451; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4443, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4451 = *_hp; free(_hp); }
-                            (void)_t_Bool_4451;
-                            if (_t_Bool_4451) {
-                                Bool _t_Bool_4447 = 1;
-                                (void)_t_Bool_4447;
+                            Bool _t_Bool_4450; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4450 = *_hp; free(_hp); }
+                            (void)_t_Bool_4450;
+                            if (_t_Bool_4450) {
+                                Bool _t_Bool_4446 = 1;
+                                (void)_t_Bool_4446;
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4443; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4442; _oa; }), &(Bool){1});
                                 ;
-                                return _t_Bool_4447;
+                                return _t_Bool_4446;
                             } else {
-                                Bool _t_Bool_4450; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4443, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4450 = *_hp; free(_hp); }
-                                (void)_t_Bool_4450;
-                                if (_t_Bool_4450) {
-                                    Bool _t_Bool_4448 = 1;
+                                Bool _t_Bool_4449; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4449 = *_hp; free(_hp); }
+                                (void)_t_Bool_4449;
+                                if (_t_Bool_4449) {
+                                    Bool _t_Bool_4447 = 1;
+                                    (void)_t_Bool_4447;
+                                    ;
+                                    ;
+                                    ;
+                                    ;
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4442; _oa; }), &(Bool){1});
+                                    ;
+                                    return _t_Bool_4447;
+                                } else {
+                                    Bool _t_Bool_4448 = 0;
                                     (void)_t_Bool_4448;
                                     ;
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4443; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4442; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4448;
-                                } else {
-                                    Bool _t_Bool_4449 = 0;
-                                    (void)_t_Bool_4449;
-                                    ;
-                                    ;
-                                    ;
-                                    ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4443; _oa; }), &(Bool){1});
-                                    ;
-                                    return _t_Bool_4449;
                                 }
                                 ;
                             }
@@ -27553,117 +27527,117 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
                     }
                     ;
                 }
-                TilType_delete(&_sw_v_4443, &(Bool){0});
+                TilType_delete(&_sw_v_4442, &(Bool){0});
                 ;
             }
         } else {
-            Bool _t_Bool_4474; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4474 = *_hp; free(_hp); }
-            (void)_t_Bool_4474;
-            if (_t_Bool_4474) {
+            Bool _t_Bool_4473; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4441, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4473 = *_hp; free(_hp); }
+            (void)_t_Bool_4473;
+            if (_t_Bool_4473) {
                 {
-                    TilType _sw_v_4455; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4455 = *_hp; free(_hp); }
-                    (void)_sw_v_4455;
-                    Bool _t_Bool_4460; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4455, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4460 = *_hp; free(_hp); }
-                    (void)_t_Bool_4460;
-                    if (_t_Bool_4460) {
-                        Bool _t_Bool_4456 = 1;
-                        (void)_t_Bool_4456;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4455; _oa; }), &(Bool){1});
+                    TilType _sw_v_4454; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4454 = *_hp; free(_hp); }
+                    (void)_sw_v_4454;
+                    Bool _t_Bool_4459; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4454, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4459 = *_hp; free(_hp); }
+                    (void)_t_Bool_4459;
+                    if (_t_Bool_4459) {
+                        Bool _t_Bool_4455 = 1;
+                        (void)_t_Bool_4455;
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4454; _oa; }), &(Bool){1});
                         ;
-                        return _t_Bool_4456;
+                        return _t_Bool_4455;
                     } else {
-                        Bool _t_Bool_4459; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4455, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4459 = *_hp; free(_hp); }
-                        (void)_t_Bool_4459;
-                        if (_t_Bool_4459) {
-                            Bool _t_Bool_4457 = 1;
+                        Bool _t_Bool_4458; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4454, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4458 = *_hp; free(_hp); }
+                        (void)_t_Bool_4458;
+                        if (_t_Bool_4458) {
+                            Bool _t_Bool_4456 = 1;
+                            (void)_t_Bool_4456;
+                            ;
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4454; _oa; }), &(Bool){1});
+                            ;
+                            return _t_Bool_4456;
+                        } else {
+                            Bool _t_Bool_4457 = 0;
                             (void)_t_Bool_4457;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4455; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4454; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4457;
-                        } else {
-                            Bool _t_Bool_4458 = 0;
-                            (void)_t_Bool_4458;
-                            ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4455; _oa; }), &(Bool){1});
-                            ;
-                            return _t_Bool_4458;
                         }
                         ;
                     }
-                    TilType_delete(&_sw_v_4455, &(Bool){0});
+                    TilType_delete(&_sw_v_4454, &(Bool){0});
                     ;
                 }
             } else {
-                Bool _t_Bool_4473; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4473 = *_hp; free(_hp); }
-                (void)_t_Bool_4473;
-                if (_t_Bool_4473) {
+                Bool _t_Bool_4472; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4441, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4472 = *_hp; free(_hp); }
+                (void)_t_Bool_4472;
+                if (_t_Bool_4472) {
                     {
-                        TilType _sw_v_4461; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4461 = *_hp; free(_hp); }
-                        (void)_sw_v_4461;
-                        Bool _t_Bool_4466; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4461, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4466 = *_hp; free(_hp); }
-                        (void)_t_Bool_4466;
-                        if (_t_Bool_4466) {
-                            Bool _t_Bool_4462 = 1;
-                            (void)_t_Bool_4462;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4461; _oa; }), &(Bool){1});
+                        TilType _sw_v_4460; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4460 = *_hp; free(_hp); }
+                        (void)_sw_v_4460;
+                        Bool _t_Bool_4465; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4460, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4465 = *_hp; free(_hp); }
+                        (void)_t_Bool_4465;
+                        if (_t_Bool_4465) {
+                            Bool _t_Bool_4461 = 1;
+                            (void)_t_Bool_4461;
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4460; _oa; }), &(Bool){1});
                             ;
-                            return _t_Bool_4462;
+                            return _t_Bool_4461;
                         } else {
-                            Bool _t_Bool_4465; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4461, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4465 = *_hp; free(_hp); }
-                            (void)_t_Bool_4465;
-                            if (_t_Bool_4465) {
-                                Bool _t_Bool_4463 = 1;
+                            Bool _t_Bool_4464; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4460, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4464 = *_hp; free(_hp); }
+                            (void)_t_Bool_4464;
+                            if (_t_Bool_4464) {
+                                Bool _t_Bool_4462 = 1;
+                                (void)_t_Bool_4462;
+                                ;
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4460; _oa; }), &(Bool){1});
+                                ;
+                                return _t_Bool_4462;
+                            } else {
+                                Bool _t_Bool_4463 = 0;
                                 (void)_t_Bool_4463;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4461; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4460; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4463;
-                            } else {
-                                Bool _t_Bool_4464 = 0;
-                                (void)_t_Bool_4464;
-                                ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4461; _oa; }), &(Bool){1});
-                                ;
-                                return _t_Bool_4464;
                             }
                             ;
                         }
-                        TilType_delete(&_sw_v_4461, &(Bool){0});
+                        TilType_delete(&_sw_v_4460, &(Bool){0});
                         ;
                     }
                 } else {
-                    Bool _t_Bool_4472; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4442, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4472 = *_hp; free(_hp); }
-                    (void)_t_Bool_4472;
-                    if (_t_Bool_4472) {
+                    Bool _t_Bool_4471; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4441, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4471 = *_hp; free(_hp); }
+                    (void)_t_Bool_4471;
+                    if (_t_Bool_4471) {
                         {
-                            TilType _sw_v_4467; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4467 = *_hp; free(_hp); }
-                            (void)_sw_v_4467;
-                            Bool _t_Bool_4470; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4467, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4470 = *_hp; free(_hp); }
-                            (void)_t_Bool_4470;
-                            TilType_delete(&_sw_v_4467, &(Bool){0});
-                            if (_t_Bool_4470) {
-                                Bool _t_Bool_4468 = 1;
+                            TilType _sw_v_4466; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4466 = *_hp; free(_hp); }
+                            (void)_sw_v_4466;
+                            Bool _t_Bool_4469; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4466, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4469 = *_hp; free(_hp); }
+                            (void)_t_Bool_4469;
+                            TilType_delete(&_sw_v_4466, &(Bool){0});
+                            if (_t_Bool_4469) {
+                                Bool _t_Bool_4467 = 1;
+                                (void)_t_Bool_4467;
+                                ;
+                                return _t_Bool_4467;
+                            } else {
+                                Bool _t_Bool_4468 = 0;
                                 (void)_t_Bool_4468;
                                 ;
                                 return _t_Bool_4468;
-                            } else {
-                                Bool _t_Bool_4469 = 0;
-                                (void)_t_Bool_4469;
-                                ;
-                                return _t_Bool_4469;
                             }
                             ;
                         }
                     } else {
-                        Bool _t_Bool_4471 = 0;
-                        (void)_t_Bool_4471;
+                        Bool _t_Bool_4470 = 0;
+                        (void)_t_Bool_4470;
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4442; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4441; _oa; }), &(Bool){1});
                         ;
-                        return _t_Bool_4471;
+                        return _t_Bool_4470;
                     }
                     ;
                 }
@@ -27671,7 +27645,7 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4442, &(Bool){0});
+        TilType_delete(&_sw_v_4441, &(Bool){0});
         ;
     }
 }
@@ -27679,206 +27653,201 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
 TilType * type_from_name(Str * name, TypeScope * scope) {
     (void)name;
     (void)scope;
-    Str _t_Str_4489; { Str *_hp = (Str *)Str_lit("I64", 3ULL); _t_Str_4489 = *_hp; free(_hp); }
-    (void)_t_Str_4489;
-    Bool _t_Bool_4490 = Str_eq(name, &_t_Str_4489);
-    (void)_t_Bool_4490;
-    Str_delete(&_t_Str_4489, &(Bool){0});
-    if (_t_Bool_4490) {
+    Str _t_Str_4488; { Str *_hp = (Str *)Str_lit("I64", 3ULL); _t_Str_4488 = *_hp; free(_hp); }
+    (void)_t_Str_4488;
+    Bool _t_Bool_4489 = Str_eq(name, &_t_Str_4488);
+    (void)_t_Bool_4489;
+    Str_delete(&_t_Str_4488, &(Bool){0});
+    if (_t_Bool_4489) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_I64; return _r; }
     }
     ;
-    Str _t_Str_4491; { Str *_hp = (Str *)Str_lit("U8", 2ULL); _t_Str_4491 = *_hp; free(_hp); }
-    (void)_t_Str_4491;
-    Bool _t_Bool_4492 = Str_eq(name, &_t_Str_4491);
-    (void)_t_Bool_4492;
-    Str_delete(&_t_Str_4491, &(Bool){0});
-    if (_t_Bool_4492) {
+    Str _t_Str_4490; { Str *_hp = (Str *)Str_lit("U8", 2ULL); _t_Str_4490 = *_hp; free(_hp); }
+    (void)_t_Str_4490;
+    Bool _t_Bool_4491 = Str_eq(name, &_t_Str_4490);
+    (void)_t_Bool_4491;
+    Str_delete(&_t_Str_4490, &(Bool){0});
+    if (_t_Bool_4491) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_U8; return _r; }
     }
     ;
-    Str _t_Str_4493; { Str *_hp = (Str *)Str_lit("I16", 3ULL); _t_Str_4493 = *_hp; free(_hp); }
-    (void)_t_Str_4493;
-    Bool _t_Bool_4494 = Str_eq(name, &_t_Str_4493);
-    (void)_t_Bool_4494;
-    Str_delete(&_t_Str_4493, &(Bool){0});
-    if (_t_Bool_4494) {
+    Str _t_Str_4492; { Str *_hp = (Str *)Str_lit("I16", 3ULL); _t_Str_4492 = *_hp; free(_hp); }
+    (void)_t_Str_4492;
+    Bool _t_Bool_4493 = Str_eq(name, &_t_Str_4492);
+    (void)_t_Bool_4493;
+    Str_delete(&_t_Str_4492, &(Bool){0});
+    if (_t_Bool_4493) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_I16; return _r; }
     }
     ;
-    Str _t_Str_4495; { Str *_hp = (Str *)Str_lit("I32", 3ULL); _t_Str_4495 = *_hp; free(_hp); }
-    (void)_t_Str_4495;
-    Bool _t_Bool_4496 = Str_eq(name, &_t_Str_4495);
-    (void)_t_Bool_4496;
-    Str_delete(&_t_Str_4495, &(Bool){0});
-    if (_t_Bool_4496) {
+    Str _t_Str_4494; { Str *_hp = (Str *)Str_lit("I32", 3ULL); _t_Str_4494 = *_hp; free(_hp); }
+    (void)_t_Str_4494;
+    Bool _t_Bool_4495 = Str_eq(name, &_t_Str_4494);
+    (void)_t_Bool_4495;
+    Str_delete(&_t_Str_4494, &(Bool){0});
+    if (_t_Bool_4495) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_I32; return _r; }
     }
     ;
-    Str _t_Str_4497; { Str *_hp = (Str *)Str_lit("U32", 3ULL); _t_Str_4497 = *_hp; free(_hp); }
-    (void)_t_Str_4497;
-    Bool _t_Bool_4498 = Str_eq(name, &_t_Str_4497);
-    (void)_t_Bool_4498;
-    Str_delete(&_t_Str_4497, &(Bool){0});
-    if (_t_Bool_4498) {
+    Str _t_Str_4496; { Str *_hp = (Str *)Str_lit("U32", 3ULL); _t_Str_4496 = *_hp; free(_hp); }
+    (void)_t_Str_4496;
+    Bool _t_Bool_4497 = Str_eq(name, &_t_Str_4496);
+    (void)_t_Bool_4497;
+    Str_delete(&_t_Str_4496, &(Bool){0});
+    if (_t_Bool_4497) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_U32; return _r; }
     }
     ;
-    Str _t_Str_4499; { Str *_hp = (Str *)Str_lit("U64", 3ULL); _t_Str_4499 = *_hp; free(_hp); }
-    (void)_t_Str_4499;
-    Bool _t_Bool_4500 = Str_eq(name, &_t_Str_4499);
-    (void)_t_Bool_4500;
-    Str_delete(&_t_Str_4499, &(Bool){0});
-    if (_t_Bool_4500) {
+    Str _t_Str_4498; { Str *_hp = (Str *)Str_lit("U64", 3ULL); _t_Str_4498 = *_hp; free(_hp); }
+    (void)_t_Str_4498;
+    Bool _t_Bool_4499 = Str_eq(name, &_t_Str_4498);
+    (void)_t_Bool_4499;
+    Str_delete(&_t_Str_4498, &(Bool){0});
+    if (_t_Bool_4499) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_U64; return _r; }
     }
     ;
-    Str _t_Str_4501; { Str *_hp = (Str *)Str_lit("F32", 3ULL); _t_Str_4501 = *_hp; free(_hp); }
-    (void)_t_Str_4501;
-    Bool _t_Bool_4502 = Str_eq(name, &_t_Str_4501);
-    (void)_t_Bool_4502;
-    Str_delete(&_t_Str_4501, &(Bool){0});
-    if (_t_Bool_4502) {
+    Str _t_Str_4500; { Str *_hp = (Str *)Str_lit("F32", 3ULL); _t_Str_4500 = *_hp; free(_hp); }
+    (void)_t_Str_4500;
+    Bool _t_Bool_4501 = Str_eq(name, &_t_Str_4500);
+    (void)_t_Bool_4501;
+    Str_delete(&_t_Str_4500, &(Bool){0});
+    if (_t_Bool_4501) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_F32; return _r; }
     }
     ;
-    Str _t_Str_4503; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_4503 = *_hp; free(_hp); }
-    (void)_t_Str_4503;
-    Bool _t_Bool_4504 = Str_eq(name, &_t_Str_4503);
-    (void)_t_Bool_4504;
-    Str_delete(&_t_Str_4503, &(Bool){0});
-    if (_t_Bool_4504) {
+    Str _t_Str_4502; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_4502 = *_hp; free(_hp); }
+    (void)_t_Str_4502;
+    Bool _t_Bool_4503 = Str_eq(name, &_t_Str_4502);
+    (void)_t_Bool_4503;
+    Str_delete(&_t_Str_4502, &(Bool){0});
+    if (_t_Bool_4503) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Struct; return _r; }
     }
     ;
-    Str _t_Str_4505; { Str *_hp = (Str *)Str_lit("Bool", 4ULL); _t_Str_4505 = *_hp; free(_hp); }
-    (void)_t_Str_4505;
-    Bool _t_Bool_4506 = Str_eq(name, &_t_Str_4505);
-    (void)_t_Bool_4506;
-    Str_delete(&_t_Str_4505, &(Bool){0});
-    if (_t_Bool_4506) {
+    Str _t_Str_4504; { Str *_hp = (Str *)Str_lit("Bool", 4ULL); _t_Str_4504 = *_hp; free(_hp); }
+    (void)_t_Str_4504;
+    Bool _t_Bool_4505 = Str_eq(name, &_t_Str_4504);
+    (void)_t_Bool_4505;
+    Str_delete(&_t_Str_4504, &(Bool){0});
+    if (_t_Bool_4505) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Bool; return _r; }
     }
     ;
-    Str _t_Str_4507; { Str *_hp = (Str *)Str_lit("StructDef", 9ULL); _t_Str_4507 = *_hp; free(_hp); }
-    (void)_t_Str_4507;
-    Bool _t_Bool_4508 = Str_eq(name, &_t_Str_4507);
-    (void)_t_Bool_4508;
-    Str_delete(&_t_Str_4507, &(Bool){0});
-    if (_t_Bool_4508) {
+    Str _t_Str_4506; { Str *_hp = (Str *)Str_lit("StructDef", 9ULL); _t_Str_4506 = *_hp; free(_hp); }
+    (void)_t_Str_4506;
+    Bool _t_Bool_4507 = Str_eq(name, &_t_Str_4506);
+    (void)_t_Bool_4507;
+    Str_delete(&_t_Str_4506, &(Bool){0});
+    if (_t_Bool_4507) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_StructDef; return _r; }
     }
     ;
-    Str _t_Str_4509; { Str *_hp = (Str *)Str_lit("EnumDef", 7ULL); _t_Str_4509 = *_hp; free(_hp); }
-    (void)_t_Str_4509;
-    Bool _t_Bool_4510 = Str_eq(name, &_t_Str_4509);
-    (void)_t_Bool_4510;
-    Str_delete(&_t_Str_4509, &(Bool){0});
-    if (_t_Bool_4510) {
+    Str _t_Str_4508; { Str *_hp = (Str *)Str_lit("EnumDef", 7ULL); _t_Str_4508 = *_hp; free(_hp); }
+    (void)_t_Str_4508;
+    Bool _t_Bool_4509 = Str_eq(name, &_t_Str_4508);
+    (void)_t_Bool_4509;
+    Str_delete(&_t_Str_4508, &(Bool){0});
+    if (_t_Bool_4509) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_EnumDef; return _r; }
     }
     ;
-    Str _t_Str_4511; { Str *_hp = (Str *)Str_lit("Fn", 2ULL); _t_Str_4511 = *_hp; free(_hp); }
-    (void)_t_Str_4511;
-    Bool _t_Bool_4512 = Str_eq(name, &_t_Str_4511);
-    (void)_t_Bool_4512;
-    Str_delete(&_t_Str_4511, &(Bool){0});
-    if (_t_Bool_4512) {
+    Str _t_Str_4510; { Str *_hp = (Str *)Str_lit("Fn", 2ULL); _t_Str_4510 = *_hp; free(_hp); }
+    (void)_t_Str_4510;
+    Bool _t_Bool_4511 = Str_eq(name, &_t_Str_4510);
+    (void)_t_Bool_4511;
+    Str_delete(&_t_Str_4510, &(Bool){0});
+    if (_t_Bool_4511) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
     }
     ;
-    Str _t_Str_4513; { Str *_hp = (Str *)Str_lit("Dynamic", 7ULL); _t_Str_4513 = *_hp; free(_hp); }
-    (void)_t_Str_4513;
-    Bool _t_Bool_4514 = Str_eq(name, &_t_Str_4513);
-    (void)_t_Bool_4514;
-    Str_delete(&_t_Str_4513, &(Bool){0});
-    if (_t_Bool_4514) {
+    Str _t_Str_4512; { Str *_hp = (Str *)Str_lit("Dynamic", 7ULL); _t_Str_4512 = *_hp; free(_hp); }
+    (void)_t_Str_4512;
+    Bool _t_Bool_4513 = Str_eq(name, &_t_Str_4512);
+    (void)_t_Bool_4513;
+    Str_delete(&_t_Str_4512, &(Bool){0});
+    if (_t_Bool_4513) {
         ;
         { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_Dynamic; return _r; }
     }
     ;
-    Bool _t_Bool_4515 = is_null(scope);
+    Bool _t_Bool_4514 = is_null(scope);
+    (void)_t_Bool_4514;
+    Bool _t_Bool_4515 = Bool_not(_t_Bool_4514);
     (void)_t_Bool_4515;
-    Bool _t_Bool_4516 = Bool_not(_t_Bool_4515);
-    (void)_t_Bool_4516;
     ;
-    if (_t_Bool_4516) {
-        {
-            ScopeFind *_sw_v_4477 = TypeScope_find(scope, name);
-            (void)_sw_v_4477;
-            Bool _t_Bool_4485 = is_variant(_sw_v_4477, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-            (void)_t_Bool_4485;
-            if (_t_Bool_4485) {
-                TypeBinding *b = get_payload(_sw_v_4477);
-                (void)b;
-                if (b->is_builtin) {
-                    Bool _t_Bool_4478 = is_null(b->struct_def);
-                    (void)_t_Bool_4478;
-                    Bool _t_Bool_4479 = Bool_not(_t_Bool_4478);
-                    (void)_t_Bool_4479;
-                    ;
-                    if (_t_Bool_4479) {
-                        ;
-                        ScopeFind_delete(_sw_v_4477, &(Bool){1});
-                        ;
-                        { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
-                    }
-                    ;
-                }
-                Bool _t_Bool_4483 = is_null(b->func_def);
-                (void)_t_Bool_4483;
-                Bool _t_Bool_4484 = Bool_not(_t_Bool_4483);
-                (void)_t_Bool_4484;
+    if (_t_Bool_4515) {
+        TypeBinding *b = TypeScope_get_binding(scope, name);
+        (void)b;
+        Bool _t_Bool_4484 = is_null(b);
+        (void)_t_Bool_4484;
+        Bool _t_Bool_4485 = Bool_not(_t_Bool_4484);
+        (void)_t_Bool_4485;
+        ;
+        if (_t_Bool_4485) {
+            if (b->is_builtin) {
+                Bool _t_Bool_4476 = is_null(b->struct_def);
+                (void)_t_Bool_4476;
+                Bool _t_Bool_4477 = Bool_not(_t_Bool_4476);
+                (void)_t_Bool_4477;
                 ;
-                if (_t_Bool_4484) {
-                    U32 _t_U32_4480 = Expr_child_count(b->func_def);
-                    (void)_t_U32_4480;
-                    U32 _t_U32_4481 = 0;
-                    (void)_t_U32_4481;
-                    Bool _t_Bool_4482 = U32_eq(_t_U32_4480, _t_U32_4481);
-                    (void)_t_Bool_4482;
+                if (_t_Bool_4477) {
                     ;
                     ;
-                    if (_t_Bool_4482) {
-                        ;
-                        ;
-                        ScopeFind_delete(_sw_v_4477, &(Bool){1});
-                        ;
-                        { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
-                    }
                     ;
+                    { TilType *_r = malloc(sizeof(TilType)); *_r = b->type; return _r; }
                 }
                 ;
-            } else {
-                {
-                }
             }
-            ScopeFind_delete(_sw_v_4477, &(Bool){0});
+            Bool _t_Bool_4481 = is_null(b->func_def);
+            (void)_t_Bool_4481;
+            Bool _t_Bool_4482 = Bool_not(_t_Bool_4481);
+            (void)_t_Bool_4482;
+            ;
+            if (_t_Bool_4482) {
+                U32 _t_U32_4478 = Expr_child_count(b->func_def);
+                (void)_t_U32_4478;
+                U32 _t_U32_4479 = 0;
+                (void)_t_U32_4479;
+                Bool _t_Bool_4480 = U32_eq(_t_U32_4478, _t_U32_4479);
+                (void)_t_Bool_4480;
+                ;
+                ;
+                if (_t_Bool_4480) {
+                    ;
+                    ;
+                    ;
+                    ;
+                    { TilType *_r = malloc(sizeof(TilType)); _r->tag = TilType_TAG_FuncPtr; return _r; }
+                }
+                ;
+            }
             ;
         }
+        ;
         Expr *sdef = TypeScope_get_struct(scope, name);
         (void)sdef;
-        Bool _t_Bool_4487 = is_null(sdef);
+        Bool _t_Bool_4486 = is_null(sdef);
+        (void)_t_Bool_4486;
+        Bool _t_Bool_4487 = Bool_not(_t_Bool_4486);
         (void)_t_Bool_4487;
-        Bool _t_Bool_4488 = Bool_not(_t_Bool_4487);
-        (void)_t_Bool_4488;
         ;
-        if (_t_Bool_4488) {
-            Bool _t_Bool_4486 = is_variant(&sdef->data, &(ExprData){.tag = ExprData_TAG_EnumDef});
-            (void)_t_Bool_4486;
-            if (_t_Bool_4486) {
+        if (_t_Bool_4487) {
+            Bool _t_Bool_4483 = is_variant(&sdef->data, &(ExprData){.tag = ExprData_TAG_EnumDef});
+            (void)_t_Bool_4483;
+            if (_t_Bool_4483) {
                 ;
                 ;
                 ;
@@ -27898,62 +27867,54 @@ TilType * type_from_name(Str * name, TypeScope * scope) {
 Str * resolve_type_alias(TypeScope * scope, Str * name) {
     (void)scope;
     (void)name;
-    {
-        ScopeFind *_sw_v_4517 = TypeScope_find(scope, name);
-        (void)_sw_v_4517;
-        Bool _t_Bool_4520 = is_variant(_sw_v_4517, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-        (void)_t_Bool_4520;
-        if (_t_Bool_4520) {
-            TypeBinding *b = get_payload(_sw_v_4517);
-            (void)b;
-            if (b->is_type_alias) {
-                Bool _t_Bool_4518 = is_null(b->alias_target);
-                (void)_t_Bool_4518;
-                Bool _t_Bool_4519 = Bool_not(_t_Bool_4518);
-                (void)_t_Bool_4519;
+    TypeBinding *b = TypeScope_get_binding(scope, name);
+    (void)b;
+    Bool _t_Bool_4518 = is_null(b);
+    (void)_t_Bool_4518;
+    Bool _t_Bool_4519 = Bool_not(_t_Bool_4518);
+    (void)_t_Bool_4519;
+    ;
+    if (_t_Bool_4519) {
+        if (b->is_type_alias) {
+            Bool _t_Bool_4516 = is_null(b->alias_target);
+            (void)_t_Bool_4516;
+            Bool _t_Bool_4517 = Bool_not(_t_Bool_4516);
+            (void)_t_Bool_4517;
+            ;
+            if (_t_Bool_4517) {
                 ;
-                if (_t_Bool_4519) {
-                    ;
-                    ScopeFind_delete(_sw_v_4517, &(Bool){1});
-                    ;
-                    return b->alias_target;
-                }
                 ;
+                return b->alias_target;
             }
-        } else {
-            {
-            }
+            ;
         }
-        ScopeFind_delete(_sw_v_4517, &(Bool){0});
-        ;
     }
+    ;
     return name;
 }
 
 Str * usize_name(TypeScope * scope) {
     (void)scope;
-    {
-        Str _t_Str_4524; { Str *_hp = (Str *)Str_lit("USize", 5ULL); _t_Str_4524 = *_hp; free(_hp); }
-        (void)_t_Str_4524;
-        ScopeFind _sw_v_4521; { ScopeFind *_hp = (ScopeFind *)TypeScope_find(scope, &_t_Str_4524); _sw_v_4521 = *_hp; free(_hp); }
-        (void)_sw_v_4521;
-        Str_delete(&_t_Str_4524, &(Bool){0});
-        Bool _t_Bool_4525 = is_variant(&_sw_v_4521, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-        (void)_t_Bool_4525;
-        ScopeFind_delete(&_sw_v_4521, &(Bool){0});
-        if (_t_Bool_4525) {
-            Str _t_Str_4522; { Str *_hp = (Str *)Str_lit("USize", 5ULL); _t_Str_4522 = *_hp; free(_hp); }
-            (void)_t_Str_4522;
-            ;
-            { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_4522; return _r; }
-        } else {
-            Str _t_Str_4523; { Str *_hp = (Str *)Str_lit("U64", 3ULL); _t_Str_4523 = *_hp; free(_hp); }
-            (void)_t_Str_4523;
-            ;
-            { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_4523; return _r; }
-        }
+    Str *_t_Str_4521 = Str_lit("USize", 5ULL);
+    (void)_t_Str_4521;
+    TypeBinding *_t_TypeBinding_4522 = TypeScope_get_binding(scope, _t_Str_4521);
+    (void)_t_TypeBinding_4522;
+    Bool _t_Bool_4523 = is_null(_t_TypeBinding_4522);
+    (void)_t_Bool_4523;
+    Str_delete(_t_Str_4521, &(Bool){0});
+    Bool _t_Bool_4524 = Bool_not(_t_Bool_4523);
+    (void)_t_Bool_4524;
+    ;
+    if (_t_Bool_4524) {
+        Str _t_Str_4520; { Str *_hp = (Str *)Str_lit("USize", 5ULL); _t_Str_4520 = *_hp; free(_hp); }
+        (void)_t_Str_4520;
         ;
+        { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_4520; return _r; }
     }
+    ;
+    Str _t_Str_4525; { Str *_hp = (Str *)Str_lit("U64", 3ULL); _t_Str_4525 = *_hp; free(_hp); }
+    (void)_t_Str_4525;
+    { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_4525; return _r; }
 }
 
 TilType * usize_type(TypeScope * scope) {
@@ -28908,45 +28869,41 @@ Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope) {
     (void)_t_Bool_4713;
     ;
     if (_t_Bool_4713) {
-        U32 _t_U32_4673 = 0;
-        (void)_t_U32_4673;
-        Str *fn_name = get_payload(&Expr_child(fcall, &(U32){_t_U32_4673})->data);
+        U32 _t_U32_4670 = 0;
+        (void)_t_U32_4670;
+        Str *fn_name = get_payload(&Expr_child(fcall, &(U32){_t_U32_4670})->data);
         (void)fn_name;
         ;
-        {
-            ScopeFind *_sw_v_4667 = TypeScope_find(scope, fn_name);
-            (void)_sw_v_4667;
-            Bool _t_Bool_4672 = is_variant(_sw_v_4667, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-            (void)_t_Bool_4672;
-            if (_t_Bool_4672) {
-                TypeBinding *fb = get_payload(_sw_v_4667);
-                (void)fb;
-                Bool _t_Bool_4669 = is_null(fb->func_def);
-                (void)_t_Bool_4669;
-                if (_t_Bool_4669) {
-                    Bool _t_Bool_4668 = 0;
-                    (void)_t_Bool_4668;
-                    ;
-                    ScopeFind_delete(_sw_v_4667, &(Bool){1});
-                    ;
-                    return _t_Bool_4668;
-                }
+        TypeBinding *fb = TypeScope_get_binding(scope, fn_name);
+        (void)fb;
+        Bool _t_Bool_4671 = is_null(fb);
+        (void)_t_Bool_4671;
+        Bool _t_Bool_4672 = Bool_not(_t_Bool_4671);
+        (void)_t_Bool_4672;
+        ;
+        if (_t_Bool_4672) {
+            Bool _t_Bool_4668 = is_null(fb->func_def);
+            (void)_t_Bool_4668;
+            if (_t_Bool_4668) {
+                Bool _t_Bool_4667 = 0;
+                (void)_t_Bool_4667;
                 ;
-                Bool _t_Bool_4670 = check_own_args(fb->func_def, fcall, var_name);
-                (void)_t_Bool_4670;
-                ScopeFind_delete(_sw_v_4667, &(Bool){1});
                 ;
-                return _t_Bool_4670;
-            } else {
-                Bool _t_Bool_4671 = 0;
-                (void)_t_Bool_4671;
-                ScopeFind_delete(_sw_v_4667, &(Bool){1});
                 ;
-                return _t_Bool_4671;
+                return _t_Bool_4667;
             }
-            ScopeFind_delete(_sw_v_4667, &(Bool){0});
             ;
+            Bool _t_Bool_4669 = check_own_args(fb->func_def, fcall, var_name);
+            (void)_t_Bool_4669;
+            ;
+            ;
+            return _t_Bool_4669;
         }
+        ;
+        Bool _t_Bool_4673 = 0;
+        (void)_t_Bool_4673;
+        ;
+        return _t_Bool_4673;
     }
     ;
     U32 _t_U32_4714 = 0;
@@ -29530,46 +29487,45 @@ I32 fcall_returns_ref(Expr * fcall, TypeScope * scope) {
     if (_t_Bool_4811) {
         Str *_cn = get_payload(&callee->data);
         (void)_cn;
-        {
-            ScopeFind *_sw_v_4780 = TypeScope_find(scope, _cn);
-            (void)_sw_v_4780;
-            Bool _t_Bool_4786 = is_variant(_sw_v_4780, &(ScopeFind){.tag = ScopeFind_TAG_Found});
-            (void)_t_Bool_4786;
-            if (_t_Bool_4786) {
-                TypeBinding *cb = get_payload(_sw_v_4780);
-                (void)cb;
-                Bool _t_Bool_4783 = is_null(cb->func_def);
-                (void)_t_Bool_4783;
-                if (_t_Bool_4783) {
-                    I64 _t_I64_4781 = 0;
-                    (void)_t_I64_4781;
-                    I32 _t_I32_4782 = I64_to_i32(_t_I64_4781);
-                    (void)_t_I32_4782;
-                    ;
-                    ;
-                    ScopeFind_delete(_sw_v_4780, &(Bool){1});
-                    ;
-                    return _t_I32_4782;
-                }
+        TypeBinding *cb = TypeScope_get_binding(scope, _cn);
+        (void)cb;
+        Bool _t_Bool_4783 = is_null(cb);
+        (void)_t_Bool_4783;
+        Bool _t_Bool_4784 = Bool_not(_t_Bool_4783);
+        (void)_t_Bool_4784;
+        ;
+        if (_t_Bool_4784) {
+            Bool _t_Bool_4782 = is_null(cb->func_def);
+            (void)_t_Bool_4782;
+            if (_t_Bool_4782) {
+                I64 _t_I64_4780 = 0;
+                (void)_t_I64_4780;
+                I32 _t_I32_4781 = I64_to_i32(_t_I64_4780);
+                (void)_t_I32_4781;
                 ;
-                FunctionDef *_cfd = get_payload(&cb->func_def->data);
-                (void)_cfd;
-                ScopeFind_delete(_sw_v_4780, &(Bool){1});
                 ;
-                return _cfd->return_is_ref;
-            } else {
-                I64 _t_I64_4784 = 0;
-                (void)_t_I64_4784;
-                I32 _t_I32_4785 = I64_to_i32(_t_I64_4784);
-                (void)_t_I32_4785;
                 ;
-                ScopeFind_delete(_sw_v_4780, &(Bool){1});
                 ;
-                return _t_I32_4785;
+                U32_delete(_t_U32_4810, &(Bool){1});
+                return _t_I32_4781;
             }
-            ScopeFind_delete(_sw_v_4780, &(Bool){0});
             ;
+            FunctionDef *_cfd = get_payload(&cb->func_def->data);
+            (void)_cfd;
+            ;
+            ;
+            U32_delete(_t_U32_4810, &(Bool){1});
+            return _cfd->return_is_ref;
         }
+        ;
+        I64 _t_I64_4785 = 0;
+        (void)_t_I64_4785;
+        I32 _t_I32_4786 = I64_to_i32(_t_I64_4785);
+        (void)_t_I32_4786;
+        ;
+        ;
+        U32_delete(_t_U32_4810, &(Bool){1});
+        return _t_I32_4786;
     }
     ;
     Bool _t_Bool_4812 = is_variant(&callee->data, &(ExprData){.tag = ExprData_TAG_FieldAccess});
@@ -35504,6 +35460,7 @@ void *dyn_fn(Str *type_name, Str *method) {
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "ScopeFind", 9ULL) == 0 && method->count == 6ULL && memcmp(method->c_str, "to_str", 6ULL) == 0) return (void*)ScopeFind_to_str;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "ScopeFind", 9ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "size", 4ULL) == 0) return (void*)ScopeFind_size;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0 && method->count == 3ULL && memcmp(method->c_str, "new", 3ULL) == 0) return (void*)TypeScope_new;
+    if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0 && method->count == 11ULL && memcmp(method->c_str, "get_binding", 11ULL) == 0) return (void*)TypeScope_get_binding;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0 && method->count == 4ULL && memcmp(method->c_str, "find", 4ULL) == 0) return (void*)TypeScope_find;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0 && method->count == 8ULL && memcmp(method->c_str, "get_type", 8ULL) == 0) return (void*)TypeScope_get_type;
     if (type_name->count == 9ULL && memcmp(type_name->c_str, "TypeScope", 9ULL) == 0 && method->count == 7ULL && memcmp(method->c_str, "is_proc", 7ULL) == 0) return (void*)TypeScope_is_proc_dyn;
