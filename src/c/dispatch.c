@@ -567,7 +567,8 @@ static void *val_to_ptr(Value *v) {
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)buf.data.Ptr + value_to_u64(offset)};
+    void *base = val_raw_ptr(&buf);
+    *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)base + value_to_u64(offset)};
     return 1;
 }
 
