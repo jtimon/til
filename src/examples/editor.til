@@ -60,7 +60,10 @@ main := proc(args: ..Str) {
             }
         }
 
-        ctrl := is_key_down(341).or(is_key_down(345))
+        // 341/345 = KEY_LEFT/RIGHT_CONTROL, 342/346 = KEY_LEFT/RIGHT_ALT
+        // Check both: GLFW uses physical key position, so xmodmap Ctrl-on-Alt
+        // reports as 342 not 341
+        ctrl := is_key_down(341).or(is_key_down(345)).or(is_key_down(342)).or(is_key_down(346))
 
         // Ctrl+S = save (opens dialog if no filename)
         if ctrl.and(is_key_pressed(83)) {

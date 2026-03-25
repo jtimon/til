@@ -2221,9 +2221,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // String helper functions (after all struct typedefs so Str is complete)
     fprintf(f, "#define TIL_CAP_LIT ((USize)-1)\n");
     fprintf(f, "Str *Str_lit(const char *s, unsigned long long len) {\n");
+    fprintf(f, "    (void)len;\n");
     fprintf(f, "    Str *r = malloc(sizeof(Str));\n");
     fprintf(f, "    r->c_str = (U8 *)s;\n");
-    fprintf(f, "    r->count = len;\n");
+    fprintf(f, "    r->count = (USize)strlen(s);\n");
     fprintf(f, "    r->cap = TIL_CAP_LIT;\n");
     fprintf(f, "    return r;\n");
     fprintf(f, "}\n");

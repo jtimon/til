@@ -217,6 +217,15 @@ test_join := test() {
 
     empty := Vec.new("Str", Str.size())
     assert_eq_str(__LOC__, join(empty, ","), "")
+
+    // Join with newline separator (escape sequence in literal)
+    lines := Vec.new("Str", Str.size())
+    lines.push(own "aaa".clone())
+    lines.push(own "bbb".clone())
+    lines.push(own "ccc".clone())
+    result := join(lines, "\n")
+    assert_eq(__LOC__, result.len().to_i64(), 11)
+    assert_eq_str(__LOC__, result, "aaa\nbbb\nccc")
 }
 
 // mut param concat — reproduces use-after-free bug

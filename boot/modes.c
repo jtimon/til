@@ -1408,9 +1408,10 @@ Bool dyn_has_cmp(Str *type_name);
 #define DEREF(p) (*(p ? p : (fprintf(stderr, "panic: null deref\n"), exit(1), p)))
 #define TIL_CAP_LIT ((USize)-1)
 Str *Str_lit(const char *s, unsigned long long len) {
+    (void)len;
     Str *r = malloc(sizeof(Str));
     r->c_str = (U8 *)s;
-    r->count = len;
+    r->count = (USize)strlen(s);
     r->cap = TIL_CAP_LIT;
     return r;
 }

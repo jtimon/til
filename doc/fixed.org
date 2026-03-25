@@ -2,13 +2,33 @@
 
 * FIXED #69 Bundle tinyfiledialogs for mode gui
   Bundled tinyfiledialogs (zlib license) in lib/tinyfiledialogs/.
-  Added til_save_dialog/til_open_dialog wrappers in ext.c that call
-  tinyfd_saveFileDialog/tinyfd_openFileDialog and return Str (empty on cancel).
-  gui.til: added link("tinyfd"), ext_func declarations, and snake_case helpers
-  (save_file_dialog, open_file_dialog).
-  editor.til: Ctrl+S on new file opens save dialog, Ctrl+O opens file dialog.
-  builder.c: -Llib/tinyfiledialogs -ltinyfd linked for all programs (ext.c refs).
-  Makefile: libtinyfd.a build target added.
+  Integration follows the raylib pattern: direct ext_func declarations
+  in gui.til, linked via ~link("tinyfd")~. No ext.c wrappers.
+
+  gui.til: ~tinyfd_saveFileDialog~ and ~tinyfd_openFileDialog~ declared
+  as ext_func returning ~ref U8~. Added ~c_str_len~ ext_func (one-line
+  wrapper in ext.c for strlen -- can't use "strlen" as ext_func name
+  because generated C forward declaration conflicts with libc). Wrapper
+  functions ~save_file_dialog~/~open_file_dialog~ convert ~ref U8~ to
+  ~Str~ via ~Str(c_str, count, CAP_VIEW).clone()~.
+
+  editor.til: Ctrl+S on new file opens save dialog, Ctrl+O opens file
+  dialog. Ctrl detection checks both ctrl (341/345) and alt (342/346)
+  key codes -- GLFW uses physical key positions, so xmodmap Ctrl-on-Alt
+  reports as 342 not 341.
+
+  builder.c: ~-Llib/tinyfiledialogs -ltinyfd~ linked for all programs.
+  ~Str_lit~ uses ~strlen(s)~ for count instead of passed len (C compiler
+  processes escape sequences in string literals, so strlen gives the
+  correct count).
+
+  interpreter.c: Added escape sequence processing for ~LiteralStr~
+  evaluation (~\n~, ~\t~, ~\\~, ~\"~, ~\0~). Previously the interpreter
+  used the raw AST count which included escape bytes (e.g. ~"\n"~ had
+  count=2 instead of 1).
+
+  Makefile: ~libtinyfd.a~ build target added (built from source like
+  raylib, not committed).
 
 * FIXED #105 Replace per-variant is_*/get_* with generic ext_funcs
   Replaced auto-generated ~is_Variant()~ and ~get_Variant()~ methods

@@ -837,8 +837,31 @@ Value eval_call(Scope *scope, Expr *e) {
 
 Value eval_expr(Scope *scope, Expr *e) {
     switch (e->data.tag) {
-    case ExprData_TAG_LiteralStr:
-        return make_str_value((const char *)e->data.data.LiteralStr.c_str, e->data.data.LiteralStr.count);
+    case ExprData_TAG_LiteralStr: {
+        // Process C escape sequences (\n, \t, \\, \", \0)
+        const char *raw = (const char *)e->data.data.LiteralStr.c_str;
+        U64 raw_len = e->data.data.LiteralStr.count;
+        char *buf = malloc(raw_len + 1);
+        U64 j = 0;
+        for (U64 i = 0; i < raw_len; i++) {
+            if (raw[i] == '\\' && i + 1 < raw_len) {
+                switch (raw[i + 1]) {
+                case 'n':  buf[j++] = '\n'; i++; break;
+                case 't':  buf[j++] = '\t'; i++; break;
+                case '\\': buf[j++] = '\\'; i++; break;
+                case '"':  buf[j++] = '"';  i++; break;
+                case '0':  buf[j++] = '\0'; i++; break;
+                default:   buf[j++] = raw[i]; break;
+                }
+            } else {
+                buf[j++] = raw[i];
+            }
+        }
+        buf[j] = '\0';
+        Value v = make_str_value(buf, j);
+        free(buf);
+        return v;
+    }
     case ExprData_TAG_LiteralNum:
         if (e->til_type.tag == TilType_TAG_U8)
             return val_u8(atoll((const char *)e->data.data.LiteralNum.c_str));
