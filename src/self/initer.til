@@ -147,10 +147,10 @@ TypeScope := struct {
             b.is_own = is_own
             return
         }
-        own nb := TypeBinding(name = name.clone(), type = type,
-                              is_proc = is_proc, is_mut = is_mut,
-                              line = line, col = col,
-                              is_param = is_param, is_own = is_own)
+        nb := TypeBinding(name = name.clone(), type = type,
+                          is_proc = is_proc, is_mut = is_mut,
+                          line = line, col = col,
+                          is_param = is_param, is_own = is_own)
         self.bindings.set(own name.clone(), own nb)
     }
 }

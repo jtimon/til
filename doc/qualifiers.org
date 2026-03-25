@@ -23,10 +23,10 @@ Complete mapping of til qualifiers to generated C, by context.
 
 | til                       | C (scalar)       | C (compound)     | semantics                            |
 |---------------------------+------------------+------------------+--------------------------------------|
-| ~x := expr~               | ~Type x = ...~   | ~Type *x = ...~  | immutable local                      |
-| ~mut x := expr~           | ~Type x = ...~   | ~Type *x = ...~  | mutable local                        |
-| ~own x := expr~           | ~Type *x = ...~  | ~Type *x = ...~  | owns the allocation (explicit free)  |
-| ~ref x : Type = expr~     | ~Type *x = ...~  | ~Type *x = ...~  | borrows pointer from container       |
+| ~x := expr~               | ~Type x = ...~   | ~Type *x = ...~  | owned immutable local (default)      |
+| ~mut x := expr~           | ~Type x = ...~   | ~Type *x = ...~  | owned mutable local                  |
+| ~ref x : Type = expr~     | ~Type *x = ...~  | ~Type *x = ...~  | borrowed immutable local             |
+| ~ref mut x : Type = expr~ | ~Type *x = ...~  | ~Type *x = ...~  | borrowed mutable local               |
 
 Scalar types: I64, U8, I16, I32, U32, U64, F32, Bool.
 Compound types: Str, user-defined structs, enums.
@@ -45,6 +45,13 @@ Compound types: Str, user-defined structs, enums.
 - ~type_name_to_c("I64")~ = ~I64 *~ (pointer form, for normal args/returns/locals)
 - ~type_name_to_c_value("I64")~ = ~I64~ (value form, for ~shallow~ args/returns)
 - In generated C, ~DEREF(x)~ dereferences a pointer: ~(*(x))~
+- Args are borrowed by default, so explicit ~ref~ parameters are redundant
+- Returns are owned by default, so explicit ~returns own Type~ is redundant
+- Locals are owned by default, so explicit ~own x := ...~ / ~own mut x := ...~
+  are redundant for normal locals
+- Dynamic is the current exception: storing ~Dynamic~ in a local still
+  requires explicit ~own~
+- ~shallow~ is for args/returns only, not locals
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~

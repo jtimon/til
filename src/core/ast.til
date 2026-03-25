@@ -170,7 +170,7 @@ Expr := struct {
         mut new_children := Vec.new("", Expr.size())
         for i in 0..self.children.len() {
             ref c : Expr = self.children.get(i)
-            own cloned := c.clone()
+            cloned := c.clone()
             new_children.push(own cloned)
         }
         return Expr(data = self.data, til_type = self.til_type,

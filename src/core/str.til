@@ -29,7 +29,7 @@ namespace:
         for i in 0..min_len {
             ref ab : U8 = a.get(i)
             ref bb : U8 = b.get(i)
-            own c := ab.cmp(bb)
+            c := ab.cmp(bb)
             if c.neq(0) { return c }
         }
         return a.count.cmp(b.count)

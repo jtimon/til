@@ -1,0 +1,5 @@
+mode script
+
+bad := func(ref x: I64) returns I64 {
+    return x
+}

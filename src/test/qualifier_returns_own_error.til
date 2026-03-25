@@ -1,0 +1,5 @@
+mode script
+
+bad := func() returns own I64 {
+    return 0
+}

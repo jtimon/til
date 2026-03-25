@@ -162,6 +162,10 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.KwOwn) { advance(p); is_own = true }
         mut is_mut := false
         if check(p, TokenType.KwMut) { advance(p); is_mut = true }
+        if check(p, TokenType.KwRef) {
+            panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                ": no need for 'ref' on parameter; parameters are borrowed by default")
+        }
 
         pname := expect_text(p, TokenType.Ident)
 
@@ -238,6 +242,9 @@ parse_func_def := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.KwRef) {
             advance(p)
             fd.return_is_ref = true
+        } else if check(p, TokenType.KwOwn) {
+            panic(__LOC__, p.path, ":", peek_line(p).to_str(), ":", peek_col(p).to_str(),
+                ": no need for 'own' in return type; returns are owned by default")
         } else if check(p, TokenType.KwShallow) {
             advance(p)
             fd.return_is_shallow = true
@@ -829,6 +836,11 @@ parse_statement := proc(mut p: Parser) returns Expr {
     if t.type.eq(TokenType.KwMut) {
         advance(p)
         return parse_statement_ident(p, true, false)
+    }
+    if t.type.eq(TokenType.KwShallow) {
+        advance(p)
+        panic(__LOC__, p.path, ":", t_line.to_str(), ":", t_col.to_str(),
+            ": locals cannot use 'shallow'; locals are owned by default")
     }
     if t.type.eq(TokenType.KwReturn) {
         advance(p)

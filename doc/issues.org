@@ -93,6 +93,11 @@
   - ~own mut x := expr~  redundant, same as ~mut x := expr~
   - any local ~shallow~ form
 
+  Current exception:
+  - ~Dynamic~ locals keep their existing explicit-~own~ restriction for now
+    (similar to ~void*~ in C), so the redundant-~own~ check must be done after
+    typing, not unconditionally in the parser
+
   Related cleanup:
   - ~returns own Type~ should be rejected as redundant (owned is the default)
   - explicit ~ref~ params are already invalid syntax today, but the parser

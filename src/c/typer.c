@@ -38,7 +38,7 @@ static void type_error(Expr *e, const char *msg) {
 
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
-static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref);
+static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 static const char *type_to_name(TilType type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Expr *src);
 static Expr *make_ns_call(const char *sname, const char *method,
@@ -220,7 +220,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                 }
             }
-            infer_body(func_scope, Expr_child(e, &(USize){(USize)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref);
+            infer_body(func_scope, Expr_child(e, &(USize){(USize)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref, 0);
             // Check: macro must have a return type (funcs allowed without)
             if (is_macro && (e->data.data.FuncDef.return_type).count == 0) {
                 type_error(e, "macro must declare a return type");
@@ -256,7 +256,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Type-check field declarations in a child scope so fields
         // don't leak into outer scope's locals for free-call insertion
         TypeScope *inner = TypeScope_new(scope);
-        infer_body(inner, Expr_child(e, &(USize){(USize)(0)}), 0, 0, 0, 0);
+        infer_body(inner, Expr_child(e, &(USize){(USize)(0)}), 0, 0, 0, 0, 1);
         TypeScope_delete(inner, &(Bool){1});
         break;
     }
@@ -2483,7 +2483,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     free(locals);
 }
 
-static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref) {
+static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
     body->til_type = (TilType){TilType_TAG_None};
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
@@ -2643,6 +2643,21 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                              stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
                     type_error(stmt, buf);
                 }
+            }
+            if (!in_type_body && stmt->data.data.Decl.is_own &&
+                stmt->data.data.Decl.explicit_type.count == 0 &&
+                stmt->til_type.tag != TilType_TAG_Dynamic) {
+                char buf[256];
+                if (stmt->data.data.Decl.is_mut) {
+                    snprintf(buf, sizeof(buf),
+                             "no need for 'own' on mutable local '%s'; write 'mut %s := ...'",
+                             stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
+                } else {
+                    snprintf(buf, sizeof(buf),
+                             "no need for 'own' on local '%s'; locals are owned by default",
+                             stmt->data.data.Decl.name.c_str);
+                }
+                type_error(stmt, buf);
             }
             TypeScope_set(scope, &stmt->data.data.Decl.name, &stmt->til_type, -1, stmt->data.data.Decl.is_mut, stmt->line, stmt->col, 0, 0);
             TypeBinding *_decl_b = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
@@ -2897,19 +2912,19 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             {
                 TypeScope *then_scope = TypeScope_new(scope);
-                infer_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, in_loop, returns_ref);
+                infer_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, in_loop, returns_ref, 0);
                 TypeScope_delete(then_scope, &(Bool){1});
             }
             if (stmt->children.count > 2) {
                 TypeScope *else_scope = TypeScope_new(scope);
-                infer_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}), in_func, 1, in_loop, returns_ref);
+                infer_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}), in_func, 1, in_loop, returns_ref, 0);
                 TypeScope_delete(else_scope, &(Bool){1});
             }
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
         case ExprData_TAG_Body: {
             TypeScope *block_scope = TypeScope_new(scope);
-            infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref);
+            infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0);
             TypeScope_delete(block_scope, &(Bool){1});
             break;
         }
@@ -2975,7 +2990,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             }
             {
                 TypeScope *while_scope = TypeScope_new(scope);
-                infer_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, 1, returns_ref);
+                infer_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, 1, returns_ref, 0);
                 TypeScope_delete(while_scope, &(Bool){1});
             }
             stmt->til_type = (TilType){TilType_TAG_None};
@@ -3571,6 +3586,6 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 I32 type_check(Expr *program, TypeScope *scope, Mode *mode) {
     errors = 0;
     current_mode = mode;
-    infer_body(scope, program, 0, 1, 0, 0);
+    infer_body(scope, program, 0, 1, 0, 0, 0);
     return errors;
 }

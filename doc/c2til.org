@@ -59,7 +59,7 @@ free(p);
 #+end_src
 
 #+begin_src til
-own p := Point(x = 5)
+p := Point(x = 5)
 // freed automatically (ASAP destruction)
 // or explicitly: own p.delete()
 #+end_src

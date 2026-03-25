@@ -163,6 +163,12 @@ bad_own := good_ref_fn(42)
 ref_vec := vec("I64", 10, 20)
 bad_vec_own : I64 = ref_vec.get(0)
 
+// no need for explicit own on plain local
+own bad_own_local := 0
+
+// no need for explicit own on mutable local
+own mut bad_own_mut_local := 0
+
 // cannot store Dynamic without own
 bad_dyn : Dynamic = 0
 

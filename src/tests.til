@@ -384,9 +384,18 @@ main := proc(args: ..Str) {
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
                til_bin.concat(" run src/examples/ffi/ext_module.til"))
 
-    // === 1 typer errors test ===
-    add_count(tests, "typer_errors", "typer", "type error:", 51,
+    // === parser / typer diagnostics ===
+    add_count(tests, "typer_errors", "typer", "type error:", 53,
               til_bin.concat(" interpret src/test/typer_errors.til"))
+    add_count(tests, "qualifier_shallow_local_error", "parser",
+              "locals cannot use", 1,
+              til_bin.concat(" interpret src/test/qualifier_shallow_local_error.til"))
+    add_count(tests, "qualifier_ref_param_error", "parser",
+              "parameters are borrowed by default", 1,
+              til_bin.concat(" interpret src/test/qualifier_ref_param_error.til"))
+    add_count(tests, "qualifier_returns_own_error", "parser",
+              "returns are owned by default", 1,
+              til_bin.concat(" interpret src/test/qualifier_returns_own_error.til"))
 
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
