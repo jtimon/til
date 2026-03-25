@@ -319,6 +319,20 @@ static Bool callee_returns_shallow(Str *callee_name) {
     return fdef->data.data.FuncDef.return_is_shallow;
 }
 
+static Bool callee_returns_dynamic(Str *callee_name) {
+    if ((callee_name->count == 6 && memcmp(callee_name->c_str, "malloc", 6) == 0) ||
+        (callee_name->count == 6 && memcmp(callee_name->c_str, "calloc", 6) == 0) ||
+        (callee_name->count == 7 && memcmp(callee_name->c_str, "realloc", 7) == 0) ||
+        (callee_name->count == 12 && memcmp(callee_name->c_str, "dyn_call_ret", 12) == 0) ||
+        (callee_name->count == 6 && memcmp(callee_name->c_str, "dyn_fn", 6) == 0)) {
+        return 1;
+    }
+    Expr *fdef = find_callee_fdef(callee_name);
+    if (!fdef) return 0;
+    Str *ret = &fdef->data.data.FuncDef.return_type;
+    return ret->count == 7 && memcmp(ret->c_str, "Dynamic", 7) == 0;
+}
+
 // Check if an FCALL node's callee returns shallow
 static Bool fcall_is_shallow_return(Expr *fcall) {
     if (fcall->data.tag != ExprData_TAG_FCall) return 0;
@@ -337,6 +351,16 @@ static Bool fcall_is_shallow_return(Expr *fcall) {
         return r;
     }
     return 0;
+}
+
+static Bool fcall_returns_dynamic(Expr *fcall) {
+    if (fcall->data.tag != ExprData_TAG_FCall) return 0;
+    Bool allocated = 0;
+    Str *callee = resolve_callee_name(fcall, &allocated);
+    if (!callee) return 0;
+    Bool r = callee_returns_dynamic(callee);
+    if (allocated) Str_delete(callee, &(Bool){1});
+    return r;
 }
 
 static Bool callee_param_is_shallow(Str *callee_name, U32 arg_index) {
@@ -994,6 +1018,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
                                      e->til_type.tag != TilType_TAG_FuncPtr &&
                                      e->til_type.tag != TilType_TAG_Dynamic &&
+                                     !(rhs->data.tag == ExprData_TAG_FCall && fcall_returns_dynamic(rhs)) &&
                                      !Set_has(&unsafe_to_hoist, _uth_key);
                     Str_delete(_uth_key, &(Bool){1});
                     if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
