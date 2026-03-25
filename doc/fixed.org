@@ -1,5 +1,38 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #64 pure and pura are library modes, not runnable modes
+  The old issue text was stale. Two different things had been conflated:
+
+  - ~pure~ / ~pura~ were still being treated as runnable/interpretable in
+    some paths, even though they are library-style modes like ~lib~ / ~liba~
+  - normal ~returns Type~ was being read as a C ABI bug because generated
+    library headers use pointer returns like ~I64 *~, but that is the
+    documented qualifier behavior, not a builder regression
+
+  What was changed:
+
+  - Added a single ~Mode.is_library~ field and set it for ~lib~, ~liba~,
+    ~pure~, and ~pura~
+  - Removed the old helper split between ~mode_is_lib~ and
+    ~mode_is_lib_output~
+  - ~til run~ and ~til interpret~ now reject ~pure~ / ~pura~, the same as
+    ~lib~ / ~liba~
+  - Tests now cover ~pure_build~, ~pura_build~, and the forbidden
+    ~pure/pura~ run/interpret paths
+
+  Re-checked after the fix:
+
+  - ~systemd-run --user --scope -p MemoryMax=64G make test~ passes
+    (~79/79~)
+  - ~bin/til build~ works for minimal ~mode pure~ and ~mode lib~ files
+  - Generated ~I64 *~ for ~returns I64~ is expected per
+    ~doc/qualifiers.org~
+  - Generated plain ~I64~ for ~returns shallow I64~ is also correct
+
+  So the original ~I64* instead of I64~ complaint was outdated. The real
+  problem was that ~pure~ / ~pura~ were not being treated consistently as
+  library modes.
+
 * FIXED #69 Bundle tinyfiledialogs for mode gui
   Bundled tinyfiledialogs (zlib license) in lib/tinyfiledialogs/.
   Integration follows the raylib pattern: direct ext_func declarations

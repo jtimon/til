@@ -372,17 +372,6 @@
       to the declared type. Handles chained method calls and nested negatives
       like ~a : I32 = -34.add(-35)~. Broader but more invasive.
 
-** OPEN #64 Builder: pure/lib/pura/liba modes emit I64* instead of I64
-  The ~is_lib~ codepath in builder.c causes scalar types to be emitted as
-  pointer types (~I64 *~) instead of stack types (~I64~). Simple programs
-  in ~mode pure~ fail C compilation with ~makes integer from pointer~
-  errors. The ~is_scalar_method_type~ check interacts badly with the lib
-  mode flag — core library globals (CAP_LIT, CAP_VIEW) get emitted as
-  pointers when they should be scalars.
-
-  Reproduce: ~bin/ctil run tmp/hello_pure.til~ with any pure-mode file.
-  Interpreter also fails (~undefined variable 'I64'~ in str.til:3).
-
 ** FIXED #50 Stack allocation for all struct/enum types
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
   allocation -- everything else is heap-allocated via malloc. This should
@@ -1161,8 +1150,6 @@
 
   The ~a~ suffix relaxes the func-cannot-call-proc rule specifically for
   print/println, letting you debug/log from funcs without switching to procs.
-
-  Note: lib/pure modes have a codegen bug (#64).
 
   User-defined modes would let users declare their own modes using the same
   mechanism, with the built-in modes becoming just pre-linked defaults —
