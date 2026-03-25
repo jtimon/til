@@ -13,6 +13,7 @@ Mode := struct {
     mut needs_main := false
     mut decls_only := false
     mut auto_import := ""
+    mut is_library := false
     mut is_pure := false
     mut debug_prints := false
     namespace:
@@ -27,22 +28,13 @@ core_modes := {
     "cli":    Mode(name = "cli", needs_main = true, decls_only = true),
     "gui":    Mode(name = "gui", needs_main = true, decls_only = true, auto_import = "gui"),
     "test":   Mode(name = "test", decls_only = true),
-    "pure":   Mode(name = "pure", decls_only = true, is_pure = true),
-    "pura":   Mode(name = "pura", decls_only = true, is_pure = true, debug_prints = true),
-    "lib":    Mode(name = "lib", decls_only = true),
-    "liba":   Mode(name = "liba", decls_only = true, debug_prints = true),
+    "pure":   Mode(name = "pure", decls_only = true, is_library = true, is_pure = true),
+    "pura":   Mode(name = "pura", decls_only = true, is_library = true, is_pure = true, debug_prints = true),
+    "lib":    Mode(name = "lib", decls_only = true, is_library = true),
+    "liba":   Mode(name = "liba", decls_only = true, is_library = true, debug_prints = true),
 }
 
 mode_resolve := func(name: Str) returns ref Mode {
     ref m : Mode = core_modes.get(name)
     return m
-}
-
-mode_is_lib := func(m: Mode) returns Bool {
-    return m.name.eq("lib").or(m.name.eq("liba"))
-}
-
-mode_is_lib_output := func(m: Mode) returns Bool {
-    return m.name.eq("lib").or(m.name.eq("liba"))
-        .or(m.name.eq("pure")).or(m.name.eq("pura"))
 }

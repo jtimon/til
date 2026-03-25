@@ -394,6 +394,7 @@ typedef struct Mode {
     Bool needs_main;
     Bool decls_only;
     Str auto_import;
+    Bool is_library;
     Bool is_pure;
     Bool debug_prints;
 } Mode;
@@ -802,8 +803,6 @@ Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);
 U32 * Mode_size(void);
 Mode * mode_resolve(Str * name);
-Bool * mode_is_lib(Mode * m);
-Bool * mode_is_lib_output(Mode * m);
 Bool * TokenType_eq(TokenType *, TokenType *);
 TokenType *TokenType_Eof();
 TokenType *TokenType_LParen();

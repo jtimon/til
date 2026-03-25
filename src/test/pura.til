@@ -1,0 +1,10 @@
+mode pura
+
+debug_log := func() {
+    println("debug")
+}
+
+value := func() returns I64 {
+    debug_log()
+    return 42
+}

@@ -391,9 +391,9 @@ main := proc(args: ..Str) {
 
     // Skip scavenging for lib/pure translate/build, and for programs
     // with link_c (scavenger can't track C-level dependencies)
-    is_lib_target := mode_is_lib_output(cur_mode)
+    skip_scavenge := cur_mode.is_library
         .and(command.eq("translate").or(command.eq("build")))
-    if is_lib_target.not().and(link_c_paths.len().eq(0)) {
+    if skip_scavenge.not().and(link_c_paths.len().eq(0)) {
         scavenge(ast, cur_mode, run_tests)
     }
 
@@ -429,16 +429,14 @@ main := proc(args: ..Str) {
         lflags = link_flags
     }
 
-    is_lib_mode := mode_is_lib(cur_mode)
-
     if command.eq("interpret").or(command.eq("test")) {
-        if is_lib_mode.and(command.eq("interpret")) {
+        if cur_mode.is_library.and(command.eq("interpret")) {
             panic(__LOC__, "cannot interpret a library — use translate or build")
         }
         result = interpret(ast, cur_mode, run_tests, path, user_c, ext_c_path, lflags,
                                 user_argv)
     } else if command.eq("translate").or(command.eq("build")).or(command.eq("run")) {
-        if is_lib_mode.and(command.eq("run")) {
+        if cur_mode.is_library.and(command.eq("run")) {
             panic(__LOC__, "cannot run a library — use translate or build")
         }
 
@@ -462,7 +460,7 @@ main := proc(args: ..Str) {
         mut bin_path := "bin/".concat(name)
         if custom_bin.len().gt(0) { bin_path = custom_bin }
 
-        do_lib := mode_is_lib_output(cur_mode).and(command.eq("run").not())
+        do_lib := cur_mode.is_library.and(command.eq("run").not())
 
         if do_lib {
             system_cmd("mkdir -p gen/til gen/lib")

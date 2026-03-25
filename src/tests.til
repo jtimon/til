@@ -363,8 +363,6 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/booleans.til", flags)
     add_mode(tests, "src/test/imports.til", flags)
     add_mode(tests, "src/test/import_diamond.til", flags)
-    // TODO: pure/lib modes need separate build-only test section
-    // add_mode(tests, "src/test/pure.til", flags)
     add_mode(tests, "src/test/aliases.til", flags)
     add_mode(tests, "src/test/loops.til", flags)
     add_mode(tests, "src/test/splat.til", flags)
@@ -433,6 +431,20 @@ main := proc(args: ..Str) {
     add_cli_pair(tests, "cli_typed_err1", "src/examples/cli_typed.til", "alice", 1, "", til_bin)
     add_cli_pair(tests, "cli_typed_err2", "src/examples/cli_typed.til", "a b c", 1, "", til_bin)
     add_cli_pair(tests, "hello_cli_err", "src/examples/hello_cli.til", "extra", 1, "", til_bin)
+
+    // === library mode checks ===
+    add_single(tests, "pure_build", "library", 0, "",
+               til_bin.concat(" build src/test/pure.til"))
+    add_single(tests, "pura_build", "library", 0, "",
+               til_bin.concat(" build src/test/pura.til"))
+    add_single(tests, "pure_interp_forbidden", "library", 1, "",
+               til_bin.concat(" interpret src/test/pure.til"))
+    add_single(tests, "pure_run_forbidden", "library", 1, "",
+               til_bin.concat(" run src/test/pure.til"))
+    add_single(tests, "pura_interp_forbidden", "library", 1, "",
+               til_bin.concat(" interpret src/test/pura.til"))
+    add_single(tests, "pura_run_forbidden", "library", 1, "",
+               til_bin.concat(" run src/test/pura.til"))
 
     // === build tests (build + run with timeout) ===
     if en_gui.eq(1) {

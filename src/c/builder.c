@@ -1739,7 +1739,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     (void)path;
 
     codegen_program = program;
-    Bool is_lib = *mode_is_lib_output(mode);
+    Bool is_lib = mode && mode->is_library;
 
     // Build struct body lookup map
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
