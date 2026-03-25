@@ -20,7 +20,7 @@ StructInstance := struct {
                              data = self.data,
                              borrowed = self.borrowed)
     }
-    delete := proc(own self: StructInstance, call_free: Bool = true) {}
+    delete := func(own self: StructInstance, call_free: Bool = true) {}
 }
 
 EnumInstance := struct {
@@ -41,7 +41,7 @@ EnumInstance := struct {
                            enum_def = self.enum_def,
                            data = self.data)
     }
-    delete := proc(own self: EnumInstance, call_free: Bool = true) {}
+    delete := func(own self: EnumInstance, call_free: Bool = true) {}
 }
 
 Value := enum {
@@ -89,7 +89,7 @@ Value := enum {
         # Shallow clone -- C functions handle deep clone via clone_value
         return Value.None
     }
-    delete := proc(own self: Value, call_free: Bool = true) {}
+    delete := func(own self: Value, call_free: Bool = true) {}
 }
 
 Cell := struct {

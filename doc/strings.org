@@ -59,7 +59,7 @@ s.push_str("hello")           # count=5, cap=100 (in-place, no realloc)
 ** Deletion Semantics
 
 #+begin_src til
-delete := proc(own self: Str, call_free: Bool = true) {
+delete := func(own self: Str, call_free: Bool = true) {
     if self.cap.gte(0) {     # owned — free the buffer
         free(own self.data)
     }

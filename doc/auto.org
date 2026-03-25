@@ -14,7 +14,7 @@
    copied directly (no clone). Skipped for core ext_structs (C side
    provides clone).
 
-** delete := proc(own self: T, call_free: Bool = true)
+** delete := func(own self: T, call_free: Bool = true)
    Frees all instance fields. own fields call Type.delete(field, true).
    Non-own compound fields call Type.delete(field, false) (cleanup
    without freeing the pointer). ref and FuncPtr fields are skipped.
@@ -35,7 +35,7 @@
    Payload variants: clone the payload via get_Variant + constructor.
    Simple variants: copy via eq check + constructor.
 
-** delete := proc(own self: E, call_free: Bool = true)
+** delete := func(own self: E, call_free: Bool = true)
    Calls free(own self) if call_free. Payload cleanup handled by free.
 
 ** to_str := func(self: E) returns Str
@@ -221,7 +221,7 @@
                         elem_size = self.elem_size, elem = buf)
        }
 
-       delete := proc(own self: Range, call_free: Bool = true) {
+       delete := func(own self: Range, call_free: Bool = true) {
            dyn_call(self.elem_type, "delete", 2, self.elem, false)
            free(own self.elem)
            Str.delete(own self.elem_type, false)

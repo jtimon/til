@@ -39,7 +39,9 @@ namespace:
         if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
         return au.sub(bu).to_i64().to_u64()
     }
-    delete := ext_func(own self: U8, call_free: Bool = true) {}
+    delete := func(own self: U8, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 1 }
 }
 
@@ -71,7 +73,9 @@ namespace:
         if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
         return au.sub(bu).to_i64().to_u64()
     }
-    delete := ext_func(own self: I16, call_free: Bool = true) {}
+    delete := func(own self: I16, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 2 }
 }
 
@@ -103,7 +107,9 @@ namespace:
         if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
         return au.sub(bu).to_i64().to_u64()
     }
-    delete := ext_func(own self: I32, call_free: Bool = true) {}
+    delete := func(own self: I32, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 4 }
 }
 
@@ -122,7 +128,9 @@ namespace:
     eq := ext_func(shallow a: F32, shallow b: F32) returns shallow Bool {}
     cmp := ext_func(shallow a: F32, shallow b: F32) returns shallow I64 {}
     clone := ext_func(val: F32) returns shallow F32 {}
-    delete := ext_func(own self: F32, call_free: Bool = true) {}
+    delete := func(own self: F32, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 4 }
 }
 
@@ -152,7 +160,9 @@ namespace:
         if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
         return au.sub(bu).to_i64().to_u64()
     }
-    delete := ext_func(own self: U32, call_free: Bool = true) {}
+    delete := func(own self: U32, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 4 }
 }
 
@@ -187,7 +197,9 @@ namespace:
         if au.lte(bu) { return bu.sub(au) }
         return au.sub(bu)
     }
-    delete := ext_func(own self: U64, call_free: Bool = true) {}
+    delete := func(own self: U64, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 8 }
 }
 
@@ -258,7 +270,9 @@ namespace:
         if au.lte(bu) { return bu.sub(au).to_u64() }
         return au.sub(bu).to_u64()
     }
-    delete := ext_func(own self: I64, call_free: Bool = true) {}
+    delete := func(own self: I64, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 8 }
 }
 
@@ -304,7 +318,9 @@ namespace:
         return 1
     }
     clone := ext_func(val: Bool) returns shallow Bool {}
-    delete := ext_func(own self: Bool, call_free: Bool = true) {}
+    delete := func(own self: Bool, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
     size := func() returns USize { return 1 }
 }
 

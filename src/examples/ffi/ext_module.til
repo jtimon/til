@@ -13,7 +13,7 @@ Pair := ext_struct {
     sum := ext_func(self: Pair) returns I64 {}
     swap := ext_func(self: Pair) returns Pair {}
     clone := ext_func(self: Pair) returns Pair {}
-    delete := ext_proc(own self: Pair, call_free: Bool = true) {}
+    delete := ext_func(own self: Pair, call_free: Bool = true) {}
 
     // Regular funcs calling ext_funcs in same namespace
     double_sum := func(self: Pair) returns I64 {

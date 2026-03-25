@@ -894,6 +894,7 @@ void U8_inc(U8 * self);
 void U8_dec(U8 * self);
 U8 * U8_unity(U8 * self);
 U64 U8_distance(void * a, void * b);
+void U8_delete(U8 * self, Bool * call_free);
 U32 * U8_size(void);
 Bool U8_lt(U8 * a, U8 * b);
 Bool U8_gt(U8 * a, U8 * b);
@@ -907,6 +908,7 @@ I16 * I16_unity(I16 * self);
 I16 * I16_neg(I16 * a);
 I16 * I16_abs(I16 * a);
 U64 I16_distance(void * a, void * b);
+void I16_delete(I16 * self, Bool * call_free);
 U32 * I16_size(void);
 Bool I16_lt(I16 * a, I16 * b);
 Bool I16_gt(I16 * a, I16 * b);
@@ -920,6 +922,7 @@ I32 * I32_unity(I32 * self);
 I32 * I32_neg(I32 * a);
 I32 * I32_abs(I32 * a);
 U64 I32_distance(void * a, void * b);
+void I32_delete(I32 * self, Bool * call_free);
 U32 * I32_size(void);
 Bool I32_lt(I32 * a, I32 * b);
 Bool I32_gt(I32 * a, I32 * b);
@@ -927,6 +930,7 @@ Bool I32_neq(I32 * a, I32 * b);
 Bool I32_lte(I32 * a, I32 * b);
 Bool I32_gte(I32 * a, I32 * b);
 F32 * F32_from_i64(I64 * val);
+void F32_delete(F32 * self, Bool * call_free);
 U32 * F32_size(void);
 Bool F32_lt(F32 * a, F32 * b);
 Bool F32_gt(F32 * a, F32 * b);
@@ -938,6 +942,7 @@ void U32_inc(U32 * self);
 void U32_dec(U32 * self);
 U32 * U32_unity(U32 * self);
 U64 U32_distance(void * a, void * b);
+void U32_delete(U32 * self, Bool * call_free);
 U32 * U32_size(void);
 Bool U32_lt(U32 * a, U32 * b);
 Bool U32_gt(U32 * a, U32 * b);
@@ -950,6 +955,7 @@ void U64_inc(U64 * self);
 void U64_dec(U64 * self);
 U64 * U64_unity(U64 * self);
 U64 U64_distance(void * a, void * b);
+void U64_delete(U64 * self, Bool * call_free);
 U32 * U64_size(void);
 Bool U64_lt(U64 * a, U64 * b);
 Bool U64_gt(U64 * a, U64 * b);
@@ -964,6 +970,7 @@ I64 * I64_unity(I64 * self);
 I64 * I64_neg(I64 * a);
 I64 * I64_abs(I64 * a);
 U64 I64_distance(void * a, void * b);
+void I64_delete(I64 * self, Bool * call_free);
 U32 * I64_size(void);
 Bool I64_lt(I64 * a, I64 * b);
 Bool I64_gt(I64 * a, I64 * b);
@@ -978,6 +985,7 @@ void Range_delete(Range * self, Bool * call_free);
 U32 * Range_size(void);
 Str * Bool_to_str(Bool * b);
 I64 * Bool_cmp(Bool * a, Bool * b);
+void Bool_delete(Bool * self, Bool * call_free);
 U32 * Bool_size(void);
 Bool Bool_lt(Bool * a, Bool * b);
 Bool Bool_gt(Bool * a, Bool * b);
@@ -1581,6 +1589,15 @@ U64 U8_distance(void * a, void * b) {
     return _t_U64_16;
 }
 
+void U8_delete(U8 * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U32 *U8_size(void) {
     U32 *r = malloc(sizeof(U32));
     *r = (U32)sizeof(U8);
@@ -1774,6 +1791,15 @@ U64 I16_distance(void * a, void * b) {
     (void)_t_U64_58;
     ;
     return _t_U64_58;
+}
+
+void I16_delete(I16 * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
 }
 
 U32 *I16_size(void) {
@@ -1971,6 +1997,15 @@ U64 I32_distance(void * a, void * b) {
     return _t_U64_100;
 }
 
+void I32_delete(I32 * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U32 *I32_size(void) {
     U32 *r = malloc(sizeof(U32));
     *r = (U32)sizeof(I32);
@@ -2050,6 +2085,15 @@ F32 * F32_from_i64(I64 * val) {
     F32 _t_F32_116 = F32_from_i64_ext(val);
     (void)_t_F32_116;
     { F32 *_r = malloc(sizeof(F32)); *_r = _t_F32_116; return _r; }
+}
+
+void F32_delete(F32 * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
 }
 
 U32 *F32_size(void) {
@@ -2200,6 +2244,15 @@ U64 U32_distance(void * a, void * b) {
     return _t_U64_146;
 }
 
+void U32_delete(U32 * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U32 *U32_size(void) {
     U32 *r = malloc(sizeof(U32));
     *r = (U32)sizeof(U32);
@@ -2340,6 +2393,15 @@ U64 U64_distance(void * a, void * b) {
     U64 _t_U64_172 = U64_sub(DEREF(au), DEREF(bu));
     (void)_t_U64_172;
     return _t_U64_172;
+}
+
+void U64_delete(U64 * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
 }
 
 U32 *U64_size(void) {
@@ -2722,6 +2784,15 @@ U64 I64_distance(void * a, void * b) {
     return _t_U64_254;
 }
 
+void I64_delete(I64 * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
+}
+
 U32 *I64_size(void) {
     U32 *r = malloc(sizeof(U32));
     *r = (U32)sizeof(I64);
@@ -2907,6 +2978,15 @@ I64 * Bool_cmp(Bool * a, Bool * b) {
     I64 _t_I64_288 = 1;
     (void)_t_I64_288;
     { I64 *_r = malloc(sizeof(I64)); *_r = _t_I64_288; return _r; }
+}
+
+void Bool_delete(Bool * self, Bool * call_free) {
+    (void)self;
+    (void)call_free;
+    if (!self) return;
+    if (DEREF(call_free)) {
+        free(self);
+    }
 }
 
 U32 *Bool_size(void) {
