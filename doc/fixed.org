@@ -33,6 +33,41 @@
   problem was that ~pure~ / ~pura~ were not being treated consistently as
   library modes.
 
+* FIXED #112 Normalize local qualifier defaults and reject redundant syntax
+  Landed in incremental steps:
+
+  - clearer parser diagnostics for redundant default qualifiers:
+    - explicit ~ref~ params
+    - ~returns own Type~
+    - local ~shallow~
+  - redundant local ~own~ is now rejected for both inferred and typed locals
+  - typed ~Dynamic~ locals use the normal local-default spelling too:
+    ~x : Dynamic = ...~, not ~own x : Dynamic = ...~
+  - builder hoisting was updated so typed locals fed by ~Dynamic~-returning
+    calls like ~malloc~ and ~dyn_call_ret~ stay heap-backed when needed,
+    even without explicit local ~own~
+  - repo-owned locals were cleaned up to use the default spelling
+  - ~doc/qualifiers.org~ now matches the implemented default-based model
+
+  Resulting local forms:
+  - ~x := expr~
+  - ~mut x := expr~
+  - ~ref x : Type = expr~
+  - ~ref mut x : Type = expr~
+
+  Rejected redundant/invalid forms:
+  - ~own x := expr~
+  - ~own mut x := expr~
+  - ~own x : Type = expr~
+  - ~own mut x : Type = expr~
+  - local ~shallow~
+  - ~returns own Type~
+
+  Validation:
+  - ~make clean~
+  - ~systemd-run --user --scope -p MemoryMax=64G make test~
+  - final result: ~82/82~ passed
+
 * FIXED #69 Bundle tinyfiledialogs for mode gui
   Bundled tinyfiledialogs (zlib license) in lib/tinyfiledialogs/.
   Integration follows the raylib pattern: direct ext_func declarations

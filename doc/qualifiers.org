@@ -47,16 +47,15 @@ Compound types: Str, user-defined structs, enums.
 - In generated C, ~DEREF(x)~ dereferences a pointer: ~(*(x))~
 - Args are borrowed by default, so explicit ~ref~ parameters are redundant
 - Returns are owned by default, so explicit ~returns own Type~ is redundant
-- Locals are owned by default, so explicit ~own x := ...~ / ~own mut x := ...~
-  are redundant for normal locals
-- Dynamic is the current exception: storing ~Dynamic~ in a local still
-  requires explicit ~own~
+- Locals are owned by default, so explicit ~own~ on locals is redundant:
+  ~own x := ...~, ~own mut x := ...~, ~own x : Type = ...~, and
+  ~own mut x : Type = ...~ are all rejected
 - ~shallow~ is for args/returns only, not locals
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~
 - Scalar locals use ~&(Type){x}~ when passed to pointer-expecting functions
 - Delete calls for scalar locals are suppressed (no heap allocation to free)
-- Locals are NOT hoisted if: ~own~, ~ref~, global, FuncPtr, or Dynamic
+- Locals are NOT hoisted if: ~ref~, global, FuncPtr, or Dynamic-returning allocation paths
 - TODO (#50): compound types should also be stack-allocated (~Type x~
   instead of ~Type *x = malloc~), passed as ~&x~ to functions
