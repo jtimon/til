@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 112
+# NEXT_ISSUE: 113
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -75,42 +75,79 @@
   This is a memory-safety bug, not a leak itself, but it blocks meaningful
   progress on #109 and the rest of the #110 roadmap.
 
-** WIP #50 Stack allocation for all struct/enum types
-  :REOPENED: Was falsely flagged as FIXED.
+** OPEN #112 Normalize local qualifier defaults and reject redundant syntax
+  Intended qualifier defaults:
+  - args default to borrowed ~ref~
+  - returns default to owned
+  - locals default to owned immutable
+  - struct fields default to inline value storage
 
-  Current state: scalars (I64, U32, Bool) stack-allocated via
-  ~can_hoist~ + ~shallow_locals~. Compound types (Str, structs,
-  enums) always heap-allocated: ~Type *x = malloc(sizeof(Type))~.
+  So for locals the meaningful forms should be:
+  - ~x := expr~          owned immutable local
+  - ~mut x := expr~      owned mutable local
+  - ~ref x : Type = expr~ borrowed immutable local
+  - ~ref mut x : Type = expr~ borrowed mutable local
 
-  Goal: ALL non-own, non-ref locals on stack: ~Type x = {...}~.
-  Pass to functions as ~&x~. See doc/qualifiers.org for the full
-  C mapping.
+  Redundant/invalid local forms should be rejected:
+  - ~own x := expr~      redundant, same as ~x := expr~
+  - ~own mut x := expr~  redundant, same as ~mut x := expr~
+  - any local ~shallow~ form
 
-  The ~unsafe_to_hoist~ mechanism prevents hoisting scalars passed
-  to ~mut~ params. This is unnecessary: ~mut~ params are caller-owned,
-  ~&stack_local~ works the same as heap pointer. But removing
-  ~unsafe_to_hoist~ without restricting to scalars breaks compound
-  type emit paths (builder assumes compound locals are pointers).
+  Related cleanup:
+  - ~returns own Type~ should be rejected as redundant (owned is the default)
+  - explicit ~ref~ params are already invalid syntax today, but the parser
+    error is raw and unclear; diagnostics for redundant default qualifiers
+    should become explicit and user-facing
 
-  The builder's hoisting is ad-hoc with many special cases in:
-  - ~emit_expr~ / ~emit_as_ptr~ / ~emit_deref~ for Ident nodes
-  - Decl emission (6+ code paths)
-  - Assignment emission
-  - Return emission
-  - Delete emission
+  Current implementation mismatch:
+  - parser currently accepts ~own x := ...~ and ~own mut x := ...~ as local
+    declarations via the ~KwOwn~ statement path
+  - builder still treats ~Decl.is_own~ locals differently from plain locals,
+    especially in stack-hoisting decisions
+  - docs still describe ~x := expr~ and ~own x := expr~ as different local
+    semantics
 
-  Each emit path switches on ~is_shallow_local~. Extending to compound
-  types means auditing ALL paths. Incremental approach: one type class
-  at a time (see #110 roadmap).
+  Detailed plan:
+  1. Update ~doc/qualifiers.org~ to state the default-based model:
+     args = ref by default, returns = own by default, locals = own by
+     default, fields = inline by default.
 
-*** Done (partial -- scalars only)
+  2. Parser/front-end validation:
+     - keep parsing enough context to recognize redundant local forms
+     - reject local ~own~ / ~own mut~ / local ~shallow~ with clear targeted
+       diagnostics instead of generic parse confusion
+     - reject ~returns own Type~ with a clear targeted diagnostic
+     - keep explicit ~ref~ params rejected, but improve the message so it says
+       the qualifier is redundant rather than just "expected identifier"
 
-  - ~can_hoist~ for scalars (I64, U32, Bool, etc.)
-  - ~shallow_locals~ Set tracks which locals are stack-allocated
-  - ~shallow_local_types~ Map for pointer-sign correctness
-  - ~emit_as_ptr~: ~&(Type){x}~ for scalars, ~&x~ for structs
-  - ~emit_body_scoped~: block-scoped shallow_locals
-  - Delete suppression for hoisted scalars
+  3. Internal normalization:
+     - make plain locals and any previously explicit-owned local path share the
+       same owned-local semantics
+     - remove special behavior that depends on explicit ~Decl.is_own~ for
+       ordinary locals
+     - preserve ~is_own~ only where it is actually semantically meaningful:
+       params, call-site ownership markers, and struct fields
+
+  4. Type-checking/builder follow-through:
+     - update Dynamic-related diagnostics that currently instruct the user to
+       write ~own~ on locals
+     - update local emission/hoisting logic to treat owned locals by default,
+       not only when ~is_own~ is absent
+     - ensure no new leaks or ownership regressions are introduced by the
+       normalization
+
+  5. Tests:
+     - add negative coverage for ~own x := ...~, ~own mut x := ...~, local
+       ~shallow~, and ~returns own~
+     - add a direct explicit-~ref~-param test and require a clearer message
+     - keep positive coverage for plain locals, ~mut~ locals, ~ref~ locals,
+       and ~ref mut~ locals
+     - validate with ~make clean~ and
+       ~systemd-run --user --scope -p MemoryMax=64G make test~
+
+  This is primarily a semantics/diagnostics cleanup. If it simplifies some
+  ownership paths enough to reduce leaks, that is a bonus, but not the main
+  acceptance criterion.
 
 ** OPEN #109 Fix memory leaks (make test_asan clean)
   :DEPENDENCY: #50
@@ -416,7 +453,44 @@
       to the declared type. Handles chained method calls and nested negatives
       like ~a : I32 = -34.add(-35)~. Broader but more invasive.
 
-** FIXED #50 Stack allocation for all struct/enum types
+** WIP #50 Stack allocation for all struct/enum types
+  :REOPENED: Was falsely flagged as FIXED.
+
+  Current state: scalars (I64, U32, Bool) stack-allocated via
+  ~can_hoist~ + ~shallow_locals~. Compound types (Str, structs,
+  enums) always heap-allocated: ~Type *x = malloc(sizeof(Type))~.
+
+  Goal: ALL non-own, non-ref locals on stack: ~Type x = {...}~.
+  Pass to functions as ~&x~. See doc/qualifiers.org for the full
+  C mapping.
+
+  The ~unsafe_to_hoist~ mechanism prevents hoisting scalars passed
+  to ~mut~ params. This is unnecessary: ~mut~ params are caller-owned,
+  ~&stack_local~ works the same as heap pointer. But removing
+  ~unsafe_to_hoist~ without restricting to scalars breaks compound
+  type emit paths (builder assumes compound locals are pointers).
+
+  The builder's hoisting is ad-hoc with many special cases in:
+  - ~emit_expr~ / ~emit_as_ptr~ / ~emit_deref~ for Ident nodes
+  - Decl emission (6+ code paths)
+  - Assignment emission
+  - Return emission
+  - Delete emission
+
+  Each emit path switches on ~is_shallow_local~. Extending to compound
+  types means auditing ALL paths. Incremental approach: one type class
+  at a time (see #110 roadmap).
+
+*** Done (partial -- scalars only)
+
+  - ~can_hoist~ for scalars (I64, U32, Bool, etc.)
+  - ~shallow_locals~ Set tracks which locals are stack-allocated
+  - ~shallow_local_types~ Map for pointer-sign correctness
+  - ~emit_as_ptr~: ~&(Type){x}~ for scalars, ~&x~ for structs
+  - ~emit_body_scoped~: block-scoped shallow_locals
+  - Delete suppression for hoisted scalars
+
+*** (old version ) #50 Stack allocation for all struct/enum types
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
   allocation -- everything else is heap-allocated via malloc. This should
   be extended to ALL struct/enum types, not just shallow ones.
