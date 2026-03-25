@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 109
+# NEXT_ISSUE: 110
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -12,46 +12,7 @@
   variable ~i~ is also heap-allocated per iteration (~malloc + clone +
   delete~). Both should use stack allocation. Easy builder fix.
 
-** WIP #105 Replace per-variant is_*/get_* with generic ext_funcs
-  Auto-generated ~is_Variant()~ and ~get_Variant()~ methods generate
-  N functions per enum. Replace with generic ~is_variant(self, other)~
-  and ~get_payload(self)~ ext_funcs (declared in core.til, implemented
-  in ext.c).
-
-*** Done: get_payload migration complete
-
-  - ~is_variant~ and ~get_payload~ ext_funcs added (ext.c, core.til)
-  - Work in both compiled and interpreted modes (#108 fixed)
-  - is_* methods now return shallow Bool (#107 fixed)
-  - ext.c types fixed: int->I32, char->U8
-  - ALL ~.get_X()~ replaced with ~get_payload()~ in .til files
-  - Builder fixed: ref-to-FuncPtr calls DEREF correctly
-  - Interpreter fixed: FuncSig/EnumDef narrowing for ref decls
-  - Switch desugaring uses ~get_payload~ instead of ~.get_Variant()~
-  - ~get_Variant~ auto-generation removed from initer.c
-  - Auto-generated eq/clone/to_str updated to use ~get_payload~
-  - Bare variant refs emit ~&(EnumType){.tag=TAG}~ compound literals
-    instead of malloc. Return paths heap-allocate. (875a9ba82)
-  - Three-pass build: til rebuilds itself after til_boot (5c07b1f51)
-  - ~make test_asan~ target for strict ASAN leak testing (f8db3323b)
-
-*** Remaining: Replace .is_X() with is_variant() in .til files
-
-  ~e.data.is_FCall()~ -> ~is_variant(e.data, ExprData.FCall)~
-
-*** Remaining: Update switch desugaring is_Variant -> is_variant
-
-  Phase 4/5 conditions in typer.c still use ~_sw.is_Variant()~.
-
-*** Remaining: Remove is_Variant + dead code cleanup
-
-  - Remove ~is_Variant~ generation from initer.c
-  - Remove is/get C functions from builder.c
-  - Remove dispatch handlers from dispatch.c
-  - Replace ~ScopeFind_get_Found~ in C code (28 calls)
-
-*** Remaining: Fix memory leaks (ASAN clean)
-
+** OPEN #109 Fix memory leaks (make test_asan clean)
   ~make test_asan~ currently OOMs at 64G. Root causes:
   - Over-conservative hoisting: ~check_fcall_mut_args~ prevents
     hoisting range counters and mut-param args (unnecessary)

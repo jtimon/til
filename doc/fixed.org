@@ -1,5 +1,25 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #105 Replace per-variant is_*/get_* with generic ext_funcs
+  Replaced auto-generated ~is_Variant()~ and ~get_Variant()~ methods
+  (N functions per enum) with two generic ext_funcs:
+  ~is_variant(self, other)~ and ~get_payload(self)~.
+
+  - ~is_variant~ compares tags: ~*(I32*)self == *(I32*)other~
+  - ~get_payload~ returns pointer past tag: ~(U8*)self + sizeof(I64)~
+  - ALL ~.get_X()~ and ~.is_X()~ replaced in .til files
+  - Switch desugaring uses ~is_variant~ / ~get_payload~
+  - Auto-generated eq/clone/to_str updated
+  - ~is_Variant~ / ~get_Variant~ generation removed from initer.c
+  - is/get C functions removed from builder.c
+  - is/get dispatch handlers removed from dispatch.c
+  - ~ScopeFind_get_Found~ replaced with ~(TypeBinding*)get_payload~
+  - Bare variant refs emit ~&(EnumType){.tag=TAG}~ compound literals
+    (no malloc). Return paths heap-allocate.
+  - Builder: ref-to-FuncPtr DEREF fix, ref_locals tracking
+  - Interpreter: FuncSig/EnumDef narrowing for ref decls
+  - Clone scoping fix: payload ~ref _pN~ decl in ~then_body~
+
 * FIXED #108 Unify interpreter and builder enum memory layout
   Changed EnumInstance from ~{ Str *enum_name, I32 tag, Value *payload }~
   to ~{ Str *enum_name, Expr *enum_def, U8 *data, I32 data_size }~.
