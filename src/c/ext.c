@@ -474,3 +474,5 @@ void *Vec_take(Vec *v) {
     v->cap = 0;
     return ptr;
 }
+
+USize c_str_len(U8 *s) { return (USize)strlen((const char *)s); }

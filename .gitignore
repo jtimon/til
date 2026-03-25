@@ -6,6 +6,8 @@ lib/libffi/.built
 lib/libffi/*-*-*/
 lib/libffi/Makefile
 lib/libffi/doc/libffi.info
+lib/tinyfiledialogs/tinyfiledialogs.o
+lib/tinyfiledialogs/libtinyfd.a
 *~
 \#*\#
 .#*

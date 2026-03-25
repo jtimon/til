@@ -62,16 +62,44 @@ main := proc(args: ..Str) {
 
         ctrl := is_key_down(341).or(is_key_down(345))
 
-        // Ctrl+S = save
+        // Ctrl+S = save (opens dialog if no filename)
         if ctrl.and(is_key_pressed(83)) {
+            if filename.len().eq(0) {
+                filename = save_file_dialog("Save file", "")
+            }
             if filename.len().gt(0) {
                 content := join(lines, "\n")
                 writefile(filename, content)
                 dirty = false
                 status_msg = "Saved!"
                 status_timer = 2000
-            } else {
-                status_msg = "No filename"
+            }
+        }
+
+        // Ctrl+O = open file
+        if ctrl.and(is_key_pressed(79)) {
+            path := open_file_dialog("Open file", "")
+            if path.len().gt(0) {
+                filename = path
+                mut new_lines := Vec.new("Str", Str.size())
+                content := readfile(filename)
+                if content.len().gt(0) {
+                    parts := content.split("\n")
+                    mut i : USize = 0
+                    while i.lt(parts.len()) {
+                        ref p : Str = parts.get(i)
+                        new_lines.push(own p.clone())
+                        i = i.add(1)
+                    }
+                } else {
+                    new_lines.push(own "".clone())
+                }
+                lines = new_lines
+                cursor_x = 0
+                cursor_y = 0
+                scroll_y = 0
+                dirty = false
+                status_msg = "Opened!"
                 status_timer = 2000
             }
         }
@@ -351,7 +379,7 @@ main := proc(args: ..Str) {
         }
 
         // Help
-        draw_text("Ctrl+S=Save  Esc=Quit", w.sub(400), sy.add(4), 14, 120, 120, 140, 255)
+        draw_text("Ctrl+O=Open  Ctrl+S=Save  Esc=Quit", w.sub(400), sy.add(4), 14, 120, 120, 140, 255)
 
         end_drawing()
     }

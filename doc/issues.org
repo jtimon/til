@@ -986,8 +986,9 @@
   editor + window manager + terminal + session manager + git client.
   Like emacs but in til, with raylib rendering.
 
-  Existing: ~src/examples/editor.til~ — basic text editing, no save
-  (blocked by #69 tinyfiledialogs for file dialogs).
+  Existing: ~src/examples/editor.til~ — text editing with file save/open
+  via tinyfiledialogs (#69 fixed). Ctrl+S saves (dialog if new file),
+  Ctrl+O opens file dialog.
 
   Components (ongoing, like #24 music.til — may have no end):
 
@@ -1093,7 +1094,7 @@
   goes away — the scavenger works normally on pure til programs,
   and imported ~mode lib~ modules already skip scavenging.
 
-** OPEN #69 Bundle tinyfiledialogs for mode gui
+** FIXED #69 Bundle tinyfiledialogs for mode gui
   Bundle tinyfiledialogs as a dependency for mode gui (like raylib).
   Use it in the editor to open a file dialog when saving a new file.
 

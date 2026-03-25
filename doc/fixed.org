@@ -1,5 +1,15 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #69 Bundle tinyfiledialogs for mode gui
+  Bundled tinyfiledialogs (zlib license) in lib/tinyfiledialogs/.
+  Added til_save_dialog/til_open_dialog wrappers in ext.c that call
+  tinyfd_saveFileDialog/tinyfd_openFileDialog and return Str (empty on cancel).
+  gui.til: added link("tinyfd"), ext_func declarations, and snake_case helpers
+  (save_file_dialog, open_file_dialog).
+  editor.til: Ctrl+S on new file opens save dialog, Ctrl+O opens file dialog.
+  builder.c: -Llib/tinyfiledialogs -ltinyfd linked for all programs (ext.c refs).
+  Makefile: libtinyfd.a build target added.
+
 * FIXED #105 Replace per-variant is_*/get_* with generic ext_funcs
   Replaced auto-generated ~is_Variant()~ and ~get_Variant()~ methods
   (N functions per enum) with two generic ext_funcs:

@@ -1,4 +1,5 @@
 link("raylib")
+link("tinyfd")
 link("m")
 link("pthread")
 link("dl")
@@ -239,4 +240,23 @@ draw_text_font := proc(font: Font, text: Str, x: I64, y: I64, font_size: I64, sp
 measure_text_font := func(font: Font, text: Str, font_size: I64, spacing: I64) returns I64 {
     v := MeasureTextEx(font, text.c_str, font_size.to_f32(), spacing.to_f32())
     return v.x.to_i64()
+}
+
+// File dialog FFI (tinyfiledialogs -- direct, like raylib)
+tinyfd_saveFileDialog := ext_func(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64) returns ref U8 {}
+tinyfd_openFileDialog := ext_func(title: U8, defaultPathAndFile: U8, shallow numOfFilterPatterns: I32, shallow filterPatterns: I64, shallow singleFilterDescription: I64, shallow allowMultipleSelects: I32) returns ref U8 {}
+c_str_len := ext_func(s: U8) returns shallow USize {}
+
+// File dialog helpers -- return file path or empty string on cancel
+save_file_dialog := func(title: Str, default_path: Str) returns Str {
+    ref result : U8 = tinyfd_saveFileDialog(title.c_str, default_path.c_str, 0, 0, 0)
+    if is_null(result) { return "" }
+    view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
+    return view.clone()
+}
+open_file_dialog := func(title: Str, default_path: Str) returns Str {
+    ref result : U8 = tinyfd_openFileDialog(title.c_str, default_path.c_str, 0, 0, 0, 0)
+    if is_null(result) { return "" }
+    view := Str(c_str = result, count = c_str_len(result), cap = CAP_VIEW)
+    return view.clone()
 }
