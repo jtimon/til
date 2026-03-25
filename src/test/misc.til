@@ -104,6 +104,11 @@ test_dynamic_narrowing := test() {
     // TODO: my_bvec.get(1).not() — Bool values in Vec don't round-trip correctly (false→true)
 }
 
+test_dynamic_local := test() {
+    buf : Dynamic = malloc(4)
+    assert(__LOC__, is_null(buf).not())
+}
+
 test_i16 := test() {
     // Arithmetic
     a : I16 = 100

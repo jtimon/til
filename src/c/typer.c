@@ -2591,11 +2591,6 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
                     type_error(stmt, buf);
-                } else if (declared.tag == TilType_TAG_Dynamic && !stmt->data.data.Decl.is_own) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; use 'own' with Dynamic type",
-                             stmt->data.data.Decl.name.c_str);
-                    type_error(stmt, buf);
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum &&
                            (is_numeric_type(&declared) || declared.tag == TilType_TAG_Dynamic)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)

@@ -982,14 +982,22 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 const char *ctype = c_type_name(e->til_type, _sn);
                 Expr *rhs = Expr_child(e, &(USize){(USize)(0)});
                 Bool is_global = has_script_globals && !in_func_def && Set_has(&script_globals, &e->data.data.Decl.name);
-                Str *_uth_key = Str_clone(&e->data.data.Decl.name);
-                Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
-                                 e->til_type.tag != TilType_TAG_FuncPtr &&
-                                 e->til_type.tag != TilType_TAG_Dynamic &&
-                                 !Set_has(&unsafe_to_hoist, _uth_key);
-                Str_delete(_uth_key, &(Bool){1});
-                if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
-                    Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
+                if (e->til_type.tag == TilType_TAG_Dynamic) {
+                    if (is_global)
+                        fprintf(f, "%s = ", e->data.data.Decl.name.c_str);
+                    else
+                        fprintf(f, "%s %s = ", til_type_to_c(e->til_type), e->data.data.Decl.name.c_str);
+                    emit_deref(f, rhs, depth);
+                    fprintf(f, ";\n");
+                } else {
+                    Str *_uth_key = Str_clone(&e->data.data.Decl.name);
+                    Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
+                                     e->til_type.tag != TilType_TAG_FuncPtr &&
+                                     e->til_type.tag != TilType_TAG_Dynamic &&
+                                     !Set_has(&unsafe_to_hoist, _uth_key);
+                    Str_delete(_uth_key, &(Bool){1});
+                    if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
+                        Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
                     // Struct constructor
                     const char *var = (const char *)e->data.data.Decl.name.c_str;
                     if (is_global) {
@@ -1002,8 +1010,8 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, var, ctype);
                     }
                     emit_ctor_fields(f, var, rhs, depth);
-                } else if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
-                           (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
+                    } else if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
+                               (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
                     if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
                         if (can_hoist) {
                             // Shallow-return scalar fcall → stack value directly
@@ -1049,7 +1057,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         emit_expr(f, rhs, depth);
                         fprintf(f, ";\n");
                     }
-                } else {
+                    } else {
                     if (can_hoist) {
                         // Scalar literal/ident → stack value
                         fprintf(f, "%s %s = ", ctype, e->data.data.Decl.name.c_str);
@@ -1067,6 +1075,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         emit_deref(f, rhs, depth);
                         fprintf(f, ";\n");
                     }
+                }
                 }
             }
             // Suppress unused-variable warnings for all declarations
@@ -1091,6 +1100,12 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             break;
         }
         Bool is_hoisted = is_shallow_local((const char *)e->data.data.Assign.c_str);
+        if (e->til_type.tag == TilType_TAG_Dynamic) {
+            fprintf(f, "%s = ", e->data.data.Assign.c_str);
+            emit_deref(f, rhs, depth);
+            fprintf(f, ";\n");
+            break;
+        }
         if (is_hoisted) {
             if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
                 fprintf(f, "%s = ", e->data.data.Assign.c_str);

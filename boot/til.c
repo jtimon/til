@@ -3746,15 +3746,15 @@ Array * Array_new(Str * elem_type, U32 * elem_size, U32 * cap) {
         Str_delete(&_t_Str_428, &(Bool){0});
     }
     ;
-    void *_t_v_430 = calloc(DEREF(cap), DEREF(elem_size));
+    void * _t_v_430 = calloc(DEREF(cap), DEREF(elem_size));
     (void)_t_v_430;
     U32 _t_U32_431 = U32_clone(cap);
     (void)_t_U32_431;
     U32 _t_U32_432 = U32_clone(elem_size);
     (void)_t_U32_432;
-    void *_t_v_433 = dyn_fn(elem_type, Str_lit("clone", 5ULL));
+    void * _t_v_433 = dyn_fn(elem_type, Str_lit("clone", 5ULL));
     (void)_t_v_433;
-    void *_t_v_434 = dyn_fn(elem_type, Str_lit("delete", 6ULL));
+    void * _t_v_434 = dyn_fn(elem_type, Str_lit("delete", 6ULL));
     (void)_t_v_434;
     Array _t_Array_435; memset(&_t_Array_435, 0, sizeof(Array));
     _t_Array_435.data = _t_v_430;
@@ -4014,7 +4014,7 @@ Array * Array_clone(Array * self) {
                 (void)_t_U64_486;
                 void *_t_v_487 = ptr_add(self->data, DEREF(_t_U64_486));
                 (void)_t_v_487;
-                void *cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_487);
+                void * cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_487);
                 (void)cloned;
                 U64_delete(_t_U64_486, &(Bool){0});
                 U64 *_t_U64_488 = malloc(sizeof(U64)); *_t_U64_488 = U32_mul(i, self->elem_size);
@@ -4043,7 +4043,7 @@ Array * Array_clone(Array * self) {
                 (void)_t_U64_491;
                 void *_t_v_492 = ptr_add(self->data, DEREF(_t_U64_491));
                 (void)_t_v_492;
-                void *cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_492);
+                void * cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_492);
                 (void)cloned;
                 U64_delete(_t_U64_491, &(Bool){0});
                 U64 *_t_U64_493 = malloc(sizeof(U64)); *_t_U64_493 = U32_mul(i, self->elem_size);
@@ -4152,9 +4152,9 @@ Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size) {
     Bool _t_Bool_528 = Str_is_empty(val_type);
     (void)_t_Bool_528;
     if (_t_Bool_528) {
-        void *_t_v_515 = malloc(DEREF(key_size));
+        void * _t_v_515 = malloc(DEREF(key_size));
         (void)_t_v_515;
-        void *_t_v_516 = malloc(DEREF(val_size));
+        void * _t_v_516 = malloc(DEREF(val_size));
         (void)_t_v_516;
         U32 _t_U32_517 = 0;
         (void)_t_U32_517;
@@ -4164,11 +4164,11 @@ Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size) {
         (void)_t_U32_519;
         U32 _t_U32_520 = U32_clone(val_size);
         (void)_t_U32_520;
-        void *_t_v_521 = dyn_fn(key_type, Str_lit("clone", 5ULL));
+        void * _t_v_521 = dyn_fn(key_type, Str_lit("clone", 5ULL));
         (void)_t_v_521;
-        void *_t_v_522 = dyn_fn(key_type, Str_lit("delete", 6ULL));
+        void * _t_v_522 = dyn_fn(key_type, Str_lit("delete", 6ULL));
         (void)_t_v_522;
-        void *_t_v_523 = dyn_fn(key_type, Str_lit("cmp", 3ULL));
+        void * _t_v_523 = dyn_fn(key_type, Str_lit("cmp", 3ULL));
         (void)_t_v_523;
         Map _t_Map_524; memset(&_t_Map_524, 0, sizeof(Map));
         _t_Map_524.key_data = _t_v_515;
@@ -4193,9 +4193,9 @@ Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size) {
         { Map *_r = malloc(sizeof(Map)); *_r = _t_Map_524; return _r; }
     }
     ;
-    void *_t_v_529 = malloc(DEREF(key_size));
+    void * _t_v_529 = malloc(DEREF(key_size));
     (void)_t_v_529;
-    void *_t_v_530 = malloc(DEREF(val_size));
+    void * _t_v_530 = malloc(DEREF(val_size));
     (void)_t_v_530;
     U32 _t_U32_531 = 0;
     (void)_t_U32_531;
@@ -4205,15 +4205,15 @@ Map * Map_new(Str * key_type, U32 * key_size, Str * val_type, U32 * val_size) {
     (void)_t_U32_533;
     U32 _t_U32_534 = U32_clone(val_size);
     (void)_t_U32_534;
-    void *_t_v_535 = dyn_fn(key_type, Str_lit("clone", 5ULL));
+    void * _t_v_535 = dyn_fn(key_type, Str_lit("clone", 5ULL));
     (void)_t_v_535;
-    void *_t_v_536 = dyn_fn(key_type, Str_lit("delete", 6ULL));
+    void * _t_v_536 = dyn_fn(key_type, Str_lit("delete", 6ULL));
     (void)_t_v_536;
-    void *_t_v_537 = dyn_fn(key_type, Str_lit("cmp", 3ULL));
+    void * _t_v_537 = dyn_fn(key_type, Str_lit("cmp", 3ULL));
     (void)_t_v_537;
-    void *_t_v_538 = dyn_fn(val_type, Str_lit("clone", 5ULL));
+    void * _t_v_538 = dyn_fn(val_type, Str_lit("clone", 5ULL));
     (void)_t_v_538;
-    void *_t_v_539 = dyn_fn(val_type, Str_lit("delete", 6ULL));
+    void * _t_v_539 = dyn_fn(val_type, Str_lit("delete", 6ULL));
     (void)_t_v_539;
     Map _t_Map_540; memset(&_t_Map_540, 0, sizeof(Map));
     _t_Map_540.key_data = _t_v_529;
@@ -4565,13 +4565,13 @@ void Map_set(Map * self, void * key, void * val) {
             ;
             U32 _t_U64_606 = U32_mul(new_cap, self->key_size);
             (void)_t_U64_606;
-            void *_t_v_607 = realloc(self->key_data, _t_U64_606);
+            void * _t_v_607 = realloc(self->key_data, _t_U64_606);
             (void)_t_v_607;
             ;
             self->key_data = _t_v_607;
             U32 _t_U64_608 = U32_mul(new_cap, self->val_size);
             (void)_t_U64_608;
-            void *_t_v_609 = realloc(self->val_data, _t_U64_608);
+            void * _t_v_609 = realloc(self->val_data, _t_U64_608);
             (void)_t_v_609;
             ;
             self->val_data = _t_v_609;
@@ -4864,7 +4864,7 @@ Map * Map_clone(Map * self) {
                 (void)_t_U64_666;
                 void *_t_v_667 = ptr_add(self->key_data, DEREF(_t_U64_666));
                 (void)_t_v_667;
-                void *ck = ((void * (*)(void *))(self->key_clone))(_t_v_667);
+                void * ck = ((void * (*)(void *))(self->key_clone))(_t_v_667);
                 (void)ck;
                 U64_delete(_t_U64_666, &(Bool){0});
                 U64 *_t_U64_668 = malloc(sizeof(U64)); *_t_U64_668 = U32_mul(i, self->key_size);
@@ -4878,7 +4878,7 @@ Map * Map_clone(Map * self) {
                 (void)_t_U64_670;
                 void *_t_v_671 = ptr_add(self->val_data, DEREF(_t_U64_670));
                 (void)_t_v_671;
-                void *cv = ((void * (*)(void *))(self->val_clone))(_t_v_671);
+                void * cv = ((void * (*)(void *))(self->val_clone))(_t_v_671);
                 (void)cv;
                 U64_delete(_t_U64_670, &(Bool){0});
                 U64 *_t_U64_672 = malloc(sizeof(U64)); *_t_U64_672 = U32_mul(i, self->val_size);
@@ -4907,7 +4907,7 @@ Map * Map_clone(Map * self) {
                 (void)_t_U64_675;
                 void *_t_v_676 = ptr_add(self->key_data, DEREF(_t_U64_675));
                 (void)_t_v_676;
-                void *ck = ((void * (*)(void *))(self->key_clone))(_t_v_676);
+                void * ck = ((void * (*)(void *))(self->key_clone))(_t_v_676);
                 (void)ck;
                 U64_delete(_t_U64_675, &(Bool){0});
                 U64 *_t_U64_677 = malloc(sizeof(U64)); *_t_U64_677 = U32_mul(i, self->key_size);
@@ -4921,7 +4921,7 @@ Map * Map_clone(Map * self) {
                 (void)_t_U64_679;
                 void *_t_v_680 = ptr_add(self->val_data, DEREF(_t_U64_679));
                 (void)_t_v_680;
-                void *cv = ((void * (*)(void *))(self->val_clone))(_t_v_680);
+                void * cv = ((void * (*)(void *))(self->val_clone))(_t_v_680);
                 (void)cv;
                 U64_delete(_t_U64_679, &(Bool){0});
                 U64 *_t_U64_681 = malloc(sizeof(U64)); *_t_U64_681 = U32_mul(i, self->val_size);
@@ -5032,7 +5032,7 @@ Set * Set_new(Str * elem_type, U32 * elem_size) {
         Str_delete(&_t_Str_703, &(Bool){0});
     }
     ;
-    void *_t_v_707 = malloc(DEREF(elem_size));
+    void * _t_v_707 = malloc(DEREF(elem_size));
     (void)_t_v_707;
     U32 _t_U32_708 = 0;
     (void)_t_U32_708;
@@ -5040,11 +5040,11 @@ Set * Set_new(Str * elem_type, U32 * elem_size) {
     (void)_t_I64_709;
     U32 _t_U32_710 = U32_clone(elem_size);
     (void)_t_U32_710;
-    void *_t_v_711 = dyn_fn(elem_type, Str_lit("clone", 5ULL));
+    void * _t_v_711 = dyn_fn(elem_type, Str_lit("clone", 5ULL));
     (void)_t_v_711;
-    void *_t_v_712 = dyn_fn(elem_type, Str_lit("delete", 6ULL));
+    void * _t_v_712 = dyn_fn(elem_type, Str_lit("delete", 6ULL));
     (void)_t_v_712;
-    void *_t_v_713 = dyn_fn(elem_type, Str_lit("cmp", 3ULL));
+    void * _t_v_713 = dyn_fn(elem_type, Str_lit("cmp", 3ULL));
     (void)_t_v_713;
     Set _t_Set_714; memset(&_t_Set_714, 0, sizeof(Set));
     _t_Set_714.data = _t_v_707;
@@ -5255,7 +5255,7 @@ void Set_add(Set * self, void * val) {
             ;
             U32 _t_U64_750 = U32_mul(new_cap, self->elem_size);
             (void)_t_U64_750;
-            void *_t_v_751 = realloc(self->data, _t_U64_750);
+            void * _t_v_751 = realloc(self->data, _t_U64_750);
             (void)_t_v_751;
             ;
             self->data = _t_v_751;
@@ -5431,7 +5431,7 @@ Set * Set_clone(Set * self) {
                 (void)_t_U64_783;
                 void *_t_v_784 = ptr_add(self->data, DEREF(_t_U64_783));
                 (void)_t_v_784;
-                void *cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_784);
+                void * cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_784);
                 (void)cloned;
                 U64_delete(_t_U64_783, &(Bool){0});
                 U64 *_t_U64_785 = malloc(sizeof(U64)); *_t_U64_785 = U32_mul(i, self->elem_size);
@@ -5460,7 +5460,7 @@ Set * Set_clone(Set * self) {
                 (void)_t_U64_788;
                 void *_t_v_789 = ptr_add(self->data, DEREF(_t_U64_788));
                 (void)_t_v_789;
-                void *cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_789);
+                void * cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_789);
                 (void)cloned;
                 U64_delete(_t_U64_788, &(Bool){0});
                 U64 *_t_U64_790 = malloc(sizeof(U64)); *_t_U64_790 = U32_mul(i, self->elem_size);
@@ -7634,7 +7634,7 @@ Vec * Vec_new(Str * elem_type, U32 * elem_size) {
     Bool _t_Bool_1167 = Str_is_empty(elem_type);
     (void)_t_Bool_1167;
     if (_t_Bool_1167) {
-        void *_t_v_1162 = malloc(DEREF(elem_size));
+        void * _t_v_1162 = malloc(DEREF(elem_size));
         (void)_t_v_1162;
         U32 _t_U32_1163 = 0;
         (void)_t_U32_1163;
@@ -7658,7 +7658,7 @@ Vec * Vec_new(Str * elem_type, U32 * elem_size) {
         { Vec *_r = malloc(sizeof(Vec)); *_r = _t_Vec_1166; return _r; }
     }
     ;
-    void *_t_v_1168 = malloc(DEREF(elem_size));
+    void * _t_v_1168 = malloc(DEREF(elem_size));
     (void)_t_v_1168;
     U32 _t_U32_1169 = 0;
     (void)_t_U32_1169;
@@ -7666,9 +7666,9 @@ Vec * Vec_new(Str * elem_type, U32 * elem_size) {
     (void)_t_I64_1170;
     U32 _t_U32_1171 = U32_clone(elem_size);
     (void)_t_U32_1171;
-    void *_t_v_1172 = dyn_fn(elem_type, Str_lit("clone", 5ULL));
+    void * _t_v_1172 = dyn_fn(elem_type, Str_lit("clone", 5ULL));
     (void)_t_v_1172;
-    void *_t_v_1173 = dyn_fn(elem_type, Str_lit("delete", 6ULL));
+    void * _t_v_1173 = dyn_fn(elem_type, Str_lit("delete", 6ULL));
     (void)_t_v_1173;
     Vec _t_Vec_1174; memset(&_t_Vec_1174, 0, sizeof(Vec));
     _t_Vec_1174.data = _t_v_1168;
@@ -7703,7 +7703,7 @@ void Vec_push(Vec * self, void * val) {
         ;
         U32 _t_U64_1176 = U32_mul(new_cap, self->elem_size);
         (void)_t_U64_1176;
-        void *_t_v_1177 = realloc(self->data, _t_U64_1176);
+        void * _t_v_1177 = realloc(self->data, _t_U64_1176);
         (void)_t_v_1177;
         ;
         self->data = _t_v_1177;
@@ -7983,7 +7983,7 @@ Vec * Vec_clone(Vec * self) {
                     (void)_t_U64_1235;
                     void *_t_v_1236 = ptr_add(self->data, DEREF(_t_U64_1235));
                     (void)_t_v_1236;
-                    void *cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_1236);
+                    void * cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_1236);
                     (void)cloned;
                     U64_delete(_t_U64_1235, &(Bool){0});
                     U64 *_t_U64_1237 = malloc(sizeof(U64)); *_t_U64_1237 = U32_mul(i, self->elem_size);
@@ -8012,7 +8012,7 @@ Vec * Vec_clone(Vec * self) {
                     (void)_t_U64_1240;
                     void *_t_v_1241 = ptr_add(self->data, DEREF(_t_U64_1240));
                     (void)_t_v_1241;
-                    void *cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_1241);
+                    void * cloned = ((void * (*)(void *))(self->elem_clone))(_t_v_1241);
                     (void)cloned;
                     U64_delete(_t_U64_1240, &(Bool){0});
                     U64 *_t_U64_1242 = malloc(sizeof(U64)); *_t_U64_1242 = U32_mul(i, self->elem_size);
@@ -8065,7 +8065,7 @@ Tuple * Tuple_new(void) {
     (void)_t_Str_1254;
     U32 _t_U32_1255; { U32 *_hp = (U32 *)U32_size(); _t_U32_1255 = *_hp; free(_hp); }
     (void)_t_U32_1255;
-    void *_t_v_1256 = malloc(_t_U64_1251);
+    void * _t_v_1256 = malloc(_t_U64_1251);
     (void)_t_v_1256;
     ;
     U32 _t_U32_1257 = 0;
@@ -8127,7 +8127,7 @@ void Tuple_push(Tuple * self, Str * elem_type, U32 * elem_size, void * val) {
             new_cap = _t_U32_1263;
             ;
         }
-        void *_t_v_1265 = realloc(self->data, new_cap);
+        void * _t_v_1265 = realloc(self->data, new_cap);
         (void)_t_v_1265;
         self->data = _t_v_1265;
         U32 _t_U32_1266 = U32_clone(&(U32){new_cap});
@@ -8434,7 +8434,7 @@ Tuple * Tuple_clone(Tuple * self) {
                 (void)ts;
                 void *_t_v_1313 = ptr_add(self->data, DEREF(offset));
                 (void)_t_v_1313;
-                void *cloned = dyn_call_clone(tn, _t_v_1313);
+                void * cloned = dyn_call_clone(tn, _t_v_1313);
                 (void)cloned;
                 void *_t_v_1314 = ptr_add(new_data, DEREF(offset));
                 (void)_t_v_1314;
@@ -8465,7 +8465,7 @@ Tuple * Tuple_clone(Tuple * self) {
                 (void)ts;
                 void *_t_v_1317 = ptr_add(self->data, DEREF(offset));
                 (void)_t_v_1317;
-                void *cloned = dyn_call_clone(tn, _t_v_1317);
+                void * cloned = dyn_call_clone(tn, _t_v_1317);
                 (void)cloned;
                 void *_t_v_1318 = ptr_add(new_data, DEREF(offset));
                 (void)_t_v_1318;

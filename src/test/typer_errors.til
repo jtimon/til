@@ -169,9 +169,6 @@ own bad_own_local := 0
 // no need for explicit own on mutable local
 own mut bad_own_mut_local := 0
 
-// cannot store Dynamic without own
-bad_dyn : Dynamic = 0
-
 // cannot store Dynamic: inferred from malloc
 bad_dyn2 := malloc(32)
 
