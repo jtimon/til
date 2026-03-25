@@ -48,6 +48,39 @@ test_vec_strings := test() {
     assert_eq(__LOC__, v.len().to_i64(), 2)
 }
 
+test_vec_set := test() {
+    v := Vec.new("I64", I64.size())
+    v.push(own 10)
+    v.push(own 20)
+    v.push(own 30)
+
+    // set middle element
+    v.set(1, own 99)
+    ref a : I64 = v.get(0)
+    ref b : I64 = v.get(1)
+    ref c : I64 = v.get(2)
+    assert_eq(__LOC__, a, 10)
+    assert_eq(__LOC__, b, 99)
+    assert_eq(__LOC__, c, 30)
+
+    // set first element
+    v.set(0, own 42)
+    ref d : I64 = v.get(0)
+    assert_eq(__LOC__, d, 42)
+}
+
+test_vec_set_str := test() {
+    v := Vec.new("Str", Str.size())
+    v.push(own "aaa")
+    v.push(own "bbb")
+
+    v.set(0, own "xxx")
+    ref a : Str = v.get(0)
+    ref b : Str = v.get(1)
+    assert_eq_str(__LOC__, a, "xxx")
+    assert_eq_str(__LOC__, b, "bbb")
+}
+
 test_vec_size := test() {
     assert_eq(__LOC__, I64.size().to_i64(), 8)
     assert_eq(__LOC__, U8.size().to_i64(), 1)

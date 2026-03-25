@@ -41,6 +41,14 @@ namespace:
         return ptr_add(self.data, i.mul(self.elem_size))
     }
 
+    set := proc(mut self: Vec, i: USize, own val: Dynamic) {
+        if i.gte(self.count) {
+            panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        memcpy(ptr_add(self.data, i.mul(self.elem_size)), val, self.elem_size)
+        free(own val)
+    }
+
     delete := func(own self: Vec, call_free: Bool = true) {
         if self.elem_type.is_empty().not() {
             for i in 0..self.count {

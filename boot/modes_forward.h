@@ -592,6 +592,7 @@ Vec * Vec_new(Str * elem_type, U32 * elem_size);
 U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void * Vec_get(Vec * self, U32 * i);
+void Vec_set(Vec * self, U32 * i, void * val);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
 U32 * Vec_size(void);
