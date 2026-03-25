@@ -130,4 +130,4 @@ clean:
 # REM uncoment when upgrading dependency libraries
 #	$(MAKE) -C lib/raylib/src clean
 #	cd $(LIBFFI_DIR) && $(MAKE) clean && rm -f .built
-	rm -f lib/tinyfiledialogs/tinyfiledialogs.o lib/tinyfiledialogs/libtinyfd.a
+#	rm -f lib/tinyfiledialogs/tinyfiledialogs.o lib/tinyfiledialogs/libtinyfd.a
