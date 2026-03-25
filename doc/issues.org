@@ -5,19 +5,19 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
-** OPEN #106 For-in loop counter should be stack-allocated after #50
-  The for-in loop counter is still heap-allocated:
-  ~U32 *_rc = malloc(sizeof(U32))~. After #50 (stack allocation for
-  all types), it should be ~U32 _rc = 0~ on the stack. The loop
-  variable ~i~ is also heap-allocated per iteration (~malloc + clone +
-  delete~). Both should use stack allocation. Easy builder fix.
-
 ** OPEN #109 Fix memory leaks (make test_asan clean)
   ~make test_asan~ currently OOMs at 64G. Root causes:
   - Over-conservative hoisting: ~check_fcall_mut_args~ prevents
     hoisting range counters and mut-param args (unnecessary)
   - ~collect_unsafe_to_hoist~ ref-source checks (unnecessary)
   - Error-path cleanup: ~panic()~ calls ~exit(1)~, skipping ASAP deletion
+
+** OPEN #106 For-in loop counter should be stack-allocated after #50
+  The for-in loop counter is still heap-allocated:
+  ~U32 *_rc = malloc(sizeof(U32))~. After #50 (stack allocation for
+  all types), it should be ~U32 _rc = 0~ on the stack. The loop
+  variable ~i~ is also heap-allocated per iteration (~malloc + clone +
+  delete~). Both should use stack allocation. Easy builder fix.
 
 ** OPEN #104 Module-level mutable globals
   :DEPENDENCY: #50
