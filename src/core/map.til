@@ -145,17 +145,15 @@ namespace:
     }
 
     clone := func(self: Map) returns Map {
-        own new_keys : U8 = malloc(self.cap.mul(self.key_size))
-        own new_vals : U8 = malloc(self.cap.mul(self.val_size))
+        new_keys : U8 = malloc(self.cap.mul(self.key_size))
+        new_vals : U8 = malloc(self.cap.mul(self.val_size))
         for i in 0..self.count {
-            own ck : Dynamic = self.key_clone(
+            ck : Dynamic = self.key_clone(
                      ptr_add(self.key_data, i.mul(self.key_size)))
             memcpy(ptr_add(new_keys, i.mul(self.key_size)), ck, self.key_size)
-            free(own ck)
-            own cv : Dynamic = self.val_clone(
+            cv : Dynamic = self.val_clone(
                      ptr_add(self.val_data, i.mul(self.val_size)))
             memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
-            free(own cv)
         }
         return Map(key_data = new_keys, val_data = new_vals,
                    count = self.count, cap = self.cap,

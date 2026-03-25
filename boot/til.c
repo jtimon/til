@@ -4024,7 +4024,6 @@ Array * Array_clone(Array * self) {
                 (void)_t_v_489;
                 memcpy(_t_v_489, cloned, self->elem_size);
                 U64_delete(_t_U64_488, &(Bool){0});
-                free(cloned);
             }
         } else {
             while (1) {
@@ -4053,7 +4052,6 @@ Array * Array_clone(Array * self) {
                 (void)_t_v_494;
                 memcpy(_t_v_494, cloned, self->elem_size);
                 U64_delete(_t_U64_493, &(Bool){0});
-                free(cloned);
             }
         }
         U32_delete(_rc_U32_484, &(Bool){0});
@@ -4873,7 +4871,6 @@ Map * Map_clone(Map * self) {
                 (void)_t_v_669;
                 memcpy(_t_v_669, ck, self->key_size);
                 U64_delete(_t_U64_668, &(Bool){0});
-                free(ck);
                 U64 *_t_U64_670 = malloc(sizeof(U64)); *_t_U64_670 = U32_mul(i, self->val_size);
                 (void)_t_U64_670;
                 void *_t_v_671 = ptr_add(self->val_data, DEREF(_t_U64_670));
@@ -4888,7 +4885,6 @@ Map * Map_clone(Map * self) {
                 (void)_t_v_673;
                 memcpy(_t_v_673, cv, self->val_size);
                 U64_delete(_t_U64_672, &(Bool){0});
-                free(cv);
             }
         } else {
             while (1) {
@@ -4916,7 +4912,6 @@ Map * Map_clone(Map * self) {
                 (void)_t_v_678;
                 memcpy(_t_v_678, ck, self->key_size);
                 U64_delete(_t_U64_677, &(Bool){0});
-                free(ck);
                 U64 *_t_U64_679 = malloc(sizeof(U64)); *_t_U64_679 = U32_mul(i, self->val_size);
                 (void)_t_U64_679;
                 void *_t_v_680 = ptr_add(self->val_data, DEREF(_t_U64_679));
@@ -4931,7 +4926,6 @@ Map * Map_clone(Map * self) {
                 (void)_t_v_682;
                 memcpy(_t_v_682, cv, self->val_size);
                 U64_delete(_t_U64_681, &(Bool){0});
-                free(cv);
             }
         }
         U32_delete(_rc_U32_664, &(Bool){0});
@@ -5441,7 +5435,6 @@ Set * Set_clone(Set * self) {
                 (void)_t_v_786;
                 memcpy(_t_v_786, cloned, self->elem_size);
                 U64_delete(_t_U64_785, &(Bool){0});
-                free(cloned);
             }
         } else {
             while (1) {
@@ -5470,7 +5463,6 @@ Set * Set_clone(Set * self) {
                 (void)_t_v_791;
                 memcpy(_t_v_791, cloned, self->elem_size);
                 U64_delete(_t_U64_790, &(Bool){0});
-                free(cloned);
             }
         }
         U32_delete(_rc_U32_781, &(Bool){0});
@@ -7993,7 +7985,6 @@ Vec * Vec_clone(Vec * self) {
                     (void)_t_v_1238;
                     memcpy(_t_v_1238, cloned, self->elem_size);
                     U64_delete(_t_U64_1237, &(Bool){0});
-                    free(cloned);
                 }
             } else {
                 while (1) {
@@ -8022,7 +8013,6 @@ Vec * Vec_clone(Vec * self) {
                     (void)_t_v_1243;
                     memcpy(_t_v_1243, cloned, self->elem_size);
                     U64_delete(_t_U64_1242, &(Bool){0});
-                    free(cloned);
                 }
             }
             U32_delete(_rc_U32_1233, &(Bool){0});
@@ -8439,7 +8429,6 @@ Tuple * Tuple_clone(Tuple * self) {
                 void *_t_v_1314 = ptr_add(new_data, DEREF(offset));
                 (void)_t_v_1314;
                 memcpy(_t_v_1314, cloned, DEREF(ts));
-                free(cloned);
                 U32 _t_U32_1315 = U32_add(DEREF(offset), DEREF(ts));
                 (void)_t_U32_1315;
                 U32_delete(i, &(Bool){0});
@@ -8470,7 +8459,6 @@ Tuple * Tuple_clone(Tuple * self) {
                 void *_t_v_1318 = ptr_add(new_data, DEREF(offset));
                 (void)_t_v_1318;
                 memcpy(_t_v_1318, cloned, DEREF(ts));
-                free(cloned);
                 U32 _t_U32_1319 = U32_add(DEREF(offset), DEREF(ts));
                 (void)_t_U32_1319;
                 U32_delete(i, &(Bool){0});

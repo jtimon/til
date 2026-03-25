@@ -2639,9 +2639,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     type_error(stmt, buf);
                 }
             }
-            if (!in_type_body && stmt->data.data.Decl.is_own &&
-                stmt->data.data.Decl.explicit_type.count == 0 &&
-                stmt->til_type.tag != TilType_TAG_Dynamic) {
+            if (!in_type_body && stmt->data.data.Decl.is_own) {
                 char buf[256];
                 if (stmt->data.data.Decl.is_mut) {
                     snprintf(buf, sizeof(buf),

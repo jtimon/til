@@ -68,14 +68,13 @@ namespace:
     clone := func(self: Tuple) returns Tuple {
         mut new_cap := self.cap
         if new_cap.eq(0) { new_cap = 8 }
-        own new_data : U8 = malloc(new_cap)
+        new_data : U8 = malloc(new_cap)
         mut offset : USize = 0
         for i in 0..self.type_names.len() {
             ref tn : Str = self.type_names.get(i)
             ref ts : USize = self.type_sizes.get(i)
-            own cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
+            cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
             memcpy(ptr_add(new_data, offset), cloned, ts)
-            free(own cloned)
             offset = offset.add(ts)
         }
         return Tuple(data = new_data, total_size = self.total_size, cap = new_cap,
