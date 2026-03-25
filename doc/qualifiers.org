@@ -50,4 +50,6 @@ Compound types: Str, user-defined structs, enums.
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~
 - Scalar locals use ~&(Type){x}~ when passed to pointer-expecting functions
 - Delete calls for scalar locals are suppressed (no heap allocation to free)
-- Scalar locals are NOT hoisted if: ~own~, ~ref~, global, passed to ~mut~ param, or address escapes via ~ref~ alias
+- Locals are NOT hoisted if: ~own~, ~ref~, global, FuncPtr, or Dynamic
+- TODO (#50): compound types should also be stack-allocated (~Type x~
+  instead of ~Type *x = malloc~), passed as ~&x~ to functions
