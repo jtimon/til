@@ -1,10 +1,37 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 113
+# NEXT_ISSUE: 114
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #113 Proper enums
+  Enum semantics and syntax are usable now, but the surface is still rough
+  and partly historical.
+
+  Main cleanup goals:
+  - rename ~is_variant(...)~ to ~is(...)~
+  - keep ~eq(...)~ as full enum equality, including payload comparison
+  - document the intended split clearly:
+    - ~x.is(E.V)~ means tag-only check
+    - ~x.eq(E.V(...))~ means full value equality
+  - make ~switch~ over enums exhaustive unless there is an explicit
+    default case
+
+  Motivation:
+  - UFCS-friendly syntax like ~tok.is(Token.Num)~ reads much better than
+    ~is_variant(tok, Token.Num)~
+  - payload enums need a clean semantic distinction between "same variant"
+    and "same value"
+  - exhaustive ~switch~ checking should make enum control flow safer and
+    reduce silent missing-case bugs
+
+  Expected implementation areas:
+  - core declaration / docs for ~is~
+  - removal/rename of ~is_variant~
+  - parser / typer support for exhaustive enum ~switch~
+  - test updates in ~src/test/enums.til~
+
 ** OPEN #111 TypeScope / ScopeFind ASAN use-after-free
   The original blocker here was a deterministic ASAN use-after-free in the
   self-hosted type-scope lookup path. That specific bug is fixed, and

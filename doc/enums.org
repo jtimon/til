@@ -1,0 +1,85 @@
+# Enum semantics and follow-up cleanup notes.
+
+* Proper enums (#113)
+
+Current intended semantic split:
+
+- ~x.is(E.V)~
+  Tag-only check. This should answer "is this enum value of variant ~V~?"
+  without comparing payload contents.
+
+- ~x.eq(y)~
+  Full enum equality. For no-payload enums this is equivalent to tag
+  equality. For payload enums it must compare both:
+  - variant tag
+  - payload value
+
+Examples:
+
+#+begin_src til
+Direction := enum { Up, Down }
+Token := enum { Num: I64, Eof }
+
+Direction.Up.is(Direction.Up)        # true
+Direction.Up.eq(Direction.Up)        # true
+
+Token.Num(42).is(Token.Num)          # true
+Token.Num(42).eq(Token.Num(42))      # true
+Token.Num(42).eq(Token.Num(99))      # false
+Token.Num(42).is(Token.Eof)          # false
+#+end_src
+
+Why both are needed:
+
+- ~is~ is the branchy / UFCS-friendly check:
+  ~if tok.is(Token.Num) { ... }~
+- ~eq~ is ordinary value equality:
+  ~if tok.eq(Token.Num(42)) { ... }~
+
+* Switches
+
+Desired rule for enum ~switch~:
+
+- enum switches should be exhaustive by default
+- if all variants are not covered, typer should reject them
+- unless the user provides an explicit default case
+
+That gives:
+
+- safer enum control flow
+- cleaner intent than relying on accidental fallthrough of missing cases
+
+Examples:
+
+#+begin_src til
+switch tok {
+case Token.Num(n): ...
+case Token.Eof: ...
+}
+#+end_src
+
+This should be accepted only if ~Token~ has exactly those variants.
+
+#+begin_src til
+switch tok {
+case Token.Num(n): ...
+case:
+    ...
+}
+#+end_src
+
+This should be accepted as explicitly non-exhaustive because it has a
+default case.
+
+* Current tests to extend
+
+Main reference file:
+- ~src/test/enums.til~
+
+Good follow-up coverage:
+- ~is~ on no-payload enums
+- ~is~ on payload enums using both bare and constructor syntax where valid
+- ~eq~ still comparing payloads
+- exhaustive ~switch~ accepted
+- missing-case ~switch~ rejected
+- default-case ~switch~ accepted
