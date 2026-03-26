@@ -15,3 +15,8 @@ FFIEntry := struct {
     ref mut cif : U8 = NULL
     ref mut arg_types : U8 = NULL
 }
+
+ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
+enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
+ffi_init := ext_func(program: Expr, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
+ffi_cleanup := ext_proc() {}

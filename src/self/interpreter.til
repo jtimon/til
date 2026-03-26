@@ -106,3 +106,35 @@ Scope := struct {
     mut bindings := Map.new("Str", Str.size(), "Binding", Binding.size())
     ref mut parent : Scope = NULL
 }
+
+val_none := ext_func() returns shallow Value {}
+val_i64 := ext_func(shallow v: I64) returns shallow Value {}
+val_u8 := ext_func(shallow v: I64) returns shallow Value {}
+val_i16 := ext_func(shallow v: I64) returns shallow Value {}
+val_i32 := ext_func(shallow v: I64) returns shallow Value {}
+val_u32 := ext_func(shallow v: I64) returns shallow Value {}
+val_u64 := ext_func(shallow v: U64) returns shallow Value {}
+val_f32 := ext_func(shallow v: F32) returns shallow Value {}
+val_bool := ext_func(shallow v: Bool) returns shallow Value {}
+
+val_enum_flat := ext_func(enum_name: Str, enum_def: Expr, shallow etag: I32, payload_data: Dynamic, shallow payload_size: I32) returns shallow Value {}
+val_enum_simple := ext_func(enum_name: Str, shallow etag: I32) returns shallow Value {}
+
+eval_expr := ext_func(scope: Scope, e: Expr) returns shallow Value {}
+eval_call := ext_func(scope: Scope, e: Expr) returns shallow Value {}
+clone_value := ext_func(shallow v: Value) returns shallow Value {}
+free_value := ext_proc(shallow v: Value) {}
+
+scope_get := ext_func(s: Scope, name: Str) returns ref Cell {}
+scope_new := ext_func(parent: Scope) returns ref Scope {}
+scope_set_owned := ext_proc(mut s: Scope, name: Str, shallow val: Value) {}
+scope_free := ext_proc(own s: Scope) {}
+interpreter_init_ns := ext_proc(mut global: Scope, program: Expr) {}
+ns_get := ext_func(sname: Str, fname: Str) returns ref Value {}
+
+make_str_value := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
+make_str_value_own := ext_func(data: Dynamic, shallow len: U64) returns shallow Value {}
+str_view := ext_func(shallow v: Value) returns shallow Str {}
+
+find_field_decl := ext_func(struct_def: Expr, fname: Str) returns ref Expr {}
+write_field := ext_proc(mut inst: StructInstance, fdecl: Expr, shallow val: Value) {}

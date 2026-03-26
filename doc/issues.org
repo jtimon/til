@@ -456,7 +456,8 @@
 
     All .til stubs import their predecessor. All struct/enum types
     are in .til files. C modules (src/c/*.c) link via ~link_c~ in
-    til.til and get types from ~boot/modes.h~.
+    til.til and get types from ~boot/modes.h~ plus generated
+    function declarations from ~boot/til_forward.h~.
 
 *** Approach: translate C functions to til incrementally
     All structs/enums are already in .til stubs. Remaining work is
@@ -474,6 +475,13 @@
 *** Current state of C modules
     All typedefs/structs in til. til_bridge.c deleted (#77).
     Remaining work: translate ~160 C functions to til.
+    Remaining handwritten ~src/c~ headers:
+    - ~aliases.h~
+    - ~ext.h~
+    - ~pre70.h~
+    The old handwritten interface headers (~interpreter.h~,
+    ~dispatch.h~) are gone; C modules now consume generated boot
+    declarations instead.
 
     | Module | Functions | Notes |
     |--------+-----------+-------|
@@ -566,10 +574,18 @@
    - TypeBinding struct moved to initer.til
    - TypeScope struct moved to initer.til
    - Auto-generated clone/delete replaces hand-written no-ops
+   - ~compute_struct_layout~ translated to til
+   - ~infer_top_level_decl_type~ translated to til
+   - ~TypeScope.get_struct~ translated to til
+   - ~init_declarations~ split into pass-level C helpers to make
+     later one-helper-at-a-time translation mechanical
+   - redundant handwritten forward declarations dropped from
+     ~src/c/initer.c~
 
-   Remaining: all functions still in initer.c. Functions use nullable
-   pointers (~TypeScope *parent~, ~TypeBinding *b~ with NULL checks)
-   which need thought for til translation.
+   Remaining: the pass helpers in ~init_declarations~ plus the rest of
+   the support functions still in ~initer.c~. Nullable borrowed paths
+   (~TypeScope *parent~, ~TypeBinding *b~ with NULL checks) still need
+   thought when translating the remaining helpers.
 
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from

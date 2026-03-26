@@ -1,7 +1,5 @@
-#include "interpreter.h"
 #include "../../boot/modes.h"
 #include "pre70.h"
-#include "dispatch.h"
 #include "ext.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +13,71 @@ static Bool has_return;
 static Bool has_break;
 static Bool has_continue;
 static Value return_value;
+
+Value val_none(void) {
+    return (Value){.tag = Value_TAG_None};
+}
+
+Value val_i64(I64 v) {
+    return (Value){.tag = Value_TAG_Int, .data.Int = v};
+}
+
+Value val_u8(I64 v) {
+    return (Value){.tag = Value_TAG_Byte, .data.Byte = (U8)(v & 0xFF)};
+}
+
+Value val_i16(I64 v) {
+    return (Value){.tag = Value_TAG_Short, .data.Short = (I16)v};
+}
+
+Value val_i32(I64 v) {
+    return (Value){.tag = Value_TAG_Int32, .data.Int32 = (I32)v};
+}
+
+Value val_u32(I64 v) {
+    return (Value){.tag = Value_TAG_Uint32, .data.Uint32 = (U32)(v & 0xFFFFFFFF)};
+}
+
+Value val_u64(U64 v) {
+    return (Value){.tag = Value_TAG_Uint64, .data.Uint64 = v};
+}
+
+Value val_f32(F32 v) {
+    return (Value){.tag = Value_TAG_Float, .data.Float = v};
+}
+
+Value val_bool(Bool v) {
+    return (Value){.tag = Value_TAG_Boolean, .data.Boolean = v};
+}
+
+#define ENUM_PAYLOAD_OFFSET ((I32)sizeof(I64))
+
+Value val_enum_flat(Str *enum_name, Expr *enum_def, I32 etag, void *payload_data, I32 payload_size) {
+    Value r;
+    r.tag = Value_TAG_Enum;
+    r.data.Enum.enum_name = enum_name;
+    r.data.Enum.enum_def = enum_def;
+    I32 total = ENUM_PAYLOAD_OFFSET + payload_size;
+    if (total < (I32)sizeof(I64)) total = sizeof(I64);
+    r.data.Enum.data = calloc(1, total);
+    r.data.Enum.data_size = total;
+    *(I32 *)r.data.Enum.data = etag;
+    if (payload_data && payload_size > 0)
+        memcpy(r.data.Enum.data + ENUM_PAYLOAD_OFFSET, payload_data, payload_size);
+    return r;
+}
+
+Value val_enum_simple(Str *enum_name, I32 etag) {
+    return val_enum_flat(enum_name, NULL, etag, NULL, 0);
+}
+
+static I32 enum_tag(Value v) {
+    return *(I32 *)v.data.Enum.data;
+}
+
+static void *enum_payload_ptr(Value v) {
+    return v.data.Enum.data + ENUM_PAYLOAD_OFFSET;
+}
 
 // --- Namespace fields (static struct fields) ---
 
@@ -305,7 +368,7 @@ void write_field(StructInstance *inst, Expr *fdecl, Value val) {
 }
 
 // Build a Str StructInstance from C string data (copies data via strndup)
-Value make_str_value(const char *data, U64 len) {
+Value make_str_value(void *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
@@ -322,7 +385,7 @@ Value make_str_value(const char *data, U64 len) {
 }
 
 // Build a Str StructInstance taking ownership of buffer (no copy)
-Value make_str_value_own(char *data, U64 len) {
+Value make_str_value_own(void *data, U64 len) {
     StructInstance *inst = malloc(sizeof(StructInstance));
     inst->struct_name = cached_str_name;
     inst->struct_def = cached_str_def;
@@ -1288,7 +1351,7 @@ void interpreter_init_ns(Scope *global, Expr *program) {
 }
 
 static Value parse_cli_arg(const char *s, Str *type_name) {
-    if ((type_name->count == 3 && memcmp(type_name->c_str, "Str", 3) == 0)) return make_str_value(s, strlen(s));
+    if ((type_name->count == 3 && memcmp(type_name->c_str, "Str", 3) == 0)) return make_str_value((void *)s, strlen(s));
     if ((type_name->count == 3 && memcmp(type_name->c_str, "I64", 3) == 0)) {
         char *end;
         I64 v = strtoll(s, &end, 10);
@@ -1403,7 +1466,7 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     Value *delete_fn = ns_get(elem_type, &(Str){.c_str = (U8 *)"delete", .count = 6});
     if (clone_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ec), *clone_fn);
     if (delete_fn) write_field(inst, find_field_decl(cached_array_def, &fn_ed), *delete_fn);
-    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)elem_type->c_str, elem_type->count));
+    write_field(inst, find_field_decl(cached_array_def, &fn_et), make_str_value((void *)elem_type->c_str, elem_type->count));
     Value result;
     result.tag = Value_TAG_Struct;
     result.data.Struct = *inst;

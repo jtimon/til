@@ -1,8 +1,12 @@
-#include "dispatch.h"
 #include "../../boot/modes.h"
 #include "pre70.h"
 #include "ext.h"
 #include <stdio.h>
+
+extern Expr *cached_array_def;
+extern Str *cached_array_name;
+extern Expr *cached_vec_def;
+extern Str *cached_vec_name;
 
 // Forward declarations for value-param scalar functions (not in ext.h
 // because boot redefines them with pointer-param signatures)
@@ -463,7 +467,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     write_field(si, find_field_decl(cached_array_def, &fn_data), (Value){.tag = Value_TAG_Ptr, .data.Ptr = data});
     write_field(si, find_field_decl(cached_array_def, &fn_cap), val_u32(count));
     write_field(si, find_field_decl(cached_array_def, &fn_esz), val_u32((U32)elem_size));
-    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
+    write_field(si, find_field_decl(cached_array_def, &fn_et), make_str_value((void *)type_name->c_str, type_name->count));
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
     Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};
@@ -521,7 +525,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     write_field(si, find_field_decl(cached_vec_def, &fn_count), val_u32(count));
     write_field(si, find_field_decl(cached_vec_def, &fn_cap), val_u32(cap));
     write_field(si, find_field_decl(cached_vec_def, &fn_esz), val_u32((U32)elem_size));
-    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value((const char *)type_name->c_str, type_name->count));
+    write_field(si, find_field_decl(cached_vec_def, &fn_et), make_str_value((void *)type_name->c_str, type_name->count));
     // Populate FuncPtr fields (#91)
     Str fn_ec = {.c_str = (U8 *)"elem_clone", .count = 10};
     Str fn_ed = {.c_str = (U8 *)"elem_delete", .count = 11};

@@ -3,10 +3,6 @@
 #include <stdio.h>
 #include "../../boot/modes.h"
 #include "pre70.h"
-#include "interpreter.h"
-#include "dispatch.h"
-
-// Forward declaration (defined in ast.c)
 
 static Set macros, funcs;
 static Map known;
@@ -65,7 +61,7 @@ static Value expr_to_value(Expr *e) {
             return val_u8(atoll((const char *)e->data.data.LiteralNum.c_str));
         return val_i64(atoll((const char *)e->data.data.LiteralNum.c_str));
     case ExprData_TAG_LiteralStr:
-        return make_str_value((const char *)e->data.data.LiteralStr.c_str, e->data.data.LiteralStr.count);
+        return make_str_value((void *)e->data.data.LiteralStr.c_str, e->data.data.LiteralStr.count);
     case ExprData_TAG_LiteralBool:
         return val_bool(strcmp((const char *)e->data.data.LiteralBool.c_str, "true") == 0);
     default:
