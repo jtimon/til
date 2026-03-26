@@ -9,7 +9,7 @@ Str := struct {
     mut cap : USize = 0
 
 namespace:
-    len := func(self: Str) returns USize { return self.count }
+    len := func(self: Str) returns shallow USize { return self.count }
 
     get := func(self: Str, i: USize) returns ref U8 {
         if i.gte(self.count) {
@@ -23,7 +23,7 @@ namespace:
         return ptr_add(self.c_str, i)
     }
 
-    cmp := func(a: Str, b: Str) returns I64 {
+    cmp := func(a: Str, b: Str) returns shallow I64 {
         mut min_len := a.count
         if b.count.lt(a.count) { min_len = b.count }
         for i in 0..min_len {
