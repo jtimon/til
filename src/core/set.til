@@ -95,6 +95,7 @@ namespace:
             cloned : Dynamic = self.elem_clone(
                          ptr_add(self.data, i.mul(self.elem_size)))
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+            free(own cloned)
         }
         return Set(data = new_data, count = self.count, cap = self.cap,
                    elem_size = self.elem_size, elem_type = self.elem_type,

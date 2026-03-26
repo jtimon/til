@@ -75,6 +75,7 @@ namespace:
             ref ts : USize = self.type_sizes.get(i)
             cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
             memcpy(ptr_add(new_data, offset), cloned, ts)
+            free(own cloned)
             offset = offset.add(ts)
         }
         return Tuple(data = new_data, total_size = self.total_size, cap = new_cap,

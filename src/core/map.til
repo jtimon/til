@@ -151,9 +151,11 @@ namespace:
             ck : Dynamic = self.key_clone(
                      ptr_add(self.key_data, i.mul(self.key_size)))
             memcpy(ptr_add(new_keys, i.mul(self.key_size)), ck, self.key_size)
+            free(own ck)
             cv : Dynamic = self.val_clone(
                      ptr_add(self.val_data, i.mul(self.val_size)))
             memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
+            free(own cv)
         }
         return Map(key_data = new_keys, val_data = new_vals,
                    count = self.count, cap = self.cap,
