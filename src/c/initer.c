@@ -19,78 +19,6 @@ Expr *TypeScope_get_struct(TypeScope *self, Str *name) {
 
 // --- Init phase: pre-scan top-level declarations ---
 
-static Bool infer_top_level_decl_type(Expr *stmt, TypeScope *scope, TilType *out_type, Str **out_struct_name) {
-    static Str str_type_name = {.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-    Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-    *out_type = (TilType){TilType_TAG_Unknown};
-    *out_struct_name = NULL;
-
-    if (stmt->data.data.Decl.explicit_type.count > 0) {
-        Str *tn = &stmt->data.data.Decl.explicit_type;
-        *out_type = *type_from_name_init(tn, scope);
-        if (out_type->tag == TilType_TAG_Struct || out_type->tag == TilType_TAG_Enum)
-            *out_struct_name = tn;
-        return out_type->tag != TilType_TAG_Unknown;
-    }
-
-    switch (rhs->data.tag) {
-    case ExprData_TAG_LiteralNum:
-        *out_type = (TilType){TilType_TAG_I64};
-        return 1;
-    case ExprData_TAG_LiteralBool:
-        *out_type = (TilType){TilType_TAG_Bool};
-        return 1;
-    case ExprData_TAG_LiteralStr:
-        *out_type = (TilType){TilType_TAG_Struct};
-        *out_struct_name = &str_type_name;
-        return 1;
-    case ExprData_TAG_LiteralNull:
-        *out_type = (TilType){TilType_TAG_Dynamic};
-        return 1;
-    case ExprData_TAG_Ident: {
-        TypeBinding *b = TypeScope_get_binding(scope, &rhs->data.data.Ident);
-        if (!b) return 0;
-        *out_type = b->type;
-        if (b->struct_name.count > 0) *out_struct_name = &b->struct_name;
-        return out_type->tag != TilType_TAG_Unknown;
-    }
-    case ExprData_TAG_FieldAccess:
-        if (rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum) {
-            *out_type = (TilType){TilType_TAG_Enum};
-            if (rhs->children.count > 0)
-                *out_struct_name = &Expr_child(rhs, &(USize){0})->struct_name;
-            return 1;
-        }
-        return 0;
-    case ExprData_TAG_FCall: {
-        Expr *callee = Expr_child(rhs, &(USize){0});
-        if (rhs->struct_name.count > 0 &&
-            callee->data.tag == ExprData_TAG_Ident &&
-            Str_eq(&callee->data.data.Ident, &rhs->struct_name)) {
-            *out_type = (TilType){TilType_TAG_Struct};
-            *out_struct_name = &rhs->struct_name;
-            return 1;
-        }
-        if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field &&
-            rhs->struct_name.count > 0 && rhs->til_type.tag == TilType_TAG_Enum) {
-            *out_type = (TilType){TilType_TAG_Enum};
-            *out_struct_name = &rhs->struct_name;
-            return 1;
-        }
-        if (callee->data.tag == ExprData_TAG_Ident) {
-            TypeBinding *fb = TypeScope_get_binding(scope, &callee->data.data.Ident);
-            if (!fb) return 0;
-            *out_type = fb->type;
-            if (fb->struct_name.count > 0) *out_struct_name = &fb->struct_name;
-            return out_type->tag != TilType_TAG_Unknown;
-        }
-        return 0;
-    }
-    default:
-        return 0;
-    }
-}
-
 I32 init_declarations(Expr *program, TypeScope *scope) {
     I32 errors = 0;
 
@@ -1385,14 +1313,14 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             type_from_name_init(&rhs->data.data.Ident, scope)->tag != TilType_TAG_Unknown) continue;
 
         TilType t;
-        Str *struct_name = NULL;
+        Str struct_name = {0};
         if (!infer_top_level_decl_type(stmt, scope, &t, &struct_name)) continue;
         if (t.tag == TilType_TAG_Unknown) continue;
 
         TypeScope_set(scope, &stmt->data.data.Decl.name, &t, -1, stmt->data.data.Decl.is_mut,
                       stmt->line, stmt->col, 0, 0);
         TypeBinding *b = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-        if (struct_name) b->struct_name = *Str_clone(struct_name);
+        if (struct_name.count > 0) b->struct_name = *Str_clone(&struct_name);
     }
 
     return errors;

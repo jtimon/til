@@ -222,6 +222,81 @@ compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
     }
 }
 
+infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: TilType, mut out_struct_name: Str) returns shallow Bool {
+    ref rhs : Expr = stmt.child(0)
+    out_type = TilType.Unknown
+    out_struct_name = ""
+
+    if is_variant(stmt.data, ExprData.Decl) {
+        ref dd : Declaration = get_payload(stmt.data)
+        if dd.explicit_type.len().gt(0) {
+            out_type = type_from_name_init(dd.explicit_type, scope)
+            if out_type.eq(TilType.Struct).or(out_type.eq(TilType.Enum)) {
+                out_struct_name = dd.explicit_type
+            }
+            return out_type.eq(TilType.Unknown).not()
+        }
+    }
+
+    switch rhs.data {
+    case ExprData.LiteralNum:
+        out_type = TilType.I64
+        return true
+    case ExprData.LiteralBool:
+        out_type = TilType.Bool
+        return true
+    case ExprData.LiteralStr:
+        out_type = TilType.Struct
+        out_struct_name = "Str"
+        return true
+    case ExprData.LiteralNull:
+        out_type = TilType.Dynamic
+        return true
+    case ExprData.Ident(id):
+        ref b : TypeBinding = scope.get_binding(id)
+        if is_null(b) { return false }
+        out_type = b.type
+        if b.struct_name.len().gt(0) { out_struct_name = b.struct_name }
+        return out_type.eq(TilType.Unknown).not()
+    case ExprData.FieldAccess:
+        if rhs.is_ns_field.and(rhs.til_type.eq(TilType.Enum)) {
+            out_type = TilType.Enum
+            if rhs.child_count().gt(0) {
+                out_struct_name = rhs.child(0).struct_name
+            }
+            return true
+        }
+        return false
+    case ExprData.FCall:
+        ref callee : Expr = rhs.child(0)
+        if rhs.struct_name.len().gt(0).and(is_variant(callee.data, ExprData.Ident)) {
+            ref cn : Str = get_payload(callee.data)
+            if cn.eq(rhs.struct_name) {
+                out_type = TilType.Struct
+                out_struct_name = rhs.struct_name
+                return true
+            }
+        }
+        if is_variant(callee.data, ExprData.FieldAccess).and(callee.is_ns_field)
+            .and(rhs.struct_name.len().gt(0)).and(rhs.til_type.eq(TilType.Enum)) {
+            out_type = TilType.Enum
+            out_struct_name = rhs.struct_name
+            return true
+        }
+        if is_variant(callee.data, ExprData.Ident) {
+            ref fn_name : Str = get_payload(callee.data)
+            ref fb : TypeBinding = scope.get_binding(fn_name)
+            if is_null(fb) { return false }
+            out_type = fb.type
+            if fb.struct_name.len().gt(0) { out_struct_name = fb.struct_name }
+            return out_type.eq(TilType.Unknown).not()
+        }
+        return false
+    case:
+        return false
+    }
+}
+
 // C-facing declarations (still used by typer.c etc.)
 init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 Vec_take := ext_func(v: Vec) returns Dynamic {}

@@ -695,6 +695,7 @@ I32 align_up(I32 offset, I32 align);
 TilType * type_from_name_init(Str * name, TypeScope * scope);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
+Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type, Str * out_struct_name);
 I32 init_declarations(Expr * program, TypeScope * scope);
 void * Vec_take(Vec * v);
 ScopeFind * ScopeFind_NotFound(void);
