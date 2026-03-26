@@ -1049,9 +1049,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         e->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
                         e->is_ref_field = field->data.data.Decl.is_ref;
                         if (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) {
-                            e->struct_name = Expr_child(field, &(USize){(USize)(0)})->struct_name;
+                            Str *field_sname = &Expr_child(field, &(USize){(USize)(0)})->struct_name;
+                            if (field_sname->count > 0) e->struct_name = *Str_clone(field_sname);
                         } else {
-                            e->struct_name = obj->struct_name;
+                            if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
                         }
                         // Enum variant access: override type to enum for:
                         // 1. I64 literal variants (simple enums)
@@ -1064,13 +1065,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             if (fc->data.tag != ExprData_TAG_FuncDef) {
                                 // I64 literal variant
                                 e->til_type = (TilType){TilType_TAG_Enum};
-                                e->struct_name = obj->struct_name;
+                                if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
                             } else if (fc->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
                                        (fc->data.data.FuncDef.return_type).count > 0 &&
                                        Str_eq(&fc->data.data.FuncDef.return_type, &obj->struct_name)) {
                                 // Variant constructor (zero-arg or payload) -- bare reference
                                 e->til_type = (TilType){TilType_TAG_Enum};
-                                e->struct_name = obj->struct_name;
+                                if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
                             }
                         }
                         found = 1;
@@ -2139,7 +2140,7 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
     field_acc->data.data.FieldAccess = field_assign->data.data.FieldAssign;
     field_acc->is_own_field = is_own;
     field_acc->til_type = rhs->til_type;
-    field_acc->struct_name = rhs->struct_name;
+    if (rhs->struct_name.count > 0) field_acc->struct_name = *Str_clone(&rhs->struct_name);
     Expr_add_child(field_acc, Expr_clone(Expr_child(field_assign, &(USize){(USize)(0)})));
     Expr_add_child(call, field_acc);
 
