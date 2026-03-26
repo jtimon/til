@@ -68,6 +68,7 @@ namespace:
             for i in 0..self.count {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
                 memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
+                free(own cloned)
             }
         } else {
             memcpy(new_data, self.data, self.count.mul(self.elem_size))

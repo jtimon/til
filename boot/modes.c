@@ -8024,6 +8024,7 @@ Vec * Vec_clone(Vec * self) {
                     (void)_t_v_1257;
                     memcpy(_t_v_1257, cloned, self->elem_size);
                     ;
+                    free(cloned);
                 }
             } else {
                 while (1) {
@@ -8052,6 +8053,7 @@ Vec * Vec_clone(Vec * self) {
                     (void)_t_v_1262;
                     memcpy(_t_v_1262, cloned, self->elem_size);
                     ;
+                    free(cloned);
                 }
             }
             ;
