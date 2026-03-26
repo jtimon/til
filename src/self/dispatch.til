@@ -5,3 +5,13 @@ ExtStr := struct {
     mut count : U64 = 0
     mut cap : U64 = 0
 }
+
+FFIEntry := struct {
+    ref mut fn : U8 = NULL
+    ref mut return_type : Str = NULL
+    mut nparam : I32 = 0
+    ref mut param_shallows : U8 = NULL
+    mut return_is_shallow := false
+    ref mut cif : U8 = NULL
+    ref mut arg_types : U8 = NULL
+}

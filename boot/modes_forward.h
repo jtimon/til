@@ -176,6 +176,7 @@ typedef struct Scope Scope;
 typedef struct CollectionInfo CollectionInfo;
 typedef struct DynCallInfo DynCallInfo;
 typedef struct ExtStr ExtStr;
+typedef struct FFIEntry FFIEntry;
 typedef struct Mode Mode;
 
 typedef struct StructDef {
@@ -388,6 +389,17 @@ typedef struct ExtStr {
     U64 count;
     U64 cap;
 } ExtStr;
+
+
+typedef struct FFIEntry {
+    U8 *fn;
+    Str *return_type;
+    I32 nparam;
+    U8 *param_shallows;
+    Bool return_is_shallow;
+    U8 *cif;
+    U8 *arg_types;
+} FFIEntry;
 
 
 typedef struct Mode {
@@ -801,6 +813,9 @@ I32 compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_pat
 ExtStr * ExtStr_clone(ExtStr * self);
 void ExtStr_delete(ExtStr * self, Bool * call_free);
 U32 * ExtStr_size(void);
+FFIEntry * FFIEntry_clone(FFIEntry * self);
+void FFIEntry_delete(FFIEntry * self, Bool * call_free);
+U32 * FFIEntry_size(void);
 Bool * Mode_eq(Mode * a, Mode * b);
 Mode * Mode_clone(Mode * self);
 void Mode_delete(Mode * self, Bool * call_free);

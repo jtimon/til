@@ -71,16 +71,6 @@ static Map dispatch_map;
 static Bool dispatch_inited;
 
 // --- FFI state ---
-typedef struct {
-    void *fn;           // dlsym'd function pointer
-    Str *return_type;   // NULL for proc (void return)
-    I32 nparam;
-    bool *param_shallows; // per-param shallow flags (NULL if none)
-    bool return_is_shallow; // true for `returns shallow Type`
-    ffi_cif cif;
-    ffi_type **arg_types;
-} FFIEntry;
-
 static Map ffi_map;          // name -> FFIEntry
 static Map ffi_struct_defs;  // Str* name -> Expr* struct_def (for return type lookup)
 static void *ffi_handle;     // dlopen handle
@@ -752,37 +742,40 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
     if (ffi_loaded) {
         if (Map_has(&ffi_map, name)) {
             FFIEntry *fe = Map_get(&ffi_map, name);
+            bool *param_shallows = (bool *)fe->param_shallows;
+            ffi_type **arg_types = (ffi_type **)fe->arg_types;
+            ffi_cif *cif = (ffi_cif *)fe->cif;
             U32 nargs = e->children.count - 1;
             void *args[nargs > 0 ? nargs : 1];
             void *arg_ptrs[nargs > 0 ? nargs : 1];
             for (U32 i = 0; i < nargs; i++) {
                 Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(i + 1)}));
-                if (fe->param_shallows && i < (U32)fe->nparam && fe->param_shallows[i]) {
+                if (param_shallows && i < (U32)fe->nparam && param_shallows[i]) {
                     // Shallow: store dereferenced value directly for ffi
                     if (v.tag == Value_TAG_Struct) {
                         // Struct by value: point arg_ptrs directly at struct data
                         arg_ptrs[i] = v.data.Struct.data;
                         continue;
                     }
-                    if (fe->arg_types[i] == &ffi_type_sint64) {
+                    if (arg_types[i] == &ffi_type_sint64) {
                         I64 tmp = (v.tag == Value_TAG_Ptr) ? *(I64 *)v.data.Ptr : value_to_i64(v);
                         *(I64 *)&args[i] = tmp;
-                    } else if (fe->arg_types[i] == &ffi_type_uint8) {
+                    } else if (arg_types[i] == &ffi_type_uint8) {
                         U8 tmp = (v.tag == Value_TAG_Ptr) ? *(U8 *)v.data.Ptr : (U8)value_to_u64(v);
                         *(U8 *)&args[i] = tmp;
-                    } else if (fe->arg_types[i] == &ffi_type_sint16) {
+                    } else if (arg_types[i] == &ffi_type_sint16) {
                         I16 tmp = (v.tag == Value_TAG_Ptr) ? *(I16 *)v.data.Ptr : (I16)value_to_i64(v);
                         *(I16 *)&args[i] = tmp;
-                    } else if (fe->arg_types[i] == &ffi_type_sint32) {
+                    } else if (arg_types[i] == &ffi_type_sint32) {
                         I32 tmp = (v.tag == Value_TAG_Ptr) ? *(I32 *)v.data.Ptr : (I32)value_to_i64(v);
                         *(I32 *)&args[i] = tmp;
-                    } else if (fe->arg_types[i] == &ffi_type_uint32) {
+                    } else if (arg_types[i] == &ffi_type_uint32) {
                         U32 tmp = (v.tag == Value_TAG_Ptr) ? *(U32 *)v.data.Ptr : (U32)value_to_u64(v);
                         *(U32 *)&args[i] = tmp;
-                    } else if (fe->arg_types[i] == &ffi_type_uint64) {
+                    } else if (arg_types[i] == &ffi_type_uint64) {
                         U64 tmp = (v.tag == Value_TAG_Ptr) ? *(U64 *)v.data.Ptr : value_to_u64(v);
                         *(U64 *)&args[i] = tmp;
-                    } else if (fe->arg_types[i] == &ffi_type_float) {
+                    } else if (arg_types[i] == &ffi_type_float) {
                         F32 tmp = (v.tag == Value_TAG_Ptr) ? *(F32 *)v.data.Ptr : value_to_f32(v);
                         *(F32 *)&args[i] = tmp;
                     } else {
@@ -812,7 +805,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             // scalar types like Bool are ext_structs in til but scalars in FFI.
             Expr **ret_sdef = NULL;
             if (fe->return_is_shallow && fe->return_type &&
-                fe->cif.rtype->type == FFI_TYPE_STRUCT &&
+                cif->rtype->type == FFI_TYPE_STRUCT &&
                 Map_has(&ffi_struct_defs, fe->return_type))
                 ret_sdef = Map_get(&ffi_struct_defs, fe->return_type);
             union {
@@ -830,9 +823,9 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             if (ret_sdef) {
                 // Struct return: allocate buffer of struct size
                 ret_buf = malloc((*ret_sdef)->total_struct_size);
-                ffi_call(&fe->cif, FFI_FN(fe->fn), ret_buf, nargs > 0 ? arg_ptrs : NULL);
+                ffi_call(cif, FFI_FN(fe->fn), ret_buf, nargs > 0 ? arg_ptrs : NULL);
             } else {
-                ffi_call(&fe->cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
+                ffi_call(cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
             }
             if (!fe->return_type) {
                 *result = val_none();
@@ -990,19 +983,21 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
             pshallows[k] = ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(k)}))->is_shallow;
     }
     bool ret_shallow = fdef->data.data.FuncDef.return_is_shallow;
+    ffi_cif *cif = malloc(sizeof(ffi_cif));
     FFIEntry entry = {
-        .fn = fn,
+        .fn = (U8 *)fn,
         .return_type = (fdef->data.data.FuncDef.return_type).count > 0 ? (&fdef->data.data.FuncDef.return_type) : NULL,
         .nparam = np,
-        .param_shallows = pshallows,
+        .param_shallows = (U8 *)pshallows,
         .return_is_shallow = ret_shallow,
-        .arg_types = atypes,
+        .cif = (U8 *)cif,
+        .arg_types = (U8 *)atypes,
     };
     ffi_type *rtype = &ffi_type_void;
     if (entry.return_type) {
         rtype = ret_shallow ? shallow_ffi_type(entry.return_type) : &ffi_type_pointer;
     }
-    ffi_prep_cif(&entry.cif, FFI_DEFAULT_ABI, np, rtype, atypes);
+    ffi_prep_cif(cif, FFI_DEFAULT_ABI, np, rtype, atypes);
     { Str *_k = malloc(sizeof(Str)); *_k = (Str){name->c_str, name->count, CAP_VIEW};
       FFIEntry *_v = malloc(sizeof(FFIEntry)); *_v = entry;
       Map_set(&ffi_map, _k, _v); }
@@ -1142,6 +1137,12 @@ void ffi_cleanup(void) {
         ffi_handle = NULL;
     }
     if (ffi_loaded) {
+        for (U32 i = 0; i < ffi_map.count; i++) {
+            FFIEntry *fe = (FFIEntry *)((char *)ffi_map.val_data + (i * ffi_map.val_size));
+            free((void *)fe->param_shallows);
+            free((void *)fe->arg_types);
+            free((void *)fe->cif);
+        }
         Map_delete(&ffi_map, &(Bool){0});
         Map_delete(&ffi_struct_defs, &(Bool){0});
         ffi_loaded = 0;
