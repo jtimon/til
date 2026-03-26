@@ -325,7 +325,7 @@ typedef struct LocalInfo {
     I32 decl_index;
     I32 last_use;
     I32 own_transfer;
-    Bool skip_delete;
+    Bool skip_scope_delete;
 } LocalInfo;
 
 
@@ -27138,7 +27138,7 @@ LocalInfo * LocalInfo_clone(LocalInfo * self) {
     (void)self;
     I32 _t_I32_4429 = I32_clone(&self->own_transfer);
     (void)_t_I32_4429;
-    Bool _t_Bool_4430 = Bool_clone(&self->skip_delete);
+    Bool _t_Bool_4430 = Bool_clone(&self->skip_scope_delete);
     (void)_t_Bool_4430;
     LocalInfo _t_LocalInfo_4431; memset(&_t_LocalInfo_4431, 0, sizeof(LocalInfo));
     _t_LocalInfo_4431.name = self->name;
@@ -27147,7 +27147,7 @@ LocalInfo * LocalInfo_clone(LocalInfo * self) {
     _t_LocalInfo_4431.decl_index = I32_clone(&self->decl_index);
     _t_LocalInfo_4431.last_use = I32_clone(&self->last_use);
     _t_LocalInfo_4431.own_transfer = _t_I32_4429;
-    _t_LocalInfo_4431.skip_delete = _t_Bool_4430;
+    _t_LocalInfo_4431.skip_scope_delete = _t_Bool_4430;
     (void)_t_LocalInfo_4431;
     ;
     ;
@@ -27176,7 +27176,7 @@ void LocalInfo_delete(LocalInfo * self, Bool * call_free) {
     ;
     Bool _t_Bool_4436 = 0;
     (void)_t_Bool_4436;
-    Bool_delete(&self->skip_delete, &_t_Bool_4436);
+    Bool_delete(&self->skip_scope_delete, &_t_Bool_4436);
     ;
     if (DEREF(call_free)) {
         free(self);

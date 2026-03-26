@@ -2291,23 +2291,23 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         }
 
         // Program-scope globals live for the program's lifetime — no ASAP deletion.
-        // Still collect them for ownership-transfer checks, but mark for skip.
-        Bool skip_delete = is_program_scope && decl_idx >= 0;
+        // Still collect them for ownership-transfer and overwrite-delete checks.
+        Bool skip_scope_delete = is_program_scope && decl_idx >= 0;
 
-        if (!skip_delete) {
+        if (!skip_scope_delete) {
             // If captured by a nested func/proc, don't ASAP-delete — the nested
             // function may be called after this scope's body finishes (e.g. cli mode main)
             for (U32 j = scan_from; j < body->children.count; j++) {
                 if (expr_used_in_nested_func(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
-                    skip_delete = 1;
+                    skip_scope_delete = 1;
                     break;
                 }
             }
         }
         // Ref bindings don't own their data — never delete, but track for lifetime extension
-        if (b->is_ref) skip_delete = 1;
+        if (b->is_ref) skip_scope_delete = 1;
 
-        LocalInfo li = {b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer, skip_delete};
+        LocalInfo li = {b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer, skip_scope_delete};
         { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = li; Vec_push(&locals_vec, _p); }
     }
 
@@ -2397,7 +2397,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 if (stmt->children.count > 0 &&
                     (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), locals[j].name) ||
                      alias_used_in_expr(body, locals[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
-                if (locals[j].skip_delete) continue;
+                if (locals[j].skip_scope_delete) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].decl_index < (I32)i &&
                     (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
@@ -2411,10 +2411,10 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         if (stmt->data.tag == ExprData_TAG_If || stmt->data.tag == ExprData_TAG_While) {
             Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
             for (U32 j = 0; j < n_locals; j++) {
-                if (locals[j].skip_delete) continue;
-                if (locals[j].own_transfer >= 0) continue;
-                if (locals[j].decl_index < (I32)i &&
-                    (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
+                    if (locals[j].skip_scope_delete) continue;
+                    if (locals[j].own_transfer >= 0) continue;
+                    if (locals[j].decl_index < (I32)i &&
+                        (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
                     { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = locals[j]; Vec_push(&live_vec, _p); }
                 }
             }
@@ -2439,7 +2439,6 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             Str *vname = &stmt->data.data.Ident;
             for (U32 j = 0; j < n_locals; j++) {
                 if (!Str_eq(locals[j].name, vname)) continue;
-                if (locals[j].skip_delete) break;
                 TilType t = locals[j].type;
                 if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) {
                     Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
@@ -2463,7 +2462,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         // After non-exit statements: free locals whose last use is this statement
         if (stmt->data.tag != ExprData_TAG_Return && stmt->data.tag != ExprData_TAG_Break && stmt->data.tag != ExprData_TAG_Continue) {
             for (U32 j = 0; j < n_locals; j++) {
-                if (locals[j].skip_delete) continue;
+                if (locals[j].skip_scope_delete) continue;
                 if (locals[j].own_transfer >= 0) continue; // callee frees
                 if (locals[j].last_use == (I32)i) {
                     Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);

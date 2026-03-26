@@ -45,4 +45,21 @@ assert(__LOC__, counter.eq(3))
 counter = 100
 assert(__LOC__, counter.eq(100))
 
+DeleteOnOverwrite := struct {
+    mut id := 0
+    namespace:
+    mut delete_count := 0
+    delete := proc(own self: DeleteOnOverwrite, call_free: Bool = true) {
+        DeleteOnOverwrite.delete_count = DeleteOnOverwrite.delete_count.add(1)
+        if call_free { free(own self) }
+    }
+}
+
+mut tracked := DeleteOnOverwrite(id=1)
+assert(__LOC__, DeleteOnOverwrite.delete_count.eq(0))
+tracked = DeleteOnOverwrite(id=2)
+assert(__LOC__, DeleteOnOverwrite.delete_count.eq(1))
+tracked = DeleteOnOverwrite(id=3)
+assert(__LOC__, DeleteOnOverwrite.delete_count.eq(2))
+
 println("globals: ok")

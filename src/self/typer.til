@@ -7,7 +7,7 @@ LocalInfo := struct {
     mut decl_index : I32 = 0
     mut last_use : I32 = 0
     mut own_transfer : I32 = -1.to_i32()
-    mut skip_delete := false
+    mut skip_scope_delete := false
 }
 
 is_numeric_type := func(t: TilType) returns shallow Bool {

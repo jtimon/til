@@ -1073,7 +1073,7 @@ static void eval_body(Scope *scope, Expr *body) {
                 Expr_error(stmt, &(Str){.c_str = (U8*)buf, .count = (U64)strlen(buf), .cap = CAP_VIEW});
                 exit(1);
             }
-            if (rhs->data.tag == ExprData_TAG_Ident) {
+            if (stmt->til_type.tag == TilType_TAG_Dynamic && rhs->data.tag == ExprData_TAG_Ident) {
                 // Move semantics: transfer value from source, null source
                 Cell *src = scope_get(scope, &rhs->data.data.Ident);
                 free_value(cell->val);
@@ -1091,7 +1091,7 @@ static void eval_body(Scope *scope, Expr *body) {
             Expr *val_expr = Expr_child(stmt, &(USize){(USize)(1)});
             Value val;
             Cell *move_src = NULL;
-            if (val_expr->data.tag == ExprData_TAG_Ident) {
+            if (val_expr->til_type.tag == TilType_TAG_Dynamic && val_expr->data.tag == ExprData_TAG_Ident) {
                 move_src = scope_get(scope, &val_expr->data.data.Ident);
                 val = move_src->val;
             } else {

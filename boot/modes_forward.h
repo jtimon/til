@@ -320,7 +320,7 @@ typedef struct LocalInfo {
     I32 decl_index;
     I32 last_use;
     I32 own_transfer;
-    Bool skip_delete;
+    Bool skip_scope_delete;
 } LocalInfo;
 
 
