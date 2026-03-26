@@ -19,7 +19,7 @@ TypeBinding := struct {
     ref mut func_def : Expr = NULL
     mut is_builtin := false
     mut is_ext := false
-    ref mut struct_name : Str = NULL
+    mut struct_name := ""
     namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns shallow Bool {
         return a.name.eq(b.name)

@@ -119,7 +119,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         ScopeFind *_sf_id = TypeScope_find(scope, &e->data.data.Ident);
         TypeBinding *ib = _sf_id->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_id) : NULL;
         if (ib && (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)) {
-            if (ib->struct_name) e->struct_name = *ib->struct_name;
+            if (ib->struct_name.count > 0) e->struct_name = ib->struct_name;
         }
         // Function references: identifier refers to a function → Fn type
         if (ib && ib->func_def) {
@@ -196,19 +196,19 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     _pi->is_own = true;
                     TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                    pb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
+                    pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
                 } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
                     // Kwargs param: bind as Map
                     _pi->is_own = true;
                     TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                    pb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
+                    pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
                 } else {
                     TypeScope_set(func_scope, &_pi->name, &pt, -1, pmut, e->line, e->col, 1, pown);
                     // For struct/enum-typed params, store struct_name
                     TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
                     if (pt.tag == TilType_TAG_Struct || pt.tag == TilType_TAG_Enum) {
-                        pb->struct_name = ptn;
+                        pb->struct_name = *Str_clone(ptn);
                     }
                     // For Fn-typed params, resolve func_def by type name from scope
                     if (pt.tag == TilType_TAG_FuncPtr) {
@@ -1207,7 +1207,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 
         TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
         TypeBinding *vb = Map_get(&scope->bindings, var_name);
-        vb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT});
+        vb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT});
 
         Vec_push(&new_ch, decl);
 
@@ -1338,7 +1338,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         // Register in scope
         TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
         TypeBinding *vb = Map_get(&scope->bindings, var_name);
-        vb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
+        vb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
 
         Vec_push(&new_ch, decl);
 
@@ -1533,7 +1533,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         // Register _va in scope
         TypeScope_set(scope, va_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
         TypeBinding *vab = Map_get(&scope->bindings, va_name);
-        vab->struct_name = Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
+        vab->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
 
         Vec_push(&new_ch, va_decl);
 
@@ -1709,7 +1709,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         // Register _kw in scope
         TypeScope_set(scope, kw_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
         TypeBinding *kwb = Map_get(&scope->bindings, kw_name);
-        kwb->struct_name = Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
+        kwb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
 
         Vec_push(&new_ch, kw_decl);
 
@@ -1859,7 +1859,7 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     ident->is_own_arg = val_is_own_arg;
     TypeScope_set(scope, tname, &val_type, -1, 0, val_line, val_col, 0, 0);
     TypeBinding *tb = Map_get(&scope->bindings, tname);
-    tb->struct_name = Str_clone(&val_struct_name);
+    tb->struct_name = *Str_clone(&val_struct_name);
     if (val_is_ref) {
         decl->data.data.Decl.is_ref = true;
         if (tb) tb->is_ref = 1;
@@ -2004,12 +2004,12 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 Expr *a = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 a->data.data.Ident = stmt->data.data.Ident;
                 a->til_type = ab->type;
-                if (ab->struct_name) a->struct_name = *ab->struct_name;
+                if (ab->struct_name.count > 0) a->struct_name = ab->struct_name;
                 Expr_add_child(call, a);
                 // arg1: the RHS (hoisted temp ident)
                 Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
                 // arg2: Type.size() — hoist to temp so builder emits deref correctly
-                const char *tname = type_to_name(ab->type, ab->struct_name);
+                const char *tname = type_to_name(ab->type, &ab->struct_name);
                 Expr *sz_call = make_ns_call(tname, "size", *usize_type(scope), NULL, stmt);
                 Expr *sz = hoist_to_temp(sz_call, &hoisted, &nhoisted, &hcap, scope);
                 Expr_add_child(call, sz);
@@ -2307,7 +2307,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
         // Ref bindings don't own their data — never delete, but track for lifetime extension
         if (b->is_ref) skip_scope_delete = 1;
 
-        LocalInfo li = {b->name, b->type, b->struct_name, decl_idx, last_use, own_transfer, skip_scope_delete};
+        LocalInfo li = {b->name, b->type, &b->struct_name, decl_idx, last_use, own_transfer, skip_scope_delete};
         { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = li; Vec_push(&locals_vec, _p); }
     }
 
@@ -2662,7 +2662,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             TypeScope_set(scope, &stmt->data.data.Decl.name, &stmt->til_type, -1, stmt->data.data.Decl.is_mut, stmt->line, stmt->col, 0, 0);
             TypeBinding *_decl_b = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
             if ((stmt->til_type.tag == TilType_TAG_Struct || stmt->til_type.tag == TilType_TAG_Enum) && (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)) {
-                _decl_b->struct_name = Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+                _decl_b->struct_name = *Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
             }
             // For function pointer variables, propagate func_def from source or fn_sig
             if (stmt->til_type.tag == TilType_TAG_FuncPtr) {

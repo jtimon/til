@@ -170,7 +170,7 @@ static Bool infer_top_level_decl_type(Expr *stmt, TypeScope *scope, TilType *out
         TypeBinding *b = TypeScope_get_binding(scope, &rhs->data.data.Ident);
         if (!b) return 0;
         *out_type = b->type;
-        if (b->struct_name) *out_struct_name = b->struct_name;
+        if (b->struct_name.count > 0) *out_struct_name = &b->struct_name;
         return out_type->tag != TilType_TAG_Unknown;
     }
     case ExprData_TAG_FieldAccess:
@@ -200,7 +200,7 @@ static Bool infer_top_level_decl_type(Expr *stmt, TypeScope *scope, TilType *out
             TypeBinding *fb = TypeScope_get_binding(scope, &callee->data.data.Ident);
             if (!fb) return 0;
             *out_type = fb->type;
-            if (fb->struct_name) *out_struct_name = fb->struct_name;
+            if (fb->struct_name.count > 0) *out_struct_name = &fb->struct_name;
             return out_type->tag != TilType_TAG_Unknown;
         }
         return 0;
@@ -1177,7 +1177,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             ab->is_type_alias = 1;
             // Resolve canonical name: if target is itself an alias, follow the chain
             ab->alias_target = target->alias_target ? target->alias_target : target_name;
-            if (target->struct_name) ab->struct_name = target->struct_name;
+            if (target->struct_name.count > 0) ab->struct_name = *Str_clone(&target->struct_name);
         }
     }
 
@@ -1511,7 +1511,7 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         TypeScope_set(scope, &stmt->data.data.Decl.name, &t, -1, stmt->data.data.Decl.is_mut,
                       stmt->line, stmt->col, 0, 0);
         TypeBinding *b = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-        if (struct_name) b->struct_name = Str_clone(struct_name);
+        if (struct_name) b->struct_name = *Str_clone(struct_name);
     }
 
     return errors;
