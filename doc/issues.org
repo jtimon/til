@@ -52,29 +52,22 @@
 *** Roadmap (order of execution)
 
   1. #111 Fix ~TypeScope~ / ~ScopeFind~ ASAN use-after-free
-  2. #50 incremental rework (type by type):
-     a. Preparation: rename scalar-only ~shallow_locals~ machinery to an
-        explicit stack-local model with no behavior change
-     b. Owned primitive/leaf locals as stack values, whether ~mut~ or not
-     c. Shallow enums/structs (no own payloads/fields)
-     d. Deep enums/structs (Str, Vec, Map, Set, etc.)
-  3. #109 Remaining leaks + error-path cleanup
-  4. Switch ~make test~ to always use ~bin/til_asan~
+  2. #109 Remaining leaks + error-path cleanup
+  3. Switch ~make test~ to always use ~bin/til_asan~
 
 *** Dependency graph
 
   #+begin_example
   #111 TypeScope / ScopeFind ASAN use-after-free
    +-- unblocks meaningful make test_asan runs
-  #50 Stack alloc for ALL types (needs rework)
-   +-- #109 Fix memory leaks (most leaks = heap-allocated locals)
   #70 Constant folding (independent, no leak impact)
   #+end_example
 
 ** OPEN #109 Fix memory leaks (make test_asan clean)
-  :DEPENDENCY: #50
   ~make test_asan~ currently OOMs at 64G. Most leaks are from
-  heap-allocated locals that should be on the stack (#50).
+  compiler allocations and remaining ownership/error-path issues.
+  The stack-local work from ~#50~ is already landed, which should make
+  the remaining leak buckets smaller and easier to isolate.
   Additional source: ~panic()~ calls ~exit(1)~, skipping all
   ASAP deletion (independent of #50 -- fix by only checking
   leaks on exit code 0).
@@ -346,104 +339,9 @@
       to the declared type. Handles chained method calls and nested negatives
       like ~a : I32 = -34.add(-35)~. Broader but more invasive.
 
-** WIP #50 Stack allocation for all struct/enum types
-  :REOPENED: Was falsely flagged as FIXED.
-
-  Current state: ordinary non-~ref~, non-~Dynamic~ locals are now
-  stack-backed via ~can_hoist~ + stack-local tracking. Raw allocation
-  locals stay under the ~Dynamic~ exception. Globals are still emitted
-  as heap pointers.
-
-  Goal: ALL non-~ref~, non-~Dynamic~ locals on stack: ~Type x = {...}~.
-  Pass to functions as ~&x~. See doc/qualifiers.org for the full
-  C mapping.
-
-  The builder's current stack-allocation logic is ad-hoc with many special
-  cases in:
-  - ~emit_expr~ / ~emit_as_ptr~ / ~emit_deref~ for Ident nodes
-  - Decl emission (6+ code paths)
-  - Assignment emission
-  - Return emission
-  - Delete emission
-
-  Raw heap buffers are a separate case from normal value locals:
-  ~malloc~ / ~realloc~ / dynamic clone paths should stay under the
-  ~Dynamic~ exception (~Dynamic~ = til ~void *~), not as typed locals
-  like ~buf : U8 = malloc(...)~. Typed access should happen through
-  borrowed views such as ~ref b : U8 = ptr_add(buf, 0)~.
-
-  Each emit path switches on the current stack-local tracking. Extending
-  this to compound types means auditing ALL paths. The safest path is:
-  1. preparation refactor with no behavior change
-  2. normalize raw-allocation locals to the ~Dynamic~ exception
-  3. widen ordinary non-~ref~, non-~Dynamic~ locals
-  4. only then flip globals to static values for #104
-
-*** Done
-
-  - preparation refactor: stack-backed locals are explicit in builder
-  - raw ~malloc~/~realloc~ locals now use ~Dynamic~
-  - ordinary non-~ref~, non-~Dynamic~ locals now use stack-backed
-    lvalues and pass by ~&x~, including ~ref~ and ~mut~ call paths
-  - current stack-local Set tracks which locals are stack-allocated
-  - current stack-local type map keeps pointer-sign correctness
-  - ~emit_as_ptr~ now uses stable lvalue addresses for stack locals
-  - ~emit_body_scoped~: block-scoped stack-local tracking
-  - delete insertion continues to use ~call_free=false~ for locals
-
-*** Next incremental commits
-
-  1. #106: stack-allocate the synthetic for-in counter and loop temporaries.
-
-*** (old version ) #50 Stack allocation for all struct/enum types
-  Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
-  allocation -- everything else is heap-allocated via malloc. This should
-  be extended to ALL struct/enum types, not just shallow ones.
-
-  The key insight: even types with ~own~ fields can be stack-allocated.
-  The existing delete-insertion logic already calls ~delete(call_free=false)~
-  for stack values. For types with ~own~ fields, ~delete(call_free=false)~
-  frees the owned inner data (e.g. Str's c_str buffer) without freeing
-  the struct itself. Containers (Vec, Map, Set) use malloc internally
-  for their buffers, which delete handles.
-
-  Prerequisite for #104 (module-level globals): static variables should
-  be stack-allocated (~static Point p = {0}~), not heap-allocated
-  (~static Point *p = malloc(...)~). Without #50, globals need a
-  special heap path which is a dead end.
-
-*** What makes a type "shallow"
-
-   A type is "shallow" (in the copy-safety sense) if:
-   - It has no ~own~ fields (structs) or ~own~ payloads (enums)
-   - All its inline (non-ref, non-own) fields/payloads are themselves shallow,
-     recursively
-   - ~ref~ fields are fine — they're borrowed pointers, shallow-copying them
-     is safe since we don't manage their lifetime
-
-   The check is mutually recursive: structs can have enum fields, enums can
-   have struct or enum payloads, so both must be checked together.
-
-   #+begin_src til
-   // SHALLOW — all fields are inline primitives, no own
-   Point := struct {
-       mut x: I64 = 0
-       mut y: I64 = 0
-   }
-
-   // SHALLOW — ref fields are fine (borrowed pointers, not owned)
-   Slice := struct {
-       ref data: U8 = null
-       mut len: I64 = 0
-   }
-
-   // SHALLOW — simple enum (no payloads = just an integer tag)
-   Color := enum { Red, Green, Blue }
-
-   // SHALLOW — all payloads are themselves shallow types
-   Shape := enum {
-       Circle: I64,
-       Rect: Point,
+  Remaining memory work after the stack-local rework belongs under ~#109~:
+  leak reduction, error-path cleanup, and any ownership mismatches that only
+  show up under ASAN.
    }
 
    // DEEP — has an own field (Str contains own c_str: U8)

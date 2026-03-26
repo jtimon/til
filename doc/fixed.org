@@ -17,6 +17,32 @@
 
   So the old heap forms like ~U32 *_rc = malloc(sizeof(U32))~ are gone.
 
+* FIXED #50 Stack allocation for all struct/enum types
+  This was landed incrementally and then verified again after ~#104~ and
+  ~#106~ were done.
+
+  What changed:
+
+  - builder stack-local tracking was made explicit
+  - raw allocation locals were normalized under the ~Dynamic~ exception
+  - ordinary non-~ref~, non-~Dynamic~ locals now use stack-backed value
+    storage and pass by stable ~&x~ addresses
+  - value globals now use the same model via ~static T x~
+  - for-in temporaries and range counters also fall out as value locals
+
+  Re-verified after the final steps:
+
+  - generated C from ~src/test/arrays.til~ shows:
+    - ~Array _fc_Array_304;~
+    - ~U32 _fi_USize_304 = 0;~
+    - ~U32 _rc_U32_492 = 0;~
+  - ordinary locals/globals no longer use the old heap-wrapper model
+  - ~systemd-run --user --scope -p MemoryMax=64G make test~ passes
+    (~82/82~)
+
+  Remaining ownership/leak work now belongs under ~#109~ / ~#110~, not as a
+  separate open ~#50~ problem.
+
 * FIXED #104 Module-level mutable globals
   Landed once #50 had made ordinary values stack-backed.
 
