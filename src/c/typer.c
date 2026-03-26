@@ -1415,8 +1415,6 @@ static Expr *make_ns_call(const char *sname, const char *method,
     return call;
 }
 
-static I32 _va_counter = 0;
-
 static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
@@ -1642,8 +1640,6 @@ static Expr *find_kwargs_fcall(Expr *e) {
     }
     return NULL;
 }
-
-static I32 _kw_counter = 0;
 
 static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }

@@ -939,5 +939,7 @@ Value *Value_Ptr(void *);
 extern U32 CAP_LIT;
 extern U32 CAP_VIEW;
 extern I32 hoist_counter;
+extern I32 _va_counter;
+extern I32 _kw_counter;
 extern Map core_modes;
 

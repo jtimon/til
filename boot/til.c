@@ -1510,6 +1510,8 @@ void print_flush() {
 U32 CAP_LIT;
 U32 CAP_VIEW;
 I32 hoist_counter;
+I32 _va_counter;
+I32 _kw_counter;
 Map core_modes;
 Str BASE_VERSION;
 Str VERSION;
@@ -34070,6 +34072,10 @@ int main(int argc, char **argv) {
     (void)CAP_VIEW;
     hoist_counter = 0;
     (void)hoist_counter;
+    _va_counter = 0;
+    (void)_va_counter;
+    _kw_counter = 0;
+    (void)_kw_counter;
     Str _t_Str_6254; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_6254 = *_hp; free(_hp); }
     (void)_t_Str_6254;
     U32 _t_U32_6255; { U32 *_hp = (U32 *)Str_size(); _t_U32_6255 = *_hp; free(_hp); }
