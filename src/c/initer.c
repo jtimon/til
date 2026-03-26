@@ -6,10 +6,8 @@
 
 // --- Init phase: pre-scan top-level declarations ---
 
-I32 init_declarations(Expr *program, TypeScope *scope) {
+static I32 register_struct_definitions(Expr *program, TypeScope *scope) {
     I32 errors = 0;
-
-    // Pass 1: register all struct definitions
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -17,7 +15,6 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         Str *sname = &stmt->data.data.Decl.name;
 
-        // Check for redeclaration: if a struct/ext_struct with this name already exists, error
         ScopeFind *_sf3 = TypeScope_find(scope, sname);
         TypeBinding *existing = _sf3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf3) : NULL;
         if (existing && existing->struct_def) {
@@ -37,10 +34,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         else if ((sname->count == 3 && memcmp(sname->c_str, "U32", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U32};        is_builtin = 1; }
         else if ((sname->count == 3 && memcmp(sname->c_str, "U64", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U64};        is_builtin = 1; }
         else if ((sname->count == 5 && memcmp(sname->c_str, "USize", 5) == 0))      { builtin_type = (TilType){TilType_TAG_U32};        is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))        { is_builtin = 0; } // Str is a regular struct
+        else if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))        { is_builtin = 0; }
         else if ((sname->count == 4 && memcmp(sname->c_str, "Bool", 4) == 0))       { builtin_type = (TilType){TilType_TAG_Bool};       is_builtin = 1; }
         else if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0))  { builtin_type = (TilType){TilType_TAG_StructDef}; is_builtin = 1; }
-        else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0)){ is_builtin = 0; } // regular struct like Str
+        else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0)){ is_builtin = 0; }
         else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))   { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
 
         TypeScope_set(scope, sname, &builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
@@ -49,21 +46,23 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         b->is_builtin = is_builtin;
         b->is_ext = Expr_child(stmt, &(USize){(USize)(0)})->is_ext;
     }
+    return errors;
+}
 
-    // Pass 1.1: pre-register FuncSig type aliases (bodyless func/proc defs)
-    // Needed before struct layout/clone/delete so FuncSig-typed struct fields are recognized
+static void register_funcsig_aliases(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
         if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->children.count != 0) continue; // bodyless = FuncSig
+        if (Expr_child(stmt, &(USize){(USize)(0)})->children.count != 0) continue;
         TypeScope_set(scope, &stmt->data.data.Decl.name, &(TilType){TilType_TAG_FuncPtr}, -1, 0,
-                   stmt->line, stmt->col, 0, 0);
+                      stmt->line, stmt->col, 0, 0);
         TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
         fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
     }
+}
 
-    // Pass 1.5: auto-generate clone methods for all structs
+static void generate_missing_struct_clones(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -195,7 +194,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec_delete(&field_refs, &(Bool){0});
     }
 
-    // Pass 1.7: auto-generate delete methods for all structs
+}
+
+static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -328,7 +329,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec_delete(&field_owns, &(Bool){0});
     }
 
-    // Pass 1.8: register enum definitions, generate variants + methods
+}
+
+static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
+    I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -943,9 +947,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         Vec_delete(&variant_names, &(Bool){0});
         Vec_delete(&variant_types, &(Bool){0});
     }
+    return errors;
+}
 
-    // Pass 1.85: register type aliases (Name := ExistingType where RHS is a known type name)
-    // Must run after Pass 1 (structs), Pass 1.1 (FuncSigs), and Pass 1.8 (enums)
+static void register_type_aliases(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -976,13 +981,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             if (target->struct_name.count > 0) ab->struct_name = *Str_clone(&target->struct_name);
         }
     }
+}
 
-    // Pass 1.9: compute flat struct layout (field offsets and sizes)
-    // Must run BEFORE size method synthesis so total_struct_size is available
-    compute_all_struct_layouts(program, scope);
-
-    // Pass 1.92: auto-generate size methods for structs and enums
-    // Uses total_struct_size computed above for correct values (includes alignment padding)
+static void generate_size_methods(Expr *program, TypeScope *scope) {
+    (void)scope;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -1050,10 +1052,10 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
 
         Expr_add_child(body, decl);
     }
+}
 
-    // Pass 1.95: auto-generate derived methods
-    // From cmp: eq, neq, lt, gt, lte, gte (if missing)
-    // From add+unity: inc (if missing). From sub+unity: dec (if missing)
+static void generate_derived_methods(Expr *program, TypeScope *scope) {
+    (void)scope;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -1225,8 +1227,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
             Expr_add_child(body, decl);
         }
     }
+}
 
-    // Pass 2: register all func/proc definitions
+static void register_function_definitions(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -1286,9 +1289,9 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
                 fb->is_builtin = 1;
         }
     }
+}
 
-    // Pass 3: pre-register top-level value declarations so functions can
-    // reference module globals before their declaration appears.
+static void register_top_level_values(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
@@ -1309,6 +1312,50 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
         TypeBinding *b = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
         if (struct_name.count > 0) b->struct_name = *Str_clone(&struct_name);
     }
+}
+
+I32 init_declarations(Expr *program, TypeScope *scope) {
+    I32 errors = 0;
+
+    // Pass 1: register all struct definitions
+    errors += register_struct_definitions(program, scope);
+
+    // Pass 1.1: pre-register FuncSig type aliases (bodyless func/proc defs)
+    // Needed before struct layout/clone/delete so FuncSig-typed struct fields are recognized
+    register_funcsig_aliases(program, scope);
+
+    // Pass 1.5: auto-generate clone methods for all structs
+    generate_missing_struct_clones(program, scope);
+
+    // Pass 1.7: auto-generate delete methods for all structs
+    generate_missing_struct_deletes(program, scope);
+
+    // Pass 1.8: register enum definitions, generate variants + methods
+    errors += register_enums_and_generate_methods(program, scope);
+
+    // Pass 1.85: register type aliases (Name := ExistingType where RHS is a known type name)
+    // Must run after Pass 1 (structs), Pass 1.1 (FuncSigs), and Pass 1.8 (enums)
+    register_type_aliases(program, scope);
+
+    // Pass 1.9: compute flat struct layout (field offsets and sizes)
+    // Must run BEFORE size method synthesis so total_struct_size is available
+    compute_all_struct_layouts(program, scope);
+
+    // Pass 1.92: auto-generate size methods for structs and enums
+    // Uses total_struct_size computed above for correct values (includes alignment padding)
+    generate_size_methods(program, scope);
+
+    // Pass 1.95: auto-generate derived methods
+    // From cmp: eq, neq, lt, gt, lte, gte (if missing)
+    // From add+unity: inc (if missing). From sub+unity: dec (if missing)
+    generate_derived_methods(program, scope);
+
+    // Pass 2: register all func/proc definitions
+    register_function_definitions(program, scope);
+
+    // Pass 3: pre-register top-level value declarations so functions can
+    // reference module globals before their declaration appears.
+    register_top_level_values(program, scope);
 
     return errors;
 }
