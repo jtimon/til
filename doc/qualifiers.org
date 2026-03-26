@@ -50,12 +50,17 @@ Compound types: Str, user-defined structs, enums.
 - Locals are owned by default, so explicit ~own~ on locals is redundant:
   ~own x := ...~, ~own mut x := ...~, ~own x : Type = ...~, and
   ~own mut x : Type = ...~ are all rejected
+- ~Dynamic~ is the raw owned-pointer exception:
+  - use ~buf : Dynamic = malloc(...)~ for owned allocations
+  - use ~ref elem : T = buf~ or ~ref elem : T = ptr_add(buf, i)~ for typed access
+  - a local owned ~Dynamic~ must either transfer ownership to an ~own~ arg/field
+    or be explicitly freed with ~free(own buf)~
 - ~shallow~ is for args/returns only, not locals
 - ~shallow~ params are already values — no ~DEREF~ needed, but need ~&(Type){val}~ to pass to pointer-expecting functions
 - ~returns shallow~ functions return ~Type~ not ~Type *~ — callers must not dereference the result
 - Scalar locals are stack values: ~I64 x = value~, not ~I64 *x = malloc(...)~
 - Scalar locals use ~&(Type){x}~ when passed to pointer-expecting functions
 - Delete calls for scalar locals are suppressed (no heap allocation to free)
-- Locals are NOT hoisted if: ~ref~, global, FuncPtr, or Dynamic-returning allocation paths
-- TODO (#50): compound types should also be stack-allocated (~Type x~
-  instead of ~Type *x = malloc~), passed as ~&x~ to functions
+- Ordinary non-~ref~, non-~Dynamic~ locals are stack-backed values and are passed
+  as ~&x~ to pointer-expecting functions
+- ~Dynamic~ locals stay on the raw-pointer path

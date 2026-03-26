@@ -107,6 +107,19 @@ All available in til: ~malloc(n)~, ~free(own p)~, ~realloc(own p, n)~,
 
 ~sizeof(Type)~ becomes ~Type.size()~.
 
+For raw allocations, keep the owned pointer as ~Dynamic~:
+
+#+begin_src til
+buf : Dynamic = malloc(n)
+ref first : U8 = buf
+ref third : U8 = ptr_add(buf, 2)
+...
+free(own buf)
+#+end_src
+
+If ownership is transferred to an ~own~ arg or ~own~ field, do not free it
+afterward.
+
 ** Functions
 
 *** Pure functions (no side effects, must return)
