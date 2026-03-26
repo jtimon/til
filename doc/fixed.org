@@ -1,5 +1,22 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #106 For-in loop counter should be stack-allocated after #50
+  This fell out of the #50 stack-local rework; no extra code change was
+  needed afterward.
+
+  Re-checked in generated C from ~src/test/arrays.til~:
+
+  - collection temp is a value local:
+    ~Array _fc_Array_304;~
+  - for-in index is a value local:
+    ~U32 _fi_USize_304 = 0;~
+  - range counter is a value local:
+    ~U32 _rc_U32_492 = 0;~
+  - loop variable is also a value local:
+    ~U32 i = U32_clone(&_rc_U32_492);~
+
+  So the old heap forms like ~U32 *_rc = malloc(sizeof(U32))~ are gone.
+
 * FIXED #104 Module-level mutable globals
   Landed once #50 had made ordinary values stack-backed.
 

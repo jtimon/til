@@ -58,9 +58,8 @@
      b. Owned primitive/leaf locals as stack values, whether ~mut~ or not
      c. Shallow enums/structs (no own payloads/fields)
      d. Deep enums/structs (Str, Vec, Map, Set, etc.)
-  3. #106 For-in loop counter stack alloc (falls out of #50)
-  4. #109 Remaining leaks + error-path cleanup
-  5. Switch ~make test~ to always use ~bin/til_asan~
+  3. #109 Remaining leaks + error-path cleanup
+  4. Switch ~make test~ to always use ~bin/til_asan~
 
 *** Dependency graph
 
@@ -68,7 +67,6 @@
   #111 TypeScope / ScopeFind ASAN use-after-free
    +-- unblocks meaningful make test_asan runs
   #50 Stack alloc for ALL types (needs rework)
-   +-- #106 For-in loop counter (subset of #50)
    +-- #109 Fix memory leaks (most leaks = heap-allocated locals)
   #70 Constant folding (independent, no leak impact)
   #+end_example
@@ -80,13 +78,6 @@
   Additional source: ~panic()~ calls ~exit(1)~, skipping all
   ASAP deletion (independent of #50 -- fix by only checking
   leaks on exit code 0).
-
-** OPEN #106 For-in loop counter should be stack-allocated after #50
-  The for-in loop counter is still heap-allocated:
-  ~U32 *_rc = malloc(sizeof(U32))~. After #50 (stack allocation for
-  all types), it should be ~U32 _rc = 0~ on the stack. The loop
-  variable ~i~ is also heap-allocated per iteration (~malloc + clone +
-  delete~). Both should use stack allocation. Easy builder fix.
 
 ** OPEN #102 Auto-generate eq and to_str for structs
   Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get
