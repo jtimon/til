@@ -1843,7 +1843,7 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     decl->data.data.Decl.is_mut = false;
     decl->data.data.Decl.is_namespace = false;
     decl->til_type = val->til_type;
-    decl->struct_name = val->struct_name;
+    if (val->struct_name.count > 0) decl->struct_name = *Str_clone(&val->struct_name);
     U32 val_line = val->line;
     U32 val_col = val->col;
     Str val_path = val->path;
@@ -1855,7 +1855,7 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     Expr *ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, val_line, val_col, &val_path);
     ident->data.data.Ident = *tname;
     ident->til_type = val_type;
-    ident->struct_name = val_struct_name;
+    if (val_struct_name.count > 0) ident->struct_name = *Str_clone(&val_struct_name);
     ident->is_own_arg = val_is_own_arg;
     TypeScope_set(scope, tname, &val_type, -1, 0, val_line, val_col, 0, 0);
     TypeBinding *tb = Map_get(&scope->bindings, tname);
