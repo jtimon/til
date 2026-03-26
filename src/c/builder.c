@@ -815,7 +815,7 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
     if (e->data.tag == ExprData_TAG_Ident &&
         (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
          is_stack_local((const char *)e->data.data.Ident.c_str))) {
-        // Shallow param/local is a value — need a pointer
+        // Shallow params and stack locals are stable lvalues.
         if (e->is_own_arg) {
             // Callee will free() this pointer — must malloc a copy
             const char *ctype = get_stack_local_ctype((const char *)e->data.data.Ident.c_str);
@@ -823,16 +823,8 @@ static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
             fprintf(f, "({ %s *_oa = malloc(sizeof(%s)); *_oa = ", ctype, ctype);
             emit_expr(f, e, depth);
             fprintf(f, "; _oa; })");
-        } else if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum) &&
-                   is_stack_local((const char *)e->data.data.Ident.c_str)) {
-            fprintf(f, "&%s", e->data.data.Ident.c_str);
         } else {
-            // Scalar value — compound literal wrapper
-            const char *ctype = get_stack_local_ctype((const char *)e->data.data.Ident.c_str);
-            if (!ctype) ctype = c_type_name(e->til_type, &e->struct_name);
-            fprintf(f, "&(%s){", ctype);
-            emit_expr(f, e, depth);
-            fprintf(f, "}");
+            fprintf(f, "&%s", e->data.data.Ident.c_str);
         }
     } else if (e->data.tag == ExprData_TAG_FCall && e->struct_name.count > 0 && e->children.count > 0 &&
                Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
@@ -1014,13 +1006,10 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     emit_deref(f, rhs, depth);
                     fprintf(f, ";\n");
                 } else {
-                    Str *_uth_key = Str_clone(&e->data.data.Decl.name);
                     Bool can_hoist = !is_global && !e->data.data.Decl.is_own &&
                                      e->til_type.tag != TilType_TAG_FuncPtr &&
                                      e->til_type.tag != TilType_TAG_Dynamic &&
-                                     !(rhs->data.tag == ExprData_TAG_FCall && fcall_returns_dynamic(rhs)) &&
-                                     !Set_has(&unsafe_to_hoist, _uth_key);
-                    Str_delete(_uth_key, &(Bool){1});
+                                     !(rhs->data.tag == ExprData_TAG_FCall && fcall_returns_dynamic(rhs));
                     if (rhs->data.tag == ExprData_TAG_FCall && rhs->struct_name.count > 0 &&
                         Str_eq(&Expr_child(rhs, &(USize){(USize)(0)})->data.data.Ident, &rhs->struct_name)) {
                     // Struct constructor

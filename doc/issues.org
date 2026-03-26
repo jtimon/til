@@ -380,19 +380,14 @@
 ** WIP #50 Stack allocation for all struct/enum types
   :REOPENED: Was falsely flagged as FIXED.
 
-  Current state: scalars (I64, U32, Bool) stack-allocated via
-  ~can_hoist~ + the current stack-local tracking machinery. Compound types (Str, structs,
-  enums) always heap-allocated: ~Type *x = malloc(sizeof(Type))~.
+  Current state: ordinary non-~ref~, non-~Dynamic~ locals are now
+  stack-backed via ~can_hoist~ + stack-local tracking. Raw allocation
+  locals stay under the ~Dynamic~ exception. Globals are still emitted
+  as heap pointers.
 
-  Goal: ALL non-own, non-ref locals on stack: ~Type x = {...}~.
+  Goal: ALL non-~ref~, non-~Dynamic~ locals on stack: ~Type x = {...}~.
   Pass to functions as ~&x~. See doc/qualifiers.org for the full
   C mapping.
-
-  The ~unsafe_to_hoist~ mechanism prevents hoisting scalars passed
-  to ~mut~ params. This is unnecessary for the final model: ~mut~ params
-  are caller-owned, ~&stack_local~ works the same as heap pointer. But
-  removing ~unsafe_to_hoist~ without restricting to scalars breaks compound
-  type emit paths (builder still assumes many compound locals are pointers).
 
   The builder's current stack-allocation logic is ad-hoc with many special
   cases in:
@@ -413,31 +408,23 @@
   1. preparation refactor with no behavior change
   2. normalize raw-allocation locals to the ~Dynamic~ exception
   3. widen ordinary non-~ref~, non-~Dynamic~ locals
-  4. widen to shallow compounds
-  5. widen to deep compounds
-  6. only then flip globals to static values for #104
+  4. only then flip globals to static values for #104
 
-*** Done (partial -- scalars only)
+*** Done
 
-  - ~can_hoist~ for scalars (I64, U32, Bool, etc.)
+  - preparation refactor: stack-backed locals are explicit in builder
+  - raw ~malloc~/~realloc~ locals now use ~Dynamic~
+  - ordinary non-~ref~, non-~Dynamic~ locals now use stack-backed
+    lvalues and pass by ~&x~, including ~ref~ and ~mut~ call paths
   - current stack-local Set tracks which locals are stack-allocated
   - current stack-local type map keeps pointer-sign correctness
-  - ~emit_as_ptr~: ~&(Type){x}~ for scalars, ~&x~ for structs
+  - ~emit_as_ptr~ now uses stable lvalue addresses for stack locals
   - ~emit_body_scoped~: block-scoped stack-local tracking
-  - Delete suppression for hoisted scalars
+  - delete insertion continues to use ~call_free=false~ for locals
 
 *** Next incremental commits
 
-  1. Preparation: rename the current scalar-only builder machinery so
-     stack-backed locals are explicit in the implementation.
-  2. Rewrite raw ~malloc~/~realloc~ locals from typed pointer spellings
-     like ~buf : U8 = malloc(...)~ to owned ~Dynamic~ locals.
-  3. Ordinary locals: make default owned non-~ref~, non-~Dynamic~ locals
-     stack-backed whether ~mut~ or not.
-  4. Shallow compounds: structs/enums with no owned payloads/fields.
-  5. Deep compounds: outer object on stack, delete still runs with
-     ~call_free=false~.
-  6. Globals (#104): emit ~static T x~ instead of ~static T *x~ and add
+  1. Globals (#104): emit ~static T x~ instead of ~static T *x~ and add
      top-level variable registration to ~init_declarations~.
 
 *** (old version ) #50 Stack allocation for all struct/enum types
