@@ -200,6 +200,13 @@ add_cli_pair := proc(tests: Vec, name: Str, file: Str,
     add_single(tests, name.concat("_r"), "cli", expected_exit, expected_out, cmd_r)
 }
 
+asan_safe_cmd := func(cmd: Str, til_bin: Str) returns Str {
+    if til_bin.ends_with("_asan") {
+        return format("ASAN_OPTIONS=detect_leaks=0 ", cmd)
+    }
+    return cmd
+}
+
 // --- Blind parallel runner ---
 
 run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
@@ -380,22 +387,22 @@ main := proc(args: ..Str) {
     ffi_exp := "gen/out/expected/ffi.out"
     writefile(ffi_exp, "hello world".concat(NL).concat("hello universe").concat(NL))
     add_single(tests, "ffi_interp", "ffi", 0, ffi_exp,
-               til_bin.concat(" interpret src/examples/ffi/ext_module.til"))
+               asan_safe_cmd(til_bin.concat(" interpret src/examples/ffi/ext_module.til"), til_bin))
     add_single(tests, "ffi_run", "ffi", 0, ffi_exp,
-               til_bin.concat(" run src/examples/ffi/ext_module.til"))
+               asan_safe_cmd(til_bin.concat(" run src/examples/ffi/ext_module.til"), til_bin))
 
     // === parser / typer diagnostics ===
     add_count(tests, "typer_errors", "typer", "type error:", 57,
-              til_bin.concat(" interpret src/test/typer_errors.til"))
+              asan_safe_cmd(til_bin.concat(" interpret src/test/typer_errors.til"), til_bin))
     add_count(tests, "qualifier_shallow_local_error", "parser",
               "locals cannot use", 1,
-              til_bin.concat(" interpret src/test/qualifier_shallow_local_error.til"))
+              asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_shallow_local_error.til"), til_bin))
     add_count(tests, "qualifier_ref_param_error", "parser",
               "parameters are borrowed by default", 1,
-              til_bin.concat(" interpret src/test/qualifier_ref_param_error.til"))
+              asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_ref_param_error.til"), til_bin))
     add_count(tests, "qualifier_returns_own_error", "parser",
               "returns are owned by default", 1,
-              til_bin.concat(" interpret src/test/qualifier_returns_own_error.til"))
+              asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_returns_own_error.til"), til_bin))
 
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
@@ -443,17 +450,17 @@ main := proc(args: ..Str) {
 
     // === library mode checks ===
     add_single(tests, "pure_build", "library", 0, "",
-               til_bin.concat(" build src/test/pure.til"))
+               asan_safe_cmd(til_bin.concat(" build src/test/pure.til"), til_bin))
     add_single(tests, "pura_build", "library", 0, "",
-               til_bin.concat(" build src/test/pura.til"))
+               asan_safe_cmd(til_bin.concat(" build src/test/pura.til"), til_bin))
     add_single(tests, "pure_interp_forbidden", "library", 1, "",
-               til_bin.concat(" interpret src/test/pure.til"))
+               asan_safe_cmd(til_bin.concat(" interpret src/test/pure.til"), til_bin))
     add_single(tests, "pure_run_forbidden", "library", 1, "",
-               til_bin.concat(" run src/test/pure.til"))
+               asan_safe_cmd(til_bin.concat(" run src/test/pure.til"), til_bin))
     add_single(tests, "pura_interp_forbidden", "library", 1, "",
-               til_bin.concat(" interpret src/test/pura.til"))
+               asan_safe_cmd(til_bin.concat(" interpret src/test/pura.til"), til_bin))
     add_single(tests, "pura_run_forbidden", "library", 1, "",
-               til_bin.concat(" run src/test/pura.til"))
+               asan_safe_cmd(til_bin.concat(" run src/test/pura.til"), til_bin))
 
     // === build tests (build + run with timeout) ===
     if en_gui.eq(1) {
@@ -469,9 +476,11 @@ main := proc(args: ..Str) {
             mut run_args := ""
             if bn.eq("popcorn") { run_args = " --mute" }
             add_single(tests, "build_".concat(bn), "build", 124, "",
-                       til_bin.concat(" build ").concat(gf)
-                           .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
-                           .concat(" bin/").concat(bn).concat(run_args))
+                       asan_safe_cmd(
+                           til_bin.concat(" build ").concat(gf)
+                               .concat(" '&&' timeout ").concat(GUI_TIMEOUT)
+                               .concat(" bin/").concat(bn).concat(run_args),
+                           til_bin))
         }
     }
 

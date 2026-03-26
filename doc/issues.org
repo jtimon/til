@@ -6,15 +6,15 @@
 
 * [0/12] Pre
 ** OPEN #111 TypeScope / ScopeFind ASAN use-after-free
-  ~make test_asan~ currently trips a deterministic use-after-free in the
-  self-hosted type-scope lookup path before the leak roadmap is even
-  measurable. The failing stack goes through generated
-  ~TypeScope_get_struct~ in ~boot/til.c~, sourced from ~src/self/initer.til~.
+  The original blocker here was a deterministic ASAN use-after-free in the
+  self-hosted type-scope lookup path. That specific bug is fixed, and
+  ~make test_asan~ now gets through bootstrap and into ~bin/tests~.
 
-  Root cause: self-hosted borrowed lookups go through ~ScopeFind.Found(b)~,
-  then generated switch lowering takes a payload pointer from the wrapper and
-  later frees the wrapper before using fields like ~b.struct_def~. Non-ASAN
-  builds only "work" by luck; ASAN poisons the freed wrapper and aborts.
+  Root cause of the original crash: self-hosted borrowed lookups went through
+  ~ScopeFind.Found(b)~, then generated switch lowering took a payload pointer
+  from the wrapper and later freed the wrapper before using fields like
+  ~b.struct_def~. Non-ASAN builds only "worked" by luck; ASAN poisoned the
+  freed wrapper and aborted.
 
   Fix direction:
   - add a borrowed ~TypeScope.get_binding()~ helper
@@ -31,35 +31,39 @@
     the normal suite
   - ~make clean~ and
     ~systemd-run --user --scope -p MemoryMax=64G make test~
-    now pass (~79/79~)
+    now pass (~82/82~)
+  - under ~make test_asan~, the parser-count / FFI subprocess checks were
+    also fixed enough to stop failing early under LSAN+ptrace
 
   Current ASAN status:
   - the previous immediate ~TypeScope_get_struct~ UAF is no longer the
-    first observed failure
-  - the latest memory-limited logged ~make test_asan~ run reaches
-    ~xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan~
-    before stopping with:
-    ~make: *** wait: No child processes.  Stop.~
-  - so #111 has made real progress, but ASAN still does not yet give a
-    clean, reliable post-fix leak baseline
+    active blocker
+  - ~make test_asan~ now reaches and runs a large part of the suite under
+    ~bin/tests --til-bin bin/til_asan~
+  - the current blocker is no longer a specific early UAF, but full-suite
+    memory pressure: the ASAN run grows until it hits the 64G limit and dies
+    before producing a clean end-to-end baseline
+  - next work therefore belongs under ~#109~: reduce the large remaining leak
+    buckets with per-test ~bin/til_asan~ runs, then come back to full-suite
+    ~make test_asan~
 
-  This is a memory-safety bug, not a leak itself, but it blocks meaningful
-  progress on #109 and the rest of the #110 roadmap.
+  So #111 is mostly historical now: the original memory-safety blocker is
+  fixed, and the remaining problem is leak volume rather than the old crash.
 
 ** OPEN #110 Stack allocation and memory leak roadmap
   Meta-issue organizing the path to zero-leak til (~make test_asan~ clean).
 
 *** Roadmap (order of execution)
 
-  1. #111 Fix ~TypeScope~ / ~ScopeFind~ ASAN use-after-free
+  1. #111 Keep the ASAN baseline current as blockers change
   2. #109 Remaining leaks + error-path cleanup
   3. Switch ~make test~ to always use ~bin/til_asan~
 
 *** Dependency graph
 
   #+begin_example
-  #111 TypeScope / ScopeFind ASAN use-after-free
-   +-- unblocks meaningful make test_asan runs
+  #111 current ASAN baseline / blocker tracking
+   +-- feeds #109 with the next real blocker
   #70 Constant folding (independent, no leak impact)
   #+end_example
 
@@ -68,6 +72,12 @@
   compiler allocations and remaining ownership/error-path issues.
   The stack-local work from ~#50~ is already landed, which should make
   the remaining leak buckets smaller and easier to isolate.
+  Current state after the #111 fix:
+  - full-suite ASAN now gets well into ~bin/tests~ before hitting the memory
+    limit
+  - the next useful workflow is per-test ~bin/til_asan~ runs from a normal
+    shell, capturing LSAN logs to ~tmp/*.log~, then fixing the biggest leak
+    buckets incrementally
   Additional source: ~panic()~ calls ~exit(1)~, skipping all
   ASAP deletion (independent of #50 -- fix by only checking
   leaks on exit code 0).
