@@ -139,6 +139,14 @@ static Bool is_stack_local(const char *name) {
     return r;
 }
 
+static Bool is_value_global(const char *name) {
+    if (!has_script_globals) return 0;
+    Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
+    Bool r = Set_has(&script_globals, s);
+    Str_delete(s, &(Bool){1});
+    return r;
+}
+
 static Bool is_ref_local(const char *name) {
     Str *s = Str_clone(&(Str){.c_str = (U8*)(name), .count = (U64)strlen((const char*)(name)), .cap = CAP_VIEW});
     Bool r = Set_has(&ref_locals, s);
@@ -147,12 +155,14 @@ static Bool is_ref_local(const char *name) {
 }
 
 static void emit_field(FILE *f, const char *var, const char *field) {
-    fprintf(f, "%s%s%s", var, is_stack_local(var) ? "." : "->", field);
+    fprintf(f, "%s%s%s", var, (is_stack_local(var) || is_value_global(var)) ? "." : "->", field);
 }
 
 static Bool use_dot_access(Expr *obj) {
     if (obj->data.tag == ExprData_TAG_FieldAccess && !obj->is_own_field) return 1;
-    if (obj->data.tag == ExprData_TAG_Ident && is_stack_local((const char *)obj->data.data.Ident.c_str)) return 1;
+    if (obj->data.tag == ExprData_TAG_Ident &&
+        (is_stack_local((const char *)obj->data.data.Ident.c_str) ||
+         is_value_global((const char *)obj->data.data.Ident.c_str))) return 1;
     return 0;
 }
 
@@ -789,7 +799,8 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
         }
     } else if (e->data.tag == ExprData_TAG_Ident) {
         if (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
-            is_stack_local((const char *)e->data.data.Ident.c_str)) {
+            is_stack_local((const char *)e->data.data.Ident.c_str) ||
+            is_value_global((const char *)e->data.data.Ident.c_str)) {
             emit_expr(f, e, depth); // shallow param/local is already a value
         } else {
             fprintf(f, "DEREF(");
@@ -814,7 +825,8 @@ static void emit_deref(FILE *f, Expr *e, I32 depth) {
 static void emit_as_ptr(FILE *f, Expr *e, I32 depth) {
     if (e->data.tag == ExprData_TAG_Ident &&
         (is_shallow_param((const char *)e->data.data.Ident.c_str) ||
-         is_stack_local((const char *)e->data.data.Ident.c_str))) {
+         is_stack_local((const char *)e->data.data.Ident.c_str) ||
+         is_value_global((const char *)e->data.data.Ident.c_str))) {
         // Shallow params and stack locals are stable lvalues.
         if (e->is_own_arg) {
             // Callee will free() this pointer — must malloc a copy
@@ -1015,7 +1027,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     // Struct constructor
                     const char *var = (const char *)e->data.data.Decl.name.c_str;
                     if (is_global) {
-                        fprintf(f, "%s = malloc(sizeof(%s));\n", var, ctype);
+                        fprintf(f, "memset(&%s, 0, sizeof(%s));\n", var, ctype);
                     } else if (can_hoist) {
                         fprintf(f, "%s %s; memset(&%s, 0, sizeof(%s));\n", ctype, var, var, ctype);
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
@@ -1026,7 +1038,23 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                     emit_ctor_fields(f, var, rhs, depth);
                     } else if (rhs->data.tag == ExprData_TAG_FCall || rhs->data.tag == ExprData_TAG_LiteralStr ||
                                (rhs->data.tag == ExprData_TAG_FieldAccess && rhs->is_ns_field && rhs->til_type.tag == TilType_TAG_Enum)) {
-                    if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+                    if (is_global) {
+                        if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
+                            fprintf(f, "%s = ", e->data.data.Decl.name.c_str);
+                            emit_expr(f, rhs, depth);
+                            fprintf(f, ";\n");
+                        } else if (rhs->data.tag == ExprData_TAG_FCall) {
+                            const char *htype = fcall_return_ctype(rhs);
+                            if (!htype) htype = ctype;
+                            fprintf(f, "{ %s *_hp = (%s *)", htype, htype);
+                            emit_expr(f, rhs, depth);
+                            fprintf(f, "; %s = *_hp; free(_hp); }\n", e->data.data.Decl.name.c_str);
+                        } else {
+                            fprintf(f, "%s = ", e->data.data.Decl.name.c_str);
+                            emit_deref(f, rhs, depth);
+                            fprintf(f, ";\n");
+                        }
+                    } else if (rhs->data.tag == ExprData_TAG_FCall && fcall_is_shallow_return(rhs)) {
                         if (can_hoist) {
                             // Shallow-return scalar fcall → stack value directly
                             // Use callee's return type to avoid signedness mismatches
@@ -1040,10 +1068,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         } else {
                             // returns shallow: C function returns value, box into pointer
                             const char *var = (const char *)e->data.data.Decl.name.c_str;
-                            if (is_global)
-                                fprintf(f, "%s = malloc(sizeof(%s)); *%s = ", var, ctype, var);
-                            else
-                                fprintf(f, "%s *%s = malloc(sizeof(%s)); *%s = ", ctype, var, ctype, var);
+                            fprintf(f, "%s *%s = malloc(sizeof(%s)); *%s = ", ctype, var, ctype, var);
                             emit_expr(f, rhs, depth);
                             fprintf(f, ";\n");
                         }
@@ -1072,7 +1097,11 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         fprintf(f, ";\n");
                     }
                     } else {
-                    if (can_hoist) {
+                    if (is_global) {
+                        fprintf(f, "%s = ", e->data.data.Decl.name.c_str);
+                        emit_deref(f, rhs, depth);
+                        fprintf(f, ";\n");
+                    } else if (can_hoist) {
                         // Scalar literal/ident → stack value
                         fprintf(f, "%s %s = ", ctype, e->data.data.Decl.name.c_str);
                         emit_deref(f, rhs, depth);
@@ -1080,10 +1109,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                         Set_add(&stack_locals, Str_clone(&e->data.data.Decl.name));
                         { Str *_k = Str_clone(&e->data.data.Decl.name); Str *_v = Str_clone(&(Str){.c_str = (U8*)(ctype), .count = (U64)strlen((const char*)(ctype)), .cap = CAP_VIEW}); void *_vp = malloc(sizeof(Str *)); memcpy(_vp, &_v, sizeof(Str *)); Map_set(&stack_local_types, _k, _vp); }
                     } else {
-                        if (is_global)
-                            fprintf(f, "%s = malloc(sizeof(%s));\n", e->data.data.Decl.name.c_str, ctype);
-                        else
-                            fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.data.Decl.name.c_str, ctype);
+                        fprintf(f, "%s *%s = malloc(sizeof(%s));\n", ctype, e->data.data.Decl.name.c_str, ctype);
                         emit_indent(f, depth);
                         fprintf(f, "*%s = ", e->data.data.Decl.name.c_str);
                         emit_deref(f, rhs, depth);
@@ -1106,6 +1132,11 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 emit_expr(f, rhs, depth);
                 fprintf(f, "; %s_delete(&%s, &(Bool){0}); %s = *_new; free(_new); }\n",
                         ctype, e->data.data.Assign.c_str, e->data.data.Assign.c_str);
+            } else if (is_value_global((const char *)e->data.data.Assign.c_str)) {
+                fprintf(f, "{ %s *_new = (%s *)", ctype, ctype);
+                emit_expr(f, rhs, depth);
+                fprintf(f, "; %s_delete(&%s, &(Bool){0}); %s = *_new; free(_new); }\n",
+                        ctype, e->data.data.Assign.c_str, e->data.data.Assign.c_str);
             } else {
                 fprintf(f, "{ %s *_old = %s; %s = ", ctype, e->data.data.Assign.c_str, e->data.data.Assign.c_str);
                 emit_expr(f, rhs, depth);
@@ -1113,7 +1144,8 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
             }
             break;
         }
-        Bool is_hoisted = is_stack_local((const char *)e->data.data.Assign.c_str);
+        Bool is_hoisted = is_stack_local((const char *)e->data.data.Assign.c_str) ||
+                          is_value_global((const char *)e->data.data.Assign.c_str);
         if (e->til_type.tag == TilType_TAG_Dynamic) {
             fprintf(f, "%s = ", e->data.data.Assign.c_str);
             emit_deref(f, rhs, depth);
@@ -1277,7 +1309,7 @@ static void emit_stmt(FILE *f, Expr *e, I32 depth) {
                 const char *ctype = (current_fdef && current_fdef->data.data.FuncDef.return_type.count > 0)
                     ? type_name_to_c_value(&current_fdef->data.data.FuncDef.return_type)
                     : c_type_name(rv->til_type, &rv->struct_name);
-                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = DEREF(%s); return _r; }\n",
+                fprintf(f, "{ %s *_r = malloc(sizeof(%s)); *_r = %s; return _r; }\n",
                         ctype, ctype, rv->data.data.Ident.c_str);
             } else if (rv->data.tag == ExprData_TAG_FieldAccess && rv->is_ns_field &&
                        rv->til_type.tag == TilType_TAG_Enum) {
@@ -2282,8 +2314,10 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             // Skip type aliases (til_type=None, RHS is Ident referring to a type)
             if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
             if (stmt->data.data.Decl.is_ref) continue;
-            const char *ctype = c_type_name(stmt->til_type, &rhs->struct_name);
-            fprintf(f, "static %s *%s;\n", ctype, stmt->data.data.Decl.name.c_str);
+            const char *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
+                ? til_type_to_c(stmt->til_type)
+                : c_type_name(stmt->til_type, &rhs->struct_name);
+            fprintf(f, "static %s %s;\n", ctype, stmt->data.data.Decl.name.c_str);
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         fprintf(f, "\n");

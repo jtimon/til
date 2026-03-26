@@ -1,5 +1,28 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #104 Module-level mutable globals
+  Landed once #50 had made ordinary values stack-backed.
+
+  What was changed:
+
+  - top-level value declarations are now pre-registered in
+    ~init_declarations~, so functions can reference module globals before
+    the declaration appears later in the file
+  - builder now emits module globals as value storage
+    (~static T x~ / ~static void *x~), not heap pointers
+  - global reads, writes, returns, ~ref~ borrows, and ~mut~ calls now use
+    value-global semantics consistently (the same ~&x~ / direct assignment
+    model as stack locals)
+  - globals tests were strengthened to cover forward references to globals
+    declared later
+  - the typer error fixture was updated so its first undefined-symbol case
+    remains undefined under the new forward-reference behavior
+
+  Validation:
+  - ~make clean~
+  - ~systemd-run --user --scope -p MemoryMax=64G make test~
+  - result: ~82/82~ passed
+
 * FIXED #64 pure and pura are library modes, not runnable modes
   The old issue text was stale. Two different things had been conflated:
 

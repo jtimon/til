@@ -1,9 +1,8 @@
 mode script
 
-// Test: global variables accessible from functions and procs
+// Test: global variables accessible from functions and procs,
+// including forward refs to globals declared later
 // See issue #17
-
-x := 42
 
 // func accessing global
 f := func() returns I64 {
@@ -21,12 +20,11 @@ h := proc() {
     println(y.to_str())
 }
 
+x := 42
+
 assert(__LOC__, f().eq(42))
 g()
 h()
-
-// mut global modified by proc
-mut counter := 0
 
 inc := proc() {
     counter = counter.add(1)
@@ -35,6 +33,9 @@ inc := proc() {
 get_counter := func() returns I64 {
     return counter
 }
+
+// mut global modified by proc
+mut counter := 0
 
 inc()
 inc()

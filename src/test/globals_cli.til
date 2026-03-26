@@ -1,9 +1,8 @@
 mode cli
 
-// Test: global variables accessible from functions and procs (cli mode)
+// Test: global variables accessible from functions and procs (cli mode),
+// including forward refs to globals declared later
 // See issue #17
-
-x := 42
 
 f := func() returns I64 {
     return x
@@ -18,8 +17,6 @@ h := proc() {
     println(y.to_str())
 }
 
-mut counter := 0
-
 inc := proc() {
     counter = counter.add(1)
 }
@@ -27,6 +24,9 @@ inc := proc() {
 get_counter := func() returns I64 {
     return counter
 }
+
+x := 42
+mut counter := 0
 
 main := proc() {
     println(f().to_str())

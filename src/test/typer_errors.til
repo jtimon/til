@@ -1,7 +1,7 @@
 mode script
 
 // undefined symbol
-println(x)
+println(missing_x)
 
 // undefined function
 foo(1)

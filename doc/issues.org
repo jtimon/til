@@ -59,9 +59,8 @@
      c. Shallow enums/structs (no own payloads/fields)
      d. Deep enums/structs (Str, Vec, Map, Set, etc.)
   3. #106 For-in loop counter stack alloc (falls out of #50)
-  4. #104 Mut globals (needs #50 done)
-  5. #109 Remaining leaks + error-path cleanup
-  6. Switch ~make test~ to always use ~bin/til_asan~
+  4. #109 Remaining leaks + error-path cleanup
+  5. Switch ~make test~ to always use ~bin/til_asan~
 
 *** Dependency graph
 
@@ -70,7 +69,6 @@
    +-- unblocks meaningful make test_asan runs
   #50 Stack alloc for ALL types (needs rework)
    +-- #106 For-in loop counter (subset of #50)
-   +-- #104 Mut globals (needs stack locals for static vars)
    +-- #109 Fix memory leaks (most leaks = heap-allocated locals)
   #70 Constant folding (independent, no leak impact)
   #+end_example
@@ -89,26 +87,6 @@
   all types), it should be ~U32 _rc = 0~ on the stack. The loop
   variable ~i~ is also heap-allocated per iteration (~malloc + clone +
   delete~). Both should use stack allocation. Easy builder fix.
-
-** OPEN #104 Module-level mutable globals
-  :DEPENDENCY: #50
-  ~mut counter := 0~ at module level segfaults both interpreter and
-  compiler. The initer only registers structs/funcs/enums in the
-  TypeScope -- top-level variable declarations are ignored, so the
-  typer never type-checks them and the builder reads garbage.
-
-  Depends on #50 (stack allocation for all types): once all types are
-  stack-allocated, module-level globals are just ~static T varname~
-  in C. Without #50, globals would need a special heap-allocation
-  path (~static T *p = malloc(...)~) which is a dead end.
-
-  After #50: add Pass 3 to ~init_declarations~ to register top-level
-  variables in TypeScope, and update the interpreter to handle them
-  in a module-level scope.
-
-  Blocker for #39: almost every remaining C module has static globals
-  (precomp.c: ~macros~, ~funcs~, ~known~; scavenger.c: ~gc_strs~;
-  typer.c: ~errors~, ~current_mode~, ~hoist_counter~).
 
 ** OPEN #102 Auto-generate eq and to_str for structs
   Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get
@@ -424,8 +402,7 @@
 
 *** Next incremental commits
 
-  1. Globals (#104): emit ~static T x~ instead of ~static T *x~ and add
-     top-level variable registration to ~init_declarations~.
+  1. #106: stack-allocate the synthetic for-in counter and loop temporaries.
 
 *** (old version ) #50 Stack allocation for all struct/enum types
   Currently only primitive ext_structs (I64, U8, Bool, etc.) get stack
