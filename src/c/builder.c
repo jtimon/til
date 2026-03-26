@@ -125,6 +125,7 @@ static const char *til_type_to_c(TilType t);
 // Track current function being emitted (for shallow param lookup)
 static Expr *current_fdef = NULL;
 static Expr *find_callee_fdef(Str *name);
+static Str *current_build_path = NULL;
 
 // Track stack-backed locals emitted as C values instead of heap pointers.
 static Set stack_locals;
@@ -1798,12 +1799,14 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
 I32 build_forward_header(Expr *program, Str *fwd_path);
 static void emit_header_forward_decls(FILE *f, Expr *program);
+static void emit_header_global_decls(FILE *f, Expr *program);
+static Bool is_exported_top_level_global(Expr *stmt);
+static Bool should_export_global_definition(Expr *stmt);
 
 // Derive basename from absolute path: "/abs/path/to/str.til" → "str"
 I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
-    (void)path;
-
     codegen_program = program;
+    current_build_path = path;
     Bool is_lib = mode && mode->is_library;
 
     // Build struct body lookup map
@@ -2307,17 +2310,14 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         has_script_globals = 1;
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl) continue;
+            if (!is_exported_top_level_global(stmt)) continue;
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-                rhs->data.tag == ExprData_TAG_EnumDef) continue;
-            // Skip type aliases (til_type=None, RHS is Ident referring to a type)
-            if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) continue;
-            if (stmt->data.data.Decl.is_ref) continue;
             const char *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
                 ? til_type_to_c(stmt->til_type)
                 : c_type_name(stmt->til_type, &rhs->struct_name);
-            fprintf(f, "static %s %s;\n", ctype, stmt->data.data.Decl.name.c_str);
+            fprintf(f, "%s%s %s;\n",
+                    should_export_global_definition(stmt) ? "" : "static ",
+                    ctype, stmt->data.data.Decl.name.c_str);
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         fprintf(f, "\n");
@@ -2963,6 +2963,41 @@ static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
     fprintf(f, "\n");
 }
 
+static Bool is_exported_top_level_global(Expr *stmt) {
+    if (stmt->data.tag != ExprData_TAG_Decl) return 0;
+    Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+    if (rhs->data.tag == ExprData_TAG_FuncDef ||
+        rhs->data.tag == ExprData_TAG_StructDef ||
+        rhs->data.tag == ExprData_TAG_EnumDef) return 0;
+    if (stmt->til_type.tag == TilType_TAG_None && rhs->data.tag == ExprData_TAG_Ident) return 0;
+    if (stmt->data.data.Decl.is_ref) return 0;
+    Str *name = &stmt->data.data.Decl.name;
+    if (name->count >= 3 && memcmp(name->c_str, "_t_", 3) == 0) return 0;
+    return 1;
+}
+
+static Bool should_export_global_definition(Expr *stmt) {
+    if (!is_exported_top_level_global(stmt)) return 0;
+    if (!current_build_path) return 1;
+    if (Str_ends_with(current_build_path, &(Str){.c_str = (U8*)"src/self/modes.til", .count = 18, .cap = CAP_LIT})) {
+        return 1;
+    }
+    return Str_eq(&stmt->path, current_build_path);
+}
+
+static void emit_header_global_decls(FILE *f, Expr *program) {
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (!is_exported_top_level_global(stmt)) continue;
+        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+        const char *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
+            ? til_type_to_c(stmt->til_type)
+            : c_type_name(stmt->til_type, &rhs->struct_name);
+        fprintf(f, "extern %s %s;\n", ctype, stmt->data.data.Decl.name.c_str);
+    }
+    fprintf(f, "\n");
+}
+
 // Emit forward.h — all forward declarations + full struct definitions + function declarations.
 // Used by link_c files via -include. NOT visible to ctil build.
 I32 build_forward_header(Expr *program, Str *fwd_path) {
@@ -2971,6 +3006,7 @@ I32 build_forward_header(Expr *program, Str *fwd_path) {
     fprintf(f, "#pragma once\n#include \"aliases.h\"\n#include <stdbool.h>\n\n");
     emit_header_forward_decls(f, program);
     emit_header_defs_and_funcs(f, program);
+    emit_header_global_decls(f, program);
     fclose(f);
     return 0;
 }
@@ -3007,6 +3043,7 @@ I32 build_header(Expr *program, Str *h_path) {
     fprintf(f, "#pragma once\n#include \"aliases.h\"\n\n");
     emit_header_forward_decls(f, program);
     emit_header_defs_and_funcs(f, program);
+    emit_header_global_decls(f, program);
     fprintf(f, "#include \"ext.h\"\n\n");
 
     fclose(f);

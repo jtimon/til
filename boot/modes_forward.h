@@ -936,3 +936,7 @@ Value *Value_Struct(StructInstance *);
 Value *Value_Enum(EnumInstance *);
 Value *Value_Ptr(void *);
 
+extern U32 CAP_LIT;
+extern U32 CAP_VIEW;
+extern Map core_modes;
+
