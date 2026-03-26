@@ -4,11 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Forward declarations for til-generated functions (initer.til)
-I32 align_up(I32 offset, I32 align);
-TilType *type_from_name_init(Str *name, TypeScope *scope);
-void compute_all_struct_layouts(Expr *program, TypeScope *scope);
-
 // --- Init phase: pre-scan top-level declarations ---
 
 I32 init_declarations(Expr *program, TypeScope *scope) {
