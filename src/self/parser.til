@@ -617,6 +617,29 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
     // Declaration: name := value
     if check(p, TokenType.ColonEq) {
         advance(p)
+
+        // Namespace sugar: Name := namespace { ... }
+        if check(p, TokenType.KwNamespace) {
+            advance(p)
+            mut def := Expr.new(ExprData.StructDef, t_line, t_col, p.path)
+            expect_token(p, TokenType.LBrace)
+            mut body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
+            while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {
+                mut stmt := parse_statement(p)
+                if is_variant(stmt.data, ExprData.Decl) {
+                    ref mut dd : Declaration = get_payload(stmt.data)
+                    dd.is_namespace = true
+                }
+                body.add_child(own stmt)
+            }
+            expect_token(p, TokenType.RBrace)
+            def.add_child(own body)
+            mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
+            mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
+            decl.add_child(own def)
+            return decl
+        }
+
         mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
         mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
         decl.add_child(own parse_expression(p))

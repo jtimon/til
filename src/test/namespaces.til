@@ -1,0 +1,51 @@
+mode test
+
+Direction := enum {
+    Up, Down, Left, Right
+    namespace:
+    is_vertical := func(self: Direction) returns Bool {
+        if self.eq(Direction.Up) { return true }
+        if self.eq(Direction.Down) { return true }
+        return false
+    }
+}
+
+Counter := struct {
+    mut value := 0
+    namespace:
+    mut instances := 0
+    label := "Counter"
+    make := func(start: I64) returns Counter {
+        Counter.instances = Counter.instances.add(1)
+        return Counter(value = start)
+    }
+}
+
+Math := namespace {
+    answer := 42
+    add := func(a: I64, b: I64) returns I64 {
+        return a.add(b)
+    }
+    twice := func(v: I64) returns I64 {
+        return Math.add(v, v)
+    }
+}
+
+test_enum_namespace := test() {
+    expect(__LOC__, Direction.Up.is_vertical(), "enum namespace method")
+    expect(__LOC__, Direction.Left.is_vertical().not(), "enum namespace false")
+}
+
+test_struct_namespace := test() {
+    assert_eq(__LOC__, Counter.instances, 0)
+    assert_eq_str(__LOC__, Counter.label, "Counter")
+    c := Counter.make(7)
+    assert_eq(__LOC__, c.value, 7)
+    assert_eq(__LOC__, Counter.instances, 1)
+}
+
+test_named_namespace_sugar := test() {
+    assert_eq(__LOC__, Math.answer, 42)
+    assert_eq(__LOC__, Math.add(2, 3), 5)
+    assert_eq(__LOC__, Math.twice(9), 18)
+}
