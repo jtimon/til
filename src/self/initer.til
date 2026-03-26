@@ -69,7 +69,145 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
     return TilType.Unknown
 }
 
-compute_struct_layout := ext_proc(struct_def: Expr, scope: TypeScope) {}
+compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
+    if struct_def.total_struct_size.gt(0) { return }
+
+    ref body : Expr = struct_def.child(0)
+    mut offset : I32 = 0
+    mut max_align : I32 = 1
+
+    for i in 0..body.child_count() {
+        ref mut field : Expr = body.child(i)
+        if is_variant(field.data, ExprData.Decl).not() { continue }
+
+        ref mut fd : Declaration = get_payload(field.data)
+        if fd.is_namespace { continue }
+
+        mut fsz : I32 = 0
+        mut falign : I32 = 0
+
+        if fd.is_own.or(fd.is_ref) {
+            fsz = 8
+            falign = 8
+
+            mut ftype := fd.explicit_type
+            if ftype.len().eq(0) {
+                if field.child_count().gt(0) {
+                ref def_val : Expr = field.child(0)
+                    if is_variant(def_val.data, ExprData.FCall) {
+                        if def_val.child_count().gt(0) {
+                            ref callee : Expr = def_val.child(0)
+                            if is_variant(callee.data, ExprData.Ident) {
+                                ref _ft : Str = get_payload(callee.data)
+                                ftype = _ft
+                            }
+                        }
+                    }
+                    if ftype.len().gt(0) { fd.explicit_type = ftype }
+                }
+            }
+
+            if ftype.len().gt(0) {
+                if ftype.eq("I64").not().and(ftype.eq("U8").not()).and(ftype.eq("I16").not()).and(ftype.eq("I32").not()).and(ftype.eq("U32").not()).and(ftype.eq("Bool").not()) {
+                    ref nested_def : Expr = scope.get_struct(ftype)
+                    if is_null(nested_def).not() {
+                        if nested_def.is_ext.not() {
+                            fd.field_struct_def = nested_def
+                        }
+                    }
+                }
+            }
+        } else {
+            mut ftype := fd.explicit_type
+            if ftype.len().eq(0) {
+                if field.child_count().gt(0) {
+                    ref def_val : Expr = field.child(0)
+                    if is_variant(def_val.data, ExprData.LiteralNum) { ftype = "I64" }
+                    else if is_variant(def_val.data, ExprData.LiteralStr) { ftype = "Str" }
+                    else if is_variant(def_val.data, ExprData.LiteralBool) { ftype = "Bool" }
+                    else if def_val.struct_name.len().gt(0) { ftype = def_val.struct_name }
+                    else if is_variant(def_val.data, ExprData.FCall) {
+                        if def_val.child_count().gt(0) {
+                            ref callee : Expr = def_val.child(0)
+                            if is_variant(callee.data, ExprData.Ident) {
+                                ref _ft : Str = get_payload(callee.data)
+                                ftype = _ft
+                            } else if is_variant(callee.data, ExprData.FieldAccess) {
+                                if callee.child_count().gt(0) {
+                                    ref type_node : Expr = callee.child(0)
+                                    if is_variant(type_node.data, ExprData.Ident) {
+                                        ref _ft : Str = get_payload(type_node.data)
+                                        ftype = _ft
+                                    }
+                                }
+                            }
+                        }
+                    } else if is_variant(def_val.data, ExprData.FieldAccess) {
+                        if def_val.child_count().gt(0) {
+                            ref type_node : Expr = def_val.child(0)
+                            if is_variant(type_node.data, ExprData.Ident) {
+                                ref _ft : Str = get_payload(type_node.data)
+                                ftype = _ft
+                            }
+                        }
+                    }
+                    if ftype.len().gt(0) { fd.explicit_type = ftype }
+                }
+            }
+
+            ref ab : TypeBinding = scope.get_binding(ftype)
+            if is_null(ab).not() {
+                if ab.is_type_alias {
+                    if is_null(ab.alias_target).not() {
+                        ftype = ab.alias_target
+                        fd.explicit_type = ftype
+                    }
+                }
+            }
+
+            if ftype.len().eq(0) { fsz = 8; falign = 8 }
+            else if ftype.eq("I64") { fsz = 8; falign = 8 }
+            else if ftype.eq("U8") { fsz = 1; falign = 1 }
+            else if ftype.eq("I16") { fsz = 2; falign = 2 }
+            else if ftype.eq("I32") { fsz = 4; falign = 4 }
+            else if ftype.eq("U32") { fsz = 4; falign = 4 }
+            else if ftype.eq("Bool") { fsz = 1; falign = 1 }
+            else if type_from_name_init(ftype, scope).eq(TilType.FuncPtr) { fsz = 8; falign = 8 }
+            else {
+                ref nested_def : Expr = scope.get_struct(ftype)
+                if is_null(nested_def).not().and(is_variant(nested_def.data, ExprData.EnumDef)) {
+                    if enum_has_payloads(nested_def) {
+                        fsz = 8
+                        falign = 8
+                    } else {
+                        fsz = 4
+                        falign = 4
+                    }
+                    fd.field_struct_def = nested_def
+                } else if is_null(nested_def).not() {
+                    compute_struct_layout(nested_def, scope)
+                    fsz = nested_def.total_struct_size
+                    falign = 8
+                    fd.field_struct_def = nested_def
+                } else {
+                    fsz = 8
+                    falign = 8
+                }
+            }
+        }
+
+        offset = align_up(offset, falign)
+        fd.field_offset = offset
+        fd.field_size = fsz
+        if falign.gt(max_align) { max_align = falign }
+        offset = offset.add(fsz)
+    }
+
+    struct_def.total_struct_size = align_up(offset, max_align)
+    if struct_def.total_struct_size.eq(0) {
+        struct_def.total_struct_size = 1
+    }
+}
 
 compute_all_struct_layouts := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
