@@ -1811,8 +1811,6 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 
 // Check if a function call returns ref
 
-static I32 hoist_counter = 0;
-
 static const char *type_prefix(TilType t, Str *sname) {
     switch (t.tag) {
     case TilType_TAG_I64:  return "I64";

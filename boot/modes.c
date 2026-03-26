@@ -1482,6 +1482,7 @@ void print_flush() {
 
 U32 CAP_LIT;
 U32 CAP_VIEW;
+I32 hoist_counter;
 Map core_modes;
 
 EnumDef * EnumDef_clone(EnumDef * self) {
@@ -33986,6 +33987,8 @@ static void _til_lib_init(void) {
     (void)_t_I64_5528;
     CAP_VIEW = I64_to_usize(_t_I64_5528);
     (void)CAP_VIEW;
+    hoist_counter = 0;
+    (void)hoist_counter;
     Str _t_Str_5529; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_5529 = *_hp; free(_hp); }
     (void)_t_Str_5529;
     U32 _t_U32_5530; { U32 *_hp = (U32 *)Str_size(); _t_U32_5530 = *_hp; free(_hp); }

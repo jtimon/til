@@ -1,5 +1,7 @@
 mode lib
 
+mut hoist_counter : I32 = 0
+
 LocalInfo := struct {
     ref mut name : Str = NULL
     mut type := TilType.Unknown
