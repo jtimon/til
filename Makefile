@@ -53,7 +53,7 @@ bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
 	for f in $$(git ls-tree --name-only HEAD src/c/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
 	done
-	cc -Wall -Wextra -Werror -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/modes.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -g -Itmp/boot/src -Itmp/boot/src/c -Itmp/boot/boot tmp/boot/src/c/*.c tmp/boot/boot/til.c $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) -o bin/til_boot
 
 # --- Self-hosted compiler (current code) + regenerate boot/ ---
 
@@ -73,7 +73,7 @@ bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 
 bin/til_asan: bin/til
 	cc -fsanitize=address -fno-omit-frame-pointer -g -Wno-all \
-	  -Iboot -Isrc -Isrc/c boot/til.c boot/modes.c src/c/*.c \
+	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) \
 	  -fsanitize=address -o bin/til_asan
 
@@ -81,7 +81,7 @@ bin/til_asan: bin/til
 
 bin/til_debug: bin/til
 	cc -g -O0 -Wno-all \
-	  -Iboot -Isrc -Isrc/c boot/til.c boot/modes.c src/c/*.c \
+	  -Iboot -Isrc -Isrc/c boot/til.c src/c/*.c \
 	  $(LD_FLAGS) $(LIBFFI_FLAGS) $(RAYLIB_FLAGS) $(TINYFD_FLAGS) \
 	  -o bin/til_debug
 

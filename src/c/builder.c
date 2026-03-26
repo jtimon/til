@@ -125,7 +125,6 @@ static const char *til_type_to_c(TilType t);
 // Track current function being emitted (for shallow param lookup)
 static Expr *current_fdef = NULL;
 static Expr *find_callee_fdef(Str *name);
-static Str *current_build_path = NULL;
 
 // Track stack-backed locals emitted as C values instead of heap pointers.
 static Set stack_locals;
@@ -1801,12 +1800,11 @@ I32 build_forward_header(Expr *program, Str *fwd_path);
 static void emit_header_forward_decls(FILE *f, Expr *program);
 static void emit_header_global_decls(FILE *f, Expr *program);
 static Bool is_exported_top_level_global(Expr *stmt);
-static Bool should_export_global_definition(Expr *stmt);
 
 // Derive basename from absolute path: "/abs/path/to/str.til" → "str"
 I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_path) {
     codegen_program = program;
-    current_build_path = path;
+    (void)path;
     Bool is_lib = mode && mode->is_library;
 
     // Build struct body lookup map
@@ -2315,9 +2313,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
             const char *ctype = stmt->til_type.tag == TilType_TAG_Dynamic
                 ? til_type_to_c(stmt->til_type)
                 : c_type_name(stmt->til_type, &rhs->struct_name);
-            fprintf(f, "%s%s %s;\n",
-                    should_export_global_definition(stmt) ? "" : "static ",
-                    ctype, stmt->data.data.Decl.name.c_str);
+            fprintf(f, "%s %s;\n", ctype, stmt->data.data.Decl.name.c_str);
             { Str *_p = malloc(sizeof(Str)); *_p = (Str){stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.count, CAP_VIEW}; Set_add(&script_globals, _p); }
         }
         fprintf(f, "\n");
@@ -2974,15 +2970,6 @@ static Bool is_exported_top_level_global(Expr *stmt) {
     Str *name = &stmt->data.data.Decl.name;
     if (name->count >= 3 && memcmp(name->c_str, "_t_", 3) == 0) return 0;
     return 1;
-}
-
-static Bool should_export_global_definition(Expr *stmt) {
-    if (!is_exported_top_level_global(stmt)) return 0;
-    if (!current_build_path) return 1;
-    if (Str_ends_with(current_build_path, &(Str){.c_str = (U8*)"src/self/modes.til", .count = 18, .cap = CAP_LIT})) {
-        return 1;
-    }
-    return Str_eq(&stmt->path, current_build_path);
 }
 
 static void emit_header_global_decls(FILE *f, Expr *program) {

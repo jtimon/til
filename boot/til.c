@@ -1507,9 +1507,9 @@ void print_flush() {
     putchar('\n');
 }
 
-static U32 CAP_LIT;
-static U32 CAP_VIEW;
-static Map core_modes;
+U32 CAP_LIT;
+U32 CAP_VIEW;
+Map core_modes;
 Str BASE_VERSION;
 Str VERSION;
 
