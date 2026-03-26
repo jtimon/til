@@ -339,7 +339,12 @@ TypeScope := struct {
         if is_null(b).not() { return b.is_proc }
         return -1.to_i32()
     }
-    get_struct := ext_func(self: TypeScope, name: Str) returns ref Expr {}
+    get_struct := func(self: TypeScope, name: Str) returns ref Expr {
+        ref b : TypeBinding = self.get_binding(name)
+        if is_null(b).not() { return b.struct_def }
+        ref none : Expr = NULL
+        return none
+    }
     is_mut := func(self: TypeScope, name: Str) returns shallow Bool {
         ref b : TypeBinding = self.get_binding(name)
         if is_null(b).not() { return b.is_mut }
