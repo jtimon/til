@@ -119,7 +119,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         ScopeFind *_sf_id = TypeScope_find(scope, &e->data.data.Ident);
         TypeBinding *ib = _sf_id->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_id) : NULL;
         if (ib && (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)) {
-            if (ib->struct_name.count > 0) e->struct_name = ib->struct_name;
+            if (ib->struct_name.count > 0) e->struct_name = *Str_clone(&ib->struct_name);
         }
         // Function references: identifier refers to a function → Fn type
         if (ib && ib->func_def) {
@@ -2004,7 +2004,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 Expr *a = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 a->data.data.Ident = stmt->data.data.Ident;
                 a->til_type = ab->type;
-                if (ab->struct_name.count > 0) a->struct_name = ab->struct_name;
+                if (ab->struct_name.count > 0) a->struct_name = *Str_clone(&ab->struct_name);
                 Expr_add_child(call, a);
                 // arg1: the RHS (hoisted temp ident)
                 Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
@@ -2099,7 +2099,7 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Boo
     Expr *arg = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
     arg->data.data.Ident = *var_name;
     arg->til_type = type;
-    if (struct_name) arg->struct_name = *struct_name;
+    if (struct_name && struct_name->count > 0) arg->struct_name = *Str_clone(struct_name);
     arg->is_own_arg = arg_is_own;
     Expr_add_child(call, arg);
 
@@ -2446,7 +2446,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                         // RHS reads this var — can't delete before assignment.
                         // Flag so builder emits save-old-delete pattern.
                         stmt->save_old_delete = true;
-                        if (locals[j].struct_name) stmt->struct_name = *locals[j].struct_name;
+                        if (locals[j].struct_name && locals[j].struct_name->count > 0)
+                            stmt->struct_name = *Str_clone(locals[j].struct_name);
                     } else {
                         Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
                         if (del) Vec_push(&new_ch, del);
