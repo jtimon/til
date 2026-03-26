@@ -127,7 +127,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         // Struct type names: allow field access for namespace fields
         if (ib && ib->struct_def) {
-            e->struct_name = *resolve_type_alias(scope, &e->data.data.Ident);
+            e->struct_name = *Str_clone(resolve_type_alias(scope, &e->data.data.Ident));
         }
         break;
     }
@@ -365,7 +365,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                 if (sig->data.data.FuncDef.return_type.count > 0) {
                                     e->til_type = *type_from_name(&sig->data.data.FuncDef.return_type, scope);
                                     if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum))
-                                        e->struct_name = sig->data.data.FuncDef.return_type;
+                                        e->struct_name = *Str_clone(&sig->data.data.FuncDef.return_type);
                                 } else {
                                     e->til_type = (TilType){TilType_TAG_None};
                                 }
@@ -590,7 +590,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
             e->til_type = rt;
             if ((rt.tag == TilType_TAG_Struct || rt.tag == TilType_TAG_Enum) && (ns_func->data.data.FuncDef.return_type).count > 0) {
-                e->struct_name = ns_func->data.data.FuncDef.return_type;
+                e->struct_name = *Str_clone(&ns_func->data.data.FuncDef.return_type);
             }
             break;
         }
@@ -713,7 +713,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
               }
             }
             e->til_type = (TilType){TilType_TAG_Struct};
-            e->struct_name = *resolve_type_alias(scope, name);
+            e->struct_name = *Str_clone(resolve_type_alias(scope, name));
             break;
         }
         // Desugar named/optional args for user-defined functions (skip core builtins)
@@ -964,7 +964,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 TilType rt = *type_from_name(&callee_bind->func_def->data.data.FuncDef.return_type, scope);
                 e->til_type = rt;
                 if ((rt.tag == TilType_TAG_Struct || rt.tag == TilType_TAG_Enum))
-                    e->struct_name = callee_bind->func_def->data.data.FuncDef.return_type;
+                    e->struct_name = *Str_clone(&callee_bind->func_def->data.data.FuncDef.return_type);
             } else {
                 e->til_type = (TilType){TilType_TAG_Dynamic};
             }
@@ -999,7 +999,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Propagate struct_name for struct-returning functions
             if ((fn_type.tag == TilType_TAG_Struct || fn_type.tag == TilType_TAG_Enum) && callee_bind && callee_bind->func_def &&
                 (callee_bind->func_def->data.data.FuncDef.return_type).count > 0) {
-                e->struct_name = callee_bind->func_def->data.data.FuncDef.return_type;
+                e->struct_name = *Str_clone(&callee_bind->func_def->data.data.FuncDef.return_type);
             }
             // Propagate FuncSig for functions returning func ptrs
             if (fn_type.tag == TilType_TAG_FuncPtr && callee_bind && callee_bind->func_def &&
@@ -1111,7 +1111,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
             Expr *val = Expr_child(e, &(USize){(USize)(0)});
             e->til_type = val->til_type;
-            e->struct_name = val->struct_name;
+            if (val->struct_name.count > 0) e->struct_name = *Str_clone(&val->struct_name);
         }
         break;
     default:
@@ -1403,7 +1403,7 @@ static Expr *make_ns_call(const char *sname, const char *method,
     Str *path = &src->path;
     Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
     call->til_type = ret_type;
-    if (ret_sname) call->struct_name = *ret_sname;
+    if (ret_sname && ret_sname->count > 0) call->struct_name = *Str_clone(ret_sname);
     Expr *type_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
     type_id->data.data.Ident = *Str_clone(&(Str){.c_str = (U8*)(sname), .count = (U64)strlen((const char*)(sname)), .cap = CAP_VIEW});
     type_id->struct_name = *Str_clone(&(Str){.c_str = (U8*)(sname), .count = (U64)strlen((const char*)(sname)), .cap = CAP_VIEW});
@@ -2635,12 +2635,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 narrow_dynamic(Expr_child(stmt, &(USize){(USize)(0)}), &declared, etn);
                 // For struct/enum types, propagate struct_name from explicit type (resolved through aliases)
                 if (declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) {
-                    Expr_child(stmt, &(USize){(USize)(0)})->struct_name = *resolve_type_alias(scope, etn);
+                    Expr_child(stmt, &(USize){(USize)(0)})->struct_name = *Str_clone(resolve_type_alias(scope, etn));
                 }
             } else {
                 stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
                 if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
-                    stmt->struct_name = Expr_child(stmt, &(USize){(USize)(0)})->struct_name;
+                    stmt->struct_name = *Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
                 if (stmt->til_type.tag == TilType_TAG_Dynamic) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add a type annotation like '%s : Type = ...' to specify the concrete type",
@@ -2732,7 +2732,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
             stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
             if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
-                stmt->struct_name = Expr_child(stmt, &(USize){(USize)(0)})->struct_name;
+                stmt->struct_name = *Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
             Str *aname = &stmt->data.data.Ident;
             TilType existing = *TypeScope_get_type(scope, aname);
             if (existing.tag == TilType_TAG_Unknown) {
