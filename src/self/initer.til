@@ -706,6 +706,59 @@ generate_struct_size_methods := proc(program: Expr) {
     }
 }
 
+generate_enum_size_methods := proc(program: Expr) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        ref def : Expr = stmt.child(0)
+        if is_variant(def.data, ExprData.EnumDef).not() { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+        sname := sdecl.name
+        if sname.eq("StructDef") { continue }
+        if sname.eq("Dynamic") { continue }
+        if def.is_ext.and(stmt.is_core) { continue }
+
+        ref mut body : Expr = def.child(0)
+        mut has_size := false
+        for j in 0..body.child_count() {
+            ref field : Expr = body.child(j)
+            if is_variant(field.data, ExprData.Decl).not() { continue }
+            ref fd : Declaration = get_payload(field.data)
+            if fd.is_namespace.and(fd.name.eq("size")) {
+                has_size = true
+                break
+            }
+        }
+        if has_size { continue }
+
+        mut sz_text := "4"
+        if enum_has_payloads(def) {
+            sz_text = "8"
+        }
+
+        mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+        mut size_expr := Expr.new(ExprData.LiteralNum(sz_text.clone()), stmt.line, stmt.col, stmt.path)
+        mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+        ret.add_child(own size_expr)
+        func_body.add_child(own ret)
+
+        mut func_decl := FunctionDef()
+        func_decl.func_type = FuncType.Func
+        func_decl.nparam = 0
+        func_decl.return_type = "USize"
+        func_decl.variadic_index = -1.to_i32()
+        func_decl.kwargs_index = -1.to_i32()
+
+        mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+        func_def.add_child(own func_body)
+
+        mut decl := Expr.new(ExprData.Decl(Declaration(name = "size", is_namespace = true, is_mut = false, explicit_type = "")), stmt.line, stmt.col, stmt.path)
+        decl.add_child(own func_def)
+        body.add_child(own decl)
+    }
+}
+
 generate_unity_derived_methods := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
