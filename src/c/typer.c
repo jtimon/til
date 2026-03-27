@@ -803,23 +803,19 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Vec_push(&new_ch, Expr_clone(callee));
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
-                    e->variadic_index = new_ch.count; // children index of first variadic arg
-                    e->data.data.FCall.variadic_index = e->variadic_index;
+                    e->data.data.FCall.variadic_index = new_ch.count; // children index of first variadic arg
                     for (U32 j = 0; j < va_args.count; j++) {
                         Expr *va = *(Expr **)Vec_get(&va_args, &(USize){(USize)(j)});
                         Vec_push(&new_ch, Expr_clone(va));
                     }
-                    e->variadic_count = va_args.count;
-                    e->data.data.FCall.variadic_count = e->variadic_count;
+                    e->data.data.FCall.variadic_count = va_args.count;
                 } else if ((I32)i == kwi) {
-                    e->kwargs_index = new_ch.count; // children index of first kwargs arg
-                    e->data.data.FCall.kwargs_index = e->kwargs_index;
+                    e->data.data.FCall.kwargs_index = new_ch.count; // children index of first kwargs arg
                     for (U32 j = 0; j < kw_args.count; j++) {
                         Expr *kw = *(Expr **)Vec_get(&kw_args, &(USize){(USize)(j)});
                         Vec_push(&new_ch, Expr_clone(kw));
                     }
-                    e->kwargs_count = kw_args.count;
-                    e->data.data.FCall.kwargs_count = e->kwargs_count;
+                    e->data.data.FCall.kwargs_count = kw_args.count;
                 } else {
                     Vec_push(&new_ch, new_args[i]);
                 }
@@ -839,8 +835,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Expr *fdef = callee_bind->func_def;
             I32 fvi = fdef->data.data.FuncDef.variadic_index;
             I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
-            U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
-            U32 fkc = (fkwi >= 0) ? e->kwargs_count : 0;
+            U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
+            U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
             U32 ci = 1;
             for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
@@ -913,8 +909,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             Expr *fdef = callee_bind->func_def;
             I32 fvi = fdef->data.data.FuncDef.variadic_index;
             I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
-            U32 fvc = (fvi >= 0) ? e->variadic_count : 0;
-            U32 fkc = (fkwi >= 0) ? e->kwargs_count : 0;
+            U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
+            U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
             U32 ci = 1; // children index
             for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
                 if (fvi >= 0 && (I32)pi == fvi) {
@@ -1390,7 +1386,7 @@ static Expr *find_variadic_fcall(Expr *e) {
     if (!e) return NULL;
     if (e->data.tag == ExprData_TAG_FuncDef || e->data.tag == ExprData_TAG_StructDef ||
         e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return NULL;
-    if (e->data.tag == ExprData_TAG_FCall && e->variadic_index >= 0) {
+    if (e->data.tag == ExprData_TAG_FCall && e->data.data.FCall.variadic_index >= 0) {
         // Skip array/vec builtins — handled specially like dyn_call
         if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
             Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
@@ -1436,8 +1432,8 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             continue;
         }
         changed = 1;
-        I32 vi = fcall->variadic_index;
-        U32 vc = fcall->variadic_count;
+        I32 vi = fcall->data.data.FCall.variadic_index;
+        U32 vc = fcall->data.data.FCall.variadic_count;
         I32 line = fcall->line, col = fcall->col;
         Str *path = &fcall->path;
 
@@ -1500,8 +1496,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             }
             Vec_delete(&fcall->children, &(Bool){0});
             fcall->children = fcall_new_ch;
-            fcall->variadic_index = -1;
-            fcall->variadic_count = 0;
             fcall->data.data.FCall.variadic_index = -1;
             fcall->data.data.FCall.variadic_count = 0;
             Vec_push(&new_ch, Expr_clone(stmt));
@@ -1622,8 +1616,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         }
         Vec_delete(&fcall->children, &(Bool){0});
         fcall->children = fcall_new_ch;
-        fcall->variadic_index = -1;
-        fcall->variadic_count = 0;
         fcall->data.data.FCall.variadic_index = -1;
         fcall->data.data.FCall.variadic_count = 0;
 
@@ -1646,7 +1638,7 @@ static Expr *find_kwargs_fcall(Expr *e) {
     if (!e) return NULL;
     if (e->data.tag == ExprData_TAG_FuncDef || e->data.tag == ExprData_TAG_StructDef ||
         e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return NULL;
-    if (e->data.tag == ExprData_TAG_FCall && e->kwargs_index >= 0) return e;
+    if (e->data.tag == ExprData_TAG_FCall && e->data.data.FCall.kwargs_index >= 0) return e;
     for (U32 i = 0; i < e->children.count; i++) {
         Expr *found = find_kwargs_fcall(Expr_child(e, &(USize){(USize)(i)}));
         if (found) return found;
@@ -1666,8 +1658,8 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
             continue;
         }
         changed = 1;
-        I32 ki = fcall->kwargs_index;
-        U32 kc = fcall->kwargs_count;
+        I32 ki = fcall->data.data.FCall.kwargs_index;
+        U32 kc = fcall->data.data.FCall.kwargs_count;
         I32 line = fcall->line, col = fcall->col;
         Str *path = &fcall->path;
 
@@ -1800,8 +1792,6 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         }
         Vec_delete(&fcall->children, &(Bool){0});
         fcall->children = fcall_new_ch;
-        fcall->kwargs_index = -1;
-        fcall->kwargs_count = 0;
         fcall->data.data.FCall.kwargs_index = -1;
         fcall->data.data.FCall.kwargs_count = 0;
 
