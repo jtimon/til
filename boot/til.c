@@ -9122,39 +9122,39 @@ U32 *TilType_size(void) {
 Str * til_type_name_c(TilType * t) {
     (void)t;
     {
-        TilType _sw_v_1435; { TilType *_hp = (TilType *)TilType_clone(t); _sw_v_1435 = *_hp; free(_hp); }
-        (void)_sw_v_1435;
-        Bool _t_Bool_1470; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_Unknown}); _t_Bool_1470 = *_hp; free(_hp); }
+        TilType _sw_TilType_1435; { TilType *_hp = (TilType *)TilType_clone(t); _sw_TilType_1435 = *_hp; free(_hp); }
+        (void)_sw_TilType_1435;
+        Bool _t_Bool_1470; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_Unknown}); _t_Bool_1470 = *_hp; free(_hp); }
         (void)_t_Bool_1470;
         if (_t_Bool_1470) {
             Str _t_Str_1436; { Str *_hp = (Str *)Str_lit("unknown", 7ULL); _t_Str_1436 = *_hp; free(_hp); }
             (void)_t_Str_1436;
-            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
             ;
             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1436; return _r; }
         } else {
-            Bool _t_Bool_1469; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_None}); _t_Bool_1469 = *_hp; free(_hp); }
+            Bool _t_Bool_1469; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_None}); _t_Bool_1469 = *_hp; free(_hp); }
             (void)_t_Bool_1469;
             if (_t_Bool_1469) {
                 Str _t_Str_1437; { Str *_hp = (Str *)Str_lit("None", 4ULL); _t_Str_1437 = *_hp; free(_hp); }
                 (void)_t_Str_1437;
                 ;
-                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                 ;
                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1437; return _r; }
             } else {
-                Bool _t_Bool_1468; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_1468 = *_hp; free(_hp); }
+                Bool _t_Bool_1468; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_1468 = *_hp; free(_hp); }
                 (void)_t_Bool_1468;
                 if (_t_Bool_1468) {
                     Str _t_Str_1438; { Str *_hp = (Str *)Str_lit("I64", 3ULL); _t_Str_1438 = *_hp; free(_hp); }
                     (void)_t_Str_1438;
                     ;
                     ;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                     ;
                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1438; return _r; }
                 } else {
-                    Bool _t_Bool_1467; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_1467 = *_hp; free(_hp); }
+                    Bool _t_Bool_1467; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_1467 = *_hp; free(_hp); }
                     (void)_t_Bool_1467;
                     if (_t_Bool_1467) {
                         Str _t_Str_1439; { Str *_hp = (Str *)Str_lit("U8", 2ULL); _t_Str_1439 = *_hp; free(_hp); }
@@ -9162,11 +9162,11 @@ Str * til_type_name_c(TilType * t) {
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                         ;
                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1439; return _r; }
                     } else {
-                        Bool _t_Bool_1466; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_1466 = *_hp; free(_hp); }
+                        Bool _t_Bool_1466; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_1466 = *_hp; free(_hp); }
                         (void)_t_Bool_1466;
                         if (_t_Bool_1466) {
                             Str _t_Str_1440; { Str *_hp = (Str *)Str_lit("I16", 3ULL); _t_Str_1440 = *_hp; free(_hp); }
@@ -9175,11 +9175,11 @@ Str * til_type_name_c(TilType * t) {
                             ;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                             ;
                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1440; return _r; }
                         } else {
-                            Bool _t_Bool_1465; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_1465 = *_hp; free(_hp); }
+                            Bool _t_Bool_1465; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_1465 = *_hp; free(_hp); }
                             (void)_t_Bool_1465;
                             if (_t_Bool_1465) {
                                 Str _t_Str_1441; { Str *_hp = (Str *)Str_lit("I32", 3ULL); _t_Str_1441 = *_hp; free(_hp); }
@@ -9189,11 +9189,11 @@ Str * til_type_name_c(TilType * t) {
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                 ;
                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1441; return _r; }
                             } else {
-                                Bool _t_Bool_1464; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_1464 = *_hp; free(_hp); }
+                                Bool _t_Bool_1464; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_1464 = *_hp; free(_hp); }
                                 (void)_t_Bool_1464;
                                 if (_t_Bool_1464) {
                                     Str _t_Str_1442; { Str *_hp = (Str *)Str_lit("U32", 3ULL); _t_Str_1442 = *_hp; free(_hp); }
@@ -9204,11 +9204,11 @@ Str * til_type_name_c(TilType * t) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                     ;
                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1442; return _r; }
                                 } else {
-                                    Bool _t_Bool_1463; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_1463 = *_hp; free(_hp); }
+                                    Bool _t_Bool_1463; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_1463 = *_hp; free(_hp); }
                                     (void)_t_Bool_1463;
                                     if (_t_Bool_1463) {
                                         Str _t_Str_1443; { Str *_hp = (Str *)Str_lit("U64", 3ULL); _t_Str_1443 = *_hp; free(_hp); }
@@ -9220,11 +9220,11 @@ Str * til_type_name_c(TilType * t) {
                                         ;
                                         ;
                                         ;
-                                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                         ;
                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1443; return _r; }
                                     } else {
-                                        Bool _t_Bool_1462; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_1462 = *_hp; free(_hp); }
+                                        Bool _t_Bool_1462; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_1462 = *_hp; free(_hp); }
                                         (void)_t_Bool_1462;
                                         if (_t_Bool_1462) {
                                             Str _t_Str_1444; { Str *_hp = (Str *)Str_lit("F32", 3ULL); _t_Str_1444 = *_hp; free(_hp); }
@@ -9237,11 +9237,11 @@ Str * til_type_name_c(TilType * t) {
                                             ;
                                             ;
                                             ;
-                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                             ;
                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1444; return _r; }
                                         } else {
-                                            Bool _t_Bool_1461; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_Bool}); _t_Bool_1461 = *_hp; free(_hp); }
+                                            Bool _t_Bool_1461; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_Bool}); _t_Bool_1461 = *_hp; free(_hp); }
                                             (void)_t_Bool_1461;
                                             if (_t_Bool_1461) {
                                                 Str _t_Str_1445; { Str *_hp = (Str *)Str_lit("Bool", 4ULL); _t_Str_1445 = *_hp; free(_hp); }
@@ -9255,11 +9255,11 @@ Str * til_type_name_c(TilType * t) {
                                                 ;
                                                 ;
                                                 ;
-                                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                 ;
                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1445; return _r; }
                                             } else {
-                                                Bool _t_Bool_1460; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_Struct}); _t_Bool_1460 = *_hp; free(_hp); }
+                                                Bool _t_Bool_1460; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_Struct}); _t_Bool_1460 = *_hp; free(_hp); }
                                                 (void)_t_Bool_1460;
                                                 if (_t_Bool_1460) {
                                                     Str _t_Str_1446; { Str *_hp = (Str *)Str_lit("Struct", 6ULL); _t_Str_1446 = *_hp; free(_hp); }
@@ -9274,11 +9274,11 @@ Str * til_type_name_c(TilType * t) {
                                                     ;
                                                     ;
                                                     ;
-                                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                     ;
                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1446; return _r; }
                                                 } else {
-                                                    Bool _t_Bool_1459; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_StructDef}); _t_Bool_1459 = *_hp; free(_hp); }
+                                                    Bool _t_Bool_1459; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_StructDef}); _t_Bool_1459 = *_hp; free(_hp); }
                                                     (void)_t_Bool_1459;
                                                     if (_t_Bool_1459) {
                                                         Str _t_Str_1447; { Str *_hp = (Str *)Str_lit("StructDef", 9ULL); _t_Str_1447 = *_hp; free(_hp); }
@@ -9294,11 +9294,11 @@ Str * til_type_name_c(TilType * t) {
                                                         ;
                                                         ;
                                                         ;
-                                                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                         ;
                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1447; return _r; }
                                                     } else {
-                                                        Bool _t_Bool_1458; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_Enum}); _t_Bool_1458 = *_hp; free(_hp); }
+                                                        Bool _t_Bool_1458; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_Enum}); _t_Bool_1458 = *_hp; free(_hp); }
                                                         (void)_t_Bool_1458;
                                                         if (_t_Bool_1458) {
                                                             Str _t_Str_1448; { Str *_hp = (Str *)Str_lit("Enum", 4ULL); _t_Str_1448 = *_hp; free(_hp); }
@@ -9315,11 +9315,11 @@ Str * til_type_name_c(TilType * t) {
                                                             ;
                                                             ;
                                                             ;
-                                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                             ;
                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1448; return _r; }
                                                         } else {
-                                                            Bool _t_Bool_1457; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_EnumDef}); _t_Bool_1457 = *_hp; free(_hp); }
+                                                            Bool _t_Bool_1457; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_EnumDef}); _t_Bool_1457 = *_hp; free(_hp); }
                                                             (void)_t_Bool_1457;
                                                             if (_t_Bool_1457) {
                                                                 Str _t_Str_1449; { Str *_hp = (Str *)Str_lit("EnumDef", 7ULL); _t_Str_1449 = *_hp; free(_hp); }
@@ -9337,11 +9337,11 @@ Str * til_type_name_c(TilType * t) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                                 ;
                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1449; return _r; }
                                                             } else {
-                                                                Bool _t_Bool_1456; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_FuncDef}); _t_Bool_1456 = *_hp; free(_hp); }
+                                                                Bool _t_Bool_1456; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_FuncDef}); _t_Bool_1456 = *_hp; free(_hp); }
                                                                 (void)_t_Bool_1456;
                                                                 if (_t_Bool_1456) {
                                                                     Str _t_Str_1450; { Str *_hp = (Str *)Str_lit("FunctionDef", 11ULL); _t_Str_1450 = *_hp; free(_hp); }
@@ -9360,11 +9360,11 @@ Str * til_type_name_c(TilType * t) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                                     ;
                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1450; return _r; }
                                                                 } else {
-                                                                    Bool _t_Bool_1455; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_FuncPtr}); _t_Bool_1455 = *_hp; free(_hp); }
+                                                                    Bool _t_Bool_1455; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_FuncPtr}); _t_Bool_1455 = *_hp; free(_hp); }
                                                                     (void)_t_Bool_1455;
                                                                     if (_t_Bool_1455) {
                                                                         Str _t_Str_1451; { Str *_hp = (Str *)Str_lit("Fn", 2ULL); _t_Str_1451 = *_hp; free(_hp); }
@@ -9384,11 +9384,11 @@ Str * til_type_name_c(TilType * t) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                                         ;
                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1451; return _r; }
                                                                     } else {
-                                                                        Bool _t_Bool_1454; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_1435, &(TilType){.tag = TilType_TAG_Dynamic}); _t_Bool_1454 = *_hp; free(_hp); }
+                                                                        Bool _t_Bool_1454; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_1435, &(TilType){.tag = TilType_TAG_Dynamic}); _t_Bool_1454 = *_hp; free(_hp); }
                                                                         (void)_t_Bool_1454;
                                                                         if (_t_Bool_1454) {
                                                                             Str _t_Str_1452; { Str *_hp = (Str *)Str_lit("Dynamic", 7ULL); _t_Str_1452 = *_hp; free(_hp); }
@@ -9409,7 +9409,7 @@ Str * til_type_name_c(TilType * t) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                                             ;
                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1452; return _r; }
                                                                         } else {
@@ -9431,7 +9431,7 @@ Str * til_type_name_c(TilType * t) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_1435; _oa; }), &(Bool){1});
+                                                                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_1435; _oa; }), &(Bool){1});
                                                                             ;
                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1453; return _r; }
                                                                         }
@@ -9467,7 +9467,7 @@ Str * til_type_name_c(TilType * t) {
             }
             ;
         }
-        TilType_delete(&_sw_v_1435, &(Bool){0});
+        TilType_delete(&_sw_TilType_1435, &(Bool){0});
         ;
     }
 }
@@ -11733,39 +11733,39 @@ U32 *Expr_size(void) {
 Str * node_name(ExprData * data) {
     (void)data;
     {
-        ExprData _sw_v_1899; { ExprData *_hp = (ExprData *)ExprData_clone(data); _sw_v_1899 = *_hp; free(_hp); }
-        (void)_sw_v_1899;
-        Bool _t_Bool_1950; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Body}); _t_Bool_1950 = *_hp; free(_hp); }
+        ExprData _sw_ExprData_1899; { ExprData *_hp = (ExprData *)ExprData_clone(data); _sw_ExprData_1899 = *_hp; free(_hp); }
+        (void)_sw_ExprData_1899;
+        Bool _t_Bool_1950; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Body}); _t_Bool_1950 = *_hp; free(_hp); }
         (void)_t_Bool_1950;
         if (_t_Bool_1950) {
             Str _t_Str_1900; { Str *_hp = (Str *)Str_lit("body", 4ULL); _t_Str_1900 = *_hp; free(_hp); }
             (void)_t_Str_1900;
-            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
             ;
             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1900; return _r; }
         } else {
-            Bool _t_Bool_1949 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_LiteralStr});
+            Bool _t_Bool_1949 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_LiteralStr});
             (void)_t_Bool_1949;
             if (_t_Bool_1949) {
                 Str _t_Str_1901; { Str *_hp = (Str *)Str_lit("str", 3ULL); _t_Str_1901 = *_hp; free(_hp); }
                 (void)_t_Str_1901;
                 ;
-                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                 ;
                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1901; return _r; }
             } else {
-                Bool _t_Bool_1948 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_LiteralNum});
+                Bool _t_Bool_1948 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_LiteralNum});
                 (void)_t_Bool_1948;
                 if (_t_Bool_1948) {
                     Str _t_Str_1902; { Str *_hp = (Str *)Str_lit("num", 3ULL); _t_Str_1902 = *_hp; free(_hp); }
                     (void)_t_Str_1902;
                     ;
                     ;
-                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                     ;
                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1902; return _r; }
                 } else {
-                    Bool _t_Bool_1947 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_LiteralBool});
+                    Bool _t_Bool_1947 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_LiteralBool});
                     (void)_t_Bool_1947;
                     if (_t_Bool_1947) {
                         Str _t_Str_1903; { Str *_hp = (Str *)Str_lit("bool", 4ULL); _t_Str_1903 = *_hp; free(_hp); }
@@ -11773,11 +11773,11 @@ Str * node_name(ExprData * data) {
                         ;
                         ;
                         ;
-                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                         ;
                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1903; return _r; }
                     } else {
-                        Bool _t_Bool_1946; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_LiteralNull}); _t_Bool_1946 = *_hp; free(_hp); }
+                        Bool _t_Bool_1946; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_LiteralNull}); _t_Bool_1946 = *_hp; free(_hp); }
                         (void)_t_Bool_1946;
                         if (_t_Bool_1946) {
                             Str _t_Str_1904; { Str *_hp = (Str *)Str_lit("null", 4ULL); _t_Str_1904 = *_hp; free(_hp); }
@@ -11786,11 +11786,11 @@ Str * node_name(ExprData * data) {
                             ;
                             ;
                             ;
-                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                             ;
                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1904; return _r; }
                         } else {
-                            Bool _t_Bool_1945 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Ident});
+                            Bool _t_Bool_1945 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Ident});
                             (void)_t_Bool_1945;
                             if (_t_Bool_1945) {
                                 Str _t_Str_1905; { Str *_hp = (Str *)Str_lit("ident", 5ULL); _t_Str_1905 = *_hp; free(_hp); }
@@ -11800,11 +11800,11 @@ Str * node_name(ExprData * data) {
                                 ;
                                 ;
                                 ;
-                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                 ;
                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1905; return _r; }
                             } else {
-                                Bool _t_Bool_1944 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Decl});
+                                Bool _t_Bool_1944 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Decl});
                                 (void)_t_Bool_1944;
                                 if (_t_Bool_1944) {
                                     Str _t_Str_1906; { Str *_hp = (Str *)Str_lit("decl", 4ULL); _t_Str_1906 = *_hp; free(_hp); }
@@ -11815,11 +11815,11 @@ Str * node_name(ExprData * data) {
                                     ;
                                     ;
                                     ;
-                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                     ;
                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1906; return _r; }
                                 } else {
-                                    Bool _t_Bool_1943 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Assign});
+                                    Bool _t_Bool_1943 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Assign});
                                     (void)_t_Bool_1943;
                                     if (_t_Bool_1943) {
                                         Str _t_Str_1907; { Str *_hp = (Str *)Str_lit("assign", 6ULL); _t_Str_1907 = *_hp; free(_hp); }
@@ -11831,11 +11831,11 @@ Str * node_name(ExprData * data) {
                                         ;
                                         ;
                                         ;
-                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                         ;
                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1907; return _r; }
                                     } else {
-                                        Bool _t_Bool_1942; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_FCall}); _t_Bool_1942 = *_hp; free(_hp); }
+                                        Bool _t_Bool_1942; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_FCall}); _t_Bool_1942 = *_hp; free(_hp); }
                                         (void)_t_Bool_1942;
                                         if (_t_Bool_1942) {
                                             Str _t_Str_1908; { Str *_hp = (Str *)Str_lit("fcall", 5ULL); _t_Str_1908 = *_hp; free(_hp); }
@@ -11848,11 +11848,11 @@ Str * node_name(ExprData * data) {
                                             ;
                                             ;
                                             ;
-                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                             ;
                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1908; return _r; }
                                         } else {
-                                            Bool _t_Bool_1941 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_FuncDef});
+                                            Bool _t_Bool_1941 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_FuncDef});
                                             (void)_t_Bool_1941;
                                             if (_t_Bool_1941) {
                                                 Str _t_Str_1909; { Str *_hp = (Str *)Str_lit("func_def", 8ULL); _t_Str_1909 = *_hp; free(_hp); }
@@ -11866,11 +11866,11 @@ Str * node_name(ExprData * data) {
                                                 ;
                                                 ;
                                                 ;
-                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                 ;
                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1909; return _r; }
                                             } else {
-                                                Bool _t_Bool_1940; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_StructDef}); _t_Bool_1940 = *_hp; free(_hp); }
+                                                Bool _t_Bool_1940; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_StructDef}); _t_Bool_1940 = *_hp; free(_hp); }
                                                 (void)_t_Bool_1940;
                                                 if (_t_Bool_1940) {
                                                     Str _t_Str_1910; { Str *_hp = (Str *)Str_lit("struct_def", 10ULL); _t_Str_1910 = *_hp; free(_hp); }
@@ -11885,11 +11885,11 @@ Str * node_name(ExprData * data) {
                                                     ;
                                                     ;
                                                     ;
-                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                     ;
                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1910; return _r; }
                                                 } else {
-                                                    Bool _t_Bool_1939; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_EnumDef}); _t_Bool_1939 = *_hp; free(_hp); }
+                                                    Bool _t_Bool_1939; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_EnumDef}); _t_Bool_1939 = *_hp; free(_hp); }
                                                     (void)_t_Bool_1939;
                                                     if (_t_Bool_1939) {
                                                         Str _t_Str_1911; { Str *_hp = (Str *)Str_lit("enum_def", 8ULL); _t_Str_1911 = *_hp; free(_hp); }
@@ -11905,11 +11905,11 @@ Str * node_name(ExprData * data) {
                                                         ;
                                                         ;
                                                         ;
-                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                         ;
                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1911; return _r; }
                                                     } else {
-                                                        Bool _t_Bool_1938 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_FieldAccess});
+                                                        Bool _t_Bool_1938 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_FieldAccess});
                                                         (void)_t_Bool_1938;
                                                         if (_t_Bool_1938) {
                                                             Str _t_Str_1912; { Str *_hp = (Str *)Str_lit("field_access", 12ULL); _t_Str_1912 = *_hp; free(_hp); }
@@ -11926,11 +11926,11 @@ Str * node_name(ExprData * data) {
                                                             ;
                                                             ;
                                                             ;
-                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                             ;
                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1912; return _r; }
                                                         } else {
-                                                            Bool _t_Bool_1937 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_FieldAssign});
+                                                            Bool _t_Bool_1937 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_FieldAssign});
                                                             (void)_t_Bool_1937;
                                                             if (_t_Bool_1937) {
                                                                 Str _t_Str_1913; { Str *_hp = (Str *)Str_lit("field_assign", 12ULL); _t_Str_1913 = *_hp; free(_hp); }
@@ -11948,11 +11948,11 @@ Str * node_name(ExprData * data) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                 ;
                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1913; return _r; }
                                                             } else {
-                                                                Bool _t_Bool_1936; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Return}); _t_Bool_1936 = *_hp; free(_hp); }
+                                                                Bool _t_Bool_1936; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Return}); _t_Bool_1936 = *_hp; free(_hp); }
                                                                 (void)_t_Bool_1936;
                                                                 if (_t_Bool_1936) {
                                                                     Str _t_Str_1914; { Str *_hp = (Str *)Str_lit("return", 6ULL); _t_Str_1914 = *_hp; free(_hp); }
@@ -11971,11 +11971,11 @@ Str * node_name(ExprData * data) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                     ;
                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1914; return _r; }
                                                                 } else {
-                                                                    Bool _t_Bool_1935; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_If}); _t_Bool_1935 = *_hp; free(_hp); }
+                                                                    Bool _t_Bool_1935; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_If}); _t_Bool_1935 = *_hp; free(_hp); }
                                                                     (void)_t_Bool_1935;
                                                                     if (_t_Bool_1935) {
                                                                         Str _t_Str_1915; { Str *_hp = (Str *)Str_lit("if", 2ULL); _t_Str_1915 = *_hp; free(_hp); }
@@ -11995,11 +11995,11 @@ Str * node_name(ExprData * data) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                         ;
                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1915; return _r; }
                                                                     } else {
-                                                                        Bool _t_Bool_1934; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_While}); _t_Bool_1934 = *_hp; free(_hp); }
+                                                                        Bool _t_Bool_1934; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_While}); _t_Bool_1934 = *_hp; free(_hp); }
                                                                         (void)_t_Bool_1934;
                                                                         if (_t_Bool_1934) {
                                                                             Str _t_Str_1916; { Str *_hp = (Str *)Str_lit("while", 5ULL); _t_Str_1916 = *_hp; free(_hp); }
@@ -12020,11 +12020,11 @@ Str * node_name(ExprData * data) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                             ;
                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1916; return _r; }
                                                                         } else {
-                                                                            Bool _t_Bool_1933 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_ForIn});
+                                                                            Bool _t_Bool_1933 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_ForIn});
                                                                             (void)_t_Bool_1933;
                                                                             if (_t_Bool_1933) {
                                                                                 Str _t_Str_1917; { Str *_hp = (Str *)Str_lit("for_in", 6ULL); _t_Str_1917 = *_hp; free(_hp); }
@@ -12046,11 +12046,11 @@ Str * node_name(ExprData * data) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                 ;
                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1917; return _r; }
                                                                             } else {
-                                                                                Bool _t_Bool_1932 = is_variant(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_NamedArg});
+                                                                                Bool _t_Bool_1932 = is_variant(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_NamedArg});
                                                                                 (void)_t_Bool_1932;
                                                                                 if (_t_Bool_1932) {
                                                                                     Str _t_Str_1918; { Str *_hp = (Str *)Str_lit("named_arg", 9ULL); _t_Str_1918 = *_hp; free(_hp); }
@@ -12073,11 +12073,11 @@ Str * node_name(ExprData * data) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                     ;
                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1918; return _r; }
                                                                                 } else {
-                                                                                    Bool _t_Bool_1931; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Break}); _t_Bool_1931 = *_hp; free(_hp); }
+                                                                                    Bool _t_Bool_1931; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Break}); _t_Bool_1931 = *_hp; free(_hp); }
                                                                                     (void)_t_Bool_1931;
                                                                                     if (_t_Bool_1931) {
                                                                                         Str _t_Str_1919; { Str *_hp = (Str *)Str_lit("break", 5ULL); _t_Str_1919 = *_hp; free(_hp); }
@@ -12101,11 +12101,11 @@ Str * node_name(ExprData * data) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                         ;
                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1919; return _r; }
                                                                                     } else {
-                                                                                        Bool _t_Bool_1930; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Continue}); _t_Bool_1930 = *_hp; free(_hp); }
+                                                                                        Bool _t_Bool_1930; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Continue}); _t_Bool_1930 = *_hp; free(_hp); }
                                                                                         (void)_t_Bool_1930;
                                                                                         if (_t_Bool_1930) {
                                                                                             Str _t_Str_1920; { Str *_hp = (Str *)Str_lit("continue", 8ULL); _t_Str_1920 = *_hp; free(_hp); }
@@ -12130,11 +12130,11 @@ Str * node_name(ExprData * data) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                             ;
                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1920; return _r; }
                                                                                         } else {
-                                                                                            Bool _t_Bool_1929; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_MapLit}); _t_Bool_1929 = *_hp; free(_hp); }
+                                                                                            Bool _t_Bool_1929; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_MapLit}); _t_Bool_1929 = *_hp; free(_hp); }
                                                                                             (void)_t_Bool_1929;
                                                                                             if (_t_Bool_1929) {
                                                                                                 Str _t_Str_1921; { Str *_hp = (Str *)Str_lit("map_lit", 7ULL); _t_Str_1921 = *_hp; free(_hp); }
@@ -12160,11 +12160,11 @@ Str * node_name(ExprData * data) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                                 ;
                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1921; return _r; }
                                                                                             } else {
-                                                                                                Bool _t_Bool_1928; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_SetLit}); _t_Bool_1928 = *_hp; free(_hp); }
+                                                                                                Bool _t_Bool_1928; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_SetLit}); _t_Bool_1928 = *_hp; free(_hp); }
                                                                                                 (void)_t_Bool_1928;
                                                                                                 if (_t_Bool_1928) {
                                                                                                     Str _t_Str_1922; { Str *_hp = (Str *)Str_lit("set_lit", 7ULL); _t_Str_1922 = *_hp; free(_hp); }
@@ -12191,11 +12191,11 @@ Str * node_name(ExprData * data) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                                     ;
                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1922; return _r; }
                                                                                                 } else {
-                                                                                                    Bool _t_Bool_1927; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Switch}); _t_Bool_1927 = *_hp; free(_hp); }
+                                                                                                    Bool _t_Bool_1927; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Switch}); _t_Bool_1927 = *_hp; free(_hp); }
                                                                                                     (void)_t_Bool_1927;
                                                                                                     if (_t_Bool_1927) {
                                                                                                         Str _t_Str_1923; { Str *_hp = (Str *)Str_lit("switch", 6ULL); _t_Str_1923 = *_hp; free(_hp); }
@@ -12223,11 +12223,11 @@ Str * node_name(ExprData * data) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                                         ;
                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1923; return _r; }
                                                                                                     } else {
-                                                                                                        Bool _t_Bool_1926; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_1899, &(ExprData){.tag = ExprData_TAG_Case}); _t_Bool_1926 = *_hp; free(_hp); }
+                                                                                                        Bool _t_Bool_1926; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_1899, &(ExprData){.tag = ExprData_TAG_Case}); _t_Bool_1926 = *_hp; free(_hp); }
                                                                                                         (void)_t_Bool_1926;
                                                                                                         if (_t_Bool_1926) {
                                                                                                             Str _t_Str_1924; { Str *_hp = (Str *)Str_lit("case", 4ULL); _t_Str_1924 = *_hp; free(_hp); }
@@ -12256,7 +12256,7 @@ Str * node_name(ExprData * data) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                                             ;
                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1924; return _r; }
                                                                                                         } else {
@@ -12286,7 +12286,7 @@ Str * node_name(ExprData * data) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_1899; _oa; }), &(Bool){1});
+                                                                                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_1899; _oa; }), &(Bool){1});
                                                                                                             ;
                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1925; return _r; }
                                                                                                         }
@@ -12338,7 +12338,7 @@ Str * node_name(ExprData * data) {
             }
             ;
         }
-        ExprData_delete(&_sw_v_1899, &(Bool){0});
+        ExprData_delete(&_sw_ExprData_1899, &(Bool){0});
         ;
     }
 }
@@ -12346,39 +12346,39 @@ Str * node_name(ExprData * data) {
 Str * func_type_name(FuncType * ft) {
     (void)ft;
     {
-        FuncType _sw_v_1951; { FuncType *_hp = (FuncType *)FuncType_clone(ft); _sw_v_1951 = *_hp; free(_hp); }
-        (void)_sw_v_1951;
-        Bool _t_Bool_1964; { Bool *_hp = (Bool *)FuncType_eq(&_sw_v_1951, &(FuncType){.tag = FuncType_TAG_Func}); _t_Bool_1964 = *_hp; free(_hp); }
+        FuncType _sw_FuncType_1951; { FuncType *_hp = (FuncType *)FuncType_clone(ft); _sw_FuncType_1951 = *_hp; free(_hp); }
+        (void)_sw_FuncType_1951;
+        Bool _t_Bool_1964; { Bool *_hp = (Bool *)FuncType_eq(&_sw_FuncType_1951, &(FuncType){.tag = FuncType_TAG_Func}); _t_Bool_1964 = *_hp; free(_hp); }
         (void)_t_Bool_1964;
         if (_t_Bool_1964) {
             Str _t_Str_1952; { Str *_hp = (Str *)Str_lit("func", 4ULL); _t_Str_1952 = *_hp; free(_hp); }
             (void)_t_Str_1952;
-            FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_v_1951; _oa; }), &(Bool){1});
+            FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_FuncType_1951; _oa; }), &(Bool){1});
             ;
             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1952; return _r; }
         } else {
-            Bool _t_Bool_1963; { Bool *_hp = (Bool *)FuncType_eq(&_sw_v_1951, &(FuncType){.tag = FuncType_TAG_Proc}); _t_Bool_1963 = *_hp; free(_hp); }
+            Bool _t_Bool_1963; { Bool *_hp = (Bool *)FuncType_eq(&_sw_FuncType_1951, &(FuncType){.tag = FuncType_TAG_Proc}); _t_Bool_1963 = *_hp; free(_hp); }
             (void)_t_Bool_1963;
             if (_t_Bool_1963) {
                 Str _t_Str_1953; { Str *_hp = (Str *)Str_lit("proc", 4ULL); _t_Str_1953 = *_hp; free(_hp); }
                 (void)_t_Str_1953;
                 ;
-                FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_v_1951; _oa; }), &(Bool){1});
+                FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_FuncType_1951; _oa; }), &(Bool){1});
                 ;
                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1953; return _r; }
             } else {
-                Bool _t_Bool_1962; { Bool *_hp = (Bool *)FuncType_eq(&_sw_v_1951, &(FuncType){.tag = FuncType_TAG_Test}); _t_Bool_1962 = *_hp; free(_hp); }
+                Bool _t_Bool_1962; { Bool *_hp = (Bool *)FuncType_eq(&_sw_FuncType_1951, &(FuncType){.tag = FuncType_TAG_Test}); _t_Bool_1962 = *_hp; free(_hp); }
                 (void)_t_Bool_1962;
                 if (_t_Bool_1962) {
                     Str _t_Str_1954; { Str *_hp = (Str *)Str_lit("test", 4ULL); _t_Str_1954 = *_hp; free(_hp); }
                     (void)_t_Str_1954;
                     ;
                     ;
-                    FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_v_1951; _oa; }), &(Bool){1});
+                    FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_FuncType_1951; _oa; }), &(Bool){1});
                     ;
                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1954; return _r; }
                 } else {
-                    Bool _t_Bool_1961; { Bool *_hp = (Bool *)FuncType_eq(&_sw_v_1951, &(FuncType){.tag = FuncType_TAG_Macro}); _t_Bool_1961 = *_hp; free(_hp); }
+                    Bool _t_Bool_1961; { Bool *_hp = (Bool *)FuncType_eq(&_sw_FuncType_1951, &(FuncType){.tag = FuncType_TAG_Macro}); _t_Bool_1961 = *_hp; free(_hp); }
                     (void)_t_Bool_1961;
                     if (_t_Bool_1961) {
                         Str _t_Str_1955; { Str *_hp = (Str *)Str_lit("macro", 5ULL); _t_Str_1955 = *_hp; free(_hp); }
@@ -12386,11 +12386,11 @@ Str * func_type_name(FuncType * ft) {
                         ;
                         ;
                         ;
-                        FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_v_1951; _oa; }), &(Bool){1});
+                        FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_FuncType_1951; _oa; }), &(Bool){1});
                         ;
                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1955; return _r; }
                     } else {
-                        Bool _t_Bool_1960; { Bool *_hp = (Bool *)FuncType_eq(&_sw_v_1951, &(FuncType){.tag = FuncType_TAG_ExtFunc}); _t_Bool_1960 = *_hp; free(_hp); }
+                        Bool _t_Bool_1960; { Bool *_hp = (Bool *)FuncType_eq(&_sw_FuncType_1951, &(FuncType){.tag = FuncType_TAG_ExtFunc}); _t_Bool_1960 = *_hp; free(_hp); }
                         (void)_t_Bool_1960;
                         if (_t_Bool_1960) {
                             Str _t_Str_1956; { Str *_hp = (Str *)Str_lit("ext_func", 8ULL); _t_Str_1956 = *_hp; free(_hp); }
@@ -12399,11 +12399,11 @@ Str * func_type_name(FuncType * ft) {
                             ;
                             ;
                             ;
-                            FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_v_1951; _oa; }), &(Bool){1});
+                            FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_FuncType_1951; _oa; }), &(Bool){1});
                             ;
                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1956; return _r; }
                         } else {
-                            Bool _t_Bool_1959; { Bool *_hp = (Bool *)FuncType_eq(&_sw_v_1951, &(FuncType){.tag = FuncType_TAG_ExtProc}); _t_Bool_1959 = *_hp; free(_hp); }
+                            Bool _t_Bool_1959; { Bool *_hp = (Bool *)FuncType_eq(&_sw_FuncType_1951, &(FuncType){.tag = FuncType_TAG_ExtProc}); _t_Bool_1959 = *_hp; free(_hp); }
                             (void)_t_Bool_1959;
                             if (_t_Bool_1959) {
                                 Str _t_Str_1957; { Str *_hp = (Str *)Str_lit("ext_proc", 8ULL); _t_Str_1957 = *_hp; free(_hp); }
@@ -12413,7 +12413,7 @@ Str * func_type_name(FuncType * ft) {
                                 ;
                                 ;
                                 ;
-                                FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_v_1951; _oa; }), &(Bool){1});
+                                FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_FuncType_1951; _oa; }), &(Bool){1});
                                 ;
                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1957; return _r; }
                             } else {
@@ -12424,7 +12424,7 @@ Str * func_type_name(FuncType * ft) {
                                 ;
                                 ;
                                 ;
-                                FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_v_1951; _oa; }), &(Bool){1});
+                                FuncType_delete(({ FuncType *_oa = malloc(sizeof(FuncType)); *_oa = _sw_FuncType_1951; _oa; }), &(Bool){1});
                                 ;
                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_1958; return _r; }
                             }
@@ -12438,7 +12438,7 @@ Str * func_type_name(FuncType * ft) {
             }
             ;
         }
-        FuncType_delete(&_sw_v_1951, &(Bool){0});
+        FuncType_delete(&_sw_FuncType_1951, &(Bool){0});
         ;
     }
 }
@@ -12584,12 +12584,12 @@ void ast_print(Expr * e, U32 indent) {
     }
     ;
     {
-        ExprData _sw_v_1987; { ExprData *_hp = (ExprData *)ExprData_clone(&e->data); _sw_v_1987 = *_hp; free(_hp); }
-        (void)_sw_v_1987;
-        Bool _t_Bool_2074 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_Ident});
+        ExprData _sw_ExprData_1987; { ExprData *_hp = (ExprData *)ExprData_clone(&e->data); _sw_ExprData_1987 = *_hp; free(_hp); }
+        (void)_sw_ExprData_1987;
+        Bool _t_Bool_2074 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_Ident});
         (void)_t_Bool_2074;
         if (_t_Bool_2074) {
-            Str *s = get_payload(&_sw_v_1987);
+            Str *s = get_payload(&_sw_ExprData_1987);
             (void)s;
             Str _t_Str_1988; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_1988 = *_hp; free(_hp); }
             (void)_t_Str_1988;
@@ -12622,10 +12622,10 @@ void ast_print(Expr * e, U32 indent) {
             ;
             print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_42; _oa; }));
         } else {
-            Bool _t_Bool_2073 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_LiteralStr});
+            Bool _t_Bool_2073 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_LiteralStr});
             (void)_t_Bool_2073;
             if (_t_Bool_2073) {
-                Str *s = get_payload(&_sw_v_1987);
+                Str *s = get_payload(&_sw_ExprData_1987);
                 (void)s;
                 Str _t_Str_1997; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_1997 = *_hp; free(_hp); }
                 (void)_t_Str_1997;
@@ -12658,10 +12658,10 @@ void ast_print(Expr * e, U32 indent) {
                 ;
                 print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_43; _oa; }));
             } else {
-                Bool _t_Bool_2072 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_LiteralNum});
+                Bool _t_Bool_2072 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_LiteralNum});
                 (void)_t_Bool_2072;
                 if (_t_Bool_2072) {
-                    Str *s = get_payload(&_sw_v_1987);
+                    Str *s = get_payload(&_sw_ExprData_1987);
                     (void)s;
                     Str _t_Str_2006; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_2006 = *_hp; free(_hp); }
                     (void)_t_Str_2006;
@@ -12694,10 +12694,10 @@ void ast_print(Expr * e, U32 indent) {
                     ;
                     print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_44; _oa; }));
                 } else {
-                    Bool _t_Bool_2071 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_LiteralBool});
+                    Bool _t_Bool_2071 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_LiteralBool});
                     (void)_t_Bool_2071;
                     if (_t_Bool_2071) {
-                        Str *s = get_payload(&_sw_v_1987);
+                        Str *s = get_payload(&_sw_ExprData_1987);
                         (void)s;
                         Str _t_Str_2015; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_2015 = *_hp; free(_hp); }
                         (void)_t_Str_2015;
@@ -12730,10 +12730,10 @@ void ast_print(Expr * e, U32 indent) {
                         ;
                         print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_45; _oa; }));
                     } else {
-                        Bool _t_Bool_2070 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_ForIn});
+                        Bool _t_Bool_2070 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_ForIn});
                         (void)_t_Bool_2070;
                         if (_t_Bool_2070) {
-                            Str *s = get_payload(&_sw_v_1987);
+                            Str *s = get_payload(&_sw_ExprData_1987);
                             (void)s;
                             Str _t_Str_2024; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_2024 = *_hp; free(_hp); }
                             (void)_t_Str_2024;
@@ -12766,10 +12766,10 @@ void ast_print(Expr * e, U32 indent) {
                             ;
                             print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_46; _oa; }));
                         } else {
-                            Bool _t_Bool_2069 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_Decl});
+                            Bool _t_Bool_2069 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_Decl});
                             (void)_t_Bool_2069;
                             if (_t_Bool_2069) {
-                                Declaration *decl = get_payload(&_sw_v_1987);
+                                Declaration *decl = get_payload(&_sw_ExprData_1987);
                                 (void)decl;
                                 if (decl->is_mut) {
                                     Str _t_Str_2033; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_2033 = *_hp; free(_hp); }
@@ -12816,10 +12816,10 @@ void ast_print(Expr * e, U32 indent) {
                                 ;
                                 print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_48; _oa; }));
                             } else {
-                                Bool _t_Bool_2068 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_Assign});
+                                Bool _t_Bool_2068 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_Assign});
                                 (void)_t_Bool_2068;
                                 if (_t_Bool_2068) {
-                                    Str *s = get_payload(&_sw_v_1987);
+                                    Str *s = get_payload(&_sw_ExprData_1987);
                                     (void)s;
                                     Str _t_Str_2045; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_2045 = *_hp; free(_hp); }
                                     (void)_t_Str_2045;
@@ -12846,10 +12846,10 @@ void ast_print(Expr * e, U32 indent) {
                                     ;
                                     print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_49; _oa; }));
                                 } else {
-                                    Bool _t_Bool_2067 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_NamedArg});
+                                    Bool _t_Bool_2067 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_NamedArg});
                                     (void)_t_Bool_2067;
                                     if (_t_Bool_2067) {
-                                        Str *s = get_payload(&_sw_v_1987);
+                                        Str *s = get_payload(&_sw_ExprData_1987);
                                         (void)s;
                                         Str _t_Str_2052; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_2052 = *_hp; free(_hp); }
                                         (void)_t_Str_2052;
@@ -12876,10 +12876,10 @@ void ast_print(Expr * e, U32 indent) {
                                         ;
                                         print(({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_50; _oa; }));
                                     } else {
-                                        Bool _t_Bool_2066 = is_variant(&_sw_v_1987, &(ExprData){.tag = ExprData_TAG_FuncDef});
+                                        Bool _t_Bool_2066 = is_variant(&_sw_ExprData_1987, &(ExprData){.tag = ExprData_TAG_FuncDef});
                                         (void)_t_Bool_2066;
                                         if (_t_Bool_2066) {
-                                            FunctionDef *fdef = get_payload(&_sw_v_1987);
+                                            FunctionDef *fdef = get_payload(&_sw_ExprData_1987);
                                             (void)fdef;
                                             Str _t_Str_2059; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_2059 = *_hp; free(_hp); }
                                             (void)_t_Str_2059;
@@ -12923,7 +12923,7 @@ void ast_print(Expr * e, U32 indent) {
             }
             ;
         }
-        ExprData_delete(&_sw_v_1987, &(Bool){0});
+        ExprData_delete(&_sw_ExprData_1987, &(Bool){0});
         ;
     }
     U32 _t_U32_2114 = Vec_len(&e->children);
@@ -15647,39 +15647,39 @@ Bool * is_alnum(U8 * c) {
 Str * tok_name(TokenType * type) {
     (void)type;
     {
-        TokenType _sw_v_2540; { TokenType *_hp = (TokenType *)TokenType_clone(type); _sw_v_2540 = *_hp; free(_hp); }
-        (void)_sw_v_2540;
-        Bool _t_Bool_2673; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Eof}); _t_Bool_2673 = *_hp; free(_hp); }
+        TokenType _sw_TokenType_2540; { TokenType *_hp = (TokenType *)TokenType_clone(type); _sw_TokenType_2540 = *_hp; free(_hp); }
+        (void)_sw_TokenType_2540;
+        Bool _t_Bool_2673; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Eof}); _t_Bool_2673 = *_hp; free(_hp); }
         (void)_t_Bool_2673;
         if (_t_Bool_2673) {
             Str _t_Str_2541; { Str *_hp = (Str *)Str_lit("eof", 3ULL); _t_Str_2541 = *_hp; free(_hp); }
             (void)_t_Str_2541;
-            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
             ;
             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2541; return _r; }
         } else {
-            Bool _t_Bool_2672; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_LParen}); _t_Bool_2672 = *_hp; free(_hp); }
+            Bool _t_Bool_2672; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_LParen}); _t_Bool_2672 = *_hp; free(_hp); }
             (void)_t_Bool_2672;
             if (_t_Bool_2672) {
                 Str _t_Str_2542; { Str *_hp = (Str *)Str_lit("(", 1ULL); _t_Str_2542 = *_hp; free(_hp); }
                 (void)_t_Str_2542;
                 ;
-                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                 ;
                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2542; return _r; }
             } else {
-                Bool _t_Bool_2671; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_RParen}); _t_Bool_2671 = *_hp; free(_hp); }
+                Bool _t_Bool_2671; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_RParen}); _t_Bool_2671 = *_hp; free(_hp); }
                 (void)_t_Bool_2671;
                 if (_t_Bool_2671) {
                     Str _t_Str_2543; { Str *_hp = (Str *)Str_lit(")", 1ULL); _t_Str_2543 = *_hp; free(_hp); }
                     (void)_t_Str_2543;
                     ;
                     ;
-                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                     ;
                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2543; return _r; }
                 } else {
-                    Bool _t_Bool_2670; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_LBrace}); _t_Bool_2670 = *_hp; free(_hp); }
+                    Bool _t_Bool_2670; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_LBrace}); _t_Bool_2670 = *_hp; free(_hp); }
                     (void)_t_Bool_2670;
                     if (_t_Bool_2670) {
                         Str _t_Str_2544; { Str *_hp = (Str *)Str_lit("{", 1ULL); _t_Str_2544 = *_hp; free(_hp); }
@@ -15687,11 +15687,11 @@ Str * tok_name(TokenType * type) {
                         ;
                         ;
                         ;
-                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                         ;
                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2544; return _r; }
                     } else {
-                        Bool _t_Bool_2669; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_RBrace}); _t_Bool_2669 = *_hp; free(_hp); }
+                        Bool _t_Bool_2669; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_RBrace}); _t_Bool_2669 = *_hp; free(_hp); }
                         (void)_t_Bool_2669;
                         if (_t_Bool_2669) {
                             Str _t_Str_2545; { Str *_hp = (Str *)Str_lit("}", 1ULL); _t_Str_2545 = *_hp; free(_hp); }
@@ -15700,11 +15700,11 @@ Str * tok_name(TokenType * type) {
                             ;
                             ;
                             ;
-                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                             ;
                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2545; return _r; }
                         } else {
-                            Bool _t_Bool_2668; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_LBracket}); _t_Bool_2668 = *_hp; free(_hp); }
+                            Bool _t_Bool_2668; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_LBracket}); _t_Bool_2668 = *_hp; free(_hp); }
                             (void)_t_Bool_2668;
                             if (_t_Bool_2668) {
                                 Str _t_Str_2546; { Str *_hp = (Str *)Str_lit("[", 1ULL); _t_Str_2546 = *_hp; free(_hp); }
@@ -15714,11 +15714,11 @@ Str * tok_name(TokenType * type) {
                                 ;
                                 ;
                                 ;
-                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                 ;
                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2546; return _r; }
                             } else {
-                                Bool _t_Bool_2667; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_RBracket}); _t_Bool_2667 = *_hp; free(_hp); }
+                                Bool _t_Bool_2667; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_RBracket}); _t_Bool_2667 = *_hp; free(_hp); }
                                 (void)_t_Bool_2667;
                                 if (_t_Bool_2667) {
                                     Str _t_Str_2547; { Str *_hp = (Str *)Str_lit("]", 1ULL); _t_Str_2547 = *_hp; free(_hp); }
@@ -15729,11 +15729,11 @@ Str * tok_name(TokenType * type) {
                                     ;
                                     ;
                                     ;
-                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                     ;
                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2547; return _r; }
                                 } else {
-                                    Bool _t_Bool_2666; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Comma}); _t_Bool_2666 = *_hp; free(_hp); }
+                                    Bool _t_Bool_2666; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Comma}); _t_Bool_2666 = *_hp; free(_hp); }
                                     (void)_t_Bool_2666;
                                     if (_t_Bool_2666) {
                                         Str _t_Str_2548; { Str *_hp = (Str *)Str_lit(",", 1ULL); _t_Str_2548 = *_hp; free(_hp); }
@@ -15745,11 +15745,11 @@ Str * tok_name(TokenType * type) {
                                         ;
                                         ;
                                         ;
-                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                         ;
                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2548; return _r; }
                                     } else {
-                                        Bool _t_Bool_2665; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Colon}); _t_Bool_2665 = *_hp; free(_hp); }
+                                        Bool _t_Bool_2665; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Colon}); _t_Bool_2665 = *_hp; free(_hp); }
                                         (void)_t_Bool_2665;
                                         if (_t_Bool_2665) {
                                             Str _t_Str_2549; { Str *_hp = (Str *)Str_lit(":", 1ULL); _t_Str_2549 = *_hp; free(_hp); }
@@ -15762,11 +15762,11 @@ Str * tok_name(TokenType * type) {
                                             ;
                                             ;
                                             ;
-                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                             ;
                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2549; return _r; }
                                         } else {
-                                            Bool _t_Bool_2664; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Question}); _t_Bool_2664 = *_hp; free(_hp); }
+                                            Bool _t_Bool_2664; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Question}); _t_Bool_2664 = *_hp; free(_hp); }
                                             (void)_t_Bool_2664;
                                             if (_t_Bool_2664) {
                                                 Str _t_Str_2550; { Str *_hp = (Str *)Str_lit("?", 1ULL); _t_Str_2550 = *_hp; free(_hp); }
@@ -15780,11 +15780,11 @@ Str * tok_name(TokenType * type) {
                                                 ;
                                                 ;
                                                 ;
-                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                 ;
                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2550; return _r; }
                                             } else {
-                                                Bool _t_Bool_2663; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Bang}); _t_Bool_2663 = *_hp; free(_hp); }
+                                                Bool _t_Bool_2663; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Bang}); _t_Bool_2663 = *_hp; free(_hp); }
                                                 (void)_t_Bool_2663;
                                                 if (_t_Bool_2663) {
                                                     Str _t_Str_2551; { Str *_hp = (Str *)Str_lit("!", 1ULL); _t_Str_2551 = *_hp; free(_hp); }
@@ -15799,11 +15799,11 @@ Str * tok_name(TokenType * type) {
                                                     ;
                                                     ;
                                                     ;
-                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                     ;
                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2551; return _r; }
                                                 } else {
-                                                    Bool _t_Bool_2662; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Minus}); _t_Bool_2662 = *_hp; free(_hp); }
+                                                    Bool _t_Bool_2662; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Minus}); _t_Bool_2662 = *_hp; free(_hp); }
                                                     (void)_t_Bool_2662;
                                                     if (_t_Bool_2662) {
                                                         Str _t_Str_2552; { Str *_hp = (Str *)Str_lit("-", 1ULL); _t_Str_2552 = *_hp; free(_hp); }
@@ -15819,11 +15819,11 @@ Str * tok_name(TokenType * type) {
                                                         ;
                                                         ;
                                                         ;
-                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                         ;
                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2552; return _r; }
                                                     } else {
-                                                        Bool _t_Bool_2661; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Plus}); _t_Bool_2661 = *_hp; free(_hp); }
+                                                        Bool _t_Bool_2661; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Plus}); _t_Bool_2661 = *_hp; free(_hp); }
                                                         (void)_t_Bool_2661;
                                                         if (_t_Bool_2661) {
                                                             Str _t_Str_2553; { Str *_hp = (Str *)Str_lit("+", 1ULL); _t_Str_2553 = *_hp; free(_hp); }
@@ -15840,11 +15840,11 @@ Str * tok_name(TokenType * type) {
                                                             ;
                                                             ;
                                                             ;
-                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                             ;
                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2553; return _r; }
                                                         } else {
-                                                            Bool _t_Bool_2660; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Star}); _t_Bool_2660 = *_hp; free(_hp); }
+                                                            Bool _t_Bool_2660; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Star}); _t_Bool_2660 = *_hp; free(_hp); }
                                                             (void)_t_Bool_2660;
                                                             if (_t_Bool_2660) {
                                                                 Str _t_Str_2554; { Str *_hp = (Str *)Str_lit("*", 1ULL); _t_Str_2554 = *_hp; free(_hp); }
@@ -15862,11 +15862,11 @@ Str * tok_name(TokenType * type) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                 ;
                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2554; return _r; }
                                                             } else {
-                                                                Bool _t_Bool_2659; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Slash}); _t_Bool_2659 = *_hp; free(_hp); }
+                                                                Bool _t_Bool_2659; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Slash}); _t_Bool_2659 = *_hp; free(_hp); }
                                                                 (void)_t_Bool_2659;
                                                                 if (_t_Bool_2659) {
                                                                     Str _t_Str_2555; { Str *_hp = (Str *)Str_lit("/", 1ULL); _t_Str_2555 = *_hp; free(_hp); }
@@ -15885,11 +15885,11 @@ Str * tok_name(TokenType * type) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                     ;
                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2555; return _r; }
                                                                 } else {
-                                                                    Bool _t_Bool_2658; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Dot}); _t_Bool_2658 = *_hp; free(_hp); }
+                                                                    Bool _t_Bool_2658; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Dot}); _t_Bool_2658 = *_hp; free(_hp); }
                                                                     (void)_t_Bool_2658;
                                                                     if (_t_Bool_2658) {
                                                                         Str _t_Str_2556; { Str *_hp = (Str *)Str_lit(".", 1ULL); _t_Str_2556 = *_hp; free(_hp); }
@@ -15909,11 +15909,11 @@ Str * tok_name(TokenType * type) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                         ;
                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2556; return _r; }
                                                                     } else {
-                                                                        Bool _t_Bool_2657; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_DotDot}); _t_Bool_2657 = *_hp; free(_hp); }
+                                                                        Bool _t_Bool_2657; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_DotDot}); _t_Bool_2657 = *_hp; free(_hp); }
                                                                         (void)_t_Bool_2657;
                                                                         if (_t_Bool_2657) {
                                                                             Str _t_Str_2557; { Str *_hp = (Str *)Str_lit("..", 2ULL); _t_Str_2557 = *_hp; free(_hp); }
@@ -15934,11 +15934,11 @@ Str * tok_name(TokenType * type) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                             ;
                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2557; return _r; }
                                                                         } else {
-                                                                            Bool _t_Bool_2656; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_DotDotDot}); _t_Bool_2656 = *_hp; free(_hp); }
+                                                                            Bool _t_Bool_2656; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_DotDotDot}); _t_Bool_2656 = *_hp; free(_hp); }
                                                                             (void)_t_Bool_2656;
                                                                             if (_t_Bool_2656) {
                                                                                 Str _t_Str_2558; { Str *_hp = (Str *)Str_lit("...", 3ULL); _t_Str_2558 = *_hp; free(_hp); }
@@ -15960,11 +15960,11 @@ Str * tok_name(TokenType * type) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                 ;
                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2558; return _r; }
                                                                             } else {
-                                                                                Bool _t_Bool_2655; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Eq}); _t_Bool_2655 = *_hp; free(_hp); }
+                                                                                Bool _t_Bool_2655; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Eq}); _t_Bool_2655 = *_hp; free(_hp); }
                                                                                 (void)_t_Bool_2655;
                                                                                 if (_t_Bool_2655) {
                                                                                     Str _t_Str_2559; { Str *_hp = (Str *)Str_lit("=", 1ULL); _t_Str_2559 = *_hp; free(_hp); }
@@ -15987,11 +15987,11 @@ Str * tok_name(TokenType * type) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                     ;
                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2559; return _r; }
                                                                                 } else {
-                                                                                    Bool _t_Bool_2654; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_EqEq}); _t_Bool_2654 = *_hp; free(_hp); }
+                                                                                    Bool _t_Bool_2654; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_EqEq}); _t_Bool_2654 = *_hp; free(_hp); }
                                                                                     (void)_t_Bool_2654;
                                                                                     if (_t_Bool_2654) {
                                                                                         Str _t_Str_2560; { Str *_hp = (Str *)Str_lit("==", 2ULL); _t_Str_2560 = *_hp; free(_hp); }
@@ -16015,11 +16015,11 @@ Str * tok_name(TokenType * type) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                         ;
                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2560; return _r; }
                                                                                     } else {
-                                                                                        Bool _t_Bool_2653; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Neq}); _t_Bool_2653 = *_hp; free(_hp); }
+                                                                                        Bool _t_Bool_2653; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Neq}); _t_Bool_2653 = *_hp; free(_hp); }
                                                                                         (void)_t_Bool_2653;
                                                                                         if (_t_Bool_2653) {
                                                                                             Str _t_Str_2561; { Str *_hp = (Str *)Str_lit("!=", 2ULL); _t_Str_2561 = *_hp; free(_hp); }
@@ -16044,11 +16044,11 @@ Str * tok_name(TokenType * type) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                             ;
                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2561; return _r; }
                                                                                         } else {
-                                                                                            Bool _t_Bool_2652; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Lt}); _t_Bool_2652 = *_hp; free(_hp); }
+                                                                                            Bool _t_Bool_2652; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Lt}); _t_Bool_2652 = *_hp; free(_hp); }
                                                                                             (void)_t_Bool_2652;
                                                                                             if (_t_Bool_2652) {
                                                                                                 Str _t_Str_2562; { Str *_hp = (Str *)Str_lit("<", 1ULL); _t_Str_2562 = *_hp; free(_hp); }
@@ -16074,11 +16074,11 @@ Str * tok_name(TokenType * type) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                 ;
                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2562; return _r; }
                                                                                             } else {
-                                                                                                Bool _t_Bool_2651; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_LtEq}); _t_Bool_2651 = *_hp; free(_hp); }
+                                                                                                Bool _t_Bool_2651; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_LtEq}); _t_Bool_2651 = *_hp; free(_hp); }
                                                                                                 (void)_t_Bool_2651;
                                                                                                 if (_t_Bool_2651) {
                                                                                                     Str _t_Str_2563; { Str *_hp = (Str *)Str_lit("<=", 2ULL); _t_Str_2563 = *_hp; free(_hp); }
@@ -16105,11 +16105,11 @@ Str * tok_name(TokenType * type) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                     ;
                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2563; return _r; }
                                                                                                 } else {
-                                                                                                    Bool _t_Bool_2650; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Gt}); _t_Bool_2650 = *_hp; free(_hp); }
+                                                                                                    Bool _t_Bool_2650; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Gt}); _t_Bool_2650 = *_hp; free(_hp); }
                                                                                                     (void)_t_Bool_2650;
                                                                                                     if (_t_Bool_2650) {
                                                                                                         Str _t_Str_2564; { Str *_hp = (Str *)Str_lit(">", 1ULL); _t_Str_2564 = *_hp; free(_hp); }
@@ -16137,11 +16137,11 @@ Str * tok_name(TokenType * type) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                         ;
                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2564; return _r; }
                                                                                                     } else {
-                                                                                                        Bool _t_Bool_2649; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_GtEq}); _t_Bool_2649 = *_hp; free(_hp); }
+                                                                                                        Bool _t_Bool_2649; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_GtEq}); _t_Bool_2649 = *_hp; free(_hp); }
                                                                                                         (void)_t_Bool_2649;
                                                                                                         if (_t_Bool_2649) {
                                                                                                             Str _t_Str_2565; { Str *_hp = (Str *)Str_lit(">=", 2ULL); _t_Str_2565 = *_hp; free(_hp); }
@@ -16170,11 +16170,11 @@ Str * tok_name(TokenType * type) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                             ;
                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2565; return _r; }
                                                                                                         } else {
-                                                                                                            Bool _t_Bool_2648; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_ColonEq}); _t_Bool_2648 = *_hp; free(_hp); }
+                                                                                                            Bool _t_Bool_2648; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_ColonEq}); _t_Bool_2648 = *_hp; free(_hp); }
                                                                                                             (void)_t_Bool_2648;
                                                                                                             if (_t_Bool_2648) {
                                                                                                                 Str _t_Str_2566; { Str *_hp = (Str *)Str_lit(":=", 2ULL); _t_Str_2566 = *_hp; free(_hp); }
@@ -16204,11 +16204,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
-                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                 ;
                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2566; return _r; }
                                                                                                             } else {
-                                                                                                                Bool _t_Bool_2647; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Ident}); _t_Bool_2647 = *_hp; free(_hp); }
+                                                                                                                Bool _t_Bool_2647; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Ident}); _t_Bool_2647 = *_hp; free(_hp); }
                                                                                                                 (void)_t_Bool_2647;
                                                                                                                 if (_t_Bool_2647) {
                                                                                                                     Str _t_Str_2567; { Str *_hp = (Str *)Str_lit("identifier", 10ULL); _t_Str_2567 = *_hp; free(_hp); }
@@ -16239,11 +16239,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
-                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                     ;
                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2567; return _r; }
                                                                                                                 } else {
-                                                                                                                    Bool _t_Bool_2646; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_StringTok}); _t_Bool_2646 = *_hp; free(_hp); }
+                                                                                                                    Bool _t_Bool_2646; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_StringTok}); _t_Bool_2646 = *_hp; free(_hp); }
                                                                                                                     (void)_t_Bool_2646;
                                                                                                                     if (_t_Bool_2646) {
                                                                                                                         Str _t_Str_2568; { Str *_hp = (Str *)Str_lit("string", 6ULL); _t_Str_2568 = *_hp; free(_hp); }
@@ -16275,11 +16275,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
-                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                         ;
                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2568; return _r; }
                                                                                                                     } else {
-                                                                                                                        Bool _t_Bool_2645; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Number}); _t_Bool_2645 = *_hp; free(_hp); }
+                                                                                                                        Bool _t_Bool_2645; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Number}); _t_Bool_2645 = *_hp; free(_hp); }
                                                                                                                         (void)_t_Bool_2645;
                                                                                                                         if (_t_Bool_2645) {
                                                                                                                             Str _t_Str_2569; { Str *_hp = (Str *)Str_lit("number", 6ULL); _t_Str_2569 = *_hp; free(_hp); }
@@ -16312,11 +16312,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
-                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                             ;
                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2569; return _r; }
                                                                                                                         } else {
-                                                                                                                            Bool _t_Bool_2644; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Char}); _t_Bool_2644 = *_hp; free(_hp); }
+                                                                                                                            Bool _t_Bool_2644; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Char}); _t_Bool_2644 = *_hp; free(_hp); }
                                                                                                                             (void)_t_Bool_2644;
                                                                                                                             if (_t_Bool_2644) {
                                                                                                                                 Str _t_Str_2570; { Str *_hp = (Str *)Str_lit("char", 4ULL); _t_Str_2570 = *_hp; free(_hp); }
@@ -16350,11 +16350,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
-                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                 ;
                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2570; return _r; }
                                                                                                                             } else {
-                                                                                                                                Bool _t_Bool_2643; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwMode}); _t_Bool_2643 = *_hp; free(_hp); }
+                                                                                                                                Bool _t_Bool_2643; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwMode}); _t_Bool_2643 = *_hp; free(_hp); }
                                                                                                                                 (void)_t_Bool_2643;
                                                                                                                                 if (_t_Bool_2643) {
                                                                                                                                     Str _t_Str_2571; { Str *_hp = (Str *)Str_lit("mode", 4ULL); _t_Str_2571 = *_hp; free(_hp); }
@@ -16389,11 +16389,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
-                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                     ;
                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2571; return _r; }
                                                                                                                                 } else {
-                                                                                                                                    Bool _t_Bool_2642; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwMut}); _t_Bool_2642 = *_hp; free(_hp); }
+                                                                                                                                    Bool _t_Bool_2642; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwMut}); _t_Bool_2642 = *_hp; free(_hp); }
                                                                                                                                     (void)_t_Bool_2642;
                                                                                                                                     if (_t_Bool_2642) {
                                                                                                                                         Str _t_Str_2572; { Str *_hp = (Str *)Str_lit("mut", 3ULL); _t_Str_2572 = *_hp; free(_hp); }
@@ -16429,11 +16429,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
-                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                         ;
                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2572; return _r; }
                                                                                                                                     } else {
-                                                                                                                                        Bool _t_Bool_2641; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwOwn}); _t_Bool_2641 = *_hp; free(_hp); }
+                                                                                                                                        Bool _t_Bool_2641; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwOwn}); _t_Bool_2641 = *_hp; free(_hp); }
                                                                                                                                         (void)_t_Bool_2641;
                                                                                                                                         if (_t_Bool_2641) {
                                                                                                                                             Str _t_Str_2573; { Str *_hp = (Str *)Str_lit("own", 3ULL); _t_Str_2573 = *_hp; free(_hp); }
@@ -16470,11 +16470,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
-                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                             ;
                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2573; return _r; }
                                                                                                                                         } else {
-                                                                                                                                            Bool _t_Bool_2640; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwRef}); _t_Bool_2640 = *_hp; free(_hp); }
+                                                                                                                                            Bool _t_Bool_2640; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwRef}); _t_Bool_2640 = *_hp; free(_hp); }
                                                                                                                                             (void)_t_Bool_2640;
                                                                                                                                             if (_t_Bool_2640) {
                                                                                                                                                 Str _t_Str_2574; { Str *_hp = (Str *)Str_lit("ref", 3ULL); _t_Str_2574 = *_hp; free(_hp); }
@@ -16512,11 +16512,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
-                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                 ;
                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2574; return _r; }
                                                                                                                                             } else {
-                                                                                                                                                Bool _t_Bool_2639; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwShallow}); _t_Bool_2639 = *_hp; free(_hp); }
+                                                                                                                                                Bool _t_Bool_2639; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwShallow}); _t_Bool_2639 = *_hp; free(_hp); }
                                                                                                                                                 (void)_t_Bool_2639;
                                                                                                                                                 if (_t_Bool_2639) {
                                                                                                                                                     Str _t_Str_2575; { Str *_hp = (Str *)Str_lit("shallow", 7ULL); _t_Str_2575 = *_hp; free(_hp); }
@@ -16555,11 +16555,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                     ;
                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2575; return _r; }
                                                                                                                                                 } else {
-                                                                                                                                                    Bool _t_Bool_2638; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwStruct}); _t_Bool_2638 = *_hp; free(_hp); }
+                                                                                                                                                    Bool _t_Bool_2638; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwStruct}); _t_Bool_2638 = *_hp; free(_hp); }
                                                                                                                                                     (void)_t_Bool_2638;
                                                                                                                                                     if (_t_Bool_2638) {
                                                                                                                                                         Str _t_Str_2576; { Str *_hp = (Str *)Str_lit("struct", 6ULL); _t_Str_2576 = *_hp; free(_hp); }
@@ -16599,11 +16599,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                         ;
                                                                                                                                                         ;
                                                                                                                                                         ;
-                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                         ;
                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2576; return _r; }
                                                                                                                                                     } else {
-                                                                                                                                                        Bool _t_Bool_2637; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwExtStruct}); _t_Bool_2637 = *_hp; free(_hp); }
+                                                                                                                                                        Bool _t_Bool_2637; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwExtStruct}); _t_Bool_2637 = *_hp; free(_hp); }
                                                                                                                                                         (void)_t_Bool_2637;
                                                                                                                                                         if (_t_Bool_2637) {
                                                                                                                                                             Str _t_Str_2577; { Str *_hp = (Str *)Str_lit("ext_struct", 10ULL); _t_Str_2577 = *_hp; free(_hp); }
@@ -16644,11 +16644,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                             ;
                                                                                                                                                             ;
                                                                                                                                                             ;
-                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                             ;
                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2577; return _r; }
                                                                                                                                                         } else {
-                                                                                                                                                            Bool _t_Bool_2636; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwEnum}); _t_Bool_2636 = *_hp; free(_hp); }
+                                                                                                                                                            Bool _t_Bool_2636; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwEnum}); _t_Bool_2636 = *_hp; free(_hp); }
                                                                                                                                                             (void)_t_Bool_2636;
                                                                                                                                                             if (_t_Bool_2636) {
                                                                                                                                                                 Str _t_Str_2578; { Str *_hp = (Str *)Str_lit("enum", 4ULL); _t_Str_2578 = *_hp; free(_hp); }
@@ -16690,11 +16690,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                 ;
                                                                                                                                                                 ;
                                                                                                                                                                 ;
-                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                 ;
                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2578; return _r; }
                                                                                                                                                             } else {
-                                                                                                                                                                Bool _t_Bool_2635; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwNamespace}); _t_Bool_2635 = *_hp; free(_hp); }
+                                                                                                                                                                Bool _t_Bool_2635; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwNamespace}); _t_Bool_2635 = *_hp; free(_hp); }
                                                                                                                                                                 (void)_t_Bool_2635;
                                                                                                                                                                 if (_t_Bool_2635) {
                                                                                                                                                                     Str _t_Str_2579; { Str *_hp = (Str *)Str_lit("namespace", 9ULL); _t_Str_2579 = *_hp; free(_hp); }
@@ -16737,11 +16737,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                     ;
                                                                                                                                                                     ;
                                                                                                                                                                     ;
-                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                     ;
                                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2579; return _r; }
                                                                                                                                                                 } else {
-                                                                                                                                                                    Bool _t_Bool_2634; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwFunc}); _t_Bool_2634 = *_hp; free(_hp); }
+                                                                                                                                                                    Bool _t_Bool_2634; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwFunc}); _t_Bool_2634 = *_hp; free(_hp); }
                                                                                                                                                                     (void)_t_Bool_2634;
                                                                                                                                                                     if (_t_Bool_2634) {
                                                                                                                                                                         Str _t_Str_2580; { Str *_hp = (Str *)Str_lit("func", 4ULL); _t_Str_2580 = *_hp; free(_hp); }
@@ -16785,11 +16785,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                         ;
                                                                                                                                                                         ;
                                                                                                                                                                         ;
-                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                         ;
                                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2580; return _r; }
                                                                                                                                                                     } else {
-                                                                                                                                                                        Bool _t_Bool_2633; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwProc}); _t_Bool_2633 = *_hp; free(_hp); }
+                                                                                                                                                                        Bool _t_Bool_2633; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwProc}); _t_Bool_2633 = *_hp; free(_hp); }
                                                                                                                                                                         (void)_t_Bool_2633;
                                                                                                                                                                         if (_t_Bool_2633) {
                                                                                                                                                                             Str _t_Str_2581; { Str *_hp = (Str *)Str_lit("proc", 4ULL); _t_Str_2581 = *_hp; free(_hp); }
@@ -16834,11 +16834,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                             ;
                                                                                                                                                                             ;
                                                                                                                                                                             ;
-                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                             ;
                                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2581; return _r; }
                                                                                                                                                                         } else {
-                                                                                                                                                                            Bool _t_Bool_2632; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwTest}); _t_Bool_2632 = *_hp; free(_hp); }
+                                                                                                                                                                            Bool _t_Bool_2632; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwTest}); _t_Bool_2632 = *_hp; free(_hp); }
                                                                                                                                                                             (void)_t_Bool_2632;
                                                                                                                                                                             if (_t_Bool_2632) {
                                                                                                                                                                                 Str _t_Str_2582; { Str *_hp = (Str *)Str_lit("test", 4ULL); _t_Str_2582 = *_hp; free(_hp); }
@@ -16884,11 +16884,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
                                                                                                                                                                                 ;
-                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                 ;
                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2582; return _r; }
                                                                                                                                                                             } else {
-                                                                                                                                                                                Bool _t_Bool_2631; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwMacro}); _t_Bool_2631 = *_hp; free(_hp); }
+                                                                                                                                                                                Bool _t_Bool_2631; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwMacro}); _t_Bool_2631 = *_hp; free(_hp); }
                                                                                                                                                                                 (void)_t_Bool_2631;
                                                                                                                                                                                 if (_t_Bool_2631) {
                                                                                                                                                                                     Str _t_Str_2583; { Str *_hp = (Str *)Str_lit("macro", 5ULL); _t_Str_2583 = *_hp; free(_hp); }
@@ -16935,11 +16935,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
                                                                                                                                                                                     ;
-                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                     ;
                                                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2583; return _r; }
                                                                                                                                                                                 } else {
-                                                                                                                                                                                    Bool _t_Bool_2630; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwExtFunc}); _t_Bool_2630 = *_hp; free(_hp); }
+                                                                                                                                                                                    Bool _t_Bool_2630; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwExtFunc}); _t_Bool_2630 = *_hp; free(_hp); }
                                                                                                                                                                                     (void)_t_Bool_2630;
                                                                                                                                                                                     if (_t_Bool_2630) {
                                                                                                                                                                                         Str _t_Str_2584; { Str *_hp = (Str *)Str_lit("ext_func", 8ULL); _t_Str_2584 = *_hp; free(_hp); }
@@ -16987,11 +16987,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
                                                                                                                                                                                         ;
-                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                         ;
                                                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2584; return _r; }
                                                                                                                                                                                     } else {
-                                                                                                                                                                                        Bool _t_Bool_2629; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwExtProc}); _t_Bool_2629 = *_hp; free(_hp); }
+                                                                                                                                                                                        Bool _t_Bool_2629; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwExtProc}); _t_Bool_2629 = *_hp; free(_hp); }
                                                                                                                                                                                         (void)_t_Bool_2629;
                                                                                                                                                                                         if (_t_Bool_2629) {
                                                                                                                                                                                             Str _t_Str_2585; { Str *_hp = (Str *)Str_lit("ext_proc", 8ULL); _t_Str_2585 = *_hp; free(_hp); }
@@ -17040,11 +17040,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
                                                                                                                                                                                             ;
-                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                             ;
                                                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2585; return _r; }
                                                                                                                                                                                         } else {
-                                                                                                                                                                                            Bool _t_Bool_2628; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwReturns}); _t_Bool_2628 = *_hp; free(_hp); }
+                                                                                                                                                                                            Bool _t_Bool_2628; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwReturns}); _t_Bool_2628 = *_hp; free(_hp); }
                                                                                                                                                                                             (void)_t_Bool_2628;
                                                                                                                                                                                             if (_t_Bool_2628) {
                                                                                                                                                                                                 Str _t_Str_2586; { Str *_hp = (Str *)Str_lit("returns", 7ULL); _t_Str_2586 = *_hp; free(_hp); }
@@ -17094,11 +17094,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 ;
-                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                 ;
                                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2586; return _r; }
                                                                                                                                                                                             } else {
-                                                                                                                                                                                                Bool _t_Bool_2627; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwThrows}); _t_Bool_2627 = *_hp; free(_hp); }
+                                                                                                                                                                                                Bool _t_Bool_2627; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwThrows}); _t_Bool_2627 = *_hp; free(_hp); }
                                                                                                                                                                                                 (void)_t_Bool_2627;
                                                                                                                                                                                                 if (_t_Bool_2627) {
                                                                                                                                                                                                     Str _t_Str_2587; { Str *_hp = (Str *)Str_lit("throws", 6ULL); _t_Str_2587 = *_hp; free(_hp); }
@@ -17149,11 +17149,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     ;
-                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                     ;
                                                                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2587; return _r; }
                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                    Bool _t_Bool_2626; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwIf}); _t_Bool_2626 = *_hp; free(_hp); }
+                                                                                                                                                                                                    Bool _t_Bool_2626; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwIf}); _t_Bool_2626 = *_hp; free(_hp); }
                                                                                                                                                                                                     (void)_t_Bool_2626;
                                                                                                                                                                                                     if (_t_Bool_2626) {
                                                                                                                                                                                                         Str _t_Str_2588; { Str *_hp = (Str *)Str_lit("if", 2ULL); _t_Str_2588 = *_hp; free(_hp); }
@@ -17205,11 +17205,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         ;
-                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                         ;
                                                                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2588; return _r; }
                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                        Bool _t_Bool_2625; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwElse}); _t_Bool_2625 = *_hp; free(_hp); }
+                                                                                                                                                                                                        Bool _t_Bool_2625; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwElse}); _t_Bool_2625 = *_hp; free(_hp); }
                                                                                                                                                                                                         (void)_t_Bool_2625;
                                                                                                                                                                                                         if (_t_Bool_2625) {
                                                                                                                                                                                                             Str _t_Str_2589; { Str *_hp = (Str *)Str_lit("else", 4ULL); _t_Str_2589 = *_hp; free(_hp); }
@@ -17262,11 +17262,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             ;
-                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                             ;
                                                                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2589; return _r; }
                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                            Bool _t_Bool_2624; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwWhile}); _t_Bool_2624 = *_hp; free(_hp); }
+                                                                                                                                                                                                            Bool _t_Bool_2624; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwWhile}); _t_Bool_2624 = *_hp; free(_hp); }
                                                                                                                                                                                                             (void)_t_Bool_2624;
                                                                                                                                                                                                             if (_t_Bool_2624) {
                                                                                                                                                                                                                 Str _t_Str_2590; { Str *_hp = (Str *)Str_lit("while", 5ULL); _t_Str_2590 = *_hp; free(_hp); }
@@ -17320,11 +17320,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2590; return _r; }
                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                Bool _t_Bool_2623; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwFor}); _t_Bool_2623 = *_hp; free(_hp); }
+                                                                                                                                                                                                                Bool _t_Bool_2623; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwFor}); _t_Bool_2623 = *_hp; free(_hp); }
                                                                                                                                                                                                                 (void)_t_Bool_2623;
                                                                                                                                                                                                                 if (_t_Bool_2623) {
                                                                                                                                                                                                                     Str _t_Str_2591; { Str *_hp = (Str *)Str_lit("for", 3ULL); _t_Str_2591 = *_hp; free(_hp); }
@@ -17379,11 +17379,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2591; return _r; }
                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                    Bool _t_Bool_2622; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwIn}); _t_Bool_2622 = *_hp; free(_hp); }
+                                                                                                                                                                                                                    Bool _t_Bool_2622; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwIn}); _t_Bool_2622 = *_hp; free(_hp); }
                                                                                                                                                                                                                     (void)_t_Bool_2622;
                                                                                                                                                                                                                     if (_t_Bool_2622) {
                                                                                                                                                                                                                         Str _t_Str_2592; { Str *_hp = (Str *)Str_lit("in", 2ULL); _t_Str_2592 = *_hp; free(_hp); }
@@ -17439,11 +17439,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2592; return _r; }
                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                        Bool _t_Bool_2621; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwSwitch}); _t_Bool_2621 = *_hp; free(_hp); }
+                                                                                                                                                                                                                        Bool _t_Bool_2621; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwSwitch}); _t_Bool_2621 = *_hp; free(_hp); }
                                                                                                                                                                                                                         (void)_t_Bool_2621;
                                                                                                                                                                                                                         if (_t_Bool_2621) {
                                                                                                                                                                                                                             Str _t_Str_2593; { Str *_hp = (Str *)Str_lit("switch", 6ULL); _t_Str_2593 = *_hp; free(_hp); }
@@ -17500,11 +17500,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2593; return _r; }
                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                            Bool _t_Bool_2620; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwMatch}); _t_Bool_2620 = *_hp; free(_hp); }
+                                                                                                                                                                                                                            Bool _t_Bool_2620; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwMatch}); _t_Bool_2620 = *_hp; free(_hp); }
                                                                                                                                                                                                                             (void)_t_Bool_2620;
                                                                                                                                                                                                                             if (_t_Bool_2620) {
                                                                                                                                                                                                                                 Str _t_Str_2594; { Str *_hp = (Str *)Str_lit("match", 5ULL); _t_Str_2594 = *_hp; free(_hp); }
@@ -17562,11 +17562,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2594; return _r; }
                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                Bool _t_Bool_2619; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwCase}); _t_Bool_2619 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                Bool _t_Bool_2619; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwCase}); _t_Bool_2619 = *_hp; free(_hp); }
                                                                                                                                                                                                                                 (void)_t_Bool_2619;
                                                                                                                                                                                                                                 if (_t_Bool_2619) {
                                                                                                                                                                                                                                     Str _t_Str_2595; { Str *_hp = (Str *)Str_lit("case", 4ULL); _t_Str_2595 = *_hp; free(_hp); }
@@ -17625,11 +17625,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2595; return _r; }
                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                    Bool _t_Bool_2618; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwDefault}); _t_Bool_2618 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                    Bool _t_Bool_2618; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwDefault}); _t_Bool_2618 = *_hp; free(_hp); }
                                                                                                                                                                                                                                     (void)_t_Bool_2618;
                                                                                                                                                                                                                                     if (_t_Bool_2618) {
                                                                                                                                                                                                                                         Str _t_Str_2596; { Str *_hp = (Str *)Str_lit("default", 7ULL); _t_Str_2596 = *_hp; free(_hp); }
@@ -17689,11 +17689,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2596; return _r; }
                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                        Bool _t_Bool_2617; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwReturn}); _t_Bool_2617 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                        Bool _t_Bool_2617; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwReturn}); _t_Bool_2617 = *_hp; free(_hp); }
                                                                                                                                                                                                                                         (void)_t_Bool_2617;
                                                                                                                                                                                                                                         if (_t_Bool_2617) {
                                                                                                                                                                                                                                             Str _t_Str_2597; { Str *_hp = (Str *)Str_lit("return", 6ULL); _t_Str_2597 = *_hp; free(_hp); }
@@ -17754,11 +17754,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2597; return _r; }
                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                            Bool _t_Bool_2616; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwThrow}); _t_Bool_2616 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                            Bool _t_Bool_2616; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwThrow}); _t_Bool_2616 = *_hp; free(_hp); }
                                                                                                                                                                                                                                             (void)_t_Bool_2616;
                                                                                                                                                                                                                                             if (_t_Bool_2616) {
                                                                                                                                                                                                                                                 Str _t_Str_2598; { Str *_hp = (Str *)Str_lit("throw", 5ULL); _t_Str_2598 = *_hp; free(_hp); }
@@ -17820,11 +17820,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2598; return _r; }
                                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                                Bool _t_Bool_2615; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwCatch}); _t_Bool_2615 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                Bool _t_Bool_2615; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwCatch}); _t_Bool_2615 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                 (void)_t_Bool_2615;
                                                                                                                                                                                                                                                 if (_t_Bool_2615) {
                                                                                                                                                                                                                                                     Str _t_Str_2599; { Str *_hp = (Str *)Str_lit("catch", 5ULL); _t_Str_2599 = *_hp; free(_hp); }
@@ -17887,11 +17887,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2599; return _r; }
                                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                                    Bool _t_Bool_2614; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwBreak}); _t_Bool_2614 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                    Bool _t_Bool_2614; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwBreak}); _t_Bool_2614 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                     (void)_t_Bool_2614;
                                                                                                                                                                                                                                                     if (_t_Bool_2614) {
                                                                                                                                                                                                                                                         Str _t_Str_2600; { Str *_hp = (Str *)Str_lit("break", 5ULL); _t_Str_2600 = *_hp; free(_hp); }
@@ -17955,11 +17955,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2600; return _r; }
                                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                                        Bool _t_Bool_2613; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwContinue}); _t_Bool_2613 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                        Bool _t_Bool_2613; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwContinue}); _t_Bool_2613 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                         (void)_t_Bool_2613;
                                                                                                                                                                                                                                                         if (_t_Bool_2613) {
                                                                                                                                                                                                                                                             Str _t_Str_2601; { Str *_hp = (Str *)Str_lit("continue", 8ULL); _t_Str_2601 = *_hp; free(_hp); }
@@ -18024,11 +18024,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2601; return _r; }
                                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                                            Bool _t_Bool_2612; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwDefer}); _t_Bool_2612 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                            Bool _t_Bool_2612; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwDefer}); _t_Bool_2612 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                             (void)_t_Bool_2612;
                                                                                                                                                                                                                                                             if (_t_Bool_2612) {
                                                                                                                                                                                                                                                                 Str _t_Str_2602; { Str *_hp = (Str *)Str_lit("defer", 5ULL); _t_Str_2602 = *_hp; free(_hp); }
@@ -18094,11 +18094,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2602; return _r; }
                                                                                                                                                                                                                                                             } else {
-                                                                                                                                                                                                                                                                Bool _t_Bool_2611; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwTrue}); _t_Bool_2611 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                Bool _t_Bool_2611; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwTrue}); _t_Bool_2611 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                                 (void)_t_Bool_2611;
                                                                                                                                                                                                                                                                 if (_t_Bool_2611) {
                                                                                                                                                                                                                                                                     Str _t_Str_2603; { Str *_hp = (Str *)Str_lit("true", 4ULL); _t_Str_2603 = *_hp; free(_hp); }
@@ -18165,11 +18165,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                                     ;
-                                                                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                                    TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                                     ;
                                                                                                                                                                                                                                                                     { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2603; return _r; }
                                                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                                                    Bool _t_Bool_2610; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwFalse}); _t_Bool_2610 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                    Bool _t_Bool_2610; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwFalse}); _t_Bool_2610 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                                     (void)_t_Bool_2610;
                                                                                                                                                                                                                                                                     if (_t_Bool_2610) {
                                                                                                                                                                                                                                                                         Str _t_Str_2604; { Str *_hp = (Str *)Str_lit("false", 5ULL); _t_Str_2604 = *_hp; free(_hp); }
@@ -18237,11 +18237,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         ;
-                                                                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                                        TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                                         ;
                                                                                                                                                                                                                                                                         { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2604; return _r; }
                                                                                                                                                                                                                                                                     } else {
-                                                                                                                                                                                                                                                                        Bool _t_Bool_2609; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_KwNull}); _t_Bool_2609 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                        Bool _t_Bool_2609; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_KwNull}); _t_Bool_2609 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                                         (void)_t_Bool_2609;
                                                                                                                                                                                                                                                                         if (_t_Bool_2609) {
                                                                                                                                                                                                                                                                             Str _t_Str_2605; { Str *_hp = (Str *)Str_lit("NULL", 4ULL); _t_Str_2605 = *_hp; free(_hp); }
@@ -18310,11 +18310,11 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             ;
-                                                                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                                            TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                                             ;
                                                                                                                                                                                                                                                                             { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2605; return _r; }
                                                                                                                                                                                                                                                                         } else {
-                                                                                                                                                                                                                                                                            Bool _t_Bool_2608; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_2540, &(TokenType){.tag = TokenType_TAG_Error}); _t_Bool_2608 = *_hp; free(_hp); }
+                                                                                                                                                                                                                                                                            Bool _t_Bool_2608; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_2540, &(TokenType){.tag = TokenType_TAG_Error}); _t_Bool_2608 = *_hp; free(_hp); }
                                                                                                                                                                                                                                                                             (void)_t_Bool_2608;
                                                                                                                                                                                                                                                                             if (_t_Bool_2608) {
                                                                                                                                                                                                                                                                                 Str _t_Str_2606; { Str *_hp = (Str *)Str_lit("error", 5ULL); _t_Str_2606 = *_hp; free(_hp); }
@@ -18384,7 +18384,7 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2606; return _r; }
                                                                                                                                                                                                                                                                             } else {
@@ -18455,7 +18455,7 @@ Str * tok_name(TokenType * type) {
                                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                                 ;
-                                                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_v_2540; _oa; }), &(Bool){1});
+                                                                                                                                                                                                                                                                                TokenType_delete(({ TokenType *_oa = malloc(sizeof(TokenType)); *_oa = _sw_TokenType_2540; _oa; }), &(Bool){1});
                                                                                                                                                                                                                                                                                 ;
                                                                                                                                                                                                                                                                                 { Str *_r = malloc(sizeof(Str)); *_r = _t_Str_2607; return _r; }
                                                                                                                                                                                                                                                                             }
@@ -18589,7 +18589,7 @@ Str * tok_name(TokenType * type) {
             }
             ;
         }
-        TokenType_delete(&_sw_v_2540, &(Bool){0});
+        TokenType_delete(&_sw_TokenType_2540, &(Bool){0});
         ;
     }
 }
@@ -18597,57 +18597,57 @@ Str * tok_name(TokenType * type) {
 TokenType * lookup_keyword(Str * word) {
     (void)word;
     {
-        Str _sw_v_2674; { Str *_hp = (Str *)Str_clone(word); _sw_v_2674 = *_hp; free(_hp); }
-        (void)_sw_v_2674;
+        Str _sw_Str_2674; { Str *_hp = (Str *)Str_clone(word); _sw_Str_2674 = *_hp; free(_hp); }
+        (void)_sw_Str_2674;
         Str _t_Str_2743; { Str *_hp = (Str *)Str_lit("mode", 4ULL); _t_Str_2743 = *_hp; free(_hp); }
         (void)_t_Str_2743;
-        Bool _t_Bool_2744 = Str_eq(&_sw_v_2674, &_t_Str_2743);
+        Bool _t_Bool_2744 = Str_eq(&_sw_Str_2674, &_t_Str_2743);
         (void)_t_Bool_2744;
         Str_delete(&_t_Str_2743, &(Bool){0});
         if (_t_Bool_2744) {
-            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
             ;
             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwMode; return _r; }
         } else {
             Str _t_Str_2741; { Str *_hp = (Str *)Str_lit("mut", 3ULL); _t_Str_2741 = *_hp; free(_hp); }
             (void)_t_Str_2741;
-            Bool _t_Bool_2742 = Str_eq(&_sw_v_2674, &_t_Str_2741);
+            Bool _t_Bool_2742 = Str_eq(&_sw_Str_2674, &_t_Str_2741);
             (void)_t_Bool_2742;
             Str_delete(&_t_Str_2741, &(Bool){0});
             if (_t_Bool_2742) {
                 ;
-                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                 ;
                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwMut; return _r; }
             } else {
                 Str _t_Str_2739; { Str *_hp = (Str *)Str_lit("own", 3ULL); _t_Str_2739 = *_hp; free(_hp); }
                 (void)_t_Str_2739;
-                Bool _t_Bool_2740 = Str_eq(&_sw_v_2674, &_t_Str_2739);
+                Bool _t_Bool_2740 = Str_eq(&_sw_Str_2674, &_t_Str_2739);
                 (void)_t_Bool_2740;
                 Str_delete(&_t_Str_2739, &(Bool){0});
                 if (_t_Bool_2740) {
                     ;
                     ;
-                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                     ;
                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwOwn; return _r; }
                 } else {
                     Str _t_Str_2737; { Str *_hp = (Str *)Str_lit("ref", 3ULL); _t_Str_2737 = *_hp; free(_hp); }
                     (void)_t_Str_2737;
-                    Bool _t_Bool_2738 = Str_eq(&_sw_v_2674, &_t_Str_2737);
+                    Bool _t_Bool_2738 = Str_eq(&_sw_Str_2674, &_t_Str_2737);
                     (void)_t_Bool_2738;
                     Str_delete(&_t_Str_2737, &(Bool){0});
                     if (_t_Bool_2738) {
                         ;
                         ;
                         ;
-                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                         ;
                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwRef; return _r; }
                     } else {
                         Str _t_Str_2735; { Str *_hp = (Str *)Str_lit("shallow", 7ULL); _t_Str_2735 = *_hp; free(_hp); }
                         (void)_t_Str_2735;
-                        Bool _t_Bool_2736 = Str_eq(&_sw_v_2674, &_t_Str_2735);
+                        Bool _t_Bool_2736 = Str_eq(&_sw_Str_2674, &_t_Str_2735);
                         (void)_t_Bool_2736;
                         Str_delete(&_t_Str_2735, &(Bool){0});
                         if (_t_Bool_2736) {
@@ -18655,13 +18655,13 @@ TokenType * lookup_keyword(Str * word) {
                             ;
                             ;
                             ;
-                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                             ;
                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwShallow; return _r; }
                         } else {
                             Str _t_Str_2733; { Str *_hp = (Str *)Str_lit("struct", 6ULL); _t_Str_2733 = *_hp; free(_hp); }
                             (void)_t_Str_2733;
-                            Bool _t_Bool_2734 = Str_eq(&_sw_v_2674, &_t_Str_2733);
+                            Bool _t_Bool_2734 = Str_eq(&_sw_Str_2674, &_t_Str_2733);
                             (void)_t_Bool_2734;
                             Str_delete(&_t_Str_2733, &(Bool){0});
                             if (_t_Bool_2734) {
@@ -18670,13 +18670,13 @@ TokenType * lookup_keyword(Str * word) {
                                 ;
                                 ;
                                 ;
-                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                 ;
                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwStruct; return _r; }
                             } else {
                                 Str _t_Str_2731; { Str *_hp = (Str *)Str_lit("ext_struct", 10ULL); _t_Str_2731 = *_hp; free(_hp); }
                                 (void)_t_Str_2731;
-                                Bool _t_Bool_2732 = Str_eq(&_sw_v_2674, &_t_Str_2731);
+                                Bool _t_Bool_2732 = Str_eq(&_sw_Str_2674, &_t_Str_2731);
                                 (void)_t_Bool_2732;
                                 Str_delete(&_t_Str_2731, &(Bool){0});
                                 if (_t_Bool_2732) {
@@ -18686,13 +18686,13 @@ TokenType * lookup_keyword(Str * word) {
                                     ;
                                     ;
                                     ;
-                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                     ;
                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwExtStruct; return _r; }
                                 } else {
                                     Str _t_Str_2729; { Str *_hp = (Str *)Str_lit("enum", 4ULL); _t_Str_2729 = *_hp; free(_hp); }
                                     (void)_t_Str_2729;
-                                    Bool _t_Bool_2730 = Str_eq(&_sw_v_2674, &_t_Str_2729);
+                                    Bool _t_Bool_2730 = Str_eq(&_sw_Str_2674, &_t_Str_2729);
                                     (void)_t_Bool_2730;
                                     Str_delete(&_t_Str_2729, &(Bool){0});
                                     if (_t_Bool_2730) {
@@ -18703,13 +18703,13 @@ TokenType * lookup_keyword(Str * word) {
                                         ;
                                         ;
                                         ;
-                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                         ;
                                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwEnum; return _r; }
                                     } else {
                                         Str _t_Str_2727; { Str *_hp = (Str *)Str_lit("namespace", 9ULL); _t_Str_2727 = *_hp; free(_hp); }
                                         (void)_t_Str_2727;
-                                        Bool _t_Bool_2728 = Str_eq(&_sw_v_2674, &_t_Str_2727);
+                                        Bool _t_Bool_2728 = Str_eq(&_sw_Str_2674, &_t_Str_2727);
                                         (void)_t_Bool_2728;
                                         Str_delete(&_t_Str_2727, &(Bool){0});
                                         if (_t_Bool_2728) {
@@ -18721,13 +18721,13 @@ TokenType * lookup_keyword(Str * word) {
                                             ;
                                             ;
                                             ;
-                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                             ;
                                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwNamespace; return _r; }
                                         } else {
                                             Str _t_Str_2725; { Str *_hp = (Str *)Str_lit("func", 4ULL); _t_Str_2725 = *_hp; free(_hp); }
                                             (void)_t_Str_2725;
-                                            Bool _t_Bool_2726 = Str_eq(&_sw_v_2674, &_t_Str_2725);
+                                            Bool _t_Bool_2726 = Str_eq(&_sw_Str_2674, &_t_Str_2725);
                                             (void)_t_Bool_2726;
                                             Str_delete(&_t_Str_2725, &(Bool){0});
                                             if (_t_Bool_2726) {
@@ -18740,13 +18740,13 @@ TokenType * lookup_keyword(Str * word) {
                                                 ;
                                                 ;
                                                 ;
-                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                 ;
                                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwFunc; return _r; }
                                             } else {
                                                 Str _t_Str_2723; { Str *_hp = (Str *)Str_lit("proc", 4ULL); _t_Str_2723 = *_hp; free(_hp); }
                                                 (void)_t_Str_2723;
-                                                Bool _t_Bool_2724 = Str_eq(&_sw_v_2674, &_t_Str_2723);
+                                                Bool _t_Bool_2724 = Str_eq(&_sw_Str_2674, &_t_Str_2723);
                                                 (void)_t_Bool_2724;
                                                 Str_delete(&_t_Str_2723, &(Bool){0});
                                                 if (_t_Bool_2724) {
@@ -18760,13 +18760,13 @@ TokenType * lookup_keyword(Str * word) {
                                                     ;
                                                     ;
                                                     ;
-                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                     ;
                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwProc; return _r; }
                                                 } else {
                                                     Str _t_Str_2721; { Str *_hp = (Str *)Str_lit("test", 4ULL); _t_Str_2721 = *_hp; free(_hp); }
                                                     (void)_t_Str_2721;
-                                                    Bool _t_Bool_2722 = Str_eq(&_sw_v_2674, &_t_Str_2721);
+                                                    Bool _t_Bool_2722 = Str_eq(&_sw_Str_2674, &_t_Str_2721);
                                                     (void)_t_Bool_2722;
                                                     Str_delete(&_t_Str_2721, &(Bool){0});
                                                     if (_t_Bool_2722) {
@@ -18781,13 +18781,13 @@ TokenType * lookup_keyword(Str * word) {
                                                         ;
                                                         ;
                                                         ;
-                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                         ;
                                                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwTest; return _r; }
                                                     } else {
                                                         Str _t_Str_2719; { Str *_hp = (Str *)Str_lit("macro", 5ULL); _t_Str_2719 = *_hp; free(_hp); }
                                                         (void)_t_Str_2719;
-                                                        Bool _t_Bool_2720 = Str_eq(&_sw_v_2674, &_t_Str_2719);
+                                                        Bool _t_Bool_2720 = Str_eq(&_sw_Str_2674, &_t_Str_2719);
                                                         (void)_t_Bool_2720;
                                                         Str_delete(&_t_Str_2719, &(Bool){0});
                                                         if (_t_Bool_2720) {
@@ -18803,13 +18803,13 @@ TokenType * lookup_keyword(Str * word) {
                                                             ;
                                                             ;
                                                             ;
-                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                             ;
                                                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwMacro; return _r; }
                                                         } else {
                                                             Str _t_Str_2717; { Str *_hp = (Str *)Str_lit("ext_func", 8ULL); _t_Str_2717 = *_hp; free(_hp); }
                                                             (void)_t_Str_2717;
-                                                            Bool _t_Bool_2718 = Str_eq(&_sw_v_2674, &_t_Str_2717);
+                                                            Bool _t_Bool_2718 = Str_eq(&_sw_Str_2674, &_t_Str_2717);
                                                             (void)_t_Bool_2718;
                                                             Str_delete(&_t_Str_2717, &(Bool){0});
                                                             if (_t_Bool_2718) {
@@ -18826,13 +18826,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                 ;
                                                                 ;
                                                                 ;
-                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                 ;
                                                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwExtFunc; return _r; }
                                                             } else {
                                                                 Str _t_Str_2715; { Str *_hp = (Str *)Str_lit("ext_proc", 8ULL); _t_Str_2715 = *_hp; free(_hp); }
                                                                 (void)_t_Str_2715;
-                                                                Bool _t_Bool_2716 = Str_eq(&_sw_v_2674, &_t_Str_2715);
+                                                                Bool _t_Bool_2716 = Str_eq(&_sw_Str_2674, &_t_Str_2715);
                                                                 (void)_t_Bool_2716;
                                                                 Str_delete(&_t_Str_2715, &(Bool){0});
                                                                 if (_t_Bool_2716) {
@@ -18850,13 +18850,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                     ;
                                                                     ;
                                                                     ;
-                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                     ;
                                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwExtProc; return _r; }
                                                                 } else {
                                                                     Str _t_Str_2713; { Str *_hp = (Str *)Str_lit("returns", 7ULL); _t_Str_2713 = *_hp; free(_hp); }
                                                                     (void)_t_Str_2713;
-                                                                    Bool _t_Bool_2714 = Str_eq(&_sw_v_2674, &_t_Str_2713);
+                                                                    Bool _t_Bool_2714 = Str_eq(&_sw_Str_2674, &_t_Str_2713);
                                                                     (void)_t_Bool_2714;
                                                                     Str_delete(&_t_Str_2713, &(Bool){0});
                                                                     if (_t_Bool_2714) {
@@ -18875,13 +18875,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                         ;
                                                                         ;
                                                                         ;
-                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                         ;
                                                                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwReturns; return _r; }
                                                                     } else {
                                                                         Str _t_Str_2711; { Str *_hp = (Str *)Str_lit("throws", 6ULL); _t_Str_2711 = *_hp; free(_hp); }
                                                                         (void)_t_Str_2711;
-                                                                        Bool _t_Bool_2712 = Str_eq(&_sw_v_2674, &_t_Str_2711);
+                                                                        Bool _t_Bool_2712 = Str_eq(&_sw_Str_2674, &_t_Str_2711);
                                                                         (void)_t_Bool_2712;
                                                                         Str_delete(&_t_Str_2711, &(Bool){0});
                                                                         if (_t_Bool_2712) {
@@ -18901,13 +18901,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                             ;
                                                                             ;
                                                                             ;
-                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                             ;
                                                                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwThrows; return _r; }
                                                                         } else {
                                                                             Str _t_Str_2709; { Str *_hp = (Str *)Str_lit("if", 2ULL); _t_Str_2709 = *_hp; free(_hp); }
                                                                             (void)_t_Str_2709;
-                                                                            Bool _t_Bool_2710 = Str_eq(&_sw_v_2674, &_t_Str_2709);
+                                                                            Bool _t_Bool_2710 = Str_eq(&_sw_Str_2674, &_t_Str_2709);
                                                                             (void)_t_Bool_2710;
                                                                             Str_delete(&_t_Str_2709, &(Bool){0});
                                                                             if (_t_Bool_2710) {
@@ -18928,13 +18928,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                 ;
                                                                                 ;
                                                                                 ;
-                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                 ;
                                                                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwIf; return _r; }
                                                                             } else {
                                                                                 Str _t_Str_2707; { Str *_hp = (Str *)Str_lit("else", 4ULL); _t_Str_2707 = *_hp; free(_hp); }
                                                                                 (void)_t_Str_2707;
-                                                                                Bool _t_Bool_2708 = Str_eq(&_sw_v_2674, &_t_Str_2707);
+                                                                                Bool _t_Bool_2708 = Str_eq(&_sw_Str_2674, &_t_Str_2707);
                                                                                 (void)_t_Bool_2708;
                                                                                 Str_delete(&_t_Str_2707, &(Bool){0});
                                                                                 if (_t_Bool_2708) {
@@ -18956,13 +18956,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                     ;
                                                                                     ;
                                                                                     ;
-                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                     ;
                                                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwElse; return _r; }
                                                                                 } else {
                                                                                     Str _t_Str_2705; { Str *_hp = (Str *)Str_lit("while", 5ULL); _t_Str_2705 = *_hp; free(_hp); }
                                                                                     (void)_t_Str_2705;
-                                                                                    Bool _t_Bool_2706 = Str_eq(&_sw_v_2674, &_t_Str_2705);
+                                                                                    Bool _t_Bool_2706 = Str_eq(&_sw_Str_2674, &_t_Str_2705);
                                                                                     (void)_t_Bool_2706;
                                                                                     Str_delete(&_t_Str_2705, &(Bool){0});
                                                                                     if (_t_Bool_2706) {
@@ -18985,13 +18985,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                         ;
                                                                                         ;
                                                                                         ;
-                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                         ;
                                                                                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwWhile; return _r; }
                                                                                     } else {
                                                                                         Str _t_Str_2703; { Str *_hp = (Str *)Str_lit("for", 3ULL); _t_Str_2703 = *_hp; free(_hp); }
                                                                                         (void)_t_Str_2703;
-                                                                                        Bool _t_Bool_2704 = Str_eq(&_sw_v_2674, &_t_Str_2703);
+                                                                                        Bool _t_Bool_2704 = Str_eq(&_sw_Str_2674, &_t_Str_2703);
                                                                                         (void)_t_Bool_2704;
                                                                                         Str_delete(&_t_Str_2703, &(Bool){0});
                                                                                         if (_t_Bool_2704) {
@@ -19015,13 +19015,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                             ;
                                                                                             ;
                                                                                             ;
-                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                             ;
                                                                                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwFor; return _r; }
                                                                                         } else {
                                                                                             Str _t_Str_2701; { Str *_hp = (Str *)Str_lit("in", 2ULL); _t_Str_2701 = *_hp; free(_hp); }
                                                                                             (void)_t_Str_2701;
-                                                                                            Bool _t_Bool_2702 = Str_eq(&_sw_v_2674, &_t_Str_2701);
+                                                                                            Bool _t_Bool_2702 = Str_eq(&_sw_Str_2674, &_t_Str_2701);
                                                                                             (void)_t_Bool_2702;
                                                                                             Str_delete(&_t_Str_2701, &(Bool){0});
                                                                                             if (_t_Bool_2702) {
@@ -19046,13 +19046,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                 ;
                                                                                                 ;
                                                                                                 ;
-                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                 ;
                                                                                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwIn; return _r; }
                                                                                             } else {
                                                                                                 Str _t_Str_2699; { Str *_hp = (Str *)Str_lit("switch", 6ULL); _t_Str_2699 = *_hp; free(_hp); }
                                                                                                 (void)_t_Str_2699;
-                                                                                                Bool _t_Bool_2700 = Str_eq(&_sw_v_2674, &_t_Str_2699);
+                                                                                                Bool _t_Bool_2700 = Str_eq(&_sw_Str_2674, &_t_Str_2699);
                                                                                                 (void)_t_Bool_2700;
                                                                                                 Str_delete(&_t_Str_2699, &(Bool){0});
                                                                                                 if (_t_Bool_2700) {
@@ -19078,13 +19078,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                     ;
                                                                                                     ;
                                                                                                     ;
-                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                     ;
                                                                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwSwitch; return _r; }
                                                                                                 } else {
                                                                                                     Str _t_Str_2697; { Str *_hp = (Str *)Str_lit("match", 5ULL); _t_Str_2697 = *_hp; free(_hp); }
                                                                                                     (void)_t_Str_2697;
-                                                                                                    Bool _t_Bool_2698 = Str_eq(&_sw_v_2674, &_t_Str_2697);
+                                                                                                    Bool _t_Bool_2698 = Str_eq(&_sw_Str_2674, &_t_Str_2697);
                                                                                                     (void)_t_Bool_2698;
                                                                                                     Str_delete(&_t_Str_2697, &(Bool){0});
                                                                                                     if (_t_Bool_2698) {
@@ -19111,13 +19111,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                         ;
                                                                                                         ;
                                                                                                         ;
-                                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                         ;
                                                                                                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwMatch; return _r; }
                                                                                                     } else {
                                                                                                         Str _t_Str_2695; { Str *_hp = (Str *)Str_lit("case", 4ULL); _t_Str_2695 = *_hp; free(_hp); }
                                                                                                         (void)_t_Str_2695;
-                                                                                                        Bool _t_Bool_2696 = Str_eq(&_sw_v_2674, &_t_Str_2695);
+                                                                                                        Bool _t_Bool_2696 = Str_eq(&_sw_Str_2674, &_t_Str_2695);
                                                                                                         (void)_t_Bool_2696;
                                                                                                         Str_delete(&_t_Str_2695, &(Bool){0});
                                                                                                         if (_t_Bool_2696) {
@@ -19145,13 +19145,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                             ;
                                                                                                             ;
                                                                                                             ;
-                                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                             ;
                                                                                                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwCase; return _r; }
                                                                                                         } else {
                                                                                                             Str _t_Str_2693; { Str *_hp = (Str *)Str_lit("default", 7ULL); _t_Str_2693 = *_hp; free(_hp); }
                                                                                                             (void)_t_Str_2693;
-                                                                                                            Bool _t_Bool_2694 = Str_eq(&_sw_v_2674, &_t_Str_2693);
+                                                                                                            Bool _t_Bool_2694 = Str_eq(&_sw_Str_2674, &_t_Str_2693);
                                                                                                             (void)_t_Bool_2694;
                                                                                                             Str_delete(&_t_Str_2693, &(Bool){0});
                                                                                                             if (_t_Bool_2694) {
@@ -19180,13 +19180,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                 ;
                                                                                                                 ;
                                                                                                                 ;
-                                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                 ;
                                                                                                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwDefault; return _r; }
                                                                                                             } else {
                                                                                                                 Str _t_Str_2691; { Str *_hp = (Str *)Str_lit("return", 6ULL); _t_Str_2691 = *_hp; free(_hp); }
                                                                                                                 (void)_t_Str_2691;
-                                                                                                                Bool _t_Bool_2692 = Str_eq(&_sw_v_2674, &_t_Str_2691);
+                                                                                                                Bool _t_Bool_2692 = Str_eq(&_sw_Str_2674, &_t_Str_2691);
                                                                                                                 (void)_t_Bool_2692;
                                                                                                                 Str_delete(&_t_Str_2691, &(Bool){0});
                                                                                                                 if (_t_Bool_2692) {
@@ -19216,13 +19216,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                     ;
                                                                                                                     ;
                                                                                                                     ;
-                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                     ;
                                                                                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwReturn; return _r; }
                                                                                                                 } else {
                                                                                                                     Str _t_Str_2689; { Str *_hp = (Str *)Str_lit("throw", 5ULL); _t_Str_2689 = *_hp; free(_hp); }
                                                                                                                     (void)_t_Str_2689;
-                                                                                                                    Bool _t_Bool_2690 = Str_eq(&_sw_v_2674, &_t_Str_2689);
+                                                                                                                    Bool _t_Bool_2690 = Str_eq(&_sw_Str_2674, &_t_Str_2689);
                                                                                                                     (void)_t_Bool_2690;
                                                                                                                     Str_delete(&_t_Str_2689, &(Bool){0});
                                                                                                                     if (_t_Bool_2690) {
@@ -19253,13 +19253,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                         ;
                                                                                                                         ;
                                                                                                                         ;
-                                                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                         ;
                                                                                                                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwThrow; return _r; }
                                                                                                                     } else {
                                                                                                                         Str _t_Str_2687; { Str *_hp = (Str *)Str_lit("catch", 5ULL); _t_Str_2687 = *_hp; free(_hp); }
                                                                                                                         (void)_t_Str_2687;
-                                                                                                                        Bool _t_Bool_2688 = Str_eq(&_sw_v_2674, &_t_Str_2687);
+                                                                                                                        Bool _t_Bool_2688 = Str_eq(&_sw_Str_2674, &_t_Str_2687);
                                                                                                                         (void)_t_Bool_2688;
                                                                                                                         Str_delete(&_t_Str_2687, &(Bool){0});
                                                                                                                         if (_t_Bool_2688) {
@@ -19291,13 +19291,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                             ;
                                                                                                                             ;
                                                                                                                             ;
-                                                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                             ;
                                                                                                                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwCatch; return _r; }
                                                                                                                         } else {
                                                                                                                             Str _t_Str_2685; { Str *_hp = (Str *)Str_lit("break", 5ULL); _t_Str_2685 = *_hp; free(_hp); }
                                                                                                                             (void)_t_Str_2685;
-                                                                                                                            Bool _t_Bool_2686 = Str_eq(&_sw_v_2674, &_t_Str_2685);
+                                                                                                                            Bool _t_Bool_2686 = Str_eq(&_sw_Str_2674, &_t_Str_2685);
                                                                                                                             (void)_t_Bool_2686;
                                                                                                                             Str_delete(&_t_Str_2685, &(Bool){0});
                                                                                                                             if (_t_Bool_2686) {
@@ -19330,13 +19330,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                 ;
                                                                                                                                 ;
                                                                                                                                 ;
-                                                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                                 ;
                                                                                                                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwBreak; return _r; }
                                                                                                                             } else {
                                                                                                                                 Str _t_Str_2683; { Str *_hp = (Str *)Str_lit("continue", 8ULL); _t_Str_2683 = *_hp; free(_hp); }
                                                                                                                                 (void)_t_Str_2683;
-                                                                                                                                Bool _t_Bool_2684 = Str_eq(&_sw_v_2674, &_t_Str_2683);
+                                                                                                                                Bool _t_Bool_2684 = Str_eq(&_sw_Str_2674, &_t_Str_2683);
                                                                                                                                 (void)_t_Bool_2684;
                                                                                                                                 Str_delete(&_t_Str_2683, &(Bool){0});
                                                                                                                                 if (_t_Bool_2684) {
@@ -19370,13 +19370,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                     ;
                                                                                                                                     ;
                                                                                                                                     ;
-                                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                                     ;
                                                                                                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwContinue; return _r; }
                                                                                                                                 } else {
                                                                                                                                     Str _t_Str_2681; { Str *_hp = (Str *)Str_lit("defer", 5ULL); _t_Str_2681 = *_hp; free(_hp); }
                                                                                                                                     (void)_t_Str_2681;
-                                                                                                                                    Bool _t_Bool_2682 = Str_eq(&_sw_v_2674, &_t_Str_2681);
+                                                                                                                                    Bool _t_Bool_2682 = Str_eq(&_sw_Str_2674, &_t_Str_2681);
                                                                                                                                     (void)_t_Bool_2682;
                                                                                                                                     Str_delete(&_t_Str_2681, &(Bool){0});
                                                                                                                                     if (_t_Bool_2682) {
@@ -19411,13 +19411,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                         ;
                                                                                                                                         ;
                                                                                                                                         ;
-                                                                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                                        Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                                         ;
                                                                                                                                         { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwDefer; return _r; }
                                                                                                                                     } else {
                                                                                                                                         Str _t_Str_2679; { Str *_hp = (Str *)Str_lit("true", 4ULL); _t_Str_2679 = *_hp; free(_hp); }
                                                                                                                                         (void)_t_Str_2679;
-                                                                                                                                        Bool _t_Bool_2680 = Str_eq(&_sw_v_2674, &_t_Str_2679);
+                                                                                                                                        Bool _t_Bool_2680 = Str_eq(&_sw_Str_2674, &_t_Str_2679);
                                                                                                                                         (void)_t_Bool_2680;
                                                                                                                                         Str_delete(&_t_Str_2679, &(Bool){0});
                                                                                                                                         if (_t_Bool_2680) {
@@ -19453,13 +19453,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                             ;
                                                                                                                                             ;
                                                                                                                                             ;
-                                                                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                                            Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                                             ;
                                                                                                                                             { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwTrue; return _r; }
                                                                                                                                         } else {
                                                                                                                                             Str _t_Str_2677; { Str *_hp = (Str *)Str_lit("false", 5ULL); _t_Str_2677 = *_hp; free(_hp); }
                                                                                                                                             (void)_t_Str_2677;
-                                                                                                                                            Bool _t_Bool_2678 = Str_eq(&_sw_v_2674, &_t_Str_2677);
+                                                                                                                                            Bool _t_Bool_2678 = Str_eq(&_sw_Str_2674, &_t_Str_2677);
                                                                                                                                             (void)_t_Bool_2678;
                                                                                                                                             Str_delete(&_t_Str_2677, &(Bool){0});
                                                                                                                                             if (_t_Bool_2678) {
@@ -19496,13 +19496,13 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                 ;
                                                                                                                                                 ;
                                                                                                                                                 ;
-                                                                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                                                Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                                                 ;
                                                                                                                                                 { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwFalse; return _r; }
                                                                                                                                             } else {
                                                                                                                                                 Str _t_Str_2675; { Str *_hp = (Str *)Str_lit("NULL", 4ULL); _t_Str_2675 = *_hp; free(_hp); }
                                                                                                                                                 (void)_t_Str_2675;
-                                                                                                                                                Bool _t_Bool_2676 = Str_eq(&_sw_v_2674, &_t_Str_2675);
+                                                                                                                                                Bool _t_Bool_2676 = Str_eq(&_sw_Str_2674, &_t_Str_2675);
                                                                                                                                                 (void)_t_Bool_2676;
                                                                                                                                                 Str_delete(&_t_Str_2675, &(Bool){0});
                                                                                                                                                 if (_t_Bool_2676) {
@@ -19540,7 +19540,7 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                                                     ;
                                                                                                                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_KwNull; return _r; }
                                                                                                                                                 } else {
@@ -19578,7 +19578,7 @@ TokenType * lookup_keyword(Str * word) {
                                                                                                                                                     ;
                                                                                                                                                     ;
                                                                                                                                                     ;
-                                                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_v_2674; _oa; }), &(Bool){1});
+                                                                                                                                                    Str_delete(({ Str *_oa = malloc(sizeof(Str)); *_oa = _sw_Str_2674; _oa; }), &(Bool){1});
                                                                                                                                                     ;
                                                                                                                                                     { TokenType *_r = malloc(sizeof(TokenType)); _r->tag = TokenType_TAG_Ident; return _r; }
                                                                                                                                                 }
@@ -19650,7 +19650,7 @@ TokenType * lookup_keyword(Str * word) {
             }
             ;
         }
-        Str_delete(&_sw_v_2674, &(Bool){0});
+        Str_delete(&_sw_Str_2674, &(Bool){0});
         ;
     }
 }
@@ -20815,11 +20815,11 @@ Vec * tokenize(Str * src, Str * path) {
         TokenType single; { TokenType *_hp = (TokenType *)TokenType_clone(&(TokenType){.tag = TokenType_TAG_Eof}); single = *_hp; free(_hp); }
         (void)single;
         {
-            U8 _sw_v_2987 = U8_clone(c);
-            (void)_sw_v_2987;
+            U8 _sw_U8_2987 = U8_clone(c);
+            (void)_sw_U8_2987;
             U8 _t_U8_3022 = 40;
             (void)_t_U8_3022;
-            Bool _t_Bool_3023 = U8_eq(_sw_v_2987, _t_U8_3022);
+            Bool _t_Bool_3023 = U8_eq(_sw_U8_2987, _t_U8_3022);
             (void)_t_Bool_3023;
             ;
             if (_t_Bool_3023) {
@@ -20827,7 +20827,7 @@ Vec * tokenize(Str * src, Str * path) {
             } else {
                 U8 _t_U8_3020 = 41;
                 (void)_t_U8_3020;
-                Bool _t_Bool_3021 = U8_eq(_sw_v_2987, _t_U8_3020);
+                Bool _t_Bool_3021 = U8_eq(_sw_U8_2987, _t_U8_3020);
                 (void)_t_Bool_3021;
                 ;
                 if (_t_Bool_3021) {
@@ -20835,7 +20835,7 @@ Vec * tokenize(Str * src, Str * path) {
                 } else {
                     U8 _t_U8_3018 = 123;
                     (void)_t_U8_3018;
-                    Bool _t_Bool_3019 = U8_eq(_sw_v_2987, _t_U8_3018);
+                    Bool _t_Bool_3019 = U8_eq(_sw_U8_2987, _t_U8_3018);
                     (void)_t_Bool_3019;
                     ;
                     if (_t_Bool_3019) {
@@ -20843,7 +20843,7 @@ Vec * tokenize(Str * src, Str * path) {
                     } else {
                         U8 _t_U8_3016 = 125;
                         (void)_t_U8_3016;
-                        Bool _t_Bool_3017 = U8_eq(_sw_v_2987, _t_U8_3016);
+                        Bool _t_Bool_3017 = U8_eq(_sw_U8_2987, _t_U8_3016);
                         (void)_t_Bool_3017;
                         ;
                         if (_t_Bool_3017) {
@@ -20851,7 +20851,7 @@ Vec * tokenize(Str * src, Str * path) {
                         } else {
                             U8 _t_U8_3014 = 91;
                             (void)_t_U8_3014;
-                            Bool _t_Bool_3015 = U8_eq(_sw_v_2987, _t_U8_3014);
+                            Bool _t_Bool_3015 = U8_eq(_sw_U8_2987, _t_U8_3014);
                             (void)_t_Bool_3015;
                             ;
                             if (_t_Bool_3015) {
@@ -20859,7 +20859,7 @@ Vec * tokenize(Str * src, Str * path) {
                             } else {
                                 U8 _t_U8_3012 = 93;
                                 (void)_t_U8_3012;
-                                Bool _t_Bool_3013 = U8_eq(_sw_v_2987, _t_U8_3012);
+                                Bool _t_Bool_3013 = U8_eq(_sw_U8_2987, _t_U8_3012);
                                 (void)_t_Bool_3013;
                                 ;
                                 if (_t_Bool_3013) {
@@ -20867,7 +20867,7 @@ Vec * tokenize(Str * src, Str * path) {
                                 } else {
                                     U8 _t_U8_3010 = 44;
                                     (void)_t_U8_3010;
-                                    Bool _t_Bool_3011 = U8_eq(_sw_v_2987, _t_U8_3010);
+                                    Bool _t_Bool_3011 = U8_eq(_sw_U8_2987, _t_U8_3010);
                                     (void)_t_Bool_3011;
                                     ;
                                     if (_t_Bool_3011) {
@@ -20875,7 +20875,7 @@ Vec * tokenize(Str * src, Str * path) {
                                     } else {
                                         U8 _t_U8_3008 = 58;
                                         (void)_t_U8_3008;
-                                        Bool _t_Bool_3009 = U8_eq(_sw_v_2987, _t_U8_3008);
+                                        Bool _t_Bool_3009 = U8_eq(_sw_U8_2987, _t_U8_3008);
                                         (void)_t_Bool_3009;
                                         ;
                                         if (_t_Bool_3009) {
@@ -20883,7 +20883,7 @@ Vec * tokenize(Str * src, Str * path) {
                                         } else {
                                             U8 _t_U8_3006 = 46;
                                             (void)_t_U8_3006;
-                                            Bool _t_Bool_3007 = U8_eq(_sw_v_2987, _t_U8_3006);
+                                            Bool _t_Bool_3007 = U8_eq(_sw_U8_2987, _t_U8_3006);
                                             (void)_t_Bool_3007;
                                             ;
                                             if (_t_Bool_3007) {
@@ -20891,7 +20891,7 @@ Vec * tokenize(Str * src, Str * path) {
                                             } else {
                                                 U8 _t_U8_3004 = 63;
                                                 (void)_t_U8_3004;
-                                                Bool _t_Bool_3005 = U8_eq(_sw_v_2987, _t_U8_3004);
+                                                Bool _t_Bool_3005 = U8_eq(_sw_U8_2987, _t_U8_3004);
                                                 (void)_t_Bool_3005;
                                                 ;
                                                 if (_t_Bool_3005) {
@@ -20899,7 +20899,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                 } else {
                                                     U8 _t_U8_3002 = 33;
                                                     (void)_t_U8_3002;
-                                                    Bool _t_Bool_3003 = U8_eq(_sw_v_2987, _t_U8_3002);
+                                                    Bool _t_Bool_3003 = U8_eq(_sw_U8_2987, _t_U8_3002);
                                                     (void)_t_Bool_3003;
                                                     ;
                                                     if (_t_Bool_3003) {
@@ -20907,7 +20907,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                     } else {
                                                         U8 _t_U8_3000 = 43;
                                                         (void)_t_U8_3000;
-                                                        Bool _t_Bool_3001 = U8_eq(_sw_v_2987, _t_U8_3000);
+                                                        Bool _t_Bool_3001 = U8_eq(_sw_U8_2987, _t_U8_3000);
                                                         (void)_t_Bool_3001;
                                                         ;
                                                         if (_t_Bool_3001) {
@@ -20915,7 +20915,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                         } else {
                                                             U8 _t_U8_2998 = 45;
                                                             (void)_t_U8_2998;
-                                                            Bool _t_Bool_2999 = U8_eq(_sw_v_2987, _t_U8_2998);
+                                                            Bool _t_Bool_2999 = U8_eq(_sw_U8_2987, _t_U8_2998);
                                                             (void)_t_Bool_2999;
                                                             ;
                                                             if (_t_Bool_2999) {
@@ -20923,7 +20923,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                             } else {
                                                                 U8 _t_U8_2996 = 42;
                                                                 (void)_t_U8_2996;
-                                                                Bool _t_Bool_2997 = U8_eq(_sw_v_2987, _t_U8_2996);
+                                                                Bool _t_Bool_2997 = U8_eq(_sw_U8_2987, _t_U8_2996);
                                                                 (void)_t_Bool_2997;
                                                                 ;
                                                                 if (_t_Bool_2997) {
@@ -20931,7 +20931,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                                 } else {
                                                                     U8 _t_U8_2994 = 47;
                                                                     (void)_t_U8_2994;
-                                                                    Bool _t_Bool_2995 = U8_eq(_sw_v_2987, _t_U8_2994);
+                                                                    Bool _t_Bool_2995 = U8_eq(_sw_U8_2987, _t_U8_2994);
                                                                     (void)_t_Bool_2995;
                                                                     ;
                                                                     if (_t_Bool_2995) {
@@ -20939,7 +20939,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                                     } else {
                                                                         U8 _t_U8_2992 = 61;
                                                                         (void)_t_U8_2992;
-                                                                        Bool _t_Bool_2993 = U8_eq(_sw_v_2987, _t_U8_2992);
+                                                                        Bool _t_Bool_2993 = U8_eq(_sw_U8_2987, _t_U8_2992);
                                                                         (void)_t_Bool_2993;
                                                                         ;
                                                                         if (_t_Bool_2993) {
@@ -20947,7 +20947,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                                         } else {
                                                                             U8 _t_U8_2990 = 60;
                                                                             (void)_t_U8_2990;
-                                                                            Bool _t_Bool_2991 = U8_eq(_sw_v_2987, _t_U8_2990);
+                                                                            Bool _t_Bool_2991 = U8_eq(_sw_U8_2987, _t_U8_2990);
                                                                             (void)_t_Bool_2991;
                                                                             ;
                                                                             if (_t_Bool_2991) {
@@ -20955,7 +20955,7 @@ Vec * tokenize(Str * src, Str * path) {
                                                                             } else {
                                                                                 U8 _t_U8_2988 = 62;
                                                                                 (void)_t_U8_2988;
-                                                                                Bool _t_Bool_2989 = U8_eq(_sw_v_2987, _t_U8_2988);
+                                                                                Bool _t_Bool_2989 = U8_eq(_sw_U8_2987, _t_U8_2988);
                                                                                 (void)_t_Bool_2989;
                                                                                 ;
                                                                                 if (_t_Bool_2989) {
@@ -21894,34 +21894,34 @@ Expr * parse_func_def(Parser * p) {
     FuncType ft; { FuncType *_hp = (FuncType *)FuncType_clone(&(FuncType){.tag = FuncType_TAG_Func}); ft = *_hp; free(_hp); }
     (void)ft;
     {
-        TokenType _sw_v_3251; { TokenType *_hp = (TokenType *)TokenType_clone(&kw->type); _sw_v_3251 = *_hp; free(_hp); }
-        (void)_sw_v_3251;
-        Bool _t_Bool_3263; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_3251, &(TokenType){.tag = TokenType_TAG_KwFunc}); _t_Bool_3263 = *_hp; free(_hp); }
+        TokenType _sw_TokenType_3251; { TokenType *_hp = (TokenType *)TokenType_clone(&kw->type); _sw_TokenType_3251 = *_hp; free(_hp); }
+        (void)_sw_TokenType_3251;
+        Bool _t_Bool_3263; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_3251, &(TokenType){.tag = TokenType_TAG_KwFunc}); _t_Bool_3263 = *_hp; free(_hp); }
         (void)_t_Bool_3263;
         if (_t_Bool_3263) {
             { FuncType *_hp = (FuncType *)FuncType_clone(&(FuncType){.tag = FuncType_TAG_Func}); ft = *_hp; free(_hp); }
         } else {
-            Bool _t_Bool_3262; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_3251, &(TokenType){.tag = TokenType_TAG_KwProc}); _t_Bool_3262 = *_hp; free(_hp); }
+            Bool _t_Bool_3262; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_3251, &(TokenType){.tag = TokenType_TAG_KwProc}); _t_Bool_3262 = *_hp; free(_hp); }
             (void)_t_Bool_3262;
             if (_t_Bool_3262) {
                 { FuncType *_hp = (FuncType *)FuncType_clone(&(FuncType){.tag = FuncType_TAG_Proc}); ft = *_hp; free(_hp); }
             } else {
-                Bool _t_Bool_3261; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_3251, &(TokenType){.tag = TokenType_TAG_KwTest}); _t_Bool_3261 = *_hp; free(_hp); }
+                Bool _t_Bool_3261; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_3251, &(TokenType){.tag = TokenType_TAG_KwTest}); _t_Bool_3261 = *_hp; free(_hp); }
                 (void)_t_Bool_3261;
                 if (_t_Bool_3261) {
                     { FuncType *_hp = (FuncType *)FuncType_clone(&(FuncType){.tag = FuncType_TAG_Test}); ft = *_hp; free(_hp); }
                 } else {
-                    Bool _t_Bool_3260; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_3251, &(TokenType){.tag = TokenType_TAG_KwMacro}); _t_Bool_3260 = *_hp; free(_hp); }
+                    Bool _t_Bool_3260; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_3251, &(TokenType){.tag = TokenType_TAG_KwMacro}); _t_Bool_3260 = *_hp; free(_hp); }
                     (void)_t_Bool_3260;
                     if (_t_Bool_3260) {
                         { FuncType *_hp = (FuncType *)FuncType_clone(&(FuncType){.tag = FuncType_TAG_Macro}); ft = *_hp; free(_hp); }
                     } else {
-                        Bool _t_Bool_3259; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_3251, &(TokenType){.tag = TokenType_TAG_KwExtFunc}); _t_Bool_3259 = *_hp; free(_hp); }
+                        Bool _t_Bool_3259; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_3251, &(TokenType){.tag = TokenType_TAG_KwExtFunc}); _t_Bool_3259 = *_hp; free(_hp); }
                         (void)_t_Bool_3259;
                         if (_t_Bool_3259) {
                             { FuncType *_hp = (FuncType *)FuncType_clone(&(FuncType){.tag = FuncType_TAG_ExtFunc}); ft = *_hp; free(_hp); }
                         } else {
-                            Bool _t_Bool_3258; { Bool *_hp = (Bool *)TokenType_eq(&_sw_v_3251, &(TokenType){.tag = TokenType_TAG_KwExtProc}); _t_Bool_3258 = *_hp; free(_hp); }
+                            Bool _t_Bool_3258; { Bool *_hp = (Bool *)TokenType_eq(&_sw_TokenType_3251, &(TokenType){.tag = TokenType_TAG_KwExtProc}); _t_Bool_3258 = *_hp; free(_hp); }
                             (void)_t_Bool_3258;
                             if (_t_Bool_3258) {
                                 { FuncType *_hp = (FuncType *)FuncType_clone(&(FuncType){.tag = FuncType_TAG_ExtProc}); ft = *_hp; free(_hp); }
@@ -21958,7 +21958,7 @@ Expr * parse_func_def(Parser * p) {
             }
             ;
         }
-        TokenType_delete(&_sw_v_3251, &(Bool){0});
+        TokenType_delete(&_sw_TokenType_3251, &(Bool){0});
         ;
     }
     Token *_t_Token_3479 = expect_token(p, &(TokenType){.tag = TokenType_TAG_LParen});
@@ -28281,9 +28281,9 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
     }
     ;
     {
-        ExprData _sw_v_4692; { ExprData *_hp = (ExprData *)ExprData_clone(&rhs->data); _sw_v_4692 = *_hp; free(_hp); }
-        (void)_sw_v_4692;
-        Bool _t_Bool_4775 = is_variant(&_sw_v_4692, &(ExprData){.tag = ExprData_TAG_LiteralNum});
+        ExprData _sw_ExprData_4692; { ExprData *_hp = (ExprData *)ExprData_clone(&rhs->data); _sw_ExprData_4692 = *_hp; free(_hp); }
+        (void)_sw_ExprData_4692;
+        Bool _t_Bool_4775 = is_variant(&_sw_ExprData_4692, &(ExprData){.tag = ExprData_TAG_LiteralNum});
         (void)_t_Bool_4775;
         if (_t_Bool_4775) {
             TilType _t_TilType_4693; { TilType *_hp = (TilType *)TilType_clone(&(TilType){.tag = TilType_TAG_I64}); _t_TilType_4693 = *_hp; free(_hp); }
@@ -28295,11 +28295,11 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
             ;
             Bool _t_Bool_4695 = 1;
             (void)_t_Bool_4695;
-            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
             ;
             return _t_Bool_4695;
         } else {
-            Bool _t_Bool_4774 = is_variant(&_sw_v_4692, &(ExprData){.tag = ExprData_TAG_LiteralBool});
+            Bool _t_Bool_4774 = is_variant(&_sw_ExprData_4692, &(ExprData){.tag = ExprData_TAG_LiteralBool});
             (void)_t_Bool_4774;
             if (_t_Bool_4774) {
                 TilType _t_TilType_4696; { TilType *_hp = (TilType *)TilType_clone(&(TilType){.tag = TilType_TAG_Bool}); _t_TilType_4696 = *_hp; free(_hp); }
@@ -28312,11 +28312,11 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                 Bool _t_Bool_4698 = 1;
                 (void)_t_Bool_4698;
                 ;
-                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                 ;
                 return _t_Bool_4698;
             } else {
-                Bool _t_Bool_4773 = is_variant(&_sw_v_4692, &(ExprData){.tag = ExprData_TAG_LiteralStr});
+                Bool _t_Bool_4773 = is_variant(&_sw_ExprData_4692, &(ExprData){.tag = ExprData_TAG_LiteralStr});
                 (void)_t_Bool_4773;
                 if (_t_Bool_4773) {
                     TilType _t_TilType_4699; { TilType *_hp = (TilType *)TilType_clone(&(TilType){.tag = TilType_TAG_Struct}); _t_TilType_4699 = *_hp; free(_hp); }
@@ -28337,11 +28337,11 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                     (void)_t_Bool_4703;
                     ;
                     ;
-                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                     ;
                     return _t_Bool_4703;
                 } else {
-                    Bool _t_Bool_4772; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_4692, &(ExprData){.tag = ExprData_TAG_LiteralNull}); _t_Bool_4772 = *_hp; free(_hp); }
+                    Bool _t_Bool_4772; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_4692, &(ExprData){.tag = ExprData_TAG_LiteralNull}); _t_Bool_4772 = *_hp; free(_hp); }
                     (void)_t_Bool_4772;
                     if (_t_Bool_4772) {
                         TilType _t_TilType_4704; { TilType *_hp = (TilType *)TilType_clone(&(TilType){.tag = TilType_TAG_Dynamic}); _t_TilType_4704 = *_hp; free(_hp); }
@@ -28356,14 +28356,14 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                         ;
                         ;
                         ;
-                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                         ;
                         return _t_Bool_4706;
                     } else {
-                        Bool _t_Bool_4771 = is_variant(&_sw_v_4692, &(ExprData){.tag = ExprData_TAG_Ident});
+                        Bool _t_Bool_4771 = is_variant(&_sw_ExprData_4692, &(ExprData){.tag = ExprData_TAG_Ident});
                         (void)_t_Bool_4771;
                         if (_t_Bool_4771) {
-                            Str *id = get_payload(&_sw_v_4692);
+                            Str *id = get_payload(&_sw_ExprData_4692);
                             (void)id;
                             TypeBinding *b = TypeScope_get_binding(scope, id);
                             (void)b;
@@ -28377,7 +28377,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                 ;
                                 ;
                                 ;
-                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4707;
                             }
@@ -28416,11 +28416,11 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                             ;
                             ;
                             ;
-                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4717;
                         } else {
-                            Bool _t_Bool_4770 = is_variant(&_sw_v_4692, &(ExprData){.tag = ExprData_TAG_FieldAccess});
+                            Bool _t_Bool_4770 = is_variant(&_sw_ExprData_4692, &(ExprData){.tag = ExprData_TAG_FieldAccess});
                             (void)_t_Bool_4770;
                             if (_t_Bool_4770) {
                                 Bool _t_Bool_4727; { Bool *_hp = (Bool *)TilType_eq(&rhs->til_type, &(TilType){.tag = TilType_TAG_Enum}); _t_Bool_4727 = *_hp; free(_hp); }
@@ -28465,7 +28465,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                     ;
                                     ;
                                     ;
-                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4726;
                                 }
@@ -28477,11 +28477,11 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                 ;
                                 ;
                                 ;
-                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4729;
                             } else {
-                                Bool _t_Bool_4769; { Bool *_hp = (Bool *)ExprData_eq(&_sw_v_4692, &(ExprData){.tag = ExprData_TAG_FCall}); _t_Bool_4769 = *_hp; free(_hp); }
+                                Bool _t_Bool_4769; { Bool *_hp = (Bool *)ExprData_eq(&_sw_ExprData_4692, &(ExprData){.tag = ExprData_TAG_FCall}); _t_Bool_4769 = *_hp; free(_hp); }
                                 (void)_t_Bool_4769;
                                 if (_t_Bool_4769) {
                                     U32 _t_U32_4752 = 0;
@@ -28533,7 +28533,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                             ;
                                             ;
                                             ;
-                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                             ;
                                             return _t_Bool_4734;
                                         }
@@ -28588,7 +28588,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                         ;
                                         ;
                                         ;
-                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                         ;
                                         return _t_Bool_4740;
                                     }
@@ -28614,7 +28614,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                             ;
                                             ;
                                             ;
-                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                            ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                             ;
                                             return _t_Bool_4741;
                                         }
@@ -28657,7 +28657,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                         ;
                                         ;
                                         ;
-                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                        ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                         ;
                                         return _t_Bool_4751;
                                     }
@@ -28671,7 +28671,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                     ;
                                     ;
                                     ;
-                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4767;
                                 } else {
@@ -28683,7 +28683,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
                                     ;
                                     ;
                                     ;
-                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_v_4692; _oa; }), &(Bool){1});
+                                    ExprData_delete(({ ExprData *_oa = malloc(sizeof(ExprData)); *_oa = _sw_ExprData_4692; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4768;
                                 }
@@ -28699,7 +28699,7 @@ Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_typ
             }
             ;
         }
-        ExprData_delete(&_sw_v_4692, &(Bool){0});
+        ExprData_delete(&_sw_ExprData_4692, &(Bool){0});
         ;
     }
     ;
@@ -29194,39 +29194,39 @@ U32 *LocalInfo_size(void) {
 Bool is_numeric_type(TilType * t) {
     (void)t;
     {
-        TilType _sw_v_4861; { TilType *_hp = (TilType *)TilType_clone(t); _sw_v_4861 = *_hp; free(_hp); }
-        (void)_sw_v_4861;
-        Bool _t_Bool_4876; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4861, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4876 = *_hp; free(_hp); }
+        TilType _sw_TilType_4861; { TilType *_hp = (TilType *)TilType_clone(t); _sw_TilType_4861 = *_hp; free(_hp); }
+        (void)_sw_TilType_4861;
+        Bool _t_Bool_4876; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4861, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4876 = *_hp; free(_hp); }
         (void)_t_Bool_4876;
         if (_t_Bool_4876) {
             Bool _t_Bool_4862 = 1;
             (void)_t_Bool_4862;
-            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
             ;
             return _t_Bool_4862;
         } else {
-            Bool _t_Bool_4875; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4861, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4875 = *_hp; free(_hp); }
+            Bool _t_Bool_4875; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4861, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4875 = *_hp; free(_hp); }
             (void)_t_Bool_4875;
             if (_t_Bool_4875) {
                 Bool _t_Bool_4863 = 1;
                 (void)_t_Bool_4863;
                 ;
-                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
                 ;
                 return _t_Bool_4863;
             } else {
-                Bool _t_Bool_4874; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4861, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4874 = *_hp; free(_hp); }
+                Bool _t_Bool_4874; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4861, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4874 = *_hp; free(_hp); }
                 (void)_t_Bool_4874;
                 if (_t_Bool_4874) {
                     Bool _t_Bool_4864 = 1;
                     (void)_t_Bool_4864;
                     ;
                     ;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
                     ;
                     return _t_Bool_4864;
                 } else {
-                    Bool _t_Bool_4873; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4861, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4873 = *_hp; free(_hp); }
+                    Bool _t_Bool_4873; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4861, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4873 = *_hp; free(_hp); }
                     (void)_t_Bool_4873;
                     if (_t_Bool_4873) {
                         Bool _t_Bool_4865 = 1;
@@ -29234,11 +29234,11 @@ Bool is_numeric_type(TilType * t) {
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
                         ;
                         return _t_Bool_4865;
                     } else {
-                        Bool _t_Bool_4872; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4861, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4872 = *_hp; free(_hp); }
+                        Bool _t_Bool_4872; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4861, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4872 = *_hp; free(_hp); }
                         (void)_t_Bool_4872;
                         if (_t_Bool_4872) {
                             Bool _t_Bool_4866 = 1;
@@ -29247,11 +29247,11 @@ Bool is_numeric_type(TilType * t) {
                             ;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4866;
                         } else {
-                            Bool _t_Bool_4871; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4861, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4871 = *_hp; free(_hp); }
+                            Bool _t_Bool_4871; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4861, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4871 = *_hp; free(_hp); }
                             (void)_t_Bool_4871;
                             if (_t_Bool_4871) {
                                 Bool _t_Bool_4867 = 1;
@@ -29261,11 +29261,11 @@ Bool is_numeric_type(TilType * t) {
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4867;
                             } else {
-                                Bool _t_Bool_4870; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4861, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4870 = *_hp; free(_hp); }
+                                Bool _t_Bool_4870; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4861, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4870 = *_hp; free(_hp); }
                                 (void)_t_Bool_4870;
                                 if (_t_Bool_4870) {
                                     Bool _t_Bool_4868 = 1;
@@ -29276,7 +29276,7 @@ Bool is_numeric_type(TilType * t) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4868;
                                 } else {
@@ -29288,7 +29288,7 @@ Bool is_numeric_type(TilType * t) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4861; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4861; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4869;
                                 }
@@ -29304,7 +29304,7 @@ Bool is_numeric_type(TilType * t) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4861, &(Bool){0});
+        TilType_delete(&_sw_TilType_4861, &(Bool){0});
         ;
     }
 }
@@ -29312,39 +29312,39 @@ Bool is_numeric_type(TilType * t) {
 Bool is_integral_numeric_type(TilType * t) {
     (void)t;
     {
-        TilType _sw_v_4877; { TilType *_hp = (TilType *)TilType_clone(t); _sw_v_4877 = *_hp; free(_hp); }
-        (void)_sw_v_4877;
-        Bool _t_Bool_4890; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4877, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4890 = *_hp; free(_hp); }
+        TilType _sw_TilType_4877; { TilType *_hp = (TilType *)TilType_clone(t); _sw_TilType_4877 = *_hp; free(_hp); }
+        (void)_sw_TilType_4877;
+        Bool _t_Bool_4890; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4877, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4890 = *_hp; free(_hp); }
         (void)_t_Bool_4890;
         if (_t_Bool_4890) {
             Bool _t_Bool_4878 = 1;
             (void)_t_Bool_4878;
-            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4877; _oa; }), &(Bool){1});
+            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4877; _oa; }), &(Bool){1});
             ;
             return _t_Bool_4878;
         } else {
-            Bool _t_Bool_4889; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4877, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4889 = *_hp; free(_hp); }
+            Bool _t_Bool_4889; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4877, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4889 = *_hp; free(_hp); }
             (void)_t_Bool_4889;
             if (_t_Bool_4889) {
                 Bool _t_Bool_4879 = 1;
                 (void)_t_Bool_4879;
                 ;
-                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4877; _oa; }), &(Bool){1});
+                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4877; _oa; }), &(Bool){1});
                 ;
                 return _t_Bool_4879;
             } else {
-                Bool _t_Bool_4888; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4877, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4888 = *_hp; free(_hp); }
+                Bool _t_Bool_4888; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4877, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4888 = *_hp; free(_hp); }
                 (void)_t_Bool_4888;
                 if (_t_Bool_4888) {
                     Bool _t_Bool_4880 = 1;
                     (void)_t_Bool_4880;
                     ;
                     ;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4877; _oa; }), &(Bool){1});
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4877; _oa; }), &(Bool){1});
                     ;
                     return _t_Bool_4880;
                 } else {
-                    Bool _t_Bool_4887; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4877, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4887 = *_hp; free(_hp); }
+                    Bool _t_Bool_4887; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4877, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4887 = *_hp; free(_hp); }
                     (void)_t_Bool_4887;
                     if (_t_Bool_4887) {
                         Bool _t_Bool_4881 = 1;
@@ -29352,11 +29352,11 @@ Bool is_integral_numeric_type(TilType * t) {
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4877; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4877; _oa; }), &(Bool){1});
                         ;
                         return _t_Bool_4881;
                     } else {
-                        Bool _t_Bool_4886; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4877, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4886 = *_hp; free(_hp); }
+                        Bool _t_Bool_4886; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4877, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4886 = *_hp; free(_hp); }
                         (void)_t_Bool_4886;
                         if (_t_Bool_4886) {
                             Bool _t_Bool_4882 = 1;
@@ -29365,11 +29365,11 @@ Bool is_integral_numeric_type(TilType * t) {
                             ;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4877; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4877; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4882;
                         } else {
-                            Bool _t_Bool_4885; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4877, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4885 = *_hp; free(_hp); }
+                            Bool _t_Bool_4885; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4877, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4885 = *_hp; free(_hp); }
                             (void)_t_Bool_4885;
                             if (_t_Bool_4885) {
                                 Bool _t_Bool_4883 = 1;
@@ -29379,7 +29379,7 @@ Bool is_integral_numeric_type(TilType * t) {
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4877; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4877; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4883;
                             } else {
@@ -29390,7 +29390,7 @@ Bool is_integral_numeric_type(TilType * t) {
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4877; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4877; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4884;
                             }
@@ -29404,7 +29404,7 @@ Bool is_integral_numeric_type(TilType * t) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4877, &(Bool){0});
+        TilType_delete(&_sw_TilType_4877, &(Bool){0});
         ;
     }
 }
@@ -29436,11 +29436,11 @@ Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name) {
     }
     ;
     {
-        TilType _sw_v_4894; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4894 = *_hp; free(_hp); }
-        (void)_sw_v_4894;
-        Bool _t_Bool_4897; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4894, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4897 = *_hp; free(_hp); }
+        TilType _sw_TilType_4894; { TilType *_hp = (TilType *)TilType_clone(to); _sw_TilType_4894 = *_hp; free(_hp); }
+        (void)_sw_TilType_4894;
+        Bool _t_Bool_4897; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4894, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4897 = *_hp; free(_hp); }
         (void)_t_Bool_4897;
-        TilType_delete(&_sw_v_4894, &(Bool){0});
+        TilType_delete(&_sw_TilType_4894, &(Bool){0});
         if (_t_Bool_4897) {
             Bool _t_Bool_4895 = is_integral_numeric_type(from);
             (void)_t_Bool_4895;
@@ -29460,28 +29460,28 @@ Bool literal_in_range(Str * val_str, TilType * target) {
     (void)val_str;
     (void)target;
     {
-        TilType _sw_v_4900; { TilType *_hp = (TilType *)TilType_clone(target); _sw_v_4900 = *_hp; free(_hp); }
-        (void)_sw_v_4900;
-        Bool _t_Bool_4936; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4900, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4936 = *_hp; free(_hp); }
+        TilType _sw_TilType_4900; { TilType *_hp = (TilType *)TilType_clone(target); _sw_TilType_4900 = *_hp; free(_hp); }
+        (void)_sw_TilType_4900;
+        Bool _t_Bool_4936; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4900, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4936 = *_hp; free(_hp); }
         (void)_t_Bool_4936;
         if (_t_Bool_4936) {
             Bool _t_Bool_4901 = 1;
             (void)_t_Bool_4901;
-            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
             ;
             return _t_Bool_4901;
         } else {
-            Bool _t_Bool_4935; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4900, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4935 = *_hp; free(_hp); }
+            Bool _t_Bool_4935; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4900, &(TilType){.tag = TilType_TAG_F32}); _t_Bool_4935 = *_hp; free(_hp); }
             (void)_t_Bool_4935;
             if (_t_Bool_4935) {
                 Bool _t_Bool_4902 = 1;
                 (void)_t_Bool_4902;
                 ;
-                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
                 ;
                 return _t_Bool_4902;
             } else {
-                Bool _t_Bool_4934; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4900, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4934 = *_hp; free(_hp); }
+                Bool _t_Bool_4934; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4900, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4934 = *_hp; free(_hp); }
                 (void)_t_Bool_4934;
                 if (_t_Bool_4934) {
                     I64 val = Str_to_i64(val_str);
@@ -29503,11 +29503,11 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                     ;
                     ;
                     ;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
                     ;
                     return _t_Bool_4907;
                 } else {
-                    Bool _t_Bool_4933; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4900, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4933 = *_hp; free(_hp); }
+                    Bool _t_Bool_4933; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4900, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4933 = *_hp; free(_hp); }
                     (void)_t_Bool_4933;
                     if (_t_Bool_4933) {
                         I64 val = Str_to_i64(val_str);
@@ -29536,11 +29536,11 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
                         ;
                         return _t_Bool_4914;
                     } else {
-                        Bool _t_Bool_4932; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4900, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4932 = *_hp; free(_hp); }
+                        Bool _t_Bool_4932; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4900, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4932 = *_hp; free(_hp); }
                         (void)_t_Bool_4932;
                         if (_t_Bool_4932) {
                             I64 val = Str_to_i64(val_str);
@@ -29570,11 +29570,11 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                             ;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4921;
                         } else {
-                            Bool _t_Bool_4931; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4900, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4931 = *_hp; free(_hp); }
+                            Bool _t_Bool_4931; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4900, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4931 = *_hp; free(_hp); }
                             (void)_t_Bool_4931;
                             if (_t_Bool_4931) {
                                 I64 val = Str_to_i64(val_str);
@@ -29599,11 +29599,11 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4926;
                             } else {
-                                Bool _t_Bool_4930; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4900, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4930 = *_hp; free(_hp); }
+                                Bool _t_Bool_4930; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4900, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4930 = *_hp; free(_hp); }
                                 (void)_t_Bool_4930;
                                 if (_t_Bool_4930) {
                                     I64 val = Str_to_i64(val_str);
@@ -29620,7 +29620,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4928;
                                 } else {
@@ -29632,7 +29632,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4900; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4900; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4929;
                                 }
@@ -29648,7 +29648,7 @@ Bool literal_in_range(Str * val_str, TilType * target) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4900, &(Bool){0});
+        TilType_delete(&_sw_TilType_4900, &(Bool){0});
         ;
     }
 }
@@ -29666,45 +29666,45 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
     }
     ;
     {
-        TilType _sw_v_4938; { TilType *_hp = (TilType *)TilType_clone(from); _sw_v_4938 = *_hp; free(_hp); }
-        (void)_sw_v_4938;
-        Bool _t_Bool_4971; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4938, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4971 = *_hp; free(_hp); }
+        TilType _sw_TilType_4938; { TilType *_hp = (TilType *)TilType_clone(from); _sw_TilType_4938 = *_hp; free(_hp); }
+        (void)_sw_TilType_4938;
+        Bool _t_Bool_4971; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4938, &(TilType){.tag = TilType_TAG_U8}); _t_Bool_4971 = *_hp; free(_hp); }
         (void)_t_Bool_4971;
         if (_t_Bool_4971) {
             {
-                TilType _sw_v_4939; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4939 = *_hp; free(_hp); }
-                (void)_sw_v_4939;
-                Bool _t_Bool_4950; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4939, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4950 = *_hp; free(_hp); }
+                TilType _sw_TilType_4939; { TilType *_hp = (TilType *)TilType_clone(to); _sw_TilType_4939 = *_hp; free(_hp); }
+                (void)_sw_TilType_4939;
+                Bool _t_Bool_4950; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4939, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4950 = *_hp; free(_hp); }
                 (void)_t_Bool_4950;
                 if (_t_Bool_4950) {
                     Bool _t_Bool_4940 = 1;
                     (void)_t_Bool_4940;
-                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4939; _oa; }), &(Bool){1});
+                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4939; _oa; }), &(Bool){1});
                     ;
                     return _t_Bool_4940;
                 } else {
-                    Bool _t_Bool_4949; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4939, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4949 = *_hp; free(_hp); }
+                    Bool _t_Bool_4949; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4939, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4949 = *_hp; free(_hp); }
                     (void)_t_Bool_4949;
                     if (_t_Bool_4949) {
                         Bool _t_Bool_4941 = 1;
                         (void)_t_Bool_4941;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4939; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4939; _oa; }), &(Bool){1});
                         ;
                         return _t_Bool_4941;
                     } else {
-                        Bool _t_Bool_4948; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4939, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4948 = *_hp; free(_hp); }
+                        Bool _t_Bool_4948; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4939, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4948 = *_hp; free(_hp); }
                         (void)_t_Bool_4948;
                         if (_t_Bool_4948) {
                             Bool _t_Bool_4942 = 1;
                             (void)_t_Bool_4942;
                             ;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4939; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4939; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4942;
                         } else {
-                            Bool _t_Bool_4947; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4939, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4947 = *_hp; free(_hp); }
+                            Bool _t_Bool_4947; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4939, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4947 = *_hp; free(_hp); }
                             (void)_t_Bool_4947;
                             if (_t_Bool_4947) {
                                 Bool _t_Bool_4943 = 1;
@@ -29712,11 +29712,11 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
                                 ;
                                 ;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4939; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4939; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4943;
                             } else {
-                                Bool _t_Bool_4946; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4939, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4946 = *_hp; free(_hp); }
+                                Bool _t_Bool_4946; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4939, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4946 = *_hp; free(_hp); }
                                 (void)_t_Bool_4946;
                                 if (_t_Bool_4946) {
                                     Bool _t_Bool_4944 = 1;
@@ -29725,7 +29725,7 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4939; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4939; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4944;
                                 } else {
@@ -29735,7 +29735,7 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
                                     ;
                                     ;
                                     ;
-                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4939; _oa; }), &(Bool){1});
+                                    TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4939; _oa; }), &(Bool){1});
                                     ;
                                     return _t_Bool_4945;
                                 }
@@ -29747,95 +29747,95 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
                     }
                     ;
                 }
-                TilType_delete(&_sw_v_4939, &(Bool){0});
+                TilType_delete(&_sw_TilType_4939, &(Bool){0});
                 ;
             }
         } else {
-            Bool _t_Bool_4970; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4938, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4970 = *_hp; free(_hp); }
+            Bool _t_Bool_4970; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4938, &(TilType){.tag = TilType_TAG_I16}); _t_Bool_4970 = *_hp; free(_hp); }
             (void)_t_Bool_4970;
             if (_t_Bool_4970) {
                 {
-                    TilType _sw_v_4951; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4951 = *_hp; free(_hp); }
-                    (void)_sw_v_4951;
-                    Bool _t_Bool_4956; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4951, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4956 = *_hp; free(_hp); }
+                    TilType _sw_TilType_4951; { TilType *_hp = (TilType *)TilType_clone(to); _sw_TilType_4951 = *_hp; free(_hp); }
+                    (void)_sw_TilType_4951;
+                    Bool _t_Bool_4956; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4951, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4956 = *_hp; free(_hp); }
                     (void)_t_Bool_4956;
                     if (_t_Bool_4956) {
                         Bool _t_Bool_4952 = 1;
                         (void)_t_Bool_4952;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4951; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4951; _oa; }), &(Bool){1});
                         ;
                         return _t_Bool_4952;
                     } else {
-                        Bool _t_Bool_4955; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4951, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4955 = *_hp; free(_hp); }
+                        Bool _t_Bool_4955; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4951, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4955 = *_hp; free(_hp); }
                         (void)_t_Bool_4955;
                         if (_t_Bool_4955) {
                             Bool _t_Bool_4953 = 1;
                             (void)_t_Bool_4953;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4951; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4951; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4953;
                         } else {
                             Bool _t_Bool_4954 = 0;
                             (void)_t_Bool_4954;
                             ;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4951; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4951; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4954;
                         }
                         ;
                     }
-                    TilType_delete(&_sw_v_4951, &(Bool){0});
+                    TilType_delete(&_sw_TilType_4951, &(Bool){0});
                     ;
                 }
             } else {
-                Bool _t_Bool_4969; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4938, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4969 = *_hp; free(_hp); }
+                Bool _t_Bool_4969; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4938, &(TilType){.tag = TilType_TAG_U32}); _t_Bool_4969 = *_hp; free(_hp); }
                 (void)_t_Bool_4969;
                 if (_t_Bool_4969) {
                     {
-                        TilType _sw_v_4957; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4957 = *_hp; free(_hp); }
-                        (void)_sw_v_4957;
-                        Bool _t_Bool_4962; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4957, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4962 = *_hp; free(_hp); }
+                        TilType _sw_TilType_4957; { TilType *_hp = (TilType *)TilType_clone(to); _sw_TilType_4957 = *_hp; free(_hp); }
+                        (void)_sw_TilType_4957;
+                        Bool _t_Bool_4962; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4957, &(TilType){.tag = TilType_TAG_U64}); _t_Bool_4962 = *_hp; free(_hp); }
                         (void)_t_Bool_4962;
                         if (_t_Bool_4962) {
                             Bool _t_Bool_4958 = 1;
                             (void)_t_Bool_4958;
-                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4957; _oa; }), &(Bool){1});
+                            TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4957; _oa; }), &(Bool){1});
                             ;
                             return _t_Bool_4958;
                         } else {
-                            Bool _t_Bool_4961; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4957, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4961 = *_hp; free(_hp); }
+                            Bool _t_Bool_4961; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4957, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4961 = *_hp; free(_hp); }
                             (void)_t_Bool_4961;
                             if (_t_Bool_4961) {
                                 Bool _t_Bool_4959 = 1;
                                 (void)_t_Bool_4959;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4957; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4957; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4959;
                             } else {
                                 Bool _t_Bool_4960 = 0;
                                 (void)_t_Bool_4960;
                                 ;
-                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4957; _oa; }), &(Bool){1});
+                                TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4957; _oa; }), &(Bool){1});
                                 ;
                                 return _t_Bool_4960;
                             }
                             ;
                         }
-                        TilType_delete(&_sw_v_4957, &(Bool){0});
+                        TilType_delete(&_sw_TilType_4957, &(Bool){0});
                         ;
                     }
                 } else {
-                    Bool _t_Bool_4968; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4938, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4968 = *_hp; free(_hp); }
+                    Bool _t_Bool_4968; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4938, &(TilType){.tag = TilType_TAG_I32}); _t_Bool_4968 = *_hp; free(_hp); }
                     (void)_t_Bool_4968;
                     if (_t_Bool_4968) {
                         {
-                            TilType _sw_v_4963; { TilType *_hp = (TilType *)TilType_clone(to); _sw_v_4963 = *_hp; free(_hp); }
-                            (void)_sw_v_4963;
-                            Bool _t_Bool_4966; { Bool *_hp = (Bool *)TilType_eq(&_sw_v_4963, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4966 = *_hp; free(_hp); }
+                            TilType _sw_TilType_4963; { TilType *_hp = (TilType *)TilType_clone(to); _sw_TilType_4963 = *_hp; free(_hp); }
+                            (void)_sw_TilType_4963;
+                            Bool _t_Bool_4966; { Bool *_hp = (Bool *)TilType_eq(&_sw_TilType_4963, &(TilType){.tag = TilType_TAG_I64}); _t_Bool_4966 = *_hp; free(_hp); }
                             (void)_t_Bool_4966;
-                            TilType_delete(&_sw_v_4963, &(Bool){0});
+                            TilType_delete(&_sw_TilType_4963, &(Bool){0});
                             if (_t_Bool_4966) {
                                 Bool _t_Bool_4964 = 1;
                                 (void)_t_Bool_4964;
@@ -29855,7 +29855,7 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
                         ;
                         ;
                         ;
-                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_v_4938; _oa; }), &(Bool){1});
+                        TilType_delete(({ TilType *_oa = malloc(sizeof(TilType)); *_oa = _sw_TilType_4938; _oa; }), &(Bool){1});
                         ;
                         return _t_Bool_4967;
                     }
@@ -29865,7 +29865,7 @@ Bool can_implicit_widen(TilType * from, TilType * to) {
             }
             ;
         }
-        TilType_delete(&_sw_v_4938, &(Bool){0});
+        TilType_delete(&_sw_TilType_4938, &(Bool){0});
         ;
     }
 }

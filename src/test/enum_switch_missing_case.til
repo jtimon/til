@@ -1,0 +1,22 @@
+mode test
+
+Color := enum { Red, Green, Blue }
+Token := enum { Num: I64, Name: Str, Eof }
+
+test_missing_simple_case := test() {
+    mut result := ""
+    switch Color.Green {
+    case Color.Red: result = "red"
+    case Color.Green: result = "green"
+    }
+    println(result)
+}
+
+test_missing_payload_case := test() {
+    mut result := ""
+    switch Token.Num(42) {
+    case Token.Num(n): result = "num"
+    case Token.Eof: result = "eof"
+    }
+    println(result)
+}

@@ -2997,6 +2997,26 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             Expr *sw_expr = Expr_child(stmt, &(USize){(USize)(0)});
             I32 sw_line = stmt->line, sw_col = stmt->col;
             Str *sw_path = &stmt->path;
+            infer_expr(scope, sw_expr, in_func);
+            Expr *switch_enum_def = NULL;
+            Bool *covered_variants = NULL;
+            U32 n_variants = 0;
+            Bool has_default_case = 0;
+
+            if (sw_expr->til_type.tag == TilType_TAG_Enum && sw_expr->struct_name.count > 0) {
+                switch_enum_def = TypeScope_get_struct(scope, &sw_expr->struct_name);
+                if (switch_enum_def && switch_enum_def->data.tag == ExprData_TAG_EnumDef) {
+                    Expr *enum_body = Expr_child(switch_enum_def, &(USize){0});
+                    for (U32 vi = 0; vi < enum_body->children.count; vi++) {
+                        Expr *variant = Expr_child(enum_body, &(USize){vi});
+                        if (variant->data.tag == ExprData_TAG_Decl && !variant->data.data.Decl.is_namespace)
+                            n_variants++;
+                    }
+                    if (n_variants > 0) covered_variants = calloc(n_variants, sizeof(Bool));
+                } else {
+                    switch_enum_def = NULL;
+                }
+            }
 
             // Unique switch variable name
             char sw_buf[128];
@@ -3027,11 +3047,42 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (case_node->children.count == 1) {
                     // Default case — just body, no match expr
                     default_body = Expr_child(case_node, &(USize){(USize)(0)});
+                    has_default_case = 1;
                     continue;
                 }
                 Expr *match_expr = Expr_child(case_node, &(USize){(USize)(0)});
                 Expr *case_body = Expr_child(case_node, &(USize){(USize)(1)});
                 Expr *condition = NULL;
+
+                if (switch_enum_def && covered_variants) {
+                    Str *covered_variant_name = NULL;
+
+                    // case Enum.Variant:
+                    if (match_expr->data.tag == ExprData_TAG_FieldAccess &&
+                        match_expr->children.count > 0 &&
+                        Expr_child(match_expr, &(USize){0})->data.tag == ExprData_TAG_Ident &&
+                        Str_eq(&Expr_child(match_expr, &(USize){0})->data.data.Ident, &sw_expr->struct_name)) {
+                        covered_variant_name = &match_expr->data.data.FieldAccess;
+                    }
+
+                    // case Enum.Variant(binding): covers the whole variant
+                    if (!covered_variant_name &&
+                        match_expr->data.tag == ExprData_TAG_FCall &&
+                        match_expr->children.count == 2 &&
+                        Expr_child(match_expr, &(USize){0})->data.tag == ExprData_TAG_FieldAccess &&
+                        Expr_child(Expr_child(match_expr, &(USize){0}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
+                        Expr_child(match_expr, &(USize){1})->data.tag == ExprData_TAG_Ident &&
+                        Str_eq(&Expr_child(Expr_child(match_expr, &(USize){0}), &(USize){0})->data.data.Ident, &sw_expr->struct_name)) {
+                        covered_variant_name = &Expr_child(match_expr, &(USize){0})->data.data.FieldAccess;
+                    }
+
+                    if (covered_variant_name) {
+                        I32 covered_tag = *enum_variant_tag(switch_enum_def, covered_variant_name);
+                        if (covered_tag >= 0 && (U32)covered_tag < n_variants) {
+                            covered_variants[covered_tag] = 1;
+                        }
+                    }
+                }
 
                 // Phase 2: Range case — case A..B: → _sw.gte(A).and(_sw.lte(B))
                 // Detect Range.new(start, end) pattern from parser's .. desugaring
@@ -3202,6 +3253,30 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Only a default case — just emit the body
                 first_if = default_body;
             }
+
+            if (switch_enum_def && covered_variants && !has_default_case) {
+                Expr *enum_body = Expr_child(switch_enum_def, &(USize){0});
+                char buf[1024];
+                size_t used = snprintf(buf, sizeof(buf),
+                                       "non-exhaustive switch on enum '%s'; missing cases:",
+                                       sw_expr->struct_name.c_str);
+                U32 variant_idx = 0;
+                Bool missing = 0;
+                for (U32 vi = 0; vi < enum_body->children.count; vi++) {
+                    Expr *variant = Expr_child(enum_body, &(USize){vi});
+                    if (variant->data.tag != ExprData_TAG_Decl || variant->data.data.Decl.is_namespace) continue;
+                    if (!covered_variants[variant_idx]) {
+                        missing = 1;
+                        used += snprintf(buf + used, sizeof(buf) - used, "%s %s",
+                                         used > 0 && buf[used - 1] == ':' ? "" : ",",
+                                         variant->data.data.Decl.name.c_str);
+                    }
+                    variant_idx++;
+                }
+                if (missing) type_error(stmt, buf);
+            }
+
+            free(covered_variants);
 
             if (first_if) Expr_add_child(block, first_if);
 

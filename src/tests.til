@@ -403,6 +403,12 @@ main := proc(args: ..Str) {
     add_count(tests, "qualifier_returns_own_error", "parser",
               "returns are owned by default", 1,
               asan_safe_cmd(til_bin.concat(" interpret src/test/qualifier_returns_own_error.til"), til_bin))
+    add_count(tests, "enum_switch_missing_case_interp", "typer",
+              "non-exhaustive switch on enum", 2,
+              asan_safe_cmd(til_bin.concat(" interpret src/test/enum_switch_missing_case.til"), til_bin))
+    add_count(tests, "enum_switch_missing_case_build", "typer",
+              "non-exhaustive switch on enum", 2,
+              asan_safe_cmd(til_bin.concat(" build src/test/enum_switch_missing_case.til"), til_bin))
 
     // === 24 CLI tests (12 cases × interpret + run) ===
     exp := "gen/out/expected/"
