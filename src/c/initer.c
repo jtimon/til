@@ -934,75 +934,93 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
     return errors;
 }
 
-static void generate_size_methods(Expr *program, TypeScope *scope) {
-    (void)scope;
+static Bool should_skip_size_generation(Expr *stmt, Expr *def) {
+    Str *sname = &stmt->data.data.Decl.name;
+    if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
+        (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) return 1;
+    if (def->is_ext && stmt->is_core) return 1;
+    return 0;
+}
+
+static Bool has_namespace_size_method(Expr *body) {
+    for (U32 j = 0; j < body->children.count; j++) {
+        Expr *field = Expr_child(body, &(USize){(USize)(j)});
+        if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
+            (field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void add_size_method(Expr *stmt, Expr *body, I32 sz) {
+    I32 line = stmt->line;
+    I32 col = stmt->col;
+    Str *path = &stmt->path;
+    char sz_buf[16];
+    snprintf(sz_buf, sizeof(sz_buf), "%d", sz);
+
+    Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+    Expr *size_expr = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
+    size_expr->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(sz_buf), .count = (U64)strlen((const char*)(sz_buf)), .cap = CAP_VIEW});
+    Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+    Expr_add_child(ret, size_expr);
+    Expr_add_child(func_body, ret);
+
+    Expr *func_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+    func_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+    func_def->data.data.FuncDef.nparam = 0;
+    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); func_def->data.data.FuncDef.params = *_v; free(_v); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+    func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"USize", .count = 5, .cap = CAP_LIT};
+    func_def->data.data.FuncDef.variadic_index = -1;
+    func_def->data.data.FuncDef.kwargs_index = -1;
+    Expr_add_child(func_def, func_body);
+
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+    decl->data.data.Decl.name = (Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT};
+    decl->data.data.Decl.is_namespace = true;
+    decl->data.data.Decl.is_mut = false;
+    decl->data.data.Decl.explicit_type = (Str){0};
+    Expr_add_child(decl, func_def);
+
+    Expr_add_child(body, decl);
+}
+
+static void generate_struct_size_methods(Expr *program) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl) continue;
         Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-        if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+        if (def->data.tag != ExprData_TAG_StructDef) continue;
+        if (should_skip_size_generation(stmt, def)) continue;
 
-        Str *sname = &stmt->data.data.Decl.name;
+        Expr *body = Expr_child(def, &(USize){(USize)(0)});
+        if (has_namespace_size_method(body)) continue;
 
-        // Skip meta-types
-        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
-            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
-
-        // Skip core ext_structs (they define size in core.til)
-        if (def->is_ext && stmt->is_core) continue;
-
-        Expr *body = Expr_child(def, &(USize){(USize)(0)}); // ExprData_TAG_Body
-
-        // Check if size already exists in namespace
-        Bool has_size = 0;
-        for (U32 j = 0; j < body->children.count; j++) {
-            Expr *field = Expr_child(body, &(USize){(USize)(j)});
-            if (field->data.tag == ExprData_TAG_Decl && field->data.data.Decl.is_namespace &&
-                (field->data.data.Decl.name.count == 4 && memcmp(field->data.data.Decl.name.c_str, "size", 4) == 0)) {
-                has_size = 1;
-                break;
-            }
-        }
-        if (has_size) continue;
-
-        I32 line = stmt->line;
-        I32 col = stmt->col;
-        Str *path = &stmt->path;
-
-        // Use computed total_struct_size for structs, 8 for enums (I64 or pointer)
-        I32 sz = def->data.tag == ExprData_TAG_EnumDef
-            ? (enum_has_payloads(def) ? 8 : 4)
-            : def->data.data.StructDef.total_struct_size;
-        char sz_buf[16];
-        snprintf(sz_buf, sizeof(sz_buf), "%d", sz);
-
-        // size := func() returns USize { return <literal> }
-        Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-        Expr *size_expr = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
-        size_expr->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(sz_buf), .count = (U64)strlen((const char*)(sz_buf)), .cap = CAP_VIEW});
-        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-        Expr_add_child(ret, size_expr);
-        Expr_add_child(func_body, ret);
-
-        Expr *func_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-        func_def->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
-        func_def->data.data.FuncDef.nparam = 0;
-        { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); func_def->data.data.FuncDef.params = *_v; free(_v); }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); func_def->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-        func_def->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"USize", .count = 5, .cap = CAP_LIT};
-        func_def->data.data.FuncDef.variadic_index = -1;
-        func_def->data.data.FuncDef.kwargs_index = -1;
-        Expr_add_child(func_def, func_body);
-
-        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-        decl->data.data.Decl.name = (Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT};
-        decl->data.data.Decl.is_namespace = true;
-        decl->data.data.Decl.is_mut = false;
-        decl->data.data.Decl.explicit_type = (Str){0};
-        Expr_add_child(decl, func_def);
-
-        Expr_add_child(body, decl);
+        add_size_method(stmt, body, def->data.data.StructDef.total_struct_size);
     }
+}
+
+static void generate_enum_size_methods(Expr *program) {
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
+        if (def->data.tag != ExprData_TAG_EnumDef) continue;
+        if (should_skip_size_generation(stmt, def)) continue;
+
+        Expr *body = Expr_child(def, &(USize){(USize)(0)});
+        if (has_namespace_size_method(body)) continue;
+
+        add_size_method(stmt, body, enum_has_payloads(def) ? 8 : 4);
+    }
+}
+
+static void generate_size_methods(Expr *program, TypeScope *scope) {
+    (void)scope;
+    generate_struct_size_methods(program);
+    generate_enum_size_methods(program);
 }
 
 static void generate_derived_methods(Expr *program, TypeScope *scope) {
