@@ -113,6 +113,16 @@ void generate_enum_clone_method(Expr *body, Str *ename, I32 line, I32 col, Str *
     Expr_add_child(body, decl);
 }
 
+void generate_enum_clone_method_for_body(Expr *body, Str *ename, I32 line, I32 col, Str *path) {
+    Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_names = *_vp; free(_vp); }
+    Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_types = *_vp; free(_vp); }
+    Bool has_payloads = 0;
+    collect_enum_variants(body, &variant_names, &variant_types, &has_payloads);
+    generate_enum_clone_method(body, ename, line, col, path, &variant_names, &variant_types, has_payloads);
+    Vec_delete(&variant_names, &(Bool){0});
+    Vec_delete(&variant_types, &(Bool){0});
+}
+
 static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {
