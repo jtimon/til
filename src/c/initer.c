@@ -382,6 +382,155 @@ static void generate_enum_clone_method(Expr *body, Str *ename, I32 line, I32 col
     Expr_add_child(body, decl);
 }
 
+static void generate_enum_to_str_method(Expr *body, Str *ename, I32 line, I32 col, Str *path, Vec *variant_names, Vec *variant_types, Bool has_payloads, TypeScope *scope) {
+    Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+    for (U32 j = 0; j < variant_names->count; j++) {
+        if (has_payloads) {
+            // Payload enum to_str: if is_variant(self, E.V) { ... }
+            Str *tvn = (Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+            Expr *tiv = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            tiv->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
+            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            Expr *tet = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            tet->data.data.Ident = *ename;
+            Expr *tvr = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+            tvr->data.data.FieldAccess = *tvn;
+            Expr_add_child(tvr, tet);
+            Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr_add_child(is_call, tiv);
+            Expr_add_child(is_call, self_id);
+            Expr_add_child(is_call, tvr);
+
+            Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+            Str *vtype = (Str *)Vec_get(variant_types, &(USize){(USize)(j)});
+            if (vtype && (*vtype).count > 0 && type_from_name_init(vtype, scope)->tag == TilType_TAG_FuncPtr) {
+                // FuncSig payload: return "Variant(func)"
+                char buf[256];
+                snprintf(buf, sizeof(buf), "%s(func)", ((Str *)Vec_get(variant_names, &(USize){(USize)(j)}))->c_str);
+                Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                ret_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+                Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                Expr_add_child(ret, ret_str);
+                Expr_add_child(then_body, ret);
+            } else if (vtype->count > 0) {
+                // ref _pN : Type = get_payload(self); return format("V(", _pN.to_str(), ")")
+                char pn_buf[128];
+                snprintf(pn_buf, sizeof(pn_buf), "_p_%s_%u", vtype->c_str, j);
+                Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
+                Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
+                Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                Expr *gc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                Expr_add_child(gc, gp); Expr_add_child(gc, self2);
+                Expr *pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+                pd->data.data.Decl.name = pn;
+                pd->data.data.Decl.explicit_type = *vtype;
+                pd->data.data.Decl.is_ref = true;
+                Expr_add_child(pd, gc);
+                Expr_add_child(then_body, pd);
+
+                Expr *fmt_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                Expr *fmt_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                fmt_id->data.data.Ident = (Str){.c_str = (U8*)"format", .count = 6, .cap = CAP_LIT};
+                Expr_add_child(fmt_call, fmt_id);
+
+                char prefix_buf[256];
+                snprintf(prefix_buf, sizeof(prefix_buf), "%s(", ((Str *)Vec_get(variant_names, &(USize){(USize)(j)}))->c_str);
+                Expr *prefix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                prefix->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(prefix_buf), .count = (U64)strlen((const char*)(prefix_buf)), .cap = CAP_VIEW});
+                Expr_add_child(fmt_call, prefix);
+
+                Expr *p_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                p_id->data.data.Ident = pn;
+                Expr *tostr_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                tostr_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"to_str", .count = 6, .cap = CAP_LIT};
+                Expr_add_child(tostr_acc, p_id);
+                Expr *tostr_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                Expr_add_child(tostr_call, tostr_acc);
+                Expr_add_child(fmt_call, tostr_call);
+
+                Expr *suffix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                suffix->data.data.LiteralStr = (Str){.c_str = (U8*)")", .count = 1, .cap = CAP_LIT};
+                Expr_add_child(fmt_call, suffix);
+
+                Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                Expr_add_child(ret, fmt_call);
+                Expr_add_child(then_body, ret);
+            } else {
+                // return "VariantName"
+                Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+                ret_str->data.data.LiteralStr = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+                Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+                Expr_add_child(ret, ret_str);
+                Expr_add_child(then_body, ret);
+            }
+
+            Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+            Expr_add_child(if_node, is_call);
+            Expr_add_child(if_node, then_body);
+            Expr_add_child(func_body, if_node);
+        } else {
+            // Simple enum: if self.eq(EnumName.VariantName) { return "VariantName" }
+            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+            eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+            Expr_add_child(eq_acc, self_id);
+
+            // EnumName.VariantName (bare field access)
+            Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            ename_id->data.data.Ident = *ename;
+            Expr *var_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+            var_acc->data.data.FieldAccess = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+            Expr_add_child(var_acc, ename_id);
+
+            Expr *eq_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr_add_child(eq_call, eq_acc);
+            Expr_add_child(eq_call, var_acc);
+
+            Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+            ret_str->data.data.LiteralStr = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+            Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+            Expr_add_child(ret, ret_str);
+            Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+            Expr_add_child(then_body, ret);
+
+            Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+            Expr_add_child(if_node, eq_call);
+            Expr_add_child(if_node, then_body);
+            Expr_add_child(func_body, if_node);
+        }
+    }
+    // return "unknown"
+    Expr *unk = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+    unk->data.data.LiteralStr = (Str){.c_str = (U8*)"unknown", .count = 7, .cap = CAP_LIT};
+    Expr *ret_unk = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+    Expr_add_child(ret_unk, unk);
+    Expr_add_child(func_body, ret_unk);
+
+    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+    fdef->data.data.FuncDef.nparam = 1;
+    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+    { Param *_p = calloc(1, sizeof(Param));
+      _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+      _p->ptype = *ename;
+      Vec_push(&fdef->data.data.FuncDef.params, _p); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+    fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+    fdef->data.data.FuncDef.variadic_index = -1;
+    fdef->data.data.FuncDef.kwargs_index = -1;
+    Expr_add_child(fdef, func_body);
+
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+    decl->data.data.Decl.name = (Str){.c_str = (U8*)"to_str", .count = 6, .cap = CAP_LIT};
+    decl->data.data.Decl.is_namespace = true;
+    Expr_add_child(decl, fdef);
+    Expr_add_child(body, decl);
+}
+
 static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {
@@ -439,154 +588,8 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
             generate_enum_delete_method(body, ename, line, col, path);
         }
 
-        // Auto-generate to_str := func(self: E) returns Str { if-chain }
         if (!has_to_str) {
-            Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-            for (U32 j = 0; j < variant_names.count; j++) {
-                if (has_payloads) {
-                    // Payload enum to_str: if is_variant(self, E.V) { ... }
-                    Str *tvn = (Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                    Expr *tiv = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    tiv->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
-                    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                    Expr *tet = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    tet->data.data.Ident = *ename;
-                    Expr *tvr = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    tvr->data.data.FieldAccess = *tvn;
-                    Expr_add_child(tvr, tet);
-                    Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(is_call, tiv);
-                    Expr_add_child(is_call, self_id);
-                    Expr_add_child(is_call, tvr);
-
-                    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-                    Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
-                    if (vtype && (*vtype).count > 0 && type_from_name_init(vtype, scope)->tag == TilType_TAG_FuncPtr) {
-                        // FuncSig payload: return "Variant(func)"
-                        char buf[256];
-                        snprintf(buf, sizeof(buf), "%s(func)", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                        Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                        ret_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-                        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-                        Expr_add_child(ret, ret_str);
-                        Expr_add_child(then_body, ret);
-                    } else if (vtype->count > 0) {
-                        // ref _pN : Type = get_payload(self); return format("V(", _pN.to_str(), ")")
-                        char pn_buf[128];
-                        snprintf(pn_buf, sizeof(pn_buf), "_p_%s_%u", vtype->c_str, j);
-                        Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
-                        Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
-                        Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                        Expr *gc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(gc, gp); Expr_add_child(gc, self2);
-                        Expr *pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                        pd->data.data.Decl.name = pn;
-                        pd->data.data.Decl.explicit_type = *vtype;
-                        pd->data.data.Decl.is_ref = true;
-                        Expr_add_child(pd, gc);
-                        Expr_add_child(then_body, pd);
-
-                        Expr *fmt_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr *fmt_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        fmt_id->data.data.Ident = (Str){.c_str = (U8*)"format", .count = 6, .cap = CAP_LIT};
-                        Expr_add_child(fmt_call, fmt_id);
-
-                        char prefix_buf[256];
-                        snprintf(prefix_buf, sizeof(prefix_buf), "%s(", ((Str *)Vec_get(&variant_names, &(USize){(USize)(j)}))->c_str);
-                        Expr *prefix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                        prefix->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(prefix_buf), .count = (U64)strlen((const char*)(prefix_buf)), .cap = CAP_VIEW});
-                        Expr_add_child(fmt_call, prefix);
-
-                        Expr *p_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        p_id->data.data.Ident = pn;
-                        Expr *tostr_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        tostr_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"to_str", .count = 6, .cap = CAP_LIT};
-                        Expr_add_child(tostr_acc, p_id);
-                        Expr *tostr_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(tostr_call, tostr_acc);
-                        Expr_add_child(fmt_call, tostr_call);
-
-                        Expr *suffix = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                        suffix->data.data.LiteralStr = (Str){.c_str = (U8*)")", .count = 1, .cap = CAP_LIT};
-                        Expr_add_child(fmt_call, suffix);
-
-                        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-                        Expr_add_child(ret, fmt_call);
-                        Expr_add_child(then_body, ret);
-                    } else {
-                        // return "VariantName"
-                        Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                        ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-                        Expr_add_child(ret, ret_str);
-                        Expr_add_child(then_body, ret);
-                    }
-
-                    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
-                    Expr_add_child(if_node, is_call);
-                    Expr_add_child(if_node, then_body);
-                    Expr_add_child(func_body, if_node);
-                } else {
-                    // Simple enum: if self.eq(EnumName.VariantName) { return "VariantName" }
-                    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                    Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
-                    Expr_add_child(eq_acc, self_id);
-
-                    // EnumName.VariantName (bare field access)
-                    Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    ename_id->data.data.Ident = *ename;
-                    Expr *var_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                    var_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                    Expr_add_child(var_acc, ename_id);
-
-                    Expr *eq_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(eq_call, eq_acc);
-                    Expr_add_child(eq_call, var_acc);
-
-                    Expr *ret_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-                    ret_str->data.data.LiteralStr = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                    Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-                    Expr_add_child(ret, ret_str);
-                    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-                    Expr_add_child(then_body, ret);
-
-                    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
-                    Expr_add_child(if_node, eq_call);
-                    Expr_add_child(if_node, then_body);
-                    Expr_add_child(func_body, if_node);
-                }
-            }
-            // return "unknown"
-            Expr *unk = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-            unk->data.data.LiteralStr = (Str){.c_str = (U8*)"unknown", .count = 7, .cap = CAP_LIT};
-            Expr *ret_unk = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-            Expr_add_child(ret_unk, unk);
-            Expr_add_child(func_body, ret_unk);
-
-            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
-            fdef->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-              _p->ptype = *ename;
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-            fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-            fdef->data.data.FuncDef.variadic_index = -1;
-            fdef->data.data.FuncDef.kwargs_index = -1;
-            Expr_add_child(fdef, func_body);
-
-            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-            decl->data.data.Decl.name = (Str){.c_str = (U8*)"to_str", .count = 6, .cap = CAP_LIT};
-            decl->data.data.Decl.is_namespace = true;
-            Expr_add_child(decl, fdef);
-            Expr_add_child(body, decl);
+            generate_enum_to_str_method(body, ename, line, col, path, &variant_names, &variant_types, has_payloads, scope);
         }
 
         Vec_delete(&variant_names, &(Bool){0});
