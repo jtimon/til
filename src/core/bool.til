@@ -1,0 +1,19 @@
+mode lib
+
+Bool : StructDef = ext_struct {
+namespace:
+    to_str := func(b: Bool) returns Str {
+        if b { return "true" } else { return "false" }
+    }
+    eq := ext_func(shallow a: Bool, shallow b: Bool) returns shallow Bool {}
+    cmp := func(a: Bool, b: Bool) returns I64 {
+        if a.eq(b) { return 0 }
+        if b { return -1 }
+        return 1
+    }
+    clone := ext_func(val: Bool) returns shallow Bool {}
+    delete := func(own self: Bool, call_free: Bool = true) {
+        if call_free { free(own self) }
+    }
+    size := func() returns USize { return 1 }
+}

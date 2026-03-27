@@ -206,7 +206,6 @@ typedef struct Range {
 } Range;
 
 
-
 typedef struct Str {
     U8 *c_str;
     U32 count;
@@ -263,6 +262,7 @@ typedef struct Param {
     Bool is_own;
     Bool is_shallow;
 } Param;
+
 
 
 struct TokenType {
