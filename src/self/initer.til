@@ -200,6 +200,81 @@ register_top_level_values := proc(program: Expr, scope: TypeScope) {
     }
 }
 
+register_function_definitions := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        ref def : Expr = stmt.child(0)
+        if is_variant(def.data, ExprData.FuncDef).not() { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+
+        if def.child_count().eq(0) {
+            scope.set(sdecl.name, TilType.FuncPtr, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+            ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+            fb.func_def = stmt.child(0)
+            continue
+        }
+
+        if sdecl.explicit_type.len().gt(0) {
+            fs_find := scope.find(sdecl.explicit_type)
+            if is_variant(fs_find, ScopeFind.Found) {
+                ref fs_payload : Dynamic = get_payload(fs_find)
+                ref fsb : TypeBinding = fs_payload
+                if is_null(fsb.func_def).not() {
+                    if fsb.func_def.child_count().eq(0) {
+                        ref mut fdef : FunctionDef = get_payload(def.data)
+                        ref sig : Expr = fsb.func_def
+                        ref sigdef : FunctionDef = get_payload(sig.data)
+                        if fdef.nparam.neq(sigdef.nparam) {
+                            panic(
+                                __LOC__,
+                                stmt.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                                ": error: '", sdecl.name, "' expects ", fdef.nparam.to_str(),
+                                " params but FuncSig '", sdecl.explicit_type, "' has ", sigdef.nparam.to_str(),
+                            )
+                        }
+                        fdef.func_type = sigdef.func_type
+                        for j in 0..sigdef.nparam {
+                            ref mut dp : Param = fdef.params.get(j)
+                            ref sp : Param = sigdef.params.get(j)
+                            dp.ptype = sp.ptype
+                            dp.is_mut = sp.is_mut
+                            dp.is_own = sp.is_own
+                            dp.is_shallow = sp.is_shallow
+                        }
+                        fdef.return_type = sigdef.return_type
+                        fdef.return_is_ref = sigdef.return_is_ref
+                        fdef.return_is_shallow = sigdef.return_is_shallow
+                        sdecl.explicit_type = ""
+                    }
+                }
+            }
+        }
+
+        ref fdef : FunctionDef = get_payload(def.data)
+        ft := fdef.func_type
+        mut callee_is_proc : I32 = 0
+        if ft.eq(FuncType.Test) {
+            callee_is_proc = 2
+        } else if ft.eq(FuncType.Proc).or(ft.eq(FuncType.ExtProc)) {
+            callee_is_proc = 1
+        }
+
+        mut rt := TilType.None
+        if fdef.return_type.len().gt(0) {
+            rt = type_from_name_init(fdef.return_type, scope)
+        }
+
+        scope.set(sdecl.name, rt, callee_is_proc, false, stmt.line, stmt.col, false, false)
+        ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+        fb.func_def = stmt.child(0)
+        if ft.eq(FuncType.ExtFunc).or(ft.eq(FuncType.ExtProc)) {
+            fb.is_builtin = true
+        }
+    }
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }

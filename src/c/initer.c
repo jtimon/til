@@ -1180,68 +1180,6 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
     }
 }
 
-static void register_function_definitions(Expr *program, TypeScope *scope) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-
-        // Bodyless func/proc = FuncSig type definition
-        if (Expr_child(stmt, &(USize){(USize)(0)})->children.count == 0) {
-            TypeScope_set(scope, &stmt->data.data.Decl.name, &(TilType){TilType_TAG_FuncPtr}, -1, 0,
-                       stmt->line, stmt->col, 0, 0);
-            TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-            fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
-            continue;
-        }
-
-        // Named FuncSig form: name : Type = (names) { body }
-        // Fill types from the named FuncSig before normal processing
-        if (stmt->data.data.Decl.explicit_type.count > 0) {
-            ScopeFind *_sf6 = TypeScope_find(scope, &stmt->data.data.Decl.explicit_type);
-            TypeBinding *fsb = _sf6->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf6) : NULL;
-            if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
-                Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-                Expr *sig = fsb->func_def;
-                if (def->data.data.FuncDef.nparam != sig->data.data.FuncDef.nparam) {
-                    fprintf(stderr, "%s:%u:%u: error: '%s' expects %u params but FuncSig '%s' has %u\n",
-                            stmt->path.c_str, stmt->line, stmt->col,
-                            stmt->data.data.Decl.name.c_str, def->data.data.FuncDef.nparam,
-                            stmt->data.data.Decl.explicit_type.c_str, sig->data.data.FuncDef.nparam);
-                    exit(1);
-                }
-                def->data.data.FuncDef.func_type = sig->data.data.FuncDef.func_type;
-                for (U32 j = 0; j < sig->data.data.FuncDef.nparam; j++) {
-                    Param *dp = (Param*)Vec_get(&def->data.data.FuncDef.params, &(USize){(USize)(j)});
-                    Param *sp = (Param*)Vec_get(&sig->data.data.FuncDef.params, &(USize){(USize)(j)});
-                    dp->ptype = sp->ptype;
-                    dp->is_mut = sp->is_mut;
-                    dp->is_own = sp->is_own;
-                    dp->is_shallow = sp->is_shallow;
-                }
-                def->data.data.FuncDef.return_type = sig->data.data.FuncDef.return_type;
-                def->data.data.FuncDef.return_is_ref = sig->data.data.FuncDef.return_is_ref;
-                def->data.data.FuncDef.return_is_shallow = sig->data.data.FuncDef.return_is_shallow;
-                stmt->data.data.Decl.explicit_type = (Str){0}; // now a normal FuncDef
-            }
-        }
-
-        FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
-        I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
-        TilType rt = (TilType){TilType_TAG_None};
-        if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
-            rt = *type_from_name_init(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
-        }
-        TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-        {
-            fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
-            if (ft.tag == FuncType_TAG_ExtFunc || ft.tag == FuncType_TAG_ExtProc)
-                fb->is_builtin = 1;
-        }
-    }
-}
-
 I32 init_declarations(Expr *program, TypeScope *scope) {
     I32 errors = 0;
 
