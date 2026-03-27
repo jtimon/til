@@ -4,7 +4,6 @@
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
 typedef struct Dynamic Dynamic;
-typedef struct Range Range;
 typedef struct Array Array;
 typedef struct Map Map;
 typedef struct Set Set;
@@ -74,6 +73,7 @@ typedef enum {
 } ExprData_tag;
 typedef struct ExprData ExprData;
 typedef struct Expr Expr;
+typedef struct Range Range;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -195,12 +195,6 @@ typedef struct Dynamic {
 } Dynamic;
 
 
-typedef struct Range {
-    U64 start;
-    U64 end;
-} Range;
-
-
 typedef struct Str {
     U8 *c_str;
     U32 count;
@@ -279,6 +273,12 @@ typedef struct StructDefData {
 
 
 
+
+
+typedef struct Range {
+    U64 start;
+    U64 end;
+} Range;
 
 
 
@@ -539,12 +539,6 @@ typedef struct Scope {
 EnumDef * EnumDef_clone(EnumDef * self);
 void EnumDef_delete(EnumDef * self, Bool * call_free);
 U32 * EnumDef_size(void);
-Range * Range_new(U64 start, U64 end);
-U64 * Range_len(Range * self);
-U64 * Range_get(Range * self, U64 i);
-Range * Range_clone(Range * val);
-void Range_delete(Range * self, Bool * call_free);
-U32 * Range_size(void);
 void println(Array * parts);
 void print(Array * parts);
 Str * format(Array * parts);
@@ -695,6 +689,12 @@ void ast_print(Expr * e, U32 indent);
 Bool enum_has_payloads(Expr * enum_def);
 I32 * enum_variant_tag(Expr * enum_def, Str * variant_name);
 Str * enum_variant_type(Expr * enum_def, I32 tag);
+Range * Range_new(U64 start, U64 end);
+U64 * Range_len(Range * self);
+U64 * Range_get(Range * self, U64 i);
+Range * Range_clone(Range * val);
+void Range_delete(Range * self, Bool * call_free);
+U32 * Range_size(void);
 Bool * TokenType_is(TokenType * self, TokenType * other);
 Bool * TokenType_eq(TokenType * self, TokenType * other);
 TokenType * TokenType_clone(TokenType * self);

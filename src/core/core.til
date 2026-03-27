@@ -28,37 +28,7 @@ import("u64.til")
 USize := U32
 
 import("i64.til")
-
-Range := struct {
-    start : U64 = 0
-    end : U64 = 0
-
-namespace:
-    new := func(shallow start: U64, shallow end: U64) returns Range {
-        return Range(start = start, end = end)
-    }
-
-    len := func(self: Range) returns U64 {
-        if self.start.lte(self.end) { return self.end.sub(self.start) }
-        return self.start.sub(self.end)
-    }
-
-    get := func(self: Range, shallow i: U64) returns U64 {
-        if self.start.lte(self.end) {
-            return self.start.add(i)
-        }
-        return self.start.sub(i)
-    }
-
-    clone := func(val: Range) returns Range {
-        return Range(start = val.start, end = val.end)
-    }
-
-    delete := func(own self: Range, call_free: Bool = true) {
-        if call_free { free(own self) }
-    }
-}
-
+import("range.til")
 import("bool.til")
 
 // builtin functions and procs
