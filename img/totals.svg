@@ -6,47 +6,47 @@
 <text x="65" y="194" text-anchor="end" font-size="11" fill="#333">39000</text>
 <text x="65" y="44" text-anchor="end" font-size="11" fill="#333">78000</text>
 <text x="15" y="190" text-anchor="middle" font-size="12" fill="#333" transform="rotate(-90 15 190)">ms</text>
-<polyline points="70,57 148,59 227,53 306,55 385,55 464,54 543,56 622,59 701,57 780,55" fill="none" stroke="#0072B2" stroke-width="2"/>
-<polyline points="70,49 148,50 227,44 306,49 385,49 464,48 543,47 622,47 701,51 780,45" fill="none" stroke="#CC79A7" stroke-width="2"/>
+<polyline points="70,59 148,53 227,55 306,55 385,54 464,56 543,59 622,57 701,55 780,52" fill="none" stroke="#0072B2" stroke-width="2"/>
+<polyline points="70,50 148,44 227,49 306,49 385,48 464,47 543,47 622,51 701,45 780,45" fill="none" stroke="#CC79A7" stroke-width="2"/>
 <polyline points="70,334 148,334 227,334 306,334 385,334 464,334 543,334 622,334 701,334 780,334" fill="none" stroke="#D55E00" stroke-width="2"/>
-<polyline points="70,298 148,298 227,298 306,298 385,297 464,298 543,299 622,299 701,299 780,297" fill="none" stroke="#009E73" stroke-width="2"/>
-<circle cx="70" cy="57" r="3" fill="#0072B2"/>
-<circle cx="70" cy="49" r="3" fill="#CC79A7"/>
+<polyline points="70,298 148,298 227,298 306,297 385,298 464,299 543,299 622,299 701,297 780,297" fill="none" stroke="#009E73" stroke-width="2"/>
+<circle cx="70" cy="59" r="3" fill="#0072B2"/>
+<circle cx="70" cy="50" r="3" fill="#CC79A7"/>
 <circle cx="70" cy="334" r="3" fill="#D55E00"/>
 <circle cx="70" cy="298" r="3" fill="#009E73"/>
-<circle cx="148" cy="59" r="3" fill="#0072B2"/>
-<circle cx="148" cy="50" r="3" fill="#CC79A7"/>
+<circle cx="148" cy="53" r="3" fill="#0072B2"/>
+<circle cx="148" cy="44" r="3" fill="#CC79A7"/>
 <circle cx="148" cy="334" r="3" fill="#D55E00"/>
 <circle cx="148" cy="298" r="3" fill="#009E73"/>
-<circle cx="227" cy="53" r="3" fill="#0072B2"/>
-<circle cx="227" cy="44" r="3" fill="#CC79A7"/>
+<circle cx="227" cy="55" r="3" fill="#0072B2"/>
+<circle cx="227" cy="49" r="3" fill="#CC79A7"/>
 <circle cx="227" cy="334" r="3" fill="#D55E00"/>
 <circle cx="227" cy="298" r="3" fill="#009E73"/>
 <circle cx="306" cy="55" r="3" fill="#0072B2"/>
 <circle cx="306" cy="49" r="3" fill="#CC79A7"/>
 <circle cx="306" cy="334" r="3" fill="#D55E00"/>
-<circle cx="306" cy="298" r="3" fill="#009E73"/>
-<circle cx="385" cy="55" r="3" fill="#0072B2"/>
-<circle cx="385" cy="49" r="3" fill="#CC79A7"/>
+<circle cx="306" cy="297" r="3" fill="#009E73"/>
+<circle cx="385" cy="54" r="3" fill="#0072B2"/>
+<circle cx="385" cy="48" r="3" fill="#CC79A7"/>
 <circle cx="385" cy="334" r="3" fill="#D55E00"/>
-<circle cx="385" cy="297" r="3" fill="#009E73"/>
-<circle cx="464" cy="54" r="3" fill="#0072B2"/>
-<circle cx="464" cy="48" r="3" fill="#CC79A7"/>
+<circle cx="385" cy="298" r="3" fill="#009E73"/>
+<circle cx="464" cy="56" r="3" fill="#0072B2"/>
+<circle cx="464" cy="47" r="3" fill="#CC79A7"/>
 <circle cx="464" cy="334" r="3" fill="#D55E00"/>
-<circle cx="464" cy="298" r="3" fill="#009E73"/>
-<circle cx="543" cy="56" r="3" fill="#0072B2"/>
+<circle cx="464" cy="299" r="3" fill="#009E73"/>
+<circle cx="543" cy="59" r="3" fill="#0072B2"/>
 <circle cx="543" cy="47" r="3" fill="#CC79A7"/>
 <circle cx="543" cy="334" r="3" fill="#D55E00"/>
 <circle cx="543" cy="299" r="3" fill="#009E73"/>
-<circle cx="622" cy="59" r="3" fill="#0072B2"/>
-<circle cx="622" cy="47" r="3" fill="#CC79A7"/>
+<circle cx="622" cy="57" r="3" fill="#0072B2"/>
+<circle cx="622" cy="51" r="3" fill="#CC79A7"/>
 <circle cx="622" cy="334" r="3" fill="#D55E00"/>
 <circle cx="622" cy="299" r="3" fill="#009E73"/>
-<circle cx="701" cy="57" r="3" fill="#0072B2"/>
-<circle cx="701" cy="51" r="3" fill="#CC79A7"/>
+<circle cx="701" cy="55" r="3" fill="#0072B2"/>
+<circle cx="701" cy="45" r="3" fill="#CC79A7"/>
 <circle cx="701" cy="334" r="3" fill="#D55E00"/>
-<circle cx="701" cy="299" r="3" fill="#009E73"/>
-<circle cx="780" cy="55" r="3" fill="#0072B2"/>
+<circle cx="701" cy="297" r="3" fill="#009E73"/>
+<circle cx="780" cy="52" r="3" fill="#0072B2"/>
 <circle cx="780" cy="45" r="3" fill="#CC79A7"/>
 <circle cx="780" cy="334" r="3" fill="#D55E00"/>
 <circle cx="780" cy="297" r="3" fill="#009E73"/>

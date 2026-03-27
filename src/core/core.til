@@ -13,37 +13,7 @@ StructDef : StructDef = struct {}
 EnumDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
 
-U8 := ext_struct {
-namespace:
-    to_i64 := ext_func(shallow val: U8) returns shallow I64 {}
-    to_str := func(val: U8) returns Str {
-        return val.to_i64().to_str()
-    }
-    add := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    sub := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    mul := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    div := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    mod := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    inc := func(mut self: U8) { self = self.add(1) }
-    dec := func(mut self: U8) { self = self.sub(1) }
-    unity := func(self: U8) returns U8 { return 1.to_u8() }
-    eq := ext_func(shallow a: U8, shallow b: U8) returns shallow Bool {}
-    cmp := ext_func(shallow a: U8, shallow b: U8) returns shallow I64 {}
-    and := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    or := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    xor := ext_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    clone := ext_func(val: U8) returns shallow U8 {}
-    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
-        ref au : U8 = a
-        ref bu : U8 = b
-        if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
-        return au.sub(bu).to_i64().to_u64()
-    }
-    delete := func(own self: U8, call_free: Bool = true) {
-        if call_free { free(own self) }
-    }
-    size := func() returns USize { return 1 }
-}
+import("u8.til")
 
 import("i16.til")
 
