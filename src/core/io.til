@@ -1,0 +1,17 @@
+print_single := ext_proc(s: Str) {}
+print_flush := ext_proc() {}
+readfile := ext_func(path: Str) returns Str {}
+writefile := ext_proc(path: Str, content: Str) {}
+
+println := proc(parts: ..Str) {
+    for s : Str in parts {
+        print_single(s)
+    }
+    print_flush()
+}
+
+print := proc(parts: ..Str) {
+    for s : Str in parts {
+        print_single(s)
+    }
+}
