@@ -1,10 +1,59 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 114
+# NEXT_ISSUE: 116
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #116 Imported files are parsed in isolation
+  Imported files are currently lexed and parsed as standalone units, then
+  merged later. They do not see declarations from the importing file during
+  parse/bootstrap time.
+
+  Current behavior in ~src/til.til~:
+  - parse one file
+  - extract ~import("...")~ calls from its AST
+  - recursively read, lex, and parse each imported file separately
+  - only after that merge:
+    - core
+    - core imports
+    - mode imports
+    - user imports
+    - user file
+
+  This means import order in the source tree does not imply visibility while
+  parsing imported files. Imported files are self-contained until the later
+  AST merge.
+
+  Concrete blocker example:
+  - we tried to unify ~StructDefData~ with the existing ~StructDef~ type
+  - the natural cleanup would be to define one canonical ~StructDef~ in
+    ~core.til~ and use it as the ~ExprData.StructDef~ payload type in
+    ~ast.til~
+  - that fails during bootstrap, because ~ast.til~ is parsed in isolation and
+    cannot see ~StructDef~ from ~core.til~ at the time ~ExprData~ is declared
+  - moving the ~import("ast.til")~ line within ~core.til~ does not help,
+    because imported files are not parsed in the importer’s declaration
+    context
+
+  What this blocks:
+  - unifying local AST payload helper types with canonical types defined in
+    importer files
+  - some circular/meta-type cleanups that look valid after merge but fail
+    during isolated parse/bootstrap
+  - relying on importer-local predeclarations to shape imported AST types
+
+  Likely directions:
+  - keep such canonical payload types local to the imported file for now
+  - or introduce a true predeclared/builtin meta-type path
+  - or change import/bootstrap semantics so imported files can see a shared
+    prelude / prior declarations before parsing
+
+  Immediate outcome:
+  - keep ~StructDefData~ for now
+  - treat the failed ~StructDef~ unification as a symptom of the import model,
+    not just a naming conflict
+
 ** OPEN #113 Proper enums
   Enum semantics and syntax are usable now, but the surface is still rough
   and partly historical.
