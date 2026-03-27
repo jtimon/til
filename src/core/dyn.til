@@ -1,3 +1,5 @@
+Dynamic : StructDef = struct {}
+
 // builtin functions and procs
 is := ext_func(self: Dynamic, other: Dynamic) returns shallow Bool {}
 is_variant := ext_func(self: Dynamic, other: Dynamic) returns shallow Bool {}

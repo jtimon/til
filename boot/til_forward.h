@@ -4,7 +4,6 @@
 
 typedef struct StructDef StructDef;
 typedef struct EnumDef EnumDef;
-typedef struct Dynamic Dynamic;
 typedef struct Array Array;
 typedef struct Map Map;
 typedef struct Set Set;
@@ -75,6 +74,7 @@ typedef enum {
 typedef struct ExprData ExprData;
 typedef struct Expr Expr;
 typedef struct Range Range;
+typedef struct Dynamic Dynamic;
 typedef enum {
     TokenType_TAG_Eof,
     TokenType_TAG_LParen,
@@ -191,11 +191,6 @@ typedef struct EnumDef {
 } EnumDef;
 
 
-typedef struct Dynamic {
-    char _;
-} Dynamic;
-
-
 typedef struct Str {
     U8 *c_str;
     U32 count;
@@ -281,6 +276,11 @@ typedef struct Range {
     U64 end;
 } Range;
 
+
+
+typedef struct Dynamic {
+    char _;
+} Dynamic;
 
 
 struct TokenType {
