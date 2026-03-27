@@ -244,6 +244,7 @@ void *ptr_add(void *buf, U64 offset) {
     return (char *)buf + offset;
 }
 Bool is_null(void *p) { return p == NULL; }
+Bool is(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 Bool is_variant(void *self, void *other) { return *(I32*)self == *(I32*)other; }
 void *get_payload(void *self) { return (U8*)self + sizeof(I64); }
 
