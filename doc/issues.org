@@ -554,6 +554,13 @@
   is done. This issue tracks the remaining bottom-up work:
   translating C functions to til, one module at a time.
 
+  Current milestone:
+  - ~src/c/initer.c~ is fully gone
+  - ~src/self/initer.til~ now owns the whole initer pipeline
+  - ~src/til.til~ no longer links ~src/c/initer.c~
+  - this was the first full module retirement using the current
+    split-first, translate-second workflow
+
 *** Current build flow
     ~bin/til_boot~ is built from last commit via gcc (always safe).
     ~bin/til_current~ is built by ~til_boot build src/til.til~.
@@ -585,9 +592,9 @@
 
 *** Current state of C modules
     All typedefs/structs in til. til_bridge.c deleted (#77).
-    Remaining work: translate ~160 C functions to til.
+    ~initer.c~ is also gone now. Remaining work is the rest of the
+    handwritten bottom-up modules.
     Remaining handwritten ~src/c~ headers:
-    - ~aliases.h~
     - ~ext.h~
     The old handwritten interface headers (~interpreter.h~,
     ~dispatch.h~) are gone; C modules now consume generated boot
@@ -595,7 +602,6 @@
 
     | Module | Functions | Notes |
     |--------+-----------+-------|
-    | initer.c | ~12 | tscope_*, compute_layout, init_declarations |
     | typer.c | ~40 | type_check, desugar_*, ASAP deletion |
     | precomp.c | ~10 | constant folding |
     | scavenger.c | ~7 | dead code elimination |
@@ -672,18 +678,36 @@
    - own UFCS tests fixed (#88)
    - Bridge: til.til no longer link_c's parser.c
 
-*** WIP Step 6: Replace C initer with til (incremental)
-   New approach: instead of writing the whole .til module, aligning it,
-   and doing a big swap, add an empty initer.til to the import chain
-   and migrate structs/functions one at a time. Each migration is a
-   small, testable commit. When initer.c is empty, delete it.
+*** DONE Step 6: Replace C initer with til (incremental)
+   ~src/c/initer.c~ is fully retired.
 
-   Import chain: ~modes.til → initer.til → parser.til → lexer.til~
+   Final state:
+   - ~src/self/initer.til~ owns the whole initer pipeline
+   - ~src/c/initer.c~ deleted
+   - ~src/til.til~ no longer links ~src/c/initer.c~
 
-   Done:
+   This was the first full module retirement under the current #39
+   methodology, and it worked well.
+
+   Modus operandi that worked:
+   - keep the overall pass ordering and behavior identical
+   - translate one named function per commit when the helper is already
+     small and mechanical
+   - when a helper is too large or semantically mixed, first do one or
+     more C-only split commits
+   - only after the split, translate one resulting helper per commit
+   - prefer the direction “C calls newly translated til”, not “til
+     calls leftover C”, except for the normal ~til.til~ entrypoint
+   - preserve the emitted C signature per ~qualifiers.org~, but choose
+     til ~proc~ / ~func~ by body semantics
+   - when translating C conditionals, do not assume Bool ~and/or~
+     short-circuit; preserve C semantics explicitly with nested ~if~s
+     when needed (see ~#117~)
+
+   Structural prep that landed first:
    - TypeBinding struct moved to initer.til
    - TypeScope struct moved to initer.til
-   - Auto-generated clone/delete replaces hand-written no-ops
+   - auto-generated clone/delete replaced hand-written no-ops
    - ~compute_struct_layout~ translated to til
    - ~infer_top_level_decl_type~ translated to til
    - ~TypeScope.get_struct~ translated to til
@@ -692,10 +716,15 @@
    - redundant handwritten forward declarations dropped from
      ~src/c/initer.c~
 
-   Remaining: the pass helpers in ~init_declarations~ plus the rest of
-   the support functions still in ~initer.c~. Nullable borrowed paths
-   (~TypeScope *parent~, ~TypeBinding *b~ with NULL checks) still need
-   thought when translating the remaining helpers.
+   Larger helpers that benefited from split-only C commits first:
+   - derived-method generation
+   - enum registration / enum helper generation
+   - enum clone generation
+
+   Result:
+   - one entire bottom-up handwritten C module is now gone
+   - the workflow for future #39 module retirement is now proven,
+     not just proposed
 
 *** DONE Step 3: Replace C lexer with til-compiled lexer
    Replaced src/c/lexer.c+h with bootstrap/lexer.c+h (generated from
