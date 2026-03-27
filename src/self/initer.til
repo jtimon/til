@@ -600,6 +600,68 @@ generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, s
     body.add_child(own decl)
 }
 
+register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+    mut errors : I32 = 0
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        if is_variant(stmt.child(0).data, ExprData.EnumDef).not() { continue }
+
+        ref edecl : Declaration = get_payload(stmt.data)
+        ename := edecl.name
+        line := stmt.line
+        col := stmt.col
+        path := stmt.path
+
+        reg_errors := register_enum_definition(stmt, scope)
+        errors = errors.add(reg_errors)
+        if reg_errors.gt(0) { continue }
+
+        ref mut body : Expr = stmt.child(0).child(0)
+
+        variant_names := Vec.new("", Str.size())
+        variant_types := Vec.new("", Str.size())
+        mut has_payloads := false
+        collect_enum_variants(body, variant_names, variant_types, has_payloads)
+        generate_enum_variant_constructors(body, ename, line, col, path, variant_names, variant_types, has_payloads)
+
+        mut has_is := false
+        mut has_eq := false
+        mut has_delete := false
+        mut has_to_str := false
+        for j in 0..body.child_count() {
+            ref f : Expr = body.child(j)
+            if is_variant(f.data, ExprData.Decl).not() { continue }
+            ref fdecl : Declaration = get_payload(f.data)
+            if fdecl.is_namespace.not() { continue }
+            if f.child_count().eq(0) { continue }
+            if is_variant(f.child(0).data, ExprData.FuncDef).not() { continue }
+
+            if fdecl.name.eq("is") { has_is = true }
+            if fdecl.name.eq("eq") { has_eq = true }
+            if fdecl.name.eq("delete") { has_delete = true }
+            if fdecl.name.eq("to_str") { has_to_str = true }
+        }
+
+        if has_is.not() {
+            generate_enum_is_method(body, ename, line, col, path)
+        }
+        if has_eq.not() {
+            generate_enum_eq_method(body, ename, line, col, path, variant_names, variant_types, scope)
+        }
+        if has_delete.not() {
+            generate_enum_delete_method(body, ename, line, col, path)
+        }
+        if has_to_str.not() {
+            generate_enum_to_str_method(body, ename, line, col, path, variant_names, variant_types, has_payloads, scope)
+        }
+
+        Vec.delete(own variant_names, false)
+        Vec.delete(own variant_types, false)
+    }
+    return errors
+}
+
 generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)

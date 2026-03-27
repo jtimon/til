@@ -123,68 +123,6 @@ void generate_enum_clone_method_for_body(Expr *body, Str *ename, I32 line, I32 c
     Vec_delete(&variant_types, &(Bool){0});
 }
 
-static I32 register_enums_and_generate_nonclone_methods(Expr *program, TypeScope *scope) {
-    I32 errors = 0;
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
-
-        Str *ename = &stmt->data.data.Decl.name;
-        I32 line = stmt->line, col = stmt->col;
-        Str *path = &stmt->path;
-
-        I32 reg_errors = register_enum_definition(stmt, scope);
-        errors += reg_errors;
-        if (reg_errors > 0) continue;
-
-        Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
-
-        Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_names = *_vp; free(_vp); }
-        Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_types = *_vp; free(_vp); }
-        Bool has_payloads = 0;
-        collect_enum_variants(body, &variant_names, &variant_types, &has_payloads);
-        generate_enum_variant_constructors(body, ename, line, col, path, &variant_names, &variant_types, has_payloads);
-
-        // Check existing methods
-        Bool has_is = 0, has_eq = 0, has_delete = 0, has_to_str = 0;
-        for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = Expr_child(body, &(USize){(USize)(j)});
-            if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
-            if (f->children.count == 0 || Expr_child(f, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "is", 2) == 0)) has_is = 1;
-            if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "eq", 2) == 0)) has_eq = 1;
-            if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "delete", 6) == 0)) has_delete = 1;
-            if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "to_str", 6) == 0)) has_to_str = 1;
-        }
-
-        if (!has_is) {
-            generate_enum_is_method(body, ename, line, col, path);
-        }
-
-        if (!has_eq) {
-            generate_enum_eq_method(body, ename, line, col, path, &variant_names, &variant_types, scope);
-        }
-
-        // Auto-generate delete for all enums (same pattern):
-        // delete := func(own self: E, call_free: Bool = true) {
-        //     if call_free { free(own self) }
-        // }
-        // free() builtin handles payload cleanup for Value_TAG_Enum
-        if (!has_delete) {
-            generate_enum_delete_method(body, ename, line, col, path);
-        }
-
-        if (!has_to_str) {
-            generate_enum_to_str_method(body, ename, line, col, path, &variant_names, &variant_types, has_payloads, scope);
-        }
-
-        Vec_delete(&variant_names, &(Bool){0});
-        Vec_delete(&variant_types, &(Bool){0});
-    }
-    return errors;
-}
-
 static void generate_missing_enum_clones(Expr *program) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
