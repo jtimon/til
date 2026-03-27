@@ -803,18 +803,22 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             for (U32 i = 0; i < nparam; i++) {
                 if ((I32)i == vi) {
                     e->variadic_index = new_ch.count; // children index of first variadic arg
+                    e->data.data.FCall.variadic_index = e->variadic_index;
                     for (U32 j = 0; j < va_args.count; j++) {
                         Expr *va = *(Expr **)Vec_get(&va_args, &(USize){(USize)(j)});
                         Vec_push(&new_ch, Expr_clone(va));
                     }
                     e->variadic_count = va_args.count;
+                    e->data.data.FCall.variadic_count = e->variadic_count;
                 } else if ((I32)i == kwi) {
                     e->kwargs_index = new_ch.count; // children index of first kwargs arg
+                    e->data.data.FCall.kwargs_index = e->kwargs_index;
                     for (U32 j = 0; j < kw_args.count; j++) {
                         Expr *kw = *(Expr **)Vec_get(&kw_args, &(USize){(USize)(j)});
                         Vec_push(&new_ch, Expr_clone(kw));
                     }
                     e->kwargs_count = kw_args.count;
+                    e->data.data.FCall.kwargs_count = e->kwargs_count;
                 } else {
                     Vec_push(&new_ch, new_args[i]);
                 }
@@ -1493,6 +1497,8 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             fcall->children = fcall_new_ch;
             fcall->variadic_index = -1;
             fcall->variadic_count = 0;
+            fcall->data.data.FCall.variadic_index = -1;
+            fcall->data.data.FCall.variadic_count = 0;
             Vec_push(&new_ch, Expr_clone(stmt));
             continue;
         }
@@ -1613,6 +1619,8 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         fcall->children = fcall_new_ch;
         fcall->variadic_index = -1;
         fcall->variadic_count = 0;
+        fcall->data.data.FCall.variadic_index = -1;
+        fcall->data.data.FCall.variadic_count = 0;
 
         // Insert the original statement
         Vec_push(&new_ch, Expr_clone(stmt));
@@ -1789,6 +1797,8 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         fcall->children = fcall_new_ch;
         fcall->kwargs_index = -1;
         fcall->kwargs_count = 0;
+        fcall->data.data.FCall.kwargs_index = -1;
+        fcall->data.data.FCall.kwargs_count = 0;
 
         // Insert the original statement
         Vec_push(&new_ch, Expr_clone(stmt));

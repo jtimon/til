@@ -44,6 +44,7 @@ typedef enum {
 typedef struct FuncType FuncType;
 typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
+typedef struct FCallData FCallData;
 typedef enum {
     ExprData_TAG_Body,
     ExprData_TAG_LiteralStr,
@@ -256,6 +257,15 @@ typedef struct Param {
     Bool is_own;
     Bool is_shallow;
 } Param;
+
+
+typedef struct FCallData {
+    Bool is_proc;
+    I32 variadic_index;
+    U32 variadic_count;
+    I32 kwargs_index;
+    U32 kwargs_count;
+} FCallData;
 
 
 
@@ -474,6 +484,7 @@ struct ExprData {
         Str Ident;
         Declaration Decl;
         Str Assign;
+        FCallData FCall;
         FunctionDef FuncDef;
         Str FieldAccess;
         Str FieldAssign;
@@ -644,6 +655,11 @@ Str * FunctionDef_to_str(FunctionDef * self);
 FunctionDef * FunctionDef_clone(FunctionDef * self);
 void FunctionDef_delete(FunctionDef * self, Bool * call_free);
 U32 * FunctionDef_size(void);
+Bool * FCallData_eq(FCallData * a, FCallData * b);
+Str * FCallData_to_str(FCallData * self);
+FCallData * FCallData_clone(FCallData * self);
+void FCallData_delete(FCallData * self, Bool * call_free);
+U32 * FCallData_size(void);
 Bool * ExprData_is(ExprData * self, ExprData * other);
 Bool * ExprData_eq(ExprData * self, ExprData * other);
 ExprData * ExprData_clone(ExprData * self);
