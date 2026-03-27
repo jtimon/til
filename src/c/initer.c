@@ -123,7 +123,7 @@ void generate_enum_clone_method_for_body(Expr *body, Str *ename, I32 line, I32 c
     Vec_delete(&variant_types, &(Bool){0});
 }
 
-static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
+static I32 register_enums_and_generate_nonclone_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
@@ -147,14 +147,13 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
         generate_enum_variant_constructors(body, ename, line, col, path, &variant_names, &variant_types, has_payloads);
 
         // Check existing methods
-        Bool has_is = 0, has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
+        Bool has_is = 0, has_eq = 0, has_delete = 0, has_to_str = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *f = Expr_child(body, &(USize){(USize)(j)});
             if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
             if (f->children.count == 0 || Expr_child(f, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
             if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "is", 2) == 0)) has_is = 1;
             if ((f->data.data.Decl.name.count == 2 && memcmp(f->data.data.Decl.name.c_str, "eq", 2) == 0)) has_eq = 1;
-            if ((f->data.data.Decl.name.count == 5 && memcmp(f->data.data.Decl.name.c_str, "clone", 5) == 0)) has_clone = 1;
             if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "delete", 6) == 0)) has_delete = 1;
             if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "to_str", 6) == 0)) has_to_str = 1;
         }
@@ -165,10 +164,6 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
 
         if (!has_eq) {
             generate_enum_eq_method(body, ename, line, col, path, &variant_names, &variant_types, scope);
-        }
-
-        if (!has_clone) {
-            generate_enum_clone_method(body, ename, line, col, path, &variant_names, &variant_types, has_payloads);
         }
 
         // Auto-generate delete for all enums (same pattern):
@@ -190,6 +185,33 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
     return errors;
 }
 
+static void generate_missing_enum_clones(Expr *program) {
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
+
+        Str *ename = &stmt->data.data.Decl.name;
+        I32 line = stmt->line, col = stmt->col;
+        Str *path = &stmt->path;
+        Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
+
+        Bool has_clone = 0;
+        for (U32 j = 0; j < body->children.count; j++) {
+            Expr *f = Expr_child(body, &(USize){(USize)(j)});
+            if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
+            if (f->children.count == 0 || Expr_child(f, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+            if ((f->data.data.Decl.name.count == 5 && memcmp(f->data.data.Decl.name.c_str, "clone", 5) == 0)) {
+                has_clone = 1;
+                break;
+            }
+        }
+        if (!has_clone) {
+            generate_enum_clone_method_for_body(body, ename, line, col, path);
+        }
+    }
+}
+
 I32 init_declarations(Expr *program, TypeScope *scope) {
     I32 errors = 0;
 
@@ -206,8 +228,11 @@ I32 init_declarations(Expr *program, TypeScope *scope) {
     // Pass 1.7: auto-generate delete methods for all structs
     generate_missing_struct_deletes(program, scope);
 
-    // Pass 1.8: register enum definitions, generate variants + methods
-    errors += register_enums_and_generate_methods(program, scope);
+    // Pass 1.8: register enum definitions, generate variants + non-clone methods
+    errors += register_enums_and_generate_nonclone_methods(program, scope);
+
+    // Pass 1.82: auto-generate clone methods for enums
+    generate_missing_enum_clones(program);
 
     // Pass 1.85: register type aliases (Name := ExistingType where RHS is a known type name)
     // Must run after Pass 1 (structs), Pass 1.1 (FuncSigs), and Pass 1.8 (enums)
