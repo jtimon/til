@@ -190,11 +190,6 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
     return errors;
 }
 
-static void generate_derived_methods(Expr *program, TypeScope *scope) {
-    generate_cmp_derived_methods(program, scope);
-    generate_unity_derived_methods(program, scope);
-}
-
 I32 init_declarations(Expr *program, TypeScope *scope) {
     I32 errors = 0;
 

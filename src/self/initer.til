@@ -1307,6 +1307,11 @@ generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
     }
 }
 
+generate_derived_methods := proc(program: Expr, scope: TypeScope) {
+    generate_cmp_derived_methods(program, scope)
+    generate_unity_derived_methods(program, scope)
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
