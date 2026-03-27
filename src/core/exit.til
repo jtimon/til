@@ -1,0 +1,39 @@
+exit := ext_func(shallow code: I64) {}
+
+panic := proc(loc_str: Str, parts: ..Str) {
+    println(loc_str, ": panic: ", format(..parts))
+    exit(1)
+}
+
+TODO := proc(loc_str: Str, parts: ..Str) {
+    panic(loc_str, "TODO: ", format(..parts))
+}
+
+UNREACHABLE := proc(loc_str: Str) {
+    panic(loc_str, "unreachable")
+}
+
+assert := func(loc_str: Str, cond: Bool) returns Bool {
+    if cond.not() {
+        panic(loc_str, "assert failed")
+    }
+    return true
+}
+
+expect := proc(loc_str: Str, cond: Bool, parts: ..Str) {
+    if cond.not() {
+        panic(loc_str, "assert failed: ", format(..parts))
+    }
+}
+
+assert_eq := proc(loc_str: Str, a: I64, b: I64) {
+    if a.neq(b) {
+        panic(loc_str, "assert_eq failed: expected '", a.to_str(), "', found '", b.to_str(), "'")
+    }
+}
+
+assert_eq_str := proc(loc_str: Str, a: Str, b: Str) {
+    if a.eq(b).not() {
+        panic(loc_str, "assert_eq_str failed: expected '", a, "', found '", b, "'")
+    }
+}
