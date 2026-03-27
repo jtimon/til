@@ -987,21 +987,6 @@ static void add_size_method(Expr *stmt, Expr *body, I32 sz) {
     Expr_add_child(body, decl);
 }
 
-static void generate_struct_size_methods(Expr *program) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
-        if (def->data.tag != ExprData_TAG_StructDef) continue;
-        if (should_skip_size_generation(stmt, def)) continue;
-
-        Expr *body = Expr_child(def, &(USize){(USize)(0)});
-        if (has_namespace_size_method(body)) continue;
-
-        add_size_method(stmt, body, def->data.data.StructDef.total_struct_size);
-    }
-}
-
 static void generate_enum_size_methods(Expr *program) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});

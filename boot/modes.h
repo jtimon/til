@@ -755,6 +755,7 @@ void register_funcsig_aliases(Expr * program, TypeScope * scope);
 void register_type_aliases(Expr * program, TypeScope * scope);
 void register_top_level_values(Expr * program, TypeScope * scope);
 void register_function_definitions(Expr * program, TypeScope * scope);
+void generate_struct_size_methods(Expr * program);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
 Bool infer_top_level_decl_type(Expr * stmt, TypeScope * scope, TilType * out_type, Str * out_struct_name);
