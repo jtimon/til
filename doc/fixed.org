@@ -440,8 +440,8 @@
   ~-include~ flag when compiled to .o separately.
 
   Key design: ext.h is untouched — forward.h is invisible to the ctil
-  build (avoids conflicts with hand-written ast.h, same pattern as
-  pre70.h). ~compile_c~ compiles link_c .c to .o separately with
+  build (avoids conflicts with hand-written ast.h, same pattern as the
+  old pre70 shim removal). ~compile_c~ compiles link_c .c to .o separately with
   ~-include forward.h~, then links the .o. ~ffi_init~ (interpreter path)
   also generates forward.h and uses ~-include~.
 

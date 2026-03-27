@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include "../../boot/modes.h"
-#include "pre70.h"
 
 static Set macros, funcs;
 static Map known;

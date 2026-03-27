@@ -554,7 +554,6 @@
     Remaining handwritten ~src/c~ headers:
     - ~aliases.h~
     - ~ext.h~
-    - ~pre70.h~
     The old handwritten interface headers (~interpreter.h~,
     ~dispatch.h~) are gone; C modules now consume generated boot
     declarations instead.
@@ -1053,8 +1052,9 @@
   is a typed reference to a compile-time-known value. Precomp just needs
   to evaluate it and the builder needs to emit the result as a constant.
 
-  Until fixed, src/c/pre70.h provides CAP_LIT/CAP_VIEW as ~#define~s
-  (workaround for the scalar case). Will live until #39 is done.
+  CAP_LIT/CAP_VIEW no longer rely on ~src/c/pre70.h~. Handwritten C now
+  gets them through the normal generated headers, while the remaining
+  broader constant-folding work stays here.
 
   Current status after the real ~#104~ fix:
   - ordinary top-level globals are now usable from handwritten C through
@@ -1062,8 +1062,8 @@
   - but namespace/static-field globals still do not have the same final
     generated-C story
   - so the remaining work to make things like ~Str.CAP_LIT~ / generated
-    ~Str_CAP_LIT~ usable without ~src/c/pre70.h~ belongs here under ~#70~,
-    not under ~#104~
+    ~Str_CAP_LIT~ usable through the same final generated-C path still
+    belongs here under ~#70~, not under ~#104~
 
   Also blocks ~const~ in hand-written C: the builder doesn't emit
   ~const~ qualifiers, so C code must drop ~const~ from ~Mode *~ etc.

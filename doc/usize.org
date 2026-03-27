@@ -11,7 +11,8 @@ requires ~.get()~ index type == ~.len()~ return type. All iterable types must
 change together.
 
 CAP_LIT/CAP_VIEW sentinels in Str must also change from ULLONG_MAX to
-UINT_MAX (and pre70.h updated accordingly).
+UINT_MAX. The old ~pre70.h~ shim is gone; the generated headers now
+carry the C-facing declarations.
 
 ** What changes (all in one commit)
 
@@ -50,13 +51,12 @@ use U32 arithmetic instead of U64.
 - ~sizeof()~ casts to U32
 - Format strings: ~%llu~ → ~%u~
 - ext.c/ext.h: function signatures (~Str_substr~, ~ptr_add~, etc.)
-- pre70.h: ~CAP_LIT ULLONG_MAX~ → ~UINT_MAX~, ~CAP_VIEW~ likewise
 - builder.c: ~TIL_CAP_LIT ULLONG_MAX~ → ~UINT_MAX~, size method emission
 
 ** Files to modify
 - src/core/core.til, str.til, vec.til, array.til, map.til, set.til, tuple.til
 - src/self/lexer.til, ast.til, parser.til
-- src/c/ext.c, ext.h, pre70.h
+- src/c/ext.c, ext.h
 - src/c/parser.c, typer.c, builder.c, initer.c, interpreter.c
 - src/c/dispatch.c, precomp.c, scavenger.c, til_bridge.c
 - src/ctil.c

@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include "../../boot/modes.h"
-#include "pre70.h"
 
 // Forward declaration for til-generated function (scavenger.til)
 Str *qualified_name(Str *type_name, Str *method_name);

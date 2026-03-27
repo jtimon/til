@@ -40,10 +40,10 @@
     ~#define CAP_LIT ULLONG_MAX~ — used in 10 .c files for compound
     literal initializers like ~{.cap = CAP_LIT}~.
 
-*** DONE: moved to src/c/pre70.h (hand-written-only header)
-    Defines removed from ast.h (shared header visible to bootstrap via
-    -Isrc/c). Each hand-written .c file now ~#include "pre70.h"~ directly.
-    Real fix: #70 (builder emits constants as #define, not heap vars).
+*** DONE: removed ~src/c/pre70.h~
+    Hand-written C now gets ~CAP_LIT~ / ~CAP_VIEW~ through the normal
+    generated headers. The remaining real fix under #70 is broader
+    constant folding / constant emission, not this temporary shim.
 
 ** is_ext_h_type / ext.h: bootstrap should own all til-defined types
 

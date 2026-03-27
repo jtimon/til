@@ -1,5 +1,4 @@
 #include "../../boot/modes.h"
-#include "pre70.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

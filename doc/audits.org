@@ -73,17 +73,12 @@
 
   *Audit results (2026-03-25):*
 
-  Found 12 macro definitions across 3 files. All locally scoped
-  (define/undef pairs) except the 2 global constants in pre70.h.
+  Found 10 macro definitions across 2 files. All locally scoped
+  define/undef pairs. The old global sentinel shim in ~pre70.h~ has
+  been removed; handwritten C now gets ~CAP_LIT~ / ~CAP_VIEW~ through
+  the generated headers.
 
-  *1. pre70.h — Capacity sentinel constants (lines 5-6)*
-  - ~CAP_LIT~ = (USize)-1 — marks string literals (never freed)
-  - ~CAP_VIEW~ = (USize)-2 — marks borrowed string views (never freed)
-  - *Til translation:* Replace with named constants (e.g. ~CAP_LIT := USize.max~).
-    These are fundamental to Str's ownership model and will survive as-is.
-  - *Issues:* None. Pure value constants, trivial to translate.
-
-  *2. dispatch.c — REG macro (lines 637-640, undef 688)*
+  *1. dispatch.c — REG macro (lines 637-640, undef 688)*
   - ~REG(name, fn)~ — registers a C dispatch function in the dispatch map.
     Used ~50 times in ~dispatch_init~ to wire up built-in handlers.
   - *Til translation:* Replace with a til helper function
@@ -131,7 +126,6 @@
   *Summary:*
   | Location    | Macros | Til action                          |
   |-------------+--------+-------------------------------------|
-  | pre70.h     |      2 | Replace with named constants        |
   | dispatch.c  |      1 | Replace with helper function        |
   | initer.c    |      9 | Replace with Expr builder functions |
   | builder.c   |      2 | Keep (codegen output, not compiler) |
