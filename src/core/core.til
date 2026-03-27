@@ -54,7 +54,5 @@ default_cmp : CmpFn = (a, b) { return 0 }
 default_inc : IncFn = (v) { }
 default_distance : DistanceFn = (a, b) { return 0 }
 dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
-array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
-vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
 
 import("exit.til")

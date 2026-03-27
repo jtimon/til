@@ -1,5 +1,7 @@
 mode lib
 
+array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
+
 Array := struct {
     own mut data : U8 = 0
     cap : USize = 0

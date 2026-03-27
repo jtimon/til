@@ -1642,7 +1642,7 @@ Array * Array_new(Str * elem_type, U32 * elem_size, U32 * cap) {
         (void)_t_Str_8;
         Array_set(&_va_Array_0, &_t_U32_7, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_8; _oa; }));
         ;
-        Str _t_Str_9; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/array.til:13:41", 62ULL); _t_Str_9 = *_hp; free(_hp); }
+        Str _t_Str_9; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/array.til:15:41", 62ULL); _t_Str_9 = *_hp; free(_hp); }
         (void)_t_Str_9;
         panic(&_t_Str_9, ({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_0; _oa; }));
         Str_delete(&_t_Str_9, &(Bool){0});
@@ -1724,7 +1724,7 @@ void * Array_get(Array * self, U32 * i) {
         (void)_t_Str_29;
         Array_set(&_va_Array_1, &_t_U32_28, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_29; _oa; }));
         ;
-        Str _t_Str_30; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/array.til:24:19", 62ULL); _t_Str_30 = *_hp; free(_hp); }
+        Str _t_Str_30; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/array.til:26:19", 62ULL); _t_Str_30 = *_hp; free(_hp); }
         (void)_t_Str_30;
         panic(&_t_Str_30, ({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_1; _oa; }));
         Str_delete(&_t_Str_30, &(Bool){0});
@@ -1787,7 +1787,7 @@ void Array_set(Array * self, U32 * i, void * val) {
         (void)_t_Str_46;
         Array_set(&_va_Array_2, &_t_U32_45, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_46; _oa; }));
         ;
-        Str _t_Str_47; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/array.til:32:19", 62ULL); _t_Str_47 = *_hp; free(_hp); }
+        Str _t_Str_47; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/array.til:34:19", 62ULL); _t_Str_47 = *_hp; free(_hp); }
         (void)_t_Str_47;
         panic(&_t_Str_47, ({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_2; _oa; }));
         Str_delete(&_t_Str_47, &(Bool){0});
@@ -5776,7 +5776,7 @@ void * Vec_get(Vec * self, U32 * i) {
         (void)_t_Str_796;
         Array_set(&_va_Array_15, &_t_U32_795, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_796; _oa; }));
         ;
-        Str _t_Str_797; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/vec.til:39:19", 60ULL); _t_Str_797 = *_hp; free(_hp); }
+        Str _t_Str_797; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/vec.til:41:19", 60ULL); _t_Str_797 = *_hp; free(_hp); }
         (void)_t_Str_797;
         panic(&_t_Str_797, ({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_15; _oa; }));
         Str_delete(&_t_Str_797, &(Bool){0});
@@ -5839,7 +5839,7 @@ void Vec_set(Vec * self, U32 * i, void * val) {
         (void)_t_Str_813;
         Array_set(&_va_Array_16, &_t_U32_812, ({ Str *_oa = malloc(sizeof(Str)); *_oa = _t_Str_813; _oa; }));
         ;
-        Str _t_Str_814; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/vec.til:46:19", 60ULL); _t_Str_814 = *_hp; free(_hp); }
+        Str _t_Str_814; { Str *_hp = (Str *)Str_lit("/home/jt/sync/data_common/code/jt/til/src/core/vec.til:48:19", 60ULL); _t_Str_814 = *_hp; free(_hp); }
         (void)_t_Str_814;
         panic(&_t_Str_814, ({ Array *_oa = malloc(sizeof(Array)); *_oa = _va_Array_16; _oa; }));
         Str_delete(&_t_Str_814, &(Bool){0});

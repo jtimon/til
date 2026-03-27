@@ -1,5 +1,7 @@
 mode lib
 
+vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
+
 Vec := struct {
     own mut data : U8 = 0
     mut count : USize = 0
