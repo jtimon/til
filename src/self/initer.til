@@ -118,6 +118,30 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
     return errors
 }
 
+register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
+    ref edecl : Declaration = get_payload(stmt.data)
+    ename := edecl.name
+
+    existing_find := scope.find(ename)
+    if is_variant(existing_find, ScopeFind.Found) {
+        ref existing_payload : Dynamic = get_payload(existing_find)
+        ref existing : TypeBinding = existing_payload
+        if is_null(existing.struct_def).not() {
+            println(
+                stmt.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                ": error: enum '", ename, "' already declared at ",
+                existing.struct_def.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+            )
+            return 1
+        }
+    }
+
+    scope.set(ename, TilType.Enum, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+    ref mut b : TypeBinding = scope.get_binding(ename)
+    b.struct_def = stmt.child(0)
+    return 0
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)

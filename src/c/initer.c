@@ -272,26 +272,6 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
 }
 
-static I32 register_enum_definition(Expr *stmt, TypeScope *scope) {
-    Str *ename = &stmt->data.data.Decl.name;
-    I32 line = stmt->line, col = stmt->col;
-    Str *path = &stmt->path;
-
-    ScopeFind *_sf4 = TypeScope_find(scope, ename);
-    TypeBinding *existing = _sf4->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf4) : NULL;
-    if (existing && existing->struct_def) {
-        fprintf(stderr, "%s:%u:%u: error: enum '%s' already declared at %s:%u:%u\n",
-                path->c_str, line, col, ename->c_str,
-                existing->struct_def->path.c_str, existing->line, existing->col);
-        return 1;
-    }
-
-    TypeScope_set(scope, ename, &(TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
-    TypeBinding *b = Map_get(&scope->bindings, ename);
-    b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
-    return 0;
-}
-
 static void collect_enum_variants(Expr *body, Vec *variant_names, Vec *variant_types, Bool *has_payloads) {
     *has_payloads = 0;
     for (U32 j = 0; j < body->children.count; j++) {
