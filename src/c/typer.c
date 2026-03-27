@@ -1126,19 +1126,6 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 // --- Collection literal helpers ---
 
-static Bool type_has_cmp(TypeScope *scope, const char *type_name) {
-    Expr *sdef = TypeScope_get_struct(scope, Str_clone(&(Str){.c_str = (U8*)(type_name), .count = (U64)strlen((const char*)(type_name)), .cap = CAP_VIEW}));
-    if (!sdef) return 0;
-    Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *f = Expr_child(body, &(USize){(USize)(i)});
-        if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
-            (f->data.data.Decl.name.count == 3 && memcmp(f->data.data.Decl.name.c_str, "cmp", 3) == 0))
-            return 1;
-    }
-    return 0;
-}
-
 // --- Set literal desugaring ---
 // Transforms s := {v1, v2, v3} into:
 //   mut s := Set.new(elem_type, elem_size)
@@ -1179,7 +1166,8 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         }
 
         // Validate element type has cmp
-        if (!type_has_cmp(scope, elem_type)) {
+        Str elem_type_str = {.c_str = (U8*)elem_type, .count = (U64)strlen((const char*)elem_type), .cap = CAP_VIEW};
+        if (!type_has_cmp(scope, &elem_type_str)) {
             char buf[128];
             snprintf(buf, sizeof(buf), "set literal: element type '%s' must implement cmp", elem_type);
             type_error(first, buf);
@@ -1293,7 +1281,8 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         }
 
         // Validate key type has cmp
-        if (!type_has_cmp(scope, key_type)) {
+        Str key_type_str = {.c_str = (U8*)key_type, .count = (U64)strlen((const char*)key_type), .cap = CAP_VIEW};
+        if (!type_has_cmp(scope, &key_type_str)) {
             char buf[128];
             snprintf(buf, sizeof(buf), "map literal: key type '%s' must implement cmp", key_type);
             type_error(first_key, buf);

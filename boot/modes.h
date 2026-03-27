@@ -810,6 +810,7 @@ TilType * type_from_name(Str * name, TypeScope * scope);
 Str * resolve_type_alias(TypeScope * scope, Str * name);
 Str * usize_name(TypeScope * scope);
 TilType * usize_type(TypeScope * scope);
+Bool type_has_cmp(TypeScope * scope, Str * type_name);
 Bool expr_contains_fcall(Expr * e);
 Bool expr_uses_var(Expr * e, Str * name);
 Bool expr_contains_decl(Expr * e, Str * name);

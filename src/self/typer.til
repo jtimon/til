@@ -164,6 +164,22 @@ usize_type := func(scope: TypeScope) returns TilType {
     return type_from_name(usize_name(scope), scope)
 }
 
+type_has_cmp := func(scope: TypeScope, type_name: Str) returns shallow Bool {
+    ref sdef : Expr = scope.get_struct(type_name)
+    if is_null(sdef) { return false }
+    ref body : Expr = sdef.child(0)
+    for i in 0..body.child_count() {
+        ref f : Expr = body.child(i)
+        if is_variant(f.data, ExprData.Decl) {
+            ref decl : Declaration = get_payload(f.data)
+            if decl.is_namespace.and(decl.name.eq("cmp")) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 expr_contains_fcall := func(e: Expr) returns shallow Bool {
     if is_variant(e.data, ExprData.FCall) { return true }
     for i in 0..e.child_count() {
