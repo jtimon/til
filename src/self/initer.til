@@ -326,6 +326,92 @@ generate_struct_size_methods := proc(program: Expr) {
     }
 }
 
+generate_unity_derived_methods := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        ref def : Expr = stmt.child(0)
+        if is_variant(def.data, ExprData.StructDef).not().and(is_variant(def.data, ExprData.EnumDef).not()) { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+        sname := sdecl.name
+        if sname.eq("StructDef") { continue }
+        if sname.eq("Dynamic") { continue }
+
+        ref mut body : Expr = def.child(0)
+        mut has_add := false
+        mut has_sub := false
+        mut has_unity := false
+        mut has_inc := false
+        mut has_dec := false
+        for j in 0..body.child_count() {
+            ref f : Expr = body.child(j)
+            if is_variant(f.data, ExprData.Decl).not() { continue }
+            ref fd : Declaration = get_payload(f.data)
+            if fd.is_namespace.not() { continue }
+            if f.child_count().eq(0) { continue }
+            if is_variant(f.child(0).data, ExprData.FuncDef).not() { continue }
+            fn := fd.name
+            if fn.eq("add") { has_add = true }
+            if fn.eq("sub") { has_sub = true }
+            if fn.eq("unity") { has_unity = true }
+            if fn.eq("inc") { has_inc = true }
+            if fn.eq("dec") { has_dec = true }
+        }
+        if has_unity.not() { continue }
+
+        for pass in 0..2 {
+            mut method := "inc"
+            mut op := "add"
+            mut already_has := has_inc
+            mut has_op := has_add
+            if pass.eq(1) {
+                method = "dec"
+                op = "sub"
+                already_has = has_dec
+                has_op = has_sub
+            }
+            if already_has { continue }
+            if has_op.not() { continue }
+
+            mut self1 := Expr.new(ExprData.Ident("self"), stmt.line, stmt.col, stmt.path)
+            mut self2 := Expr.new(ExprData.Ident("self"), stmt.line, stmt.col, stmt.path)
+
+            mut unity_acc := Expr.new(ExprData.FieldAccess("unity"), stmt.line, stmt.col, stmt.path)
+            unity_acc.add_child(own self2)
+            mut unity_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            unity_call.add_child(own unity_acc)
+
+            mut op_acc := Expr.new(ExprData.FieldAccess(op.clone()), stmt.line, stmt.col, stmt.path)
+            op_acc.add_child(own self1)
+            mut op_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            op_call.add_child(own op_acc)
+            op_call.add_child(own unity_call)
+
+            mut assign := Expr.new(ExprData.Assign("self"), stmt.line, stmt.col, stmt.path)
+            assign.add_child(own op_call)
+
+            mut proc_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+            proc_body.add_child(own assign)
+
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            func_decl.nparam = 1
+            param := Param(name = "self", ptype = sname.clone(), is_mut = true)
+            func_decl.params.push(own param)
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+
+            mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+            func_def.add_child(own proc_body)
+
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = method.clone(), is_namespace = true)), stmt.line, stmt.col, stmt.path)
+            decl.add_child(own func_def)
+            body.add_child(own decl)
+        }
+    }
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
