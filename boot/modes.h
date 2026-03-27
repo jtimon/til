@@ -469,7 +469,7 @@ struct ExprData {
     union {
         Str LiteralStr;
         Str LiteralNum;
-        Str LiteralBool;
+        Bool LiteralBool;
         Str Ident;
         Declaration Decl;
         Str Assign;

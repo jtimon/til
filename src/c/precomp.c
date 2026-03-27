@@ -43,7 +43,7 @@ static Expr *value_to_expr(Value val, Expr *src) {
     }
     case Value_TAG_Boolean: {
         e = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-        e->data.data.LiteralBool = (val.data.Boolean ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT} : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
+        e->data.data.LiteralBool = val.data.Boolean;
         e->til_type = (TilType){TilType_TAG_Bool};
         return e;
     }
@@ -63,7 +63,7 @@ static Value expr_to_value(Expr *e) {
     case ExprData_TAG_LiteralStr:
         return make_str_value((void *)e->data.data.LiteralStr.c_str, e->data.data.LiteralStr.count);
     case ExprData_TAG_LiteralBool:
-        return val_bool(strcmp((const char *)e->data.data.LiteralBool.c_str, "true") == 0);
+        return val_bool(e->data.data.LiteralBool);
     default:
         return val_none();
     }

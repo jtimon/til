@@ -418,7 +418,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         fprintf(f, "%s", e->data.data.LiteralNum.c_str);
         break;
     case ExprData_TAG_LiteralBool:
-        fprintf(f, "%d", (e->data.data.LiteralBool.count == 4 && memcmp(e->data.data.LiteralBool.c_str, "true", 4) == 0) ? 1 : 0);
+        fprintf(f, "%d", e->data.data.LiteralBool ? 1 : 0);
         break;
     case ExprData_TAG_LiteralNull:
         fprintf(f, "NULL");

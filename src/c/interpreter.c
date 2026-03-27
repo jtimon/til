@@ -940,7 +940,7 @@ Value eval_expr(Scope *scope, Expr *e) {
             return val_f32((F32)atof((const char *)e->data.data.LiteralNum.c_str));
         return val_i64(atoll((const char *)e->data.data.LiteralNum.c_str));
     case ExprData_TAG_LiteralBool:
-        return val_bool((e->data.data.LiteralBool.count == 4 && memcmp(e->data.data.LiteralBool.c_str, "true", 4) == 0));
+        return val_bool(e->data.data.LiteralBool);
     case ExprData_TAG_LiteralNull:
         return (Value){.tag = Value_TAG_Ptr, .data.Ptr = NULL};
     case ExprData_TAG_Ident: {

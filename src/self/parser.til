@@ -464,7 +464,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
     }
     if e_set.not().and(t.type.eq(TokenType.KwTrue).or(t.type.eq(TokenType.KwFalse))) {
         advance(p)
-        e = Expr.new(ExprData.LiteralBool(t.text.clone()), t_line, t_col, p.path)
+        e = Expr.new(ExprData.LiteralBool(t.type.eq(TokenType.KwTrue)), t_line, t_col, p.path)
         e_set = true
     }
     if e_set.not().and(t.type.eq(TokenType.KwNull)) {

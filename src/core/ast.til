@@ -87,7 +87,7 @@ ExprData := enum {
     Body,
     LiteralStr: Str,
     LiteralNum: Str,
-    LiteralBool: Str,
+    LiteralBool: Bool,
     LiteralNull,
     Ident: Str,
     Decl: Declaration,
@@ -247,7 +247,7 @@ ast_print := proc(e: Expr, shallow indent: U32) {
     case ExprData.Ident(s):      print(" \"", s, "\"")
     case ExprData.LiteralStr(s): print(" \"", s, "\"")
     case ExprData.LiteralNum(s): print(" \"", s, "\"")
-    case ExprData.LiteralBool(s):print(" \"", s, "\"")
+    case ExprData.LiteralBool(b): if b { print(" true") } else { print(" false") }
     case ExprData.ForIn(s):      print(" \"", s, "\"")
     case ExprData.Decl(decl):
         if decl.is_mut { print(" mut") }

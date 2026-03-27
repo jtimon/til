@@ -265,7 +265,7 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
             // call_free=true for own fields (separate allocation), false for inline
             Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-            cf_lit->data.data.LiteralBool = (fown  ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT} : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
+            cf_lit->data.data.LiteralBool = fown;
             Expr_add_child(del_call, cf_lit);
 
             Expr_add_child(proc_body, del_call);
@@ -291,7 +291,7 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
         // func def: delete(own self: Type, call_free: Bool = true)
         Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-        default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
+        default_true->data.data.LiteralBool = 1;
 
         Expr *proc_def = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
         // Note: is_core NOT set — auto-generated delete goes to per-module
@@ -542,7 +542,7 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
 
                     Expr *ret_false = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
                     Expr *false_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-                    false_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT};
+                    false_lit->data.data.LiteralBool = 0;
                     Expr_add_child(ret_false, false_lit);
                     Expr *guard_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
                     Expr_add_child(guard_body, ret_false);
@@ -555,7 +555,7 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
                         // FuncSig payload: tag-only equality (return true)
                         Expr *ret_true = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
                         Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-                        true_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
+                        true_lit->data.data.LiteralBool = 1;
                         Expr_add_child(ret_true, true_lit);
                         Expr_add_child(then_body, ret_true);
                     } else {
@@ -633,7 +633,7 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
             // return false
             Expr *ret_false = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
             Expr *false_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-            false_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT};
+            false_lit->data.data.LiteralBool = 0;
             Expr_add_child(ret_false, false_lit);
             Expr_add_child(func_body, ret_false);
 
@@ -808,7 +808,7 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
             Expr_add_child(proc_body, if_node);
 
             Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-            default_true->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
+            default_true->data.data.LiteralBool = 1;
             Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             // Note: is_core NOT set — auto-generated delete goes to per-module
             // file (same as clone), not to main file

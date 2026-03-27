@@ -2099,8 +2099,7 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Boo
     Expr_add_child(call, arg);
 
     Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-    cf_lit->data.data.LiteralBool = (call_free ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT}
-                                               : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
+    cf_lit->data.data.LiteralBool = call_free;
     cf_lit->til_type = (TilType){TilType_TAG_Bool};
     Expr_add_child(call, cf_lit);
 
@@ -2139,7 +2138,7 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
     Expr_add_child(call, field_acc);
 
     Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-    cf_lit->data.data.LiteralBool = (is_own ? (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT} : (Str){.c_str = (U8*)"false", .count = 5, .cap = CAP_LIT});
+    cf_lit->data.data.LiteralBool = is_own;
     cf_lit->til_type = (TilType){TilType_TAG_Bool};
     Expr_add_child(call, cf_lit);
 
@@ -2980,7 +2979,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 body->children = new_ch;
                 // Replace condition with true
                 Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-                true_lit->data.data.LiteralBool = (Str){.c_str = (U8*)"true", .count = 4, .cap = CAP_LIT};
+                true_lit->data.data.LiteralBool = 1;
                 true_lit->til_type = (TilType){TilType_TAG_Bool};
                 *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *true_lit;
             }
