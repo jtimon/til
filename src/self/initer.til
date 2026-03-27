@@ -194,6 +194,38 @@ generate_enum_variant_constructors := proc(body: Expr, ename: Str, shallow line:
     }
 }
 
+generate_enum_is_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str) {
+    mut func_body := Expr.new(ExprData.Body, line, col, path)
+    mut is_id := Expr.new(ExprData.Ident("is"), line, col, path)
+    mut self_id := Expr.new(ExprData.Ident("self"), line, col, path)
+    mut other_id := Expr.new(ExprData.Ident("other"), line, col, path)
+    mut is_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+    is_call.add_child(own is_id)
+    is_call.add_child(own self_id)
+    is_call.add_child(own other_id)
+    mut ret := Expr.new(ExprData.Return, line, col, path)
+    ret.add_child(own is_call)
+    func_body.add_child(own ret)
+
+    mut func_decl := FunctionDef()
+    func_decl.func_type = FuncType.Func
+    func_decl.nparam = 2
+    self_param := Param(name = "self", ptype = ename.clone())
+    other_param := Param(name = "other", ptype = ename.clone())
+    func_decl.params.push(own self_param)
+    func_decl.params.push(own other_param)
+    func_decl.return_type = "Bool"
+    func_decl.variadic_index = -1.to_i32()
+    func_decl.kwargs_index = -1.to_i32()
+
+    mut func_def := Expr.new(ExprData.FuncDef(func_decl), line, col, path)
+    func_def.add_child(own func_body)
+
+    mut decl := Expr.new(ExprData.Decl(Declaration(name = "is", is_namespace = true)), line, col, path)
+    decl.add_child(own func_def)
+    body.add_child(own decl)
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
