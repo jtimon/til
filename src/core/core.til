@@ -31,21 +31,13 @@ import("i64.til")
 import("range.til")
 import("bool.til")
 import("io.til")
+import("mem.til")
 import("sys.til")
 
 // builtin functions and procs
-free := ext_func(own elem: Dynamic) {}
-is_null := ext_func(p: Dynamic) returns shallow Bool {}
 is := ext_func(self: Dynamic, other: Dynamic) returns shallow Bool {}
 is_variant := ext_func(self: Dynamic, other: Dynamic) returns shallow Bool {}
 get_payload := ext_func(self: Dynamic) returns ref Dynamic {}
-malloc := ext_func(shallow count: U64) returns Dynamic {}
-calloc := ext_func(shallow nmemb: U64, shallow size: U64) returns Dynamic {}
-realloc := ext_func(own buf: Dynamic, shallow count: U64) returns Dynamic {}
-ptr_add := ext_func(buf: Dynamic, shallow offset: U64) returns ref Dynamic {}
-memcpy := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
-memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
-memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: U64) {}
 dyn_call := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) {}
 dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic {}
 dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
@@ -64,37 +56,5 @@ default_distance : DistanceFn = (a, b) { return 0 }
 dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
 array := ext_func(type_name: Str, elements: ..Dynamic) returns Array {}
 vec := ext_func(type_name: Str, elements: ..Dynamic) returns Vec {}
-
-swap := func(a: Dynamic, b: Dynamic, shallow size: U64) {
-    if U8.distance(a, b).eq(0) { return }
-
-    mut offset : U64 = 0
-    while offset.add(U64.size()).lte(size) {
-        ref aw : U64 = ptr_add(a, offset)
-        ref bw : U64 = ptr_add(b, offset)
-        tmp := aw.xor(bw)
-        new_b := tmp.xor(bw)
-        new_a := tmp.xor(new_b)
-        memcpy(ptr_add(a, offset), new_a, U64.size())
-        memcpy(ptr_add(b, offset), new_b, U64.size())
-        offset = offset.add(U64.size())
-    }
-
-    while offset.lt(size) {
-        ref ab : U8 = ptr_add(a, offset)
-        ref bb : U8 = ptr_add(b, offset)
-        tmp := ab.xor(bb)
-        new_b := tmp.xor(bb)
-        new_a := tmp.xor(new_b)
-        memcpy(ptr_add(a, offset), new_a, 1)
-        memcpy(ptr_add(b, offset), new_b, 1)
-        offset = offset.add(1)
-    }
-}
-
-move := func(dest: Dynamic, src: Dynamic, shallow size: U64) {
-    memcpy(dest, src, size)
-    memset(src, 0, size)
-}
 
 import("exit.til")
