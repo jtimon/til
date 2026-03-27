@@ -79,73 +79,11 @@ namespace:
     size := func() returns USize { return 2 }
 }
 
-I32 := ext_struct {
-namespace:
-    to_i64 := ext_func(shallow val: I32) returns shallow I64 {}
-    to_str := func(val: I32) returns Str {
-        return val.to_i64().to_str()
-    }
-    add := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    sub := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    mul := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    div := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    mod := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    inc := func(mut self: I32) { self = self.add(1) }
-    dec := func(mut self: I32) { self = self.sub(1) }
-    unity := func(self: I32) returns I32 { return 1.to_i32() }
-    eq := ext_func(shallow a: I32, shallow b: I32) returns shallow Bool {}
-    cmp := ext_func(shallow a: I32, shallow b: I32) returns shallow I64 {}
-    neg := func(a: I32) returns I32 { return 0.sub(a.to_i64()).to_i32() }
-    abs := func(a: I32) returns I32 { if a.to_i64().lt(0) { return 0.sub(a.to_i64()).to_i32() } return a }
-    and := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    or := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    xor := ext_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    clone := ext_func(val: I32) returns shallow I32 {}
-    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
-        ref au : I32 = a
-        ref bu : I32 = b
-        if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
-        return au.sub(bu).to_i64().to_u64()
-    }
-    delete := func(own self: I32, call_free: Bool = true) {
-        if call_free { free(own self) }
-    }
-    size := func() returns USize { return 4 }
-}
+import("i32.til")
 
 import("f32.til")
 
-U32 := ext_struct {
-namespace:
-    to_i64 := ext_func(shallow val: U32) returns shallow I64 {}
-    to_str := func(val: U32) returns Str {
-        return val.to_i64().to_str()
-    }
-    add := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    sub := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    mul := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    div := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    mod := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    inc := func(mut self: U32) { self = self.add(1) }
-    dec := func(mut self: U32) { self = self.sub(1) }
-    unity := func(self: U32) returns U32 { return 1.to_u32() }
-    eq := ext_func(shallow a: U32, shallow b: U32) returns shallow Bool {}
-    cmp := ext_func(shallow a: U32, shallow b: U32) returns shallow I64 {}
-    and := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    or := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    xor := ext_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    clone := ext_func(val: U32) returns shallow U32 {}
-    distance := func(a: Dynamic, b: Dynamic) returns shallow U64 {
-        ref au : U32 = a
-        ref bu : U32 = b
-        if au.lte(bu) { return bu.sub(au).to_i64().to_u64() }
-        return au.sub(bu).to_i64().to_u64()
-    }
-    delete := func(own self: U32, call_free: Bool = true) {
-        if call_free { free(own self) }
-    }
-    size := func() returns USize { return 4 }
-}
+import("u32.til")
 
 U64 := ext_struct {
 namespace:
