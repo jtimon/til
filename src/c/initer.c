@@ -1008,7 +1008,7 @@ static void generate_size_methods(Expr *program, TypeScope *scope) {
     generate_enum_size_methods(program);
 }
 
-static void generate_derived_methods(Expr *program, TypeScope *scope) {
+static void generate_cmp_derived_methods(Expr *program, TypeScope *scope) {
     (void)scope;
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
@@ -1023,7 +1023,6 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
         Expr *body = Expr_child(def, &(USize){(USize)(0)});
         Bool has_cmp = 0, has_eq = 0, has_neq = 0;
         Bool has_lt = 0, has_gt = 0, has_lte = 0, has_gte = 0;
-        Bool has_add = 0, has_sub = 0, has_unity = 0, has_inc = 0, has_dec = 0;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *f = Expr_child(body, &(USize){(USize)(j)});
             if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
@@ -1036,20 +1035,13 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
             if ((fn->count == 2 && memcmp(fn->c_str, "gt", 2) == 0)) has_gt = 1;
             if ((fn->count == 3 && memcmp(fn->c_str, "lte", 3) == 0)) has_lte = 1;
             if ((fn->count == 3 && memcmp(fn->c_str, "gte", 3) == 0)) has_gte = 1;
-            if ((fn->count == 3 && memcmp(fn->c_str, "add", 3) == 0)) has_add = 1;
-            if ((fn->count == 3 && memcmp(fn->c_str, "sub", 3) == 0)) has_sub = 1;
-            if ((fn->count == 5 && memcmp(fn->c_str, "unity", 5) == 0)) has_unity = 1;
-            if ((fn->count == 3 && memcmp(fn->c_str, "inc", 3) == 0)) has_inc = 1;
-            if ((fn->count == 3 && memcmp(fn->c_str, "dec", 3) == 0)) has_dec = 1;
         }
-        if (!has_cmp && !has_unity) continue;
+        if (!has_cmp) continue;
 
         I32 line = stmt->line;
         I32 col = stmt->col;
         Str *path = &stmt->path;
 
-        if (has_cmp) {
-        // Helper macros for building AST nodes inline
         #define MK(type) Expr_new(&(ExprData){.tag = type}, line, col, path)
         #define ID(s) ({ Expr *_e = MK(ExprData_TAG_Ident); _e->data.data.Ident = *Str_clone(&(Str){.c_str = (U8*)(s), .count = (U64)strlen((const char*)(s)), .cap = CAP_VIEW}); _e; })
         #define NUM(s) ({ Expr *_e = MK(ExprData_TAG_LiteralNum); _e->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(s), .count = (U64)strlen((const char*)(s)), .cap = CAP_VIEW}); _e; })
@@ -1057,13 +1049,8 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
         #define CALL0(callee) ({ Expr *_e = MK(ExprData_TAG_FCall); Expr_add_child(_e, callee); _e; })
         #define CALL1(callee, arg1) ({ Expr *_e = MK(ExprData_TAG_FCall); Expr_add_child(_e, callee); Expr_add_child(_e, arg1); _e; })
         #define RET(val) ({ Expr *_e = MK(ExprData_TAG_Return); Expr_add_child(_e, val); _e; })
-
-        // a.cmp(b).eq(N) — build: call(acc(call(acc(id("a"), "cmp"), id("b")), "eq"), N)
         #define CMP_EQ(n) RET(CALL1(ACC(CALL1(ACC(ID("a"), "cmp"), ID("b")), "eq"), n))
-        // 0.sub(1) for -1
         #define NEG1() CALL1(ACC(NUM("0"), "sub"), NUM("1"))
-
-        // Generate a 2-param func decl in namespace
         #define GEN_CMP_FUNC(method_name, body_expr) do { \
             Expr *fb = MK(ExprData_TAG_Body); \
             Expr_add_child(fb, body_expr); \
@@ -1109,40 +1096,61 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
         #undef CMP_EQ
         #undef NEG1
         #undef GEN_CMP_FUNC
-        } // end if (has_cmp)
+    }
+}
 
-        // Auto-generate inc/dec from add/sub + unity
-        // inc(mut self: T) { self = self.add(self.unity()) }
-        // dec(mut self: T) { self = self.sub(self.unity()) }
+static void generate_unity_derived_methods(Expr *program, TypeScope *scope) {
+    (void)scope;
+    for (U32 i = 0; i < program->children.count; i++) {
+        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
+        if (stmt->data.tag != ExprData_TAG_Decl) continue;
+        Expr *def = Expr_child(stmt, &(USize){(USize)(0)});
+        if (def->data.tag != ExprData_TAG_StructDef && def->data.tag != ExprData_TAG_EnumDef) continue;
+
+        Str *sname = &stmt->data.data.Decl.name;
+        if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0) ||
+            (sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0)) continue;
+
+        Expr *body = Expr_child(def, &(USize){(USize)(0)});
+        Bool has_add = 0, has_sub = 0, has_unity = 0, has_inc = 0, has_dec = 0;
+        for (U32 j = 0; j < body->children.count; j++) {
+            Expr *f = Expr_child(body, &(USize){(USize)(j)});
+            if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
+            if (f->children.count == 0 || Expr_child(f, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
+            Str *fn = &f->data.data.Decl.name;
+            if ((fn->count == 3 && memcmp(fn->c_str, "add", 3) == 0)) has_add = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "sub", 3) == 0)) has_sub = 1;
+            if ((fn->count == 5 && memcmp(fn->c_str, "unity", 5) == 0)) has_unity = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "inc", 3) == 0)) has_inc = 1;
+            if ((fn->count == 3 && memcmp(fn->c_str, "dec", 3) == 0)) has_dec = 1;
+        }
+        if (!has_unity) continue;
+
+        I32 line = stmt->line;
+        I32 col = stmt->col;
+        Str *path = &stmt->path;
+
         for (int pass = 0; pass < 2; pass++) {
-            // pass 0 = inc (needs add), pass 1 = dec (needs sub)
             const char *method = pass == 0 ? "inc" : "dec";
-            U64 method_len = pass == 0 ? 3 : 3;
+            U64 method_len = 3;
             const char *op = pass == 0 ? "add" : "sub";
             U64 op_len = 3;
             Bool already_has = pass == 0 ? has_inc : has_dec;
             Bool has_op = pass == 0 ? has_add : has_sub;
-            if (already_has || !has_op || !has_unity) continue;
+            if (already_has || !has_op) continue;
 
-            // self = self.OP(self.unity())
-            // Build: Assign("self", FCall(FieldAccess(Ident("self"), OP), FCall(FieldAccess(Ident("self"), "unity"))))
             Expr *self1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
             self1->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
 
             Expr *self2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
             self2->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
 
-            Expr *self3 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            self3->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-
-            // self.unity()
             Expr *unity_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
             unity_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"unity", .count = 5, .cap = CAP_LIT};
             Expr_add_child(unity_acc, self2);
             Expr *unity_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
             Expr_add_child(unity_call, unity_acc);
 
-            // self.add(unity_call) or self.sub(unity_call)
             Expr *op_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
             op_acc->data.data.FieldAccess = *Str_clone(&(Str){.c_str = (U8*)op, .count = op_len, .cap = CAP_VIEW});
             Expr_add_child(op_acc, self1);
@@ -1150,7 +1158,6 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
             Expr_add_child(op_call, op_acc);
             Expr_add_child(op_call, unity_call);
 
-            // self = ...
             Expr *assign = Expr_new(&(ExprData){.tag = ExprData_TAG_Assign}, line, col, path);
             assign->data.data.Assign = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
             Expr_add_child(assign, op_call);
@@ -1158,7 +1165,6 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
             Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
             Expr_add_child(proc_body, assign);
 
-            // proc(mut self: T) { ... }
             Expr *fd = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
             fd->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
             fd->data.data.FuncDef.nparam = 1;
@@ -1181,6 +1187,11 @@ static void generate_derived_methods(Expr *program, TypeScope *scope) {
             Expr_add_child(body, decl);
         }
     }
+}
+
+static void generate_derived_methods(Expr *program, TypeScope *scope) {
+    generate_cmp_derived_methods(program, scope);
+    generate_unity_derived_methods(program, scope);
 }
 
 I32 init_declarations(Expr *program, TypeScope *scope) {
