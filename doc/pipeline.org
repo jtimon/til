@@ -1,0 +1,99 @@
+* Pipeline
+
+This is the current high-level pipeline implemented in
+[[/home/jt/sync/data_common/code/jt/til/src/til.til][src/til.til]].
+It is intentionally short and code-oriented.
+
+1. Tokenize and parse
+
+- The CLI loads:
+  - `src/core/core.til`
+  - user source
+  - recursive `import(...)` files
+  - optional mode auto-import file from `src/modes/*.til`
+- Parsing is done by [[/home/jt/sync/data_common/code/jt/til/src/self/parser.til][src/self/parser.til]].
+- Result: one merged AST.
+
+2. Init declarations
+
+- `init_declarations(ast, scope)`
+- Implemented in handwritten C for now:
+  [[/home/jt/sync/data_common/code/jt/til/src/c/initer.c][src/c/initer.c]]
+- Responsibilities:
+  - pre-register types, funcs, globals, aliases
+  - build initial `TypeScope`
+  - auto-generate helpers such as enum/struct namespace methods
+  - prepare enough metadata for typing
+
+3. Type check
+
+- `type_check(ast, scope, mode)`
+- Implemented in handwritten C for now:
+  [[/home/jt/sync/data_common/code/jt/til/src/c/typer.c][src/c/typer.c]]
+- Responsibilities:
+  - resolve names and types
+  - infer expression types
+  - lower/check some constructs during typing
+  - reject invalid programs
+
+4. Precomp
+
+- `precomp(ast)`
+- Implemented in handwritten C plus til glue:
+  [[/home/jt/sync/data_common/code/jt/til/src/c/precomp.c][src/c/precomp.c]]
+  and [[/home/jt/sync/data_common/code/jt/til/src/self/precomp.til][src/self/precomp.til]]
+- Responsibilities:
+  - fold macros
+  - fold comptime-known pure calls recursively when possible
+  - track known literal values
+- After precomp, macros should be gone from the AST.
+
+5. Scavenge
+
+- `scavenge(ast, mode, run_tests)`
+- Implemented in handwritten C:
+  [[/home/jt/sync/data_common/code/jt/til/src/c/scavenger.c][src/c/scavenger.c]]
+- Usually removes dead/unreachable declarations after earlier passes.
+- This is skipped in some library translate/build paths.
+
+6. Back end
+
+There are two main back ends.
+
+- Interpret:
+  - `interpret(ast, ...)`
+  - [[/home/jt/sync/data_common/code/jt/til/src/c/interpreter.c][src/c/interpreter.c]]
+
+- Build:
+  - `build(ast, mode, run_tests, path, c_path)`
+  - [[/home/jt/sync/data_common/code/jt/til/src/c/builder.c][src/c/builder.c]]
+  - emits C, headers, and optional til bindings
+  - then `compile_c(...)` / `compile_lib(...)` compiles the emitted C
+
+7. Runtime/ext layer
+
+- Several primitives are still implemented in handwritten C and linked into
+  the self-hosted pipeline:
+  - [[/home/jt/sync/data_common/code/jt/til/src/c/ext.c][src/c/ext.c]]
+  - [[/home/jt/sync/data_common/code/jt/til/src/c/dispatch.c][src/c/dispatch.c]]
+- Til sees these through `ext_func` / `ext_proc` declarations imported through
+  `modes.til`, and handwritten C sees til declarations through generated
+  `boot/modes.h`.
+
+* Notes
+
+- Parser builds the AST.
+- Initer registers and synthesizes declarations.
+- Typer resolves and validates.
+- Precomp folds comptime work.
+- Scavenger removes unused leftovers.
+- Builder/interpreter are the final execution back ends.
+
+That is the current practical phase order to keep in mind when debugging:
+
+- parse problem: `parser.til`
+- missing declaration / auto-generated helper: `initer.c`
+- name/type resolution or enum switch behavior: `typer.c`
+- comptime folding issue: `precomp.c`
+- generated C / linkage issue: `builder.c`
+- runtime behavior mismatch: `interpreter.c` or `ext.c`

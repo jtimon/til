@@ -1985,4 +1985,42 @@
   - Persistent scope: declarations accumulate across inputs
   - Result display: print expression values (needs to_str for all types)
 
+** OPEN #114 Source docs + repl help/introspection
+  Add source-level documentation that can later be surfaced from the REPL and
+  tooling. The long-term goal is that once ~#10~ exists, users can ask for:
+
+  - ~help("Vec")~
+  - ~help("Vec.get")~
+  - ~help("Str.replace")~
+
+  and get the doc text directly from the declarations, not from a separate
+  manual.
+
+  This should follow the code, not drift away from it. Think of a small,
+  language-native equivalent of:
+
+  - Doxygen/Javadoc-style declaration docs
+  - Python docstrings / `help(...)`
+
+  The documentation model should cover at least:
+
+  - types (`struct`, `enum`, `namespace`)
+  - functions / procs / methods
+  - fields when useful
+  - modules or imported files if we later want file-level help
+
+  Suggested shape:
+
+  - parser keeps doc comments attached to the next declaration
+  - AST stores the docs on declarations / definitions
+  - builder / bindings can emit doc metadata if needed
+  - REPL `help(...)` and tooling read from that metadata
+
+  This is separate from current org docs like `doc/pipeline.org`.
+  Those are still useful, but they are not a substitute for docs attached to
+  the source and available interactively.
+
+  Depends conceptually on ~#10~, but the syntax/storage side can be designed
+  and implemented before the REPL command itself.
+
 * [0/0] Undecided
