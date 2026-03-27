@@ -190,12 +190,6 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
     return errors;
 }
 
-static void generate_size_methods(Expr *program, TypeScope *scope) {
-    (void)scope;
-    generate_struct_size_methods(program);
-    generate_enum_size_methods(program);
-}
-
 static void generate_derived_methods(Expr *program, TypeScope *scope) {
     generate_cmp_derived_methods(program, scope);
     generate_unity_derived_methods(program, scope);

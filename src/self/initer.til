@@ -1046,6 +1046,11 @@ generate_unity_derived_methods := proc(program: Expr, scope: TypeScope) {
     }
 }
 
+generate_size_methods := proc(program: Expr, scope: TypeScope) {
+    generate_struct_size_methods(program)
+    generate_enum_size_methods(program)
+}
+
 generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)

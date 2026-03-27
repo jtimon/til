@@ -773,6 +773,7 @@ void register_function_definitions(Expr * program, TypeScope * scope);
 void generate_struct_size_methods(Expr * program);
 void generate_enum_size_methods(Expr * program);
 void generate_unity_derived_methods(Expr * program, TypeScope * scope);
+void generate_size_methods(Expr * program, TypeScope * scope);
 void generate_cmp_derived_methods(Expr * program, TypeScope * scope);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
@@ -1343,6 +1344,7 @@ void register_function_definitions(Expr * program, TypeScope * scope);
 void generate_struct_size_methods(Expr * program);
 void generate_enum_size_methods(Expr * program);
 void generate_unity_derived_methods(Expr * program, TypeScope * scope);
+void generate_size_methods(Expr * program, TypeScope * scope);
 void generate_cmp_derived_methods(Expr * program, TypeScope * scope);
 void compute_struct_layout(Expr * struct_def, TypeScope * scope);
 void compute_all_struct_layouts(Expr * program, TypeScope * scope);
@@ -41637,6 +41639,13 @@ void generate_unity_derived_methods(Expr * program, TypeScope * scope) {
         ;
         ;
     }
+}
+
+void generate_size_methods(Expr * program, TypeScope * scope) {
+    (void)program;
+    (void)scope;
+    generate_struct_size_methods(program);
+    generate_enum_size_methods(program);
 }
 
 void generate_cmp_derived_methods(Expr * program, TypeScope * scope) {
