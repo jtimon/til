@@ -70,7 +70,8 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
 }
 
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
-    if struct_def.total_struct_size.gt(0) { return }
+    ref mut struct_meta : StructDefData = get_payload(struct_def.data)
+    if struct_meta.total_struct_size.gt(0) { return }
 
     ref body : Expr = struct_def.child(0)
     mut offset : I32 = 0
@@ -186,7 +187,8 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
                     fd.field_struct_def = nested_def
                 } else if is_null(nested_def).not() {
                     compute_struct_layout(nested_def, scope)
-                    fsz = nested_def.total_struct_size
+                    ref nested_meta : StructDefData = get_payload(nested_def.data)
+                    fsz = nested_meta.total_struct_size
                     falign = 8
                     fd.field_struct_def = nested_def
                 } else {
@@ -203,9 +205,9 @@ compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
         offset = offset.add(fsz)
     }
 
-    struct_def.total_struct_size = align_up(offset, max_align)
-    if struct_def.total_struct_size.eq(0) {
-        struct_def.total_struct_size = 1
+    struct_meta.total_struct_size = align_up(offset, max_align)
+    if struct_meta.total_struct_size.eq(0) {
+        struct_meta.total_struct_size = 1
     }
 }
 

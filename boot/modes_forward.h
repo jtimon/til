@@ -45,6 +45,7 @@ typedef struct FuncType FuncType;
 typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
+typedef struct StructDefData StructDefData;
 typedef enum {
     ExprData_TAG_Body,
     ExprData_TAG_LiteralStr,
@@ -269,6 +270,11 @@ typedef struct FCallData {
 } FCallData;
 
 
+typedef struct StructDefData {
+    I32 total_struct_size;
+} StructDefData;
+
+
 
 
 
@@ -487,6 +493,7 @@ struct ExprData {
         Str Assign;
         FCallData FCall;
         FunctionDef FuncDef;
+        StructDefData StructDef;
         Str FieldAccess;
         Str FieldAssign;
         Str ForIn;
@@ -506,7 +513,6 @@ typedef struct Expr {
     Bool is_ext;
     Bool is_core;
     Bool save_old_delete;
-    I32 total_struct_size;
     I32 variadic_index;
     U32 variadic_count;
     I32 kwargs_index;
@@ -661,6 +667,11 @@ Str * FCallData_to_str(FCallData * self);
 FCallData * FCallData_clone(FCallData * self);
 void FCallData_delete(FCallData * self, Bool * call_free);
 U32 * FCallData_size(void);
+Bool * StructDefData_eq(StructDefData * a, StructDefData * b);
+Str * StructDefData_to_str(StructDefData * self);
+StructDefData * StructDefData_clone(StructDefData * self);
+void StructDefData_delete(StructDefData * self, Bool * call_free);
+U32 * StructDefData_size(void);
 Bool * ExprData_is(ExprData * self, ExprData * other);
 Bool * ExprData_eq(ExprData * self, ExprData * other);
 ExprData * ExprData_clone(ExprData * self);

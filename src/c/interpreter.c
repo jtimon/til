@@ -437,7 +437,7 @@ Value clone_value(Value v) {
         dst->struct_name = src->struct_name; // borrowed
         dst->struct_def = src->struct_def;
         dst->borrowed = 0;
-        I32 sz = src->struct_def->total_struct_size;
+        I32 sz = src->struct_def->data.data.StructDef.total_struct_size;
         dst->data = malloc(sz);
         memcpy(dst->data, src->data, sz);
         // Deep-clone Str's data pointer (Str is ext_struct, fields not walkable)
@@ -492,9 +492,7 @@ Value clone_value(Value v) {
                 enum_has_payloads(field->data.data.Decl.field_struct_def)) {
                 EnumInstance *ei = *(EnumInstance **)((char *)src->data + foff);
                 if (ei) {
-                    Expr *edef = field->data.data.Decl.field_struct_def;
-                    I32 total = edef->total_struct_size;
-                    if (total < (I32)sizeof(I64)) total = sizeof(I64);
+                    I32 total = sizeof(I64);
                     EnumInstance *clone = malloc(sizeof(EnumInstance));
                     clone->enum_name = ei->enum_name;
                     clone->enum_def = ei->enum_def;
@@ -515,7 +513,7 @@ Value clone_value(Value v) {
                 tmp_val.data.Struct.data = (U8 *)src->data + foff;
                 tmp_val.data.Struct.borrowed = 1;
                 Value cloned = clone_value(tmp_val);
-                memcpy((char *)dst->data + foff, cloned.data.Struct.data, nested->total_struct_size);
+                memcpy((char *)dst->data + foff, cloned.data.Struct.data, nested->data.data.StructDef.total_struct_size);
                 free(cloned.data.Struct.data);
                 continue;
             }
@@ -813,7 +811,7 @@ Value eval_call(Scope *scope, Expr *e) {
         inst->struct_name = (e->struct_name.count > 0) ? &e->struct_name : name;
         inst->struct_def = sdef;
         inst->borrowed = 0;
-        inst->data = calloc(1, sdef->total_struct_size);
+        inst->data = calloc(1, sdef->data.data.StructDef.total_struct_size);
         I32 arg_idx = 1;
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *field = Expr_child(body, &(USize){(USize)(i)});
@@ -1103,7 +1101,7 @@ static void eval_body(Scope *scope, Expr *body) {
                         // EnumDef: wrap in EnumInstance
                         else if (tc && tc->val.tag == Value_TAG_Func && ((Expr*)tc->val.data.Func)->data.tag == ExprData_TAG_EnumDef) {
                             Expr *edef = (Expr*)tc->val.data.Func;
-                            I32 esz = edef->total_struct_size > 0 ? edef->total_struct_size : (I32)sizeof(I64);
+                            I32 esz = (I32)sizeof(I64);
                             U8 *ecopy = malloc(esz);
                             memcpy(ecopy, val.data.Ptr, esz);
                             val.tag = Value_TAG_Enum;
@@ -1426,7 +1424,7 @@ static void value_to_buf(void *dest, Value v, Str *type_name) {
     else if ((type_name->count == 3 && memcmp(type_name->c_str, "U32", 3) == 0))  { memcpy(dest, &v.data.Uint32, sizeof(U32)); }
     else if ((type_name->count == 4 && memcmp(type_name->c_str, "Bool", 4) == 0)) { memcpy(dest, &v.data.Boolean, sizeof(Bool)); }
     else if (v.tag == Value_TAG_Struct) {
-        I32 sz = v.data.Struct.struct_def->total_struct_size;
+        I32 sz = v.data.Struct.struct_def->data.data.StructDef.total_struct_size;
         if (v.data.Struct.borrowed) {
             Value cloned = clone_value(v);
             memcpy(dest, cloned.data.Struct.data, sz);
@@ -1450,7 +1448,7 @@ static Value build_argv_array(Vec *argv, U32 offset, U32 count, Str *elem_type) 
     inst->struct_name = cached_array_name;
     inst->struct_def = cached_array_def;
     inst->borrowed = 0;
-    inst->data = calloc(1, cached_array_def->total_struct_size);
+    inst->data = calloc(1, cached_array_def->data.data.StructDef.total_struct_size);
     // Write fields: data, cap, elem_size, elem_type
     Str fn_data = {.c_str = (U8 *)"data", .count = 4};
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};

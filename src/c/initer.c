@@ -1064,7 +1064,7 @@ static void generate_size_methods(Expr *program, TypeScope *scope) {
         // Use computed total_struct_size for structs, 8 for enums (I64 or pointer)
         I32 sz = def->data.tag == ExprData_TAG_EnumDef
             ? (enum_has_payloads(def) ? 8 : 4)
-            : def->total_struct_size;
+            : def->data.data.StructDef.total_struct_size;
         char sz_buf[16];
         snprintf(sz_buf, sizeof(sz_buf), "%d", sz);
 

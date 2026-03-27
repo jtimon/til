@@ -100,6 +100,15 @@ FCallData := struct {
     to_str := func(self: FCallData) returns Str { return "FCall" }
 }
 
+StructDefData := struct {
+    mut total_struct_size : I32 = 0
+    namespace:
+    eq := func(a: StructDefData, b: StructDefData) returns Bool {
+        return a.total_struct_size.eq(b.total_struct_size)
+    }
+    to_str := func(self: StructDefData) returns Str { return "StructDef" }
+}
+
 // --- ExprData payload enum (25 variants) ---
 
 ExprData := enum {
@@ -113,7 +122,7 @@ ExprData := enum {
     Assign: Str,
     FCall: FCallData,
     FuncDef: FunctionDef,
-    StructDef,
+    StructDef: StructDefData,
     EnumDef,
     FieldAccess: Str,
     FieldAssign: Str,
@@ -144,7 +153,6 @@ Expr := struct {
     mut is_ext := false
     mut is_core := false
     mut save_old_delete := false
-    mut total_struct_size : I32 = 0
     mut variadic_index : I32 = -1.to_i32()
     mut variadic_count : USize = 0
     mut kwargs_index : I32 = -1.to_i32()
@@ -201,7 +209,6 @@ Expr := struct {
                         is_own_field = self.is_own_field, is_ref_field = self.is_ref_field,
                         is_ns_field = self.is_ns_field, is_ext = self.is_ext,
                         is_core = self.is_core, save_old_delete = self.save_old_delete,
-                        total_struct_size = self.total_struct_size,
                         fn_sig = self.fn_sig,
                         line = self.line, col = self.col, path = self.path)
         for i in 0..self.children.len() {

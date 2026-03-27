@@ -276,7 +276,7 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
     is_ext := check(p, TokenType.KwExtStruct)
     advance(p)
 
-    mut def := Expr.new(ExprData.StructDef, kw_line, kw_col, p.path)
+    mut def := Expr.new(ExprData.StructDef(StructDefData()), kw_line, kw_col, p.path)
     def.is_ext = is_ext
     expect_token(p, TokenType.LBrace)
 
@@ -621,7 +621,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
         // Namespace sugar: Name := namespace { ... }
         if check(p, TokenType.KwNamespace) {
             advance(p)
-            mut def := Expr.new(ExprData.StructDef, t_line, t_col, p.path)
+            mut def := Expr.new(ExprData.StructDef(StructDefData()), t_line, t_col, p.path)
             expect_token(p, TokenType.LBrace)
             mut body := Expr.new(ExprData.Body, peek_line(p), peek_col(p), p.path)
             while check(p, TokenType.RBrace).not().and(check(p, TokenType.Eof).not()) {

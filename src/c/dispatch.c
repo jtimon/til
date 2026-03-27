@@ -459,7 +459,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     si->struct_name = cached_array_name;
     si->struct_def = cached_array_def;
     si->borrowed = 0;
-    si->data = calloc(1, cached_array_def->total_struct_size);
+    si->data = calloc(1, cached_array_def->data.data.StructDef.total_struct_size);
     Str fn_data = {.c_str = (U8 *)"data", .count = 4};
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
     Str fn_esz = {.c_str = (U8 *)"elem_size", .count = 9};
@@ -515,7 +515,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     si->struct_name = cached_vec_name;
     si->struct_def = cached_vec_def;
     si->borrowed = 0;
-    si->data = calloc(1, cached_vec_def->total_struct_size);
+    si->data = calloc(1, cached_vec_def->data.data.StructDef.total_struct_size);
     Str fn_data = {.c_str = (U8 *)"data", .count = 4};
     Str fn_count = {.c_str = (U8 *)"count", .count = 5};
     Str fn_cap = {.c_str = (U8 *)"cap", .count = 3};
@@ -826,7 +826,7 @@ Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
             void *ret_buf = NULL;
             if (ret_sdef) {
                 // Struct return: allocate buffer of struct size
-                ret_buf = malloc((*ret_sdef)->total_struct_size);
+                ret_buf = malloc((*ret_sdef)->data.data.StructDef.total_struct_size);
                 ffi_call(cif, FFI_FN(fe->fn), ret_buf, nargs > 0 ? arg_ptrs : NULL);
             } else {
                 ffi_call(cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
@@ -935,7 +935,7 @@ Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
                 case Value_TAG_Float:  pdata = &payload.data.Float; psz = sizeof(F32); break;
                 case Value_TAG_Boolean: pdata = &payload.data.Boolean; psz = sizeof(Bool); break;
                 case Value_TAG_Struct: pdata = payload.data.Struct.data;
-                    psz = payload.data.Struct.struct_def ? payload.data.Struct.struct_def->total_struct_size : 0;
+                    psz = payload.data.Struct.struct_def ? payload.data.Struct.struct_def->data.data.StructDef.total_struct_size : 0;
                     break;
                 case Value_TAG_Enum:   pdata = payload.data.Enum.data;
                     psz = payload.data.Enum.data_size;
