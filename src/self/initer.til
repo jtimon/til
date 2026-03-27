@@ -384,6 +384,120 @@ generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, s
     body.add_child(own decl)
 }
 
+generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
+    mut func_body := Expr.new(ExprData.Body, line, col, path)
+    for j in 0..variant_names.len() {
+        ref vn : Str = variant_names.get(j)
+        ref vtype : Str = variant_types.get(j)
+
+        if has_payloads {
+            mut tiv := Expr.new(ExprData.Ident("is_variant"), line, col, path)
+            mut self_id := Expr.new(ExprData.Ident("self"), line, col, path)
+            mut tet := Expr.new(ExprData.Ident(ename.clone()), line, col, path)
+            mut tvr := Expr.new(ExprData.FieldAccess(vn.clone()), line, col, path)
+            tvr.add_child(own tet)
+            mut is_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            is_call.add_child(own tiv)
+            is_call.add_child(own self_id)
+            is_call.add_child(own tvr)
+
+            mut then_body := Expr.new(ExprData.Body, line, col, path)
+            if vtype.len().gt(0).and(type_from_name_init(vtype, scope).eq(TilType.FuncPtr)) {
+                ret_text := format(vn, "(func)")
+                mut ret_str := Expr.new(ExprData.LiteralStr(ret_text), line, col, path)
+                mut ret := Expr.new(ExprData.Return, line, col, path)
+                ret.add_child(own ret_str)
+                then_body.add_child(own ret)
+            } else if vtype.len().gt(0) {
+                pn := format("_p_", vtype, "_", j.to_str())
+                mut gp := Expr.new(ExprData.Ident("get_payload"), line, col, path)
+                mut self2 := Expr.new(ExprData.Ident("self"), line, col, path)
+                mut gc := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+                gc.add_child(own gp)
+                gc.add_child(own self2)
+                mut pd := Expr.new(ExprData.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), is_ref = true)), line, col, path)
+                pd.add_child(own gc)
+                then_body.add_child(own pd)
+
+                mut fmt_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+                mut fmt_id := Expr.new(ExprData.Ident("format"), line, col, path)
+                fmt_call.add_child(own fmt_id)
+
+                prefix_text := format(vn, "(")
+                mut prefix := Expr.new(ExprData.LiteralStr(prefix_text), line, col, path)
+                fmt_call.add_child(own prefix)
+
+                mut p_id := Expr.new(ExprData.Ident(pn), line, col, path)
+                mut tostr_acc := Expr.new(ExprData.FieldAccess("to_str"), line, col, path)
+                tostr_acc.add_child(own p_id)
+                mut tostr_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+                tostr_call.add_child(own tostr_acc)
+                fmt_call.add_child(own tostr_call)
+
+                mut suffix := Expr.new(ExprData.LiteralStr(")"), line, col, path)
+                fmt_call.add_child(own suffix)
+
+                mut ret := Expr.new(ExprData.Return, line, col, path)
+                ret.add_child(own fmt_call)
+                then_body.add_child(own ret)
+            } else {
+                mut ret_str := Expr.new(ExprData.LiteralStr(vn.clone()), line, col, path)
+                mut ret := Expr.new(ExprData.Return, line, col, path)
+                ret.add_child(own ret_str)
+                then_body.add_child(own ret)
+            }
+
+            mut if_node := Expr.new(ExprData.If, line, col, path)
+            if_node.add_child(own is_call)
+            if_node.add_child(own then_body)
+            func_body.add_child(own if_node)
+        } else {
+            mut self_id := Expr.new(ExprData.Ident("self"), line, col, path)
+            mut eq_acc := Expr.new(ExprData.FieldAccess("eq"), line, col, path)
+            eq_acc.add_child(own self_id)
+
+            mut ename_id := Expr.new(ExprData.Ident(ename.clone()), line, col, path)
+            mut var_acc := Expr.new(ExprData.FieldAccess(vn.clone()), line, col, path)
+            var_acc.add_child(own ename_id)
+
+            mut eq_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            eq_call.add_child(own eq_acc)
+            eq_call.add_child(own var_acc)
+
+            mut ret_str := Expr.new(ExprData.LiteralStr(vn.clone()), line, col, path)
+            mut ret := Expr.new(ExprData.Return, line, col, path)
+            ret.add_child(own ret_str)
+            mut then_body := Expr.new(ExprData.Body, line, col, path)
+            then_body.add_child(own ret)
+
+            mut if_node := Expr.new(ExprData.If, line, col, path)
+            if_node.add_child(own eq_call)
+            if_node.add_child(own then_body)
+            func_body.add_child(own if_node)
+        }
+    }
+
+    mut unk := Expr.new(ExprData.LiteralStr("unknown"), line, col, path)
+    mut ret_unk := Expr.new(ExprData.Return, line, col, path)
+    ret_unk.add_child(own unk)
+    func_body.add_child(own ret_unk)
+
+    mut fdecl := FunctionDef()
+    fdecl.func_type = FuncType.Func
+    fdecl.nparam = 1
+    fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
+    fdecl.return_type = "Str"
+    fdecl.variadic_index = -1.to_i32()
+    fdecl.kwargs_index = -1.to_i32()
+
+    mut fdef := Expr.new(ExprData.FuncDef(fdecl), line, col, path)
+    fdef.add_child(own func_body)
+
+    mut decl := Expr.new(ExprData.Decl(Declaration(name = "to_str", is_namespace = true)), line, col, path)
+    decl.add_child(own fdef)
+    body.add_child(own decl)
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
