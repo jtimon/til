@@ -226,6 +226,129 @@ generate_enum_is_method := proc(body: Expr, ename: Str, shallow line: U32, shall
     body.add_child(own decl)
 }
 
+generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, scope: TypeScope) {
+    mut func_body := Expr.new(ExprData.Body, line, col, path)
+    for j in 0..variant_names.len() {
+        ref vn : Str = variant_names.get(j)
+        mut iv1 := Expr.new(ExprData.Ident("is_variant"), line, col, path)
+        mut self_id := Expr.new(ExprData.Ident("self"), line, col, path)
+        mut et1 := Expr.new(ExprData.Ident(ename.clone()), line, col, path)
+        mut vr1 := Expr.new(ExprData.FieldAccess(vn.clone()), line, col, path)
+        vr1.add_child(own et1)
+        mut is_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+        is_call.add_child(own iv1)
+        is_call.add_child(own self_id)
+        is_call.add_child(own vr1)
+
+        mut then_body := Expr.new(ExprData.Body, line, col, path)
+
+        ref vtype : Str = variant_types.get(j)
+        if vtype.len().gt(0) {
+            is_funcsig := type_from_name_init(vtype, scope).eq(TilType.FuncPtr)
+
+            mut iv2 := Expr.new(ExprData.Ident("is_variant"), line, col, path)
+            mut other_id := Expr.new(ExprData.Ident("other"), line, col, path)
+            mut et2 := Expr.new(ExprData.Ident(ename.clone()), line, col, path)
+            mut vr2 := Expr.new(ExprData.FieldAccess(vn.clone()), line, col, path)
+            vr2.add_child(own et2)
+            mut is_call2 := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            is_call2.add_child(own iv2)
+            is_call2.add_child(own other_id)
+            is_call2.add_child(own vr2)
+            mut not_acc := Expr.new(ExprData.FieldAccess("not"), line, col, path)
+            not_acc.add_child(own is_call2)
+            mut not_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            not_call.add_child(own not_acc)
+
+            mut ret_false := Expr.new(ExprData.Return, line, col, path)
+            mut false_lit := Expr.new(ExprData.LiteralBool(false), line, col, path)
+            ret_false.add_child(own false_lit)
+            mut guard_body := Expr.new(ExprData.Body, line, col, path)
+            guard_body.add_child(own ret_false)
+            mut guard_if := Expr.new(ExprData.If, line, col, path)
+            guard_if.add_child(own not_call)
+            guard_if.add_child(own guard_body)
+            then_body.add_child(own guard_if)
+
+            if is_funcsig {
+                mut ret_true := Expr.new(ExprData.Return, line, col, path)
+                mut true_lit := Expr.new(ExprData.LiteralBool(true), line, col, path)
+                ret_true.add_child(own true_lit)
+                then_body.add_child(own ret_true)
+            } else {
+                mut gp1 := Expr.new(ExprData.Ident("get_payload"), line, col, path)
+                mut self2 := Expr.new(ExprData.Ident("self"), line, col, path)
+                mut gc1 := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+                gc1.add_child(own gp1)
+                gc1.add_child(own self2)
+                mut sd1 := Expr.new(ExprData.Decl(Declaration(name = "_sp", explicit_type = vtype.clone(), is_ref = true)), line, col, path)
+                sd1.add_child(own gc1)
+                then_body.add_child(own sd1)
+
+                mut gp2 := Expr.new(ExprData.Ident("get_payload"), line, col, path)
+                mut other2 := Expr.new(ExprData.Ident("other"), line, col, path)
+                mut gc2 := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+                gc2.add_child(own gp2)
+                gc2.add_child(own other2)
+                mut sd2 := Expr.new(ExprData.Decl(Declaration(name = "_op", explicit_type = vtype.clone(), is_ref = true)), line, col, path)
+                sd2.add_child(own gc2)
+                then_body.add_child(own sd2)
+
+                mut sp_id := Expr.new(ExprData.Ident("_sp"), line, col, path)
+                mut eq_acc := Expr.new(ExprData.FieldAccess("eq"), line, col, path)
+                eq_acc.add_child(own sp_id)
+                mut op_id := Expr.new(ExprData.Ident("_op"), line, col, path)
+                mut eq_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+                eq_call.add_child(own eq_acc)
+                eq_call.add_child(own op_id)
+
+                mut ret_eq := Expr.new(ExprData.Return, line, col, path)
+                ret_eq.add_child(own eq_call)
+                then_body.add_child(own ret_eq)
+            }
+        } else {
+            mut iv3 := Expr.new(ExprData.Ident("is_variant"), line, col, path)
+            mut other_id := Expr.new(ExprData.Ident("other"), line, col, path)
+            mut et3 := Expr.new(ExprData.Ident(ename.clone()), line, col, path)
+            mut vr3 := Expr.new(ExprData.FieldAccess(vn.clone()), line, col, path)
+            vr3.add_child(own et3)
+            mut is_call3 := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            is_call3.add_child(own iv3)
+            is_call3.add_child(own other_id)
+            is_call3.add_child(own vr3)
+            mut ret := Expr.new(ExprData.Return, line, col, path)
+            ret.add_child(own is_call3)
+            then_body.add_child(own ret)
+        }
+
+        mut if_node := Expr.new(ExprData.If, line, col, path)
+        if_node.add_child(own is_call)
+        if_node.add_child(own then_body)
+        func_body.add_child(own if_node)
+    }
+
+    mut ret_false := Expr.new(ExprData.Return, line, col, path)
+    mut false_lit := Expr.new(ExprData.LiteralBool(false), line, col, path)
+    ret_false.add_child(own false_lit)
+    func_body.add_child(own ret_false)
+
+    mut fdecl := FunctionDef()
+    fdecl.func_type = FuncType.Func
+    fdecl.nparam = 2
+    fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
+    fdecl.params.push(own Param(name = "other", ptype = ename.clone()))
+    fdecl.return_type = "Bool"
+    fdecl.variadic_index = -1.to_i32()
+    fdecl.kwargs_index = -1.to_i32()
+
+    mut fdef := Expr.new(ExprData.FuncDef(fdecl), line, col, path)
+    fdef.add_child(own func_body)
+
+    mut decl := Expr.new(ExprData.Decl(Declaration(name = "eq", is_namespace = true)), line, col, path)
+    decl.add_child(own fdef)
+    body.add_child(own decl)
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)

@@ -756,6 +756,7 @@ I32 register_enum_definition(Expr * stmt, TypeScope * scope);
 void collect_enum_variants(Expr * body, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
 void generate_enum_variant_constructors(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads);
 void generate_enum_is_method(Expr * body, Str * ename, U32 line, U32 col, Str * path);
+void generate_enum_eq_method(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, TypeScope * scope);
 void register_funcsig_aliases(Expr * program, TypeScope * scope);
 void register_type_aliases(Expr * program, TypeScope * scope);
 void register_top_level_values(Expr * program, TypeScope * scope);
