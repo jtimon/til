@@ -88,6 +88,7 @@ FCallData := struct {
     mut variadic_count : USize = 0
     mut kwargs_index : I32 = -1.to_i32()
     mut kwargs_count : USize = 0
+    ref mut fn_sig : Expr = NULL
     namespace:
     eq := func(a: FCallData, b: FCallData) returns Bool {
         return a.is_proc.eq(b.is_proc)

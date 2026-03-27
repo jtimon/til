@@ -213,12 +213,18 @@ static Str *resolve_callee_name(Expr *fcall, Bool *allocated) {
     return NULL;
 }
 
+static Expr *fcall_fn_sig(Expr *fcall) {
+    if (!fcall || fcall->data.tag != ExprData_TAG_FCall) return NULL;
+    if (fcall->data.data.FCall.fn_sig) return fcall->data.data.FCall.fn_sig;
+    return fcall->fn_sig;
+}
+
 // Check all fcalls in an expression tree and mark idents passed to mut params as unsafe
 static void check_fcall_mut_args(Expr *e) {
     if (!e) return;
     if (e->data.tag == ExprData_TAG_FCall) {
         // Check fn_sig for function pointer calls
-        Expr *fdef = e->fn_sig;
+        Expr *fdef = fcall_fn_sig(e);
         if (!fdef) {
             Bool allocated = 0;
             Str *callee = resolve_callee_name(e, &allocated);
@@ -434,9 +440,9 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
     case ExprData_TAG_FCall: {
         // Indirect call through FuncSig-typed struct field: h.on_click(3, 5)
         if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-            Expr_child(e, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_FuncPtr && e->fn_sig) {
+            Expr_child(e, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_FuncPtr && fcall_fn_sig(e)) {
             // Use fn_sig to determine shallow params/return for correct cast
-            Expr *sig = e->fn_sig;
+            Expr *sig = fcall_fn_sig(e);
             Bool ret_shallow = sig ? sig->data.data.FuncDef.return_is_shallow : 0;
             const char *ret_c = "void *";
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&
@@ -565,7 +571,7 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         } else if (Expr_child(e, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_FuncPtr) {
             // Indirect call through function pointer variable
             // Use fn_sig to determine shallow params/return for correct cast
-            Expr *sig = e->fn_sig;
+            Expr *sig = fcall_fn_sig(e);
             Bool ret_shallow = sig ? sig->data.data.FuncDef.return_is_shallow : 0;
             const char *ret_c = "void *";
             if (e->til_type.tag != TilType_TAG_None && e->til_type.tag != TilType_TAG_Unknown &&

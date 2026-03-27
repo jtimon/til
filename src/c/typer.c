@@ -362,6 +362,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                     infer_expr(scope, Expr_child(e, &(USize){(USize)(ai + 1)}), in_func);
                                 }
                                 e->fn_sig = sig;
+                                e->data.data.FCall.fn_sig = sig;
                                 if (sig->data.data.FuncDef.return_type.count > 0) {
                                     e->til_type = *type_from_name(&sig->data.data.FuncDef.return_type, scope);
                                     if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum))
@@ -961,8 +962,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (fn_type.tag == TilType_TAG_FuncPtr && callee_bind && callee_bind->is_proc < 0) {
             Expr_child(e, &(USize){(USize)(0)})->til_type = (TilType){TilType_TAG_FuncPtr}; // mark callee for builder
             // Store signature on FCALL for builder to use
-            if (callee_bind && callee_bind->func_def)
+            if (callee_bind && callee_bind->func_def) {
                 e->fn_sig = callee_bind->func_def;
+                e->data.data.FCall.fn_sig = callee_bind->func_def;
+            }
             if (callee_bind && callee_bind->func_def &&
                 (callee_bind->func_def->data.data.FuncDef.return_type).count > 0) {
                 TilType rt = *type_from_name(&callee_bind->func_def->data.data.FuncDef.return_type, scope);
@@ -1010,8 +1013,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 (callee_bind->func_def->data.data.FuncDef.return_type).count > 0) {
                 ScopeFind *_sf_rsb = TypeScope_find(scope, &callee_bind->func_def->data.data.FuncDef.return_type);
                 TypeBinding *rsb = _sf_rsb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_rsb) : NULL;
-                if (rsb && rsb->func_def && rsb->func_def->children.count == 0)
+                if (rsb && rsb->func_def && rsb->func_def->children.count == 0) {
                     e->fn_sig = rsb->func_def;
+                    e->data.data.FCall.fn_sig = rsb->func_def;
+                }
             }
         }
         // Check: func cannot call proc (panic is exempt; print/println exempt in debug_prints modes)

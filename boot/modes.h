@@ -264,6 +264,7 @@ typedef struct FCallData {
     U32 variadic_count;
     I32 kwargs_index;
     U32 kwargs_count;
+    Expr *fn_sig;
 } FCallData;
 
 

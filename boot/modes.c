@@ -270,6 +270,7 @@ typedef struct FCallData {
     U32 variadic_count;
     I32 kwargs_index;
     U32 kwargs_count;
+    Expr *fn_sig;
 } FCallData;
 
 
@@ -8510,6 +8511,7 @@ FCallData * FCallData_clone(FCallData * self) {
     _t_FCallData_1272.variadic_count = _t_U32_1269;
     _t_FCallData_1272.kwargs_index = _t_I32_1270;
     _t_FCallData_1272.kwargs_count = _t_U32_1271;
+    _t_FCallData_1272.fn_sig = self->fn_sig;
     (void)_t_FCallData_1272;
     ;
     ;
@@ -23279,6 +23281,7 @@ Expr * parse_call(Parser * p, Str * name, U32 call_line, U32 call_col) {
     _t_FCallData_3623.variadic_count = _t_U32_3620;
     _t_FCallData_3623.kwargs_index = _t_I32_3621;
     _t_FCallData_3623.kwargs_count = _t_U32_3622;
+    _t_FCallData_3623.fn_sig = NULL;
     (void)_t_FCallData_3623;
     ;
     ;
@@ -23589,6 +23592,7 @@ Expr * parse_expression(Parser * p) {
                 _t_FCallData_3654.variadic_count = _t_U32_3651;
                 _t_FCallData_3654.kwargs_index = _t_I32_3652;
                 _t_FCallData_3654.kwargs_count = _t_U32_3653;
+                _t_FCallData_3654.fn_sig = NULL;
                 (void)_t_FCallData_3654;
                 ;
                 ;
@@ -24350,6 +24354,7 @@ Expr * parse_expression(Parser * p) {
             _t_FCallData_3841.variadic_count = _t_U32_3838;
             _t_FCallData_3841.kwargs_index = _t_I32_3839;
             _t_FCallData_3841.kwargs_count = _t_U32_3840;
+            _t_FCallData_3841.fn_sig = NULL;
             (void)_t_FCallData_3841;
             ;
             ;
@@ -24565,6 +24570,7 @@ Expr * parse_expression(Parser * p) {
         _t_FCallData_3866.variadic_count = _t_U32_3863;
         _t_FCallData_3866.kwargs_index = _t_I32_3864;
         _t_FCallData_3866.kwargs_count = _t_U32_3865;
+        _t_FCallData_3866.fn_sig = NULL;
         (void)_t_FCallData_3866;
         ;
         ;
@@ -25462,6 +25468,7 @@ Expr * parse_statement_ident(Parser * p, Bool is_mut, Bool is_own) {
             _t_FCallData_4114.variadic_count = _t_U32_4111;
             _t_FCallData_4114.kwargs_index = _t_I32_4112;
             _t_FCallData_4114.kwargs_count = _t_U32_4113;
+            _t_FCallData_4114.fn_sig = NULL;
             (void)_t_FCallData_4114;
             ;
             ;
