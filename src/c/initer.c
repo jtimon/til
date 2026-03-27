@@ -272,6 +272,47 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
 }
 
+static void generate_enum_is_method(Expr *body, Str *ename, I32 line, I32 col, Str *path) {
+    Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+    Expr *is_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    is_id->data.data.Ident = (Str){.c_str = (U8*)"is", .count = 2, .cap = CAP_LIT};
+    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+    Expr *other_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    other_id->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
+    Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+    Expr_add_child(is_call, is_id);
+    Expr_add_child(is_call, self_id);
+    Expr_add_child(is_call, other_id);
+    Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+    Expr_add_child(ret, is_call);
+    Expr_add_child(func_body, ret);
+
+    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+    fdef->data.data.FuncDef.nparam = 2;
+    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+    { Param *_p = calloc(1, sizeof(Param));
+      _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+      _p->ptype = *ename;
+      Vec_push(&fdef->data.data.FuncDef.params, _p); }
+    { Param *_p = calloc(1, sizeof(Param));
+      _p->name = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
+      _p->ptype = *ename;
+      Vec_push(&fdef->data.data.FuncDef.params, _p); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+    fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+    fdef->data.data.FuncDef.variadic_index = -1;
+    fdef->data.data.FuncDef.kwargs_index = -1;
+    Expr_add_child(fdef, func_body);
+
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+    decl->data.data.Decl.name = (Str){.c_str = (U8*)"is", .count = 2, .cap = CAP_LIT};
+    decl->data.data.Decl.is_namespace = true;
+    Expr_add_child(decl, fdef);
+    Expr_add_child(body, decl);
+}
+
 static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {
@@ -308,46 +349,8 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
             if ((f->data.data.Decl.name.count == 6 && memcmp(f->data.data.Decl.name.c_str, "to_str", 6) == 0)) has_to_str = 1;
         }
 
-        // Auto-generate is := func(self: E, other: E) returns Bool { return is(self, other) }
         if (!has_is) {
-            Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-            Expr *is_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            is_id->data.data.Ident = (Str){.c_str = (U8*)"is", .count = 2, .cap = CAP_LIT};
-            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-            Expr *other_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            other_id->data.data.Ident = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
-            Expr *is_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-            Expr_add_child(is_call, is_id);
-            Expr_add_child(is_call, self_id);
-            Expr_add_child(is_call, other_id);
-            Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-            Expr_add_child(ret, is_call);
-            Expr_add_child(func_body, ret);
-
-            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
-            fdef->data.data.FuncDef.nparam = 2;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-              _p->ptype = *ename;
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"other", .count = 5, .cap = CAP_LIT};
-              _p->ptype = *ename;
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-            fdef->data.data.FuncDef.return_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
-            fdef->data.data.FuncDef.variadic_index = -1;
-            fdef->data.data.FuncDef.kwargs_index = -1;
-            Expr_add_child(fdef, func_body);
-
-            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-            decl->data.data.Decl.name = (Str){.c_str = (U8*)"is", .count = 2, .cap = CAP_LIT};
-            decl->data.data.Decl.is_namespace = true;
-            Expr_add_child(decl, fdef);
-            Expr_add_child(body, decl);
+            generate_enum_is_method(body, ename, line, col, path);
         }
 
         // Auto-generate eq := func(self: E, other: E) returns Bool { if-chain }
