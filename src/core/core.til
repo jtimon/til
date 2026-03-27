@@ -14,15 +14,10 @@ EnumDef : StructDef = struct {}
 Dynamic : StructDef = struct {}
 
 import("u8.til")
-
 import("i16.til")
-
 import("i32.til")
-
 import("f32.til")
-
 import("u32.til")
-
 import("u64.til")
 
 USize := U32
@@ -30,29 +25,8 @@ USize := U32
 import("i64.til")
 import("range.til")
 import("bool.til")
+import("dyn.til")
 import("io.til")
 import("mem.til")
 import("sys.til")
-
-// builtin functions and procs
-is := ext_func(self: Dynamic, other: Dynamic) returns shallow Bool {}
-is_variant := ext_func(self: Dynamic, other: Dynamic) returns shallow Bool {}
-get_payload := ext_func(self: Dynamic) returns ref Dynamic {}
-dyn_call := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) {}
-dyn_call_ret := ext_func(type_name: Str, method: Str, arity: I64, a: Dynamic, b: Dynamic = 0) returns Dynamic {}
-dyn_fn := ext_func(type_name: Str, method: Str) returns Dynamic {}
-
-// Default function pointer values for container struct fields
-CloneFn := func(Dynamic) returns Dynamic
-DeleteFn := func(Dynamic, Bool)
-CmpFn := func(Dynamic, Dynamic) returns I64
-IncFn := func(Dynamic)
-DistanceFn := func(Dynamic, Dynamic) returns USize
-default_clone : CloneFn = (v) { return v }
-default_delete : DeleteFn = (v, cf) { }
-default_cmp : CmpFn = (a, b) { return 0 }
-default_inc : IncFn = (v) { }
-default_distance : DistanceFn = (a, b) { return 0 }
-dyn_has_method := ext_func(type_name: Str, method: Str) returns shallow Bool {}
-
 import("exit.til")
