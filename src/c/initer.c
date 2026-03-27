@@ -382,53 +382,6 @@ static void generate_enum_clone_method(Expr *body, Str *ename, I32 line, I32 col
     Expr_add_child(body, decl);
 }
 
-static void generate_enum_delete_method(Expr *body, Str *ename, I32 line, I32 col, Str *path) {
-    Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-    Expr *cond = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    cond->data.data.Ident = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
-    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-    Expr *free_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-    Expr *free_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    free_id->data.data.Ident = (Str){.c_str = (U8*)"free", .count = 4, .cap = CAP_LIT};
-    Expr_add_child(free_call, free_id);
-    Expr *self_arg = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    self_arg->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-    self_arg->is_own_arg = true;
-    Expr_add_child(free_call, self_arg);
-    Expr_add_child(then_body, free_call);
-    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
-    Expr_add_child(if_node, cond);
-    Expr_add_child(if_node, then_body);
-    Expr_add_child(proc_body, if_node);
-
-    Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-    default_true->data.data.LiteralBool = 1;
-    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
-    fdef->data.data.FuncDef.nparam = 2;
-    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-    { Param *_p = calloc(1, sizeof(Param));
-      _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-      _p->ptype = *ename;
-      _p->is_own = true;
-      Vec_push(&fdef->data.data.FuncDef.params, _p); }
-    { Param *_p = calloc(1, sizeof(Param));
-      _p->name = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
-      _p->ptype = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
-      Vec_push(&fdef->data.data.FuncDef.params, _p); }
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-    { Str *_k = Str_clone(&(Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT}); Expr *_v = Expr_clone(default_true); Map_set(&fdef->data.data.FuncDef.param_defaults, _k, _v); }
-    fdef->data.data.FuncDef.return_type = (Str){0};
-    fdef->data.data.FuncDef.variadic_index = -1;
-    fdef->data.data.FuncDef.kwargs_index = -1;
-    Expr_add_child(fdef, proc_body);
-    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-    decl->data.data.Decl.name = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
-    decl->data.data.Decl.is_namespace = true;
-    Expr_add_child(decl, fdef);
-    Expr_add_child(body, decl);
-}
-
 static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {

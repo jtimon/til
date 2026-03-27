@@ -349,6 +349,41 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
     body.add_child(own decl)
 }
 
+generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str) {
+    mut proc_body := Expr.new(ExprData.Body, line, col, path)
+    mut cond := Expr.new(ExprData.Ident("call_free"), line, col, path)
+    mut then_body := Expr.new(ExprData.Body, line, col, path)
+    mut free_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+    mut free_id := Expr.new(ExprData.Ident("free"), line, col, path)
+    free_call.add_child(own free_id)
+    mut self_arg := Expr.new(ExprData.Ident("self"), line, col, path)
+    self_arg.is_own_arg = true
+    free_call.add_child(own self_arg)
+    then_body.add_child(own free_call)
+    mut if_node := Expr.new(ExprData.If, line, col, path)
+    if_node.add_child(own cond)
+    if_node.add_child(own then_body)
+    proc_body.add_child(own if_node)
+
+    mut default_true := Expr.new(ExprData.LiteralBool(true), line, col, path)
+
+    mut fdecl := FunctionDef()
+    fdecl.func_type = FuncType.Func
+    fdecl.nparam = 2
+    fdecl.params.push(own Param(name = "self", ptype = ename.clone(), is_own = true))
+    fdecl.params.push(own Param(name = "call_free", ptype = "Bool"))
+    fdecl.param_defaults.set(own "call_free".clone(), own default_true.clone())
+    fdecl.variadic_index = -1.to_i32()
+    fdecl.kwargs_index = -1.to_i32()
+
+    mut fdef := Expr.new(ExprData.FuncDef(fdecl), line, col, path)
+    fdef.add_child(own proc_body)
+
+    mut decl := Expr.new(ExprData.Decl(Declaration(name = "delete", is_namespace = true)), line, col, path)
+    decl.add_child(own fdef)
+    body.add_child(own decl)
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
