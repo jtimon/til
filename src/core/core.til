@@ -7,11 +7,6 @@ import("str.til")
 import("vec.til")
 import("tuple.til")
 import("ast.til")
-
-// builtin types (empty structs for future namespace support)
-StructDef : StructDef = struct {}
-EnumDef : StructDef = struct {}
-
 import("u8.til")
 import("i16.til")
 import("i32.til")

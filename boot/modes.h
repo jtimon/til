@@ -1,14 +1,14 @@
 #pragma once
 #include "aliases.h"
 
-typedef struct StructDef StructDef;
-typedef struct EnumDef EnumDef;
 typedef struct Array Array;
 typedef struct Map Map;
 typedef struct Set Set;
 typedef struct Str Str;
 typedef struct Vec Vec;
 typedef struct Tuple Tuple;
+typedef struct StructDef StructDef;
+typedef struct EnumDef EnumDef;
 typedef enum {
     TilType_TAG_Unknown,
     TilType_TAG_None,
@@ -180,16 +180,6 @@ typedef struct ExtStr ExtStr;
 typedef struct FFIEntry FFIEntry;
 typedef struct Mode Mode;
 
-typedef struct StructDef {
-    char _;
-} StructDef;
-
-
-typedef struct EnumDef {
-    char _;
-} EnumDef;
-
-
 typedef struct Str {
     U8 *c_str;
     U32 count;
@@ -215,6 +205,16 @@ typedef struct Tuple {
     Vec type_names;
     Vec type_sizes;
 } Tuple;
+
+
+typedef struct StructDef {
+    char _;
+} StructDef;
+
+
+typedef struct EnumDef {
+    char _;
+} EnumDef;
 
 
 struct TilType {
@@ -536,9 +536,6 @@ typedef struct Scope {
 } Scope;
 
 
-EnumDef * EnumDef_clone(EnumDef * self);
-void EnumDef_delete(EnumDef * self, Bool * call_free);
-U32 * EnumDef_size(void);
 Array * Array_new(Str * elem_type, U32 * elem_size, U32 * cap);
 U32 * Array_len(Array * self);
 void * Array_get(Array * self, U32 * i);
@@ -611,6 +608,9 @@ U32 * Tuple_size_at(Tuple * self, U32 * i);
 void Tuple_delete(Tuple * self, Bool * call_free);
 Tuple * Tuple_clone(Tuple * self);
 U32 * Tuple_size(void);
+EnumDef * EnumDef_clone(EnumDef * self);
+void EnumDef_delete(EnumDef * self, Bool * call_free);
+U32 * EnumDef_size(void);
 Bool * TilType_is(TilType * self, TilType * other);
 Bool * TilType_eq(TilType * self, TilType * other);
 TilType * TilType_clone(TilType * self);

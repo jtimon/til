@@ -1,5 +1,9 @@
 mode lib
 
+// builtin types (empty structs for future namespace support)
+StructDef : StructDef = struct {}
+EnumDef : StructDef = struct {}
+
 // --- TilType enum ---
 
 TilType := enum {
