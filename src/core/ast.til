@@ -81,6 +81,14 @@ FunctionDef := struct {
     to_str := func(self: FunctionDef) returns Str { return self.return_type }
 }
 
+// --- FCall payload struct ---
+FCallData := struct {
+    mut is_proc := false
+    namespace:
+    eq := func(a: FCallData, b: FCallData) returns Bool { return a.is_proc.eq(b.is_proc) }
+    to_str := func(self: FCallData) returns Str { return "FCall" }
+}
+
 // --- ExprData payload enum (25 variants) ---
 
 ExprData := enum {
@@ -92,7 +100,7 @@ ExprData := enum {
     Ident: Str,
     Decl: Declaration,
     Assign: Str,
-    FCall,
+    FCall: FCallData,
     FuncDef: FunctionDef,
     StructDef,
     EnumDef,

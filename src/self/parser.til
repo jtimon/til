@@ -354,7 +354,7 @@ parse_enum_def := proc(mut p: Parser) returns Expr {
 parse_call := proc(mut p: Parser, name: Str, shallow call_line: U32, shallow call_col: U32) returns Expr {
     advance(p) // consume '('
 
-    mut call := Expr.new(ExprData.FCall, call_line, call_col, p.path)
+    mut call := Expr.new(ExprData.FCall(FCallData()), call_line, call_col, p.path)
 
     // first child is the callee identifier
     mut callee := Expr.new(ExprData.Ident(name.clone()), call_line, call_col, p.path)
@@ -430,7 +430,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
                 mut zero := Expr.new(ExprData.LiteralNum("0".clone()), t_line, t_col, p.path)
                 mut sub_access := Expr.new(ExprData.FieldAccess("sub".clone()), t_line, t_col, p.path)
                 sub_access.add_child(own zero)
-                mut sub_call := Expr.new(ExprData.FCall, t_line, t_col, p.path)
+                mut sub_call := Expr.new(ExprData.FCall(FCallData()), t_line, t_col, p.path)
                 sub_call.add_child(own sub_access)
                 mut num_arg := Expr.new(ExprData.LiteralNum(num_tok.text.clone()), t_line, t_col, p.path)
                 sub_call.add_child(own num_arg)
@@ -553,7 +553,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
             advance(p) // consume '('
             mut callee := Expr.new(ExprData.FieldAccess(fname), f_line, f_col, p.path)
             callee.add_child(own e.clone())
-            mut mcall := Expr.new(ExprData.FCall, f_line, f_col, p.path)
+            mut mcall := Expr.new(ExprData.FCall(FCallData()), f_line, f_col, p.path)
             mcall.add_child(own callee)
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 // Named arg check
@@ -598,7 +598,7 @@ parse_expression := proc(mut p: Parser) returns Expr {
         mut range_ident := Expr.new(ExprData.Ident("Range".clone()), dt_line, dt_col, p.path)
         mut new_access := Expr.new(ExprData.FieldAccess("new".clone()), dt_line, dt_col, p.path)
         new_access.add_child(own range_ident)
-        mut rcall := Expr.new(ExprData.FCall, dt_line, dt_col, p.path)
+        mut rcall := Expr.new(ExprData.FCall(FCallData()), dt_line, dt_col, p.path)
         rcall.add_child(own new_access)
         rcall.add_child(own e.clone())
         rcall.add_child(own rhs)
@@ -771,7 +771,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             advance(p) // consume '('
             mut callee := Expr.new(ExprData.FieldAccess(last_field), last_line, last_col, p.path)
             callee.add_child(own obj.clone())
-            mut mcall := Expr.new(ExprData.FCall, last_line, last_col, p.path)
+            mut mcall := Expr.new(ExprData.FCall(FCallData()), last_line, last_col, p.path)
             mcall.add_child(own callee)
             while check(p, TokenType.RParen).not().and(check(p, TokenType.Eof).not()) {
                 // Named arg check
