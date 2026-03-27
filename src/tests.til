@@ -542,9 +542,9 @@ main := proc(args: ..Str) {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total", NL,
-                       "abc1234,1950,4000,1530,200,1710,1970,4640,32,32", NL,
-                       "def5678,1890,3900,1510,190,1680,1950,4500,32,32", NL)
+    test_csv := format("commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_bytes", NL,
+                       "abc1234,1950,4000,1530,200,1710,1970,4640,32,32,0", NL,
+                       "def5678,1890,3900,1510,190,1680,1950,4500,32,32,0", NL)
     writefile("tmp/_test_plot.csv", test_csv)
     run(PLOT.concat(" tmp/_test_plot.csv tmp/_test_plot.svg 0"))
     plot_svg := readfile("tmp/_test_plot.svg")
@@ -627,7 +627,8 @@ main := proc(args: ..Str) {
                               total_compile_ms.to_str(), ",", total_run_ms.to_str(), ",",
                               ffi_ms.to_str(), ",", typer_ms.to_str(), ",",
                               cli_ms.to_str(), ",", wall_ms.to_str(), ",",
-                              total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str())
+                              total_passed.to_i64().to_str(), ",", total_tests.to_i64().to_str(), ",",
+                              peak_rss_bytes().to_i64().to_str())
 
         totals_path := "doc/totals.csv"
         existing := readfile(totals_path)

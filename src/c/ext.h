@@ -212,4 +212,5 @@ void sleep_ms(I64 ms);
 I64 file_mtime(Str *path);
 I64 clock_ms(void);
 I64 get_thread_count(void);
+U64 peak_rss_bytes(void);
 USize c_str_len(U8 *s);

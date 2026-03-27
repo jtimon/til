@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <limits.h>
 
@@ -446,6 +447,16 @@ I64 clock_ms(void) {
 I64 get_thread_count(void) {
     long count = sysconf(_SC_NPROCESSORS_ONLN);
     return count > 0 ? (I64)count : 1;
+}
+
+U64 peak_rss_bytes(void) {
+    struct rusage ru;
+    if (getrusage(RUSAGE_SELF, &ru) != 0) return 0;
+#if defined(__APPLE__)
+    return (U64)ru.ru_maxrss;
+#else
+    return (U64)ru.ru_maxrss * 1024ULL;
+#endif
 }
 
 // --- Utility functions (for til.til ext_func calls) ---

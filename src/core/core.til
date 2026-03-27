@@ -167,6 +167,7 @@ writefile := ext_proc(path: Str, content: Str) {}
 file_mtime := ext_func(path: Str) returns shallow I64 {}
 clock_ms := ext_func() returns shallow I64 {}
 get_thread_count := ext_func() returns shallow I64 {}
+peak_rss_bytes := ext_func() returns shallow U64 {}
 
 wait_cmd := proc(pid: I64) returns I64 {
     while true {
