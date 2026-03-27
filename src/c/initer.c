@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void generate_enum_clone_method(Expr *body, Str *ename, I32 line, I32 col, Str *path, Vec *variant_names, Vec *variant_types, Bool has_payloads) {
+void generate_enum_clone_method(Expr *body, Str *ename, I32 line, I32 col, Str *path, Vec *variant_names, Vec *variant_types, Bool has_payloads) {
     Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
     for (U32 j = 0; j < variant_names->count; j++) {
         Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
