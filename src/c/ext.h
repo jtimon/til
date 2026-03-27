@@ -42,6 +42,28 @@ U8 U8_from_i64_ext(I64 *a);
 // U8 clone
 U8 U8_clone(U8 *v);
 
+// I8 arithmetic
+I8 I8_add(I8 a, I8 b);
+I8 I8_sub(I8 a, I8 b);
+I8 I8_mul(I8 a, I8 b);
+I8 I8_div(I8 a, I8 b);
+I8 I8_mod(I8 a, I8 b);
+I8 I8_and(I8 a, I8 b);
+I8 I8_or(I8 a, I8 b);
+I8 I8_xor(I8 a, I8 b);
+
+// I8 comparisons
+Bool I8_eq(I8 a, I8 b);
+I64 I8_cmp(I8 a, I8 b);
+
+// I8 conversions
+I64 I8_to_i64(I8 a);
+I8 I64_to_i8(I64 a);
+I8 I8_from_i64_ext(I64 *a);
+
+// I8 clone
+I8 I8_clone(I8 *v);
+
 // I16 arithmetic
 I16 I16_add(I16 a, I16 b);
 I16 I16_sub(I16 a, I16 b);

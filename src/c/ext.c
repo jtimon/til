@@ -12,6 +12,7 @@
 // Internal helpers for heap-allocating scalar values
 static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
 static U8 *new_u8(U8 v) { U8 *r = malloc(sizeof(U8)); *r = v; return r; }
+static I8 *new_i8(I8 v) { I8 *r = malloc(sizeof(I8)); *r = v; return r; }
 static I16 *new_i16(I16 v) { I16 *r = malloc(sizeof(I16)); *r = v; return r; }
 static I32 *new_i32(I32 v) { I32 *r = malloc(sizeof(I32)); *r = v; return r; }
 static U32 *new_u32(U32 v) { U32 *r = malloc(sizeof(U32)); *r = v; return r; }
@@ -56,6 +57,7 @@ I64 U8_cmp(U8 a, U8 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 I64 U8_to_i64(U8 a) { return (I64)a; }
 U64 U8_to_u64(U8 a) { return (U64)a; }
 U8 I64_to_u8(I64 a) { return (U8)a; }
+I8 I64_to_i8(I64 a) { return (I8)a; }
 I16 I64_to_i16(I64 a) { return (I16)a; }
 I32 I64_to_i32(I64 a) { return (I32)a; }
 U32 I64_to_u32(I64 a) { return (U32)a; }
@@ -66,6 +68,28 @@ U8 U8_from_i64_ext(I64 *a) { return (U8)*a; }
 
 // U8 clone
 U8 U8_clone(U8 *v) { return *v; }
+
+// I8 arithmetic
+I8 I8_add(I8 a, I8 b) { return a + b; }
+I8 I8_sub(I8 a, I8 b) { return a - b; }
+I8 I8_mul(I8 a, I8 b) { return a * b; }
+I8 I8_div(I8 a, I8 b) { return (b == 0) ? 0 : (I8)(a / b); }
+I8 I8_mod(I8 a, I8 b) { return (b == 0) ? 0 : (I8)(a % b); }
+I8 I8_and(I8 a, I8 b) { return a & b; }
+I8 I8_or(I8 a, I8 b) { return a | b; }
+I8 I8_xor(I8 a, I8 b) { return a ^ b; }
+
+// I8 comparisons
+Bool I8_eq(I8 a, I8 b) { return a == b; }
+I64 I8_cmp(I8 a, I8 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
+
+// I8 conversions
+I64 I8_to_i64(I8 a) { return (I64)a; }
+I8 I8_from_i64(I64 v) { return (I8)v; }
+I8 I8_from_i64_ext(I64 *a) { return (I8)*a; }
+
+// I8 clone
+I8 I8_clone(I8 *v) { return *v; }
 
 
 // I16 arithmetic
@@ -267,6 +291,15 @@ U8 *cli_parse_u8(const char *s) {
         exit(1);
     }
     return new_u8((U8)v);
+}
+I8 *cli_parse_i8(const char *s) {
+    char *end;
+    long v = strtol(s, &end, 10);
+    if (*end != '\0' || v < -128 || v > 127) {
+        fprintf(stderr, "error: cannot parse '%s' as I8\n", s);
+        exit(1);
+    }
+    return new_i8((I8)v);
 }
 U32 *cli_parse_u32(const char *s) {
     char *end;

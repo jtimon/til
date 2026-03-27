@@ -2061,6 +2061,30 @@
   - is there any remaining semantic difference that truly requires
     ~ext_struct~?
 
+  Recent evidence:
+
+  - a dormant ~src/core/i8.til~ plus matching ~ext.c/ext.h~ support was easy
+    to add
+  - but importing ~I8~ immediately exposed that the current compiler still
+    has repeated hardcoded primitive-name lists (~U8~, ~I16~, ~I32~, ~U32~,
+    ~U64~, ~I64~, ~F32~, ~Bool~) across builder, initer, typer, and
+    ~TilType~
+  - those lists decide things like:
+    - whether a type is treated as a builtin scalar
+    - whether generated headers skip forward declarations for it
+    - whether C emission uses the alias-backed primitive representation or
+      falls back to ordinary struct handling
+  - so the current ~I8~ blocker is not the lack of another ~ext_struct~
+    mechanism, but the broader primitive special-casing model
+
+  That pushes this issue in a clearer direction:
+
+  - simplify/remove ~ext_struct~
+  - reduce hardcoded primitive special cases to the minimum truly required by
+    runtime representation
+  - make ordinary type declarations plus explicit methods carry more of the
+    behavior today encoded by compiler categories
+
   This issue is partly about simplifying the language surface and partly about
   reducing one more C-leaning special case in the core model.
 
