@@ -761,6 +761,44 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
     return errors
 }
 
+generate_missing_enum_clones := proc(program: Expr) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        if is_variant(stmt.child(0).data, ExprData.EnumDef).not() { continue }
+
+        ref edecl : Declaration = get_payload(stmt.data)
+        ename := edecl.name
+        line := stmt.line
+        col := stmt.col
+        path := stmt.path
+        ref mut body : Expr = stmt.child(0).child(0)
+
+        mut has_clone := false
+        for j in 0..body.child_count() {
+            ref f : Expr = body.child(j)
+            if is_variant(f.data, ExprData.Decl).not() { continue }
+            ref fdecl : Declaration = get_payload(f.data)
+            if fdecl.is_namespace.not() { continue }
+            if f.child_count().eq(0) { continue }
+            if is_variant(f.child(0).data, ExprData.FuncDef).not() { continue }
+            if fdecl.name.eq("clone") {
+                has_clone = true
+                break
+            }
+        }
+        if has_clone.not() {
+            variant_names := Vec.new("", Str.size())
+            variant_types := Vec.new("", Str.size())
+            mut has_payloads := false
+            collect_enum_variants(body, variant_names, variant_types, has_payloads)
+            generate_enum_clone_method(body, ename, line.to_i64().to_i32(), col.to_i64().to_i32(), path, variant_names, variant_types, has_payloads)
+            Vec.delete(own variant_names, false)
+            Vec.delete(own variant_types, false)
+        }
+    }
+}
+
 generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)

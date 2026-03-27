@@ -13,33 +13,6 @@ void generate_enum_clone_method_for_body(Expr *body, Str *ename, I32 line, I32 c
     Vec_delete(&variant_types, &(Bool){0});
 }
 
-static void generate_missing_enum_clones(Expr *program) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_EnumDef) continue;
-
-        Str *ename = &stmt->data.data.Decl.name;
-        I32 line = stmt->line, col = stmt->col;
-        Str *path = &stmt->path;
-        Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
-
-        Bool has_clone = 0;
-        for (U32 j = 0; j < body->children.count; j++) {
-            Expr *f = Expr_child(body, &(USize){(USize)(j)});
-            if (f->data.tag != ExprData_TAG_Decl || !f->data.data.Decl.is_namespace) continue;
-            if (f->children.count == 0 || Expr_child(f, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-            if ((f->data.data.Decl.name.count == 5 && memcmp(f->data.data.Decl.name.c_str, "clone", 5) == 0)) {
-                has_clone = 1;
-                break;
-            }
-        }
-        if (!has_clone) {
-            generate_enum_clone_method_for_body(body, ename, line, col, path);
-        }
-    }
-}
-
 I32 init_declarations(Expr *program, TypeScope *scope) {
     I32 errors = 0;
 
