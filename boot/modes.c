@@ -4,8 +4,7 @@
 #include <stdarg.h>
 #include <limits.h>
 
-#include "aliases.h"
-#include <stdbool.h>
+#include "ext.h"
 
 typedef struct Array Array;
 typedef struct Map Map;

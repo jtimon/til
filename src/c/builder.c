@@ -1903,7 +1903,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Single .h file with forward decls, struct/enum defs, and function declarations.
     {
         FILE *hf = f;  // emit directly into main .c
-        fprintf(hf, "#include \"aliases.h\"\n#include <stdbool.h>\n\n");
+        fprintf(hf, "#include \"ext.h\"\n\n");
         emit_header_forward_decls(hf, program);
 
         // Topo-sort struct/enum defs into header
@@ -2995,7 +2995,7 @@ static void emit_header_global_decls(FILE *f, Expr *program) {
 I32 build_forward_header(Expr *program, Str *fwd_path) {
     FILE *f = fopen((const char *)fwd_path->c_str, "w");
     if (!f) return 1;
-    fprintf(f, "#pragma once\n#include \"aliases.h\"\n#include <stdbool.h>\n\n");
+    fprintf(f, "#pragma once\n#include \"ext.h\"\n\n");
     emit_header_forward_decls(f, program);
     emit_header_defs_and_funcs(f, program);
     emit_header_global_decls(f, program);
@@ -3032,7 +3032,7 @@ I32 build_header(Expr *program, Str *h_path) {
         return 1;
     }
 
-    fprintf(f, "#pragma once\n#include \"aliases.h\"\n\n");
+    fprintf(f, "#pragma once\n#include \"ext.h\"\n\n");
     emit_header_forward_decls(f, program);
     emit_header_defs_and_funcs(f, program);
     emit_header_global_decls(f, program);
