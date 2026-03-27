@@ -272,49 +272,6 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
 }
 
-static void generate_enum_variant_constructors(Expr *body, Str *ename, I32 line, I32 col, Str *path, Vec *variant_names, Vec *variant_types, Bool has_payloads) {
-    if (!has_payloads) {
-        for (U32 j = 0; j < variant_names->count; j++) {
-            Expr *lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%d", j);
-            lit->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-            decl->data.data.Decl.name = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
-            decl->data.data.Decl.is_namespace = true;
-            Expr_add_child(decl, lit);
-            Expr_add_child(body, decl);
-        }
-        return;
-    }
-
-    for (U32 j = 0; j < variant_names->count; j++) {
-        Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-        fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
-        if (((Str *)Vec_get(variant_types, &(USize){(USize)(j)}))->count > 0) {
-            fdef->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"val", .count = 3, .cap = CAP_LIT};
-              _p->ptype = *(Str *)Vec_get(variant_types, &(USize){(USize)(j)});
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-        } else {
-            fdef->data.data.FuncDef.nparam = 0;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-        }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-        fdef->data.data.FuncDef.return_type = *ename;
-        fdef->data.data.FuncDef.variadic_index = -1;
-        fdef->data.data.FuncDef.kwargs_index = -1;
-        Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
-        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-        decl->data.data.Decl.name = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
-        decl->data.data.Decl.is_namespace = true;
-        Expr_add_child(decl, fdef);
-        Expr_add_child(body, decl);
-    }
-}
-
 static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {

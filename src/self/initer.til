@@ -156,6 +156,44 @@ collect_enum_variants := proc(body: Expr, mut variant_names: Vec, mut variant_ty
     }
 }
 
+generate_enum_variant_constructors := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+    if has_payloads.not() {
+        for j in 0..variant_names.len() {
+            ref vname : Str = variant_names.get(j)
+            mut lit := Expr.new(ExprData.LiteralNum(j.to_str()), line, col, path)
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = vname.clone(), is_namespace = true)), line, col, path)
+            decl.add_child(own lit)
+            body.add_child(own decl)
+        }
+        return
+    }
+
+    for j in 0..variant_names.len() {
+        mut func_decl := FunctionDef()
+        func_decl.func_type = FuncType.ExtFunc
+        ref vtype : Str = variant_types.get(j)
+        if vtype.len().gt(0) {
+            func_decl.nparam = 1
+            param := Param(name = "val", ptype = vtype.clone())
+            func_decl.params.push(own param)
+        } else {
+            func_decl.nparam = 0
+        }
+        func_decl.return_type = ename.clone()
+        func_decl.variadic_index = -1.to_i32()
+        func_decl.kwargs_index = -1.to_i32()
+
+        mut func_def := Expr.new(ExprData.FuncDef(func_decl), line, col, path)
+        mut func_body := Expr.new(ExprData.Body, line, col, path)
+        func_def.add_child(own func_body)
+
+        ref vname : Str = variant_names.get(j)
+        mut decl := Expr.new(ExprData.Decl(Declaration(name = vname.clone(), is_namespace = true)), line, col, path)
+        decl.add_child(own func_def)
+        body.add_child(own decl)
+    }
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
