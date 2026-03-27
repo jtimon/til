@@ -272,6 +272,163 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
 }
 
+static void generate_enum_clone_method(Expr *body, Str *ename, I32 line, I32 col, Str *path, Vec *variant_names, Vec *variant_types, Bool has_payloads) {
+    Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+    for (U32 j = 0; j < variant_names->count; j++) {
+        Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        ename_id->data.data.Ident = *ename;
+        Expr *ctor_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+        ctor_acc->data.data.FieldAccess = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+        Expr_add_child(ctor_acc, ename_id);
+
+        Expr *ctor_expr;
+        Expr *pd = NULL;
+        if (((Str *)Vec_get(variant_types, &(USize){(USize)(j)}))->count > 0) {
+            Str *vtype = (Str *)Vec_get(variant_types, &(USize){(USize)(j)});
+            char pn_buf[128];
+            snprintf(pn_buf, sizeof(pn_buf), "_p_%s_%u", vtype->c_str, j);
+            Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
+            Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
+            Expr *self_g = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            self_g->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+            Expr *gc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr_add_child(gc, gp); Expr_add_child(gc, self_g);
+            pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            pd->data.data.Decl.name = pn;
+            pd->data.data.Decl.explicit_type = *vtype;
+            pd->data.data.Decl.is_ref = true;
+            Expr_add_child(pd, gc);
+            Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+            Expr_add_child(ctor_call, ctor_acc);
+            Expr *p_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            p_id->data.data.Ident = pn;
+            Expr_add_child(ctor_call, p_id);
+            ctor_expr = ctor_call;
+        } else {
+            ctor_expr = ctor_acc;
+        }
+
+        Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
+        Expr_add_child(ret, ctor_expr);
+
+        if (j < variant_names->count - 1) {
+            Expr *cond;
+            if (has_payloads) {
+                Str *cvn = (Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+                Expr *civ = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                civ->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
+                Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                Expr *cet = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                cet->data.data.Ident = *ename;
+                Expr *cvr = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                cvr->data.data.FieldAccess = *cvn;
+                Expr_add_child(cvr, cet);
+                cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                Expr_add_child(cond, civ);
+                Expr_add_child(cond, self_id);
+                Expr_add_child(cond, cvr);
+            } else {
+                Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+                Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+                Expr_add_child(eq_acc, self_id);
+
+                Expr *en2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                en2->data.data.Ident = *ename;
+                Expr *va2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
+                va2->data.data.FieldAccess = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+                Expr_add_child(va2, en2);
+
+                cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+                Expr_add_child(cond, eq_acc);
+                Expr_add_child(cond, va2);
+            }
+
+            Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+            if (pd) Expr_add_child(then_body, pd);
+            Expr_add_child(then_body, ret);
+
+            Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+            Expr_add_child(if_node, cond);
+            Expr_add_child(if_node, then_body);
+            Expr_add_child(func_body, if_node);
+        } else {
+            if (pd) Expr_add_child(func_body, pd);
+            Expr_add_child(func_body, ret);
+        }
+    }
+
+    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+    fdef->data.data.FuncDef.nparam = 1;
+    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+    { Param *_p = calloc(1, sizeof(Param));
+      _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+      _p->ptype = *ename;
+      Vec_push(&fdef->data.data.FuncDef.params, _p); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+    fdef->data.data.FuncDef.return_type = *ename;
+    fdef->data.data.FuncDef.variadic_index = -1;
+    fdef->data.data.FuncDef.kwargs_index = -1;
+    Expr_add_child(fdef, func_body);
+
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+    decl->data.data.Decl.name = (Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT};
+    decl->data.data.Decl.is_namespace = true;
+    Expr_add_child(decl, fdef);
+    Expr_add_child(body, decl);
+}
+
+static void generate_enum_delete_method(Expr *body, Str *ename, I32 line, I32 col, Str *path) {
+    Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+    Expr *cond = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    cond->data.data.Ident = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
+    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+    Expr *free_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+    Expr *free_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    free_id->data.data.Ident = (Str){.c_str = (U8*)"free", .count = 4, .cap = CAP_LIT};
+    Expr_add_child(free_call, free_id);
+    Expr *self_arg = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    self_arg->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+    self_arg->is_own_arg = true;
+    Expr_add_child(free_call, self_arg);
+    Expr_add_child(then_body, free_call);
+    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+    Expr_add_child(if_node, cond);
+    Expr_add_child(if_node, then_body);
+    Expr_add_child(proc_body, if_node);
+
+    Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+    default_true->data.data.LiteralBool = 1;
+    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
+    fdef->data.data.FuncDef.nparam = 2;
+    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+    { Param *_p = calloc(1, sizeof(Param));
+      _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
+      _p->ptype = *ename;
+      _p->is_own = true;
+      Vec_push(&fdef->data.data.FuncDef.params, _p); }
+    { Param *_p = calloc(1, sizeof(Param));
+      _p->name = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
+      _p->ptype = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+      Vec_push(&fdef->data.data.FuncDef.params, _p); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+    { Str *_k = Str_clone(&(Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT}); Expr *_v = Expr_clone(default_true); Map_set(&fdef->data.data.FuncDef.param_defaults, _k, _v); }
+    fdef->data.data.FuncDef.return_type = (Str){0};
+    fdef->data.data.FuncDef.variadic_index = -1;
+    fdef->data.data.FuncDef.kwargs_index = -1;
+    Expr_add_child(fdef, proc_body);
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+    decl->data.data.Decl.name = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
+    decl->data.data.Decl.is_namespace = true;
+    Expr_add_child(decl, fdef);
+    Expr_add_child(body, decl);
+}
+
 static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {
@@ -316,125 +473,8 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
             generate_enum_eq_method(body, ename, line, col, path, &variant_names, &variant_types, scope);
         }
 
-        // Auto-generate clone := func(self: E) returns E { if-chain }
-        // Payload: if self.is_V() { return E.V(self.get_V()) } ... return E.Vn()
-        // Simple:  if self.eq(E.V()) { return E.V() } ... return E.Vn()
         if (!has_clone) {
-            Expr *func_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-            for (U32 j = 0; j < variant_names.count; j++) {
-                // Build variant expression: E.V(self.get_V()) for payload, E.V for no-payload
-                Expr *ename_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                ename_id->data.data.Ident = *ename;
-                Expr *ctor_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                ctor_acc->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                Expr_add_child(ctor_acc, ename_id);
-
-                Expr *ctor_expr;
-                Expr *pd = NULL;
-                if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
-                    // Payload variant: ref _pN : Type = get_payload(self); return E.V(_pN)
-                    // pd is added to then_body below, not func_body
-                    Str *vtype = (Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
-                    char pn_buf[128];
-                    snprintf(pn_buf, sizeof(pn_buf), "_p_%s_%u", vtype->c_str, j);
-                    Str pn = *Str_clone(&(Str){.c_str = (U8*)(pn_buf), .count = (U64)strlen((const char*)(pn_buf)), .cap = CAP_VIEW});
-                    Expr *gp = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    gp->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
-                    Expr *self_g = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    self_g->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                    Expr *gc = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(gc, gp); Expr_add_child(gc, self_g);
-                    pd = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                    pd->data.data.Decl.name = pn;
-                    pd->data.data.Decl.explicit_type = *vtype;
-                    pd->data.data.Decl.is_ref = true;
-                    Expr_add_child(pd, gc);
-                    Expr *ctor_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                    Expr_add_child(ctor_call, ctor_acc);
-                    Expr *p_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    p_id->data.data.Ident = pn;
-                    Expr_add_child(ctor_call, p_id);
-                    ctor_expr = ctor_call;
-                } else {
-                    // No-payload variant: bare E.V (auto-called at runtime)
-                    ctor_expr = ctor_acc;
-                }
-
-                Expr *ret = Expr_new(&(ExprData){.tag = ExprData_TAG_Return}, line, col, path);
-                Expr_add_child(ret, ctor_expr);
-
-                if (j < variant_names.count - 1) {
-                    // Condition: payload uses is_V(), simple uses eq(E.V())
-                    Expr *cond;
-                    if (has_payloads) {
-                        // is_variant(self, E.V)
-                        Str *cvn = (Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                        Expr *civ = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        civ->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
-                        Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                        Expr *cet = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        cet->data.data.Ident = *ename;
-                        Expr *cvr = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        cvr->data.data.FieldAccess = *cvn;
-                        Expr_add_child(cvr, cet);
-                        cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(cond, civ);
-                        Expr_add_child(cond, self_id);
-                        Expr_add_child(cond, cvr);
-                    } else {
-                        // self.eq(E.V) — bare field access as eq arg
-                        Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        self_id->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-                        Expr *eq_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        eq_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
-                        Expr_add_child(eq_acc, self_id);
-
-                        Expr *en2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                        en2->data.data.Ident = *ename;
-                        Expr *va2 = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-                        va2->data.data.FieldAccess = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                        Expr_add_child(va2, en2);
-
-                        cond = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                        Expr_add_child(cond, eq_acc);
-                        Expr_add_child(cond, va2);
-                    }
-
-                    Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-                    if (pd) Expr_add_child(then_body, pd);
-                    Expr_add_child(then_body, ret);
-
-                    Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
-                    Expr_add_child(if_node, cond);
-                    Expr_add_child(if_node, then_body);
-                    Expr_add_child(func_body, if_node);
-                } else {
-                    // Last variant: bare return (add pd for payload variants)
-                    if (pd) Expr_add_child(func_body, pd);
-                    Expr_add_child(func_body, ret);
-                }
-            }
-
-            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
-            fdef->data.data.FuncDef.nparam = 1;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-              _p->ptype = *ename;
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-            fdef->data.data.FuncDef.return_type = *ename;
-            fdef->data.data.FuncDef.variadic_index = -1;
-            fdef->data.data.FuncDef.kwargs_index = -1;
-            Expr_add_child(fdef, func_body);
-
-            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-            decl->data.data.Decl.name = (Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT};
-            decl->data.data.Decl.is_namespace = true;
-            Expr_add_child(decl, fdef);
-            Expr_add_child(body, decl);
+            generate_enum_clone_method(body, ename, line, col, path, &variant_names, &variant_types, has_payloads);
         }
 
         // Auto-generate delete for all enums (same pattern):
@@ -443,52 +483,7 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
         // }
         // free() builtin handles payload cleanup for Value_TAG_Enum
         if (!has_delete) {
-            Expr *proc_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-            Expr *cond = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            cond->data.data.Ident = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
-            Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-            Expr *free_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-            Expr *free_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            free_id->data.data.Ident = (Str){.c_str = (U8*)"free", .count = 4, .cap = CAP_LIT};
-            Expr_add_child(free_call, free_id);
-            Expr *self_arg = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            self_arg->data.data.Ident = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-            self_arg->is_own_arg = true;
-            Expr_add_child(free_call, self_arg);
-            Expr_add_child(then_body, free_call);
-            Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
-            Expr_add_child(if_node, cond);
-            Expr_add_child(if_node, then_body);
-            Expr_add_child(proc_body, if_node);
-
-            Expr *default_true = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-            default_true->data.data.LiteralBool = 1;
-            Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-            // Note: is_core NOT set — auto-generated delete goes to per-module
-            // file (same as clone), not to main file
-            fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_Func};
-            fdef->data.data.FuncDef.nparam = 2;
-            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"self", .count = 4, .cap = CAP_LIT};
-              _p->ptype = *ename;
-              _p->is_own = true;
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Param *_p = calloc(1, sizeof(Param));
-              _p->name = (Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT};
-              _p->ptype = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
-              Vec_push(&fdef->data.data.FuncDef.params, _p); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-            { Str *_k = Str_clone(&(Str){.c_str = (U8*)"call_free", .count = 9, .cap = CAP_LIT}); Expr *_v = Expr_clone(default_true); Map_set(&fdef->data.data.FuncDef.param_defaults, _k, _v); }
-            fdef->data.data.FuncDef.return_type = (Str){0};
-            fdef->data.data.FuncDef.variadic_index = -1;
-            fdef->data.data.FuncDef.kwargs_index = -1;
-            Expr_add_child(fdef, proc_body);
-            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-            decl->data.data.Decl.name = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
-            decl->data.data.Decl.is_namespace = true;
-            Expr_add_child(decl, fdef);
-            Expr_add_child(body, decl);
+            generate_enum_delete_method(body, ename, line, col, path);
         }
 
         // Auto-generate to_str := func(self: E) returns Str { if-chain }
