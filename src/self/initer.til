@@ -118,6 +118,108 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
     return errors
 }
 
+generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        if is_variant(stmt.child(0).data, ExprData.StructDef).not() { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+        sname := sdecl.name
+        if sname.eq("StructDef").or(sname.eq("Dynamic")) { continue }
+
+        ref sdef : Expr = stmt.child(0)
+        if sdef.is_ext.and(stmt.is_core) { continue }
+
+        ref mut body : Expr = sdef.child(0)
+
+        mut has_clone := false
+        for j in 0..body.child_count() {
+            ref field : Expr = body.child(j)
+            if is_variant(field.data, ExprData.Decl) {
+                ref fd : Declaration = get_payload(field.data)
+                if fd.is_namespace.and(fd.name.eq("clone")) {
+                    has_clone = true
+                    break
+                }
+            }
+        }
+        if has_clone { continue }
+
+        field_names := Vec.new("", Str.size())
+        field_refs := Vec.new("", I32.size())
+        for j in 0..body.child_count() {
+            ref field : Expr = body.child(j)
+            if is_variant(field.data, ExprData.Decl).not() { continue }
+            ref fd : Declaration = get_payload(field.data)
+            if fd.is_namespace { continue }
+            field_names.push(own fd.name.clone())
+            mut ref_flag : I32 = 0
+            if fd.is_ref {
+                ref_flag = 1
+            } else if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                ref_flag = 1
+            }
+            field_refs.push(own ref_flag)
+        }
+
+        mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+        if field_names.len().eq(0) {
+            mut ctor := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            mut ctor_name := Expr.new(ExprData.Ident(sname.clone()), stmt.line, stmt.col, stmt.path)
+            ctor.add_child(own ctor_name)
+
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own ctor)
+            func_body.add_child(own ret)
+        } else {
+            mut ctor := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            mut ctor_name := Expr.new(ExprData.Ident(sname.clone()), stmt.line, stmt.col, stmt.path)
+            ctor.add_child(own ctor_name)
+
+            for j in 0..field_names.len() {
+                ref fname : Str = field_names.get(j)
+                ref fref : I32 = field_refs.get(j)
+
+                mut self_id := Expr.new(ExprData.Ident("self"), stmt.line, stmt.col, stmt.path)
+                mut field_acc := Expr.new(ExprData.FieldAccess(fname.clone()), stmt.line, stmt.col, stmt.path)
+                field_acc.add_child(own self_id)
+
+                mut named := Expr.new(ExprData.NamedArg(fname.clone()), stmt.line, stmt.col, stmt.path)
+                if fref.eq(1) {
+                    named.add_child(own field_acc)
+                } else {
+                    mut clone_acc := Expr.new(ExprData.FieldAccess("clone"), stmt.line, stmt.col, stmt.path)
+                    clone_acc.add_child(own field_acc)
+                    mut clone_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+                    clone_call.add_child(own clone_acc)
+                    named.add_child(own clone_call)
+                }
+                ctor.add_child(own named)
+            }
+
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own ctor)
+            func_body.add_child(own ret)
+        }
+
+        mut func_decl := FunctionDef()
+        func_decl.func_type = FuncType.Func
+        func_decl.nparam = 1
+        func_decl.params.push(own Param(name = "self", ptype = sname.clone()))
+        func_decl.return_type = sname.clone()
+        func_decl.variadic_index = -1.to_i32()
+        func_decl.kwargs_index = -1.to_i32()
+
+        mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+        func_def.add_child(own func_body)
+
+        mut decl := Expr.new(ExprData.Decl(Declaration(name = "clone", is_namespace = true, is_mut = false, explicit_type = "")), stmt.line, stmt.col, stmt.path)
+        decl.add_child(own func_def)
+        body.add_child(own decl)
+    }
+}
+
 register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I32 {
     ref edecl : Declaration = get_payload(stmt.data)
     ename := edecl.name

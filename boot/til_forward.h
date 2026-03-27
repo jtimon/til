@@ -752,6 +752,7 @@ U32 * TypeBinding_size(void);
 I32 align_up(I32 offset, I32 align);
 TilType * type_from_name_init(Str * name, TypeScope * scope);
 I32 register_struct_definitions(Expr * program, TypeScope * scope);
+void generate_missing_struct_clones(Expr * program, TypeScope * scope);
 I32 register_enum_definition(Expr * stmt, TypeScope * scope);
 void collect_enum_variants(Expr * body, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
 void generate_enum_variant_constructors(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads);
