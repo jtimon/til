@@ -16,6 +16,14 @@ first attempt in Rust lives at [[https://github.com/jtimon/rstil][rstil]].
 
 - [[https://github.com/libffi/libffi][libffi]]
 - [[https://github.com/raysan5/raylib][raylib]]
+- [[https://sourceforge.net/projects/tinyfiledialogs/][tinyfiledialogs]]
+
+Bundled internal dependency licenses:
+
+- project: [[file:LICENSE/TIL.txt]]
+- ~lib/libffi/~ — [[file:LICENSE/libffi.txt]]
+- ~lib/raylib/~ — [[file:LICENSE/raylib.txt]]
+- ~lib/tinyfiledialogs/~ — [[file:LICENSE/tinyfiledialogs.txt]]
 
 * Usage
 
