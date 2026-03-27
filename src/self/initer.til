@@ -498,6 +498,105 @@ generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, s
     body.add_child(own decl)
 }
 
+generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        if is_variant(stmt.child(0).data, ExprData.StructDef).not() { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+        sname := sdecl.name
+        if sname.eq("StructDef").or(sname.eq("Dynamic")) { continue }
+
+        ref sdef : Expr = stmt.child(0)
+        if sdef.is_ext.and(stmt.is_core) { continue }
+
+        ref mut body : Expr = sdef.child(0)
+
+        mut has_delete := false
+        for j in 0..body.child_count() {
+            ref field : Expr = body.child(j)
+            if is_variant(field.data, ExprData.Decl) {
+                ref fd : Declaration = get_payload(field.data)
+                if fd.is_namespace.and(fd.name.eq("delete")) {
+                    has_delete = true
+                    break
+                }
+            }
+        }
+        if has_delete { continue }
+
+        field_names := Vec.new("", Str.size())
+        field_owns := Vec.new("", I32.size())
+        for j in 0..body.child_count() {
+            ref field : Expr = body.child(j)
+            if is_variant(field.data, ExprData.Decl).not() { continue }
+            ref fd : Declaration = get_payload(field.data)
+            if fd.is_namespace.or(fd.is_ref) { continue }
+            if fd.explicit_type.len().gt(0).and(type_from_name_init(fd.explicit_type, scope).eq(TilType.FuncPtr)) {
+                continue
+            }
+            field_names.push(own fd.name.clone())
+            if fd.is_own {
+                field_owns.push(own 1.to_i32())
+            } else {
+                field_owns.push(own 0.to_i32())
+            }
+        }
+
+        mut proc_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+        for j in 0..field_names.len() {
+            ref fname : Str = field_names.get(j)
+            ref fown : I32 = field_owns.get(j)
+            mut self_id := Expr.new(ExprData.Ident("self"), stmt.line, stmt.col, stmt.path)
+            mut field_acc := Expr.new(ExprData.FieldAccess(fname.clone()), stmt.line, stmt.col, stmt.path)
+            field_acc.is_own_arg = true
+            field_acc.add_child(own self_id)
+
+            mut del_acc := Expr.new(ExprData.FieldAccess("delete"), stmt.line, stmt.col, stmt.path)
+            del_acc.add_child(own field_acc)
+            mut del_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            del_call.add_child(own del_acc)
+
+            mut cf_lit := Expr.new(ExprData.LiteralBool(fown.eq(1)), stmt.line, stmt.col, stmt.path)
+            del_call.add_child(own cf_lit)
+            proc_body.add_child(own del_call)
+        }
+
+        mut cond := Expr.new(ExprData.Ident("call_free"), stmt.line, stmt.col, stmt.path)
+        mut then_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+        mut free_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+        mut free_id := Expr.new(ExprData.Ident("free"), stmt.line, stmt.col, stmt.path)
+        free_call.add_child(own free_id)
+        mut self_arg := Expr.new(ExprData.Ident("self"), stmt.line, stmt.col, stmt.path)
+        self_arg.is_own_arg = true
+        free_call.add_child(own self_arg)
+        then_body.add_child(own free_call)
+        mut if_node := Expr.new(ExprData.If, stmt.line, stmt.col, stmt.path)
+        if_node.add_child(own cond)
+        if_node.add_child(own then_body)
+        proc_body.add_child(own if_node)
+
+        mut default_true := Expr.new(ExprData.LiteralBool(true), stmt.line, stmt.col, stmt.path)
+
+        mut proc_decl := FunctionDef()
+        proc_decl.func_type = FuncType.Func
+        proc_decl.nparam = 2
+        proc_decl.params.push(own Param(name = "self", ptype = sname.clone(), is_own = true))
+        proc_decl.params.push(own Param(name = "call_free", ptype = "Bool"))
+        proc_decl.param_defaults.set(own "call_free".clone(), own default_true.clone())
+        proc_decl.variadic_index = -1.to_i32()
+        proc_decl.kwargs_index = -1.to_i32()
+
+        mut proc_def := Expr.new(ExprData.FuncDef(proc_decl), stmt.line, stmt.col, stmt.path)
+        proc_def.add_child(own proc_body)
+
+        mut decl := Expr.new(ExprData.Decl(Declaration(name = "delete", is_namespace = true, is_mut = false, explicit_type = "")), stmt.line, stmt.col, stmt.path)
+        decl.add_child(own proc_def)
+        body.add_child(own decl)
+    }
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)
