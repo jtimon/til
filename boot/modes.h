@@ -759,6 +759,7 @@ void generate_enum_is_method(Expr * body, Str * ename, U32 line, U32 col, Str * 
 void generate_enum_eq_method(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, TypeScope * scope);
 void generate_enum_delete_method(Expr * body, Str * ename, U32 line, U32 col, Str * path);
 void generate_enum_to_str_method(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
+void generate_enum_clone_method(Expr * body, Str * ename, I32 line, I32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads);
 I32 register_enums_and_generate_nonclone_methods(Expr * program, TypeScope * scope);
 void generate_missing_struct_deletes(Expr * program, TypeScope * scope);
 void register_funcsig_aliases(Expr * program, TypeScope * scope);

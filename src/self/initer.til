@@ -600,6 +600,105 @@ generate_enum_to_str_method := proc(body: Expr, ename: Str, shallow line: U32, s
     body.add_child(own decl)
 }
 
+generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32, shallow col: I32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool) {
+    mut func_body := Expr.new(ExprData.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+    for j in 0..variant_names.len() {
+        ref vname : Str = variant_names.get(j)
+
+        mut ename_id := Expr.new(ExprData.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        mut ctor_acc := Expr.new(ExprData.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        ctor_acc.add_child(own ename_id)
+
+        mut ctor_expr := Expr.new(ExprData.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        ref mut pd : Expr = NULL
+        ref vtype : Str = variant_types.get(j)
+        if vtype.len().gt(0) {
+            pn := format("_p_", vtype, "_", j.to_str())
+
+            mut gp := Expr.new(ExprData.Ident("get_payload"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut self_g := Expr.new(ExprData.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            mut gc := Expr.new(ExprData.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            gc.add_child(own gp)
+            gc.add_child(own self_g)
+
+            mut decl_expr := Expr.new(ExprData.Decl(Declaration(name = pn.clone(), explicit_type = vtype.clone(), is_ref = true)), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            decl_expr.add_child(own gc)
+            pd = decl_expr
+
+            mut ctor_call := Expr.new(ExprData.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            ctor_call.add_child(own ctor_acc)
+            mut p_id := Expr.new(ExprData.Ident(pn), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            ctor_call.add_child(own p_id)
+            ctor_expr = ctor_call
+        } else {
+            ctor_expr = ctor_acc
+        }
+
+        mut ret := Expr.new(ExprData.Return, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+        ret.add_child(own ctor_expr)
+
+        if j.lt(variant_names.len().sub(1)) {
+            mut cond := Expr.new(ExprData.LiteralNull, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            if has_payloads {
+                mut civ := Expr.new(ExprData.Ident("is_variant"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut self_id := Expr.new(ExprData.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut cet := Expr.new(ExprData.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut cvr := Expr.new(ExprData.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                cvr.add_child(own cet)
+                mut cond_call := Expr.new(ExprData.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                cond_call.add_child(own civ)
+                cond_call.add_child(own self_id)
+                cond_call.add_child(own cvr)
+                cond = cond_call
+            } else {
+                mut self_id := Expr.new(ExprData.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut eq_acc := Expr.new(ExprData.FieldAccess("eq"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                eq_acc.add_child(own self_id)
+
+                mut en2 := Expr.new(ExprData.Ident(ename.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                mut va2 := Expr.new(ExprData.FieldAccess(vname.clone()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                va2.add_child(own en2)
+
+                mut cond_call := Expr.new(ExprData.FCall(FCallData()), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+                cond_call.add_child(own eq_acc)
+                cond_call.add_child(own va2)
+                cond = cond_call
+            }
+
+            mut then_body := Expr.new(ExprData.Body, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            if is_null(pd).not() {
+                then_body.add_child(own pd.clone())
+            }
+            then_body.add_child(own ret)
+
+            mut if_node := Expr.new(ExprData.If, line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+            if_node.add_child(own cond)
+            if_node.add_child(own then_body)
+            func_body.add_child(own if_node)
+        } else {
+            if is_null(pd).not() {
+                func_body.add_child(own pd.clone())
+            }
+            func_body.add_child(own ret)
+        }
+    }
+
+    mut fdecl := FunctionDef()
+    fdecl.func_type = FuncType.Func
+    fdecl.nparam = 1
+    fdecl.params.push(own Param(name = "self", ptype = ename.clone()))
+    fdecl.return_type = ename.clone()
+    fdecl.variadic_index = -1.to_i32()
+    fdecl.kwargs_index = -1.to_i32()
+
+    mut fdef := Expr.new(ExprData.FuncDef(fdecl), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+    fdef.add_child(own func_body)
+
+    mut decl := Expr.new(ExprData.Decl(Declaration(name = "clone", is_namespace = true)), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
+    decl.add_child(own fdef)
+    body.add_child(own decl)
+}
+
 register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeScope) returns shallow I32 {
     mut errors : I32 = 0
     for i in 0..program.child_count() {
