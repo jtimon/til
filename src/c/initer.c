@@ -3,51 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// --- Init phase: pre-scan top-level declarations ---
-
-static I32 register_struct_definitions(Expr *program, TypeScope *scope) {
-    I32 errors = 0;
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef) continue;
-
-        Str *sname = &stmt->data.data.Decl.name;
-
-        ScopeFind *_sf3 = TypeScope_find(scope, sname);
-        TypeBinding *existing = _sf3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf3) : NULL;
-        if (existing && existing->struct_def) {
-            fprintf(stderr, "%s:%u:%u: error: struct '%s' already declared at %s:%u:%u\n",
-                    stmt->path.c_str, stmt->line, stmt->col, sname->c_str,
-                    existing->struct_def->path.c_str, existing->line, existing->col);
-            errors++;
-            continue;
-        }
-
-        TilType builtin_type = (TilType){TilType_TAG_Struct};
-        Bool is_builtin = 0;
-        if ((sname->count == 3 && memcmp(sname->c_str, "I64", 3) == 0))             { builtin_type = (TilType){TilType_TAG_I64};        is_builtin = 1; }
-        else if ((sname->count == 2 && memcmp(sname->c_str, "U8", 2) == 0))         { builtin_type = (TilType){TilType_TAG_U8};         is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "I16", 3) == 0))        { builtin_type = (TilType){TilType_TAG_I16};        is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "I32", 3) == 0))        { builtin_type = (TilType){TilType_TAG_I32};        is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "U32", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U32};        is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "U64", 3) == 0))        { builtin_type = (TilType){TilType_TAG_U64};        is_builtin = 1; }
-        else if ((sname->count == 5 && memcmp(sname->c_str, "USize", 5) == 0))      { builtin_type = (TilType){TilType_TAG_U32};        is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))        { is_builtin = 0; }
-        else if ((sname->count == 4 && memcmp(sname->c_str, "Bool", 4) == 0))       { builtin_type = (TilType){TilType_TAG_Bool};       is_builtin = 1; }
-        else if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0))  { builtin_type = (TilType){TilType_TAG_StructDef}; is_builtin = 1; }
-        else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0)){ is_builtin = 0; }
-        else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))   { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
-
-        TypeScope_set(scope, sname, &builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *b = Map_get(&scope->bindings, sname);
-        b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
-        b->is_builtin = is_builtin;
-        b->is_ext = Expr_child(stmt, &(USize){(USize)(0)})->is_ext;
-    }
-    return errors;
-}
-
 static void register_funcsig_aliases(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});

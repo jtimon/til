@@ -122,6 +122,18 @@ afterward.
 
 ** Functions
 
+*** proc vs func
+
+In til, ~proc~ vs ~func~ is not Pascal-style "void vs returns". Both may
+have a ~returns~ clause and therefore emit the same C signature when the
+qualifiers match. The distinction is semantic on the til side:
+- ~proc~ is for side-effecting bodies and may call procs like ~println~
+- ~func~ is for expression-style bodies and cannot call arbitrary procs
+
+So when translating C to til for self-hosting, preserve the emitted C
+signature from qualifiers/returns, but choose ~proc~ or ~func~ based on
+the body semantics.
+
 *** Pure functions (no side effects, must return)
 
 #+begin_src c

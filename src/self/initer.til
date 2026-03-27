@@ -69,6 +69,55 @@ type_from_name_init := func(name: Str, scope: TypeScope) returns TilType {
     return TilType.Unknown
 }
 
+register_struct_definitions := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+    mut errors : I32 = 0
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        if is_variant(stmt.child(0).data, ExprData.StructDef).not() { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+        sname := sdecl.name
+
+        existing_find := scope.find(sname)
+        if is_variant(existing_find, ScopeFind.Found) {
+            ref existing_payload : Dynamic = get_payload(existing_find)
+            ref existing : TypeBinding = existing_payload
+            if is_null(existing.struct_def).not() {
+                println(
+                    stmt.path, ":", stmt.line.to_str(), ":", stmt.col.to_str(),
+                    ": error: struct '", sname, "' already declared at ",
+                    existing.struct_def.path, ":", existing.line.to_str(), ":", existing.col.to_str(),
+                )
+                errors = errors.add(1)
+                continue
+            }
+        }
+
+        mut builtin_type := TilType.Struct
+        mut is_builtin := false
+        if sname.eq("I64") { builtin_type = TilType.I64; is_builtin = true }
+        else if sname.eq("U8") { builtin_type = TilType.U8; is_builtin = true }
+        else if sname.eq("I16") { builtin_type = TilType.I16; is_builtin = true }
+        else if sname.eq("I32") { builtin_type = TilType.I32; is_builtin = true }
+        else if sname.eq("U32") { builtin_type = TilType.U32; is_builtin = true }
+        else if sname.eq("U64") { builtin_type = TilType.U64; is_builtin = true }
+        else if sname.eq("USize") { builtin_type = TilType.U32; is_builtin = true }
+        else if sname.eq("Str") { is_builtin = false }
+        else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
+        else if sname.eq("StructDef") { builtin_type = TilType.StructDef; is_builtin = true }
+        else if sname.eq("FunctionDef") { is_builtin = false }
+        else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
+
+        scope.set(sname, builtin_type, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+        ref mut b : TypeBinding = scope.get_binding(sname)
+        b.struct_def = stmt.child(0)
+        b.is_builtin = is_builtin
+        b.is_ext = stmt.child(0).is_ext
+    }
+    return errors
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
