@@ -934,39 +934,6 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
     return errors;
 }
 
-static void register_type_aliases(Expr *program, TypeScope *scope) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-        if (rhs->data.tag != ExprData_TAG_Ident) continue;
-        // RHS is a simple identifier — check if it refers to a known type
-        Str *target_name = &rhs->data.data.Ident;
-        ScopeFind *_sf5 = TypeScope_find(scope, target_name);
-        if (_sf5->tag != ScopeFind_TAG_Found) continue;
-        TypeBinding *target = (TypeBinding*)get_payload(_sf5);
-        // Must be a type definition: struct_def (struct/enum) or builtin or funcSig
-        if (!target->struct_def && !target->is_builtin &&
-            !(target->func_def && target->func_def->children.count == 0)) continue;
-        // Already registered (e.g. by Pass 1 or 1.1) — skip
-        if (TypeScope_find(scope, &stmt->data.data.Decl.name)->tag == ScopeFind_TAG_Found) continue;
-        // Register alias with same type info as target
-        TypeScope_set(scope, &stmt->data.data.Decl.name, &target->type, target->is_proc, 0,
-                   stmt->line, stmt->col, 0, 0);
-        TypeBinding *ab = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-        {
-            ab->struct_def = target->struct_def;
-            ab->func_def = target->func_def;
-            ab->is_builtin = target->is_builtin;
-            ab->is_ext = target->is_ext;
-            ab->is_type_alias = 1;
-            // Resolve canonical name: if target is itself an alias, follow the chain
-            ab->alias_target = target->alias_target ? target->alias_target : target_name;
-            if (target->struct_name.count > 0) ab->struct_name = *Str_clone(&target->struct_name);
-        }
-    }
-}
-
 static void generate_size_methods(Expr *program, TypeScope *scope) {
     (void)scope;
     for (U32 i = 0; i < program->children.count; i++) {

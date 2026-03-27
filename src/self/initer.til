@@ -131,6 +131,45 @@ register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     }
 }
 
+register_type_aliases := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        if is_variant(rhs.data, ExprData.Ident).not() { continue }
+        ref target_name : Str = get_payload(rhs.data)
+        find := scope.find(target_name)
+        if is_variant(find, ScopeFind.Found).not() { continue }
+        ref target_payload : Dynamic = get_payload(find)
+        ref target : TypeBinding = target_payload
+        if is_null(target.struct_def).and(target.is_builtin.not()) {
+            if is_null(target.func_def) {
+                continue
+            }
+            if target.func_def.child_count().neq(0) {
+                continue
+            }
+        }
+        ref sdecl : Declaration = get_payload(stmt.data)
+        if is_variant(scope.find(sdecl.name), ScopeFind.Found) { continue }
+        scope.set(sdecl.name, target.type, target.is_proc, false, stmt.line, stmt.col, false, false)
+        ref mut ab : TypeBinding = scope.get_binding(sdecl.name)
+        ab.struct_def = target.struct_def
+        ab.func_def = target.func_def
+        ab.is_builtin = target.is_builtin
+        ab.is_ext = target.is_ext
+        ab.is_type_alias = true
+        if is_null(target.alias_target) {
+            ab.alias_target = target_name
+        } else {
+            ab.alias_target = target.alias_target
+        }
+        if target.struct_name.len().gt(0) {
+            ab.struct_name = target.struct_name.clone()
+        }
+    }
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
