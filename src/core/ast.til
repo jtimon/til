@@ -104,8 +104,19 @@ FCallData := struct {
     to_str := func(self: FCallData) returns Str { return "FCall" }
 }
 
+FieldDef := struct {
+    mut decl := Declaration()
+    ref mut default_value : Expr = NULL
+    namespace:
+    eq := func(a: FieldDef, b: FieldDef) returns Bool {
+        return a.decl.eq(b.decl)
+    }
+    to_str := func(self: FieldDef) returns Str { return self.decl.to_str() }
+}
+
 StructDefData := struct {
     mut total_struct_size : I32 = 0
+    mut fields := Vec.new("FieldDef", FieldDef.size())
     namespace:
     eq := func(a: StructDefData, b: StructDefData) returns Bool {
         return a.total_struct_size.eq(b.total_struct_size)

@@ -296,6 +296,15 @@ parse_struct_def := proc(mut p: Parser) returns Expr {
                 dd.is_namespace = true
             }
         }
+        if in_namespace.not().and(is_variant(stmt.data, ExprData.Decl)) {
+            ref dd : Declaration = get_payload(stmt.data)
+            ref mut sdd : StructDefData = get_payload(def.data)
+            ref mut rhs : Expr = NULL
+            if stmt.child_count().gt(0) {
+                rhs = stmt.child(0)
+            }
+            sdd.fields.push(own FieldDef(decl = dd, default_value = rhs))
+        }
         body.add_child(own stmt)
     }
     expect_token(p, TokenType.RBrace)

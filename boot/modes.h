@@ -42,6 +42,7 @@ typedef struct FuncType FuncType;
 typedef struct Param Param;
 typedef struct FunctionDef FunctionDef;
 typedef struct FCallData FCallData;
+typedef struct FieldDef FieldDef;
 typedef struct StructDefData StructDefData;
 typedef enum {
     ExprData_TAG_Body,
@@ -258,8 +259,15 @@ typedef struct FCallData {
 } FCallData;
 
 
+typedef struct FieldDef {
+    Declaration decl;
+    Expr *default_value;
+} FieldDef;
+
+
 typedef struct StructDefData {
     I32 total_struct_size;
+    Vec fields;
 } StructDefData;
 
 
@@ -642,6 +650,11 @@ Str * FCallData_to_str(FCallData * self);
 FCallData * FCallData_clone(FCallData * self);
 void FCallData_delete(FCallData * self, Bool * call_free);
 U32 * FCallData_size(void);
+Bool * FieldDef_eq(FieldDef * a, FieldDef * b);
+Str * FieldDef_to_str(FieldDef * self);
+FieldDef * FieldDef_clone(FieldDef * self);
+void FieldDef_delete(FieldDef * self, Bool * call_free);
+U32 * FieldDef_size(void);
 Bool * StructDefData_eq(StructDefData * a, StructDefData * b);
 Str * StructDefData_to_str(StructDefData * self);
 StructDefData * StructDefData_clone(StructDefData * self);
