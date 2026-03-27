@@ -272,6 +272,80 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
 }
 
+static I32 register_enum_definition(Expr *stmt, TypeScope *scope) {
+    Str *ename = &stmt->data.data.Decl.name;
+    I32 line = stmt->line, col = stmt->col;
+    Str *path = &stmt->path;
+
+    ScopeFind *_sf4 = TypeScope_find(scope, ename);
+    TypeBinding *existing = _sf4->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf4) : NULL;
+    if (existing && existing->struct_def) {
+        fprintf(stderr, "%s:%u:%u: error: enum '%s' already declared at %s:%u:%u\n",
+                path->c_str, line, col, ename->c_str,
+                existing->struct_def->path.c_str, existing->line, existing->col);
+        return 1;
+    }
+
+    TypeScope_set(scope, ename, &(TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
+    TypeBinding *b = Map_get(&scope->bindings, ename);
+    b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
+    return 0;
+}
+
+static void collect_enum_variants(Expr *body, Vec *variant_names, Vec *variant_types, Bool *has_payloads) {
+    *has_payloads = 0;
+    for (U32 j = 0; j < body->children.count; j++) {
+        Expr *field = Expr_child(body, &(USize){(USize)(j)});
+        if (field->data.data.Decl.is_namespace) continue;
+        { Str *_p = Str_clone(&field->data.data.Decl.name); Vec_push(variant_names, _p); }
+        { Str *_p = Str_clone(&field->data.data.Decl.explicit_type); Vec_push(variant_types, _p); }
+        if (field->data.data.Decl.explicit_type.count > 0) *has_payloads = 1;
+    }
+}
+
+static void generate_enum_variant_constructors(Expr *body, Str *ename, I32 line, I32 col, Str *path, Vec *variant_names, Vec *variant_types, Bool has_payloads) {
+    if (!has_payloads) {
+        for (U32 j = 0; j < variant_names->count; j++) {
+            Expr *lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d", j);
+            lit->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+            Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+            decl->data.data.Decl.name = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+            decl->data.data.Decl.is_namespace = true;
+            Expr_add_child(decl, lit);
+            Expr_add_child(body, decl);
+        }
+        return;
+    }
+
+    for (U32 j = 0; j < variant_names->count; j++) {
+        Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
+        fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
+        if (((Str *)Vec_get(variant_types, &(USize){(USize)(j)}))->count > 0) {
+            fdef->data.data.FuncDef.nparam = 1;
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+            { Param *_p = calloc(1, sizeof(Param));
+              _p->name = (Str){.c_str = (U8*)"val", .count = 3, .cap = CAP_LIT};
+              _p->ptype = *(Str *)Vec_get(variant_types, &(USize){(USize)(j)});
+              Vec_push(&fdef->data.data.FuncDef.params, _p); }
+        } else {
+            fdef->data.data.FuncDef.nparam = 0;
+            { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
+        }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
+        fdef->data.data.FuncDef.return_type = *ename;
+        fdef->data.data.FuncDef.variadic_index = -1;
+        fdef->data.data.FuncDef.kwargs_index = -1;
+        Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+        decl->data.data.Decl.name = *(Str *)Vec_get(variant_names, &(USize){(USize)(j)});
+        decl->data.data.Decl.is_namespace = true;
+        Expr_add_child(decl, fdef);
+        Expr_add_child(body, decl);
+    }
+}
+
 static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) {
     I32 errors = 0;
     for (U32 i = 0; i < program->children.count; i++) {
@@ -283,98 +357,17 @@ static I32 register_enums_and_generate_methods(Expr *program, TypeScope *scope) 
         I32 line = stmt->line, col = stmt->col;
         Str *path = &stmt->path;
 
-        // Check for redeclaration
-        ScopeFind *_sf4 = TypeScope_find(scope, ename);
-        TypeBinding *existing = _sf4->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf4) : NULL;
-        if (existing && existing->struct_def) {
-            fprintf(stderr, "%s:%u:%u: error: enum '%s' already declared at %s:%u:%u\n",
-                    path->c_str, line, col, ename->c_str,
-                    existing->struct_def->path.c_str, existing->line, existing->col);
-            errors++;
-            continue;
-        }
+        I32 reg_errors = register_enum_definition(stmt, scope);
+        errors += reg_errors;
+        if (reg_errors > 0) continue;
 
-        // Register in type scope
-        TypeScope_set(scope, ename, &(TilType){TilType_TAG_Enum}, -1, 0, line, col, 0, 0);
-        TypeBinding *b = Map_get(&scope->bindings, ename);
-        b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
+        Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)});
 
-        Expr *body = Expr_child(Expr_child(stmt, &(USize){(USize)(0)}), &(USize){(USize)(0)}); // ExprData_TAG_Body
-
-        // Collect variant info (names + optional payload types)
         Vec variant_names; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_names = *_vp; free(_vp); }
         Vec variant_types; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str)}); variant_types = *_vp; free(_vp); }
         Bool has_payloads = 0;
-        for (U32 j = 0; j < body->children.count; j++) {
-            if (Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.is_namespace) continue;
-            { Str *_p = Str_clone(&Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.name); Vec_push(&variant_names, _p); }
-            { Str *_p = Str_clone(&Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.explicit_type); Vec_push(&variant_types, _p); }
-            if ((Expr_child(body, &(USize){(USize)(j)})->data.data.Decl.explicit_type.count > 0)) has_payloads = 1;
-        }
-
-        if (!has_payloads) {
-            // === SIMPLE ENUM (Phase 1 path — no payloads) ===
-            // Keep original variant markers as registry (don't compact)
-
-            // Add I64 namespace fields for each variant
-            for (U32 j = 0; j < variant_names.count; j++) {
-                Expr *lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
-                char buf[16];
-                snprintf(buf, sizeof(buf), "%d", j);
-                lit->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-                Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                decl->data.data.Decl.is_namespace = true;
-                Expr_add_child(decl, lit);
-                Expr_add_child(body, decl);
-            }
-        } else {
-            // === PAYLOAD ENUM (Phase 2 path) ===
-            // Keep original variant markers as registry (don't compact)
-
-            for (U32 j = 0; j < variant_names.count; j++) {
-                if (((Str *)Vec_get(&variant_types, &(USize){(USize)(j)}))->count > 0) {
-                    // Payload variant: ext_func constructor
-                    // e.g. Num := ext_func(val: I64) returns Token {}
-                    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-                    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
-                    fdef->data.data.FuncDef.nparam = 1;
-                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-                    { Param *_p = calloc(1, sizeof(Param));
-                      _p->name = (Str){.c_str = (U8*)"val", .count = 3, .cap = CAP_LIT};
-                      _p->ptype = *(Str *)Vec_get(&variant_types, &(USize){(USize)(j)});
-                      Vec_push(&fdef->data.data.FuncDef.params, _p); }
-                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-                    fdef->data.data.FuncDef.return_type = *ename;
-                    fdef->data.data.FuncDef.variadic_index = -1;
-                    fdef->data.data.FuncDef.kwargs_index = -1;
-                    Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
-                    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                    decl->data.data.Decl.is_namespace = true;
-                    Expr_add_child(decl, fdef);
-                    Expr_add_child(body, decl);
-                } else {
-                    // No-payload variant: zero-arg ext_func constructor
-                    // e.g. Eof := ext_func() returns Token {}
-                    Expr *fdef = Expr_new(&(ExprData){.tag = ExprData_TAG_FuncDef}, line, col, path);
-                    fdef->data.data.FuncDef.func_type = (FuncType){FuncType_TAG_ExtFunc};
-                    fdef->data.data.FuncDef.nparam = 0;
-                    { Vec *_v = Vec_new(&(Str){.c_str = (U8*)"Param", .count = 5, .cap = CAP_LIT}, &(USize){sizeof(Param)}); fdef->data.data.FuncDef.params = *_v; free(_v); }
-                    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fdef->data.data.FuncDef.param_defaults = *_mp; free(_mp); }
-                    fdef->data.data.FuncDef.return_type = *ename;
-                    fdef->data.data.FuncDef.variadic_index = -1;
-                    fdef->data.data.FuncDef.kwargs_index = -1;
-                    Expr_add_child(fdef, Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path));
-                    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                    decl->data.data.Decl.name = *(Str *)Vec_get(&variant_names, &(USize){(USize)(j)});
-                    decl->data.data.Decl.is_namespace = true;
-                    Expr_add_child(decl, fdef);
-                    Expr_add_child(body, decl);
-                }
-            }
-
-        }
+        collect_enum_variants(body, &variant_names, &variant_types, &has_payloads);
+        generate_enum_variant_constructors(body, ename, line, col, path, &variant_names, &variant_types, has_payloads);
 
         // Check existing methods
         Bool has_is = 0, has_eq = 0, has_clone = 0, has_delete = 0, has_to_str = 0;
