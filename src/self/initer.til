@@ -142,6 +142,20 @@ register_enum_definition := proc(stmt: Expr, scope: TypeScope) returns shallow I
     return 0
 }
 
+collect_enum_variants := proc(body: Expr, mut variant_names: Vec, mut variant_types: Vec, mut has_payloads: Bool) {
+    has_payloads = false
+    for j in 0..body.child_count() {
+        ref field : Expr = body.child(j)
+        ref fdecl : Declaration = get_payload(field.data)
+        if fdecl.is_namespace { continue }
+        variant_names.push(own fdecl.name.clone())
+        variant_types.push(own fdecl.explicit_type.clone())
+        if fdecl.explicit_type.len().gt(0) {
+            has_payloads = true
+        }
+    }
+}
+
 register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
     for i in 0..program.child_count() {
         ref stmt : Expr = program.child(i)

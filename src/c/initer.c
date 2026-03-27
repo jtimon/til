@@ -272,17 +272,6 @@ static void generate_missing_struct_deletes(Expr *program, TypeScope *scope) {
 
 }
 
-static void collect_enum_variants(Expr *body, Vec *variant_names, Vec *variant_types, Bool *has_payloads) {
-    *has_payloads = 0;
-    for (U32 j = 0; j < body->children.count; j++) {
-        Expr *field = Expr_child(body, &(USize){(USize)(j)});
-        if (field->data.data.Decl.is_namespace) continue;
-        { Str *_p = Str_clone(&field->data.data.Decl.name); Vec_push(variant_names, _p); }
-        { Str *_p = Str_clone(&field->data.data.Decl.explicit_type); Vec_push(variant_types, _p); }
-        if (field->data.data.Decl.explicit_type.count > 0) *has_payloads = 1;
-    }
-}
-
 static void generate_enum_variant_constructors(Expr *body, Str *ename, I32 line, I32 col, Str *path, Vec *variant_names, Vec *variant_types, Bool has_payloads) {
     if (!has_payloads) {
         for (U32 j = 0; j < variant_names->count; j++) {

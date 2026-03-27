@@ -752,6 +752,7 @@ I32 align_up(I32 offset, I32 align);
 TilType * type_from_name_init(Str * name, TypeScope * scope);
 I32 register_struct_definitions(Expr * program, TypeScope * scope);
 I32 register_enum_definition(Expr * stmt, TypeScope * scope);
+void collect_enum_variants(Expr * body, Vec * variant_names, Vec * variant_types, Bool * has_payloads);
 void register_funcsig_aliases(Expr * program, TypeScope * scope);
 void register_type_aliases(Expr * program, TypeScope * scope);
 void register_top_level_values(Expr * program, TypeScope * scope);
