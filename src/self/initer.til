@@ -118,6 +118,19 @@ register_struct_definitions := proc(program: Expr, scope: TypeScope) returns sha
     return errors
 }
 
+register_funcsig_aliases := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        if is_variant(stmt.child(0).data, ExprData.FuncDef).not() { continue }
+        if stmt.child(0).child_count().neq(0) { continue }
+        ref sdecl : Declaration = get_payload(stmt.data)
+        scope.set(sdecl.name, TilType.FuncPtr, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+        ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+        fb.func_def = stmt.child(0)
+    }
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }

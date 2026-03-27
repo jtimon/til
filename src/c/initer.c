@@ -3,19 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void register_funcsig_aliases(Expr *program, TypeScope *scope) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) continue;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->children.count != 0) continue;
-        TypeScope_set(scope, &stmt->data.data.Decl.name, &(TilType){TilType_TAG_FuncPtr}, -1, 0,
-                      stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-        fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
-    }
-}
-
 static void generate_missing_struct_clones(Expr *program, TypeScope *scope) {
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
