@@ -1242,29 +1242,6 @@ static void register_function_definitions(Expr *program, TypeScope *scope) {
     }
 }
 
-static void register_top_level_values(Expr *program, TypeScope *scope) {
-    for (U32 i = 0; i < program->children.count; i++) {
-        Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl) continue;
-        Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-        if (rhs->data.tag == ExprData_TAG_FuncDef || rhs->data.tag == ExprData_TAG_StructDef ||
-            rhs->data.tag == ExprData_TAG_EnumDef) continue;
-        if (rhs->data.tag == ExprData_TAG_Ident &&
-            stmt->data.data.Decl.explicit_type.count == 0 &&
-            type_from_name_init(&rhs->data.data.Ident, scope)->tag != TilType_TAG_Unknown) continue;
-
-        TilType t;
-        Str struct_name = {0};
-        if (!infer_top_level_decl_type(stmt, scope, &t, &struct_name)) continue;
-        if (t.tag == TilType_TAG_Unknown) continue;
-
-        TypeScope_set(scope, &stmt->data.data.Decl.name, &t, -1, stmt->data.data.Decl.is_mut,
-                      stmt->line, stmt->col, 0, 0);
-        TypeBinding *b = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-        if (struct_name.count > 0) b->struct_name = *Str_clone(&struct_name);
-    }
-}
-
 I32 init_declarations(Expr *program, TypeScope *scope) {
     I32 errors = 0;
 

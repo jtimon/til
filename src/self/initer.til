@@ -170,6 +170,36 @@ register_type_aliases := proc(program: Expr, scope: TypeScope) {
     }
 }
 
+register_top_level_values := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        ref rhs : Expr = stmt.child(0)
+        if is_variant(rhs.data, ExprData.FuncDef).or(is_variant(rhs.data, ExprData.StructDef)).or(is_variant(rhs.data, ExprData.EnumDef)) {
+            continue
+        }
+        if is_variant(rhs.data, ExprData.Ident) {
+            ref sdecl : Declaration = get_payload(stmt.data)
+            if sdecl.explicit_type.len().eq(0) {
+                ref rhs_name : Str = get_payload(rhs.data)
+                if type_from_name_init(rhs_name, scope).eq(TilType.Unknown).not() {
+                    continue
+                }
+            }
+        }
+
+        mut t := TilType.Unknown
+        mut struct_name := ""
+        if infer_top_level_decl_type(stmt, scope, t, struct_name).not() { continue }
+        if t.eq(TilType.Unknown) { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+        scope.set(sdecl.name, t, -1.to_i32(), sdecl.is_mut, stmt.line, stmt.col, false, false)
+        ref mut b : TypeBinding = scope.get_binding(sdecl.name)
+        if struct_name.len().gt(0) { b.struct_name = struct_name.clone() }
+    }
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
