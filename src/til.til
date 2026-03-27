@@ -15,7 +15,6 @@ VERSION := get_version()
 import("self/modes.til")
 
 // Link C modules (not yet self-hosted)
-link_c("src/c/initer.c")
 link_c("src/c/typer.c")
 link_c("src/c/interpreter.c")
 link_c("src/c/builder.c")
@@ -34,7 +33,6 @@ tokenize := ext_func(source: Str, path: Str) returns Vec {}
 
 
 // Pipeline
-init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
 precomp := ext_proc(program: Expr) {}
 scavenge := ext_proc(program: Expr, m: Mode, shallow run_tests: Bool) {}

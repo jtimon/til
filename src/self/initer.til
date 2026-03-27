@@ -1741,8 +1741,26 @@ infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_type: Ti
     }
 }
 
+init_declarations := proc(program: Expr, scope: TypeScope) returns shallow I32 {
+    mut errors : I32 = 0
+
+    errors = errors.add(register_struct_definitions(program, scope))
+    register_funcsig_aliases(program, scope)
+    generate_missing_struct_clones(program, scope)
+    generate_missing_struct_deletes(program, scope)
+    errors = errors.add(register_enums_and_generate_nonclone_methods(program, scope))
+    generate_missing_enum_clones(program)
+    register_type_aliases(program, scope)
+    compute_all_struct_layouts(program, scope)
+    generate_size_methods(program, scope)
+    generate_derived_methods(program, scope)
+    register_function_definitions(program, scope)
+    register_top_level_values(program, scope)
+
+    return errors
+}
+
 // C-facing declarations (still used by typer.c etc.)
-init_declarations := ext_func(program: Expr, scope: TypeScope) returns shallow I32 {}
 Vec_take := ext_func(v: Vec) returns Dynamic {}
 
 ScopeFind := enum { NotFound, Found: TypeBinding }

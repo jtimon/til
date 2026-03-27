@@ -923,7 +923,6 @@ U32 * Mode_size(void);
 Mode * mode_resolve(Str * name);
 Str get_version(void);
 Vec * tokenize(Str * source, Str * path);
-I32 init_declarations(Expr * program, TypeScope * scope);
 I32 type_check(Expr * program, TypeScope * scope, Mode * m);
 void precomp(Expr * program);
 void scavenge(Expr * program, Mode * m, Bool run_tests);
