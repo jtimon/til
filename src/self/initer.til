@@ -412,6 +412,262 @@ generate_unity_derived_methods := proc(program: Expr, scope: TypeScope) {
     }
 }
 
+generate_cmp_derived_methods := proc(program: Expr, scope: TypeScope) {
+    for i in 0..program.child_count() {
+        ref stmt : Expr = program.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() { continue }
+        ref def : Expr = stmt.child(0)
+        if is_variant(def.data, ExprData.StructDef).not().and(is_variant(def.data, ExprData.EnumDef).not()) { continue }
+
+        ref sdecl : Declaration = get_payload(stmt.data)
+        sname := sdecl.name
+        if sname.eq("StructDef") { continue }
+        if sname.eq("Dynamic") { continue }
+
+        ref mut body : Expr = def.child(0)
+        mut has_cmp := false
+        mut has_eq := false
+        mut has_neq := false
+        mut has_lt := false
+        mut has_gt := false
+        mut has_lte := false
+        mut has_gte := false
+        for j in 0..body.child_count() {
+            ref f : Expr = body.child(j)
+            if is_variant(f.data, ExprData.Decl).not() { continue }
+            ref fd : Declaration = get_payload(f.data)
+            if fd.is_namespace.not() { continue }
+            if f.child_count().eq(0) { continue }
+            if is_variant(f.child(0).data, ExprData.FuncDef).not() { continue }
+            fn := fd.name
+            if fn.eq("cmp") { has_cmp = true }
+            if fn.eq("eq") { has_eq = true }
+            if fn.eq("neq") { has_neq = true }
+            if fn.eq("lt") { has_lt = true }
+            if fn.eq("gt") { has_gt = true }
+            if fn.eq("lte") { has_lte = true }
+            if fn.eq("gte") { has_gte = true }
+        }
+        if has_cmp.not() { continue }
+
+        if has_eq.not() {
+            mut a_id := Expr.new(ExprData.Ident("a"), stmt.line, stmt.col, stmt.path)
+            mut b_id := Expr.new(ExprData.Ident("b"), stmt.line, stmt.col, stmt.path)
+            mut cmp_acc := Expr.new(ExprData.FieldAccess("cmp"), stmt.line, stmt.col, stmt.path)
+            cmp_acc.add_child(own a_id)
+            mut cmp_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            cmp_call.add_child(own cmp_acc)
+            cmp_call.add_child(own b_id)
+            mut eq_acc := Expr.new(ExprData.FieldAccess("eq"), stmt.line, stmt.col, stmt.path)
+            eq_acc.add_child(own cmp_call)
+            mut eq_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            eq_call.add_child(own eq_acc)
+            mut zero := Expr.new(ExprData.LiteralNum("0"), stmt.line, stmt.col, stmt.path)
+            eq_call.add_child(own zero)
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own eq_call)
+            mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+            func_body.add_child(own ret)
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            func_decl.nparam = 2
+            a_param := Param(name = "a", ptype = sname.clone())
+            b_param := Param(name = "b", ptype = sname.clone())
+            func_decl.params.push(own a_param)
+            func_decl.params.push(own b_param)
+            func_decl.return_type = "Bool"
+            func_decl.return_is_shallow = true
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+            mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+            func_def.add_child(own func_body)
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = "eq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+            decl.add_child(own func_def)
+            body.add_child(own decl)
+        }
+
+        if has_lt.not() {
+            mut a_id := Expr.new(ExprData.Ident("a"), stmt.line, stmt.col, stmt.path)
+            mut b_id := Expr.new(ExprData.Ident("b"), stmt.line, stmt.col, stmt.path)
+            mut cmp_acc := Expr.new(ExprData.FieldAccess("cmp"), stmt.line, stmt.col, stmt.path)
+            cmp_acc.add_child(own a_id)
+            mut cmp_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            cmp_call.add_child(own cmp_acc)
+            cmp_call.add_child(own b_id)
+            mut eq_acc := Expr.new(ExprData.FieldAccess("eq"), stmt.line, stmt.col, stmt.path)
+            eq_acc.add_child(own cmp_call)
+            mut eq_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            eq_call.add_child(own eq_acc)
+            mut zero := Expr.new(ExprData.LiteralNum("0"), stmt.line, stmt.col, stmt.path)
+            mut sub_acc := Expr.new(ExprData.FieldAccess("sub"), stmt.line, stmt.col, stmt.path)
+            sub_acc.add_child(own zero)
+            mut neg1_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            neg1_call.add_child(own sub_acc)
+            mut one := Expr.new(ExprData.LiteralNum("1"), stmt.line, stmt.col, stmt.path)
+            neg1_call.add_child(own one)
+            eq_call.add_child(own neg1_call)
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own eq_call)
+            mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+            func_body.add_child(own ret)
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            func_decl.nparam = 2
+            a_param := Param(name = "a", ptype = sname.clone())
+            b_param := Param(name = "b", ptype = sname.clone())
+            func_decl.params.push(own a_param)
+            func_decl.params.push(own b_param)
+            func_decl.return_type = "Bool"
+            func_decl.return_is_shallow = true
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+            mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+            func_def.add_child(own func_body)
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = "lt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+            decl.add_child(own func_def)
+            body.add_child(own decl)
+        }
+
+        if has_gt.not() {
+            mut a_id := Expr.new(ExprData.Ident("a"), stmt.line, stmt.col, stmt.path)
+            mut b_id := Expr.new(ExprData.Ident("b"), stmt.line, stmt.col, stmt.path)
+            mut cmp_acc := Expr.new(ExprData.FieldAccess("cmp"), stmt.line, stmt.col, stmt.path)
+            cmp_acc.add_child(own a_id)
+            mut cmp_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            cmp_call.add_child(own cmp_acc)
+            cmp_call.add_child(own b_id)
+            mut eq_acc := Expr.new(ExprData.FieldAccess("eq"), stmt.line, stmt.col, stmt.path)
+            eq_acc.add_child(own cmp_call)
+            mut eq_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            eq_call.add_child(own eq_acc)
+            mut one := Expr.new(ExprData.LiteralNum("1"), stmt.line, stmt.col, stmt.path)
+            eq_call.add_child(own one)
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own eq_call)
+            mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+            func_body.add_child(own ret)
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            func_decl.nparam = 2
+            a_param := Param(name = "a", ptype = sname.clone())
+            b_param := Param(name = "b", ptype = sname.clone())
+            func_decl.params.push(own a_param)
+            func_decl.params.push(own b_param)
+            func_decl.return_type = "Bool"
+            func_decl.return_is_shallow = true
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+            mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+            func_def.add_child(own func_body)
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = "gt", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+            decl.add_child(own func_def)
+            body.add_child(own decl)
+        }
+
+        if has_neq.not() {
+            mut a_id := Expr.new(ExprData.Ident("a"), stmt.line, stmt.col, stmt.path)
+            mut b_id := Expr.new(ExprData.Ident("b"), stmt.line, stmt.col, stmt.path)
+            mut eq_acc := Expr.new(ExprData.FieldAccess("eq"), stmt.line, stmt.col, stmt.path)
+            eq_acc.add_child(own a_id)
+            mut eq_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            eq_call.add_child(own eq_acc)
+            eq_call.add_child(own b_id)
+            mut not_acc := Expr.new(ExprData.FieldAccess("not"), stmt.line, stmt.col, stmt.path)
+            not_acc.add_child(own eq_call)
+            mut not_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            not_call.add_child(own not_acc)
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own not_call)
+            mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+            func_body.add_child(own ret)
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            func_decl.nparam = 2
+            a_param := Param(name = "a", ptype = sname.clone())
+            b_param := Param(name = "b", ptype = sname.clone())
+            func_decl.params.push(own a_param)
+            func_decl.params.push(own b_param)
+            func_decl.return_type = "Bool"
+            func_decl.return_is_shallow = true
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+            mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+            func_def.add_child(own func_body)
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = "neq", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+            decl.add_child(own func_def)
+            body.add_child(own decl)
+        }
+
+        if has_lte.not() {
+            mut a_id := Expr.new(ExprData.Ident("a"), stmt.line, stmt.col, stmt.path)
+            mut b_id := Expr.new(ExprData.Ident("b"), stmt.line, stmt.col, stmt.path)
+            mut gt_acc := Expr.new(ExprData.FieldAccess("gt"), stmt.line, stmt.col, stmt.path)
+            gt_acc.add_child(own a_id)
+            mut gt_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            gt_call.add_child(own gt_acc)
+            gt_call.add_child(own b_id)
+            mut not_acc := Expr.new(ExprData.FieldAccess("not"), stmt.line, stmt.col, stmt.path)
+            not_acc.add_child(own gt_call)
+            mut not_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            not_call.add_child(own not_acc)
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own not_call)
+            mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+            func_body.add_child(own ret)
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            func_decl.nparam = 2
+            a_param := Param(name = "a", ptype = sname.clone())
+            b_param := Param(name = "b", ptype = sname.clone())
+            func_decl.params.push(own a_param)
+            func_decl.params.push(own b_param)
+            func_decl.return_type = "Bool"
+            func_decl.return_is_shallow = true
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+            mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+            func_def.add_child(own func_body)
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = "lte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+            decl.add_child(own func_def)
+            body.add_child(own decl)
+        }
+
+        if has_gte.not() {
+            mut a_id := Expr.new(ExprData.Ident("a"), stmt.line, stmt.col, stmt.path)
+            mut b_id := Expr.new(ExprData.Ident("b"), stmt.line, stmt.col, stmt.path)
+            mut lt_acc := Expr.new(ExprData.FieldAccess("lt"), stmt.line, stmt.col, stmt.path)
+            lt_acc.add_child(own a_id)
+            mut lt_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            lt_call.add_child(own lt_acc)
+            lt_call.add_child(own b_id)
+            mut not_acc := Expr.new(ExprData.FieldAccess("not"), stmt.line, stmt.col, stmt.path)
+            not_acc.add_child(own lt_call)
+            mut not_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+            not_call.add_child(own not_acc)
+            mut ret := Expr.new(ExprData.Return, stmt.line, stmt.col, stmt.path)
+            ret.add_child(own not_call)
+            mut func_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
+            func_body.add_child(own ret)
+            mut func_decl := FunctionDef()
+            func_decl.func_type = FuncType.Func
+            func_decl.nparam = 2
+            a_param := Param(name = "a", ptype = sname.clone())
+            b_param := Param(name = "b", ptype = sname.clone())
+            func_decl.params.push(own a_param)
+            func_decl.params.push(own b_param)
+            func_decl.return_type = "Bool"
+            func_decl.return_is_shallow = true
+            func_decl.variadic_index = -1.to_i32()
+            func_decl.kwargs_index = -1.to_i32()
+            mut func_def := Expr.new(ExprData.FuncDef(func_decl), stmt.line, stmt.col, stmt.path)
+            func_def.add_child(own func_body)
+            mut decl := Expr.new(ExprData.Decl(Declaration(name = "gte", is_namespace = true)), stmt.line, stmt.col, stmt.path)
+            decl.add_child(own func_def)
+            body.add_child(own decl)
+        }
+    }
+}
+
 compute_struct_layout := proc(mut struct_def: Expr, scope: TypeScope) {
     ref mut struct_meta : StructDefData = get_payload(struct_def.data)
     if struct_meta.total_struct_size.gt(0) { return }
