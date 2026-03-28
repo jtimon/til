@@ -866,6 +866,7 @@ Bool field_assign_needs_delete(Expr * stmt);
 Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr);
 void collect_scope_locals(Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
 void extend_ref_local_lifetimes(Expr * body, void * locals, U32 n_locals);
+void check_use_after_own_transfer(Expr * body, void * locals, U32 n_locals);
 void insert_exit_deletes(Expr * body, void * live, U32 n_live, Bool return_only);
 void insert_nested_exit_deletes(Expr * stmt, void * locals, U32 n_locals, U32 stmt_idx);
 void insert_exit_deletes_into_stmt(Expr * stmt, Expr * body, void * locals, U32 n_locals, U32 stmt_idx, Vec * new_ch);

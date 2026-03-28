@@ -1220,6 +1220,19 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
     }
 }
 
+check_use_after_own_transfer := proc(body: Expr, locals: Dynamic, shallow n_locals: U32) {
+    for j in 0..n_locals {
+        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+        if local.own_transfer.gte(0).and(local.last_use.gt(local.own_transfer)) {
+            ref stmt : Expr = body.child(local.last_use.to_i64().to_usize())
+            type_error(stmt, "use of '".concat(local.name).concat("' after ownership transfer"))
+            ref xfer : Expr = body.child(local.own_transfer.to_i64().to_usize())
+            println(xfer.path, ":", xfer.line.to_str(), ":", xfer.col.to_str(), ": note: ownership transferred here")
+            println("  help: pass a clone instead: own ", local.name, ".clone()")
+        }
+    }
+}
+
 insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, shallow return_only: Bool) {
     mut new_ch := Vec.new("Expr", Expr.size())
     for i in 0..body.child_count() {

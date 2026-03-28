@@ -33,14 +33,6 @@ void type_error(Expr *e, Str *msg);
 // --- Type inference/checking pass ---
 
 
-static Bool ctor_field_consumes(TilType t) {
-    return t.tag == TilType_TAG_Struct ||
-           t.tag == TilType_TAG_Enum ||
-           t.tag == TilType_TAG_Dynamic ||
-           t.tag == TilType_TAG_FuncPtr;
-}
-
-
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
@@ -645,7 +637,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (fld->data.data.Decl.is_ref) {
                     continue;
                 }
-                if (!fld->data.data.Decl.is_own && !ctor_field_consumes(fld->til_type)) {
+                if (!fld->data.data.Decl.is_own && !type_ctor_consumes(&fld->til_type)) {
                     continue;
                 }
                 Expr_child(e, &(USize){(USize)(ai)})->is_own_arg = 1;
@@ -1417,22 +1409,6 @@ static void insert_field_deletes(Expr *body) {
 // Insert deletes for live parent-scope locals before early exits in body.
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
-static void check_use_after_own_transfer(Expr *body, LocalInfo *locals, U32 n_locals) {
-    for (U32 j = 0; j < n_locals; j++) {
-        if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
-            Expr *stmt = Expr_child(body, &(USize){(USize)(locals[j].last_use)});
-            char buf[128];
-            snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name->c_str);
-            type_error(stmt, STR_VIEW(buf));
-            Expr *xfer = Expr_child(body, &(USize){(USize)(locals[j].own_transfer)});
-            fprintf(stderr, "%s:%u:%u: note: ownership transferred here\n",
-                    xfer->path.c_str, xfer->line, xfer->col);
-            fprintf(stderr, "  help: pass a clone instead: own %s.clone()\n",
-                    locals[j].name->c_str);
-        }
-    }
-}
-
 static void insert_post_stmt_deletes(Expr *stmt, LocalInfo *locals, U32 n_locals, U32 stmt_idx, Vec *new_ch) {
     if (stmt->data.tag == ExprData_TAG_Return || stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue) return;
     for (U32 j = 0; j < n_locals; j++) {
