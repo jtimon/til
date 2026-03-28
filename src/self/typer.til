@@ -598,6 +598,47 @@ desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt:
     return true
 }
 
+desugar_kwargs_calls := proc(mut body: Expr, mut scope: TypeScope) {
+    mut new_ch := Vec.new("Expr", Expr.size())
+    mut changed := false
+
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
+        ref fcall : Expr = find_kwargs_fcall(stmt)
+        if is_null(fcall) {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        changed = true
+        ref fcd : FCallData = get_payload(fcall.data)
+        ki := fcd.kwargs_index
+        kc := fcd.kwargs_count
+
+        kw_name := "_kw".concat(_kw_counter.to_str())
+        _kw_counter.inc()
+
+        kw_decl := build_kwargs_dynmap_decl(fcall, kw_name)
+
+        scope.set(kw_name, TilType.Struct, -1.to_i32(), false, fcall.line, fcall.col, false, false)
+        ref mut kwb : TypeBinding = scope.get_binding(kw_name)
+        kwb.struct_name = "DynMap"
+
+        new_ch.push(own kw_decl)
+
+        for j in 0..kc {
+            ref named_arg : Expr = fcall.child(ki.add(j.to_i64().to_i32()).to_i64().to_usize())
+            new_ch.push(own build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg))
+        }
+
+        rewrite_kwargs_fcall_args(fcall, kw_name)
+        new_ch.push(own stmt.clone())
+    }
+
+    if changed {
+        body.children = new_ch
+    }
+}
+
 rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
     ref mut fcd : FCallData = get_payload(fcall.data)
     ki := fcd.kwargs_index

@@ -1426,51 +1426,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 // --- Kwargs call desugaring ---
 // Transforms kwargs function calls into Map.new + Map.set + normal call.
 
-static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-    Bool changed = 0;
-
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        Expr *fcall = find_kwargs_fcall(stmt);
-        if (!fcall) {
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-        changed = 1;
-        I32 ki = fcall->data.data.FCall.kwargs_index;
-        U32 kc = fcall->data.data.FCall.kwargs_count;
-        I32 line = fcall->line, col = fcall->col;
-
-        char buf[32];
-        snprintf(buf, sizeof(buf), "_kw%d", _kw_counter++);
-        Str *kw_name = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-
-        Expr *kw_decl = build_kwargs_dynmap_decl(fcall, kw_name);
-
-        TypeScope_set(scope, kw_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
-        TypeBinding *kwb = Map_get(&scope->bindings, kw_name);
-        kwb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
-
-        Vec_push(&new_ch, kw_decl);
-
-        for (U32 j = 0; j < kc; j++) {
-            Expr *named_arg = Expr_child(fcall, &(USize){(USize)(ki + j)});
-            Vec_push(&new_ch, build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg));
-        }
-
-        rewrite_kwargs_fcall_args(fcall, kw_name);
-        Vec_push(&new_ch, Expr_clone(stmt));
-    }
-
-    if (changed) {
-        Vec_delete(&body->children, &(Bool){0});
-        body->children = new_ch;
-    } else {
-        Vec_delete(&new_ch, &(Bool){0});
-    }
-}
-
 // --- Argument hoisting ---
 
 
