@@ -282,7 +282,7 @@ main := proc(args: ..Str) {
     auto_import := cur_mode.auto_import
 
     // Resolve user imports (using same resolved set — skips files already loaded by core)
-    import_decls := Vec.new("", Expr.size())
+    import_decls := Vec.new("Expr", Expr.size())
     if imports.len().gt(0) {
         lib_dir := bin_dir.concat("/src/lib")
         err := resolve_imports(imports, user_dir, resolved, resolve_stack,

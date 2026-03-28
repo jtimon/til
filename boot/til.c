@@ -59653,7 +59653,7 @@ int main(int argc, char **argv) {
     Str_delete(&mode_str, &(Bool){0});
     Str auto_import; { Str *_hp = (Str *)Str_clone(&cur_mode->auto_import); auto_import = *_hp; free(_hp); }
     (void)auto_import;
-    Str _t_Str_11392; { Str *_hp = (Str *)Str_lit("", 0ULL); _t_Str_11392 = *_hp; free(_hp); }
+    Str _t_Str_11392; { Str *_hp = (Str *)Str_lit("Expr", 4ULL); _t_Str_11392 = *_hp; free(_hp); }
     (void)_t_Str_11392;
     U32 _t_U32_11393; { U32 *_hp = (U32 *)Expr_size(); _t_U32_11393 = *_hp; free(_hp); }
     (void)_t_U32_11393;
