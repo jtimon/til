@@ -819,6 +819,7 @@ void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);
 Bool is_numeric_type(TilType * t);
 Bool is_integral_numeric_type(TilType * t);
+Bool type_ctor_consumes(TilType * t);
 Bool is_usize_name(Str * name);
 Bool can_implicit_usize_coerce(TilType * from, TilType * to, Str * to_name);
 Bool literal_in_range(Str * val_str, TilType * target);

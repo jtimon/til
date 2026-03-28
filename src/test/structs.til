@@ -10,6 +10,10 @@ Person := struct {
     mut age := 0
 }
 
+NameBox := struct {
+    mut name := "default"
+}
+
 Flags := struct {
     mut active := false
     mut visible := true
@@ -61,6 +65,13 @@ test_named_args := test() {
     alice := Person(name="Alice", age=25)
     assert_eq_str(__LOC__, alice.name, "Alice")
     assert_eq(__LOC__, alice.age, 25)
+}
+
+test_struct_ctor_clone_preserves_source := test() {
+    name := "Alice"
+    box := NameBox(name=name.clone())
+    assert_eq_str(__LOC__, box.name, "Alice")
+    assert_eq_str(__LOC__, name, "Alice")
 }
 
 test_explicit_annotation := test() {

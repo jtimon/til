@@ -290,7 +290,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             }
             tokens.push(own Token(type = TokenType.Number,
                 text = src.substr(start, pos.sub(start)).clone(),
-                line = line, col = col))
+                line = line.clone(), col = col.clone()))
             continue
         }
 
@@ -302,7 +302,8 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             }
             word := src.substr(start, pos.sub(start))
             type := lookup_keyword(word)
-            tokens.push(own Token(type = type, text = word.clone(), line = line, col = col))
+            tokens.push(own Token(type = type, text = word.clone(),
+                                  line = line.clone(), col = col.clone()))
             continue
         }
 
@@ -324,12 +325,12 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                 pos.inc()
                 tokens.push(own Token(type = TokenType.StringTok,
                     text = src.substr(start.add(1), pos.sub(start).sub(2)).clone(),
-                    line = line, col = col))
+                    line = line.clone(), col = col.clone()))
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated string")
                 tokens.push(own Token(type = TokenType.Error,
                     text = src.substr(start, pos.sub(start)).clone(),
-                    line = line, col = col))
+                    line = line.clone(), col = col.clone()))
             }
             continue
         }
@@ -345,13 +346,13 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             if pos.lt(src_len).and(src.byte_at(pos).eq('\'')) {
                 tokens.push(own Token(type = TokenType.Char,
                     text = src.substr(ch_start, pos.sub(ch_start)).clone(),
-                    line = line, col = col))
+                    line = line.clone(), col = col.clone()))
                 pos.inc()
             } else {
                 println(path, ":", line.to_str(), ":", col.to_str(), ": error: unterminated character literal")
                 tokens.push(own Token(type = TokenType.Error,
                     text = src.substr(start, pos.sub(start)).clone(),
-                    line = line, col = col))
+                    line = line.clone(), col = col.clone()))
             }
             continue
         }
@@ -372,7 +373,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
                     if c3.eq('.') {
                         tokens.push(own Token(type = TokenType.DotDotDot,
                             text = src.substr(start, 3).clone(),
-                            line = line, col = col))
+                            line = line.clone(), col = col.clone()))
                         pos = pos.add(3)
                         continue
                     }
@@ -382,7 +383,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
             if two.eq(TokenType.Eof).not() {
                 tokens.push(own Token(type = two,
                     text = src.substr(start, 2).clone(),
-                    line = line, col = col))
+                    line = line.clone(), col = col.clone()))
                 pos = pos.add(2)
                 continue
             }
@@ -414,7 +415,7 @@ tokenize := proc(src: Str, path: Str) returns Vec {
         if single.eq(TokenType.Eof).not() {
             tokens.push(own Token(type = single,
                 text = src.substr(start, 1).clone(),
-                line = line, col = col))
+                line = line.clone(), col = col.clone()))
             pos.inc()
             continue
         }
@@ -423,12 +424,13 @@ tokenize := proc(src: Str, path: Str) returns Vec {
         println(path, ":", line.to_str(), ":", col.to_str(), ": error: unexpected character")
         tokens.push(own Token(type = TokenType.Error,
             text = src.substr(start, 1).clone(),
-            line = line, col = col))
+            line = line.clone(), col = col.clone()))
         pos.inc()
     }
 
     // EOF
     col := pos.sub(line_start).add(1).to_i64()
-    tokens.push(own Token(type = TokenType.Eof, text = "", line = line, col = col))
+    tokens.push(own Token(type = TokenType.Eof, text = "",
+                          line = line.clone(), col = col.clone()))
     return tokens
 }

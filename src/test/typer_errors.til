@@ -133,6 +133,14 @@ ot1.delete()
 ot2 := OwnTest(val=2)
 OwnTest.delete(ot2)
 
+// struct literal: non-ref fields consume variables
+CtorOwn := struct {
+    mut name := "default"
+}
+ctor_name := "hello"
+co := CtorOwn(name=ctor_name)
+println(ctor_name)
+
 // break outside loop
 break
 

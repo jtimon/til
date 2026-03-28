@@ -33,6 +33,13 @@ static void type_error(Expr *e, const char *msg) {
     errors++;
 }
 
+static Bool ctor_field_consumes(TilType t) {
+    return t.tag == TilType_TAG_Struct ||
+           t.tag == TilType_TAG_Enum ||
+           t.tag == TilType_TAG_Dynamic ||
+           t.tag == TilType_TAG_FuncPtr;
+}
+
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
@@ -633,35 +640,20 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
                 }
             }
-            // Auto-insert clone for constructor args that are identifiers
-            // Skip clone for `own` fields — use move semantics instead
+            // Struct literals consume all non-ref field args.
             { U32 fi = 0;
               for (U32 bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
                 Expr *fld = Expr_child(body, &(USize){(USize)(bi)});
                 if (fld->data.data.Decl.is_namespace) continue;
                 I32 ai = fi + 1; // arg index (children[0] is callee)
                 fi++;
-                if (fld->data.data.Decl.is_own) {
-                    // own field: mark for move, don't clone
-                    if (Expr_child(e, &(USize){(USize)(ai)})->data.tag == ExprData_TAG_Ident)
-                        Expr_child(e, &(USize){(USize)(ai)})->is_own_arg = 1;
-                    continue;
-                }
                 if (fld->data.data.Decl.is_ref) {
-                    // ref field: store pointer, don't clone
                     continue;
                 }
-                if (Expr_child(e, &(USize){(USize)(ai)})->data.tag == ExprData_TAG_Ident) {
-                    Str *tname = type_to_name(&Expr_child(e, &(USize){(USize)(ai)})->til_type,
-                                              &Expr_child(e, &(USize){(USize)(ai)})->struct_name);
-                    if (tname->count > 0) {
-                        Expr *_mc = make_clone_call(tname,
-                            Expr_child(e, &(USize){(USize)(ai)})->til_type, Expr_child(e, &(USize){(USize)(ai)}),
-                            Expr_child(e, &(USize){(USize)(ai)}));
-                        *(Expr*)Vec_get(&e->children, &(USize){(USize)(ai)}) = *_mc;
-                        memset(_mc, 0, sizeof(Expr)); free(_mc);
-                    }
+                if (!fld->data.data.Decl.is_own && !ctor_field_consumes(fld->til_type)) {
+                    continue;
                 }
+                Expr_child(e, &(USize){(USize)(ai)})->is_own_arg = 1;
               }
             }
             e->til_type = (TilType){TilType_TAG_Struct};

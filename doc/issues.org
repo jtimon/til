@@ -49,36 +49,6 @@
   - avoid keeping one process-global ~current_mode~ as the only source of
     truth for semantic checks
 
-** OPEN #119 Struct literals should apply field ownership semantics
-  Struct literals should keep their current special typer path for now,
-  but their ownership semantics should be simple and explicit:
-
-  - ~ref~ fields are borrowed
-  - every other field is ownership-taking, like an ~own~ parameter
-
-  This means struct literals are not copy sites anymore. If the caller
-  wants to keep using a variable after passing it into a non-~ref~
-  field, they must write ~.clone()~ explicitly and let the existing
-  use-after-own machinery guide them.
-
-  Fresh values still need no clone:
-  - literals
-  - nested constructors
-  - default expressions
-
-  Current symptoms of the old mixed model:
-  - ad-hoc manual clones in constructors like ~Vec.new~, ~Array.new~,
-    ~Set.new~, and ~Map.new~
-  - clone-heavy omitted-default code that also feeds the current leak
-    investigation under ~#109~
-
-  Proper fix:
-  - typer expands struct literals into the current dense field-ordered
-    constructor form
-  - all non-~ref~ field args are marked ownership-taking
-  - builder/interpreter stay dumb consumers of that explicit ownership
-    instead of inventing constructor-specific clone policy
-
 ** OPEN #117 Bool and/or do not short-circuit
   ~and~ and ~or~ currently behave like ordinary Bool calls rather than
   C-style short-circuit operators.
@@ -629,6 +599,23 @@
   reallocations. Use Str.with_capacity to pre-compute the final size and
   allocate once upfront. Should measurably improve performance since Str
   operations are on the hot path for the compiler.
+
+  Historical note:
+  - the basic ~with_capacity/push_str~ API itself was implemented already
+    (see fixed.org phase 4)
+
+  Remaining open part:
+  - there is still an interpreter-specific regression around
+    ~Str.with_capacity(...)~
+  - current concrete failure is the ~push_str on a with_capacity buffer~
+    block in [src/test/strings.til](/home/jt/sync/data_common/code/jt/til/src/test/strings.til)
+  - compiled/run mode passes, but interp currently behaves as if the
+    ~with_capacity~ receiver were a view/literal by the time ~push_str~
+    executes
+
+  So #46 is now partly performance and partly semantic cleanup:
+  - keep extending internal Str code to use ~with_capacity~ where profitable
+  - fix the remaining interpreter mismatch for mutable preallocated strings
 
 ** WIP #39 Self-hosting: replace C modules with til (bottom-up)
   :DEPENDENCIES: #71 #74

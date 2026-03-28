@@ -80,20 +80,21 @@
   Skipped if the user defines their own clone or delete in the struct namespace.
   Fieldless struct clone generates return Type() to avoid recursion.
 
-* TRUE The typer inserts clone for all 4 copy sites
+* TRUE The typer inserts clone for the 3 ordinary copy sites
   When RHS/arg is NODE_IDENT, the typer wraps it in Type.clone(x).
-  Covers: declarations (y := x), assignments (y = x), field assignments
-  (obj.f = x), and struct constructor args (Point(x=val)).
+  Covers: declarations (y := x), assignments (y = x), and field
+  assignments (obj.f = x).
 
 * TRUE There are no shallow copies in til — all copies are deep
-  The typer inserts Type.clone() at all 4 copy sites (decl, assign, field
-  assign, struct constructor). Clone is always a deep copy — auto-generated
+  The typer inserts Type.clone() at the ordinary copy sites (decl,
+  assign, field assign). Clone is always a deep copy — auto-generated
   clones recurse into fields, primitive clones produce new values.
   The interpreter uses move semantics (transfer ownership, null source cell)
   for identifier RHS — no copying without an explicit clone call.
   builder uses pointer-assign for compound types (clone returns fresh pointer),
-  deref-assign for scalars. Struct constructors use field-by-field assignment
-  with deref + free-wrapper for inline compound fields.
+  deref-assign for scalars. Struct literals are ownership-taking for all
+  non-ref fields, so callers must use .clone() explicitly when they want
+  to preserve a source variable.
 
 * TRUE Memory management is fully automatic via ASAP destruction
   The typer inserts Type.delete() calls after the last use of each local

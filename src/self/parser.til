@@ -643,13 +643,13 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             }
             expect_token(p, TokenType.RBrace)
             def.add_child(own body)
-            mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
+            mut dd := Declaration(name = name.clone(), is_mut = is_mut, is_own = is_own)
             mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
             decl.add_child(own def)
             return decl
         }
 
-        mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
+        mut dd := Declaration(name = name.clone(), is_mut = is_mut, is_own = is_own)
         mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
         decl.add_child(own parse_expression(p))
         return decl
@@ -682,7 +682,7 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             expect_token(p, TokenType.LBrace)
             sig.add_child(own parse_block(p))
             // Wrap in NODE_DECL
-            mut dd := Declaration(name = name, is_mut = is_mut, is_own = is_own)
+            mut dd := Declaration(name = name.clone(), is_mut = is_mut, is_own = is_own)
             mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
             decl.add_child(own sig)
             return decl
@@ -744,14 +744,14 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
                 mut fdef := Expr.new(ExprData.FuncDef(ffd), t_line, t_col, p.path)
                 fdef.add_child(own body)
                 // Wrap in NODE_DECL with explicit_type
-                mut dd := Declaration(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
+                mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, is_own = is_own)
                 mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
                 decl.add_child(own fdef)
                 return decl
             }
         }
 
-        mut dd := Declaration(name = name, explicit_type = type_name, is_mut = is_mut, is_own = is_own)
+        mut dd := Declaration(name = name.clone(), explicit_type = type_name.clone(), is_mut = is_mut, is_own = is_own)
         mut decl := Expr.new(ExprData.Decl(dd), t_line, t_col, p.path)
         decl.add_child(own parse_expression(p))
         return decl
@@ -1012,7 +1012,7 @@ parse_statement := proc(mut p: Parser) returns Expr {
 
 // parse: entry point
 parse := proc(tokens: Vec, path: Str, mut mode_out: Str) returns Expr {
-    mut p := Parser(tokens = tokens, pos = 0, path = path)
+    mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone())
 
     // Parse optional mode declaration
     if check(p, TokenType.KwMode) {

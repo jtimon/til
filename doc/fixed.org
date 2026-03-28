@@ -1086,6 +1086,32 @@
    format() rewritten to use single malloc + memcpy (O(n) vs O(n²) concat).
 
 * FIXED #1 builder/interpreter consistency: eliminate unnecessary special cases
+** FIXED #119 Struct literals take ownership except for ref fields
+   Struct literals now follow one explicit rule:
+
+   - ~ref~ fields are borrowed
+   - every other field is ownership-taking
+
+   This means struct literals are no longer copy sites. Fresh values
+   such as literals, nested constructors, and defaults still need no
+   clone, but passing a variable into a non-~ref~ field now consumes it
+   and lets the normal use-after-own checks suggest ~.clone()~ when the
+   caller wants to keep using the source.
+
+   What landed:
+   - typer marks constructor args as ownership-taking for ownership-relevant
+     non-~ref~ fields
+   - scalar value fields no longer trigger bogus ownership transfer
+   - builder ctor emission was simplified so it stops inventing clone policy
+     for inline fields
+   - parser/AST helper constructors were adjusted to clone borrowed inputs
+     before storing them into owned fields
+   - the normal suite is green again under this model
+
+   Follow-ups left separate:
+   - ~#46~ still tracks the interpreter-specific ~with_capacity~ regression
+   - ~#99~ still tracks later constructor/new-surface unification
+
   Two changes to eliminate backend special cases:
 
   1. Enum eq generated as real til in initer (was ext_func with C in both

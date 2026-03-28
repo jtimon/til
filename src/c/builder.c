@@ -891,13 +891,16 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
     for (U32 i = 1; i < ctor->children.count; i++) {
         Bool is_own = 0;
         Bool is_ref = 0;
+        TilType field_type = {0};
         const char *fname = NULL;
         if (sbody) {
             for (; fi < sbody->children.count; fi++) {
                 if (!Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.is_namespace) {
-                    is_own = Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.is_own;
-                    is_ref = Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.is_ref;
-                    fname = (const char *)Expr_child(sbody, &(USize){(USize)(fi)})->data.data.Decl.name.c_str;
+                    Expr *fld = Expr_child(sbody, &(USize){(USize)(fi)});
+                    is_own = fld->data.data.Decl.is_own;
+                    is_ref = fld->data.data.Decl.is_ref;
+                    field_type = fld->til_type;
+                    fname = (const char *)fld->data.data.Decl.name.c_str;
                     fi++;
                     break;
                 }
@@ -938,33 +941,21 @@ static void emit_ctor_fields(FILE *f, const char *var, Expr *ctor, I32 depth) {
             emit_indent(f, depth);
             emit_field(f, var, fname); fprintf(f, " = *%s; free(%s);\n", tmp, tmp);
         } else if (arg->data.tag == ExprData_TAG_FCall) {
-            // Unhoisted fcall for inline compound field: deref + free wrapper
-            if (fcall_is_shallow_return(arg)) {
+            // Non-ref fields that are really scalar/pointer-like should take the
+            // call result directly, not through heap-wrapper unboxing.
+            if (field_type.tag == TilType_TAG_FuncPtr ||
+                field_type.tag == TilType_TAG_Dynamic ||
+                fcall_is_shallow_return(arg) ||
+                fcall_returns_dynamic(arg)) {
                 emit_field(f, var, fname); fprintf(f, " = ");
                 emit_expr(f, arg, depth);
                 fprintf(f, ";\n");
             } else {
+                // Heap-returning value field: unbox the returned wrapper.
                 const char *ftype = c_type_name(arg->til_type, &arg->struct_name);
                 fprintf(f, "{ %s *_ca = ", ftype);
                 emit_expr(f, arg, depth);
                 fprintf(f, "; "); emit_field(f, var, fname); fprintf(f, " = *_ca; free(_ca); }\n");
-            }
-        } else if (arg->til_type.tag == TilType_TAG_Struct || arg->til_type.tag == TilType_TAG_Enum) {
-            // Inline compound field: clone to avoid shallow copy
-            const char *ftype = c_type_name(arg->til_type, &arg->struct_name);
-            char clone_name[256];
-            snprintf(clone_name, sizeof(clone_name), "%s_clone", arg->struct_name.c_str);
-            Str *cn = Str_clone(&(Str){.c_str = (U8*)(clone_name), .count = (U64)strlen((const char*)(clone_name)), .cap = CAP_VIEW});
-            Bool shallow_clone = callee_returns_shallow(cn);
-            Str_delete(cn, &(Bool){1});
-            if (shallow_clone) {
-                emit_field(f, var, fname); fprintf(f, " = %s_clone(", arg->struct_name.c_str);
-                emit_as_ptr(f, arg, depth);
-                fprintf(f, ");\n");
-            } else {
-                fprintf(f, "{ %s *_ca = %s_clone(", ftype, arg->struct_name.c_str);
-                emit_as_ptr(f, arg, depth);
-                fprintf(f, "); "); emit_field(f, var, fname); fprintf(f, " = *_ca; free(_ca); }\n");
             }
         } else {
             emit_field(f, var, fname); fprintf(f, " = ");

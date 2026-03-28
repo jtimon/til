@@ -49,6 +49,16 @@ is_integral_numeric_type := func(t: TilType) returns shallow Bool {
     }
 }
 
+type_ctor_consumes := func(t: TilType) returns shallow Bool {
+    switch t {
+    case TilType.Struct: return true
+    case TilType.Enum: return true
+    case TilType.Dynamic: return true
+    case TilType.FuncPtr: return true
+    case: return false
+    }
+}
+
 is_usize_name := func(name: Str) returns shallow Bool {
     return name.eq("USize")
 }
@@ -453,8 +463,10 @@ fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope) returns 
                     ref arg : Expr = fcall.child(arg_idx)
                     if is_variant(arg.data, ExprData.Ident) {
                         ref _an : Str = get_payload(arg.data)
-                        if _an.eq(var_name).and(fld_decl.is_own) {
+                        if _an.eq(var_name).and(fld_decl.is_ref.not()) {
+                            if fld_decl.is_own.or(type_ctor_consumes(fld.til_type)) {
                             return true
+                            }
                         }
                     }
                 }
