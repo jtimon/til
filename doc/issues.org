@@ -1,6 +1,6 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 123
+# NEXT_ISSUE: 124
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
@@ -259,6 +259,9 @@
   - then either:
     - stop cloning empty defaults in those raw-storage literals
     - or make cleanup free owned-empty strings too
+  - related low-priority ownership bug to revisit later:
+    - ~#123~ ~bin/til ast~ currently hits a double-free in the
+      generated ~ast_print -> print(Array) -> Array_delete~ path
 
 ** OPEN #102 Auto-generate eq and to_str for structs
   Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get
@@ -961,6 +964,34 @@
   interpreted, til compiled — all must produce identical results.
 
 * [0/20] Post
+** OPEN #123 `bin/til ast` double-free in AST printing path
+  Low priority follow-up, separate from the current ~#39~ ~typer.c~
+  migration work.
+
+  Current symptom:
+  - ~bin/til ast /tmp/repro_greet_test.til~
+    aborts with:
+    ~double free or corruption (fasttop)~
+
+  This also reproduced on other small files, so it does not currently look
+  specific to the latest hoisting translations.
+
+  Current best backtrace:
+  - abort in ~free~
+  - from ~Array_delete~ in generated ~gen/til/til.c~
+  - called by ~ast_print~
+
+  Notes:
+  - this is currently useful only as a debugging clue
+  - it should stay separate from the active ~typer.c~ translation series
+    unless it becomes a direct blocker there
+
+  Likely first investigation:
+  - inspect the ownership of the temporary ~Array~ values passed into
+    ~print(...)~ / ~println(...)~ from ~ast_print~
+  - confirm whether the same printed array is being deleted both by the
+    callee and again by the caller
+
 ** OPEN #115 Remove or simplify ~ext_struct~
   Revisit whether ~ext_struct~ should exist as a separate concept at all.
 
