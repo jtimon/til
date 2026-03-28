@@ -1899,7 +1899,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 decl->data.data.Decl.explicit_type = (Str){0};
                 decl->data.data.Decl.is_mut = false;
                 decl->data.data.Decl.is_namespace = false;
-                decl->til_type = cond->til_type;
+                decl->til_type = (TilType){TilType_TAG_Bool};
                 Expr_add_child(decl, Expr_clone(cond));
                 // if _wcondN {} else { break }
                 Expr *ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
