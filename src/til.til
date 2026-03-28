@@ -63,7 +63,7 @@ str_left := func(s: Str, n: USize) returns Str {
 // Matching nodes are removed from the body.
 extract_imports := proc(mut body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
-    kept := Vec.new("", Expr.size())
+    kept := Vec.new("Expr", Expr.size())
     for i in 0..Expr.child_count(body) {
         ref stmt : Expr = Expr.child(body, i)
         mut is_import := false

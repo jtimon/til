@@ -57874,7 +57874,7 @@ Vec * extract_imports(Expr * body) {
     (void)paths;
     Str_delete(&_t_Str_10780, &(Bool){0});
     ;
-    Str _t_Str_10782; { Str *_hp = (Str *)Str_lit("", 0ULL); _t_Str_10782 = *_hp; free(_hp); }
+    Str _t_Str_10782; { Str *_hp = (Str *)Str_lit("Expr", 4ULL); _t_Str_10782 = *_hp; free(_hp); }
     (void)_t_Str_10782;
     U32 _t_U32_10783; { U32 *_hp = (U32 *)Expr_size(); _t_U32_10783 = *_hp; free(_hp); }
     (void)_t_U32_10783;
