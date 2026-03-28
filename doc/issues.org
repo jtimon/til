@@ -437,45 +437,6 @@
   Implementation: typer tracks which bindings are read. After
   type-checking a scope, any unread non-~_~ binding is an error.
 
-** OPEN #85 C code must use enum structs, not raw tags
-  :DEPENDENCIES_OF: #39
-  Hand-written C code uses raw enum tags (~TokenType_tag~,
-  ~ExprData_tag~, etc.) directly — passing them as function args,
-  comparing with ~==~. But til enums are tagged unions: a struct
-  with a ~.tag~ field (and optionally a ~union .data~ for payload
-  variants). The builder already generates this layout (see
-  bootstrap/ast.h), but C code bypasses the struct and uses the
-  raw int tag.
-
-  This is a cross-cutting blocker for #39: every C module that
-  touches enums needs to use the struct form to match what til
-  generates. Not just parser — typer, interpreter, builder,
-  initer, scavenger all use raw tags.
-
-  Example (parser.c):
-  #+begin_src c
-  // Current: raw tag
-  I32 check(Parser *p, TokenType_tag type) {
-      return peek(p)->type.tag == type;
-  }
-  check(p, TokenType_TAG_Ident);
-
-  // Target: struct (matches til-generated code)
-  I32 check(Parser *p, TokenType *type) {
-      return peek(p)->type.tag == type->tag;
-  }
-  check(p, &(TokenType){TokenType_TAG_Ident});
-  #+end_src
-
-  Scope: ~100 sites in parser.c alone (check/expect_token and all
-  callers). Similar patterns in typer.c, interpreter.c, etc.
-  Each module can be converted independently as part of its #39 step.
-
-  The struct wrapper is always the same shape:
-  - No-payload enum: ~struct { Tag tag; }~ (e.g. TokenType, TilType)
-  - With-payload enum: ~struct { Tag tag; union { ... } data; }~
-    (e.g. ExprData)
-
 ** OPEN #68 Negative literal support
   Two phases:
 

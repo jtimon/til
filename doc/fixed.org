@@ -1108,6 +1108,27 @@
      optimized-builder design
 
 * FIXED #1 builder/interpreter consistency: eliminate unnecessary special cases
+** FIXED #85 C code must use enum structs, not raw tags
+   This one is effectively done as part of the #39 bottom-up migration.
+
+   The original blocker was the old handwritten-C parser/AST surface using
+   raw enum-tag APIs like ~check(..., TokenType_TAG_Ident)~ instead of the
+   generated enum-struct form. That parser-era pattern is now gone from
+   ~src/c~.
+
+   What still exists in handwritten C is normal generated-layout use:
+   - reading ~.tag~ on enum structs
+   - switching on generated tag enums
+   - constructing full enum values/structs where needed
+
+   That is not the old #85 problem. There are also no handwritten
+   ~typedef enum { ... }~ definitions left in ~src/c~; enum type layout is
+   coming from til/generated headers now.
+
+   So #85 is considered fixed by the self-hosting work:
+   - the old raw-tag C API surface is gone
+   - remaining C enum use matches the generated representation
+
 ** FIXED #119 Struct literals take ownership except for ref fields
    Struct literals now follow one explicit rule:
 
