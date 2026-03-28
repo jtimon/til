@@ -1168,10 +1168,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // Check if a function call returns ref
 
-// Create a temp decl for an expression, register in scope, return the replacement ident.
-// Adds the decl to the hoisted list.
-static void hoist_expr(Expr *e, Vec *hoisted, TypeScope *scope);
-
 static void hoist_decl_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
 }
@@ -1234,69 +1230,6 @@ static void hoist_if_cond(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
     if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall) {
         *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, scope);
-    }
-}
-
-// Walk expression tree depth-first. For each ExprData_TAG_FCall, hoist any arg that is itself a ExprData_TAG_FCall.
-// Does NOT recurse into scope boundaries (func/struct defs, bodies).
-static void hoist_expr(Expr *e, Vec *hoisted, TypeScope *scope) {
-    // Don't recurse into scope boundaries -- those have their own infer_body calls
-    if (e->data.tag == ExprData_TAG_FuncDef || e->data.tag == ExprData_TAG_StructDef || e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return;
-    // Recurse into children first (depth-first: inner fcalls hoisted before outer)
-    for (U32 i = 0; i < e->children.count; i++) {
-        hoist_expr(Expr_child(e, &(USize){(USize)(i)}), hoisted, scope);
-    }
-    if (e->data.tag != ExprData_TAG_FCall) return;
-
-    // For struct constructors, find field info to skip hoisting inline compound args
-    Expr *ctor_body = NULL;
-    if ((e->struct_name).count > 0 && e->children.count > 0 &&
-        Str_eq(&Expr_child(e, &(USize){(USize)(0)})->data.data.Ident, &e->struct_name)) {
-        Expr *sdef = TypeScope_get_struct(scope, &e->struct_name);
-        if (sdef) ctor_body = Expr_child(sdef, &(USize){(USize)(0)});
-    }
-
-    // Check each argument (children[1..n])
-    // dyn_call variants: don't hoist the method arg (2nd) — codegen needs it as a literal
-    Bool is_dyn_call = 0;
-    if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-        Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
-        is_dyn_call = (cn->count == 8 && memcmp(cn->c_str, "dyn_call", 8) == 0) || (cn->count == 12 && memcmp(cn->c_str, "dyn_call_ret", 12) == 0) ||
-                      (cn->count == 14 && memcmp(cn->c_str, "dyn_has_method", 14) == 0) || (cn->count == 6 && memcmp(cn->c_str, "dyn_fn", 6) == 0);
-    }
-    Bool is_array_vec = 0;
-    if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-        Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
-        is_array_vec = (cn->count == 5 && memcmp(cn->c_str, "array", 5) == 0) || (cn->count == 3 && memcmp(cn->c_str, "vec", 3) == 0);
-    }
-    U32 fi = 0; // instance field index for struct constructors
-    for (U32 i = 1; i < e->children.count; i++) {
-        if (is_dyn_call && (i == 2 || i == 3)) continue; // keep method and arity as literals
-        if (is_array_vec && i == 1) continue; // keep type_name as ExprData_TAG_LiteralStr
-        if (Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_FCall &&
-            Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_LiteralNum &&
-            Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_LiteralStr &&
-            Expr_child(e, &(USize){(USize)(i)})->data.tag != ExprData_TAG_LiteralBool) continue;
-
-        // Skip hoisting inline compound field args in struct constructors
-        if (ctor_body) {
-            // Find the fi-th instance field
-            Bool is_own = 0;
-            TilType ft = (TilType){TilType_TAG_None};
-            for (; fi < ctor_body->children.count; fi++) {
-                Expr *field = Expr_child(ctor_body, &(USize){(USize)(fi)});
-                if (!field->data.data.Decl.is_namespace) {
-                    is_own = field->data.data.Decl.is_own;
-                    ft = Expr_child(field, &(USize){(USize)(0)})->til_type;
-                    fi++;
-                    break;
-                }
-            }
-            if (!is_own && (ft.tag == TilType_TAG_Struct || ft.tag == TilType_TAG_Enum))
-                continue; // don't hoist — builder handles directly
-        }
-
-        *(Expr*)Vec_get(&e->children, &(USize){(USize)(i)}) = *hoist_to_temp(Expr_clone(Expr_child(e, &(USize){(USize)(i)})), hoisted, scope);
     }
 }
 

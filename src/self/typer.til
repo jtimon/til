@@ -788,6 +788,101 @@ hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Typ
     stmt = call
 }
 
+hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+    if is_variant(expr.data, ExprData.FuncDef) { return }
+    if is_variant(expr.data, ExprData.StructDef) { return }
+    if is_variant(expr.data, ExprData.EnumDef) { return }
+    if is_variant(expr.data, ExprData.Body) { return }
+
+    for i in 0..expr.child_count() {
+        hoist_expr(expr.child(i), hoisted, scope)
+    }
+    if is_variant(expr.data, ExprData.FCall).not() { return }
+
+    ref mut ctor_body : Expr = NULL
+    if expr.struct_name.len().gt(0) {
+        if expr.child_count().gt(0) {
+            ref callee : Expr = expr.child(0)
+            if is_variant(callee.data, ExprData.Ident) {
+                ref callee_name : Str = get_payload(callee.data)
+                if callee_name.eq(expr.struct_name) {
+                    ref sdef : Expr = scope.get_struct(expr.struct_name)
+                    if is_null(sdef).not() {
+                        ctor_body = sdef.child(0)
+                    }
+                }
+            }
+        }
+    }
+
+    mut is_dyn_call := false
+    if expr.child_count().gt(0) {
+        ref callee : Expr = expr.child(0)
+        if is_variant(callee.data, ExprData.Ident) {
+            ref cn : Str = get_payload(callee.data)
+            if cn.eq("dyn_call") { is_dyn_call = true }
+            if cn.eq("dyn_call_ret") { is_dyn_call = true }
+            if cn.eq("dyn_has_method") { is_dyn_call = true }
+            if cn.eq("dyn_fn") { is_dyn_call = true }
+        }
+    }
+
+    mut is_array_vec := false
+    if expr.child_count().gt(0) {
+        ref callee : Expr = expr.child(0)
+        if is_variant(callee.data, ExprData.Ident) {
+            ref cn : Str = get_payload(callee.data)
+            if cn.eq("array") { is_array_vec = true }
+            if cn.eq("vec") { is_array_vec = true }
+        }
+    }
+
+    mut fi := 0.to_usize()
+    for i in 1..expr.child_count() {
+        if is_dyn_call {
+            if i.eq(2).or(i.eq(3)) { continue }
+        }
+        if is_array_vec {
+            if i.eq(1) { continue }
+        }
+
+        ref arg : Expr = expr.child(i)
+        if is_variant(arg.data, ExprData.FCall).not() {
+            if is_variant(arg.data, ExprData.LiteralNum).not() {
+                if is_variant(arg.data, ExprData.LiteralStr).not() {
+                    if is_variant(arg.data, ExprData.LiteralBool).not() {
+                        continue
+                    }
+                }
+            }
+        }
+
+        if is_null(ctor_body).not() {
+            mut is_own := false
+            mut field_type := TilType.None
+            while fi.lt(ctor_body.child_count()) {
+                ref field : Expr = ctor_body.child(fi)
+                fi = fi.add(1)
+                if is_variant(field.data, ExprData.Decl) {
+                    ref fd : Declaration = get_payload(field.data)
+                    if fd.is_namespace.not() {
+                        is_own = fd.is_own
+                        field_type = field.child(0).til_type
+                        break
+                    }
+                }
+            }
+            if is_own.not() {
+                if is_variant(field_type, TilType.Struct).or(is_variant(field_type, TilType.Enum)) {
+                    continue
+                }
+            }
+        }
+
+        expr.children.set(i, own hoist_to_temp(arg.clone(), hoisted, scope))
+    }
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {
