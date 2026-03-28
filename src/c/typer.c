@@ -28,9 +28,6 @@ Bool field_assign_needs_delete(Expr *stmt);
 
 // --- Type inference/checking pass ---
 
-static I32 errors;
-static Mode *current_mode;
-
 static void type_error(Expr *e, const char *msg) {
     fprintf(stderr, "%s:%u:%u: type error: %s\n", e->path.c_str, e->line, e->col, msg);
     errors++;
@@ -117,7 +114,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     type_error(e, "test functions cannot have parameters");
             }
             // Pure mode: reject user-declared procs (allow core procs)
-            if (current_mode && current_mode->is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
+            if (current_mode.is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
                 type_error(e, "proc not allowed in pure mode");
             TypeScope *func_scope = TypeScope_new(scope);
             // Resolve return type alias
@@ -974,7 +971,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         }
         // Check: func cannot call proc (panic is exempt; print/println exempt in debug_prints modes)
         // Skip for function pointer calls (callee proc-ness unknown at compile time)
-        Bool debug_exempt = current_mode && current_mode->debug_prints &&
+        Bool debug_exempt = current_mode.debug_prints &&
             ((name->count == 5 && memcmp(name->c_str, "print", 5) == 0) || (name->count == 7 && memcmp(name->c_str, "println", 7) == 0));
         if (fn_type.tag != TilType_TAG_FuncPtr &&
             in_func && TypeScope_is_proc(scope, name) == 1 && !(name->count == 5 && memcmp(name->c_str, "panic", 5) == 0) && !debug_exempt) {
@@ -3457,7 +3454,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
 I32 type_check(Expr *program, TypeScope *scope, Mode *mode) {
     errors = 0;
-    current_mode = mode;
+    current_mode = *mode;
     infer_body(scope, program, 0, 1, 0, 0, 0);
     return errors;
 }

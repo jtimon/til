@@ -1021,6 +1021,8 @@ extern U32 CAP_VIEW;
 extern I32 hoist_counter;
 extern I32 _va_counter;
 extern I32 _kw_counter;
+extern I32 errors;
+extern Mode current_mode;
 extern Str I64Name;
 extern Str U8Name;
 extern Str I16Name;

@@ -3,6 +3,8 @@ mode lib
 mut hoist_counter : I32 = 0
 mut _va_counter : I32 = 0
 mut _kw_counter : I32 = 0
+mut errors : I32 = 0
+mut current_mode := Mode()
 I64Name := "I64"
 U8Name := "U8"
 I16Name := "I16"
