@@ -1,10 +1,34 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 117
+# NEXT_ISSUE: 118
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #118 Container element typing for pointer/ref container uses
+  Normal typed container construction should use explicit element types.
+
+  Recent progress:
+  - obvious typed cases are being tightened in both til and handwritten C:
+    - ~Vec.new("Expr", Expr.size())~
+    - ~Vec.new("Str", Str.size())~
+    - ~Vec.new("I32", I32.size())~
+    - non-pointer internal structs like ~Binding~, ~Value~, ~DispatchFn~,
+      ~FFIEntry~, ~LocalInfo~, ~DynCallInfo~, and ~CollectionInfo~
+  - ~Set~ and ~Array~ construction is already mostly explicit today
+  - the remaining ambiguous cases are mostly pointer/ref storage:
+    - ~Expr *~
+    - ~Str *~
+    - ~ffi_type *~
+
+  Open question:
+  - for pointer/ref container elements, should the explicit type become
+    ~Dynamic~, something like ~ref Expr~, or another dedicated spelling?
+
+  Current practical rule:
+  - add explicit element/value types everywhere they are known today
+  - leave only pointer/ref container cases for this issue
+
 ** OPEN #117 Bool and/or do not short-circuit
   ~and~ and ~or~ currently behave like ordinary Bool calls rather than
   C-style short-circuit operators.
