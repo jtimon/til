@@ -1261,66 +1261,6 @@ static void desugar_map_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
     }
 }
 
-static Str *resolve_variadic_elem_type(Expr *fcall, TypeScope *scope) {
-    Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
-    if (callee->data.tag == ExprData_TAG_Ident) {
-        ScopeFind *_sf_tb2 = TypeScope_find(scope, &callee->data.data.Ident);
-        TypeBinding *tb = _sf_tb2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_tb2) : NULL;
-        if (tb && tb->func_def) {
-            I32 fvi = tb->func_def->data.data.FuncDef.variadic_index;
-            if (fvi >= 0)
-                return &((Param*)Vec_get(&tb->func_def->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
-        }
-    } else if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
-        Expr *type_node = Expr_child(callee, &(USize){(USize)(0)});
-        if (type_node->data.tag == ExprData_TAG_Ident) {
-            Expr *sdef = TypeScope_get_struct(scope, &type_node->data.data.Ident);
-            if (sdef) {
-                Expr *sbody = Expr_child(sdef, &(USize){(USize)(0)});
-                for (U32 j = 0; j < sbody->children.count; j++) {
-                    Expr *f = Expr_child(sbody, &(USize){(USize)(j)});
-                    if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
-                        Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
-                        Expr_child(f, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                        I32 fvi = Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.variadic_index;
-                        if (fvi >= 0)
-                            return &((Param*)Vec_get(&Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    return NULL;
-}
-
-static Bool desugar_pure_splat_variadic_call(Expr *fcall, Vec *new_ch, Expr *stmt) {
-    I32 vi = fcall->data.data.FCall.variadic_index;
-    U32 vc = fcall->data.data.FCall.variadic_count;
-    if (!(vc == 1 && Expr_child(fcall, &(USize){(USize)(vi)})->is_splat)) return 0;
-
-    Expr *splat = Expr_child(fcall, &(USize){(USize)(vi)});
-    splat->is_splat = false;
-    if (splat->data.tag == ExprData_TAG_Ident) {
-        splat = make_clone_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct}, splat, splat);
-    } else {
-        splat = Expr_clone(splat);
-    }
-    splat->is_own_arg = true;
-
-    Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
-    for (U32 j = 0; j < fcall->children.count; j++) {
-        if ((I32)j == vi) Vec_push(&fcall_new_ch, splat);
-        else Vec_push(&fcall_new_ch, Expr_clone(Expr_child(fcall, &(USize){(USize)(j)})));
-    }
-    Vec_delete(&fcall->children, &(Bool){0});
-    fcall->children = fcall_new_ch;
-    fcall->data.data.FCall.variadic_index = -1;
-    fcall->data.data.FCall.variadic_count = 0;
-    Vec_push(new_ch, Expr_clone(stmt));
-    return 1;
-}
-
 static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
     I32 vi = fcall->data.data.FCall.variadic_index;
     U32 vc = fcall->data.data.FCall.variadic_count;

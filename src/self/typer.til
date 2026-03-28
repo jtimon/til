@@ -521,6 +521,83 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
     return set_call
 }
 
+resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
+    ref callee : Expr = fcall.child(0)
+    if is_variant(callee.data, ExprData.Ident) {
+        ref callee_name : Str = get_payload(callee.data)
+        ref cb : TypeBinding = scope.get_binding(callee_name)
+        if is_null(cb).not() {
+            if is_null(cb.func_def).not() {
+                ref cb_fdef : FunctionDef = get_payload(cb.func_def.data)
+                fvi := cb_fdef.variadic_index
+                if fvi.gte(0) {
+                    ref param : Param = cb_fdef.params.get(fvi.to_i64().to_usize())
+                    return param.ptype
+                }
+            }
+        }
+    } else if is_variant(callee.data, ExprData.FieldAccess) {
+        if callee.is_ns_field {
+            ref type_node : Expr = callee.child(0)
+            if is_variant(type_node.data, ExprData.Ident) {
+                ref type_name : Str = get_payload(type_node.data)
+                ref sdef : Expr = scope.get_struct(type_name)
+                if is_null(sdef).not() {
+                    ref sbody : Expr = sdef.child(0)
+                    ref method_name : Str = get_payload(callee.data)
+                    for j in 0..sbody.child_count() {
+                        ref f : Expr = sbody.child(j)
+                        if is_variant(f.data, ExprData.Decl).not() { continue }
+                        ref fd : Declaration = get_payload(f.data)
+                        if fd.is_namespace.not() { continue }
+                        if fd.name.eq(method_name).not() { continue }
+                        if is_variant(f.child(0).data, ExprData.FuncDef).not() { continue }
+                        ref ffd : FunctionDef = get_payload(f.child(0).data)
+                        fvi := ffd.variadic_index
+                        if fvi.gte(0) {
+                            ref param : Param = ffd.params.get(fvi.to_i64().to_usize())
+                            return param.ptype
+                        }
+                        break
+                    }
+                }
+            }
+        }
+    }
+    return NULL
+}
+
+desugar_pure_splat_variadic_call := proc(mut fcall: Expr, mut new_ch: Vec, stmt: Expr) returns shallow Bool {
+    ref fcd : FCallData = get_payload(fcall.data)
+    vi := fcd.variadic_index
+    vc := fcd.variadic_count
+    if vc.eq(1).not() { return false }
+    if fcall.child(vi.to_i64().to_usize()).is_splat.not() { return false }
+
+    ref splat_in : Expr = fcall.child(vi.to_i64().to_usize())
+    mut splat := splat_in.clone()
+    splat.is_splat = false
+    if is_variant(splat_in.data, ExprData.Ident) {
+        splat = make_clone_call("Array", TilType.Struct, splat_in, splat_in)
+    }
+    splat.is_own_arg = true
+
+    mut fcall_new_ch := Vec.new("Expr", Expr.size())
+    for j in 0..fcall.child_count() {
+        ji := j.to_i64().to_i32()
+        if ji.eq(vi) {
+            fcall_new_ch.push(own splat)
+        } else {
+            fcall_new_ch.push(own fcall.child(j).clone())
+        }
+    }
+    fcall.children = fcall_new_ch
+    fcd.variadic_index = -1.to_i32()
+    fcd.variadic_count = 0
+    new_ch.push(own stmt.clone())
+    return true
+}
+
 rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
     ref mut fcd : FCallData = get_payload(fcall.data)
     ki := fcd.kwargs_index
