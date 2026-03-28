@@ -17,6 +17,10 @@ namespace:
             return Vec(data = malloc(elem_size), cap = 1,
                        elem_size = elem_size, elem_type = elem_type)
         }
+        if elem_type.eq("Dynamic") {
+            return Vec(data = malloc(elem_size), cap = 1,
+                       elem_size = elem_size, elem_type = elem_type.clone())
+        }
         // TODO(#119): struct literals should apply field ownership semantics
         // automatically so owned Str fields do not need manual clones here.
         return Vec(data = malloc(elem_size), cap = 1,
@@ -54,7 +58,7 @@ namespace:
     }
 
     delete := func(own self: Vec, call_free: Bool = true) {
-        if self.elem_type.is_empty().not() {
+        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
             for i in 0..self.count {
                 self.elem_delete(ptr_add(self.data, i.mul(self.elem_size)), false)
             }
@@ -68,7 +72,7 @@ namespace:
 
     clone := func(self: Vec) returns Vec {
         new_data : Dynamic = malloc(self.cap.mul(self.elem_size))
-        if self.elem_type.is_empty().not() {
+        if self.elem_type.is_empty().not().and(self.elem_type.eq("Dynamic").not()) {
             for i in 0..self.count {
                 cloned : Dynamic = self.elem_clone(ptr_add(self.data, i.mul(self.elem_size)))
                 memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)

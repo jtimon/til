@@ -679,8 +679,8 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             I32 kwi = fdef->data.data.FuncDef.kwargs_index;  // -1 if no kwargs
             U32 fixed_count = (vi >= 0) ? (U32)vi : nparam; // params before variadic
             // Collect positional and named args
-            Vec va_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); va_args = *_vp; free(_vp); } // variadic args (only if vi >= 0)
-            Vec kw_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); kw_args = *_vp; free(_vp); } // kwargs args (ExprData_TAG_NamedArg nodes)
+            Vec va_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); va_args = *_vp; free(_vp); } // variadic args (only if vi >= 0)
+            Vec kw_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); kw_args = *_vp; free(_vp); } // kwargs args (ExprData_TAG_NamedArg nodes)
             Expr **new_args = calloc(nparam, sizeof(Expr *));
             U32 pos_idx = 0;
             Bool seen_named = 0;

@@ -1517,7 +1517,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
             Set saved_unsafe = unsafe_to_hoist;
             Set saved_refs = ref_locals;
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_locals = *_sp; free(_sp); }
-            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
+            { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
             { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
             collect_unsafe_to_hoist(body);
@@ -1563,7 +1563,7 @@ static void emit_func_def(FILE *f, Str *name, Expr *func_def, Mode *mode, Bool i
         Set saved_unsafe = unsafe_to_hoist;
         Set saved_refs = ref_locals;
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_locals = *_sp; free(_sp); }
-        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
+        { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
         { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
         collect_unsafe_to_hoist(body);
@@ -1694,7 +1694,7 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Collect variant names from non-namespace entries
         Vec vnames;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vnames = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vnames = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = Expr_child(body, &(USize){(USize)(i)});
             if (v->data.data.Decl.is_namespace) continue;
@@ -1717,9 +1717,9 @@ static void emit_enum_def(FILE *f, Str *name, Expr *enum_def) {
 
         // Collect variant info from non-namespace entries
         Vec vnames;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vnames = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vnames = *_vp; free(_vp); }
         Vec vtypes;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vtypes = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); vtypes = *_vp; free(_vp); }
         for (U32 i = 0; i < body->children.count; i++) {
             Expr *v = Expr_child(body, &(USize){(USize)(i)});
             if (v->data.data.Decl.is_namespace) continue;
@@ -1813,12 +1813,12 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     Bool is_lib = mode && mode->is_library;
 
     // Build struct body lookup map
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); struct_bodies = *_mp; free(_mp); }
     // Build func_def lookup map (for shallow param lookup at call sites)
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); func_defs = *_mp; free(_mp); }
     // Initialize stack_locals, ref_locals, and unsafe_to_hoist sets
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); stack_locals = *_sp; free(_sp); }
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); stack_local_types = *_mp; free(_mp); }
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); unsafe_to_hoist = *_sp; free(_sp); }
     { Set *_sp = Set_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}); ref_locals = *_sp; free(_sp); }
     for (U32 i = 0; i < program->children.count; i++) {
@@ -2258,7 +2258,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         }
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method = Vec_get(&has_methods, &(USize){(USize)(m)});
@@ -2531,7 +2531,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
         }
         const char *dyn_has_ret = dyn_has_shallow ? "Bool" : "Bool *";
         Vec has_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); has_methods = *_vp; free(_vp); }
         collect_dyn_has_methods(program, &has_methods);
         for (U32 m = 0; m < has_methods.count; m++) {
             Str **method_ptr = Vec_get(&has_methods, &(USize){(USize)(m)});

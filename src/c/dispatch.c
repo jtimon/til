@@ -129,7 +129,7 @@ static ffi_type *field_ffi_type(Expr *field) {
 // Build an ffi_type descriptor for a struct (heap-allocated, cached)
 static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     if (!ffi_type_cache_inited) {
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(ffi_type *)}); ffi_type_cache = *_vp; free(_vp); }
         ffi_type_cache_inited = 1;
     }
     // Count instance fields
@@ -1064,7 +1064,7 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
     }
 
     // Build struct def map for return type lookup
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0) continue;

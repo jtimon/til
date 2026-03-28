@@ -1,20 +1,23 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 119
+# NEXT_ISSUE: 121
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
-** OPEN #118 Container element typing for pointer/ref container uses
-  Pointer/ref container elements still need a real language-level
-  typing story:
-  - ~Expr *~
-  - ~Str *~
-  - other borrowed/ref-like container payloads
+** OPEN #120 Container constructors should reject empty explicit types
+  Once the remaining explicit typing work is done, typed container
+  constructors should stop accepting ~""~ silently:
+  - ~Vec.new("", ...)~
+  - ~Map.new(..., "", ...)~
+  - and any equivalent empty-type construction path
 
-  Non-pointer structs should just use their real type names in
-  container initialization. The design question is only for pointer/ref
-  cases, not for ordinary structs.
+  For real typed construction, empty type names should panic early and
+  loudly. The only remaining exception should be whichever explicit raw
+  spelling we settle on for pointer/ref storage.
+
+  This needs to wait until the raw-pointer path is explicit, so we do
+  not break old scratch containers before they are migrated.
 
 ** OPEN #119 Struct literals should apply field ownership semantics
   Struct literals currently behave like raw aggregate construction, so
@@ -40,6 +43,30 @@
   Proper fix:
   - teach the struct-literal / aggregate-construction path to reuse the
     same ownership rules as field assignment
+
+** OPEN #118 Container element typing for pointer/ref container uses
+  Decision taken:
+  - use ~Dynamic~ as the explicit container element/value type for
+    pointer/ref storage
+
+  So these old raw cases should move to:
+  - ~Expr *~ -> ~Dynamic~
+  - ~Str *~ -> ~Dynamic~
+  - ~ffi_type *~ -> ~Dynamic~
+  - other borrowed/ref-like container payloads -> ~Dynamic~
+
+  Non-pointer structs should just use their real type names in
+  container initialization. The design question is no longer the
+  spelling; it is only the implementation details of treating
+  ~Dynamic~ as the explicit raw-pointer path.
+
+  Required behavior:
+  - ~Vec.new("Dynamic", Dynamic.size())~ should behave like raw pointer
+    storage with explicit type information
+  - ~Map.new("Str", Str.size(), "Dynamic", Dynamic.size())~ should do
+    the same on the value side
+  - this should use default/raw clone-delete semantics, not
+    ~dyn_fn("Dynamic", ...)~
 
   Normal typed container construction should use explicit element types.
 

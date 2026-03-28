@@ -128,10 +128,10 @@ static void collect_refs(Expr *e, Vec *refs) {
 void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     Bool is_cli = mode && mode->needs_main && !run_tests;
 
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
+    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); gc_strs = *_vp; free(_vp); }
 
     // 1. Build top-level declaration map
-    Map top; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); top = *_mp; free(_mp); }
+    Map top; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); top = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_Decl) {
@@ -141,7 +141,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     }
 
     // 2. Build namespace method map: "Type.method" → method decl node
-    Map methods; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); methods = *_mp; free(_mp); }
+    Map methods; { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); methods = *_mp; free(_mp); }
     for (U32 i = 0; i < top.count; i++) {
         Expr *decl = *(Expr **)(top.val_data + i * top.val_size);
         if (Expr_child(decl, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef &&
@@ -157,7 +157,7 @@ void scavenge(Expr *program, Mode *mode, Bool run_tests) {
     }
 
     // 3. Seed worklist
-    Vec worklist; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); worklist = *_vp; free(_vp); }
+    Vec worklist; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Str *)}); worklist = *_vp; free(_vp); }
     if (is_cli) {
         vec_push_str(&worklist, gc_str(Str_clone(&(Str){.c_str = (U8*)"main", .count = 4, .cap = CAP_LIT})));
         // Also seed from top-level variable declarations (e.g. mode auto-imports)

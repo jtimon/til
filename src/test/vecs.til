@@ -88,3 +88,18 @@ test_vec_size := test() {
     assert_eq(__LOC__, Bool.size().to_i64(), 1)
     assert_eq(__LOC__, Vec.size().to_i64(), 56)
 }
+
+test_vec_dynamic := test() {
+    v := Vec.new("Dynamic", USize.size())
+    p1 : Dynamic = malloc(1)
+    p2 : Dynamic = malloc(1)
+    v.push(own p1)
+    v.push(own p2)
+
+    ref a : Dynamic = v.get(0)
+    ref b : Dynamic = v.get(1)
+
+    expect(__LOC__, is_null(a).not(), "first dynamic pointer should not be null")
+    expect(__LOC__, is_null(b).not(), "second dynamic pointer should not be null")
+    expect(__LOC__, is(a, b).not(), "distinct dynamic pointers stay distinct")
+}

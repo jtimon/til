@@ -32,6 +32,14 @@ namespace:
                        key_delete = dyn_fn(key_type, "delete"),
                        key_cmp = dyn_fn(key_type, "cmp"))
         }
+        if val_type.eq("Dynamic") {
+            return Map(key_data = malloc(key_size), val_data = malloc(val_size),
+                       cap = 1, key_size = key_size, key_type = key_type.clone(),
+                       val_size = val_size, val_type = val_type.clone(),
+                       key_clone = dyn_fn(key_type, "clone"),
+                       key_delete = dyn_fn(key_type, "delete"),
+                       key_cmp = dyn_fn(key_type, "cmp"))
+        }
         // TODO(#119): same ownership gap as in the val_type-empty branch.
         return Map(key_data = malloc(key_size), val_data = malloc(val_size),
                    cap = 1, key_size = key_size, key_type = key_type.clone(),
@@ -97,7 +105,7 @@ namespace:
                 self.key_delete(key, false)
             }
             free(own key)
-            if self.val_type.is_empty().not() {
+            if self.val_type.is_empty().not().and(self.val_type.eq("Dynamic").not()) {
                 self.val_delete(
                           ptr_add(self.val_data, lo.mul(self.val_size)), false)
             }
@@ -131,7 +139,7 @@ namespace:
                           ptr_add(self.key_data, i.mul(self.key_size)), false)
             }
         }
-        if self.val_type.is_empty().not() {
+        if self.val_type.is_empty().not().and(self.val_type.eq("Dynamic").not()) {
             for i in 0..self.count {
                 self.val_delete(
                           ptr_add(self.val_data, i.mul(self.val_size)), false)
@@ -156,10 +164,16 @@ namespace:
                      ptr_add(self.key_data, i.mul(self.key_size)))
             memcpy(ptr_add(new_keys, i.mul(self.key_size)), ck, self.key_size)
             free(own ck)
-            cv : Dynamic = self.val_clone(
-                     ptr_add(self.val_data, i.mul(self.val_size)))
-            memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
-            free(own cv)
+            if self.val_type.eq("Dynamic") {
+                memcpy(ptr_add(new_vals, i.mul(self.val_size)),
+                       ptr_add(self.val_data, i.mul(self.val_size)),
+                       self.val_size)
+            } else {
+                cv : Dynamic = self.val_clone(
+                         ptr_add(self.val_data, i.mul(self.val_size)))
+                memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
+                free(own cv)
+            }
         }
         // TODO(#119): same ownership gap as in Map.new.
         return Map(key_data = new_keys, val_data = new_vals,
