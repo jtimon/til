@@ -1,34 +1,83 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 122
+# NEXT_ISSUE: 123
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #122 Mode-sensitive type checks should be per module
+  Mode-sensitive typing rules are currently applied with one global
+  ~current_mode~ for the whole compilation unit. That is wrong for
+  imported modules.
+
+  Concrete failure that exposed this:
+  - [src/core/str.til](/home/jt/sync/data_common/code/jt/til/src/core/str.til)
+    was temporarily switched from ~mode lib~ to ~mode liba~ for debug
+  - ~liba~ sets ~debug_prints = true~ in
+    [src/self/modes.til](/home/jt/sync/data_common/code/jt/til/src/self/modes.til)
+  - but typing still rejected ~println(...)~ inside a ~func~ in that file with:
+    ~func cannot call proc 'println'~
+
+  Why this happens:
+  - [src/til.til](/home/jt/sync/data_common/code/jt/til/src/til.til) resolves one
+    top-level ~cur_mode~
+  - [src/c/typer.c](/home/jt/sync/data_common/code/jt/til/src/c/typer.c)
+    stores that once in the global ~current_mode~
+  - mode-sensitive checks like the ~print/println~ debug exemption then
+    consult only that one global value
+  - imported files are therefore type-checked as if they had the top-level
+    program mode, not their own declared ~mode~
+
+  This is not just about debug prints. Any mode-sensitive typing rule is
+  suspect under the current architecture, including at least:
+  - ~func~ calling ~proc~ exemptions in debug modes
+  - pure/pura restrictions
+  - any future rule that depends on per-module mode
+
+  Desired end state:
+  - each parsed module keeps its own resolved mode
+  - typer applies mode-sensitive checks according to the module that owns
+    the AST node being checked
+  - imported ~mode lib~, ~liba~, ~pure~, ~pura~, etc. stop inheriting the
+    caller/top-level mode for typing purposes
+
+  Likely implementation directions:
+  - store resolved module mode on the parsed module/root body and propagate
+    it to descendant nodes
+  - or thread current module mode through typer recursion when descending
+    across merged module boundaries
+  - avoid keeping one process-global ~current_mode~ as the only source of
+    truth for semantic checks
+
 ** OPEN #119 Struct literals should apply field ownership semantics
-  Struct literals currently behave like raw aggregate construction, so
-  field values that end up stored in owned struct fields may need
-  ad-hoc manual clones in constructors like ~Vec.new~, ~Array.new~,
-  ~Set.new~, and ~Map.new~.
+  Struct literals should keep their current special typer path for now,
+  but their ownership semantics should be simple and explicit:
 
-  This should follow the same ownership logic as field assignment:
-  constructing a struct literal is effectively assigning values into
-  fields over their defaults. If a field owns a compound value, the
-  struct-literal path should insert the right clone/move semantics
-  automatically instead of relying on manual constructor-side fixes.
+  - ~ref~ fields are borrowed
+  - every other field is ownership-taking, like an ~own~ parameter
 
-  Current symptom/example:
-  - ~Vec.new("Expr", Expr.size())~ stored a borrowed ~Str~ type name in
-    ~elem_type~, then later deleted it as owned, causing heap
-    corruption.
+  This means struct literals are not copy sites anymore. If the caller
+  wants to keep using a variable after passing it into a non-~ref~
+  field, they must write ~.clone()~ explicitly and let the existing
+  use-after-own machinery guide them.
 
-  Temporary workaround:
-  - constructors manually clone stored type-name strings and their
-    clone methods do the same
+  Fresh values still need no clone:
+  - literals
+  - nested constructors
+  - default expressions
+
+  Current symptoms of the old mixed model:
+  - ad-hoc manual clones in constructors like ~Vec.new~, ~Array.new~,
+    ~Set.new~, and ~Map.new~
+  - clone-heavy omitted-default code that also feeds the current leak
+    investigation under ~#109~
 
   Proper fix:
-  - teach the struct-literal / aggregate-construction path to reuse the
-    same ownership rules as field assignment
+  - typer expands struct literals into the current dense field-ordered
+    constructor form
+  - all non-~ref~ field args are marked ownership-taking
+  - builder/interpreter stay dumb consumers of that explicit ownership
+    instead of inventing constructor-specific clone policy
 
 ** OPEN #117 Bool and/or do not short-circuit
   ~and~ and ~or~ currently behave like ordinary Bool calls rather than
@@ -272,31 +321,18 @@
   always produces the same output.
 
 ** OPEN #99 Struct literals as auto-generated new method
-  Struct literal syntax ~MyStruct(x = 1, y = 2)~ is currently special
-  in the compiler. It should be an auto-generated ~new~ namespace
-  method in the initer, with all fields as optional named arguments
-  using the field defaults.
+  This is a separate follow-up from ~#119~.
 
-  If the user defines their own ~new~, it overrides the auto-generated
-  one (same pattern as clone/delete/eq). This makes ~new~ explicit and
-  consistent — no special constructor syntax, just a regular method.
+  Desired direction:
+  - ~T(...)~ eventually becomes the constructor surface for ~T~
+  - if the user defines ~T.new~, that should override the ordinary
+    field-based struct-literal behavior
+  - otherwise simple structs keep the normal field/default constructor
+    path
 
-  Motivation: structs with invariants (Vec, Map, Set, Str, Array) must
-  only be constructed through their ~new~ method. The raw struct literal
-  bypasses invariants — e.g. ~Vec(data = Str("x").c_str, cap = 69,
-  count = -300)~ compiles but is completely broken. When a struct
-  defines ~new~, the auto-generated constructor should be suppressed,
-  forcing all construction through ~new~.
-
-  Like Python's ~__init__~: ~Vec("Point", Point.size())~ implicitly
-  calls ~Vec.new("Point", Point.size())~. The struct name IS the
-  constructor. For simple structs, ~Point(x = 1, y = 2)~ calls the
-  auto-generated ~new~ with all fields as named args.
-
-  The initer would auto-generate ~new~ (like clone/delete/size/eq).
-  All struct literal syntax in the compiler (initer.c, typer.c,
-  builder.c, etc.) would need to go through ~new~ instead of
-  hardcoded construction. Big refactor — needs full analysis.
+  This keeps static field checking while making constructor syntax more
+  regular, but none of it is required to fix ~#119~. Struct literals can
+  stay special in typer for now.
 
 ** OPEN #97 Negative identifier expressions: -MY_CONST, -x
   Parser only supports negative literals (~-42~), not negative
