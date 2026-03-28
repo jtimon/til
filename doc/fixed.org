@@ -1,5 +1,29 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #118 Container element typing for pointer/ref container uses
+  Decision landed:
+  - use ~Dynamic~ as the explicit container element/value type for
+    pointer/ref storage
+
+  What changed:
+  - typed containers now treat ~"Dynamic"~ as the explicit raw-pointer
+    path instead of trying to dispatch through ~dyn_fn("Dynamic", ...)~
+  - ~Vec~ and ~Map~ use default/raw clone-delete behavior for
+    ~Dynamic~ payload storage
+  - handwritten C pointer/ref container sites were updated to use
+    ~"Dynamic"~ instead of ~""~
+    - ~Expr *~
+    - ~Str *~
+    - ~ffi_type *~
+    - similar pointer/ref-like scratch payloads
+  - added focused coverage in ~src/test/vecs.til~
+
+  Result:
+  - pointer/ref container storage is no longer the ambiguous empty-type
+    case
+  - the remaining follow-up is ~#120~: reject empty explicit container
+    types once the remaining conversions are done
+
 * FIXED #106 For-in loop counter should be stack-allocated after #50
   This fell out of the #50 stack-local rework; no extra code change was
   needed afterward.

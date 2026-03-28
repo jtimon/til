@@ -44,53 +44,6 @@
   - teach the struct-literal / aggregate-construction path to reuse the
     same ownership rules as field assignment
 
-** OPEN #118 Container element typing for pointer/ref container uses
-  Decision taken:
-  - use ~Dynamic~ as the explicit container element/value type for
-    pointer/ref storage
-
-  So these old raw cases should move to:
-  - ~Expr *~ -> ~Dynamic~
-  - ~Str *~ -> ~Dynamic~
-  - ~ffi_type *~ -> ~Dynamic~
-  - other borrowed/ref-like container payloads -> ~Dynamic~
-
-  Non-pointer structs should just use their real type names in
-  container initialization. The design question is no longer the
-  spelling; it is only the implementation details of treating
-  ~Dynamic~ as the explicit raw-pointer path.
-
-  Required behavior:
-  - ~Vec.new("Dynamic", Dynamic.size())~ should behave like raw pointer
-    storage with explicit type information
-  - ~Map.new("Str", Str.size(), "Dynamic", Dynamic.size())~ should do
-    the same on the value side
-  - this should use default/raw clone-delete semantics, not
-    ~dyn_fn("Dynamic", ...)~
-
-  Normal typed container construction should use explicit element types.
-
-  Recent progress:
-  - obvious typed cases are being tightened in both til and handwritten C:
-    - ~Vec.new("Expr", Expr.size())~
-    - ~Vec.new("Str", Str.size())~
-    - ~Vec.new("I32", I32.size())~
-    - non-pointer internal structs like ~Binding~, ~Value~, ~DispatchFn~,
-      ~FFIEntry~, ~LocalInfo~, ~DynCallInfo~, and ~CollectionInfo~
-  - ~Set~ and ~Array~ construction is already mostly explicit today
-  - the remaining ambiguous cases are mostly pointer/ref storage:
-    - ~Expr *~
-    - ~Str *~
-    - ~ffi_type *~
-
-  Open question:
-  - for pointer/ref container elements, should the explicit type become
-    ~Dynamic~, something like ~ref Expr~, or another dedicated spelling?
-
-  Current practical rule:
-  - add explicit element/value types everywhere they are known today
-  - leave only pointer/ref container cases for this issue
-
 ** OPEN #117 Bool and/or do not short-circuit
   ~and~ and ~or~ currently behave like ordinary Bool calls rather than
   C-style short-circuit operators.
