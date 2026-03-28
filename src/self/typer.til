@@ -1159,4 +1159,45 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope) returns shallow I32 {
     return 0.to_i32()
 }
 
+hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns Expr {
+    tp := type_prefix(val.til_type, val.struct_name)
+    tname := "_t_".concat(tp).concat("_").concat(hoist_counter.to_i64().to_str())
+    hoist_counter.inc()
+
+    mut decl := Expr.new(ExprData.Decl(Declaration()), val.line, val.col, val.path)
+    ref mut dd : Declaration = get_payload(decl.data)
+    dd.name = tname.clone()
+    dd.is_mut = false
+    dd.is_namespace = false
+    decl.til_type = val.til_type
+    if val.struct_name.len().gt(0) {
+        decl.struct_name = val.struct_name.clone()
+    }
+
+    mut val_is_ref := false
+    if is_variant(val.data, ExprData.FCall) {
+        val_is_ref = fcall_returns_ref(val, scope).eq(0).not()
+    }
+
+    decl.add_child(own val.clone())
+
+    mut ident := Expr.new(ExprData.Ident(tname.clone()), val.line, val.col, val.path)
+    ident.til_type = val.til_type
+    if val.struct_name.len().gt(0) {
+        ident.struct_name = val.struct_name.clone()
+    }
+    ident.is_own_arg = val.is_own_arg
+
+    scope.set(tname, val.til_type, -1.to_i32(), false, val.line, val.col, false, false)
+    ref mut tb : TypeBinding = scope.get_binding(tname)
+    tb.struct_name = val.struct_name.clone()
+    if val_is_ref {
+        dd.is_ref = true
+        if is_null(tb).not() { tb.is_ref = true }
+    }
+
+    hoisted.push(own decl)
+    return ident
+}
+
 type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}

@@ -868,6 +868,7 @@ void insert_assign_delete(Expr * stmt, void * locals, U32 n_locals, Vec * new_ch
 void infer_literal_expr(Expr * expr);
 void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
+Expr * hoist_to_temp(Expr * val, Vec * hoisted, TypeScope * scope);
 I32 type_check(Expr * program, TypeScope * scope, Mode * m);
 Bool is_macro_call(Expr * e);
 Bool is_func_call(Expr * e);

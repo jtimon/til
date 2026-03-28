@@ -1414,42 +1414,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 // Adds the decl to the hoisted list.
 static void hoist_expr(Expr *e, Vec *hoisted, TypeScope *scope);
 
-static Expr *hoist_to_temp(Expr *val, Vec *hoisted, TypeScope *scope) {
-    char name_buf[128];
-    Str *tp = type_prefix(&val->til_type, &val->struct_name);
-    snprintf(name_buf, sizeof(name_buf), "_t_%s_%d", tp->c_str, hoist_counter++);
-    Str *tname = Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
-    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, val->line, val->col, &val->path);
-    decl->data.data.Decl.name = *tname;
-    decl->data.data.Decl.explicit_type = (Str){0};
-    decl->data.data.Decl.is_mut = false;
-    decl->data.data.Decl.is_namespace = false;
-    decl->til_type = val->til_type;
-    if (val->struct_name.count > 0) decl->struct_name = *Str_clone(&val->struct_name);
-    U32 val_line = val->line;
-    U32 val_col = val->col;
-    Str val_path = val->path;
-    TilType val_type = val->til_type;
-    Str val_struct_name = val->struct_name;
-    Bool val_is_own_arg = val->is_own_arg;
-    Bool val_is_ref = (val->data.tag == ExprData_TAG_FCall && fcall_returns_ref(val, scope));
-    Expr_add_child(decl, Expr_clone(val));
-    Expr *ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, val_line, val_col, &val_path);
-    ident->data.data.Ident = *tname;
-    ident->til_type = val_type;
-    if (val_struct_name.count > 0) ident->struct_name = *Str_clone(&val_struct_name);
-    ident->is_own_arg = val_is_own_arg;
-    TypeScope_set(scope, tname, &val_type, -1, 0, val_line, val_col, 0, 0);
-    TypeBinding *tb = Map_get(&scope->bindings, tname);
-    tb->struct_name = *Str_clone(&val_struct_name);
-    if (val_is_ref) {
-        decl->data.data.Decl.is_ref = true;
-        if (tb) tb->is_ref = 1;
-    }
-    Vec_push(hoisted, decl);
-    return ident;
-}
-
 static void hoist_decl_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
 }
