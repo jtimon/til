@@ -395,6 +395,25 @@ expr_transfers_own := func(e: Expr, var_name: Str, scope: TypeScope) returns sha
     return false
 }
 
+expr_is_borrow_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
+    if is_null(e) { return false }
+    if is_variant(e.data, ExprData.LiteralNull) { return true }
+    if is_variant(e.data, ExprData.FCall).and(fcall_returns_ref(e, scope).neq(0)) { return true }
+    if is_variant(e.data, ExprData.Ident) {
+        ref id : Str = get_payload(e.data)
+        sf := scope.find(id)
+        if is_variant(sf, ScopeFind.Found) {
+            ref b : TypeBinding = get_payload(sf)
+            if b.is_ref.or(b.is_param) { return true }
+        }
+    }
+    if is_variant(e.data, ExprData.FieldAccess) {
+        if e.is_ns_field { return false }
+        return expr_is_borrow_source(e.child(0), scope)
+    }
+    return false
+}
+
 alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bool {
     for k in 0..body.child_count() {
         ref d : Expr = body.child(k)

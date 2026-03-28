@@ -43,22 +43,6 @@ static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Exp
 static Expr *make_ns_call(const char *sname, const char *method,
                            TilType ret_type, Str *ret_sname, Expr *src);
 
-static Bool expr_is_borrow_source(Expr *e, TypeScope *scope) {
-    if (!e) return 0;
-    if (e->data.tag == ExprData_TAG_LiteralNull) return 1;
-    if (e->data.tag == ExprData_TAG_FCall && fcall_returns_ref(e, scope)) return 1;
-    if (e->data.tag == ExprData_TAG_Ident) {
-        ScopeFind *_sf = TypeScope_find(scope, &e->data.data.Ident);
-        TypeBinding *b = _sf->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf) : NULL;
-        if (b && (b->is_ref || b->is_param)) return 1;
-    }
-    if (e->data.tag == ExprData_TAG_FieldAccess) {
-        if (e->is_ns_field) return 0;
-        return expr_is_borrow_source(Expr_child(e, &(USize){(USize)(0)}), scope);
-    }
-    return 0;
-}
-
 static Bool expr_is_stable_field_base(Expr *e, TypeScope *scope) {
     if (!e) return 0;
     if (expr_is_borrow_source(e, scope)) return 1;

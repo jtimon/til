@@ -821,6 +821,7 @@ Str * type_prefix(TilType * t, Str * sname);
 Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope);
+Bool expr_is_borrow_source(Expr * e, TypeScope * scope);
 Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr);
 void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
