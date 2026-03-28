@@ -1070,6 +1070,427 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 // --- Collection literal helpers ---
 
+static void desugar_set_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) {
+    Expr *set_lit = Expr_child(stmt, &(USize){(USize)(0)});
+    U32 line = set_lit->line, col = set_lit->col;
+    Str *path = &set_lit->path;
+    Str *var_name = &stmt->data.data.Decl.name;
+
+    if (set_lit->children.count == 0) {
+        type_error(set_lit, "set literal must have at least one element");
+        Vec_push(new_ch, Expr_clone(stmt));
+        return;
+    }
+
+    Expr *first = Expr_child(set_lit, &(USize){(USize)(0)});
+    Str *elem_type = type_to_name(&first->til_type, &first->struct_name);
+    if (elem_type->count == 0) {
+        type_error(first, "set literal: cannot determine element type");
+        Vec_push(new_ch, Expr_clone(stmt));
+        return;
+    }
+
+    if (!type_has_cmp(scope, elem_type)) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "set literal: element type '%s' must implement cmp", elem_type->c_str);
+        type_error(first, buf);
+    }
+
+    for (U32 j = 1; j < set_lit->children.count; j++) {
+        Expr *v = Expr_child(set_lit, &(USize){(USize)(j)});
+        Str *vt = type_to_name(&v->til_type, &v->struct_name);
+        if (vt->count == 0 || !Str_eq(vt, elem_type))
+            type_error(v, "set literal: all elements must be the same type");
+    }
+
+    Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
+                                   &(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, set_lit);
+    Expr *et_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+    et_str->data.data.LiteralStr = *Str_clone(elem_type);
+    et_str->til_type = (TilType){TilType_TAG_Struct};
+    et_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+    Expr_add_child(new_call, et_str);
+    Expr *esz = make_ns_call(elem_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, set_lit);
+    Expr_add_child(new_call, esz);
+
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, stmt->line, stmt->col, path);
+    decl->data.data.Decl.name = *var_name;
+    decl->data.data.Decl.is_mut = true;
+    decl->til_type = (TilType){TilType_TAG_Struct};
+    Expr_add_child(decl, new_call);
+
+    TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
+    TypeBinding *vb = Map_get(&scope->bindings, var_name);
+    vb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT});
+
+    Vec_push(new_ch, decl);
+
+    for (U32 j = 0; j < set_lit->children.count; j++) {
+        Expr *add_call = make_ns_call(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"add", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, set_lit);
+        Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        self_id->data.data.Ident = *var_name;
+        self_id->til_type = (TilType){TilType_TAG_Struct};
+        self_id->struct_name = (Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT};
+        Expr_add_child(add_call, self_id);
+        Expr *val = Expr_clone(Expr_child(set_lit, &(USize){(USize)(j)}));
+        val->is_own_arg = true;
+        Expr_add_child(add_call, val);
+        Vec_push(new_ch, add_call);
+    }
+}
+
+static void desugar_map_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) {
+    Expr *map_lit = Expr_child(stmt, &(USize){(USize)(0)});
+    U32 line = map_lit->line, col = map_lit->col;
+    Str *path = &map_lit->path;
+    Str *var_name = &stmt->data.data.Decl.name;
+    U32 n_pairs = map_lit->children.count / 2;
+
+    if (map_lit->children.count == 0) {
+        type_error(map_lit, "map literal must have at least one entry");
+        Vec_push(new_ch, Expr_clone(stmt));
+        return;
+    }
+    if (map_lit->children.count % 2 != 0) {
+        type_error(map_lit, "map literal has mismatched key/value pairs");
+        Vec_push(new_ch, Expr_clone(stmt));
+        return;
+    }
+
+    Expr *first_key = Expr_child(map_lit, &(USize){(USize)(0)});
+    Expr *first_val = Expr_child(map_lit, &(USize){(USize)(1)});
+    Str *key_type = type_to_name(&first_key->til_type, &first_key->struct_name);
+    Str *val_type = type_to_name(&first_val->til_type, &first_val->struct_name);
+
+    if (key_type->count == 0) {
+        type_error(first_key, "map literal: cannot determine key type");
+        Vec_push(new_ch, Expr_clone(stmt));
+        return;
+    }
+    if (val_type->count == 0) {
+        type_error(first_val, "map literal: cannot determine value type");
+        Vec_push(new_ch, Expr_clone(stmt));
+        return;
+    }
+
+    if (!type_has_cmp(scope, key_type)) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "map literal: key type '%s' must implement cmp", key_type->c_str);
+        type_error(first_key, buf);
+    }
+
+    for (U32 j = 2; j < map_lit->children.count; j += 2) {
+        Expr *k = Expr_child(map_lit, &(USize){(USize)(j)});
+        Expr *v = Expr_child(map_lit, &(USize){(USize)(j + 1)});
+        Str *kt = type_to_name(&k->til_type, &k->struct_name);
+        Str *vt = type_to_name(&v->til_type, &v->struct_name);
+        if (kt->count == 0 || !Str_eq(kt, key_type))
+            type_error(k, "map literal: all keys must be the same type");
+        if (vt->count == 0 || !Str_eq(vt, val_type))
+            type_error(v, "map literal: all values must be the same type");
+    }
+
+    Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
+                                   &(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, map_lit);
+    Expr *kt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+    kt_str->data.data.LiteralStr = *Str_clone(key_type);
+    kt_str->til_type = (TilType){TilType_TAG_Struct};
+    kt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+    Expr_add_child(new_call, kt_str);
+    Expr *ksz = make_ns_call(key_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, map_lit);
+    Expr_add_child(new_call, ksz);
+    Expr *vt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+    vt_str->data.data.LiteralStr = *Str_clone(val_type);
+    vt_str->til_type = (TilType){TilType_TAG_Struct};
+    vt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+    Expr_add_child(new_call, vt_str);
+    Expr *vsz = make_ns_call(val_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, map_lit);
+    Expr_add_child(new_call, vsz);
+
+    Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, stmt->line, stmt->col, path);
+    decl->data.data.Decl.name = *var_name;
+    decl->data.data.Decl.is_mut = true;
+    decl->til_type = (TilType){TilType_TAG_Struct};
+    Expr_add_child(decl, new_call);
+
+    TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
+    TypeBinding *vb = Map_get(&scope->bindings, var_name);
+    vb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
+
+    Vec_push(new_ch, decl);
+
+    for (U32 j = 0; j < n_pairs; j++) {
+        Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, map_lit);
+        Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        self_id->data.data.Ident = *var_name;
+        self_id->til_type = (TilType){TilType_TAG_Struct};
+        self_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
+        Expr_add_child(set_call, self_id);
+        Expr *key = Expr_clone(Expr_child(map_lit, &(USize){(USize)(j * 2)}));
+        key->is_own_arg = true;
+        Expr_add_child(set_call, key);
+        Expr *mval = Expr_clone(Expr_child(map_lit, &(USize){(USize)(j * 2 + 1)}));
+        mval->is_own_arg = true;
+        Expr_add_child(set_call, mval);
+        Vec_push(new_ch, set_call);
+    }
+}
+
+static Str *resolve_variadic_elem_type(Expr *fcall, TypeScope *scope) {
+    Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
+    if (callee->data.tag == ExprData_TAG_Ident) {
+        ScopeFind *_sf_tb2 = TypeScope_find(scope, &callee->data.data.Ident);
+        TypeBinding *tb = _sf_tb2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_tb2) : NULL;
+        if (tb && tb->func_def) {
+            I32 fvi = tb->func_def->data.data.FuncDef.variadic_index;
+            if (fvi >= 0)
+                return &((Param*)Vec_get(&tb->func_def->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
+        }
+    } else if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
+        Expr *type_node = Expr_child(callee, &(USize){(USize)(0)});
+        if (type_node->data.tag == ExprData_TAG_Ident) {
+            Expr *sdef = TypeScope_get_struct(scope, &type_node->data.data.Ident);
+            if (sdef) {
+                Expr *sbody = Expr_child(sdef, &(USize){(USize)(0)});
+                for (U32 j = 0; j < sbody->children.count; j++) {
+                    Expr *f = Expr_child(sbody, &(USize){(USize)(j)});
+                    if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
+                        Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
+                        Expr_child(f, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                        I32 fvi = Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.variadic_index;
+                        if (fvi >= 0)
+                            return &((Param*)Vec_get(&Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+static Bool desugar_pure_splat_variadic_call(Expr *fcall, Vec *new_ch, Expr *stmt) {
+    I32 vi = fcall->data.data.FCall.variadic_index;
+    U32 vc = fcall->data.data.FCall.variadic_count;
+    if (!(vc == 1 && Expr_child(fcall, &(USize){(USize)(vi)})->is_splat)) return 0;
+
+    Expr *splat = Expr_child(fcall, &(USize){(USize)(vi)});
+    splat->is_splat = false;
+    if (splat->data.tag == ExprData_TAG_Ident) {
+        splat = make_clone_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct}, splat, splat);
+    } else {
+        splat = Expr_clone(splat);
+    }
+    splat->is_own_arg = true;
+
+    Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+    for (U32 j = 0; j < fcall->children.count; j++) {
+        if ((I32)j == vi) Vec_push(&fcall_new_ch, splat);
+        else Vec_push(&fcall_new_ch, Expr_clone(Expr_child(fcall, &(USize){(USize)(j)})));
+    }
+    Vec_delete(&fcall->children, &(Bool){0});
+    fcall->children = fcall_new_ch;
+    fcall->data.data.FCall.variadic_index = -1;
+    fcall->data.data.FCall.variadic_count = 0;
+    Vec_push(new_ch, Expr_clone(stmt));
+    return 1;
+}
+
+static Expr *build_variadic_array_decl(Expr *fcall, TypeScope *scope, Str *elem_type, Str *va_name, U32 vc) {
+    I32 line = fcall->line, col = fcall->col;
+    Str *path = &fcall->path;
+    Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
+                                   &(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, fcall);
+    Expr *et = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+    et->data.data.LiteralStr = *Str_clone(elem_type);
+    et->til_type = (TilType){TilType_TAG_Struct};
+    et->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+    Expr_add_child(new_call, et);
+    Expr *sz = make_ns_call(elem_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope),
+                             &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
+    Expr_add_child(new_call, sz);
+    Expr *cap = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
+    char cap_buf[16];
+    snprintf(cap_buf, sizeof(cap_buf), "%d", vc);
+    cap->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(cap_buf), .count = (U64)strlen((const char*)(cap_buf)), .cap = CAP_VIEW});
+    cap->til_type = *usize_type(scope);
+    Expr_add_child(new_call, cap);
+
+    Expr *va_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+    va_decl->data.data.Decl.name = *va_name;
+    va_decl->til_type = (TilType){TilType_TAG_Struct};
+    Expr_add_child(va_decl, new_call);
+    return va_decl;
+}
+
+static Expr *build_variadic_array_set(Expr *fcall, TypeScope *scope, Str *va_name, I32 vi, U32 j) {
+    I32 line = fcall->line, col = fcall->col;
+    Str *path = &fcall->path;
+    Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None},
+                                   &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
+    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    self_id->data.data.Ident = *va_name;
+    self_id->til_type = (TilType){TilType_TAG_Struct};
+    self_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
+    Expr_add_child(set_call, self_id);
+    Expr *idx = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
+    char idx_buf[16];
+    snprintf(idx_buf, sizeof(idx_buf), "%d", j);
+    idx->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(idx_buf), .count = (U64)strlen((const char*)(idx_buf)), .cap = CAP_VIEW});
+    idx->til_type = *usize_type(scope);
+    Expr_add_child(set_call, idx);
+    Expr *val = Expr_child(fcall, &(USize){(USize)(vi + j)});
+    if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
+        Str *tname = type_to_name(&val->til_type, &val->struct_name);
+        if (tname->count > 0) val = make_clone_call(tname, val->til_type, val, val);
+        else val = Expr_clone(val);
+    } else {
+        val = Expr_clone(val);
+    }
+    val->is_own_arg = true;
+    Expr_add_child(set_call, val);
+    return set_call;
+}
+
+static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
+    I32 vi = fcall->data.data.FCall.variadic_index;
+    U32 vc = fcall->data.data.FCall.variadic_count;
+    I32 line = fcall->line, col = fcall->col;
+    Str *path = &fcall->path;
+    Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+    Bool va_inserted = 0;
+    for (U32 j = 0; j < fcall->children.count; j++) {
+        if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
+            if (!va_inserted) {
+                Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                va_id->data.data.Ident = *va_name;
+                va_id->til_type = (TilType){TilType_TAG_Struct};
+                va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
+                va_id->is_own_arg = true;
+                Vec_push(&fcall_new_ch, va_id);
+                va_inserted = 1;
+            }
+            continue;
+        }
+        if ((I32)j == vi && !va_inserted) {
+            Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            va_id->data.data.Ident = *va_name;
+            va_id->til_type = (TilType){TilType_TAG_Struct};
+            va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
+            va_id->is_own_arg = true;
+            Vec_push(&fcall_new_ch, va_id);
+            va_inserted = 1;
+        }
+        Vec_push(&fcall_new_ch, Expr_clone(Expr_child(fcall, &(USize){(USize)(j)})));
+    }
+    if (!va_inserted) {
+        Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        va_id->data.data.Ident = *va_name;
+        va_id->til_type = (TilType){TilType_TAG_Struct};
+        va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
+        va_id->is_own_arg = true;
+        Vec_push(&fcall_new_ch, va_id);
+    }
+    Vec_delete(&fcall->children, &(Bool){0});
+    fcall->children = fcall_new_ch;
+    fcall->data.data.FCall.variadic_index = -1;
+    fcall->data.data.FCall.variadic_count = 0;
+}
+
+static Expr *build_kwargs_dynmap_decl(Expr *fcall, Str *kw_name) {
+    I32 line = fcall->line, col = fcall->col;
+    Str *path = &fcall->path;
+    Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
+                                   &(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, fcall);
+    Expr *kw_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+    kw_decl->data.data.Decl.name = *kw_name;
+    kw_decl->til_type = (TilType){TilType_TAG_Struct};
+    Expr_add_child(kw_decl, new_call);
+    return kw_decl;
+}
+
+static Expr *build_kwargs_dynmap_set(Expr *fcall, TypeScope *scope, Str *kw_name, Expr *named_arg) {
+    I32 line = fcall->line, col = fcall->col;
+    Str *path = &fcall->path;
+    Str *key_name = &named_arg->data.data.NamedArg;
+    Expr *val = Expr_child(named_arg, &(USize){(USize)(0)});
+    Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
+    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    self_id->data.data.Ident = *kw_name;
+    self_id->til_type = (TilType){TilType_TAG_Struct};
+    self_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
+    Expr_add_child(set_call, self_id);
+    Expr *key_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+    key_lit->data.data.LiteralStr = *Str_clone(key_name);
+    key_lit->til_type = (TilType){TilType_TAG_Struct};
+    key_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+    key_lit->is_own_arg = true;
+    Expr_add_child(set_call, key_lit);
+    Str *tname = type_to_name(&val->til_type, &val->struct_name);
+    Expr *type_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+    type_lit->data.data.LiteralStr = *Str_clone(tname);
+    type_lit->til_type = (TilType){TilType_TAG_Struct};
+    type_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+    type_lit->is_own_arg = true;
+    Expr_add_child(set_call, type_lit);
+    Expr *size_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
+    Expr_add_child(set_call, size_call);
+    if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
+        if (tname->count > 0) val = make_clone_call(tname, val->til_type, val, val);
+        else val = Expr_clone(val);
+    } else {
+        val = Expr_clone(val);
+    }
+    val->is_own_arg = true;
+    Expr_add_child(set_call, val);
+    return set_call;
+}
+
+static void rewrite_kwargs_fcall_args(Expr *fcall, Str *kw_name) {
+    I32 ki = fcall->data.data.FCall.kwargs_index;
+    U32 kc = fcall->data.data.FCall.kwargs_count;
+    I32 line = fcall->line, col = fcall->col;
+    Str *path = &fcall->path;
+    Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+    Bool kw_inserted = 0;
+    for (U32 j = 0; j < fcall->children.count; j++) {
+        if ((I32)j >= ki && (I32)j < ki + (I32)kc) {
+            if (!kw_inserted) {
+                Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+                kw_id->data.data.Ident = *kw_name;
+                kw_id->til_type = (TilType){TilType_TAG_Struct};
+                kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
+                kw_id->is_own_arg = true;
+                Vec_push(&fcall_new_ch, kw_id);
+                kw_inserted = 1;
+            }
+            continue;
+        }
+        if ((I32)j == ki && !kw_inserted) {
+            Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+            kw_id->data.data.Ident = *kw_name;
+            kw_id->til_type = (TilType){TilType_TAG_Struct};
+            kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
+            kw_id->is_own_arg = true;
+            Vec_push(&fcall_new_ch, kw_id);
+            kw_inserted = 1;
+        }
+        Vec_push(&fcall_new_ch, Expr_clone(Expr_child(fcall, &(USize){(USize)(j)})));
+    }
+    if (!kw_inserted) {
+        Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        kw_id->data.data.Ident = *kw_name;
+        kw_id->til_type = (TilType){TilType_TAG_Struct};
+        kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
+        kw_id->is_own_arg = true;
+        Vec_push(&fcall_new_ch, kw_id);
+    }
+    Vec_delete(&fcall->children, &(Bool){0});
+    fcall->children = fcall_new_ch;
+    fcall->data.data.FCall.kwargs_index = -1;
+    fcall->data.data.FCall.kwargs_count = 0;
+}
+
 // --- Set literal desugaring ---
 // Transforms s := {v1, v2, v3} into:
 //   mut s := Set.new(elem_type, elem_size)
@@ -1089,77 +1510,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
             continue;
         }
         changed = 1;
-        Expr *set_lit = Expr_child(stmt, &(USize){(USize)(0)});
-        U32 line = set_lit->line, col = set_lit->col;
-        Str *path = &set_lit->path;
-        Str *var_name = &stmt->data.data.Decl.name;
-
-        if (set_lit->children.count == 0) {
-            type_error(set_lit, "set literal must have at least one element");
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-
-        // Get element type from first entry
-        Expr *first = Expr_child(set_lit, &(USize){(USize)(0)});
-        Str *elem_type = type_to_name(&first->til_type, &first->struct_name);
-        if (elem_type->count == 0) {
-            type_error(first, "set literal: cannot determine element type");
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-
-        // Validate element type has cmp
-        if (!type_has_cmp(scope, elem_type)) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "set literal: element type '%s' must implement cmp", elem_type->c_str);
-            type_error(first, buf);
-        }
-
-        // Validate all elements have consistent type
-        for (U32 j = 1; j < set_lit->children.count; j++) {
-            Expr *v = Expr_child(set_lit, &(USize){(USize)(j)});
-            Str *vt = type_to_name(&v->til_type, &v->struct_name);
-            if (vt->count == 0 || !Str_eq(vt, elem_type))
-                type_error(v, "set literal: all elements must be the same type");
-        }
-
-        // Build: mut var_name := Set.new(elem_type_str, ElemType.size())
-        Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
-                                       &(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, set_lit);
-        Expr *et_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        et_str->data.data.LiteralStr = *Str_clone(elem_type);
-        et_str->til_type = (TilType){TilType_TAG_Struct};
-        et_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        Expr_add_child(new_call, et_str);
-        Expr *esz = make_ns_call(elem_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, set_lit);
-        Expr_add_child(new_call, esz);
-
-        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, stmt->line, stmt->col, path);
-        decl->data.data.Decl.name = *var_name;
-        decl->data.data.Decl.is_mut = true;
-        decl->til_type = (TilType){TilType_TAG_Struct};
-        Expr_add_child(decl, new_call);
-
-        TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
-        TypeBinding *vb = Map_get(&scope->bindings, var_name);
-        vb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT});
-
-        Vec_push(&new_ch, decl);
-
-        // Build .add calls for each element
-        for (U32 j = 0; j < set_lit->children.count; j++) {
-            Expr *add_call = make_ns_call(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"add", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, set_lit);
-            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            self_id->data.data.Ident = *var_name;
-            self_id->til_type = (TilType){TilType_TAG_Struct};
-            self_id->struct_name = (Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT};
-            Expr_add_child(add_call, self_id);
-            Expr *val = Expr_clone(Expr_child(set_lit, &(USize){(USize)(j)}));
-            val->is_own_arg = true;
-            Expr_add_child(add_call, val);
-            Vec_push(&new_ch, add_call);
-        }
+        desugar_set_literal_decl(stmt, &new_ch, scope);
     }
 
     if (changed) {
@@ -1189,115 +1540,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
             continue;
         }
         changed = 1;
-        Expr *map_lit = Expr_child(stmt, &(USize){(USize)(0)});
-        U32 line = map_lit->line, col = map_lit->col;
-        Str *path = &map_lit->path;
-        Str *var_name = &stmt->data.data.Decl.name;
-        U32 n_pairs = map_lit->children.count / 2;
-
-        if (map_lit->children.count == 0) {
-            type_error(map_lit, "map literal must have at least one entry");
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-        if (map_lit->children.count % 2 != 0) {
-            type_error(map_lit, "map literal has mismatched key/value pairs");
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-
-        // Get key/val types from first entry (already inferred)
-        Expr *first_key = Expr_child(map_lit, &(USize){(USize)(0)});
-        Expr *first_val = Expr_child(map_lit, &(USize){(USize)(1)});
-        Str *key_type = type_to_name(&first_key->til_type, &first_key->struct_name);
-        Str *val_type = type_to_name(&first_val->til_type, &first_val->struct_name);
-
-        if (key_type->count == 0) {
-            type_error(first_key, "map literal: cannot determine key type");
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-        if (val_type->count == 0) {
-            type_error(first_val, "map literal: cannot determine value type");
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-
-        // Validate key type has cmp
-        if (!type_has_cmp(scope, key_type)) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "map literal: key type '%s' must implement cmp", key_type->c_str);
-            type_error(first_key, buf);
-        }
-
-        // Validate all entries have consistent types
-        for (U32 j = 2; j < map_lit->children.count; j += 2) {
-            Expr *k = Expr_child(map_lit, &(USize){(USize)(j)});
-            Expr *v = Expr_child(map_lit, &(USize){(USize)(j + 1)});
-            Str *kt = type_to_name(&k->til_type, &k->struct_name);
-            Str *vt = type_to_name(&v->til_type, &v->struct_name);
-            if (kt->count == 0 || !Str_eq(kt, key_type))
-                type_error(k, "map literal: all keys must be the same type");
-            if (vt->count == 0 || !Str_eq(vt, val_type))
-                type_error(v, "map literal: all values must be the same type");
-        }
-
-        // Build: mut var_name := Map.new(key_type_str, KeyType.size(), val_type_str, ValType.size())
-        Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
-                                       &(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, map_lit);
-        // Arg 1: key_type string
-        Expr *kt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        kt_str->data.data.LiteralStr = *Str_clone(key_type);
-        kt_str->til_type = (TilType){TilType_TAG_Struct};
-        kt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        Expr_add_child(new_call, kt_str);
-        // Arg 2: KeyType.size()
-        Expr *ksz = make_ns_call(key_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, map_lit);
-        Expr_add_child(new_call, ksz);
-        // Arg 3: val_type string
-        Expr *vt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        vt_str->data.data.LiteralStr = *Str_clone(val_type);
-        vt_str->til_type = (TilType){TilType_TAG_Struct};
-        vt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        Expr_add_child(new_call, vt_str);
-        // Arg 4: ValType.size()
-        Expr *vsz = make_ns_call(val_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, map_lit);
-        Expr_add_child(new_call, vsz);
-
-        // Build declaration node (mut, so .set can work)
-        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, stmt->line, stmt->col, path);
-        decl->data.data.Decl.name = *var_name;
-        decl->data.data.Decl.is_mut = true;
-        decl->til_type = (TilType){TilType_TAG_Struct};
-        Expr_add_child(decl, new_call);
-
-        // Register in scope
-        TypeScope_set(scope, var_name, &(TilType){TilType_TAG_Struct}, -1, 1, stmt->line, stmt->col, 0, 0);
-        TypeBinding *vb = Map_get(&scope->bindings, var_name);
-        vb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
-
-        Vec_push(&new_ch, decl);
-
-        // Build .set calls for each key-value pair
-        for (U32 j = 0; j < n_pairs; j++) {
-            Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, map_lit);
-            // Arg: self
-            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            self_id->data.data.Ident = *var_name;
-            self_id->til_type = (TilType){TilType_TAG_Struct};
-            self_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
-            Expr_add_child(set_call, self_id);
-            // Arg: own key
-            Expr *key = Expr_clone(Expr_child(map_lit, &(USize){(USize)(j * 2)}));
-            key->is_own_arg = true;
-            Expr_add_child(set_call, key);
-            // Arg: own val
-            Expr *mval = Expr_clone(Expr_child(map_lit, &(USize){(USize)(j * 2 + 1)}));
-            mval->is_own_arg = true;
-            Expr_add_child(set_call, mval);
-
-            Vec_push(&new_ch, set_call);
-        }
+        desugar_map_literal_decl(stmt, &new_ch, scope);
     }
 
     if (changed) {
@@ -1328,191 +1571,32 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         I32 vi = fcall->data.data.FCall.variadic_index;
         U32 vc = fcall->data.data.FCall.variadic_count;
         I32 line = fcall->line, col = fcall->col;
-        Str *path = &fcall->path;
 
-        // Find element type from func_def
-        Str *elem_type = NULL;
-        Expr *callee = Expr_child(fcall, &(USize){(USize)(0)});
-        if (callee->data.tag == ExprData_TAG_Ident) {
-            ScopeFind *_sf_tb2 = TypeScope_find(scope, &callee->data.data.Ident);
-            TypeBinding *tb = _sf_tb2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_tb2) : NULL;
-            if (tb && tb->func_def) {
-                I32 fvi = tb->func_def->data.data.FuncDef.variadic_index;
-                if (fvi >= 0)
-                    elem_type = &((Param*)Vec_get(&tb->func_def->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
-            }
-        } else if (callee->data.tag == ExprData_TAG_FieldAccess && callee->is_ns_field) {
-            Expr *type_node = Expr_child(callee, &(USize){(USize)(0)});
-            if (type_node->data.tag == ExprData_TAG_Ident) {
-                Expr *sdef = TypeScope_get_struct(scope, &type_node->data.data.Ident);
-                if (sdef) {
-                    Expr *sbody = Expr_child(sdef, &(USize){(USize)(0)});
-                    for (U32 j = 0; j < sbody->children.count; j++) {
-                        Expr *f = Expr_child(sbody, &(USize){(USize)(j)});
-                        if (f->data.tag == ExprData_TAG_Decl && f->data.data.Decl.is_namespace &&
-                            Str_eq(&f->data.data.Decl.name, &callee->data.data.Ident) &&
-                            Expr_child(f, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                            I32 fvi = Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.variadic_index;
-                            if (fvi >= 0)
-                                elem_type = &((Param*)Vec_get(&Expr_child(f, &(USize){(USize)(0)})->data.data.FuncDef.params, &(USize){(USize)(fvi)}))->ptype;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        Str *elem_type = resolve_variadic_elem_type(fcall, scope);
         if (!elem_type) {
             Vec_push(&new_ch, Expr_clone(stmt));
             continue;
         }
 
-        // Pure splat: f(fixed, ..arr) — pass array directly, skip Array construction
-        if (vc == 1 && Expr_child(fcall, &(USize){(USize)(vi)})->is_splat) {
-            Expr *splat = Expr_child(fcall, &(USize){(USize)(vi)});
-            splat->is_splat = false;
-            // Clone if ident so caller keeps their copy; otherwise clone borrowed ref
-            if (splat->data.tag == ExprData_TAG_Ident) {
-                splat = make_clone_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct}, splat, splat);
-            } else {
-                splat = Expr_clone(splat);
-            }
-            splat->is_own_arg = true;
-            // Rebuild fcall children replacing variadic slot with splat
-            Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
-            for (U32 j = 0; j < fcall->children.count; j++) {
-                if ((I32)j == vi) {
-                    Vec_push(&fcall_new_ch, splat);
-                } else {
-                    Expr *ch = Expr_child(fcall, &(USize){(USize)(j)});
-                    Vec_push(&fcall_new_ch, Expr_clone(ch));
-                }
-            }
-            Vec_delete(&fcall->children, &(Bool){0});
-            fcall->children = fcall_new_ch;
-            fcall->data.data.FCall.variadic_index = -1;
-            fcall->data.data.FCall.variadic_count = 0;
-            Vec_push(&new_ch, Expr_clone(stmt));
+        if (desugar_pure_splat_variadic_call(fcall, &new_ch, stmt))
             continue;
-        }
 
-        // Create temp variable name
         char buf[128];
         snprintf(buf, sizeof(buf), "_va_Array_%d", _va_counter++);
         Str *va_name = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
+        Expr *va_decl = build_variadic_array_decl(fcall, scope, elem_type, va_name, vc);
 
-        // 1. _va := Array.new(elem_type_str, ElemType.size(), count)
-        Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
-                                       &(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, fcall);
-        // Arg: elem_type string
-        Expr *et = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        et->data.data.LiteralStr = *Str_clone(elem_type);
-        et->til_type = (TilType){TilType_TAG_Struct};
-        et->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        Expr_add_child(new_call, et);
-        // Arg: ElemType.size()
-        Expr *sz = make_ns_call(elem_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope),
-                                 &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-        Expr_add_child(new_call, sz);
-        // Arg: count
-        Expr *cap = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
-        char cap_buf[16];
-        snprintf(cap_buf, sizeof(cap_buf), "%d", vc);
-        cap->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(cap_buf), .count = (U64)strlen((const char*)(cap_buf)), .cap = CAP_VIEW});
-        cap->til_type = *usize_type(scope);
-        Expr_add_child(new_call, cap);
-
-        // DECL _va := Array.new(...)
-        Expr *va_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-        va_decl->data.data.Decl.name = *va_name;
-        va_decl->til_type = (TilType){TilType_TAG_Struct};
-        Expr_add_child(va_decl, new_call);
-
-        // Register _va in scope
         TypeScope_set(scope, va_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
         TypeBinding *vab = Map_get(&scope->bindings, va_name);
         vab->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
 
         Vec_push(&new_ch, va_decl);
 
-        // 2. Array.set calls for each variadic arg
         for (U32 j = 0; j < vc; j++) {
-            Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None},
-                                           &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-            // Arg: self = _va
-            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            self_id->data.data.Ident = *va_name;
-            self_id->til_type = (TilType){TilType_TAG_Struct};
-            self_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-            Expr_add_child(set_call, self_id);
-            // Arg: index
-            Expr *idx = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
-            char idx_buf[16];
-            snprintf(idx_buf, sizeof(idx_buf), "%d", j);
-            idx->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(idx_buf), .count = (U64)strlen((const char*)(idx_buf)), .cap = CAP_VIEW});
-            idx->til_type = *usize_type(scope);
-            Expr_add_child(set_call, idx);
-            // Arg: val — clone idents and field accesses so Array_set
-            // doesn't free the caller's variable or an interior pointer
-            Expr *val = Expr_child(fcall, &(USize){(USize)(vi + j)});
-            if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
-                Str *tname = type_to_name(&val->til_type, &val->struct_name);
-                if (tname->count > 0)
-                    val = make_clone_call(tname, val->til_type, val, val);
-                else
-                    val = Expr_clone(val);
-            } else {
-                val = Expr_clone(val);
-            }
-            val->is_own_arg = true;
-            Expr_add_child(set_call, val);
-
-            Vec_push(&new_ch, set_call);
+            Vec_push(&new_ch, build_variadic_array_set(fcall, scope, va_name, vi, j));
         }
 
-        // 3. Replace variadic args in FCALL with _va ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
-        Bool va_inserted = 0;
-        for (U32 j = 0; j < fcall->children.count; j++) {
-            if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
-                if (!va_inserted) {
-                    Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    va_id->data.data.Ident = *va_name;
-                    va_id->til_type = (TilType){TilType_TAG_Struct};
-                    va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-                    va_id->is_own_arg = true;
-                    Vec_push(&fcall_new_ch, va_id);
-                    va_inserted = 1;
-                }
-                continue;
-            }
-            // Insert _va before post-variadic args when vc==0
-            if ((I32)j == vi && !va_inserted) {
-                Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                va_id->data.data.Ident = *va_name;
-                va_id->til_type = (TilType){TilType_TAG_Struct};
-                va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-                va_id->is_own_arg = true;
-                Vec_push(&fcall_new_ch, va_id);
-                va_inserted = 1;
-            }
-            Expr *ch = Expr_child(fcall, &(USize){(USize)(j)});
-            Vec_push(&fcall_new_ch, Expr_clone(ch));
-        }
-        // Insert _va at end if variadic was last param and vc==0
-        if (!va_inserted) {
-            Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            va_id->data.data.Ident = *va_name;
-            va_id->til_type = (TilType){TilType_TAG_Struct};
-            va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-            va_id->is_own_arg = true;
-            Vec_push(&fcall_new_ch, va_id);
-        }
-        Vec_delete(&fcall->children, &(Bool){0});
-        fcall->children = fcall_new_ch;
-        fcall->data.data.FCall.variadic_index = -1;
-        fcall->data.data.FCall.variadic_count = 0;
-
-        // Insert the original statement
+        rewrite_variadic_fcall_args(fcall, va_name);
         Vec_push(&new_ch, Expr_clone(stmt));
     }
 
@@ -1542,121 +1626,25 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         I32 ki = fcall->data.data.FCall.kwargs_index;
         U32 kc = fcall->data.data.FCall.kwargs_count;
         I32 line = fcall->line, col = fcall->col;
-        Str *path = &fcall->path;
 
-        // Create temp variable name
         char buf[32];
         snprintf(buf, sizeof(buf), "_kw%d", _kw_counter++);
         Str *kw_name = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
 
-        // 1. _kw := DynMap.new()
-        Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
-                                       &(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, fcall);
+        Expr *kw_decl = build_kwargs_dynmap_decl(fcall, kw_name);
 
-        // DECL _kw := Map.new(...)
-        Expr *kw_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-        kw_decl->data.data.Decl.name = *kw_name;
-        kw_decl->til_type = (TilType){TilType_TAG_Struct};
-        Expr_add_child(kw_decl, new_call);
-
-        // Register _kw in scope
         TypeScope_set(scope, kw_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
         TypeBinding *kwb = Map_get(&scope->bindings, kw_name);
         kwb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
 
         Vec_push(&new_ch, kw_decl);
 
-        // 2. DynMap.set calls for each kwargs arg
         for (U32 j = 0; j < kc; j++) {
             Expr *named_arg = Expr_child(fcall, &(USize){(USize)(ki + j)});
-            // named_arg is ExprData_TAG_NamedArg with str_val = key name, child[0] = value
-            Str *key_name = &named_arg->data.data.NamedArg;
-            Expr *val = Expr_child(named_arg, &(USize){(USize)(0)});
-
-            Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-            // Arg: self = _kw (mut)
-            Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            self_id->data.data.Ident = *kw_name;
-            self_id->til_type = (TilType){TilType_TAG_Struct};
-            self_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-            Expr_add_child(set_call, self_id);
-            // Arg: key string
-            Expr *key_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-            key_lit->data.data.LiteralStr = *Str_clone(key_name);
-            key_lit->til_type = (TilType){TilType_TAG_Struct};
-            key_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-            key_lit->is_own_arg = true;
-            Expr_add_child(set_call, key_lit);
-            // Arg: element type string
-            Str *tname = type_to_name(&val->til_type, &val->struct_name);
-            Expr *type_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-            type_lit->data.data.LiteralStr = *Str_clone(tname);
-            type_lit->til_type = (TilType){TilType_TAG_Struct};
-            type_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-            type_lit->is_own_arg = true;
-            Expr_add_child(set_call, type_lit);
-            // Arg: element size
-            Expr *size_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-            Expr_add_child(set_call, size_call);
-            // Arg: value (clone idents to prevent double-free)
-            if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
-                if (tname->count > 0)
-                    val = make_clone_call(tname, val->til_type, val, val);
-                else
-                    val = Expr_clone(val);
-            } else {
-                val = Expr_clone(val);
-            }
-            val->is_own_arg = true;
-            Expr_add_child(set_call, val);
-
-            Vec_push(&new_ch, set_call);
+            Vec_push(&new_ch, build_kwargs_dynmap_set(fcall, scope, kw_name, named_arg));
         }
 
-        // 3. Replace kwargs args in FCALL with _kw ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
-        Bool kw_inserted = 0;
-        for (U32 j = 0; j < fcall->children.count; j++) {
-            if ((I32)j >= ki && (I32)j < ki + (I32)kc) {
-                if (!kw_inserted) {
-                    Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                    kw_id->data.data.Ident = *kw_name;
-                    kw_id->til_type = (TilType){TilType_TAG_Struct};
-                    kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-                    kw_id->is_own_arg = true;
-                    Vec_push(&fcall_new_ch, kw_id);
-                    kw_inserted = 1;
-                }
-                continue;
-            }
-            // Insert _kw when kc==0 (no kwargs args, but still need empty Map)
-            if ((I32)j == ki && !kw_inserted) {
-                Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                kw_id->data.data.Ident = *kw_name;
-                kw_id->til_type = (TilType){TilType_TAG_Struct};
-                kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-                kw_id->is_own_arg = true;
-                Vec_push(&fcall_new_ch, kw_id);
-                kw_inserted = 1;
-            }
-            Expr *ch = Expr_child(fcall, &(USize){(USize)(j)});
-            Vec_push(&fcall_new_ch, Expr_clone(ch));
-        }
-        // Insert _kw at end if kwargs was last param and kc==0
-        if (!kw_inserted) {
-            Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            kw_id->data.data.Ident = *kw_name;
-            kw_id->til_type = (TilType){TilType_TAG_Struct};
-            kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-            kw_id->is_own_arg = true;
-            Vec_push(&fcall_new_ch, kw_id);
-        }
-        Vec_delete(&fcall->children, &(Bool){0});
-        fcall->children = fcall_new_ch;
-        fcall->data.data.FCall.kwargs_index = -1;
-        fcall->data.data.FCall.kwargs_count = 0;
-
-        // Insert the original statement
+        rewrite_kwargs_fcall_args(fcall, kw_name);
         Vec_push(&new_ch, Expr_clone(stmt));
     }
 
