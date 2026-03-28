@@ -815,6 +815,7 @@ Bool expr_contains_fcall(Expr * e);
 Bool expr_uses_var(Expr * e, Str * name);
 Bool expr_contains_decl(Expr * e, Str * name);
 Bool expr_used_in_nested_func(Expr * e, Str * name);
+Expr * find_variadic_fcall(Expr * e);
 Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope);

@@ -1370,25 +1370,6 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
 // Transforms variadic function calls into Array.new + Array.set + normal call.
 // Must run before hoisting so that synthetic Array calls get hoisted too.
 
-static Expr *find_variadic_fcall(Expr *e) {
-    if (!e) return NULL;
-    if (e->data.tag == ExprData_TAG_FuncDef || e->data.tag == ExprData_TAG_StructDef ||
-        e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return NULL;
-    if (e->data.tag == ExprData_TAG_FCall && e->data.data.FCall.variadic_index >= 0) {
-        // Skip array/vec builtins — handled specially like dyn_call
-        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-            Str *cn = &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
-            if ((cn->count == 5 && memcmp(cn->c_str, "array", 5) == 0) || (cn->count == 3 && memcmp(cn->c_str, "vec", 3) == 0)) return NULL;
-        }
-        return e;
-    }
-    for (U32 i = 0; i < e->children.count; i++) {
-        Expr *found = find_variadic_fcall(Expr_child(e, &(USize){(USize)(i)}));
-        if (found) return found;
-    }
-    return NULL;
-}
-
 // Create a namespace method call: StructName.method(args...)
 static Expr *make_ns_call(const char *sname, const char *method,
                            TilType ret_type, Str *ret_sname, Expr *src) {

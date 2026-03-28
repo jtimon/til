@@ -234,6 +234,31 @@ expr_used_in_nested_func := func(e: Expr, name: Str) returns shallow Bool {
     return false
 }
 
+find_variadic_fcall := func(e: Expr) returns ref Expr {
+    if is_null(e) { return NULL }
+    if is_variant(e.data, ExprData.FuncDef) { return NULL }
+    if is_variant(e.data, ExprData.StructDef) { return NULL }
+    if is_variant(e.data, ExprData.EnumDef) { return NULL }
+    if is_variant(e.data, ExprData.Body) { return NULL }
+    if is_variant(e.data, ExprData.FCall) {
+        ref fcall : FCallData = get_payload(e.data)
+        if fcall.variadic_index.gte(0) {
+            if e.child(0).data.is(ExprData.Ident) {
+                ref cn : Str = get_payload(e.child(0).data)
+                if cn.eq("array").or(cn.eq("vec")) {
+                    return NULL
+                }
+            }
+            return e
+        }
+    }
+    for i in 0..e.child_count() {
+        ref found : Expr = find_variadic_fcall(e.child(i))
+        if is_null(found).not() { return found }
+    }
+    return NULL
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }
