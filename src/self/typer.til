@@ -433,6 +433,16 @@ expr_is_stable_field_base := func(e: Expr, scope: TypeScope) returns shallow Boo
     return false
 }
 
+expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool {
+    if is_null(e) { return false }
+    if expr_is_borrow_source(e, scope) { return true }
+    if is_variant(e.data, ExprData.FieldAccess) {
+        if e.is_ns_field { return false }
+        return expr_is_stable_field_base(e.child(0), scope)
+    }
+    return false
+}
+
 alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bool {
     for k in 0..body.child_count() {
         ref d : Expr = body.child(k)
