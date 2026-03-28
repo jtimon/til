@@ -1786,32 +1786,6 @@ static void insert_exit_deletes_into_stmt(Expr *stmt, Expr *body, LocalInfo *loc
     }
 }
 
-static void insert_nested_exit_deletes(Expr *stmt, LocalInfo *locals, U32 n_locals, U32 stmt_idx) {
-    if (stmt->data.tag != ExprData_TAG_If && stmt->data.tag != ExprData_TAG_While) return;
-    Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
-    for (U32 j = 0; j < n_locals; j++) {
-        if (locals[j].skip_scope_delete) continue;
-        if (locals[j].own_transfer >= 0) continue;
-        if (locals[j].decl_index < (I32)stmt_idx &&
-            (locals[j].last_use >= (I32)stmt_idx || locals[j].last_use == -1)) {
-            { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = locals[j]; Vec_push(&live_vec, _p); }
-        }
-    }
-    if (live_vec.count > 0) {
-        U32 n_live = live_vec.count;
-        LocalInfo *live = Vec_take(&live_vec);
-        if (stmt->data.tag == ExprData_TAG_If) {
-            for (U32 c = 1; c < stmt->children.count; c++)
-                insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(c)}), live, n_live, 0);
-        } else {
-            insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(1)}), live, n_live, 1);
-        }
-        free(live);
-    } else {
-        Vec_delete(&live_vec, &(Bool){0});
-    }
-}
-
 static void insert_assign_delete(Expr *stmt, LocalInfo *locals, U32 n_locals, Vec *new_ch) {
     if (stmt->data.tag != ExprData_TAG_Assign) return;
     Str *vname = &stmt->data.data.Ident;

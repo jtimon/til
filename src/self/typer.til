@@ -973,6 +973,35 @@ insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, 
     }
 }
 
+insert_nested_exit_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32) {
+    if is_variant(stmt.data, ExprData.If).not() {
+        if is_variant(stmt.data, ExprData.While).not() { return }
+    }
+    mut live_vec := Vec.new("LocalInfo", LocalInfo.size())
+    for j in 0..n_locals {
+        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+        if local.skip_scope_delete { continue }
+        if local.own_transfer.gte(0) { continue }
+        if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
+            if local.last_use.gte(stmt_idx.to_i64().to_i32()).or(local.last_use.eq(-1.to_i32())) {
+                live_vec.push(own local.clone())
+            }
+        }
+    }
+    if live_vec.len().gt(0) {
+        n_live := live_vec.len()
+        live : Dynamic = Vec_take(live_vec)
+        if is_variant(stmt.data, ExprData.If) {
+            for c in 1..stmt.child_count() {
+                insert_exit_deletes(stmt.child(c), live, n_live, false)
+            }
+        } else {
+            insert_exit_deletes(stmt.child(1), live, n_live, true)
+        }
+        free(own live)
+    }
+}
+
 narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
     if is_variant(expr.til_type, TilType.Dynamic).not() { return }
     if is_variant(target, TilType.Dynamic) { return }

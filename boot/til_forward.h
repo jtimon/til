@@ -859,6 +859,7 @@ Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr);
 void collect_scope_locals(Expr * body, TypeScope * scope, Bool is_program_scope, Vec * locals_vec);
 void extend_ref_local_lifetimes(Expr * body, void * locals, U32 n_locals);
 void insert_exit_deletes(Expr * body, void * live, U32 n_live, Bool return_only);
+void insert_nested_exit_deletes(Expr * stmt, void * locals, U32 n_locals, U32 stmt_idx);
 void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);
 I32 type_check(Expr * program, TypeScope * scope, Mode * m);
