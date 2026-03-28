@@ -272,7 +272,7 @@ static Value read_field(StructInstance *inst, Expr *fdecl) {
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "I32", 3) == 0))  return val_i32(*(I32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U32", 3) == 0))  return val_u32(*(U32 *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "U64", 3) == 0))  return val_u64(*(U64 *)ptr);
-    if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u32(*(U32 *)ptr);
+    if (ftype && (ftype->count == 5 && memcmp(ftype->c_str, "USize", 5) == 0)) return val_u32(*(USize *)ptr);
     if (ftype && (ftype->count == 3 && memcmp(ftype->c_str, "F32", 3) == 0))  return val_f32(*(F32 *)ptr);
     if (ftype && (ftype->count == 4 && memcmp(ftype->c_str, "Bool", 4) == 0)) return val_bool(*(Bool *)ptr);
     // Enum field: payload enums stored as EnumInstance *, simple enums as I32
@@ -719,7 +719,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
                         arg = val_u64(*(U64 *)arg.data.Ptr);
                     else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = val_u32(*(U32 *)arg.data.Ptr);
+                        arg = val_u32(*(USize *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
                         arg = val_f32(*(F32 *)arg.data.Ptr);
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
@@ -755,7 +755,7 @@ Value eval_call(Scope *scope, Expr *e) {
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "U64", 3) == 0))
                         arg = val_u64(*(U64 *)arg.data.Ptr);
                     else if ((ptype->count == 5 && memcmp(ptype->c_str, "USize", 5) == 0))
-                        arg = val_u32(*(U32 *)arg.data.Ptr);
+                        arg = val_u32(*(USize *)arg.data.Ptr);
                     else if ((ptype->count == 3 && memcmp(ptype->c_str, "F32", 3) == 0))
                         arg = val_f32(*(F32 *)arg.data.Ptr);
                     else if ((ptype->count == 4 && memcmp(ptype->c_str, "Bool", 4) == 0))
@@ -820,7 +820,7 @@ Value eval_call(Scope *scope, Expr *e) {
             if (arg->data.tag == ExprData_TAG_Ident) {
                 Cell *src = scope_get(scope, &arg->data.data.Ident);
                 val = src->val;
-                if (val.tag != Value_TAG_Func)
+                if (arg->is_own_arg && val.tag != Value_TAG_Func)
                     src->val = val_none();
             } else {
                 val = eval_expr(scope, arg);
@@ -1078,7 +1078,7 @@ static void eval_body(Scope *scope, Expr *body) {
                     else if ((etype->count == 3 && memcmp(etype->c_str, "U64", 3) == 0))
                         val = val_u64(*(U64 *)val.data.Ptr);
                     else if ((etype->count == 5 && memcmp(etype->c_str, "USize", 5) == 0))
-                        val = val_u32(*(U32 *)val.data.Ptr);
+                        val = val_u32(*(USize *)val.data.Ptr);
                     else if ((etype->count == 3 && memcmp(etype->c_str, "F32", 3) == 0))
                         val = val_f32(*(F32 *)val.data.Ptr);
                     else if ((etype->count == 4 && memcmp(etype->c_str, "Bool", 4) == 0))
