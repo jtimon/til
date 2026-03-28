@@ -434,6 +434,43 @@ build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
     return kw_decl
 }
 
+build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, named_arg: Expr) returns Expr {
+    ref key_name : Str = get_payload(named_arg.data)
+    ref val : Expr = named_arg.child(0)
+    mut set_call := make_ns_call("DynMap", "set", TilType.None, "", fcall)
+
+    mut self_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+    self_id.til_type = TilType.Struct
+    self_id.struct_name = "DynMap"
+    set_call.add_child(own self_id)
+
+    mut key_lit := Expr.new(ExprData.LiteralStr(key_name.clone()), fcall.line, fcall.col, fcall.path)
+    key_lit.til_type = TilType.Struct
+    key_lit.struct_name = "Str"
+    key_lit.is_own_arg = true
+    set_call.add_child(own key_lit)
+
+    tname := type_to_name(val.til_type, val.struct_name)
+    mut type_lit := Expr.new(ExprData.LiteralStr(tname.clone()), fcall.line, fcall.col, fcall.path)
+    type_lit.til_type = TilType.Struct
+    type_lit.struct_name = "Str"
+    type_lit.is_own_arg = true
+    set_call.add_child(own type_lit)
+
+    mut size_call := make_ns_call(tname, "size", usize_type(scope), "", fcall)
+    set_call.add_child(own size_call)
+
+    mut out_val := val.clone()
+    if is_variant(val.data, ExprData.Ident).or(is_variant(val.data, ExprData.FieldAccess)) {
+        if tname.len().gt(0) {
+            out_val = make_clone_call(tname, val.til_type, val, val)
+        }
+    }
+    out_val.is_own_arg = true
+    set_call.add_child(own out_val)
+    return set_call
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }

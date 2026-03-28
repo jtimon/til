@@ -1422,43 +1422,6 @@ static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
     fcall->data.data.FCall.variadic_count = 0;
 }
 
-static Expr *build_kwargs_dynmap_set(Expr *fcall, TypeScope *scope, Str *kw_name, Expr *named_arg) {
-    I32 line = fcall->line, col = fcall->col;
-    Str *path = &fcall->path;
-    Str *key_name = &named_arg->data.data.NamedArg;
-    Expr *val = Expr_child(named_arg, &(USize){(USize)(0)});
-    Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    self_id->data.data.Ident = *kw_name;
-    self_id->til_type = (TilType){TilType_TAG_Struct};
-    self_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-    Expr_add_child(set_call, self_id);
-    Expr *key_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-    key_lit->data.data.LiteralStr = *Str_clone(key_name);
-    key_lit->til_type = (TilType){TilType_TAG_Struct};
-    key_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-    key_lit->is_own_arg = true;
-    Expr_add_child(set_call, key_lit);
-    Str *tname = type_to_name(&val->til_type, &val->struct_name);
-    Expr *type_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-    type_lit->data.data.LiteralStr = *Str_clone(tname);
-    type_lit->til_type = (TilType){TilType_TAG_Struct};
-    type_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-    type_lit->is_own_arg = true;
-    Expr_add_child(set_call, type_lit);
-    Expr *size_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-    Expr_add_child(set_call, size_call);
-    if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
-        if (tname->count > 0) val = make_clone_call(tname, val->til_type, val, val);
-        else val = Expr_clone(val);
-    } else {
-        val = Expr_clone(val);
-    }
-    val->is_own_arg = true;
-    Expr_add_child(set_call, val);
-    return set_call;
-}
-
 static void rewrite_kwargs_fcall_args(Expr *fcall, Str *kw_name) {
     I32 ki = fcall->data.data.FCall.kwargs_index;
     U32 kc = fcall->data.data.FCall.kwargs_count;
