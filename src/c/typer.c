@@ -1168,57 +1168,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // Check if a function call returns ref
 
-static void hoist_fcall_args(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        // Collect hoisted decls from this statement
-        Vec hoisted; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); hoisted = *_vp; free(_vp); }
-        // Walk the appropriate expression tree based on statement type
-        switch (stmt->data.tag) {
-        case ExprData_TAG_Decl:
-            hoist_decl_rhs(stmt, &hoisted, scope);
-            break;
-        case ExprData_TAG_FCall:
-            stmt = hoist_stmt_fcall(stmt, &hoisted, scope);
-            if (stmt != Expr_child(body, &(USize){(USize)(i)})) {
-                *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *stmt;
-                free(stmt);
-                stmt = Expr_child(body, &(USize){(USize)(i)});
-            }
-            break;
-        case ExprData_TAG_Return:
-            hoist_return_expr(stmt, &hoisted, scope);
-            break;
-        case ExprData_TAG_Assign:
-            hoist_assign_rhs(stmt, &hoisted, scope);
-            hoist_param_swap_assign(stmt, &hoisted, scope);
-            break;
-        case ExprData_TAG_FieldAssign:
-            hoist_field_assign_rhs(stmt, &hoisted, scope);
-            break;
-        case ExprData_TAG_If:
-            hoist_if_cond(stmt, &hoisted, scope);
-            break;
-        // ExprData_TAG_While: skip condition -- hoisting changes loop semantics
-        default: break;
-        }
-        // Insert hoisted decls before the statement
-        for (U32 j = 0; j < hoisted.count; j++) {
-            Vec_push(&new_ch, Expr_clone((Expr*)Vec_get(&hoisted, &(USize){(USize)(j)})));
-        }
-        Vec_delete(&hoisted, &(Bool){0});
-        // Add original statement
-        Vec_push(&new_ch, Expr_clone(stmt));
-    }
-    if (new_ch.count != body->children.count) {
-        Vec_delete(&body->children, &(Bool){0});
-        body->children = new_ch;
-    } else {
-        Vec_delete(&new_ch, &(Bool){0});
-    }
-}
-
 // --- Delete call insertion ---
 
 // Insert delete calls before field reassignments (own and inline compound)

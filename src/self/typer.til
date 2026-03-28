@@ -960,6 +960,43 @@ hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope)
     return stmt
 }
 
+hoist_fcall_args := proc(mut body: Expr, mut scope: TypeScope) {
+    mut new_ch := Vec.new("Expr", Expr.size())
+    for i in 0..body.child_count() {
+        ref stmt_in_body : Expr = body.child(i)
+        mut stmt := stmt_in_body.clone()
+        mut hoisted := Vec.new("Expr", Expr.size())
+
+        switch stmt.data {
+        case ExprData.Decl:
+            hoist_decl_rhs(stmt, hoisted, scope)
+        case ExprData.FCall:
+            stmt = hoist_stmt_fcall(stmt, hoisted, scope)
+        case ExprData.Return:
+            hoist_return_expr(stmt, hoisted, scope)
+        case ExprData.Assign:
+            hoist_assign_rhs(stmt, hoisted, scope)
+            hoist_param_swap_assign(stmt, hoisted, scope)
+        case ExprData.FieldAssign:
+            hoist_field_assign_rhs(stmt, hoisted, scope)
+        case ExprData.If:
+            hoist_if_cond(stmt, hoisted, scope)
+        case:
+            // ExprData.While: skip condition -- hoisting changes loop semantics
+        }
+
+        for j in 0..hoisted.len() {
+            ref h : Expr = hoisted.get(j)
+            new_ch.push(own h.clone())
+        }
+        new_ch.push(own stmt)
+    }
+
+    if new_ch.len().neq(body.child_count()) {
+        body.children = new_ch
+    }
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {
