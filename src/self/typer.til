@@ -895,6 +895,61 @@ hoist_if_cond := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     }
 }
 
+hoist_return_expr := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+    if stmt.child_count().eq(0) { return }
+    hoist_expr(stmt.child(0), hoisted, scope)
+    ref rhs : Expr = stmt.child(0)
+    if is_variant(rhs.data, ExprData.FCall)
+        .or(is_variant(rhs.data, ExprData.LiteralNum))
+        .or(is_variant(rhs.data, ExprData.LiteralStr))
+        .or(is_variant(rhs.data, ExprData.LiteralBool)) {
+        stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope))
+    }
+}
+
+hoist_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+    hoist_expr(stmt.child(0), hoisted, scope)
+    mut do_hoist := true
+    sf := scope.find(get_payload(stmt.data))
+    if is_variant(sf, ScopeFind.Found) {
+        ref ab : TypeBinding = get_payload(sf)
+        if ab.is_param.not() {
+            if is_variant(ab.type, TilType.Struct).or(is_variant(ab.type, TilType.Enum)) {
+                do_hoist = false
+            }
+        }
+    }
+    ref rhs : Expr = stmt.child(0)
+    if do_hoist.and(
+        is_variant(rhs.data, ExprData.FCall)
+        .or(is_variant(rhs.data, ExprData.LiteralNum))
+        .or(is_variant(rhs.data, ExprData.LiteralStr))
+        .or(is_variant(rhs.data, ExprData.LiteralBool))
+    ) {
+        stmt.children.set(0, own hoist_to_temp(rhs, hoisted, scope))
+    }
+}
+
+hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+    hoist_expr(stmt.child(1), hoisted, scope)
+    mut fa_hoist := true
+    if stmt.is_own_field.not() {
+        rhs_type := stmt.child(1).til_type
+        if is_variant(rhs_type, TilType.Struct).or(is_variant(rhs_type, TilType.Enum)) {
+            fa_hoist = false
+        }
+    }
+    ref rhs : Expr = stmt.child(1)
+    if fa_hoist.and(
+        is_variant(rhs.data, ExprData.FCall)
+        .or(is_variant(rhs.data, ExprData.LiteralNum))
+        .or(is_variant(rhs.data, ExprData.LiteralStr))
+        .or(is_variant(rhs.data, ExprData.LiteralBool))
+    ) {
+        stmt.children.set(1, own hoist_to_temp(rhs, hoisted, scope))
+    }
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {

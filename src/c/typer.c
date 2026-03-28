@@ -1177,51 +1177,6 @@ static Expr *hoist_stmt_fcall(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     return stmt;
 }
 
-static void hoist_return_expr(Expr *stmt, Vec *hoisted, TypeScope *scope) {
-    if (stmt->children.count == 0) return;
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
-    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
-        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
-        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
-        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, scope);
-    }
-}
-
-static void hoist_assign_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
-    Bool do_hoist = 1;
-    ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
-    TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
-    if (ab && !ab->is_param) {
-        TilType t = ab->type;
-        if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)
-            do_hoist = 0;
-    }
-    if (do_hoist && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
-        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
-        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
-        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, scope);
-    }
-}
-
-static void hoist_field_assign_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(1)}), hoisted, scope);
-    Bool fa_hoist = 1;
-    if (!stmt->is_own_field) {
-        TilType ft = Expr_child(stmt, &(USize){(USize)(1)})->til_type;
-        if (ft.tag == TilType_TAG_Struct || ft.tag == TilType_TAG_Enum)
-            fa_hoist = 0;
-    }
-    if (fa_hoist && (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FCall ||
-        Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum ||
-        Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralStr ||
-        Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(1)})), hoisted, scope);
-    }
-}
-
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
