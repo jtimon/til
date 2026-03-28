@@ -939,6 +939,40 @@ extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals
     }
 }
 
+insert_exit_deletes := proc(mut body: Expr, live: Dynamic, shallow n_live: U32, shallow return_only: Bool) {
+    mut new_ch := Vec.new("Expr", Expr.size())
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
+        if is_variant(stmt.data, ExprData.If) {
+            for c in 1..stmt.child_count() {
+                insert_exit_deletes(stmt.child(c), live, n_live, return_only)
+            }
+        }
+        if is_variant(stmt.data, ExprData.While) {
+            insert_exit_deletes(stmt.child(1), live, n_live, true)
+        }
+        if is_variant(stmt.data, ExprData.Return).or(return_only.not().and(is_variant(stmt.data, ExprData.Break).or(is_variant(stmt.data, ExprData.Continue)))) {
+            for j in 0..n_live {
+                ref local : LocalInfo = ptr_add(live, j.mul(LocalInfo.size()))
+                if stmt.child_count().gt(0) {
+                    ref retval : Expr = stmt.child(0)
+                    if expr_uses_var(retval, local.name).or(alias_used_in_expr(body, local.name, retval)) {
+                        continue
+                    }
+                }
+                del := make_delete_call(local.name, local.type, local.struct_name, true, true, stmt)
+                if is_null(del).not() {
+                    new_ch.push(own del)
+                }
+            }
+        }
+        new_ch.push(own stmt.clone())
+    }
+    if new_ch.len().neq(body.child_count()) {
+        body.children = new_ch
+    }
+}
+
 narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
     if is_variant(expr.til_type, TilType.Dynamic).not() { return }
     if is_variant(target, TilType.Dynamic) { return }

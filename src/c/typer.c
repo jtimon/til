@@ -1754,38 +1754,6 @@ static void insert_field_deletes(Expr *body) {
 // Insert deletes for live parent-scope locals before early exits in body.
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
-static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool return_only) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_If) {
-            for (U32 c = 1; c < stmt->children.count; c++)
-                insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(c)}), live, n_live, return_only);
-        }
-        if (stmt->data.tag == ExprData_TAG_While) {
-            insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(1)}), live, n_live, 1);
-        }
-        if (stmt->data.tag == ExprData_TAG_Return ||
-            (!return_only && (stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue))) {
-            for (U32 j = 0; j < n_live; j++) {
-                if (stmt->children.count > 0 &&
-                    (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), live[j].name) ||
-                     alias_used_in_expr(body, live[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
-                Expr *del = make_delete_call(
-                    live[j].name, live[j].type, live[j].struct_name, true, true, stmt);
-                if (del) Vec_push(&new_ch, del);
-            }
-        }
-        Vec_push(&new_ch, Expr_clone(stmt));
-    }
-    if (new_ch.count != body->children.count) {
-        Vec_delete(&body->children, &(Bool){0});
-        body->children = new_ch;
-    } else {
-        Vec_delete(&new_ch, &(Bool){0});
-    }
-}
-
 static void check_use_after_own_transfer(Expr *body, LocalInfo *locals, U32 n_locals) {
     for (U32 j = 0; j < n_locals; j++) {
         if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
