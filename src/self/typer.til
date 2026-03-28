@@ -1027,6 +1027,30 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
     }
 }
 
+insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: U32, mut new_ch: Vec) {
+    if is_variant(stmt.data, ExprData.Assign).not() { return }
+    ref vname : Str = get_payload(stmt.data)
+    for j in 0..n_locals {
+        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+        if local.name.eq(vname).not() { continue }
+        if is_variant(local.type, TilType.Struct).or(is_variant(local.type, TilType.Enum)) {
+            ref rhs : Expr = stmt.child(0)
+            if expr_uses_var(rhs, vname) {
+                stmt.save_old_delete = true
+                if is_null(local.struct_name).not() {
+                    if local.struct_name.len().gt(0) {
+                        stmt.struct_name = local.struct_name.clone()
+                    }
+                }
+            } else {
+                del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+                if is_null(del).not() { new_ch.push(own del) }
+            }
+        }
+        break
+    }
+}
+
 narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
     if is_variant(expr.til_type, TilType.Dynamic).not() { return }
     if is_variant(target, TilType.Dynamic) { return }

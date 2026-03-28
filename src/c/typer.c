@@ -1770,27 +1770,6 @@ static void check_use_after_own_transfer(Expr *body, LocalInfo *locals, U32 n_lo
     }
 }
 
-static void insert_assign_delete(Expr *stmt, LocalInfo *locals, U32 n_locals, Vec *new_ch) {
-    if (stmt->data.tag != ExprData_TAG_Assign) return;
-    Str *vname = &stmt->data.data.Ident;
-    for (U32 j = 0; j < n_locals; j++) {
-        if (!Str_eq(locals[j].name, vname)) continue;
-        TilType t = locals[j].type;
-        if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) {
-            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-            if (expr_uses_var(rhs, vname)) {
-                stmt->save_old_delete = true;
-                if (locals[j].struct_name && locals[j].struct_name->count > 0)
-                    stmt->struct_name = *Str_clone(locals[j].struct_name);
-            } else {
-                Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-                if (del) Vec_push(new_ch, del);
-            }
-        }
-        break;
-    }
-}
-
 static void insert_post_stmt_deletes(Expr *stmt, LocalInfo *locals, U32 n_locals, U32 stmt_idx, Vec *new_ch) {
     if (stmt->data.tag == ExprData_TAG_Return || stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue) return;
     for (U32 j = 0; j < n_locals; j++) {
