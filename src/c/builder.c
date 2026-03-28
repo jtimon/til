@@ -770,7 +770,8 @@ static void emit_param_list(FILE *f, Expr *fdef, Bool with_names) {
             if ((I32)i == fvi) {
                 ptype = "Array *";
             } else if ((I32)i == fkwi) {
-                ptype = "Map *";
+                Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
+                ptype = type_name_to_c(&_epi->ptype);
             } else {
                 Param *_epi = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)});
                 if (_epi->is_shallow) {

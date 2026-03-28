@@ -382,9 +382,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/fn_ptr.til", flags)
     add_mode(tests, "src/test/asting.til", flags)
     add_mode(tests, "src/test/trailing.til", flags)
-    // TODO(#121): kwargs desugaring still relies on raw Map values.
-    // Re-enable src/test/kwargs.til once kwargs storage has a real
-    // explicit container type.
+    add_mode(tests, "src/test/kwargs.til", flags)
 
     // === 2 FFI tests ===
     ffi_exp := "gen/out/expected/ffi.out"

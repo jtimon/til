@@ -5,31 +5,6 @@
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
-** OPEN #121 Kwargs desugaring still relies on raw Map values
-  ~desugar_kwargs_calls~ in ~src/c/typer.c~ still builds:
-
-  - ~Map.new("Str", Str.size(), "", MaxType.size())~
-
-  That old empty ~val_type~ was being used as a raw-storage escape hatch
-  for heterogeneous kwarg values. Once ~#120~ made empty explicit types
-  illegal, this became the last remaining blocker.
-
-  Planned direction:
-  - use ~Map.new("Str", Str.size(), "Tuple", Tuple.size())~
-  - store each kwarg value as a one-element ~Tuple~
-  - that keeps the payload heterogeneous without depending on the old
-    empty-~val_type~ raw-storage escape hatch
-  - later, if kwargs need multi-value packing, the same representation
-    still scales naturally
-
-  For now:
-  - ~src/test/kwargs.til~ is temporarily disabled with ~TODO(#121)~
-    markers
-  - the ~src/tests.til~ harness entry is also temporarily disabled with
-    the same ~TODO(#121)~ note
-  - everything else under ~#120~ should stay strict about rejecting
-    empty explicit container types
-
 ** OPEN #119 Struct literals should apply field ownership semantics
   Struct literals currently behave like raw aggregate construction, so
   field values that end up stored in owned struct fields may need

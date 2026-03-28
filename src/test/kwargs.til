@@ -1,10 +1,35 @@
 mode test
 
 // #32: Keyword arguments (kwargs) capture
-// TODO(#121): kwargs desugaring still relies on a raw Map value path
-// with empty val_type. Re-enable these tests once kwargs storage has a
-// real explicit container type.
 
-test_kwargs_todo := test() {
-    // TODO(#121)
+has_key := func(key: Str, opts: ...) returns Bool {
+    return opts.has(key)
+}
+
+test_basic_kwargs := test() {
+    assert(__LOC__, has_key("x", x = 42))
+    assert(__LOC__, has_key("color", color = "red").not().not())
+}
+
+test_kwargs_missing := test() {
+    assert(__LOC__, has_key("missing").not())
+}
+
+test_kwargs_multiple := test() {
+    assert(__LOC__, has_key("x", x = 10, y = 20))
+    assert(__LOC__, has_key("y", x = 10, y = 20))
+    assert(__LOC__, has_key("z", x = 10, y = 20).not())
+}
+
+greet := func(name: Str, opts: ...) returns Str {
+    if opts.has("prefix") {
+        ref p : Str = opts.get("prefix")
+        return p.clone().concat(" ").concat(name)
+    }
+    return name
+}
+
+test_kwargs_str := test() {
+    assert_eq_str(__LOC__, greet("World"), "World")
+    assert_eq_str(__LOC__, greet("World", prefix = "Hello"), "Hello World")
 }

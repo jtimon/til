@@ -23179,7 +23179,7 @@ Expr * parse_func_def(Parser * p) {
                 is_own = _t_Bool_3482;
                 ;
                 { Str *_hp = (Str *)Str_clone(&pname); nm = *_hp; free(_hp); }
-                tp = (Str){.c_str=(U8*)"Map", .count=3ULL, .cap=TIL_CAP_LIT};
+                tp = (Str){.c_str=(U8*)"DynMap", .count=6ULL, .cap=TIL_CAP_LIT};
             } else {
                 Bool _t_Bool_3528 = check(p, &(TokenType){.tag = TokenType_TAG_DotDot});
                 (void)_t_Bool_3528;

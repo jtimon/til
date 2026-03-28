@@ -193,7 +193,7 @@ parse_func_def := proc(mut p: Parser) returns Expr {
                 fd.kwargs_index = fd.params.len().to_i64().to_i32()
                 is_own = true // kwargs Map is owned by callee
                 nm = pname.clone()
-                tp = "Map"
+                tp = "DynMap"
             } else if check(p, TokenType.DotDot) {
                 advance(p)
                 if is_own { panic(__LOC__, "variadic param cannot be 'own'") }

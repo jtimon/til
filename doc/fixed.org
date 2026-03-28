@@ -1,5 +1,32 @@
 # Fixed issues moved from issues.org.
 
+* FIXED #121 Kwargs heterogeneous storage no longer relies on raw Map values
+  The old kwargs lowering built:
+
+  - ~Map.new("Str", Str.size(), "", MaxType.size())~
+
+  and used the empty ~val_type~ as a heterogeneous raw-storage escape
+  hatch. That stopped working once ~#120~ made empty explicit types
+  illegal.
+
+  What changed:
+  - added a dedicated ~DynMap~ core container
+  - ~DynMap~ is currently a Str-keyed heterogeneous map implemented over
+    ~Map(Str, Tuple)~
+  - each stored value is wrapped as a one-element ~Tuple~
+  - ~DynMap.get(...)~ unwraps that tuple, so user code still uses:
+    - ~opts.has("x")~
+    - ~opts.get("prefix")~
+  - kwargs parameters now parse and lower as ~DynMap~, not ~Map~
+  - ~desugar_kwargs_calls~ now builds ~DynMap.new()~ plus
+    ~DynMap.set(key, type_name, type_size, value)~
+  - ~src/test/kwargs.til~ and its test-harness entry were restored
+
+  Result:
+  - kwargs no longer depend on the old empty-~val_type~ raw-map escape
+    hatch
+  - heterogeneous kwargs storage is explicit again and test-covered
+
 * FIXED #120 Container constructors reject empty explicit types
   Landed after ~#118~ made pointer/ref container storage explicit under
   ~Dynamic~.
@@ -19,11 +46,6 @@
   - AST/fake-AST raw storage that is not ordinary typed construction was
     normalized to direct raw ~Vec~ struct literals instead of empty-type
     constructor calls
-
-  Remaining follow-up:
-  - ~#121~ for kwargs desugaring, which was still relying on
-    ~Map.new("Str", Str.size(), "", MaxType.size())~ as a heterogeneous
-    raw-value escape hatch
 
 * FIXED #118 Container element typing for pointer/ref container uses
   Decision landed:

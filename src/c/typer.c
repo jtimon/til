@@ -149,11 +149,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
                     pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
                 } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
-                    // Kwargs param: bind as Map
+                    // Kwargs param: bind as DynMap
                     _pi->is_own = true;
                     TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
                     TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                    pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
+                    pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
                 } else {
                     TypeScope_set(func_scope, &_pi->name, &pt, -1, pmut, e->line, e->col, 1, pown);
                     // For struct/enum-typed params, store struct_name
@@ -1557,39 +1557,9 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         snprintf(buf, sizeof(buf), "_kw%d", _kw_counter++);
         Str *kw_name = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
 
-        // Find the widest value type among kwargs args for val_size
-        const char *val_size_type = "I64"; // default: 8 bytes for primitives
-        for (U32 j = 0; j < kc; j++) {
-            Expr *na = Expr_child(fcall, &(USize){(USize)(ki + j)});
-            Expr *v = Expr_child(na, &(USize){(USize)(0)});
-            if (v->til_type.tag == TilType_TAG_Struct && v->struct_name.count > 0) {
-                val_size_type = (const char *)v->struct_name.c_str;
-                break; // struct types are bigger than primitives
-            }
-        }
-
-        // 1. _kw := Map.new("Str", Str.size(), "", MaxType.size())
-        // Use empty val_type to skip dyn_call delete/clone on values
-        Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
-                                       &(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, fcall);
-        // Arg: key_type = "Str"
-        Expr *kt = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        kt->data.data.LiteralStr = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        kt->til_type = (TilType){TilType_TAG_Struct};
-        kt->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        Expr_add_child(new_call, kt);
-        // Arg: Str.size()
-        Expr *ksz = make_ns_call(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-        Expr_add_child(new_call, ksz);
-        // Arg: val_type = "" (skip dyn_call on values)
-        Expr *vt = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        vt->data.data.LiteralStr = (Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-        vt->til_type = (TilType){TilType_TAG_Struct};
-        vt->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        Expr_add_child(new_call, vt);
-        // Arg: val_size = widest type's .size()
-        Expr *vsz = make_ns_call(&(Str){.c_str = (U8*)(val_size_type), .count = (U64)strlen((const char*)(val_size_type)), .cap = CAP_VIEW}, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-        Expr_add_child(new_call, vsz);
+        // 1. _kw := DynMap.new()
+        Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
+                                       &(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, fcall);
 
         // DECL _kw := Map.new(...)
         Expr *kw_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
@@ -1600,23 +1570,23 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         // Register _kw in scope
         TypeScope_set(scope, kw_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
         TypeBinding *kwb = Map_get(&scope->bindings, kw_name);
-        kwb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT});
+        kwb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
 
         Vec_push(&new_ch, kw_decl);
 
-        // 2. Map.set calls for each kwargs arg
+        // 2. DynMap.set calls for each kwargs arg
         for (U32 j = 0; j < kc; j++) {
             Expr *named_arg = Expr_child(fcall, &(USize){(USize)(ki + j)});
             // named_arg is ExprData_TAG_NamedArg with str_val = key name, child[0] = value
             Str *key_name = &named_arg->data.data.NamedArg;
             Expr *val = Expr_child(named_arg, &(USize){(USize)(0)});
 
-            Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
+            Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
             // Arg: self = _kw (mut)
             Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
             self_id->data.data.Ident = *kw_name;
             self_id->til_type = (TilType){TilType_TAG_Struct};
-            self_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
+            self_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
             Expr_add_child(set_call, self_id);
             // Arg: key string
             Expr *key_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
@@ -1625,9 +1595,19 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
             key_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
             key_lit->is_own_arg = true;
             Expr_add_child(set_call, key_lit);
+            // Arg: element type string
+            Str *tname = type_to_name(&val->til_type, &val->struct_name);
+            Expr *type_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
+            type_lit->data.data.LiteralStr = *Str_clone(tname);
+            type_lit->til_type = (TilType){TilType_TAG_Struct};
+            type_lit->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
+            type_lit->is_own_arg = true;
+            Expr_add_child(set_call, type_lit);
+            // Arg: element size
+            Expr *size_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
+            Expr_add_child(set_call, size_call);
             // Arg: value (clone idents to prevent double-free)
             if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
-                Str *tname = type_to_name(&val->til_type, &val->struct_name);
                 if (tname->count > 0)
                     val = make_clone_call(tname, val->til_type, val, val);
                 else
@@ -1650,7 +1630,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
                     Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                     kw_id->data.data.Ident = *kw_name;
                     kw_id->til_type = (TilType){TilType_TAG_Struct};
-                    kw_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
+                    kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
                     kw_id->is_own_arg = true;
                     Vec_push(&fcall_new_ch, kw_id);
                     kw_inserted = 1;
@@ -1662,7 +1642,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
                 Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 kw_id->data.data.Ident = *kw_name;
                 kw_id->til_type = (TilType){TilType_TAG_Struct};
-                kw_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
+                kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
                 kw_id->is_own_arg = true;
                 Vec_push(&fcall_new_ch, kw_id);
                 kw_inserted = 1;
@@ -1675,7 +1655,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
             Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
             kw_id->data.data.Ident = *kw_name;
             kw_id->til_type = (TilType){TilType_TAG_Struct};
-            kw_id->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
+            kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
             kw_id->is_own_arg = true;
             Vec_push(&fcall_new_ch, kw_id);
         }
