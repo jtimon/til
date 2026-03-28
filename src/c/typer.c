@@ -1896,11 +1896,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Str *wname = Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
                 Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
                 decl->data.data.Decl.name = *wname;
-                decl->data.data.Decl.explicit_type = (Str){.c_str = (U8*)"Bool", .count = 4, .cap = CAP_LIT};
+                decl->data.data.Decl.explicit_type = (Str){0};
                 decl->data.data.Decl.is_mut = false;
                 decl->data.data.Decl.is_namespace = false;
                 decl->til_type = (TilType){TilType_TAG_Bool};
                 Expr_add_child(decl, Expr_clone(cond));
+                Expr_child(decl, &(USize){0})->til_type = (TilType){TilType_TAG_Bool};
                 // if _wcondN {} else { break }
                 Expr *ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
                 ident->data.data.Ident = *wname;
