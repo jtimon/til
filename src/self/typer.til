@@ -526,6 +526,167 @@ build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, sh
     return set_call
 }
 
+desugar_set_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) {
+    ref set_lit : Expr = stmt.child(0)
+    ref stmt_decl : Declaration = get_payload(stmt.data)
+    ref var_name : Str = stmt_decl.name
+
+    if set_lit.child_count().eq(0) {
+        type_error(set_lit, "set literal must have at least one element")
+        new_ch.push(own stmt.clone())
+        return
+    }
+
+    ref first : Expr = set_lit.child(0)
+    elem_type := type_to_name(first.til_type, first.struct_name)
+    if elem_type.len().eq(0) {
+        type_error(first, "set literal: cannot determine element type")
+        new_ch.push(own stmt.clone())
+        return
+    }
+
+    if type_has_cmp(scope, elem_type).not() {
+        type_error(first, "set literal: element type '".concat(elem_type).concat("' must implement cmp"))
+    }
+
+    for j in 1..set_lit.child_count() {
+        ref v : Expr = set_lit.child(j)
+        vt := type_to_name(v.til_type, v.struct_name)
+        if vt.len().eq(0).or(vt.eq(elem_type).not()) {
+            type_error(v, "set literal: all elements must be the same type")
+        }
+    }
+
+    mut new_call := make_ns_call("Set", "new", TilType.Struct, "Set", set_lit)
+    mut et_str := Expr.new(ExprData.LiteralStr(elem_type.clone()), set_lit.line, set_lit.col, set_lit.path)
+    et_str.til_type = TilType.Struct
+    et_str.struct_name = "Str"
+    new_call.add_child(own et_str)
+    mut esz := make_ns_call(elem_type, "size", usize_type(scope), "", set_lit)
+    new_call.add_child(own esz)
+
+    mut decl := Expr.new(ExprData.Decl(Declaration()), stmt.line, stmt.col, set_lit.path)
+    ref mut dd : Declaration = get_payload(decl.data)
+    dd.name = var_name.clone()
+    dd.is_mut = true
+    decl.til_type = TilType.Struct
+    decl.add_child(own new_call)
+
+    scope.set(var_name, TilType.Struct, -1.to_i32(), true, stmt.line, stmt.col, false, false)
+    ref mut vb : TypeBinding = scope.get_binding(var_name)
+    vb.struct_name = "Set"
+
+    new_ch.push(own decl)
+
+    for j in 0..set_lit.child_count() {
+        mut add_call := make_ns_call("Set", "add", TilType.None, "", set_lit)
+        mut self_id := Expr.new(ExprData.Ident(var_name.clone()), set_lit.line, set_lit.col, set_lit.path)
+        self_id.til_type = TilType.Struct
+        self_id.struct_name = "Set"
+        add_call.add_child(own self_id)
+        mut val := set_lit.child(j).clone()
+        val.is_own_arg = true
+        add_call.add_child(own val)
+        new_ch.push(own add_call)
+    }
+}
+
+desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeScope) {
+    ref map_lit : Expr = stmt.child(0)
+    ref stmt_decl : Declaration = get_payload(stmt.data)
+    ref var_name : Str = stmt_decl.name
+    n_pairs := map_lit.child_count().div(2)
+
+    if map_lit.child_count().eq(0) {
+        type_error(map_lit, "map literal must have at least one entry")
+        new_ch.push(own stmt.clone())
+        return
+    }
+    if map_lit.child_count().mod(2).eq(0).not() {
+        type_error(map_lit, "map literal has mismatched key/value pairs")
+        new_ch.push(own stmt.clone())
+        return
+    }
+
+    ref first_key : Expr = map_lit.child(0)
+    ref first_val : Expr = map_lit.child(1)
+    key_type := type_to_name(first_key.til_type, first_key.struct_name)
+    val_type := type_to_name(first_val.til_type, first_val.struct_name)
+
+    if key_type.len().eq(0) {
+        type_error(first_key, "map literal: cannot determine key type")
+        new_ch.push(own stmt.clone())
+        return
+    }
+    if val_type.len().eq(0) {
+        type_error(first_val, "map literal: cannot determine value type")
+        new_ch.push(own stmt.clone())
+        return
+    }
+
+    if type_has_cmp(scope, key_type).not() {
+        type_error(first_key, "map literal: key type '".concat(key_type).concat("' must implement cmp"))
+    }
+
+    for j in 2..map_lit.child_count() {
+        if j.mod(2).eq(0) {
+            ref k : Expr = map_lit.child(j)
+            kt := type_to_name(k.til_type, k.struct_name)
+            if kt.len().eq(0).or(kt.eq(key_type).not()) {
+                type_error(k, "map literal: all keys must be the same type")
+            }
+        } else {
+            ref v : Expr = map_lit.child(j)
+            vt := type_to_name(v.til_type, v.struct_name)
+            if vt.len().eq(0).or(vt.eq(val_type).not()) {
+                type_error(v, "map literal: all values must be the same type")
+            }
+        }
+    }
+
+    mut new_call := make_ns_call("Map", "new", TilType.Struct, "Map", map_lit)
+    mut kt_str := Expr.new(ExprData.LiteralStr(key_type.clone()), map_lit.line, map_lit.col, map_lit.path)
+    kt_str.til_type = TilType.Struct
+    kt_str.struct_name = "Str"
+    new_call.add_child(own kt_str)
+    mut ksz := make_ns_call(key_type, "size", usize_type(scope), "", map_lit)
+    new_call.add_child(own ksz)
+    mut vt_str := Expr.new(ExprData.LiteralStr(val_type.clone()), map_lit.line, map_lit.col, map_lit.path)
+    vt_str.til_type = TilType.Struct
+    vt_str.struct_name = "Str"
+    new_call.add_child(own vt_str)
+    mut vsz := make_ns_call(val_type, "size", usize_type(scope), "", map_lit)
+    new_call.add_child(own vsz)
+
+    mut decl := Expr.new(ExprData.Decl(Declaration()), stmt.line, stmt.col, map_lit.path)
+    ref mut dd : Declaration = get_payload(decl.data)
+    dd.name = var_name.clone()
+    dd.is_mut = true
+    decl.til_type = TilType.Struct
+    decl.add_child(own new_call)
+
+    scope.set(var_name, TilType.Struct, -1.to_i32(), true, stmt.line, stmt.col, false, false)
+    ref mut vb : TypeBinding = scope.get_binding(var_name)
+    vb.struct_name = "Map"
+
+    new_ch.push(own decl)
+
+    for j in 0..n_pairs {
+        mut set_call := make_ns_call("Map", "set", TilType.None, "", map_lit)
+        mut self_id := Expr.new(ExprData.Ident(var_name.clone()), map_lit.line, map_lit.col, map_lit.path)
+        self_id.til_type = TilType.Struct
+        self_id.struct_name = "Map"
+        set_call.add_child(own self_id)
+        mut key := map_lit.child(j.mul(2)).clone()
+        key.is_own_arg = true
+        set_call.add_child(own key)
+        mut mval := map_lit.child(j.mul(2).add(1)).clone()
+        mval.is_own_arg = true
+        set_call.add_child(own mval)
+        new_ch.push(own set_call)
+    }
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {
