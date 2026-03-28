@@ -259,6 +259,23 @@ find_variadic_fcall := func(e: Expr) returns ref Expr {
     return NULL
 }
 
+find_kwargs_fcall := func(e: Expr) returns ref Expr {
+    if is_null(e) { return NULL }
+    if is_variant(e.data, ExprData.FuncDef) { return NULL }
+    if is_variant(e.data, ExprData.StructDef) { return NULL }
+    if is_variant(e.data, ExprData.EnumDef) { return NULL }
+    if is_variant(e.data, ExprData.Body) { return NULL }
+    if is_variant(e.data, ExprData.FCall) {
+        ref fcall : FCallData = get_payload(e.data)
+        if fcall.kwargs_index.gte(0) { return e }
+    }
+    for i in 0..e.child_count() {
+        ref found : Expr = find_kwargs_fcall(e.child(i))
+        if is_null(found).not() { return found }
+    }
+    return NULL
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }

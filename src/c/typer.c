@@ -1603,18 +1603,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 // --- Kwargs call desugaring ---
 // Transforms kwargs function calls into Map.new + Map.set + normal call.
 
-static Expr *find_kwargs_fcall(Expr *e) {
-    if (!e) return NULL;
-    if (e->data.tag == ExprData_TAG_FuncDef || e->data.tag == ExprData_TAG_StructDef ||
-        e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return NULL;
-    if (e->data.tag == ExprData_TAG_FCall && e->data.data.FCall.kwargs_index >= 0) return e;
-    for (U32 i = 0; i < e->children.count; i++) {
-        Expr *found = find_kwargs_fcall(Expr_child(e, &(USize){(USize)(i)}));
-        if (found) return found;
-    }
-    return NULL;
-}
-
 static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
