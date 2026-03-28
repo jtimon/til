@@ -1769,30 +1769,12 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 
 // Check if a function call returns ref
 
-static const char *type_prefix(TilType t, Str *sname) {
-    switch (t.tag) {
-    case TilType_TAG_I64:  return "I64";
-    case TilType_TAG_U8:   return "U8";
-    case TilType_TAG_I16:  return "I16";
-    case TilType_TAG_I32:  return "I32";
-    case TilType_TAG_U32:  return "U32";
-    case TilType_TAG_U64:  return "U64";
-    case TilType_TAG_F32:  return "F32";
-    case TilType_TAG_Bool: return "Bool";
-    case TilType_TAG_None: return "None";
-    case TilType_TAG_Struct:
-    case TilType_TAG_Enum:
-        if (sname && sname->count > 0) return (const char *)sname->c_str;
-        return "compound";
-    default: return "v";
-    }
-}
-
 // Create a temp decl for an expression, register in scope, return the replacement ident.
 // Adds the decl to the hoisted list.
 static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
     char name_buf[128];
-    snprintf(name_buf, sizeof(name_buf), "_t_%s_%d", type_prefix(val->til_type, &val->struct_name), hoist_counter++);
+    Str *tp = type_prefix(&val->til_type, &val->struct_name);
+    snprintf(name_buf, sizeof(name_buf), "_t_%s_%d", tp->c_str, hoist_counter++);
     Str *tname = Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
     Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, val->line, val->col, &val->path);
     decl->data.data.Decl.name = *tname;
@@ -2981,7 +2963,8 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
 
             // Unique switch variable name
             char sw_buf[128];
-            snprintf(sw_buf, sizeof(sw_buf), "_sw_%s_%d", type_prefix(sw_expr->til_type, &sw_expr->struct_name), hoist_counter++);
+            Str *tp = type_prefix(&sw_expr->til_type, &sw_expr->struct_name);
+            snprintf(sw_buf, sizeof(sw_buf), "_sw_%s_%d", tp->c_str, hoist_counter++);
             Str *sw_name = Str_clone(&(Str){.c_str = (U8*)(sw_buf), .count = (U64)strlen((const char*)(sw_buf)), .cap = CAP_VIEW});
 
             // Outer anonymous scope
