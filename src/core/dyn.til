@@ -1,4 +1,7 @@
-Dynamic : StructDef = struct {}
+Dynamic : StructDef = struct {
+namespace:
+    size := func() returns USize { return 8 }
+}
 
 // builtin functions and procs
 is := ext_func(self: Dynamic, other: Dynamic) returns shallow Bool {}

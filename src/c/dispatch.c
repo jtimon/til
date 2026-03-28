@@ -298,14 +298,14 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     field_access.is_ns_field = 1;
     field_access.line = e->line;
     field_access.col = e->col;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
+    field_access.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
     { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = e->line;
     fake_call.col = e->col;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
+    fake_call.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
     { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
     // Skip child 3 (arity literal), actual args start at child 4
     for (U32 i = 4; i < e->children.count; i++) {
@@ -407,14 +407,14 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     field_access.is_ns_field = 1;
     field_access.line = src->line; field_access.col = src->col;
     field_access.path = src->path;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); field_access.children = *_vp; free(_vp); }
+    field_access.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
     { Expr *_p = malloc(sizeof(Expr)); *_p = type_ident; Vec_push(&field_access.children, _p); }
 
     Expr fake_call = {0};
     fake_call.data.tag = ExprData_TAG_FCall;
     fake_call.line = src->line; fake_call.col = src->col;
     fake_call.path = src->path;
-    { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fake_call.children = *_vp; free(_vp); }
+    fake_call.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
     { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
 
 
@@ -673,7 +673,7 @@ static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
 // === Dispatch init ===
 
 static void dispatch_init(void) {
-    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
+    { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(DispatchFn)}); dispatch_map = *_mp; free(_mp); }
 
     #define REG(n, fn) do { Str *k = Str_clone(&(Str){.c_str = (U8*)(n), .count = (U64)strlen((const char*)(n)), .cap = CAP_VIEW}); DispatchFn f = fn; \
         Str *_k = malloc(sizeof(Str)); *_k = (Str){k->c_str, k->count, CAP_VIEW}; \

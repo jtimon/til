@@ -63,7 +63,8 @@ str_left := func(s: Str, n: USize) returns Str {
 // Matching nodes are removed from the body.
 extract_imports := proc(mut body: Expr) returns Vec {
     mut paths := Vec.new("Str", Str.size())
-    kept := Vec.new("Expr", Expr.size())
+    kept := Vec(data = malloc(Expr.size()), cap = 1,
+                elem_size = Expr.size())
     for i in 0..Expr.child_count(body) {
         ref stmt : Expr = Expr.child(body, i)
         mut is_import := false
@@ -341,7 +342,8 @@ main := proc(args: ..Str) {
     // Extract link() and link_c() directives
     mut link_flags := ""
     mut link_c_paths := ""
-    kept := Vec.new("", Expr.size())
+    kept := Vec(data = malloc(Expr.size()), cap = 1,
+                elem_size = Expr.size())
     for i in 0..Expr.child_count(ast) {
         ref stmt : Expr = Expr.child(ast, i)
         mut is_directive := false

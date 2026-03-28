@@ -173,7 +173,8 @@ Expr := struct {
     mut kwargs_index : I32 = -1.to_i32()
     mut kwargs_count : USize = 0
     ref mut fn_sig : Expr = NULL
-    mut children := Vec.new("", Expr.size())
+    mut children := Vec(data = malloc(Expr.size()), cap = 1,
+                        elem_size = Expr.size())
     mut line : U32 = 0
     mut col : U32 = 0
     mut path := ""

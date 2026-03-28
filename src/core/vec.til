@@ -14,8 +14,7 @@ Vec := struct {
 namespace:
     new := func(elem_type: Str, elem_size: USize) returns Vec {
         if elem_type.is_empty() {
-            return Vec(data = malloc(elem_size), cap = 1,
-                       elem_size = elem_size, elem_type = elem_type)
+            panic(__LOC__, "Vec.new: elem_type required")
         }
         if elem_type.eq("Dynamic") {
             return Vec(data = malloc(elem_size), cap = 1,

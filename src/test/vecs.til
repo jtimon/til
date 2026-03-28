@@ -90,7 +90,7 @@ test_vec_size := test() {
 }
 
 test_vec_dynamic := test() {
-    v := Vec.new("Dynamic", USize.size())
+    v := Vec.new("Dynamic", Dynamic.size())
     p1 : Dynamic = malloc(1)
     p2 : Dynamic = malloc(1)
     v.push(own p1)

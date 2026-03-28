@@ -690,6 +690,7 @@ U64 * Range_get(Range * self, U64 i);
 Range * Range_clone(Range * val);
 void Range_delete(Range * self, Bool * call_free);
 U32 * Range_size(void);
+U32 * Dynamic_size(void);
 void * default_clone(void * v);
 void default_delete(void * v, Bool * cf);
 I64 * default_cmp(void * a, void * b);

@@ -39,7 +39,8 @@ EnumInstance := struct {
     clone := func(self: EnumInstance) returns EnumInstance {
         return EnumInstance(enum_name = self.enum_name,
                            enum_def = self.enum_def,
-                           data = self.data)
+                           data = self.data,
+                           data_size = self.data_size)
     }
     delete := func(own self: EnumInstance, call_free: Bool = true) {}
 }
@@ -86,8 +87,7 @@ Value := enum {
         return "Value"
     }
     clone := func(self: Value) returns Value {
-        # Shallow clone -- C functions handle deep clone via clone_value
-        return Value.None
+        return clone_value(self)
     }
     delete := func(own self: Value, call_free: Bool = true) {}
 }

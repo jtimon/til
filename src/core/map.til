@@ -22,15 +22,7 @@ namespace:
             panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
         }
         if val_type.is_empty() {
-            // TODO(#119): struct literals should apply field ownership
-            // semantics automatically so owned Str fields do not need
-            // manual clones here.
-            return Map(key_data = malloc(key_size), val_data = malloc(val_size),
-                       cap = 1, key_size = key_size, key_type = key_type.clone(),
-                       val_size = val_size, val_type = val_type,
-                       key_clone = dyn_fn(key_type, "clone"),
-                       key_delete = dyn_fn(key_type, "delete"),
-                       key_cmp = dyn_fn(key_type, "cmp"))
+            panic(__LOC__, "Map.new: val_type required")
         }
         if val_type.eq("Dynamic") {
             return Map(key_data = malloc(key_size), val_data = malloc(val_size),

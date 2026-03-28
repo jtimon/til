@@ -1,10 +1,30 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 121
+# NEXT_ISSUE: 122
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #121 Kwargs desugaring still relies on raw Map values
+  ~desugar_kwargs_calls~ in ~src/c/typer.c~ still builds:
+
+  - ~Map.new("Str", Str.size(), "", MaxType.size())~
+
+  That old empty ~val_type~ was being used as a raw-storage escape hatch
+  for heterogeneous kwarg values. Once ~#120~ made empty explicit types
+  illegal, this became the last remaining blocker.
+
+  What remains to decide:
+  - represent kwarg payloads as ~Value~
+  - or introduce another explicit non-empty raw/bytestore spelling for
+    this heterogeneous case
+
+  For now:
+  - ~src/test/kwargs.til~ is temporarily disabled with ~TODO(#121)~
+    markers
+  - everything else under ~#120~ should stay strict about rejecting
+    empty explicit container types
+
 ** OPEN #120 Container constructors should reject empty explicit types
   Once the remaining explicit typing work is done, typed container
   constructors should stop accepting ~""~ silently:
