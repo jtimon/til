@@ -1412,9 +1412,9 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // Create a temp decl for an expression, register in scope, return the replacement ident.
 // Adds the decl to the hoisted list.
-static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope);
+static void hoist_expr(Expr *e, Vec *hoisted, TypeScope *scope);
 
-static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+static Expr *hoist_to_temp(Expr *val, Vec *hoisted, TypeScope *scope) {
     char name_buf[128];
     Str *tp = type_prefix(&val->til_type, &val->struct_name);
     snprintf(name_buf, sizeof(name_buf), "_t_%s_%d", tp->c_str, hoist_counter++);
@@ -1446,40 +1446,36 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
         decl->data.data.Decl.is_ref = true;
         if (tb) tb->is_ref = 1;
     }
-    if (*nhoisted >= *cap) {
-        *cap = *cap ? *cap * 2 : 8;
-        *hoisted = realloc(*hoisted, *cap * sizeof(Expr *));
-    }
-    (*hoisted)[(*nhoisted)++] = decl;
+    Vec_push(hoisted, decl);
     return ident;
 }
 
-static void hoist_decl_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+static void hoist_decl_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
 }
 
-static Expr *hoist_stmt_fcall(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
-    hoist_expr(stmt, hoisted, nhoisted, cap, scope);
+static Expr *hoist_stmt_fcall(Expr *stmt, Vec *hoisted, TypeScope *scope) {
+    hoist_expr(stmt, hoisted, scope);
     if (stmt->til_type.tag != TilType_TAG_None) {
-        hoist_to_temp(stmt, hoisted, nhoisted, cap, scope);
-        stmt = (*hoisted)[--(*nhoisted)];
+        hoist_to_temp(stmt, hoisted, scope);
+        stmt = (Expr*)Vec_pop(hoisted);
     }
     return stmt;
 }
 
-static void hoist_return_expr(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+static void hoist_return_expr(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     if (stmt->children.count == 0) return;
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
     if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, scope);
     }
 }
 
-static void hoist_assign_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+static void hoist_assign_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
     Bool do_hoist = 1;
     ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
     TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
@@ -1492,11 +1488,11 @@ static void hoist_assign_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *ca
         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
         Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, scope);
     }
 }
 
-static void hoist_param_swap_assign(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+static void hoist_param_swap_assign(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
     TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
     if (!(ab && ab->is_param && ab->is_mut &&
@@ -1517,13 +1513,13 @@ static void hoist_param_swap_assign(Expr *stmt, Expr ***hoisted, U32 *nhoisted, 
     Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
     Str *tname = type_to_name(&ab->type, &ab->struct_name);
     Expr *sz_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, stmt);
-    Expr *sz = hoist_to_temp(sz_call, hoisted, nhoisted, cap, scope);
+    Expr *sz = hoist_to_temp(sz_call, hoisted, scope);
     Expr_add_child(call, sz);
     *stmt = *call;
 }
 
-static void hoist_field_assign_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(1)}), hoisted, nhoisted, cap, scope);
+static void hoist_field_assign_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(1)}), hoisted, scope);
     Bool fa_hoist = 1;
     if (!stmt->is_own_field) {
         TilType ft = Expr_child(stmt, &(USize){(USize)(1)})->til_type;
@@ -1534,25 +1530,25 @@ static void hoist_field_assign_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U
         Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum ||
         Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralStr ||
         Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(1)})), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(1)})), hoisted, scope);
     }
 }
 
-static void hoist_if_cond(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+static void hoist_if_cond(Expr *stmt, Vec *hoisted, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
     if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, scope);
     }
 }
 
 // Walk expression tree depth-first. For each ExprData_TAG_FCall, hoist any arg that is itself a ExprData_TAG_FCall.
 // Does NOT recurse into scope boundaries (func/struct defs, bodies).
-static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+static void hoist_expr(Expr *e, Vec *hoisted, TypeScope *scope) {
     // Don't recurse into scope boundaries -- those have their own infer_body calls
     if (e->data.tag == ExprData_TAG_FuncDef || e->data.tag == ExprData_TAG_StructDef || e->data.tag == ExprData_TAG_EnumDef || e->data.tag == ExprData_TAG_Body) return;
     // Recurse into children first (depth-first: inner fcalls hoisted before outer)
     for (U32 i = 0; i < e->children.count; i++) {
-        hoist_expr(Expr_child(e, &(USize){(USize)(i)}), hoisted, nhoisted, cap, scope);
+        hoist_expr(Expr_child(e, &(USize){(USize)(i)}), hoisted, scope);
     }
     if (e->data.tag != ExprData_TAG_FCall) return;
 
@@ -1604,7 +1600,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
                 continue; // don't hoist — builder handles directly
         }
 
-        *(Expr*)Vec_get(&e->children, &(USize){(USize)(i)}) = *hoist_to_temp(Expr_clone(Expr_child(e, &(USize){(USize)(i)})), hoisted, nhoisted, cap, scope);
+        *(Expr*)Vec_get(&e->children, &(USize){(USize)(i)}) = *hoist_to_temp(Expr_clone(Expr_child(e, &(USize){(USize)(i)})), hoisted, scope);
     }
 }
 
@@ -1613,38 +1609,41 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         // Collect hoisted decls from this statement
-        Expr **hoisted = NULL;
-        U32 nhoisted = 0, hcap = 0;
+        Vec hoisted; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); hoisted = *_vp; free(_vp); }
         // Walk the appropriate expression tree based on statement type
         switch (stmt->data.tag) {
         case ExprData_TAG_Decl:
-            hoist_decl_rhs(stmt, &hoisted, &nhoisted, &hcap, scope);
+            hoist_decl_rhs(stmt, &hoisted, scope);
             break;
         case ExprData_TAG_FCall:
-            stmt = hoist_stmt_fcall(stmt, &hoisted, &nhoisted, &hcap, scope);
-            *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *stmt;
+            stmt = hoist_stmt_fcall(stmt, &hoisted, scope);
+            if (stmt != Expr_child(body, &(USize){(USize)(i)})) {
+                *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *stmt;
+                free(stmt);
+                stmt = Expr_child(body, &(USize){(USize)(i)});
+            }
             break;
         case ExprData_TAG_Return:
-            hoist_return_expr(stmt, &hoisted, &nhoisted, &hcap, scope);
+            hoist_return_expr(stmt, &hoisted, scope);
             break;
         case ExprData_TAG_Assign:
-            hoist_assign_rhs(stmt, &hoisted, &nhoisted, &hcap, scope);
-            hoist_param_swap_assign(stmt, &hoisted, &nhoisted, &hcap, scope);
+            hoist_assign_rhs(stmt, &hoisted, scope);
+            hoist_param_swap_assign(stmt, &hoisted, scope);
             break;
         case ExprData_TAG_FieldAssign:
-            hoist_field_assign_rhs(stmt, &hoisted, &nhoisted, &hcap, scope);
+            hoist_field_assign_rhs(stmt, &hoisted, scope);
             break;
         case ExprData_TAG_If:
-            hoist_if_cond(stmt, &hoisted, &nhoisted, &hcap, scope);
+            hoist_if_cond(stmt, &hoisted, scope);
             break;
         // ExprData_TAG_While: skip condition -- hoisting changes loop semantics
         default: break;
         }
         // Insert hoisted decls before the statement
-        for (U32 j = 0; j < nhoisted; j++) {
-            Vec_push(&new_ch, hoisted[j]);
+        for (U32 j = 0; j < hoisted.count; j++) {
+            Vec_push(&new_ch, Expr_clone((Expr*)Vec_get(&hoisted, &(USize){(USize)(j)})));
         }
-        free(hoisted);
+        Vec_delete(&hoisted, &(Bool){0});
         // Add original statement
         Vec_push(&new_ch, Expr_clone(stmt));
     }
@@ -2045,14 +2044,6 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
                     type_error(stmt, STR_LIT("null can only be assigned to 'ref' declarations"));
-                } else if (!stmt->data.data.Decl.is_ref &&
-                           declared.tag != TilType_TAG_Dynamic &&
-                           Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Dynamic) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf),
-                             "cannot store owned Dynamic in '%s'; write '%s : Dynamic = ...' and borrow with 'ref' for typed access",
-                             stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
-                    type_error(stmt, STR_VIEW(buf));
                 } else if (!can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn) &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Dynamic) {

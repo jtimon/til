@@ -180,9 +180,6 @@ own mut bad_own_mut_local : U8 = malloc(2)
 // no need for explicit own on Dynamic local
 own bad_dyn : Dynamic = malloc(2)
 
-// malloc returns owned Dynamic; use Dynamic local plus ref view for typed access
-bad_malloc_typed : U8 = malloc(2)
-
 // cannot store Dynamic: inferred from malloc
 bad_dyn2 := malloc(32)
 

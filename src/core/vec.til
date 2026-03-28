@@ -46,6 +46,17 @@ namespace:
         return ptr_add(self.data, i.mul(self.elem_size))
     }
 
+    pop := func(mut self: Vec) returns Dynamic {
+        if self.count.eq(0) {
+            panic(__LOC__, "Vec.pop: empty vec")
+        }
+        last := self.count.sub(1)
+        out : Dynamic = malloc(self.elem_size)
+        memcpy(out, ptr_add(self.data, last.mul(self.elem_size)), self.elem_size)
+        self.count = last
+        return out
+    }
+
     set := proc(mut self: Vec, i: USize, own val: Dynamic) {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")
