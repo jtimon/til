@@ -350,6 +350,34 @@ make_field_delete := func(field_assign: Expr, shallow is_own: Bool) returns Expr
     return call
 }
 
+make_delete_call := func(var_name: Str, shallow type: TilType, struct_name: Str, shallow arg_is_own: Bool, shallow call_free: Bool, src: Expr) returns Expr {
+    tname := type_to_name(type, struct_name)
+    if tname.len().eq(0) { return NULL }
+
+    mut call := Expr.new(ExprData.FCall(FCallData()), src.line, src.col, src.path)
+    call.til_type = TilType.None
+
+    mut type_id := Expr.new(ExprData.Ident(tname.clone()), src.line, src.col, src.path)
+    type_id.struct_name = tname.clone()
+
+    mut fa := Expr.new(ExprData.FieldAccess("delete"), src.line, src.col, src.path)
+    fa.is_ns_field = true
+    fa.add_child(own type_id)
+    call.add_child(own fa)
+
+    mut arg := Expr.new(ExprData.Ident(var_name.clone()), src.line, src.col, src.path)
+    arg.til_type = type
+    if struct_name.len().gt(0) { arg.struct_name = struct_name.clone() }
+    arg.is_own_arg = arg_is_own
+    call.add_child(own arg)
+
+    mut cf_lit := Expr.new(ExprData.LiteralBool(call_free), src.line, src.col, src.path)
+    cf_lit.til_type = TilType.Bool
+    call.add_child(own cf_lit)
+
+    return call
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }

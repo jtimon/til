@@ -1957,40 +1957,6 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
 
 // --- Delete call insertion ---
 
-static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Bool arg_is_own, Bool call_free, Expr *src) {
-    Str *tname = type_to_name(&type, struct_name);
-    if (tname->count == 0) return NULL;
-    I32 line = src->line, col = src->col;
-    Str *path = &src->path;
-
-    Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-    call->til_type = (TilType){TilType_TAG_None};
-
-    Expr *type_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    type_id->data.data.Ident = *Str_clone(tname);
-    type_id->struct_name = *Str_clone(tname);
-
-    Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-    fa->data.data.FieldAccess = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
-    fa->is_ns_field = true;
-    Expr_add_child(fa, type_id);
-    Expr_add_child(call, fa);
-
-    Expr *arg = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    arg->data.data.Ident = *var_name;
-    arg->til_type = type;
-    if (struct_name && struct_name->count > 0) arg->struct_name = *Str_clone(struct_name);
-    arg->is_own_arg = arg_is_own;
-    Expr_add_child(call, arg);
-
-    Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-    cf_lit->data.data.LiteralBool = call_free;
-    cf_lit->til_type = (TilType){TilType_TAG_Bool};
-    Expr_add_child(call, cf_lit);
-
-    return call;
-}
-
 // Insert delete calls before field reassignments (own and inline compound)
 static void insert_field_deletes(Expr *body) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
