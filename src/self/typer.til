@@ -883,6 +883,62 @@ collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_sc
     }
 }
 
+extend_ref_local_lifetimes := proc(body: Expr, locals: Dynamic, shallow n_locals: U32) {
+    mut ref_changed := true
+    while ref_changed {
+        ref_changed = false
+        for i in 0..body.child_count() {
+            ref stmt : Expr = body.child(i)
+            if is_variant(stmt.data, ExprData.Decl).not() { continue }
+            ref dd : Declaration = get_payload(stmt.data)
+            if dd.is_ref.not() { continue }
+            ref rhs : Expr = stmt.child(0)
+
+            mut ref_last := -1.to_i32()
+            for j in i.add(1)..body.child_count() {
+                if expr_uses_var(body.child(j), dd.name) {
+                    ref_last = j.to_i64().to_i32()
+                }
+            }
+            if ref_last.eq(-1.to_i32()) { ref_last = i.to_i64().to_i32() }
+            for j in 0..n_locals {
+                ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+                if local.name.eq(dd.name).and(local.last_use.gt(ref_last)) {
+                    ref_last = local.last_use
+                }
+            }
+
+            if is_variant(rhs.data, ExprData.Ident) {
+                ref src_name : Str = get_payload(rhs.data)
+                for j in 0..n_locals {
+                    ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+                    if local.name.eq(src_name).and(local.last_use.lt(ref_last)) {
+                        local.last_use = ref_last
+                        ref_changed = true
+                    }
+                }
+                continue
+            }
+            if is_variant(rhs.data, ExprData.FCall).not() { continue }
+            for a in 1..rhs.child_count() {
+                ref mut arg : Expr = rhs.child(a)
+                while is_variant(arg.data, ExprData.FieldAccess).and(arg.child_count().gt(0)) {
+                    arg = arg.child(0)
+                }
+                if is_variant(arg.data, ExprData.Ident).not() { continue }
+                ref aname : Str = get_payload(arg.data)
+                for j in 0..n_locals {
+                    ref mut local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+                    if local.name.eq(aname).and(local.last_use.lt(ref_last)) {
+                        local.last_use = ref_last
+                        ref_changed = true
+                    }
+                }
+            }
+        }
+    }
+}
+
 narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
     if is_variant(expr.til_type, TilType.Dynamic).not() { return }
     if is_variant(target, TilType.Dynamic) { return }

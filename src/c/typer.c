@@ -1786,54 +1786,6 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool re
     }
 }
 
-static void extend_ref_local_lifetimes(Expr *body, LocalInfo *locals, U32 n_locals) {
-    Bool ref_changed = 1;
-    while (ref_changed) {
-        ref_changed = 0;
-        for (U32 i = 0; i < body->children.count; i++) {
-            Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-            if (stmt->data.tag != ExprData_TAG_Decl || !stmt->data.data.Decl.is_ref) continue;
-            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-
-            I32 ref_last = -1;
-            for (U32 j = i + 1; j < body->children.count; j++) {
-                if (expr_uses_var(Expr_child(body, &(USize){(USize)(j)}), &stmt->data.data.Decl.name))
-                    ref_last = j;
-            }
-            if (ref_last == -1) ref_last = i;
-            for (U32 j = 0; j < n_locals; j++) {
-                if (Str_eq(locals[j].name, &stmt->data.data.Decl.name) && locals[j].last_use > ref_last)
-                    ref_last = locals[j].last_use;
-            }
-
-            if (rhs->data.tag == ExprData_TAG_Ident) {
-                Str *src_name = &rhs->data.data.Ident;
-                for (U32 j = 0; j < n_locals; j++) {
-                    if (Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last) {
-                        locals[j].last_use = ref_last;
-                        ref_changed = 1;
-                    }
-                }
-                continue;
-            }
-            if (rhs->data.tag != ExprData_TAG_FCall) continue;
-            for (U32 a = 1; a < rhs->children.count; a++) {
-                Expr *arg = Expr_child(rhs, &(USize){(USize)(a)});
-                while (arg->data.tag == ExprData_TAG_FieldAccess && arg->children.count > 0)
-                    arg = Expr_child(arg, &(USize){(USize)(0)});
-                if (arg->data.tag != ExprData_TAG_Ident) continue;
-                Str *aname = &arg->data.data.Ident;
-                for (U32 j = 0; j < n_locals; j++) {
-                    if (Str_eq(locals[j].name, aname) && locals[j].last_use < ref_last) {
-                        locals[j].last_use = ref_last;
-                        ref_changed = 1;
-                    }
-                }
-            }
-        }
-    }
-}
-
 static void check_use_after_own_transfer(Expr *body, LocalInfo *locals, U32 n_locals) {
     for (U32 j = 0; j < n_locals; j++) {
         if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
