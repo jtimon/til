@@ -443,6 +443,14 @@ expr_is_ref_decl_source := func(e: Expr, scope: TypeScope) returns shallow Bool 
     return false
 }
 
+field_assign_needs_delete := func(stmt: Expr) returns shallow Bool {
+    if stmt.is_ref_field { return false }
+    if stmt.is_own_field { return true }
+    ft := stmt.child(1).til_type
+    if is_variant(ft, TilType.Struct).or(is_variant(ft, TilType.Enum)) { return true }
+    return false
+}
+
 alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bool {
     for k in 0..body.child_count() {
         ref d : Expr = body.child(k)

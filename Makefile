@@ -126,7 +126,8 @@ help:
 	echo "Recovery: make revert_boot && make test"
 
 clean:
-	rm -rf bin/* gen/* tmp/boot
+	rm -rf bin/* gen/*
+	rm -rf tmp/boot
 # REM uncoment when upgrading dependency libraries
 #	$(MAKE) -C lib/raylib/src clean
 #	cd $(LIBFFI_DIR) && $(MAKE) clean && rm -f .built

@@ -824,6 +824,7 @@ Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope);
 Bool expr_is_borrow_source(Expr * e, TypeScope * scope);
 Bool expr_is_stable_field_base(Expr * e, TypeScope * scope);
 Bool expr_is_ref_decl_source(Expr * e, TypeScope * scope);
+Bool field_assign_needs_delete(Expr * stmt);
 Bool alias_used_in_expr(Expr * body, Str * name, Expr * expr);
 void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);

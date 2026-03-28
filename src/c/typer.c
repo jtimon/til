@@ -24,6 +24,7 @@ Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope);
 Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr);
 I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
 void narrow_dynamic(Expr *expr, TilType *target, Str *target_struct_name);
+Bool field_assign_needs_delete(Expr *stmt);
 
 // --- Type inference/checking pass ---
 
@@ -2055,19 +2056,8 @@ static void insert_field_deletes(Expr *body) {
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_FieldAssign) {
-            Bool need_delete = 0;
             Bool is_own = stmt->is_own_field;
-            if (stmt->is_ref_field) {
-                // ref fields don't own their data — no delete on reassignment
-                need_delete = 0;
-            } else if (is_own) {
-                need_delete = 1;
-            } else {
-                TilType ft = Expr_child(stmt, &(USize){(USize)(1)})->til_type;
-                if (ft.tag == TilType_TAG_Struct || ft.tag == TilType_TAG_Enum)
-                    need_delete = 1;
-            }
-            if (need_delete) {
+            if (field_assign_needs_delete(stmt)) {
                 Expr *del = make_field_delete(stmt, is_own);
                 if (del) {
                     Vec_push(&new_ch, del);
