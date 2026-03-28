@@ -445,7 +445,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     type_error(e, buf);
                 }
                 // Rebuild children: callee + desugared args
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                 Expr *callee = Expr_child(e, &(USize){(USize)(0)});
                 Vec_push(&new_ch, Expr_clone(callee));
                 for (U32 i = 0; i < np; i++) {
@@ -617,7 +617,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
             // Rebuild children: callee + instance field values
-            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
             Expr *callee = Expr_child(e, &(USize){(USize)(0)});
             Vec_push(&new_ch, Expr_clone(callee));
             for (U32 i = 0; i < nfields; i++) {
@@ -749,7 +749,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 type_error(e, buf);
             }
             // Rebuild children: callee + args_before_variadic + variadic_args + args_after_variadic
-            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
             Expr *callee = Expr_child(e, &(USize){(USize)(0)});
             Vec_push(&new_ch, Expr_clone(callee));
             for (U32 i = 0; i < nparam; i++) {
@@ -1086,7 +1086,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 //   Set.add(s, own v3)
 
 static void desugar_set_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1185,7 +1185,7 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 //   Map.set(m, own k2, own v2)
 
 static void desugar_map_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1322,7 +1322,7 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
 
 // Create a namespace method call: StructName.method(args...)
 static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1386,7 +1386,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             }
             splat->is_own_arg = true;
             // Rebuild fcall children replacing variadic slot with splat
-            Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+            Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
             for (U32 j = 0; j < fcall->children.count; j++) {
                 if ((I32)j == vi) {
                     Vec_push(&fcall_new_ch, splat);
@@ -1478,7 +1478,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
         }
 
         // 3. Replace variadic args in FCALL with _va ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
         Bool va_inserted = 0;
         for (U32 j = 0; j < fcall->children.count; j++) {
             if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
@@ -1536,7 +1536,7 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 // Transforms kwargs function calls into Map.new + Map.set + normal call.
 
 static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1642,7 +1642,7 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
         }
 
         // 3. Replace kwargs args in FCALL with _kw ident
-        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
+        Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
         Bool kw_inserted = 0;
         for (U32 j = 0; j < fcall->children.count; j++) {
             if ((I32)j >= ki && (I32)j < ki + (I32)kc) {
@@ -1807,7 +1807,7 @@ static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeSc
 }
 
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         // Collect hoisted decls from this statement
@@ -1935,7 +1935,7 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
 
 // Insert delete calls before field reassignments (own and inline compound)
 static void insert_field_deletes(Expr *body) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     Bool changed = 0;
 
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1964,7 +1964,7 @@ static void insert_field_deletes(Expr *body) {
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
 static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool return_only) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
         if (stmt->data.tag == ExprData_TAG_If) {
@@ -2001,7 +2001,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
 
     // Phase 1: collect locals with lifetime info
     // Start from 0 (not locals_start) to include own params, which are added before the body
-    Vec locals_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); locals_vec = *_vp; free(_vp); }
+    Vec locals_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); locals_vec = *_vp; free(_vp); }
     for (U32 i = 0; i < scope->bindings.count; i++) {
         TypeBinding *b = (TypeBinding *)(scope->bindings.val_data + i * scope->bindings.val_size);
         if ((b->is_param && !b->is_own) || b->struct_def || b->func_def) continue;
@@ -2133,7 +2133,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     }
 
     // Phase 2: rebuild body with ASAP frees
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
@@ -2156,7 +2156,7 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
 
         // For ExprData_TAG_If/ExprData_TAG_While: insert frees before nested early exits
         if (stmt->data.tag == ExprData_TAG_If || stmt->data.tag == ExprData_TAG_While) {
-            Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
+            Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
             for (U32 j = 0; j < n_locals; j++) {
                     if (locals[j].skip_scope_delete) continue;
                     if (locals[j].own_transfer >= 0) continue;
@@ -2721,7 +2721,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 Expr_add_child(else_body, brk);
                 Expr_add_child(if_node, else_body);
                 // Prepend decl + if to body
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                 Vec_push(&new_ch, decl);
                 Vec_push(&new_ch, if_node);
                 for (U32 j = 0; j < body->children.count; j++) {
@@ -2928,7 +2928,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                             Expr_add_child(bind_decl, get_call);
 
                             // Prepend to case body
-                            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
                             Vec_push(&new_ch, bind_decl);
                             for (U32 bi = 0; bi < case_body->children.count; bi++) {
                                 Expr *ch = Expr_child(case_body, &(USize){(USize)(bi)});

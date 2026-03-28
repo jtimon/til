@@ -1908,7 +1908,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
 
         // Topo-sort struct/enum defs into header
         {
-            Vec to_emit_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_mh = *_vp; free(_vp); }
+            Vec to_emit_mh; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_mh = *_vp; free(_vp); }
             for (U32 i = 0; i < program->children.count; i++) {
                 Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
                 if (stmt->data.tag == ExprData_TAG_Decl &&
@@ -2223,7 +2223,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Forward declarations for dyn_call dispatch functions
     {
         Vec dyn_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"DynCallInfo", .count = 11, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(USize){(USize)(m)});
@@ -2271,7 +2271,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Forward declarations for array/vec builtin helpers
     {
         Vec coll_infos;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"CollectionInfo", .count = 14, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, &(USize){(USize)(i)});
@@ -2344,7 +2344,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Emit dyn_call dispatch function bodies
     {
         Vec dyn_methods;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"DynCallInfo", .count = 11, .cap = CAP_LIT}, &(USize){sizeof(DynCallInfo)}); dyn_methods = *_vp; free(_vp); }
         collect_dyn_methods(program, &dyn_methods);
         for (U32 m = 0; m < dyn_methods.count; m++) {
             DynCallInfo *info = Vec_get(&dyn_methods, &(USize){(USize)(m)});
@@ -2573,7 +2573,7 @@ I32 build(Expr *program, Mode *mode, Bool run_tests, Str *path, Str *c_output_pa
     // Emit array/vec builtin helper function bodies
     {
         Vec coll_infos;
-        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
+        { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"CollectionInfo", .count = 14, .cap = CAP_LIT}, &(USize){sizeof(CollectionInfo)}); coll_infos = *_vp; free(_vp); }
         collect_collection_builtins(program, &coll_infos);
         for (U32 i = 0; i < coll_infos.count; i++) {
             CollectionInfo *ci = Vec_get(&coll_infos, &(USize){(USize)(i)});
@@ -2757,7 +2757,7 @@ static void emit_header_forward_decls(FILE *f, Expr *program) {
 static void emit_header_defs_and_funcs(FILE *f, Expr *program) {
     // Struct definitions with fields in dependency order (topo sorted)
     {
-        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
+        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             if (stmt->data.tag == ExprData_TAG_Decl &&
@@ -3045,7 +3045,7 @@ I32 build_header(Expr *program, Str *h_path) {
 // Dead code — replaced by emit_header_defs_and_funcs. Kept in #if 0 until verified.
 #if 0
     {
-        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
+        Vec to_emit_h; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"U32", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(U32)}); to_emit_h = *_vp; free(_vp); }
         for (U32 i = 0; i < program->children.count; i++) {
             Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
             if (stmt->data.tag == ExprData_TAG_Decl &&
