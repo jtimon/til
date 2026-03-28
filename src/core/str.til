@@ -8,13 +8,11 @@ format := func(parts: ..Str) returns Str {
     for s : Str in parts {
         total = total.add(s.len())
     }
-    buf : Dynamic = malloc(total)
-    mut offset : USize = 0
+    mut out := Str.with_capacity(total)
     for s : Str in parts {
-        memcpy(ptr_add(buf, offset), s.c_str, s.len())
-        offset = offset.add(s.len())
+        out.push_str(s)
     }
-    return Str(c_str = buf, count = total, cap = total)
+    return out
 }
 
 Str := struct {
@@ -50,12 +48,10 @@ namespace:
     }
 
     concat := func(a: Str, b: Str) returns Str {
-        new_len := a.count.add(b.count)
-        new_data : Dynamic = malloc(new_len.add(1))
-        memcpy(new_data, a.c_str, a.count)
-        memcpy(ptr_add(new_data, a.count), b.c_str, b.count)
-        memset(ptr_add(new_data, new_len), 0, 1)
-        return Str(c_str = new_data, count = new_len, cap = new_len)
+        mut out := Str.with_capacity(a.count.add(b.count))
+        out.push_str(a)
+        out.push_str(b)
+        return out
     }
 
     with_capacity := func(n: USize) returns Str {
@@ -172,24 +168,38 @@ namespace:
 
     replace := func(self: Str, from: Str, to: Str) returns Str {
         if from.count.eq(0) { return self.clone() }
-        mut result := ""
+        mut matches : USize = 0
         mut start : USize = 0
         while start.lte(self.count.sub(from.count)) {
             rest := self.substr(start, self.count.sub(start))
             pos := rest.find(from)
             if pos.eq(-1) {
-                result = result.concat(rest)
-                return result
+                break
             }
             pos_u : USize = pos.to_usize()
-            result = result.concat(self.substr(start, pos_u))
-            result = result.concat(to)
+            start = start.add(pos_u).add(from.count)
+            matches = matches.add(1)
+        }
+        if matches.eq(0) { return self.clone() }
+        removed := matches.mul(from.count)
+        added := matches.mul(to.count)
+        mut out := Str.with_capacity(self.count.sub(removed).add(added))
+        start = 0
+        while start.lte(self.count.sub(from.count)) {
+            rest := self.substr(start, self.count.sub(start))
+            pos := rest.find(from)
+            if pos.eq(-1) {
+                break
+            }
+            pos_u : USize = pos.to_usize()
+            out.push_str(self.substr(start, pos_u))
+            out.push_str(to)
             start = start.add(pos_u).add(from.count)
         }
         if start.lt(self.count) {
-            result = result.concat(self.substr(start, self.count.sub(start)))
+            out.push_str(self.substr(start, self.count.sub(start)))
         }
-        return result
+        return out
     }
 
     get_char := func(self: Str, i: USize) returns Str {
@@ -264,11 +274,17 @@ namespace:
 
 join := func(parts: Vec, sep: Str) returns Str {
     if parts.len().eq(0) { return "" }
-    mut result := ""
+    mut total : USize = 0
     for i in 0..parts.len() {
-        if i.gt(0) { result = result.concat(sep) }
         ref p : Str = parts.get(i)
-        result = result.concat(p)
+        total = total.add(p.len())
     }
-    return result
+    total = total.add(sep.len().mul(parts.len().sub(1)))
+    mut out := Str.with_capacity(total)
+    for i in 0..parts.len() {
+        if i.gt(0) { out.push_str(sep) }
+        ref p : Str = parts.get(i)
+        out.push_str(p)
+    }
+    return out
 }

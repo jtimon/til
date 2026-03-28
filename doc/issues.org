@@ -593,30 +593,6 @@
    without ownership issues. In the future, the ~shallow~ keyword could
    be computed automatically from this property plus size considerations.
 
-** OPEN #46 Optimize Str with with_capacity in concat, join, etc.
-  str.til methods like concat, join, and others build strings by repeated
-  push_byte or append without pre-allocating. This causes excessive
-  reallocations. Use Str.with_capacity to pre-compute the final size and
-  allocate once upfront. Should measurably improve performance since Str
-  operations are on the hot path for the compiler.
-
-  Historical note:
-  - the basic ~with_capacity/push_str~ API itself was implemented already
-    (see fixed.org phase 4)
-
-  Remaining open part:
-  - there is still an interpreter-specific regression around
-    ~Str.with_capacity(...)~
-  - current concrete failure is the ~push_str on a with_capacity buffer~
-    block in [src/test/strings.til](/home/jt/sync/data_common/code/jt/til/src/test/strings.til)
-  - compiled/run mode passes, but interp currently behaves as if the
-    ~with_capacity~ receiver were a view/literal by the time ~push_str~
-    executes
-
-  So #46 is now partly performance and partly semantic cleanup:
-  - keep extending internal Str code to use ~with_capacity~ where profitable
-  - fix the remaining interpreter mismatch for mutable preallocated strings
-
 ** WIP #39 Self-hosting: replace C modules with til (bottom-up)
   :DEPENDENCIES: #71 #74
   The centralized issue for tracking self-hosting progress.

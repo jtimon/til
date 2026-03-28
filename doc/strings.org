@@ -4,7 +4,7 @@
 
 #+begin_src til
 Str := struct {
-    own mut data : U8 = 0   # pointer to buffer
+    own mut c_str : U8 = 0   # pointer to buffer
     mut count := 0           # content length in bytes
     mut cap := 0             # allocated capacity, or sentinel
 }
@@ -43,7 +43,7 @@ s := a.clone()      # owned copy
 
 *** View (from substr)
 #+begin_src til
-view := s.substr(2, 3)   # count=3, cap=CAP_VIEW, points into s.data
+view := s.substr(2, 3)   # count=3, cap=CAP_VIEW, points into s.c_str
 owned := view.clone()     # materializes view into owned string
 #+end_src
 
@@ -61,7 +61,7 @@ s.push_str("hello")           # count=5, cap=100 (in-place, no realloc)
 #+begin_src til
 delete := func(own self: Str, call_free: Bool = true) {
     if self.cap.gte(0) {     # owned — free the buffer
-        free(own self.data)
+        free(own self.c_str)
     }
     if call_free { free(own self) }
 }
@@ -76,8 +76,8 @@ Clone always creates an owned copy regardless of source cap:
 #+begin_src til
 clone := func(val: Str) returns Str {
     own new_data : U8 = malloc(val.count)
-    memcpy(new_data, val.data, val.count)
-    return Str(data = new_data, count = val.count, cap = val.count)
+    memcpy(new_data, val.c_str, val.count)
+    return Str(c_str = new_data, count = val.count, cap = val.count)
 }
 #+end_src
 
@@ -86,3 +86,24 @@ clone := func(val: Str) returns Str {
 ~push_str~ panics when ~cap < 0~ (view or literal). Views and literals are
 borrowed/static data — mutating them is not allowed. Call ~.clone()~ first
 to get an owned copy, then push_str on that.
+
+** Optimized Builders
+
+The hot string builders now use ~Str.with_capacity(...)~ directly:
+
+- ~format(parts...)~
+- ~concat(a, b)~
+- ~replace(self, from, to)~
+- ~join(parts, sep)~
+
+The intended pattern is:
+
+#+begin_src til
+out := Str.with_capacity(total_len)
+out.push_str(part1)
+out.push_str(part2)
+return out
+#+end_src
+
+This keeps the API surface simple and avoids custom malloc/copy loops in the
+individual helpers.

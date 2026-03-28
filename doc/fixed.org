@@ -1083,7 +1083,29 @@
    ~Str.with_capacity(n)~ creates Str with count=0, cap=n.
    ~Str.push_str(s)~ appends in-place, panics if capacity exceeded (no realloc —
    buffers never move so views stay valid).
-   format() rewritten to use single malloc + memcpy (O(n) vs O(n²) concat).
+   format() rewritten to use ~with_capacity~ + ~push_str~.
+
+** FIXED #46 Optimize Str with with_capacity in concat, join, etc.
+   The remaining semantic and optimization work around ~Str.with_capacity~
+   is now done.
+
+   What landed:
+   - fixed the interpreter bug where struct construction was moving every
+     identifier arg unconditionally instead of obeying ~is_own_arg~
+     - that was consuming globals like ~CAP_VIEW~ through
+       ~Str(..., cap = CAP_VIEW)~ in ~substr~
+     - this was the real cause of the old interp-only ~with_capacity/push_str~
+       regression
+   - restored the disabled ~strings.til~ coverage for the
+     ~with_capacity + push_str~ path
+   - switched the hot string builders to the intended
+     ~with_capacity~ design directly:
+     - ~format~
+     - ~concat~
+     - ~replace~
+     - ~join~
+   - updated ~strings.org~ to match the real ~Str~ fields and current
+     optimized-builder design
 
 * FIXED #1 builder/interpreter consistency: eliminate unnecessary special cases
 ** FIXED #119 Struct literals take ownership except for ref fields
