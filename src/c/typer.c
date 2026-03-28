@@ -1422,18 +1422,6 @@ static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
     fcall->data.data.FCall.variadic_count = 0;
 }
 
-static Expr *build_kwargs_dynmap_decl(Expr *fcall, Str *kw_name) {
-    I32 line = fcall->line, col = fcall->col;
-    Str *path = &fcall->path;
-    Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
-                                   &(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT}, fcall);
-    Expr *kw_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-    kw_decl->data.data.Decl.name = *kw_name;
-    kw_decl->til_type = (TilType){TilType_TAG_Struct};
-    Expr_add_child(kw_decl, new_call);
-    return kw_decl;
-}
-
 static Expr *build_kwargs_dynmap_set(Expr *fcall, TypeScope *scope, Str *kw_name, Expr *named_arg) {
     I32 line = fcall->line, col = fcall->col;
     Str *path = &fcall->path;

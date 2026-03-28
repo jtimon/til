@@ -424,6 +424,16 @@ make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, ret_sna
     return call
 }
 
+build_kwargs_dynmap_decl := func(fcall: Expr, kw_name: Str) returns Expr {
+    mut new_call := make_ns_call("DynMap", "new", TilType.Struct, "DynMap", fcall)
+    mut kw_decl := Expr.new(ExprData.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
+    ref mut dd : Declaration = get_payload(kw_decl.data)
+    dd.name = kw_name.clone()
+    kw_decl.til_type = TilType.Struct
+    kw_decl.add_child(own new_call)
+    return kw_decl
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }
