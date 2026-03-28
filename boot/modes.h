@@ -819,6 +819,7 @@ LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);
 void type_error(Expr * e, Str * msg);
+void infer_ident_expr(TypeScope * scope, Expr * expr);
 Bool is_numeric_type(TilType * t);
 Bool is_integral_numeric_type(TilType * t);
 Bool type_ctor_consumes(TilType * t);

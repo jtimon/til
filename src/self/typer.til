@@ -29,6 +29,26 @@ type_error := proc(e: Expr, msg: Str) {
     errors.inc()
 }
 
+infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
+    type := scope.get_type(get_payload(expr.data))
+    if is_variant(type, TilType.Unknown) {
+        type_error(expr, "undefined symbol '".concat(get_payload(expr.data)).concat("'"))
+    }
+    expr.til_type = type
+    ref ib : TypeBinding = scope.get_binding(get_payload(expr.data))
+    if is_null(ib).not() {
+        if is_variant(type, TilType.Struct).or(is_variant(type, TilType.Enum)) {
+            if ib.struct_name.len().gt(0) { expr.struct_name = ib.struct_name.clone() }
+        }
+        if is_null(ib.func_def).not() {
+            expr.til_type = TilType.FuncPtr
+        }
+        if is_null(ib.struct_def).not() {
+            expr.struct_name = resolve_type_alias(scope, get_payload(expr.data)).clone()
+        }
+    }
+}
+
 is_numeric_type := func(t: TilType) returns shallow Bool {
     switch t {
     case TilType.I64: return true

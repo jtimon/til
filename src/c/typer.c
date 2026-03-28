@@ -44,27 +44,6 @@ static Bool ctor_field_consumes(TilType t) {
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
-static void infer_ident_expr(TypeScope *scope, Expr *e) {
-    TilType t = *TypeScope_get_type(scope, &e->data.data.Ident);
-    if (t.tag == TilType_TAG_Unknown) {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->data.data.Ident.c_str);
-        type_error(e, STR_VIEW(buf));
-    }
-    e->til_type = t;
-    ScopeFind *_sf_id = TypeScope_find(scope, &e->data.data.Ident);
-    TypeBinding *ib = _sf_id->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_id) : NULL;
-    if (ib && (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)) {
-        if (ib->struct_name.count > 0) e->struct_name = *Str_clone(&ib->struct_name);
-    }
-    if (ib && ib->func_def) {
-        e->til_type = (TilType){TilType_TAG_FuncPtr};
-    }
-    if (ib && ib->struct_def) {
-        e->struct_name = *Str_clone(resolve_type_alias(scope, &e->data.data.Ident));
-    }
-}
-
 static void infer_named_arg_expr(TypeScope *scope, Expr *e, I32 in_func) {
     if (e->children.count > 0) {
         infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
