@@ -39,7 +39,6 @@ static void type_error(Expr *e, const char *msg) {
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
-static Str *type_to_name(TilType *type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Expr *src);
 static Expr *make_ns_call(const char *sname, const char *method,
                            TilType ret_type, Str *ret_sname, Expr *src);
@@ -1957,23 +1956,6 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
 }
 
 // --- Delete call insertion ---
-
-static Str *type_to_name(TilType *type, Str *struct_name) {
-    static Str empty_name = {0};
-
-    if (struct_name && struct_name->count > 0) return struct_name;
-    switch (type->tag) {
-        case TilType_TAG_I64:  return &I64Name;
-        case TilType_TAG_U8:   return &U8Name;
-        case TilType_TAG_I16:  return &I16Name;
-        case TilType_TAG_I32:  return &I32Name;
-        case TilType_TAG_U32:  return &U32Name;
-        case TilType_TAG_U64:  return &U64Name;
-        case TilType_TAG_F32:  return &F32Name;
-        case TilType_TAG_Bool: return &BoolName;
-        default: return &empty_name;
-    }
-}
 
 static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Bool arg_is_own, Bool call_free, Expr *src) {
     Str *tname = type_to_name(&type, struct_name);

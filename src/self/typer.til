@@ -305,6 +305,21 @@ type_prefix := func(t: TilType, sname: Str) returns Str {
     }
 }
 
+type_to_name := func(t: TilType, struct_name: Str) returns Str {
+    if struct_name.len().gt(0) { return struct_name }
+    switch t {
+    case TilType.I64: return I64Name
+    case TilType.U8: return U8Name
+    case TilType.I16: return I16Name
+    case TilType.I32: return I32Name
+    case TilType.U32: return U32Name
+    case TilType.U64: return U64Name
+    case TilType.F32: return F32Name
+    case TilType.Bool: return BoolName
+    case: return ""
+    }
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }
