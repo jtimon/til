@@ -24,6 +24,11 @@ LocalInfo := struct {
     mut skip_scope_delete := false
 }
 
+type_error := proc(e: Expr, msg: Str) {
+    println(e.path, ":", e.line.to_str(), ":", e.col.to_str(), ": type error: ", msg)
+    errors.inc()
+}
+
 is_numeric_type := func(t: TilType) returns shallow Bool {
     switch t {
     case TilType.I64: return true

@@ -817,6 +817,7 @@ U32 * TypeScope_size(void);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);
+void type_error(Expr * e, Str * msg);
 Bool is_numeric_type(TilType * t);
 Bool is_integral_numeric_type(TilType * t);
 Bool type_ctor_consumes(TilType * t);

@@ -25,13 +25,13 @@ Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr);
 I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
 void narrow_dynamic(Expr *expr, TilType *target, Str *target_struct_name);
 Bool field_assign_needs_delete(Expr *stmt);
+void type_error(Expr *e, Str *msg);
+
+#define STR_LIT(s) (&(Str){.c_str=(U8 *)(s), .count=(U64)(sizeof(s) - 1), .cap=CAP_LIT})
+#define STR_VIEW(s) (&(Str){.c_str=(U8 *)(s), .count=(U64)strlen((const char *)(s)), .cap=CAP_VIEW})
 
 // --- Type inference/checking pass ---
 
-static void type_error(Expr *e, const char *msg) {
-    fprintf(stderr, "%s:%u:%u: type error: %s\n", e->path.c_str, e->line, e->col, msg);
-    errors++;
-}
 
 static Bool ctor_field_consumes(TilType t) {
     return t.tag == TilType_TAG_Struct ||
@@ -49,7 +49,7 @@ static void infer_ident_expr(TypeScope *scope, Expr *e) {
     if (t.tag == TilType_TAG_Unknown) {
         char buf[128];
         snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->data.data.Ident.c_str);
-        type_error(e, buf);
+        type_error(e, STR_VIEW(buf));
     }
     e->til_type = t;
     ScopeFind *_sf_id = TypeScope_find(scope, &e->data.data.Ident);
@@ -127,15 +127,15 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             // Test function constraints
             if (ftype.tag == FuncType_TAG_Test) {
                 if (scope->parent != NULL)
-                    type_error(e, "test functions can only be declared in root scope");
+                    type_error(e, STR_LIT("test functions can only be declared in root scope"));
                 if (e->data.data.FuncDef.return_type.count > 0)
-                    type_error(e, "test functions cannot have a return type");
+                    type_error(e, STR_LIT("test functions cannot have a return type"));
                 if (e->data.data.FuncDef.nparam > 0)
-                    type_error(e, "test functions cannot have parameters");
+                    type_error(e, STR_LIT("test functions cannot have parameters"));
             }
             // Pure mode: reject user-declared procs (allow core procs)
             if (current_mode.is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
-                type_error(e, "proc not allowed in pure mode");
+                type_error(e, STR_LIT("proc not allowed in pure mode"));
             TypeScope *func_scope = TypeScope_new(scope);
             // Resolve return type alias
             if (e->data.data.FuncDef.return_type.count > 0)
@@ -149,7 +149,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (pt.tag == TilType_TAG_Unknown) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", ptn->c_str);
-                    type_error(e, buf);
+                    type_error(e, STR_VIEW(buf));
                 }
                 Bool pmut = _pi->is_mut;
                 Bool pown = _pi->is_own;
@@ -161,9 +161,9 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
                                  _pi->name.c_str);
-                        type_error(e, buf);
+                        type_error(e, STR_VIEW(buf));
                     }
-                    if (pown) type_error(e, "parameter cannot be both 'shallow' and 'own'");
+                    if (pown) type_error(e, STR_LIT("parameter cannot be both 'shallow' and 'own'"));
                 }
                 // Variadic param: bind as Array (element type already validated above)
                 if ((I32)i == e->data.data.FuncDef.variadic_index) {
@@ -197,7 +197,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             infer_body(func_scope, Expr_child(e, &(USize){(USize)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref, 0);
             // Check: macro must have a return type (funcs allowed without)
             if (is_macro && (e->data.data.FuncDef.return_type).count == 0) {
-                type_error(e, "macro must declare a return type");
+                type_error(e, STR_LIT("macro must declare a return type"));
             }
             // Validate ref returns: every return value must be a param or ref variable
             if (e->data.data.FuncDef.return_is_ref) {
@@ -207,7 +207,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     if (s->data.tag != ExprData_TAG_Return || s->children.count == 0) continue;
                     Expr *rv = Expr_child(s, &(USize){(USize)(0)});
                     Bool ok = expr_is_borrow_source(rv, func_scope);
-                    if (!ok) type_error(s, "ref function must return a parameter or ref variable");
+                    if (!ok) type_error(s, STR_LIT("ref function must return a parameter or ref variable"));
                 }
             }
             TypeScope_delete(func_scope, &(Bool){1});
@@ -223,7 +223,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 Expr *v = Expr_child(body, &(USize){(USize)(vi)});
                 if (v->data.tag == ExprData_TAG_Decl && !v->data.data.Decl.is_namespace &&
                     (v->data.data.Decl.explicit_type).count > 0 && v->data.data.Decl.is_ref) {
-                    type_error(v, "ref payloads in tagged enum variants are not supported");
+                    type_error(v, STR_LIT("ref payloads in tagged enum variants are not supported"));
                 }
             }
         }
@@ -330,7 +330,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                                     char buf2[128];
                                     snprintf(buf2, sizeof(buf2), "function pointer field '%s' expects %u args, got %u",
                                              method->c_str, sig->data.data.FuncDef.nparam, nargs);
-                                    type_error(e, buf2);
+                                    type_error(e, STR_VIEW(buf2));
                                 }
                                 for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
                                     infer_expr(scope, Expr_child(e, &(USize){(USize)(ai + 1)}), in_func);
@@ -358,7 +358,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
                                  (const char *)method->c_str, type_name ? (const char *)type_name->c_str : "unknown");
                     }
-                    type_error(e, buf);
+                    type_error(e, STR_VIEW(buf));
                     e->til_type = (TilType){TilType_TAG_Unknown};
                     break;
                 }
@@ -404,7 +404,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             if (!ns_func) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "no namespace function '%s'", method->c_str);
-                type_error(e, buf);
+                type_error(e, STR_VIEW(buf));
                 e->til_type = (TilType){TilType_TAG_Unknown};
                 break;
             }
@@ -430,17 +430,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         if (slot < 0) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "no parameter '%s'", aname->c_str);
-                            type_error(arg, buf);
+                            type_error(arg, STR_VIEW(buf));
                         } else if (new_args[slot]) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
-                            type_error(arg, buf);
+                            type_error(arg, STR_VIEW(buf));
                         } else {
                             new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
                         }
                     } else {
                         if (seen_named) {
-                            type_error(arg, "positional argument after named argument");
+                            type_error(arg, STR_LIT("positional argument after named argument"));
                         }
                         if (pos_idx < np) {
                             new_args[pos_idx] = Expr_clone(arg);
@@ -458,14 +458,14 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
                                      _pn->c_str);
-                            type_error(e, buf);
+                            type_error(e, STR_VIEW(buf));
                         }
                     }
                 }
                 if (pos_idx > np) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d", np, pos_idx);
-                    type_error(e, buf);
+                    type_error(e, STR_VIEW(buf));
                 }
                 // Rebuild children: callee + desugared args
                 Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
@@ -501,7 +501,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                                  arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
-                        type_error(arg, buf);
+                        type_error(arg, STR_VIEW(buf));
                     }
                     arg->til_type = ptype; continue;
                 }
@@ -514,14 +514,14 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
                              ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
                              ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
-                    type_error(arg, buf);
+                    type_error(arg, STR_VIEW(buf));
                 } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
                            (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
                              ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
                              ptype_name->c_str, arg->struct_name.c_str);
-                    type_error(arg, buf);
+                    type_error(arg, STR_VIEW(buf));
                 }
             }
             // #88: own p.delete() — propagate own from FieldAccess callee to UFCS-inserted first arg
@@ -539,22 +539,22 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
                                      _pp->name.c_str);
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), buf);
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_VIEW(buf));
                         } else if (!pown && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
                                      _pp->name.c_str);
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), buf);
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_VIEW(buf));
                         }
                         if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident) {
                             ScopeFind *_sf_ab = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(i)})->data.data.Ident);
                             TypeBinding *ab = _sf_ab->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab) : NULL;
-                            if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(i)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
+                            if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy"));
                         }
                         if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), "cannot pass null to 'own' parameter");
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass null to 'own' parameter"));
                         if (_pp->is_shallow && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), "cannot pass null to 'shallow' parameter");
+                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass null to 'shallow' parameter"));
                     }
                 }
             }
@@ -588,7 +588,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             if (sb && sb->is_builtin && !sb->is_ext) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "cannot instantiate builtin type '%s'", name->c_str);
-                type_error(e, buf);
+                type_error(e, STR_VIEW(buf));
                 e->til_type = (TilType){TilType_TAG_Unknown};
                 break;
             }
@@ -610,7 +610,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             for (U32 i = 1; i < e->children.count; i++) {
                 Expr *arg = Expr_child(e, &(USize){(USize)(i)});
                 if (arg->data.tag != ExprData_TAG_NamedArg) {
-                    type_error(arg, "struct instantiation requires named arguments");
+                    type_error(arg, STR_LIT("struct instantiation requires named arguments"));
                     continue;
                 }
                 Str *aname = &arg->data.data.Ident;
@@ -624,11 +624,11 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 if (slot < 0) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'", name->c_str, aname->c_str);
-                    type_error(arg, buf);
+                    type_error(arg, STR_VIEW(buf));
                 } else if (field_vals[slot]) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "duplicate argument for field '%s'", aname->c_str);
-                    type_error(arg, buf);
+                    type_error(arg, STR_VIEW(buf));
                 } else {
                     field_vals[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
                 }
@@ -712,17 +712,17 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     } else if (slot < 0) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "'%s' has no parameter '%s'", name->c_str, aname->c_str);
-                        type_error(arg, buf);
+                        type_error(arg, STR_VIEW(buf));
                     } else if (new_args[slot]) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
-                        type_error(arg, buf);
+                        type_error(arg, STR_VIEW(buf));
                     } else {
                         new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
                     }
                 } else {
                     if (seen_named) {
-                        type_error(arg, "positional argument after named argument");
+                        type_error(arg, STR_LIT("positional argument after named argument"));
                     }
                     if (vi >= 0 && pos_idx >= fixed_count) {
                         // Variadic arg
@@ -745,7 +745,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
                                  _pn->c_str);
-                        type_error(e, buf);
+                        type_error(e, STR_VIEW(buf));
                     }
                 }
             }
@@ -754,7 +754,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d",
                          nparam, pos_idx);
-                type_error(e, buf);
+                type_error(e, STR_VIEW(buf));
             }
             // Rebuild children: callee + args_before_variadic + variadic_args + args_after_variadic
             Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
@@ -821,7 +821,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                                  arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
-                        type_error(arg, buf);
+                        type_error(arg, STR_VIEW(buf));
                     }
                     arg->til_type = ptype; ci++; continue;
                 }
@@ -834,14 +834,14 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
                              ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
                              ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
-                    type_error(arg, buf);
+                    type_error(arg, STR_VIEW(buf));
                 } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
                            (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
                              ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
                              ptype_name->c_str, arg->struct_name.c_str);
-                    type_error(arg, buf);
+                    type_error(arg, STR_VIEW(buf));
                 }
                 ci++;
             }
@@ -852,7 +852,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             e->children.count >= 3) {
             Expr *method_arg = Expr_child(e, &(USize){(USize)(2)});
             if (method_arg->data.tag != ExprData_TAG_LiteralStr) {
-                type_error(method_arg, "dyn_call method argument must be a string literal");
+                type_error(method_arg, STR_LIT("dyn_call method argument must be a string literal"));
             }
         }
         // array/vec builtins: type_name (1st arg) must be a string literal
@@ -860,7 +860,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             e->children.count >= 2) {
             Expr *type_arg = Expr_child(e, &(USize){(USize)(1)});
             if (type_arg->data.tag != ExprData_TAG_LiteralStr) {
-                type_error(type_arg, "array/vec type_name argument must be a string literal");
+                type_error(type_arg, STR_LIT("array/vec type_name argument must be a string literal"));
             }
         }
         // Validate 'own' markers on arguments (variadic-aware)
@@ -886,22 +886,22 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
                              _pp2->name.c_str);
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), buf);
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
                 } else if (!pown && Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
                              _pp2->name.c_str);
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), buf);
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
                 }
                 if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_Ident) {
                     ScopeFind *_sf_ab2 = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(ci)})->data.data.Ident);
                     TypeBinding *ab = _sf_ab2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab2) : NULL;
-                    if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(ci)}), "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy");
+                    if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy"));
                 }
                 if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), "cannot pass null to 'own' parameter");
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'own' parameter"));
                 if (_pp2->is_shallow && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), "cannot pass null to 'shallow' parameter");
+                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'shallow' parameter"));
                 ci++;
             }
         }
@@ -910,7 +910,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (fn_type.tag == TilType_TAG_Unknown) {
             char buf[128];
             snprintf(buf, sizeof(buf), "undefined function '%s'", name->c_str);
-            type_error(e, buf);
+            type_error(e, STR_VIEW(buf));
         }
         // Function pointer call: resolve return type from func_def if available
         // Only for actual func ptr variables (is_proc == -1), not functions returning func ptrs
@@ -938,7 +938,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "function pointer '%s' expects %u args, got %u",
                              name->c_str, sig->data.data.FuncDef.nparam, nargs);
-                    type_error(e, buf);
+                    type_error(e, STR_VIEW(buf));
                 }
                 for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
                     Expr *arg = Expr_child(e, &(USize){(USize)(ai + 1)});
@@ -952,7 +952,7 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                         snprintf(buf, sizeof(buf), "function pointer '%s' param %u: expected %s, got %s",
                                  name->c_str, ai + 1, expected_name->c_str,
                                  til_type_name_c(&arg->til_type)->c_str);
-                        type_error(e, buf);
+                        type_error(e, STR_VIEW(buf));
                     }
                 }
             }
@@ -982,13 +982,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             in_func && TypeScope_is_proc(scope, name) == 1 && !(name->count == 5 && memcmp(name->c_str, "panic", 5) == 0) && !debug_exempt) {
             char buf[128];
             snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name->c_str);
-            type_error(e, buf);
+            type_error(e, STR_VIEW(buf));
         }
         // Check: test functions cannot be called by anyone
         if (TypeScope_is_proc(scope, name) == 2) {
             char buf[128];
             snprintf(buf, sizeof(buf), "test functions cannot be called ('%s')", name->c_str);
-            type_error(e, buf);
+            type_error(e, STR_VIEW(buf));
         }
         done_fcall:
         break;
@@ -1047,12 +1047,12 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     snprintf(buf, sizeof(buf), "%s '%s' has no field '%s'",
                              sdef->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
                              obj->struct_name.c_str, fname->c_str);
-                    type_error(e, buf);
+                    type_error(e, STR_VIEW(buf));
                     e->til_type = (TilType){TilType_TAG_Unknown};
                 }
             }
         } else {
-            type_error(e, "field access on non-struct value");
+            type_error(e, STR_LIT("field access on non-struct value"));
             e->til_type = (TilType){TilType_TAG_Unknown};
         }
         break;
@@ -1081,7 +1081,7 @@ static void desugar_set_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
     Str *var_name = &stmt->data.data.Decl.name;
 
     if (set_lit->children.count == 0) {
-        type_error(set_lit, "set literal must have at least one element");
+        type_error(set_lit, STR_LIT("set literal must have at least one element"));
         Vec_push(new_ch, Expr_clone(stmt));
         return;
     }
@@ -1089,7 +1089,7 @@ static void desugar_set_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
     Expr *first = Expr_child(set_lit, &(USize){(USize)(0)});
     Str *elem_type = type_to_name(&first->til_type, &first->struct_name);
     if (elem_type->count == 0) {
-        type_error(first, "set literal: cannot determine element type");
+        type_error(first, STR_LIT("set literal: cannot determine element type"));
         Vec_push(new_ch, Expr_clone(stmt));
         return;
     }
@@ -1097,14 +1097,14 @@ static void desugar_set_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
     if (!type_has_cmp(scope, elem_type)) {
         char buf[128];
         snprintf(buf, sizeof(buf), "set literal: element type '%s' must implement cmp", elem_type->c_str);
-        type_error(first, buf);
+        type_error(first, STR_VIEW(buf));
     }
 
     for (U32 j = 1; j < set_lit->children.count; j++) {
         Expr *v = Expr_child(set_lit, &(USize){(USize)(j)});
         Str *vt = type_to_name(&v->til_type, &v->struct_name);
         if (vt->count == 0 || !Str_eq(vt, elem_type))
-            type_error(v, "set literal: all elements must be the same type");
+            type_error(v, STR_LIT("set literal: all elements must be the same type"));
     }
 
     Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
@@ -1151,12 +1151,12 @@ static void desugar_map_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
     U32 n_pairs = map_lit->children.count / 2;
 
     if (map_lit->children.count == 0) {
-        type_error(map_lit, "map literal must have at least one entry");
+        type_error(map_lit, STR_LIT("map literal must have at least one entry"));
         Vec_push(new_ch, Expr_clone(stmt));
         return;
     }
     if (map_lit->children.count % 2 != 0) {
-        type_error(map_lit, "map literal has mismatched key/value pairs");
+        type_error(map_lit, STR_LIT("map literal has mismatched key/value pairs"));
         Vec_push(new_ch, Expr_clone(stmt));
         return;
     }
@@ -1167,12 +1167,12 @@ static void desugar_map_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
     Str *val_type = type_to_name(&first_val->til_type, &first_val->struct_name);
 
     if (key_type->count == 0) {
-        type_error(first_key, "map literal: cannot determine key type");
+        type_error(first_key, STR_LIT("map literal: cannot determine key type"));
         Vec_push(new_ch, Expr_clone(stmt));
         return;
     }
     if (val_type->count == 0) {
-        type_error(first_val, "map literal: cannot determine value type");
+        type_error(first_val, STR_LIT("map literal: cannot determine value type"));
         Vec_push(new_ch, Expr_clone(stmt));
         return;
     }
@@ -1180,7 +1180,7 @@ static void desugar_map_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
     if (!type_has_cmp(scope, key_type)) {
         char buf[128];
         snprintf(buf, sizeof(buf), "map literal: key type '%s' must implement cmp", key_type->c_str);
-        type_error(first_key, buf);
+        type_error(first_key, STR_VIEW(buf));
     }
 
     for (U32 j = 2; j < map_lit->children.count; j += 2) {
@@ -1189,9 +1189,9 @@ static void desugar_map_literal_decl(Expr *stmt, Vec *new_ch, TypeScope *scope) 
         Str *kt = type_to_name(&k->til_type, &k->struct_name);
         Str *vt = type_to_name(&v->til_type, &v->struct_name);
         if (kt->count == 0 || !Str_eq(kt, key_type))
-            type_error(k, "map literal: all keys must be the same type");
+            type_error(k, STR_LIT("map literal: all keys must be the same type"));
         if (vt->count == 0 || !Str_eq(vt, val_type))
-            type_error(v, "map literal: all values must be the same type");
+            type_error(v, STR_LIT("map literal: all values must be the same type"));
     }
 
     Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
@@ -1694,7 +1694,7 @@ static void check_use_after_own_transfer(Expr *body, LocalInfo *locals, U32 n_lo
             Expr *stmt = Expr_child(body, &(USize){(USize)(locals[j].last_use)});
             char buf[128];
             snprintf(buf, sizeof(buf), "use of '%s' after ownership transfer", locals[j].name->c_str);
-            type_error(stmt, buf);
+            type_error(stmt, STR_VIEW(buf));
             Expr *xfer = Expr_child(body, &(USize){(USize)(locals[j].own_transfer)});
             fprintf(stderr, "%s:%u:%u: note: ownership transferred here\n",
                     xfer->path.c_str, xfer->line, xfer->col);
@@ -1759,11 +1759,11 @@ static void infer_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
     if (existing.tag == TilType_TAG_Unknown) {
         char buf[128];
         snprintf(buf, sizeof(buf), "undefined symbol '%s'", aname->c_str);
-        type_error(stmt, buf);
+        type_error(stmt, STR_VIEW(buf));
     } else if (!TypeScope_is_mut(scope, aname)) {
         char buf[128];
         snprintf(buf, sizeof(buf), "cannot assign to immutable variable '%s'", aname->c_str);
-        type_error(stmt, buf);
+        type_error(stmt, STR_VIEW(buf));
         ScopeFind *_sf_asgn = TypeScope_find(scope, aname);
         TypeBinding *b = _sf_asgn->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_asgn) : NULL;
         if (b && b->is_param) {
@@ -1778,7 +1778,7 @@ static void infer_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
             char buf[128];
             snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                      Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&existing)->c_str);
-            type_error(stmt, buf);
+            type_error(stmt, STR_VIEW(buf));
         }
         Expr_child(stmt, &(USize){(USize)(0)})->til_type = existing;
         stmt->til_type = existing;
@@ -1788,7 +1788,7 @@ static void infer_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
         snprintf(buf, sizeof(buf), "'%s' is %s but assigned %s",
                  aname->c_str, til_type_name_c(&existing)->c_str,
                  til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-        type_error(stmt, buf);
+        type_error(stmt, STR_VIEW(buf));
     }
     if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident ||
         (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
@@ -1824,14 +1824,14 @@ static void infer_field_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
                     if (!field->data.data.Decl.is_mut) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
-                        type_error(stmt, buf);
+                        type_error(stmt, STR_VIEW(buf));
                     }
                     if (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&field->til_type)) {
                         if (!literal_in_range(&Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident, &field->til_type)) {
                             char buf[128];
                             snprintf(buf, sizeof(buf), "integer literal %s out of range for field '%s' (%s)",
                                      Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident.c_str, fname->c_str, til_type_name_c(&field->til_type)->c_str);
-                            type_error(Expr_child(stmt, &(USize){(USize)(1)}), buf);
+                            type_error(Expr_child(stmt, &(USize){(USize)(1)}), STR_VIEW(buf));
                         }
                         Expr_child(stmt, &(USize){(USize)(1)})->til_type = field->til_type;
                     } else if (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != field->til_type.tag &&
@@ -1841,7 +1841,7 @@ static void infer_field_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
                         snprintf(buf, sizeof(buf), "field '%s' is %s but assigned %s",
                                  fname->c_str, til_type_name_c(&field->til_type)->c_str,
                                  til_type_name_c(&Expr_child(stmt, &(USize){(USize)(1)})->til_type)->c_str);
-                        type_error(stmt, buf);
+                        type_error(stmt, STR_VIEW(buf));
                     }
                     break;
                 }
@@ -1850,11 +1850,11 @@ static void infer_field_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'",
                          obj->struct_name.c_str, fname->c_str);
-                type_error(stmt, buf);
+                type_error(stmt, STR_VIEW(buf));
             }
         }
     } else {
-        type_error(stmt, "field assignment on non-struct value");
+        type_error(stmt, STR_LIT("field assignment on non-struct value"));
     }
     stmt->til_type = (TilType){TilType_TAG_None};
     if (!stmt->is_ref_field &&
@@ -1882,7 +1882,7 @@ static void infer_return_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 ret
             ScopeFind *_sf_ret1 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
             TypeBinding *b = _sf_ret1->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret1) : NULL;
             if (b && b->is_ref && !b->is_alias && !b->is_param) {
-                type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'");
+                type_error(stmt, STR_LIT("cannot return ref variable from non-ref function; use .clone() or 'returns ref'"));
             }
         }
         if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
@@ -1910,7 +1910,7 @@ static void infer_if_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_loop
         char buf[128];
         snprintf(buf, sizeof(buf), "if condition must be Bool, got %s",
                  til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-        type_error(stmt, buf);
+        type_error(stmt, STR_VIEW(buf));
     }
     {
         TypeScope *then_scope = TypeScope_new(scope);
@@ -1947,7 +1947,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                                  stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.explicit_type.c_str,
                                  is_enum ? "EnumDef" : "StructDef");
-                        type_error(stmt, buf);
+                        type_error(stmt, STR_VIEW(buf));
                     }
                 }
                 stmt->til_type = (TilType){TilType_TAG_None};
@@ -1961,7 +1961,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     snprintf(buf, sizeof(buf), "%s '%s' already declared at %s:%u:%u",
                              is_enum ? "enum" : "struct", sname->c_str,
                              existing->struct_def->path.c_str, existing->line, existing->col);
-                    type_error(stmt, buf);
+                    type_error(stmt, STR_VIEW(buf));
                     break;
                 }
 
@@ -1997,7 +1997,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         char buf[128];
                         snprintf(buf, sizeof(buf), "'%s' declared as %s but value is FunctionDef",
                                  stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.explicit_type.c_str);
-                        type_error(stmt, buf);
+                        type_error(stmt, STR_VIEW(buf));
                     }
                 }
                 FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
@@ -2032,7 +2032,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 if (declared.tag == TilType_TAG_Unknown) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
-                    type_error(stmt, buf);
+                    type_error(stmt, STR_VIEW(buf));
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum &&
                            (is_numeric_type(&declared) || declared.tag == TilType_TAG_Dynamic)) {
                     // Numeric literals can be used with numeric types and Dynamic (0 = null)
@@ -2040,11 +2040,11 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                         char buf[128];
                         snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
                                  Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&declared)->c_str);
-                        type_error(Expr_child(stmt, &(USize){(USize)(0)}), buf);
+                        type_error(Expr_child(stmt, &(USize){(USize)(0)}), STR_VIEW(buf));
                     }
                     Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
                 } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
-                    type_error(stmt, "null can only be assigned to 'ref' declarations");
+                    type_error(stmt, STR_LIT("null can only be assigned to 'ref' declarations"));
                 } else if (!stmt->data.data.Decl.is_ref &&
                            declared.tag != TilType_TAG_Dynamic &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Dynamic) {
@@ -2052,7 +2052,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     snprintf(buf, sizeof(buf),
                              "cannot store owned Dynamic in '%s'; write '%s : Dynamic = ...' and borrow with 'ref' for typed access",
                              stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
-                    type_error(stmt, buf);
+                    type_error(stmt, STR_VIEW(buf));
                 } else if (!can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn) &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
                            Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Dynamic) {
@@ -2060,14 +2060,14 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                              stmt->data.data.Decl.name.c_str, til_type_name_c(&declared)->c_str,
                              til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-                    type_error(stmt, buf);
+                    type_error(stmt, STR_VIEW(buf));
                 } else if ((declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) &&
                            (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0) &&
                            !Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(USize){(USize)(0)})->struct_name)) {
                     char buf[128];
                     snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
                              stmt->data.data.Decl.name.c_str, etn->c_str, Expr_child(stmt, &(USize){(USize)(0)})->struct_name.c_str);
-                    type_error(stmt, buf);
+                    type_error(stmt, STR_VIEW(buf));
                 }
                 stmt->til_type = declared;
                 if (can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn))
@@ -2086,7 +2086,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     char buf[128];
                     snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add a type annotation like '%s : Type = ...' to specify the concrete type",
                              stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
-                    type_error(stmt, buf);
+                    type_error(stmt, STR_VIEW(buf));
                 }
             }
             if (!in_type_body && stmt->data.data.Decl.is_own) {
@@ -2100,7 +2100,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                              "no need for 'own' on local '%s'; locals are owned by default",
                              stmt->data.data.Decl.name.c_str);
                 }
-                type_error(stmt, buf);
+                type_error(stmt, STR_VIEW(buf));
             }
             TypeScope_set(scope, &stmt->data.data.Decl.name, &stmt->til_type, -1, stmt->data.data.Decl.is_mut, stmt->line, stmt->col, 0, 0);
             TypeBinding *_decl_b = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
@@ -2132,12 +2132,12 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 // Validate ref RHS: must be null, a ref-returning fcall, or a ref/param variable
                 Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
                 Bool ok = expr_is_ref_decl_source(rhs, scope);
-                if (!ok) type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable");
+                if (!ok) type_error(stmt, STR_LIT("'ref' declaration requires null, a ref-returning function, or ref/param variable"));
             }
             // Error: owning result of ref-returning function without ref
             if (!stmt->data.data.Decl.is_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall &&
                 fcall_returns_ref(Expr_child(stmt, &(USize){(USize)(0)}), scope)) {
-                type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()");
+                type_error(stmt, STR_LIT("cannot own result of ref-returning function; use 'ref' or Type.clone()"));
             }
             // Auto-alias: immutable ident → immutable dest becomes ref (skip for Fn)
             // Eligible sources: immutable locals, immutable params, other auto-aliases
@@ -2183,13 +2183,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             break;
         case ExprData_TAG_Break:
             if (!in_loop) {
-                type_error(stmt, "break outside loop");
+                type_error(stmt, STR_LIT("break outside loop"));
             }
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
         case ExprData_TAG_Continue:
             if (!in_loop) {
-                type_error(stmt, "continue outside loop");
+                type_error(stmt, STR_LIT("continue outside loop"));
             }
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
@@ -2209,7 +2209,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 char buf[128];
                 snprintf(buf, sizeof(buf), "while condition must be Bool, got %s",
                          til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-                type_error(stmt, buf);
+                type_error(stmt, STR_VIEW(buf));
             }
             // Transform: while COND { BODY } -> while true { _wcond := COND; if _wcond {} else { break }; BODY }
             // This lets ASAP destruction free the condition result each iteration.
@@ -2552,7 +2552,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     }
                     variant_idx++;
                 }
-                if (missing) type_error(stmt, buf);
+                if (missing) type_error(stmt, STR_VIEW(buf));
             }
 
             free(covered_variants);
@@ -2719,13 +2719,13 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if ((iter->til_type.tag == TilType_TAG_Struct || iter->til_type.tag == TilType_TAG_Enum) && iter->struct_name.count > 0)
                 type_name = &iter->struct_name;
             if (!type_name) {
-                type_error(stmt, "for-in requires a collection type with get() and len() methods");
+                type_error(stmt, STR_LIT("for-in requires a collection type with get() and len() methods"));
                 break;
             }
 
             Expr *sdef = TypeScope_get_struct(scope, type_name);
             if (!sdef) {
-                type_error(stmt, "for-in requires a collection type with get() and len() methods");
+                type_error(stmt, STR_LIT("for-in requires a collection type with get() and len() methods"));
                 break;
             }
 
@@ -2743,27 +2743,27 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             if (!len_func) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' has no 'len' method (required for for-in)", type_name->c_str);
-                type_error(stmt, buf);
+                type_error(stmt, STR_VIEW(buf));
                 break;
             }
             if (len_func->data.data.FuncDef.nparam != 1 || (len_func->data.data.FuncDef.return_type).count == 0) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' len() must take 1 param and return a scalar for for-in", type_name->c_str);
-                type_error(stmt, buf);
+                type_error(stmt, STR_VIEW(buf));
                 break;
             }
             Str *idx_type = &len_func->data.data.FuncDef.return_type;
             if (!get_func) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' has no 'get' method (required for for-in)", type_name->c_str);
-                type_error(stmt, buf);
+                type_error(stmt, STR_VIEW(buf));
                 break;
             }
             if (get_func->data.data.FuncDef.nparam != 2 || ((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype.count == 0 ||
                 !Str_eq(&((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype, idx_type)) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' get() second param must match len() return type for for-in", type_name->c_str);
-                type_error(stmt, buf);
+                type_error(stmt, STR_VIEW(buf));
                 break;
             }
 
@@ -2777,7 +2777,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     snprintf(buf, sizeof(buf),
                         "cannot infer element type for '%s', use explicit type: for x : Type in ...",
                         type_name->c_str);
-                    type_error(stmt, buf);
+                    type_error(stmt, STR_VIEW(buf));
                     break;
                 }
                 elem_type = ret;
