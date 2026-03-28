@@ -222,7 +222,7 @@ main := proc(args: ..Str) {
 
     // Single resolved set for all imports (core + user), so no file is loaded twice
     resolved := Set.new("Str", Str.size())
-    resolve_stack := Vec.new("", Expr.size())
+    resolve_stack := Vec.new("Expr", Expr.size())
 
     // Add user file to resolved set early (so core imports skip it if it overlaps)
     abs_path := realpath_str(path)

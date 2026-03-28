@@ -22,16 +22,20 @@ namespace:
             panic(__LOC__, "Map.new: type ", key_type, " must implement cmp")
         }
         if val_type.is_empty() {
+            // TODO(#119): struct literals should apply field ownership
+            // semantics automatically so owned Str fields do not need
+            // manual clones here.
             return Map(key_data = malloc(key_size), val_data = malloc(val_size),
-                       cap = 1, key_size = key_size, key_type = key_type,
+                       cap = 1, key_size = key_size, key_type = key_type.clone(),
                        val_size = val_size, val_type = val_type,
                        key_clone = dyn_fn(key_type, "clone"),
                        key_delete = dyn_fn(key_type, "delete"),
                        key_cmp = dyn_fn(key_type, "cmp"))
         }
+        // TODO(#119): same ownership gap as in the val_type-empty branch.
         return Map(key_data = malloc(key_size), val_data = malloc(val_size),
-                   cap = 1, key_size = key_size, key_type = key_type,
-                   val_size = val_size, val_type = val_type,
+                   cap = 1, key_size = key_size, key_type = key_type.clone(),
+                   val_size = val_size, val_type = val_type.clone(),
                    key_clone = dyn_fn(key_type, "clone"),
                    key_delete = dyn_fn(key_type, "delete"),
                    key_cmp = dyn_fn(key_type, "cmp"),
@@ -157,10 +161,11 @@ namespace:
             memcpy(ptr_add(new_vals, i.mul(self.val_size)), cv, self.val_size)
             free(own cv)
         }
+        // TODO(#119): same ownership gap as in Map.new.
         return Map(key_data = new_keys, val_data = new_vals,
                    count = self.count, cap = self.cap,
-                   key_size = self.key_size, key_type = self.key_type,
-                   val_size = self.val_size, val_type = self.val_type,
+                   key_size = self.key_size, key_type = self.key_type.clone(),
+                   val_size = self.val_size, val_type = self.val_type.clone(),
                    key_clone = self.key_clone, key_delete = self.key_delete,
                    key_cmp = self.key_cmp,
                    val_clone = self.val_clone, val_delete = self.val_delete)

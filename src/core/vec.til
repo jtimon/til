@@ -17,8 +17,10 @@ namespace:
             return Vec(data = malloc(elem_size), cap = 1,
                        elem_size = elem_size, elem_type = elem_type)
         }
+        // TODO(#119): struct literals should apply field ownership semantics
+        // automatically so owned Str fields do not need manual clones here.
         return Vec(data = malloc(elem_size), cap = 1,
-                   elem_size = elem_size, elem_type = elem_type,
+                   elem_size = elem_size, elem_type = elem_type.clone(),
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"))
     }
@@ -75,8 +77,9 @@ namespace:
         } else {
             memcpy(new_data, self.data, self.count.mul(self.elem_size))
         }
+        // TODO(#119): same ownership gap as in Vec.new.
         return Vec(data = new_data, count = self.count, cap = self.cap,
-                   elem_size = self.elem_size, elem_type = self.elem_type,
+                   elem_size = self.elem_size, elem_type = self.elem_type.clone(),
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 }

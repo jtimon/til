@@ -1,11 +1,46 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 118
+# NEXT_ISSUE: 119
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
 ** OPEN #118 Container element typing for pointer/ref container uses
+  Pointer/ref container elements still need a real language-level
+  typing story:
+  - ~Expr *~
+  - ~Str *~
+  - other borrowed/ref-like container payloads
+
+  Non-pointer structs should just use their real type names in
+  container initialization. The design question is only for pointer/ref
+  cases, not for ordinary structs.
+
+** OPEN #119 Struct literals should apply field ownership semantics
+  Struct literals currently behave like raw aggregate construction, so
+  field values that end up stored in owned struct fields may need
+  ad-hoc manual clones in constructors like ~Vec.new~, ~Array.new~,
+  ~Set.new~, and ~Map.new~.
+
+  This should follow the same ownership logic as field assignment:
+  constructing a struct literal is effectively assigning values into
+  fields over their defaults. If a field owns a compound value, the
+  struct-literal path should insert the right clone/move semantics
+  automatically instead of relying on manual constructor-side fixes.
+
+  Current symptom/example:
+  - ~Vec.new("Expr", Expr.size())~ stored a borrowed ~Str~ type name in
+    ~elem_type~, then later deleted it as owned, causing heap
+    corruption.
+
+  Temporary workaround:
+  - constructors manually clone stored type-name strings and their
+    clone methods do the same
+
+  Proper fix:
+  - teach the struct-literal / aggregate-construction path to reuse the
+    same ownership rules as field assignment
+
   Normal typed container construction should use explicit element types.
 
   Recent progress:

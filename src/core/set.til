@@ -16,8 +16,10 @@ namespace:
         if dyn_has_method(elem_type, "cmp").not() {
             panic(__LOC__, "Set.new: type ", elem_type, " must implement cmp")
         }
+        // TODO(#119): struct literals should apply field ownership semantics
+        // automatically so owned Str fields do not need manual clones here.
         return Set(data = malloc(elem_size), cap = 1,
-                   elem_size = elem_size, elem_type = elem_type,
+                   elem_size = elem_size, elem_type = elem_type.clone(),
                    elem_clone = dyn_fn(elem_type, "clone"),
                    elem_delete = dyn_fn(elem_type, "delete"),
                    elem_cmp = dyn_fn(elem_type, "cmp"))
@@ -97,8 +99,9 @@ namespace:
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
         }
+        // TODO(#119): same ownership gap as in Set.new.
         return Set(data = new_data, count = self.count, cap = self.cap,
-                   elem_size = self.elem_size, elem_type = self.elem_type,
+                   elem_size = self.elem_size, elem_type = self.elem_type.clone(),
                    elem_clone = self.elem_clone, elem_delete = self.elem_delete,
                    elem_cmp = self.elem_cmp)
     }

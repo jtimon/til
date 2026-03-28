@@ -13,8 +13,10 @@ Array := struct {
 namespace:
     new := func(elem_type: Str, elem_size: USize, cap: USize) returns Array {
         if elem_type.is_empty() { panic(__LOC__, "Array.new: elem_type required") }
+        // TODO(#119): struct literals should apply field ownership semantics
+        // automatically so owned Str fields do not need manual clones here.
         return Array(data = calloc(cap, elem_size), cap = cap,
-                     elem_size = elem_size, elem_type = elem_type,
+                     elem_size = elem_size, elem_type = elem_type.clone(),
                      elem_clone = dyn_fn(elem_type, "clone"),
                      elem_delete = dyn_fn(elem_type, "delete"))
     }
@@ -55,8 +57,9 @@ namespace:
             memcpy(ptr_add(new_data, i.mul(self.elem_size)), cloned, self.elem_size)
             free(own cloned)
         }
+        // TODO(#119): same ownership gap as in Array.new.
         return Array(data = new_data, cap = self.cap,
-                     elem_size = self.elem_size, elem_type = self.elem_type,
+                     elem_size = self.elem_size, elem_type = self.elem_type.clone(),
                      elem_clone = self.elem_clone, elem_delete = self.elem_delete)
     }
 }
