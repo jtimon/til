@@ -950,6 +950,16 @@ hoist_field_assign_rhs := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: Type
     }
 }
 
+hoist_stmt_fcall := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) returns Expr {
+    hoist_expr(stmt, hoisted, scope)
+    if is_variant(stmt.til_type, TilType.None).not() {
+        hoist_to_temp(stmt, hoisted, scope)
+        popped : Expr = hoisted.pop()
+        stmt = popped
+    }
+    return stmt
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {

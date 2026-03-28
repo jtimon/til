@@ -1168,15 +1168,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // Check if a function call returns ref
 
-static Expr *hoist_stmt_fcall(Expr *stmt, Vec *hoisted, TypeScope *scope) {
-    hoist_expr(stmt, hoisted, scope);
-    if (stmt->til_type.tag != TilType_TAG_None) {
-        hoist_to_temp(stmt, hoisted, scope);
-        stmt = (Expr*)Vec_pop(hoisted);
-    }
-    return stmt;
-}
-
 static void hoist_fcall_args(Expr *body, TypeScope *scope) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
     for (U32 i = 0; i < body->children.count; i++) {
