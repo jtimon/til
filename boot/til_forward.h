@@ -843,6 +843,7 @@ Expr * make_clone_call(Str * type_name, TilType type, Expr * arg, Expr * src);
 Expr * make_ns_call(Str * sname, Str * method, TilType ret_type, Str * ret_sname, Expr * src);
 Expr * build_kwargs_dynmap_decl(Expr * fcall, Str * kw_name);
 Expr * build_kwargs_dynmap_set(Expr * fcall, TypeScope * scope, Str * kw_name, Expr * named_arg);
+void rewrite_kwargs_fcall_args(Expr * fcall, Str * kw_name);
 Bool check_own_args(Expr * fdef, Expr * fcall, Str * var_name);
 Bool fcall_has_own_arg(Expr * fcall, Str * var_name, TypeScope * scope);
 Bool expr_transfers_own(Expr * e, Str * var_name, TypeScope * scope);

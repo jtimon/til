@@ -1422,51 +1422,6 @@ static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
     fcall->data.data.FCall.variadic_count = 0;
 }
 
-static void rewrite_kwargs_fcall_args(Expr *fcall, Str *kw_name) {
-    I32 ki = fcall->data.data.FCall.kwargs_index;
-    U32 kc = fcall->data.data.FCall.kwargs_count;
-    I32 line = fcall->line, col = fcall->col;
-    Str *path = &fcall->path;
-    Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
-    Bool kw_inserted = 0;
-    for (U32 j = 0; j < fcall->children.count; j++) {
-        if ((I32)j >= ki && (I32)j < ki + (I32)kc) {
-            if (!kw_inserted) {
-                Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                kw_id->data.data.Ident = *kw_name;
-                kw_id->til_type = (TilType){TilType_TAG_Struct};
-                kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-                kw_id->is_own_arg = true;
-                Vec_push(&fcall_new_ch, kw_id);
-                kw_inserted = 1;
-            }
-            continue;
-        }
-        if ((I32)j == ki && !kw_inserted) {
-            Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            kw_id->data.data.Ident = *kw_name;
-            kw_id->til_type = (TilType){TilType_TAG_Struct};
-            kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-            kw_id->is_own_arg = true;
-            Vec_push(&fcall_new_ch, kw_id);
-            kw_inserted = 1;
-        }
-        Vec_push(&fcall_new_ch, Expr_clone(Expr_child(fcall, &(USize){(USize)(j)})));
-    }
-    if (!kw_inserted) {
-        Expr *kw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-        kw_id->data.data.Ident = *kw_name;
-        kw_id->til_type = (TilType){TilType_TAG_Struct};
-        kw_id->struct_name = (Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT};
-        kw_id->is_own_arg = true;
-        Vec_push(&fcall_new_ch, kw_id);
-    }
-    Vec_delete(&fcall->children, &(Bool){0});
-    fcall->children = fcall_new_ch;
-    fcall->data.data.FCall.kwargs_index = -1;
-    fcall->data.data.FCall.kwargs_count = 0;
-}
-
 // --- Set literal desugaring ---
 // Transforms s := {v1, v2, v3} into:
 //   mut s := Set.new(elem_type, elem_size)

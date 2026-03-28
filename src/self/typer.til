@@ -471,6 +471,49 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     return set_call
 }
 
+rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
+    ref mut fcd : FCallData = get_payload(fcall.data)
+    ki := fcd.kwargs_index
+    kc := fcd.kwargs_count
+    mut fcall_new_ch := Vec.new("Expr", Expr.size())
+    mut kw_inserted := false
+
+    for j in 0..fcall.child_count() {
+        ji := j.to_i64().to_i32()
+        if ji.gte(ki).and(ji.lt(ki.add(kc.to_i64().to_i32()))) {
+            if kw_inserted.not() {
+                mut kw_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+                kw_id.til_type = TilType.Struct
+                kw_id.struct_name = "DynMap"
+                kw_id.is_own_arg = true
+                fcall_new_ch.push(own kw_id)
+                kw_inserted = true
+            }
+            continue
+        }
+        if ji.eq(ki).and(kw_inserted.not()) {
+            mut kw_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+            kw_id.til_type = TilType.Struct
+            kw_id.struct_name = "DynMap"
+            kw_id.is_own_arg = true
+            fcall_new_ch.push(own kw_id)
+            kw_inserted = true
+        }
+        fcall_new_ch.push(own fcall.child(j).clone())
+    }
+    if kw_inserted.not() {
+        mut kw_id := Expr.new(ExprData.Ident(kw_name.clone()), fcall.line, fcall.col, fcall.path)
+        kw_id.til_type = TilType.Struct
+        kw_id.struct_name = "DynMap"
+        kw_id.is_own_arg = true
+        fcall_new_ch.push(own kw_id)
+    }
+
+    fcall.children = fcall_new_ch
+    fcd.kwargs_index = -1.to_i32()
+    fcd.kwargs_count = 0
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }
