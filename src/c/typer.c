@@ -1126,58 +1126,11 @@ static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
 //   Set.add(s, own v2)
 //   Set.add(s, own v3)
 
-static void desugar_set_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-    Bool changed = 0;
-
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0 ||
-            Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_SetLit) {
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-        changed = 1;
-        desugar_set_literal_decl(stmt, &new_ch, scope);
-    }
-
-    if (changed) {
-        Vec_delete(&body->children, &(Bool){0});
-        body->children = new_ch;
-    } else {
-        Vec_delete(&new_ch, &(Bool){0});
-    }
-}
-
 // --- Map literal desugaring ---
 // Transforms m := {k1: v1, k2: v2} into:
 //   mut m := Map.new(key_type, key_size, val_type, val_size)
 //   Map.set(m, own k1, own v1)
 //   Map.set(m, own k2, own v2)
-
-static void desugar_map_literals(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-    Bool changed = 0;
-
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        // Only handle: name := {k: v, ...}
-        if (stmt->data.tag != ExprData_TAG_Decl || stmt->children.count == 0 ||
-            Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_MapLit) {
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-        changed = 1;
-        desugar_map_literal_decl(stmt, &new_ch, scope);
-    }
-
-    if (changed) {
-        Vec_delete(&body->children, &(Bool){0});
-        body->children = new_ch;
-    } else {
-        Vec_delete(&new_ch, &(Bool){0});
-    }
-}
 
 // --- Variadic call desugaring ---
 // Transforms variadic function calls into Array.new + Array.set + normal call.

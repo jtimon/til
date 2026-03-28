@@ -687,6 +687,60 @@ desugar_map_literal_decl := proc(stmt: Expr, mut new_ch: Vec, mut scope: TypeSco
     }
 }
 
+desugar_set_literals := proc(mut body: Expr, mut scope: TypeScope) {
+    mut new_ch := Vec.new("Expr", Expr.size())
+    mut changed := false
+
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        if stmt.child_count().eq(0) {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        if is_variant(stmt.child(0).data, ExprData.SetLit).not() {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        changed = true
+        desugar_set_literal_decl(stmt, new_ch, scope)
+    }
+
+    if changed {
+        body.children = new_ch
+    }
+}
+
+desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
+    mut new_ch := Vec.new("Expr", Expr.size())
+    mut changed := false
+
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
+        if is_variant(stmt.data, ExprData.Decl).not() {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        if stmt.child_count().eq(0) {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        if is_variant(stmt.child(0).data, ExprData.MapLit).not() {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        changed = true
+        desugar_map_literal_decl(stmt, new_ch, scope)
+    }
+
+    if changed {
+        body.children = new_ch
+    }
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {
