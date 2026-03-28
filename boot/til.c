@@ -59714,7 +59714,7 @@ int main(int argc, char **argv) {
     Vec_delete(&resolve_stack, &(Bool){0});
     Set_delete(&resolved, &(Bool){0});
     Str_delete(&user_dir, &(Bool){0});
-    Str _t_Str_11397; { Str *_hp = (Str *)Str_lit("", 0ULL); _t_Str_11397 = *_hp; free(_hp); }
+    Str _t_Str_11397; { Str *_hp = (Str *)Str_lit("Expr", 4ULL); _t_Str_11397 = *_hp; free(_hp); }
     (void)_t_Str_11397;
     U32 _t_U32_11398; { U32 *_hp = (U32 *)Expr_size(); _t_U32_11398 = *_hp; free(_hp); }
     (void)_t_U32_11398;

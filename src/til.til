@@ -293,7 +293,7 @@ main := proc(args: ..Str) {
     }
 
     // Merge: core + core_imports + mode + user_imports + user
-    merged := Vec.new("", Expr.size())
+    merged := Vec.new("Expr", Expr.size())
 
     // Core declarations (skip if user file IS core.til)
     if skip_core.not() {
