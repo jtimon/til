@@ -1663,6 +1663,8 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
 
 // Create a temp decl for an expression, register in scope, return the replacement ident.
 // Adds the decl to the hoisted list.
+static void hoist_expr(Expr *e, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope);
+
 static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
     char name_buf[128];
     Str *tp = type_prefix(&val->til_type, &val->struct_name);
@@ -1701,6 +1703,97 @@ static Expr *hoist_to_temp(Expr *val, Expr ***hoisted, U32 *nhoisted, U32 *cap, 
     }
     (*hoisted)[(*nhoisted)++] = decl;
     return ident;
+}
+
+static void hoist_decl_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+}
+
+static Expr *hoist_stmt_fcall(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+    hoist_expr(stmt, hoisted, nhoisted, cap, scope);
+    if (stmt->til_type.tag != TilType_TAG_None) {
+        hoist_to_temp(stmt, hoisted, nhoisted, cap, scope);
+        stmt = (*hoisted)[--(*nhoisted)];
+    }
+    return stmt;
+}
+
+static void hoist_return_expr(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+    if (stmt->children.count == 0) return;
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
+        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
+        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
+        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool) {
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, nhoisted, cap, scope);
+    }
+}
+
+static void hoist_assign_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+    Bool do_hoist = 1;
+    ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
+    TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
+    if (ab && !ab->is_param) {
+        TilType t = ab->type;
+        if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)
+            do_hoist = 0;
+    }
+    if (do_hoist && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
+        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
+        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
+        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, nhoisted, cap, scope);
+    }
+}
+
+static void hoist_param_swap_assign(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+    ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
+    TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
+    if (!(ab && ab->is_param && ab->is_mut &&
+        (ab->type.tag == TilType_TAG_Struct || ab->type.tag == TilType_TAG_Enum))) return;
+
+    I32 line = stmt->line, col = stmt->col;
+    Str *path = &stmt->path;
+    Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
+    call->til_type = (TilType){TilType_TAG_None};
+    Expr *fn = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    fn->data.data.Ident = (Str){.c_str = (U8*)"swap", .count = 4, .cap = CAP_LIT};
+    Expr_add_child(call, fn);
+    Expr *a = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+    a->data.data.Ident = stmt->data.data.Ident;
+    a->til_type = ab->type;
+    if (ab->struct_name.count > 0) a->struct_name = *Str_clone(&ab->struct_name);
+    Expr_add_child(call, a);
+    Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
+    Str *tname = type_to_name(&ab->type, &ab->struct_name);
+    Expr *sz_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, stmt);
+    Expr *sz = hoist_to_temp(sz_call, hoisted, nhoisted, cap, scope);
+    Expr_add_child(call, sz);
+    *stmt = *call;
+}
+
+static void hoist_field_assign_rhs(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(1)}), hoisted, nhoisted, cap, scope);
+    Bool fa_hoist = 1;
+    if (!stmt->is_own_field) {
+        TilType ft = Expr_child(stmt, &(USize){(USize)(1)})->til_type;
+        if (ft.tag == TilType_TAG_Struct || ft.tag == TilType_TAG_Enum)
+            fa_hoist = 0;
+    }
+    if (fa_hoist && (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FCall ||
+        Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum ||
+        Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralStr ||
+        Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(1)})), hoisted, nhoisted, cap, scope);
+    }
+}
+
+static void hoist_if_cond(Expr *stmt, Expr ***hoisted, U32 *nhoisted, U32 *cap, TypeScope *scope) {
+    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, nhoisted, cap, scope);
+    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall) {
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, nhoisted, cap, scope);
+    }
 }
 
 // Walk expression tree depth-first. For each ExprData_TAG_FCall, hoist any arg that is itself a ExprData_TAG_FCall.
@@ -1776,101 +1869,24 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
         // Walk the appropriate expression tree based on statement type
         switch (stmt->data.tag) {
         case ExprData_TAG_Decl:
-            hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
+            hoist_decl_rhs(stmt, &hoisted, &nhoisted, &hcap, scope);
             break;
         case ExprData_TAG_FCall:
-            hoist_expr(stmt, &hoisted, &nhoisted, &hcap, scope);
-            if (stmt->til_type.tag != TilType_TAG_None) {
-                hoist_to_temp(stmt, &hoisted, &nhoisted, &hcap, scope);
-                stmt = hoisted[--nhoisted];
-                *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *stmt;
-            }
+            stmt = hoist_stmt_fcall(stmt, &hoisted, &nhoisted, &hcap, scope);
+            *(Expr*)Vec_get(&body->children, &(USize){(USize)(i)}) = *stmt;
             break;
         case ExprData_TAG_Return:
-            if (stmt->children.count > 0) {
-                hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
-                if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
-                    Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
-                    Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
-                    Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool) {
-                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), &hoisted, &nhoisted, &hcap, scope);
-                }
-            }
+            hoist_return_expr(stmt, &hoisted, &nhoisted, &hcap, scope);
             break;
-        case ExprData_TAG_Assign: {
-            hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
-            // Skip top-level hoisting for compound-type locals — builder
-            // uses pointer-assign (typer inserts delete before reassignment).
-            // Keep hoisting for scalars (deref-assign) and params (write-through).
-            Bool do_hoist = 1;
-            ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
-            TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
-            if (ab && !ab->is_param) {
-                TilType t = ab->type;
-                if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)
-                    do_hoist = 0;
-            }
-            if (do_hoist && (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall ||
-                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum ||
-                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralStr ||
-                Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), &hoisted, &nhoisted, &hcap, scope);
-            }
-            // For mut struct/enum params, replace assignment with swap so
-            // ASAP delete of the temp frees the OLD value, not the new one.
-            // Re-query: hoist_to_temp may have realloc'd the Map, invalidating ab.
-            _sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
-            ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
-            if (ab && ab->is_param && ab->is_mut &&
-                (ab->type.tag == TilType_TAG_Struct || ab->type.tag == TilType_TAG_Enum)) {
-                I32 line = stmt->line, col = stmt->col;
-                Str *path = &stmt->path;
-                // Build: swap(param, temp, Type.size())
-                Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-                call->til_type = (TilType){TilType_TAG_None};
-                Expr *fn = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                fn->data.data.Ident = (Str){.c_str = (U8*)"swap", .count = 4, .cap = CAP_LIT};
-                Expr_add_child(call, fn);
-                // arg0: the param variable
-                Expr *a = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                a->data.data.Ident = stmt->data.data.Ident;
-                a->til_type = ab->type;
-                if (ab->struct_name.count > 0) a->struct_name = *Str_clone(&ab->struct_name);
-                Expr_add_child(call, a);
-                // arg1: the RHS (hoisted temp ident)
-                Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
-                // arg2: Type.size() — hoist to temp so builder emits deref correctly
-                Str *tname = type_to_name(&ab->type, &ab->struct_name);
-                Expr *sz_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, stmt);
-                Expr *sz = hoist_to_temp(sz_call, &hoisted, &nhoisted, &hcap, scope);
-                Expr_add_child(call, sz);
-                // Replace stmt in-place
-                *stmt = *call;
-            }
+        case ExprData_TAG_Assign:
+            hoist_assign_rhs(stmt, &hoisted, &nhoisted, &hcap, scope);
+            hoist_param_swap_assign(stmt, &hoisted, &nhoisted, &hcap, scope);
             break;
-        }
-        case ExprData_TAG_FieldAssign: {
-            hoist_expr(Expr_child(stmt, &(USize){(USize)(1)}), &hoisted, &nhoisted, &hcap, scope);
-            // Skip hoisting for inline compound fields (same as constructor args)
-            Bool fa_hoist = 1;
-            if (!stmt->is_own_field) {
-                TilType ft = Expr_child(stmt, &(USize){(USize)(1)})->til_type;
-                if (ft.tag == TilType_TAG_Struct || ft.tag == TilType_TAG_Enum)
-                    fa_hoist = 0;
-            }
-            if (fa_hoist && (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FCall ||
-                Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum ||
-                Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralStr ||
-                Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
-                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(1)})), &hoisted, &nhoisted, &hcap, scope);
-            }
+        case ExprData_TAG_FieldAssign:
+            hoist_field_assign_rhs(stmt, &hoisted, &nhoisted, &hcap, scope);
             break;
-        }
         case ExprData_TAG_If:
-            hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), &hoisted, &nhoisted, &hcap, scope);
-            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall) {
-                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), &hoisted, &nhoisted, &hcap, scope);
-            }
+            hoist_if_cond(stmt, &hoisted, &nhoisted, &hcap, scope);
             break;
         // ExprData_TAG_While: skip condition -- hoisting changes loop semantics
         default: break;
@@ -1955,18 +1971,11 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool re
     }
 }
 
-static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
-    if (!scope_exit) return;
-    Bool is_program_scope = !scope->parent;
-
-    // Phase 1: collect locals with lifetime info
-    // Start from 0 (not locals_start) to include own params, which are added before the body
-    Vec locals_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); locals_vec = *_vp; free(_vp); }
+static void collect_scope_locals(Expr *body, TypeScope *scope, Bool is_program_scope, Vec *locals_vec) {
     for (U32 i = 0; i < scope->bindings.count; i++) {
         TypeBinding *b = (TypeBinding *)(scope->bindings.val_data + i * scope->bindings.val_size);
         if ((b->is_param && !b->is_own) || b->struct_def || b->func_def) continue;
 
-        // Find decl_index: direct child first, then nested
         I32 decl_idx = -1;
         for (U32 j = 0; j < body->children.count; j++) {
             Expr *s = Expr_child(body, &(USize){(USize)(j)});
@@ -1984,7 +1993,6 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             }
         }
 
-        // Find last_use and own_transfer
         I32 last_use = -1;
         I32 own_transfer = -1;
         I32 scan_from = decl_idx >= 0 ? decl_idx + 1 : 0;
@@ -1997,13 +2005,8 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             }
         }
 
-        // Program-scope globals live for the program's lifetime — no ASAP deletion.
-        // Still collect them for ownership-transfer and overwrite-delete checks.
         Bool skip_scope_delete = is_program_scope && decl_idx >= 0;
-
         if (!skip_scope_delete) {
-            // If captured by a nested func/proc, don't ASAP-delete — the nested
-            // function may be called after this scope's body finishes (e.g. cli mode main)
             for (U32 j = scan_from; j < body->children.count; j++) {
                 if (expr_used_in_nested_func(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
                     skip_scope_delete = 1;
@@ -2011,22 +2014,14 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 }
             }
         }
-        // Ref bindings don't own their data — never delete, but track for lifetime extension
         if (b->is_ref) skip_scope_delete = 1;
 
         LocalInfo li = {b->name, b->type, &b->struct_name, decl_idx, last_use, own_transfer, skip_scope_delete};
-        { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = li; Vec_push(&locals_vec, _p); }
+        { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = li; Vec_push(locals_vec, _p); }
     }
+}
 
-    if (locals_vec.count == 0) { Vec_delete(&locals_vec, &(Bool){0}); return; }
-    U32 n_locals = locals_vec.count;
-    LocalInfo *locals = Vec_take(&locals_vec);
-
-    // Extend lifetimes for args to ref-returning calls:
-    // If ref m := f(x, y), then x and y must outlive m.
-    // Use fixed-point iteration to propagate through ref chains:
-    // ref a = f(owner.x) → owner extended to a's last use
-    // ref b = g(a.y)     → a extended to b's last use → owner extended too
+static void extend_ref_local_lifetimes(Expr *body, LocalInfo *locals, U32 n_locals) {
     Bool ref_changed = 1;
     while (ref_changed) {
         ref_changed = 0;
@@ -2035,7 +2030,6 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             if (stmt->data.tag != ExprData_TAG_Decl || !stmt->data.data.Decl.is_ref) continue;
             Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
 
-            // Compute ref_last: max of AST uses and extended last_use in locals
             I32 ref_last = -1;
             for (U32 j = i + 1; j < body->children.count; j++) {
                 if (expr_uses_var(Expr_child(body, &(USize){(USize)(j)}), &stmt->data.data.Decl.name))
@@ -2048,7 +2042,6 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             }
 
             if (rhs->data.tag == ExprData_TAG_Ident) {
-                // Direct alias: source must outlive alias
                 Str *src_name = &rhs->data.data.Ident;
                 for (U32 j = 0; j < n_locals; j++) {
                     if (Str_eq(locals[j].name, src_name) && locals[j].last_use < ref_last) {
@@ -2059,8 +2052,6 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                 continue;
             }
             if (rhs->data.tag != ExprData_TAG_FCall) continue;
-            // Extend last_use of all ident args in the fcall
-            // Walk field-access chains to find root ident (e.g. root.children → root)
             for (U32 a = 1; a < rhs->children.count; a++) {
                 Expr *arg = Expr_child(rhs, &(USize){(USize)(a)});
                 while (arg->data.tag == ExprData_TAG_FieldAccess && arg->children.count > 0)
@@ -2076,8 +2067,9 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
             }
         }
     }
+}
 
-    // Check for use after ownership transfer
+static void check_use_after_own_transfer(Expr *body, LocalInfo *locals, U32 n_locals) {
     for (U32 j = 0; j < n_locals; j++) {
         if (locals[j].own_transfer >= 0 && locals[j].last_use > locals[j].own_transfer) {
             Expr *stmt = Expr_child(body, &(USize){(USize)(locals[j].last_use)});
@@ -2091,98 +2083,109 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
                     locals[j].name->c_str);
         }
     }
+}
 
-    // Phase 2: rebuild body with ASAP frees
+static void insert_exit_deletes_into_stmt(Expr *stmt, Expr *body, LocalInfo *locals, U32 n_locals, U32 stmt_idx, Vec *new_ch) {
+    if (stmt->data.tag != ExprData_TAG_Return && stmt->data.tag != ExprData_TAG_Break && stmt->data.tag != ExprData_TAG_Continue) return;
+    for (U32 j = 0; j < n_locals; j++) {
+        if (stmt->children.count > 0 &&
+            (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), locals[j].name) ||
+             alias_used_in_expr(body, locals[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
+        if (locals[j].skip_scope_delete) continue;
+        if (locals[j].own_transfer >= 0) continue;
+        if (locals[j].decl_index < (I32)stmt_idx &&
+            (locals[j].last_use >= (I32)stmt_idx || locals[j].last_use == -1)) {
+            Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+            if (del) Vec_push(new_ch, del);
+        }
+    }
+}
+
+static void insert_nested_exit_deletes(Expr *stmt, LocalInfo *locals, U32 n_locals, U32 stmt_idx) {
+    if (stmt->data.tag != ExprData_TAG_If && stmt->data.tag != ExprData_TAG_While) return;
+    Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
+    for (U32 j = 0; j < n_locals; j++) {
+        if (locals[j].skip_scope_delete) continue;
+        if (locals[j].own_transfer >= 0) continue;
+        if (locals[j].decl_index < (I32)stmt_idx &&
+            (locals[j].last_use >= (I32)stmt_idx || locals[j].last_use == -1)) {
+            { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = locals[j]; Vec_push(&live_vec, _p); }
+        }
+    }
+    if (live_vec.count > 0) {
+        U32 n_live = live_vec.count;
+        LocalInfo *live = Vec_take(&live_vec);
+        if (stmt->data.tag == ExprData_TAG_If) {
+            for (U32 c = 1; c < stmt->children.count; c++)
+                insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(c)}), live, n_live, 0);
+        } else {
+            insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(1)}), live, n_live, 1);
+        }
+        free(live);
+    } else {
+        Vec_delete(&live_vec, &(Bool){0});
+    }
+}
+
+static void insert_assign_delete(Expr *stmt, LocalInfo *locals, U32 n_locals, Vec *new_ch) {
+    if (stmt->data.tag != ExprData_TAG_Assign) return;
+    Str *vname = &stmt->data.data.Ident;
+    for (U32 j = 0; j < n_locals; j++) {
+        if (!Str_eq(locals[j].name, vname)) continue;
+        TilType t = locals[j].type;
+        if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) {
+            Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
+            if (expr_uses_var(rhs, vname)) {
+                stmt->save_old_delete = true;
+                if (locals[j].struct_name && locals[j].struct_name->count > 0)
+                    stmt->struct_name = *Str_clone(locals[j].struct_name);
+            } else {
+                Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+                if (del) Vec_push(new_ch, del);
+            }
+        }
+        break;
+    }
+}
+
+static void insert_post_stmt_deletes(Expr *stmt, LocalInfo *locals, U32 n_locals, U32 stmt_idx, Vec *new_ch) {
+    if (stmt->data.tag == ExprData_TAG_Return || stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue) return;
+    for (U32 j = 0; j < n_locals; j++) {
+        if (locals[j].skip_scope_delete) continue;
+        if (locals[j].own_transfer >= 0) continue;
+        if (locals[j].last_use == (I32)stmt_idx) {
+            Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+            if (del) Vec_push(new_ch, del);
+        }
+        if (locals[j].last_use == -1 && locals[j].decl_index == (I32)stmt_idx) {
+            Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
+            if (del) Vec_push(new_ch, del);
+        }
+    }
+}
+
+static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
+    if (!scope_exit) return;
+    Bool is_program_scope = !scope->parent;
+
+    Vec locals_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); locals_vec = *_vp; free(_vp); }
+    collect_scope_locals(body, scope, is_program_scope, &locals_vec);
+    if (locals_vec.count == 0) { Vec_delete(&locals_vec, &(Bool){0}); return; }
+    U32 n_locals = locals_vec.count;
+    LocalInfo *locals = Vec_take(&locals_vec);
+
+    extend_ref_local_lifetimes(body, locals, n_locals);
+    check_use_after_own_transfer(body, locals, n_locals);
+
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
 
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-
-        // Before ExprData_TAG_Return/ExprData_TAG_Break/ExprData_TAG_Continue: free locals not yet freed
-        if (stmt->data.tag == ExprData_TAG_Return || stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue) {
-            for (U32 j = 0; j < n_locals; j++) {
-                if (stmt->children.count > 0 &&
-                    (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), locals[j].name) ||
-                     alias_used_in_expr(body, locals[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
-                if (locals[j].skip_scope_delete) continue;
-                if (locals[j].own_transfer >= 0) continue; // callee frees
-                if (locals[j].decl_index < (I32)i &&
-                    (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-                    if (del) Vec_push(&new_ch, del);
-                }
-            }
-        }
-
-        // For ExprData_TAG_If/ExprData_TAG_While: insert frees before nested early exits
-        if (stmt->data.tag == ExprData_TAG_If || stmt->data.tag == ExprData_TAG_While) {
-            Vec live_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); live_vec = *_vp; free(_vp); }
-            for (U32 j = 0; j < n_locals; j++) {
-                    if (locals[j].skip_scope_delete) continue;
-                    if (locals[j].own_transfer >= 0) continue;
-                    if (locals[j].decl_index < (I32)i &&
-                        (locals[j].last_use >= (I32)i || locals[j].last_use == -1)) {
-                    { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = locals[j]; Vec_push(&live_vec, _p); }
-                }
-            }
-            if (live_vec.count > 0) {
-                U32 n_live = live_vec.count;
-                LocalInfo *live = Vec_take(&live_vec);
-                if (stmt->data.tag == ExprData_TAG_If) {
-                    for (U32 c = 1; c < stmt->children.count; c++)
-                        insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(c)}), live, n_live, 0);
-                } else {
-                    // While: only free before return (break/continue stay in parent scope)
-                    insert_exit_deletes(Expr_child(stmt, &(USize){(USize)(1)}), live, n_live, 1);
-                }
-                free(live);
-            } else {
-                Vec_delete(&live_vec, &(Bool){0});
-            }
-        }
-
-        // Before ExprData_TAG_Assign: delete old compound-type value
-        if (stmt->data.tag == ExprData_TAG_Assign) {
-            Str *vname = &stmt->data.data.Ident;
-            for (U32 j = 0; j < n_locals; j++) {
-                if (!Str_eq(locals[j].name, vname)) continue;
-                TilType t = locals[j].type;
-                if (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum) {
-                    Expr *rhs = Expr_child(stmt, &(USize){(USize)(0)});
-                    if (expr_uses_var(rhs, vname)) {
-                        // RHS reads this var — can't delete before assignment.
-                        // Flag so builder emits save-old-delete pattern.
-                        stmt->save_old_delete = true;
-                        if (locals[j].struct_name && locals[j].struct_name->count > 0)
-                            stmt->struct_name = *Str_clone(locals[j].struct_name);
-                    } else {
-                        Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-                        if (del) Vec_push(&new_ch, del);
-                    }
-                }
-                break;
-            }
-        }
-
-        // Add original statement
+        insert_exit_deletes_into_stmt(stmt, body, locals, n_locals, i, &new_ch);
+        insert_nested_exit_deletes(stmt, locals, n_locals, i);
+        insert_assign_delete(stmt, locals, n_locals, &new_ch);
         Vec_push(&new_ch, Expr_clone(stmt));
-
-        // After non-exit statements: free locals whose last use is this statement
-        if (stmt->data.tag != ExprData_TAG_Return && stmt->data.tag != ExprData_TAG_Break && stmt->data.tag != ExprData_TAG_Continue) {
-            for (U32 j = 0; j < n_locals; j++) {
-                if (locals[j].skip_scope_delete) continue;
-                if (locals[j].own_transfer >= 0) continue; // callee frees
-                if (locals[j].last_use == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-                    if (del) Vec_push(&new_ch, del);
-                }
-                // Never used after declaration: free immediately
-                if (locals[j].last_use == -1 && locals[j].decl_index == (I32)i) {
-                    Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-                    if (del) Vec_push(&new_ch, del);
-                }
-            }
-        }
+        insert_post_stmt_deletes(stmt, locals, n_locals, i, &new_ch);
     }
 
     Vec_delete(&body->children, &(Bool){0});
