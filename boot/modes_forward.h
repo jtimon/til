@@ -1018,5 +1018,13 @@ extern U32 CAP_VIEW;
 extern I32 hoist_counter;
 extern I32 _va_counter;
 extern I32 _kw_counter;
+extern Str I64Name;
+extern Str U8Name;
+extern Str I16Name;
+extern Str I32Name;
+extern Str U32Name;
+extern Str U64Name;
+extern Str F32Name;
+extern Str BoolName;
 extern Map core_modes;
 

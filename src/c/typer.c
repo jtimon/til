@@ -39,7 +39,7 @@ static void type_error(Expr *e, const char *msg) {
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
-static const char *type_to_name(TilType type, Str *struct_name);
+static Str *type_to_name(TilType *type, Str *struct_name);
 static Expr *make_clone_call(const char *type_name, TilType type, Expr *arg, Expr *src);
 static Expr *make_ns_call(const char *sname, const char *method,
                            TilType ret_type, Str *ret_sname, Expr *src);
@@ -659,10 +659,10 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     continue;
                 }
                 if (Expr_child(e, &(USize){(USize)(ai)})->data.tag == ExprData_TAG_Ident) {
-                    const char *tname = type_to_name(Expr_child(e, &(USize){(USize)(ai)})->til_type,
-                                                      &Expr_child(e, &(USize){(USize)(ai)})->struct_name);
-                    if (tname) {
-                        Expr *_mc = make_clone_call(tname,
+                    Str *tname = type_to_name(&Expr_child(e, &(USize){(USize)(ai)})->til_type,
+                                              &Expr_child(e, &(USize){(USize)(ai)})->struct_name);
+                    if (tname->count > 0) {
+                        Expr *_mc = make_clone_call((const char *)tname->c_str,
                             Expr_child(e, &(USize){(USize)(ai)})->til_type, Expr_child(e, &(USize){(USize)(ai)}),
                             Expr_child(e, &(USize){(USize)(ai)}));
                         *(Expr*)Vec_get(&e->children, &(USize){(USize)(ai)}) = *_mc;
@@ -1117,26 +1117,25 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
 
         // Get element type from first entry
         Expr *first = Expr_child(set_lit, &(USize){(USize)(0)});
-        const char *elem_type = type_to_name(first->til_type, &first->struct_name);
-        if (!elem_type) {
+        Str *elem_type = type_to_name(&first->til_type, &first->struct_name);
+        if (elem_type->count == 0) {
             type_error(first, "set literal: cannot determine element type");
             Vec_push(&new_ch, Expr_clone(stmt));
             continue;
         }
 
         // Validate element type has cmp
-        Str elem_type_str = {.c_str = (U8*)elem_type, .count = (U64)strlen((const char*)elem_type), .cap = CAP_VIEW};
-        if (!type_has_cmp(scope, &elem_type_str)) {
+        if (!type_has_cmp(scope, elem_type)) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "set literal: element type '%s' must implement cmp", elem_type);
+            snprintf(buf, sizeof(buf), "set literal: element type '%s' must implement cmp", elem_type->c_str);
             type_error(first, buf);
         }
 
         // Validate all elements have consistent type
         for (U32 j = 1; j < set_lit->children.count; j++) {
             Expr *v = Expr_child(set_lit, &(USize){(USize)(j)});
-            const char *vt = type_to_name(v->til_type, &v->struct_name);
-            if (!vt || strcmp(vt, elem_type) != 0)
+            Str *vt = type_to_name(&v->til_type, &v->struct_name);
+            if (vt->count == 0 || !Str_eq(vt, elem_type))
                 type_error(v, "set literal: all elements must be the same type");
         }
 
@@ -1144,11 +1143,11 @@ static void desugar_set_literals(Expr *body, TypeScope *scope) {
         Expr *new_call = make_ns_call("Set", "new", (TilType){TilType_TAG_Struct},
                                        &(Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT}, set_lit);
         Expr *et_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        et_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(elem_type), .count = (U64)strlen((const char*)(elem_type)), .cap = CAP_VIEW});
+        et_str->data.data.LiteralStr = *Str_clone(elem_type);
         et_str->til_type = (TilType){TilType_TAG_Struct};
         et_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, et_str);
-        Expr *esz = make_ns_call(elem_type, "size", *usize_type(scope), NULL, set_lit);
+        Expr *esz = make_ns_call((const char *)elem_type->c_str, "size", *usize_type(scope), NULL, set_lit);
         Expr_add_child(new_call, esz);
 
         Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, stmt->line, stmt->col, path);
@@ -1225,25 +1224,24 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         // Get key/val types from first entry (already inferred)
         Expr *first_key = Expr_child(map_lit, &(USize){(USize)(0)});
         Expr *first_val = Expr_child(map_lit, &(USize){(USize)(1)});
-        const char *key_type = type_to_name(first_key->til_type, &first_key->struct_name);
-        const char *val_type = type_to_name(first_val->til_type, &first_val->struct_name);
+        Str *key_type = type_to_name(&first_key->til_type, &first_key->struct_name);
+        Str *val_type = type_to_name(&first_val->til_type, &first_val->struct_name);
 
-        if (!key_type) {
+        if (key_type->count == 0) {
             type_error(first_key, "map literal: cannot determine key type");
             Vec_push(&new_ch, Expr_clone(stmt));
             continue;
         }
-        if (!val_type) {
+        if (val_type->count == 0) {
             type_error(first_val, "map literal: cannot determine value type");
             Vec_push(&new_ch, Expr_clone(stmt));
             continue;
         }
 
         // Validate key type has cmp
-        Str key_type_str = {.c_str = (U8*)key_type, .count = (U64)strlen((const char*)key_type), .cap = CAP_VIEW};
-        if (!type_has_cmp(scope, &key_type_str)) {
+        if (!type_has_cmp(scope, key_type)) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "map literal: key type '%s' must implement cmp", key_type);
+            snprintf(buf, sizeof(buf), "map literal: key type '%s' must implement cmp", key_type->c_str);
             type_error(first_key, buf);
         }
 
@@ -1251,11 +1249,11 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
         for (U32 j = 2; j < map_lit->children.count; j += 2) {
             Expr *k = Expr_child(map_lit, &(USize){(USize)(j)});
             Expr *v = Expr_child(map_lit, &(USize){(USize)(j + 1)});
-            const char *kt = type_to_name(k->til_type, &k->struct_name);
-            const char *vt = type_to_name(v->til_type, &v->struct_name);
-            if (!kt || strcmp(kt, key_type) != 0)
+            Str *kt = type_to_name(&k->til_type, &k->struct_name);
+            Str *vt = type_to_name(&v->til_type, &v->struct_name);
+            if (kt->count == 0 || !Str_eq(kt, key_type))
                 type_error(k, "map literal: all keys must be the same type");
-            if (!vt || strcmp(vt, val_type) != 0)
+            if (vt->count == 0 || !Str_eq(vt, val_type))
                 type_error(v, "map literal: all values must be the same type");
         }
 
@@ -1264,21 +1262,21 @@ static void desugar_map_literals(Expr *body, TypeScope *scope) {
                                        &(Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT}, map_lit);
         // Arg 1: key_type string
         Expr *kt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        kt_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(key_type), .count = (U64)strlen((const char*)(key_type)), .cap = CAP_VIEW});
+        kt_str->data.data.LiteralStr = *Str_clone(key_type);
         kt_str->til_type = (TilType){TilType_TAG_Struct};
         kt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, kt_str);
         // Arg 2: KeyType.size()
-        Expr *ksz = make_ns_call(key_type, "size", *usize_type(scope), NULL, map_lit);
+        Expr *ksz = make_ns_call((const char *)key_type->c_str, "size", *usize_type(scope), NULL, map_lit);
         Expr_add_child(new_call, ksz);
         // Arg 3: val_type string
         Expr *vt_str = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-        vt_str->data.data.LiteralStr = *Str_clone(&(Str){.c_str = (U8*)(val_type), .count = (U64)strlen((const char*)(val_type)), .cap = CAP_VIEW});
+        vt_str->data.data.LiteralStr = *Str_clone(val_type);
         vt_str->til_type = (TilType){TilType_TAG_Struct};
         vt_str->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
         Expr_add_child(new_call, vt_str);
         // Arg 4: ValType.size()
-        Expr *vsz = make_ns_call(val_type, "size", *usize_type(scope), NULL, map_lit);
+        Expr *vsz = make_ns_call((const char *)val_type->c_str, "size", *usize_type(scope), NULL, map_lit);
         Expr_add_child(new_call, vsz);
 
         // Build declaration node (mut, so .set can work)
@@ -1490,9 +1488,9 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
             // doesn't free the caller's variable or an interior pointer
             Expr *val = Expr_child(fcall, &(USize){(USize)(vi + j)});
             if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
-                const char *tname = type_to_name(val->til_type, &val->struct_name);
-                if (tname)
-                    val = make_clone_call(tname, val->til_type, val, val);
+                Str *tname = type_to_name(&val->til_type, &val->struct_name);
+                if (tname->count > 0)
+                    val = make_clone_call((const char *)tname->c_str, val->til_type, val, val);
                 else
                     val = Expr_clone(val);
             } else {
@@ -1654,9 +1652,9 @@ static void desugar_kwargs_calls(Expr *body, TypeScope *scope) {
             Expr_add_child(set_call, key_lit);
             // Arg: value (clone idents to prevent double-free)
             if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
-                const char *tname = type_to_name(val->til_type, &val->struct_name);
-                if (tname)
-                    val = make_clone_call(tname, val->til_type, val, val);
+                Str *tname = type_to_name(&val->til_type, &val->struct_name);
+                if (tname->count > 0)
+                    val = make_clone_call((const char *)tname->c_str, val->til_type, val, val);
                 else
                     val = Expr_clone(val);
             } else {
@@ -1907,8 +1905,8 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
                 // arg1: the RHS (hoisted temp ident)
                 Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
                 // arg2: Type.size() — hoist to temp so builder emits deref correctly
-                const char *tname = type_to_name(ab->type, &ab->struct_name);
-                Expr *sz_call = make_ns_call(tname, "size", *usize_type(scope), NULL, stmt);
+                Str *tname = type_to_name(&ab->type, &ab->struct_name);
+                Expr *sz_call = make_ns_call((const char *)tname->c_str, "size", *usize_type(scope), NULL, stmt);
                 Expr *sz = hoist_to_temp(sz_call, &hoisted, &nhoisted, &hcap, scope);
                 Expr_add_child(call, sz);
                 // Replace stmt in-place
@@ -1960,24 +1958,26 @@ static void hoist_fcall_args(Expr *body, TypeScope *scope) {
 
 // --- Delete call insertion ---
 
-static const char *type_to_name(TilType type, Str *struct_name) {
-    if (struct_name && struct_name->count > 0) return (const char *)struct_name->c_str;
-    switch (type.tag) {
-        case TilType_TAG_I64:  return "I64";
-        case TilType_TAG_U8:   return "U8";
-        case TilType_TAG_I16:  return "I16";
-        case TilType_TAG_I32:  return "I32";
-        case TilType_TAG_U32:  return "U32";
-        case TilType_TAG_U64:  return "U64";
-        case TilType_TAG_F32:  return "F32";
-        case TilType_TAG_Bool: return "Bool";
-        default: return NULL;
+static Str *type_to_name(TilType *type, Str *struct_name) {
+    static Str empty_name = {0};
+
+    if (struct_name && struct_name->count > 0) return struct_name;
+    switch (type->tag) {
+        case TilType_TAG_I64:  return &I64Name;
+        case TilType_TAG_U8:   return &U8Name;
+        case TilType_TAG_I16:  return &I16Name;
+        case TilType_TAG_I32:  return &I32Name;
+        case TilType_TAG_U32:  return &U32Name;
+        case TilType_TAG_U64:  return &U64Name;
+        case TilType_TAG_F32:  return &F32Name;
+        case TilType_TAG_Bool: return &BoolName;
+        default: return &empty_name;
     }
 }
 
 static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Bool arg_is_own, Bool call_free, Expr *src) {
-    const char *tname = type_to_name(type, struct_name);
-    if (!tname) return NULL;
+    Str *tname = type_to_name(&type, struct_name);
+    if (tname->count == 0) return NULL;
     I32 line = src->line, col = src->col;
     Str *path = &src->path;
 
@@ -1985,8 +1985,8 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Boo
     call->til_type = (TilType){TilType_TAG_None};
 
     Expr *type_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    type_id->data.data.Ident = *Str_clone(&(Str){.c_str = (U8*)tname, .count = (U64)strlen(tname), .cap = CAP_VIEW});
-    type_id->struct_name = *Str_clone(&(Str){.c_str = (U8*)tname, .count = (U64)strlen(tname), .cap = CAP_VIEW});
+    type_id->data.data.Ident = *Str_clone(tname);
+    type_id->struct_name = *Str_clone(tname);
 
     Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
     fa->data.data.FieldAccess = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
@@ -2013,8 +2013,8 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Boo
 // is_own: true for own (pointer) fields, false for inline (value) fields.
 static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
     Expr *rhs = Expr_child(field_assign, &(USize){(USize)(1)});
-    const char *tname = type_to_name(rhs->til_type, &rhs->struct_name);
-    if (!tname) return NULL;
+    Str *tname = type_to_name(&rhs->til_type, &rhs->struct_name);
+    if (tname->count == 0) return NULL;
     I32 line = field_assign->line, col = field_assign->col;
     Str *path = &field_assign->path;
 
@@ -2022,8 +2022,8 @@ static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
     call->til_type = (TilType){TilType_TAG_None};
 
     Expr *type_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    type_id->data.data.Ident = *Str_clone(&(Str){.c_str = (U8*)(tname), .count = (U64)strlen((const char*)(tname)), .cap = CAP_VIEW});
-    type_id->struct_name = *Str_clone(&(Str){.c_str = (U8*)(tname), .count = (U64)strlen((const char*)(tname)), .cap = CAP_VIEW});
+    type_id->data.data.Ident = *Str_clone(tname);
+    type_id->struct_name = *Str_clone(tname);
 
     Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
     fa->data.data.FieldAccess = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
@@ -2604,9 +2604,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                   (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Struct ||
                    Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Enum))) &&
                 !stmt->data.data.Decl.is_ref) {
-                const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-                if (tname) {
-                    Expr *_mc = make_clone_call(tname, stmt->til_type,
+                Str *tname = type_to_name(&stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+                if (tname->count > 0) {
+                    Expr *_mc = make_clone_call((const char *)tname->c_str, stmt->til_type,
                         Expr_child(stmt, &(USize){(USize)(0)}), stmt);
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
@@ -2659,9 +2659,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
                  (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Struct ||
                   Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Enum))) {
-                const char *tname = type_to_name(Expr_child(stmt, &(USize){(USize)(0)})->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-                if (tname) {
-                    Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(USize){(USize)(0)})->til_type,
+                Str *tname = type_to_name(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+                if (tname->count > 0) {
+                    Expr *_mc = make_clone_call((const char *)tname->c_str, Expr_child(stmt, &(USize){(USize)(0)})->til_type,
                         Expr_child(stmt, &(USize){(USize)(0)}), stmt);
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                     memset(_mc, 0, sizeof(Expr)); free(_mc);
@@ -2729,10 +2729,10 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                  (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FieldAccess &&
                   (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Struct ||
                    Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Enum)))) {
-                const char *tname = type_to_name(Expr_child(stmt, &(USize){(USize)(1)})->til_type,
-                                                  &Expr_child(stmt, &(USize){(USize)(1)})->struct_name);
-                if (tname) {
-                    Expr *_mc = make_clone_call(tname,
+                Str *tname = type_to_name(&Expr_child(stmt, &(USize){(USize)(1)})->til_type,
+                                          &Expr_child(stmt, &(USize){(USize)(1)})->struct_name);
+                if (tname->count > 0) {
+                    Expr *_mc = make_clone_call((const char *)tname->c_str,
                         Expr_child(stmt, &(USize){(USize)(1)})->til_type, Expr_child(stmt, &(USize){(USize)(1)}),
                         Expr_child(stmt, &(USize){(USize)(1)}));
                     *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *_mc;
@@ -2763,9 +2763,9 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                     ScopeFind *_sf_ret2 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
                     TypeBinding *b = _sf_ret2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret2) : NULL;
                     if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
-                        const char *tname = type_to_name(stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-                        if (tname) {
-                            Expr *_mc = make_clone_call(tname, stmt->til_type,
+                        Str *tname = type_to_name(&stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+                        if (tname->count > 0) {
+                            Expr *_mc = make_clone_call((const char *)tname->c_str, stmt->til_type,
                                 Expr_child(stmt, &(USize){(USize)(0)}), stmt);
                             *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
                             memset(_mc, 0, sizeof(Expr)); free(_mc);

@@ -1641,6 +1641,14 @@ U32 CAP_VIEW;
 I32 hoist_counter;
 I32 _va_counter;
 I32 _kw_counter;
+Str I64Name;
+Str U8Name;
+Str I16Name;
+Str I32Name;
+Str U32Name;
+Str U64Name;
+Str F32Name;
+Str BoolName;
 Map core_modes;
 Str BASE_VERSION;
 Str VERSION;
@@ -58285,6 +58293,22 @@ int main(int argc, char **argv) {
     (void)_va_counter;
     _kw_counter = 0;
     (void)_kw_counter;
+    I64Name = (Str){.c_str=(U8*)"I64", .count=3ULL, .cap=TIL_CAP_LIT};
+    (void)I64Name;
+    U8Name = (Str){.c_str=(U8*)"U8", .count=2ULL, .cap=TIL_CAP_LIT};
+    (void)U8Name;
+    I16Name = (Str){.c_str=(U8*)"I16", .count=3ULL, .cap=TIL_CAP_LIT};
+    (void)I16Name;
+    I32Name = (Str){.c_str=(U8*)"I32", .count=3ULL, .cap=TIL_CAP_LIT};
+    (void)I32Name;
+    U32Name = (Str){.c_str=(U8*)"U32", .count=3ULL, .cap=TIL_CAP_LIT};
+    (void)U32Name;
+    U64Name = (Str){.c_str=(U8*)"U64", .count=3ULL, .cap=TIL_CAP_LIT};
+    (void)U64Name;
+    F32Name = (Str){.c_str=(U8*)"F32", .count=3ULL, .cap=TIL_CAP_LIT};
+    (void)F32Name;
+    BoolName = (Str){.c_str=(U8*)"Bool", .count=4ULL, .cap=TIL_CAP_LIT};
+    (void)BoolName;
     Str _t_Str_11347; { Str *_hp = (Str *)Str_lit("Str", 3ULL); _t_Str_11347 = *_hp; free(_hp); }
     (void)_t_Str_11347;
     U32 _t_U32_11348; { U32 *_hp = (U32 *)Str_size(); _t_U32_11348 = *_hp; free(_hp); }

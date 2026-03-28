@@ -3,6 +3,14 @@ mode lib
 mut hoist_counter : I32 = 0
 mut _va_counter : I32 = 0
 mut _kw_counter : I32 = 0
+I64Name := "I64"
+U8Name := "U8"
+I16Name := "I16"
+I32Name := "I32"
+U32Name := "U32"
+U64Name := "U64"
+F32Name := "F32"
+BoolName := "Bool"
 
 LocalInfo := struct {
     ref mut name : Str = NULL
