@@ -761,6 +761,33 @@ desugar_map_literals := proc(mut body: Expr, mut scope: TypeScope) {
     }
 }
 
+hoist_param_swap_assign := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+    sf := scope.find(get_payload(stmt.data))
+    if is_variant(sf, ScopeFind.Found).not() { return }
+    ref ab : TypeBinding = get_payload(sf)
+    if ab.is_param.not() { return }
+    if ab.is_mut.not() { return }
+    if is_variant(ab.type, TilType.Struct).not() {
+        if is_variant(ab.type, TilType.Enum).not() { return }
+    }
+
+    mut call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
+    call.til_type = TilType.None
+    mut fn := Expr.new(ExprData.Ident("swap"), stmt.line, stmt.col, stmt.path)
+    call.add_child(own fn)
+    ref stmt_name : Str = get_payload(stmt.data)
+    mut a := Expr.new(ExprData.Ident(stmt_name.clone()), stmt.line, stmt.col, stmt.path)
+    a.til_type = ab.type
+    if ab.struct_name.len().gt(0) { a.struct_name = ab.struct_name.clone() }
+    call.add_child(own a)
+    call.add_child(own stmt.child(0).clone())
+    tname := type_to_name(ab.type, ab.struct_name)
+    mut sz_call := make_ns_call(tname, "size", usize_type(scope), "", stmt)
+    mut sz := hoist_to_temp(sz_call, hoisted, scope)
+    call.add_child(own sz)
+    stmt = call
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {

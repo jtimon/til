@@ -852,6 +852,7 @@ void desugar_set_literal_decl(Expr * stmt, Vec * new_ch, TypeScope * scope);
 void desugar_map_literal_decl(Expr * stmt, Vec * new_ch, TypeScope * scope);
 void desugar_set_literals(Expr * body, TypeScope * scope);
 void desugar_map_literals(Expr * body, TypeScope * scope);
+void hoist_param_swap_assign(Expr * stmt, Vec * hoisted, TypeScope * scope);
 Str * resolve_variadic_elem_type(Expr * fcall, TypeScope * scope);
 Bool desugar_pure_splat_variadic_call(Expr * fcall, Vec * new_ch, Expr * stmt);
 void desugar_kwargs_calls(Expr * body, TypeScope * scope);

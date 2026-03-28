@@ -1214,32 +1214,6 @@ static void hoist_assign_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     }
 }
 
-static void hoist_param_swap_assign(Expr *stmt, Vec *hoisted, TypeScope *scope) {
-    ScopeFind *_sf_ab3 = TypeScope_find(scope, &stmt->data.data.Ident);
-    TypeBinding *ab = _sf_ab3->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab3) : NULL;
-    if (!(ab && ab->is_param && ab->is_mut &&
-        (ab->type.tag == TilType_TAG_Struct || ab->type.tag == TilType_TAG_Enum))) return;
-
-    I32 line = stmt->line, col = stmt->col;
-    Str *path = &stmt->path;
-    Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-    call->til_type = (TilType){TilType_TAG_None};
-    Expr *fn = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    fn->data.data.Ident = (Str){.c_str = (U8*)"swap", .count = 4, .cap = CAP_LIT};
-    Expr_add_child(call, fn);
-    Expr *a = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    a->data.data.Ident = stmt->data.data.Ident;
-    a->til_type = ab->type;
-    if (ab->struct_name.count > 0) a->struct_name = *Str_clone(&ab->struct_name);
-    Expr_add_child(call, a);
-    Expr_add_child(call, Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})));
-    Str *tname = type_to_name(&ab->type, &ab->struct_name);
-    Expr *sz_call = make_ns_call(tname, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope), &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, stmt);
-    Expr *sz = hoist_to_temp(sz_call, hoisted, scope);
-    Expr_add_child(call, sz);
-    *stmt = *call;
-}
-
 static void hoist_field_assign_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     hoist_expr(Expr_child(stmt, &(USize){(USize)(1)}), hoisted, scope);
     Bool fa_hoist = 1;
