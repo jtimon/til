@@ -1770,22 +1770,6 @@ static void check_use_after_own_transfer(Expr *body, LocalInfo *locals, U32 n_lo
     }
 }
 
-static void insert_exit_deletes_into_stmt(Expr *stmt, Expr *body, LocalInfo *locals, U32 n_locals, U32 stmt_idx, Vec *new_ch) {
-    if (stmt->data.tag != ExprData_TAG_Return && stmt->data.tag != ExprData_TAG_Break && stmt->data.tag != ExprData_TAG_Continue) return;
-    for (U32 j = 0; j < n_locals; j++) {
-        if (stmt->children.count > 0 &&
-            (expr_uses_var(Expr_child(stmt, &(USize){(USize)(0)}), locals[j].name) ||
-             alias_used_in_expr(body, locals[j].name, Expr_child(stmt, &(USize){(USize)(0)})))) continue;
-        if (locals[j].skip_scope_delete) continue;
-        if (locals[j].own_transfer >= 0) continue;
-        if (locals[j].decl_index < (I32)stmt_idx &&
-            (locals[j].last_use >= (I32)stmt_idx || locals[j].last_use == -1)) {
-            Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-            if (del) Vec_push(new_ch, del);
-        }
-    }
-}
-
 static void insert_assign_delete(Expr *stmt, LocalInfo *locals, U32 n_locals, Vec *new_ch) {
     if (stmt->data.tag != ExprData_TAG_Assign) return;
     Str *vname = &stmt->data.data.Ident;

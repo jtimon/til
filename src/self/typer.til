@@ -1002,6 +1002,31 @@ insert_nested_exit_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals
     }
 }
 
+insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32, mut new_ch: Vec) {
+    if is_variant(stmt.data, ExprData.Return).not() {
+        if is_variant(stmt.data, ExprData.Break).not() {
+            if is_variant(stmt.data, ExprData.Continue).not() { return }
+        }
+    }
+    for j in 0..n_locals {
+        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+        if stmt.child_count().gt(0) {
+            ref retval : Expr = stmt.child(0)
+            if expr_uses_var(retval, local.name).or(alias_used_in_expr(body, local.name, retval)) {
+                continue
+            }
+        }
+        if local.skip_scope_delete { continue }
+        if local.own_transfer.gte(0) { continue }
+        if local.decl_index.lt(stmt_idx.to_i64().to_i32()) {
+            if local.last_use.gte(stmt_idx.to_i64().to_i32()).or(local.last_use.eq(-1.to_i32())) {
+                del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+                if is_null(del).not() { new_ch.push(own del) }
+            }
+        }
+    }
+}
+
 narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
     if is_variant(expr.til_type, TilType.Dynamic).not() { return }
     if is_variant(target, TilType.Dynamic) { return }
