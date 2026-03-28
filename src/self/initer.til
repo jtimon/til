@@ -146,8 +146,8 @@ generate_missing_struct_clones := proc(program: Expr, scope: TypeScope) {
         }
         if has_clone { continue }
 
-        field_names := Vec.new("", Str.size())
-        field_refs := Vec.new("", I32.size())
+        field_names := Vec.new("Str", Str.size())
+        field_refs := Vec.new("I32", I32.size())
         for j in 0..body.child_count() {
             ref field : Expr = body.child(j)
             if is_variant(field.data, ExprData.Decl).not() { continue }
@@ -718,8 +718,8 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
 
         ref mut body : Expr = stmt.child(0).child(0)
 
-        variant_names := Vec.new("", Str.size())
-        variant_types := Vec.new("", Str.size())
+        variant_names := Vec.new("Str", Str.size())
+        variant_types := Vec.new("Str", Str.size())
         mut has_payloads := false
         collect_enum_variants(body, variant_names, variant_types, has_payloads)
         generate_enum_variant_constructors(body, ename, line, col, path, variant_names, variant_types, has_payloads)
@@ -788,8 +788,8 @@ generate_missing_enum_clones := proc(program: Expr) {
             }
         }
         if has_clone.not() {
-            variant_names := Vec.new("", Str.size())
-            variant_types := Vec.new("", Str.size())
+            variant_names := Vec.new("Str", Str.size())
+            variant_types := Vec.new("Str", Str.size())
             mut has_payloads := false
             collect_enum_variants(body, variant_names, variant_types, has_payloads)
             generate_enum_clone_method(body, ename, line.to_i64().to_i32(), col.to_i64().to_i32(), path, variant_names, variant_types, has_payloads)
@@ -827,8 +827,8 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
         }
         if has_delete { continue }
 
-        field_names := Vec.new("", Str.size())
-        field_owns := Vec.new("", I32.size())
+        field_names := Vec.new("Str", Str.size())
+        field_owns := Vec.new("Bool", Bool.size())
         for j in 0..body.child_count() {
             ref field : Expr = body.child(j)
             if is_variant(field.data, ExprData.Decl).not() { continue }
@@ -839,16 +839,16 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
             }
             field_names.push(own fd.name.clone())
             if fd.is_own {
-                field_owns.push(own 1.to_i32())
+                field_owns.push(own true)
             } else {
-                field_owns.push(own 0.to_i32())
+                field_owns.push(own false)
             }
         }
 
         mut proc_body := Expr.new(ExprData.Body, stmt.line, stmt.col, stmt.path)
         for j in 0..field_names.len() {
             ref fname : Str = field_names.get(j)
-            ref fown : I32 = field_owns.get(j)
+            ref fown : Bool = field_owns.get(j)
             mut self_id := Expr.new(ExprData.Ident("self"), stmt.line, stmt.col, stmt.path)
             mut field_acc := Expr.new(ExprData.FieldAccess(fname.clone()), stmt.line, stmt.col, stmt.path)
             field_acc.is_own_arg = true
@@ -859,7 +859,7 @@ generate_missing_struct_deletes := proc(program: Expr, scope: TypeScope) {
             mut del_call := Expr.new(ExprData.FCall(FCallData()), stmt.line, stmt.col, stmt.path)
             del_call.add_child(own del_acc)
 
-            mut cf_lit := Expr.new(ExprData.LiteralBool(fown.eq(1)), stmt.line, stmt.col, stmt.path)
+            mut cf_lit := Expr.new(ExprData.LiteralBool(fown), stmt.line, stmt.col, stmt.path)
             del_call.add_child(own cf_lit)
             proc_body.add_child(own del_call)
         }
