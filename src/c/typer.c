@@ -44,13 +44,7 @@ static Bool ctor_field_consumes(TilType t) {
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
-
-
-
-
-
-
-static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
+static void infer_literal_expr(Expr *e) {
     switch (e->data.tag) {
     case ExprData_TAG_LiteralStr:
         e->til_type = (TilType){TilType_TAG_Struct};
@@ -66,29 +60,72 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     case ExprData_TAG_LiteralNull:
         e->til_type = (TilType){TilType_TAG_Dynamic};
         break;
-    case ExprData_TAG_Ident: {
-        TilType t = *TypeScope_get_type(scope, &e->data.data.Ident);
-        if (t.tag == TilType_TAG_Unknown) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->data.data.Ident.c_str);
-            type_error(e, buf);
-        }
-        e->til_type = t;
-        ScopeFind *_sf_id = TypeScope_find(scope, &e->data.data.Ident);
-        TypeBinding *ib = _sf_id->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_id) : NULL;
-        if (ib && (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)) {
-            if (ib->struct_name.count > 0) e->struct_name = *Str_clone(&ib->struct_name);
-        }
-        // Function references: identifier refers to a function → Fn type
-        if (ib && ib->func_def) {
-            e->til_type = (TilType){TilType_TAG_FuncPtr};
-        }
-        // Struct type names: allow field access for namespace fields
-        if (ib && ib->struct_def) {
-            e->struct_name = *Str_clone(resolve_type_alias(scope, &e->data.data.Ident));
-        }
+    default:
         break;
     }
+}
+
+static void infer_ident_expr(TypeScope *scope, Expr *e) {
+    TilType t = *TypeScope_get_type(scope, &e->data.data.Ident);
+    if (t.tag == TilType_TAG_Unknown) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "undefined symbol '%s'", e->data.data.Ident.c_str);
+        type_error(e, buf);
+    }
+    e->til_type = t;
+    ScopeFind *_sf_id = TypeScope_find(scope, &e->data.data.Ident);
+    TypeBinding *ib = _sf_id->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_id) : NULL;
+    if (ib && (t.tag == TilType_TAG_Struct || t.tag == TilType_TAG_Enum)) {
+        if (ib->struct_name.count > 0) e->struct_name = *Str_clone(&ib->struct_name);
+    }
+    if (ib && ib->func_def) {
+        e->til_type = (TilType){TilType_TAG_FuncPtr};
+    }
+    if (ib && ib->struct_def) {
+        e->struct_name = *Str_clone(resolve_type_alias(scope, &e->data.data.Ident));
+    }
+}
+
+static void infer_named_arg_expr(TypeScope *scope, Expr *e, I32 in_func) {
+    if (e->children.count > 0) {
+        infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
+        Expr *val = Expr_child(e, &(USize){(USize)(0)});
+        e->til_type = val->til_type;
+        if (val->struct_name.count > 0) e->struct_name = *Str_clone(&val->struct_name);
+    }
+}
+
+static void infer_map_lit_expr(TypeScope *scope, Expr *e, I32 in_func) {
+    for (U32 i = 0; i < e->children.count; i++)
+        infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
+    e->til_type = (TilType){TilType_TAG_Struct};
+    e->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
+}
+
+static void infer_set_lit_expr(TypeScope *scope, Expr *e, I32 in_func) {
+    for (U32 i = 0; i < e->children.count; i++)
+        infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
+    e->til_type = (TilType){TilType_TAG_Struct};
+    e->struct_name = (Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT};
+}
+
+
+
+
+
+
+
+static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
+    switch (e->data.tag) {
+    case ExprData_TAG_LiteralStr:
+    case ExprData_TAG_LiteralNum:
+    case ExprData_TAG_LiteralBool:
+    case ExprData_TAG_LiteralNull:
+        infer_literal_expr(e);
+        break;
+    case ExprData_TAG_Ident:
+        infer_ident_expr(scope, e);
+        break;
     case ExprData_TAG_FuncDef:
         if (e->children.count == 0) {
             // Bodyless = FuncSig type definition, no body to type
@@ -1042,25 +1079,13 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         break;
     }
     case ExprData_TAG_MapLit:
-        for (U32 i = 0; i < e->children.count; i++)
-            infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
-        e->til_type = (TilType){TilType_TAG_Struct};
-        e->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
+        infer_map_lit_expr(scope, e, in_func);
         break;
     case ExprData_TAG_SetLit:
-        for (U32 i = 0; i < e->children.count; i++)
-            infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
-        e->til_type = (TilType){TilType_TAG_Struct};
-        e->struct_name = (Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT};
+        infer_set_lit_expr(scope, e, in_func);
         break;
     case ExprData_TAG_NamedArg:
-        // Infer the value inside the named arg (child[0])
-        if (e->children.count > 0) {
-            infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
-            Expr *val = Expr_child(e, &(USize){(USize)(0)});
-            e->til_type = val->til_type;
-            if (val->struct_name.count > 0) e->struct_name = *Str_clone(&val->struct_name);
-        }
+        infer_named_arg_expr(scope, e, in_func);
         break;
     default:
         e->til_type = (TilType){TilType_TAG_Unknown};
@@ -2193,6 +2218,182 @@ static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     free(locals);
 }
 
+static void infer_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
+    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+    stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
+    if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
+        stmt->struct_name = *Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+    Str *aname = &stmt->data.data.Ident;
+    TilType existing = *TypeScope_get_type(scope, aname);
+    if (existing.tag == TilType_TAG_Unknown) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "undefined symbol '%s'", aname->c_str);
+        type_error(stmt, buf);
+    } else if (!TypeScope_is_mut(scope, aname)) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "cannot assign to immutable variable '%s'", aname->c_str);
+        type_error(stmt, buf);
+        ScopeFind *_sf_asgn = TypeScope_find(scope, aname);
+        TypeBinding *b = _sf_asgn->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_asgn) : NULL;
+        if (b && b->is_param) {
+            fprintf(stderr, "%s:%u:%u: note: '%s' is a function parameter\n",
+                    stmt->path.c_str, b->line, b->col, aname->c_str);
+        } else if (b) {
+            fprintf(stderr, "%s:%u:%u: note: '%s' declared here, consider adding 'mut'\n",
+                    stmt->path.c_str, b->line, b->col, aname->c_str);
+        }
+    } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&existing)) {
+        if (!literal_in_range(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident, &existing)) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                     Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&existing)->c_str);
+            type_error(stmt, buf);
+        }
+        Expr_child(stmt, &(USize){(USize)(0)})->til_type = existing;
+        stmt->til_type = existing;
+    } else if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != existing.tag &&
+               Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "'%s' is %s but assigned %s",
+                 aname->c_str, til_type_name_c(&existing)->c_str,
+                 til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
+        type_error(stmt, buf);
+    }
+    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident ||
+        (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+         (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Struct ||
+          Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Enum))) {
+        Str *tname = type_to_name(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+        if (tname->count > 0) {
+            Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(USize){(USize)(0)})->til_type,
+                Expr_child(stmt, &(USize){(USize)(0)}), stmt);
+            *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
+            memset(_mc, 0, sizeof(Expr)); free(_mc);
+        }
+    }
+}
+
+static void infer_field_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
+    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func);
+    Expr *obj = Expr_child(stmt, &(USize){(USize)(0)});
+    Str *fname = &stmt->data.data.Ident;
+    if (obj->struct_name.count > 0) {
+        Expr *sdef = TypeScope_get_struct(scope, &obj->struct_name);
+        if (sdef) {
+            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
+            Bool found = 0;
+            for (U32 i = 0; i < body->children.count; i++) {
+                Expr *field = Expr_child(body, &(USize){(USize)(i)});
+                if (Str_eq(&field->data.data.Decl.name, fname)) {
+                    found = 1;
+                    stmt->is_ns_field = field->data.data.Decl.is_namespace;
+                    stmt->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
+                    stmt->is_ref_field = field->data.data.Decl.is_ref;
+                    if (!field->data.data.Decl.is_mut) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
+                        type_error(stmt, buf);
+                    }
+                    if (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&field->til_type)) {
+                        if (!literal_in_range(&Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident, &field->til_type)) {
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "integer literal %s out of range for field '%s' (%s)",
+                                     Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident.c_str, fname->c_str, til_type_name_c(&field->til_type)->c_str);
+                            type_error(Expr_child(stmt, &(USize){(USize)(1)}), buf);
+                        }
+                        Expr_child(stmt, &(USize){(USize)(1)})->til_type = field->til_type;
+                    } else if (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != field->til_type.tag &&
+                        Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Unknown &&
+                        Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Dynamic) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "field '%s' is %s but assigned %s",
+                                 fname->c_str, til_type_name_c(&field->til_type)->c_str,
+                                 til_type_name_c(&Expr_child(stmt, &(USize){(USize)(1)})->til_type)->c_str);
+                        type_error(stmt, buf);
+                    }
+                    break;
+                }
+            }
+            if (!found) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'",
+                         obj->struct_name.c_str, fname->c_str);
+                type_error(stmt, buf);
+            }
+        }
+    } else {
+        type_error(stmt, "field assignment on non-struct value");
+    }
+    stmt->til_type = (TilType){TilType_TAG_None};
+    if (!stmt->is_ref_field &&
+        (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident ||
+         (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FieldAccess &&
+          (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Struct ||
+           Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Enum)))) {
+        Str *tname = type_to_name(&Expr_child(stmt, &(USize){(USize)(1)})->til_type,
+                                  &Expr_child(stmt, &(USize){(USize)(1)})->struct_name);
+        if (tname->count > 0) {
+            Expr *_mc = make_clone_call(tname,
+                Expr_child(stmt, &(USize){(USize)(1)})->til_type, Expr_child(stmt, &(USize){(USize)(1)}),
+                Expr_child(stmt, &(USize){(USize)(1)}));
+            *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *_mc;
+            memset(_mc, 0, sizeof(Expr)); free(_mc);
+        }
+    }
+}
+
+static void infer_return_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref) {
+    if (stmt->children.count > 0) {
+        infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+        stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
+        if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+            ScopeFind *_sf_ret1 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
+            TypeBinding *b = _sf_ret1->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret1) : NULL;
+            if (b && b->is_ref && !b->is_alias && !b->is_param) {
+                type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'");
+            }
+        }
+        if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+            ScopeFind *_sf_ret2 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
+            TypeBinding *b = _sf_ret2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret2) : NULL;
+            if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
+                Str *tname = type_to_name(&stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+                if (tname->count > 0) {
+                    Expr *_mc = make_clone_call(tname, stmt->til_type,
+                        Expr_child(stmt, &(USize){(USize)(0)}), stmt);
+                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
+                    memset(_mc, 0, sizeof(Expr)); free(_mc);
+                }
+            }
+        }
+    } else {
+        stmt->til_type = (TilType){TilType_TAG_None};
+    }
+}
+
+static void infer_if_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_loop, I32 returns_ref) {
+    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+    if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Bool &&
+        Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "if condition must be Bool, got %s",
+                 til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
+        type_error(stmt, buf);
+    }
+    {
+        TypeScope *then_scope = TypeScope_new(scope);
+        infer_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, in_loop, returns_ref, 0);
+        TypeScope_delete(then_scope, &(Bool){1});
+    }
+    if (stmt->children.count > 2) {
+        TypeScope *else_scope = TypeScope_new(scope);
+        infer_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}), in_func, 1, in_loop, returns_ref, 0);
+        TypeScope_delete(else_scope, &(Bool){1});
+    }
+    stmt->til_type = (TilType){TilType_TAG_None};
+}
+
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
     body->til_type = (TilType){TilType_TAG_None};
     for (U32 i = 0; i < body->children.count; i++) {
@@ -2437,168 +2638,17 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
                 }
             }
             break;
-        case ExprData_TAG_Assign: {
-            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
-            stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
-            if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
-                stmt->struct_name = *Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-            Str *aname = &stmt->data.data.Ident;
-            TilType existing = *TypeScope_get_type(scope, aname);
-            if (existing.tag == TilType_TAG_Unknown) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "undefined symbol '%s'", aname->c_str);
-                type_error(stmt, buf);
-            } else if (!TypeScope_is_mut(scope, aname)) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "cannot assign to immutable variable '%s'", aname->c_str);
-                type_error(stmt, buf);
-                ScopeFind *_sf_asgn = TypeScope_find(scope, aname);
-                TypeBinding *b = _sf_asgn->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_asgn) : NULL;
-                if (b && b->is_param) {
-                    fprintf(stderr, "%s:%u:%u: note: '%s' is a function parameter\n",
-                            stmt->path.c_str, b->line, b->col, aname->c_str);
-                } else if (b) {
-                    fprintf(stderr, "%s:%u:%u: note: '%s' declared here, consider adding 'mut'\n",
-                            stmt->path.c_str, b->line, b->col, aname->c_str);
-                }
-            } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&existing)) {
-                if (!literal_in_range(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident, &existing)) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
-                             Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&existing)->c_str);
-                    type_error(stmt, buf);
-                }
-                Expr_child(stmt, &(USize){(USize)(0)})->til_type = existing;
-                stmt->til_type = existing;
-            } else if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != existing.tag &&
-                       Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "'%s' is %s but assigned %s",
-                         aname->c_str, til_type_name_c(&existing)->c_str,
-                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-                type_error(stmt, buf);
-            }
-            // Auto-insert clone for assignments from identifiers
-            if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident ||
-                (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-                 (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Struct ||
-                  Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag == TilType_TAG_Enum))) {
-                Str *tname = type_to_name(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-                if (tname->count > 0) {
-                    Expr *_mc = make_clone_call(tname, Expr_child(stmt, &(USize){(USize)(0)})->til_type,
-                        Expr_child(stmt, &(USize){(USize)(0)}), stmt);
-                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
-                    memset(_mc, 0, sizeof(Expr)); free(_mc);
-                }
-            }
+        case ExprData_TAG_Assign:
+            infer_assign_stmt(scope, stmt, in_func);
             break;
-        }
-        case ExprData_TAG_FieldAssign: {
-            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func); // object
-            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func); // value
-            Expr *obj = Expr_child(stmt, &(USize){(USize)(0)});
-            Str *fname = &stmt->data.data.Ident;
-            if (obj->struct_name.count > 0) {
-                Expr *sdef = TypeScope_get_struct(scope, &obj->struct_name);
-                if (sdef) {
-                    Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-                    Bool found = 0;
-                    for (U32 i = 0; i < body->children.count; i++) {
-                        Expr *field = Expr_child(body, &(USize){(USize)(i)});
-                        if (Str_eq(&field->data.data.Decl.name, fname)) {
-                            found = 1;
-                            stmt->is_ns_field = field->data.data.Decl.is_namespace;
-                            stmt->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
-                            stmt->is_ref_field = field->data.data.Decl.is_ref;
-                            if (!field->data.data.Decl.is_mut) {
-                                char buf[128];
-                                snprintf(buf, sizeof(buf), "cannot assign to immutable field '%s'", fname->c_str);
-                                type_error(stmt, buf);
-                            }
-                            if (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&field->til_type)) {
-                                if (!literal_in_range(&Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident, &field->til_type)) {
-                                    char buf[128];
-                                    snprintf(buf, sizeof(buf), "integer literal %s out of range for field '%s' (%s)",
-                                             Expr_child(stmt, &(USize){(USize)(1)})->data.data.Ident.c_str, fname->c_str, til_type_name_c(&field->til_type)->c_str);
-                                    type_error(Expr_child(stmt, &(USize){(USize)(1)}), buf);
-                                }
-                                Expr_child(stmt, &(USize){(USize)(1)})->til_type = field->til_type;
-                            } else if (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != field->til_type.tag &&
-                                Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Unknown &&
-                                Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag != TilType_TAG_Dynamic) {
-                                char buf[128];
-                                snprintf(buf, sizeof(buf), "field '%s' is %s but assigned %s",
-                                         fname->c_str, til_type_name_c(&field->til_type)->c_str,
-                                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(1)})->til_type)->c_str);
-                                type_error(stmt, buf);
-                            }
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        char buf[128];
-                        snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'",
-                                 obj->struct_name.c_str, fname->c_str);
-                        type_error(stmt, buf);
-                    }
-                }
-            } else {
-                type_error(stmt, "field assignment on non-struct value");
-            }
-            stmt->til_type = (TilType){TilType_TAG_None};
-            // Auto-insert clone for field assignments from identifiers
-            // Skip clone for ref fields — they store pointers, not owned copies
-            if (!stmt->is_ref_field &&
-                (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident ||
-                 (Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_FieldAccess &&
-                  (Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Struct ||
-                   Expr_child(stmt, &(USize){(USize)(1)})->til_type.tag == TilType_TAG_Enum)))) {
-                Str *tname = type_to_name(&Expr_child(stmt, &(USize){(USize)(1)})->til_type,
-                                          &Expr_child(stmt, &(USize){(USize)(1)})->struct_name);
-                if (tname->count > 0) {
-                    Expr *_mc = make_clone_call(tname,
-                        Expr_child(stmt, &(USize){(USize)(1)})->til_type, Expr_child(stmt, &(USize){(USize)(1)}),
-                        Expr_child(stmt, &(USize){(USize)(1)}));
-                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *_mc;
-                    memset(_mc, 0, sizeof(Expr)); free(_mc);
-                }
-            }
+        case ExprData_TAG_FieldAssign:
+            infer_field_assign_stmt(scope, stmt, in_func);
             break;
-        }
         case ExprData_TAG_FCall:
             infer_expr(scope, stmt, in_func);
             break;
         case ExprData_TAG_Return:
-            if (stmt->children.count > 0) {
-                infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
-                stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
-                // Error: returning an explicit ref variable from a non-ref function
-                if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-                    ScopeFind *_sf_ret1 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-                    TypeBinding *b = _sf_ret1->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret1) : NULL;
-                    if (b && b->is_ref && !b->is_alias && !b->is_param) {
-                        type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'");
-                    }
-                }
-                // Auto-insert clone when returning a borrowed param or auto-alias
-                // (prevents use-after-free: aliases share storage with locals,
-                //  params are borrowed — both need cloning to return safely)
-                if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-                    ScopeFind *_sf_ret2 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-                    TypeBinding *b = _sf_ret2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret2) : NULL;
-                    if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
-                        Str *tname = type_to_name(&stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-                        if (tname->count > 0) {
-                            Expr *_mc = make_clone_call(tname, stmt->til_type,
-                                Expr_child(stmt, &(USize){(USize)(0)}), stmt);
-                            *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
-                            memset(_mc, 0, sizeof(Expr)); free(_mc);
-                        }
-                    }
-                }
-            } else {
-                stmt->til_type = (TilType){TilType_TAG_None};
-            }
+            infer_return_stmt(scope, stmt, in_func, returns_ref);
             break;
         case ExprData_TAG_Break:
             if (!in_loop) {
@@ -2613,25 +2663,7 @@ static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
         case ExprData_TAG_If:
-            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func); // condition
-            if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Bool &&
-                Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "if condition must be Bool, got %s",
-                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-                type_error(stmt, buf);
-            }
-            {
-                TypeScope *then_scope = TypeScope_new(scope);
-                infer_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, in_loop, returns_ref, 0);
-                TypeScope_delete(then_scope, &(Bool){1});
-            }
-            if (stmt->children.count > 2) {
-                TypeScope *else_scope = TypeScope_new(scope);
-                infer_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}), in_func, 1, in_loop, returns_ref, 0);
-                TypeScope_delete(else_scope, &(Bool){1});
-            }
-            stmt->til_type = (TilType){TilType_TAG_None};
+            infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref);
             break;
         case ExprData_TAG_Body: {
             TypeScope *block_scope = TypeScope_new(scope);
