@@ -1092,6 +1092,23 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
     }
 }
 
+infer_literal_expr := proc(mut expr: Expr) {
+    switch expr.data {
+    case ExprData.LiteralStr:
+        expr.til_type = TilType.Struct
+        expr.struct_name = "Str"
+    case ExprData.LiteralNum:
+        if is_variant(expr.til_type, TilType.U8).not() {
+            expr.til_type = TilType.I64
+        }
+    case ExprData.LiteralBool:
+        expr.til_type = TilType.Bool
+    case ExprData.LiteralNull:
+        expr.til_type = TilType.Dynamic
+    case:
+    }
+}
+
 narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
     if is_variant(expr.til_type, TilType.Dynamic).not() { return }
     if is_variant(target, TilType.Dynamic) { return }

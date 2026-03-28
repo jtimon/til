@@ -44,27 +44,6 @@ static Bool ctor_field_consumes(TilType t) {
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
-static void infer_literal_expr(Expr *e) {
-    switch (e->data.tag) {
-    case ExprData_TAG_LiteralStr:
-        e->til_type = (TilType){TilType_TAG_Struct};
-        e->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-        break;
-    case ExprData_TAG_LiteralNum:
-        if (e->til_type.tag != TilType_TAG_U8)
-            e->til_type = (TilType){TilType_TAG_I64};
-        break;
-    case ExprData_TAG_LiteralBool:
-        e->til_type = (TilType){TilType_TAG_Bool};
-        break;
-    case ExprData_TAG_LiteralNull:
-        e->til_type = (TilType){TilType_TAG_Dynamic};
-        break;
-    default:
-        break;
-    }
-}
-
 static void infer_ident_expr(TypeScope *scope, Expr *e) {
     TilType t = *TypeScope_get_type(scope, &e->data.data.Ident);
     if (t.tag == TilType_TAG_Unknown) {
