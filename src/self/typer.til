@@ -399,6 +399,21 @@ make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: E
     return call
 }
 
+make_ns_call := func(sname: Str, method: Str, shallow ret_type: TilType, ret_sname: Str, src: Expr) returns Expr {
+    mut call := Expr.new(ExprData.FCall(FCallData()), src.line, src.col, src.path)
+    call.til_type = ret_type
+    if ret_sname.len().gt(0) { call.struct_name = ret_sname.clone() }
+
+    mut type_id := Expr.new(ExprData.Ident(sname.clone()), src.line, src.col, src.path)
+    type_id.struct_name = sname.clone()
+
+    mut fa := Expr.new(ExprData.FieldAccess(method.clone()), src.line, src.col, src.path)
+    fa.is_ns_field = true
+    fa.add_child(own type_id)
+    call.add_child(own fa)
+    return call
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }
