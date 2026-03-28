@@ -1991,45 +1991,6 @@ static Expr *make_delete_call(Str *var_name, TilType type, Str *struct_name, Boo
     return call;
 }
 
-// Build Type.delete(obj.field, call_free) for field reassignment.
-// is_own: true for own (pointer) fields, false for inline (value) fields.
-static Expr *make_field_delete(Expr *field_assign, Bool is_own) {
-    Expr *rhs = Expr_child(field_assign, &(USize){(USize)(1)});
-    Str *tname = type_to_name(&rhs->til_type, &rhs->struct_name);
-    if (tname->count == 0) return NULL;
-    I32 line = field_assign->line, col = field_assign->col;
-    Str *path = &field_assign->path;
-
-    Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-    call->til_type = (TilType){TilType_TAG_None};
-
-    Expr *type_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    type_id->data.data.Ident = *Str_clone(tname);
-    type_id->struct_name = *Str_clone(tname);
-
-    Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-    fa->data.data.FieldAccess = (Str){.c_str = (U8*)"delete", .count = 6, .cap = CAP_LIT};
-    fa->is_ns_field = true;
-    Expr_add_child(fa, type_id);
-    Expr_add_child(call, fa);
-
-    // arg: obj.field_name (clone the obj expr, build field access)
-    Expr *field_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-    field_acc->data.data.FieldAccess = field_assign->data.data.FieldAssign;
-    field_acc->is_own_field = is_own;
-    field_acc->til_type = rhs->til_type;
-    if (rhs->struct_name.count > 0) field_acc->struct_name = *Str_clone(&rhs->struct_name);
-    Expr_add_child(field_acc, Expr_clone(Expr_child(field_assign, &(USize){(USize)(0)})));
-    Expr_add_child(call, field_acc);
-
-    Expr *cf_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-    cf_lit->data.data.LiteralBool = is_own;
-    cf_lit->til_type = (TilType){TilType_TAG_Bool};
-    Expr_add_child(call, cf_lit);
-
-    return call;
-}
-
 // Insert delete calls before field reassignments (own and inline compound)
 static void insert_field_deletes(Expr *body) {
     Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }

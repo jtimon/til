@@ -320,6 +320,36 @@ type_to_name := func(t: TilType, struct_name: Str) returns Str {
     }
 }
 
+make_field_delete := func(field_assign: Expr, shallow is_own: Bool) returns Expr {
+    ref rhs : Expr = field_assign.child(1)
+    tname := type_to_name(rhs.til_type, rhs.struct_name)
+    if tname.len().eq(0) { return NULL }
+
+    mut call := Expr.new(ExprData.FCall(FCallData()), field_assign.line, field_assign.col, field_assign.path)
+    call.til_type = TilType.None
+
+    mut type_id := Expr.new(ExprData.Ident(tname.clone()), field_assign.line, field_assign.col, field_assign.path)
+    type_id.struct_name = tname.clone()
+
+    mut fa := Expr.new(ExprData.FieldAccess("delete"), field_assign.line, field_assign.col, field_assign.path)
+    fa.is_ns_field = true
+    fa.add_child(own type_id)
+    call.add_child(own fa)
+
+    mut field_acc := Expr.new(ExprData.FieldAccess(get_payload(field_assign.data)), field_assign.line, field_assign.col, field_assign.path)
+    field_acc.is_own_field = is_own
+    field_acc.til_type = rhs.til_type
+    if rhs.struct_name.len().gt(0) { field_acc.struct_name = rhs.struct_name.clone() }
+    field_acc.add_child(own field_assign.child(0).clone())
+    call.add_child(own field_acc)
+
+    mut cf_lit := Expr.new(ExprData.LiteralBool(is_own), field_assign.line, field_assign.col, field_assign.path)
+    cf_lit.til_type = TilType.Bool
+    call.add_child(own cf_lit)
+
+    return call
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }
