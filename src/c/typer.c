@@ -1786,56 +1786,6 @@ static void insert_exit_deletes(Expr *body, LocalInfo *live, U32 n_live, Bool re
     }
 }
 
-static void collect_scope_locals(Expr *body, TypeScope *scope, Bool is_program_scope, Vec *locals_vec) {
-    for (U32 i = 0; i < scope->bindings.count; i++) {
-        TypeBinding *b = (TypeBinding *)(scope->bindings.val_data + i * scope->bindings.val_size);
-        if ((b->is_param && !b->is_own) || b->struct_def || b->func_def) continue;
-
-        I32 decl_idx = -1;
-        for (U32 j = 0; j < body->children.count; j++) {
-            Expr *s = Expr_child(body, &(USize){(USize)(j)});
-            if (s->data.tag == ExprData_TAG_Decl && Str_eq(&s->data.data.Decl.name, b->name)) {
-                decl_idx = j;
-                break;
-            }
-        }
-        if (decl_idx == -1) {
-            for (U32 j = 0; j < body->children.count; j++) {
-                if (expr_contains_decl(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
-                    decl_idx = j;
-                    break;
-                }
-            }
-        }
-
-        I32 last_use = -1;
-        I32 own_transfer = -1;
-        I32 scan_from = decl_idx >= 0 ? decl_idx + 1 : 0;
-        for (U32 j = scan_from; j < body->children.count; j++) {
-            if (expr_uses_var(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
-                last_use = j;
-            }
-            if (own_transfer == -1 && expr_transfers_own(Expr_child(body, &(USize){(USize)(j)}), b->name, scope)) {
-                own_transfer = j;
-            }
-        }
-
-        Bool skip_scope_delete = is_program_scope && decl_idx >= 0;
-        if (!skip_scope_delete) {
-            for (U32 j = scan_from; j < body->children.count; j++) {
-                if (expr_used_in_nested_func(Expr_child(body, &(USize){(USize)(j)}), b->name)) {
-                    skip_scope_delete = 1;
-                    break;
-                }
-            }
-        }
-        if (b->is_ref) skip_scope_delete = 1;
-
-        LocalInfo li = {b->name, b->type, &b->struct_name, decl_idx, last_use, own_transfer, skip_scope_delete};
-        { LocalInfo *_p = malloc(sizeof(LocalInfo)); *_p = li; Vec_push(locals_vec, _p); }
-    }
-}
-
 static void extend_ref_local_lifetimes(Expr *body, LocalInfo *locals, U32 n_locals) {
     Bool ref_changed = 1;
     while (ref_changed) {

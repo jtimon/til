@@ -815,6 +815,74 @@ alias_used_in_expr := func(body: Expr, name: Str, expr: Expr) returns shallow Bo
     return false
 }
 
+collect_scope_locals := proc(body: Expr, scope: TypeScope, shallow is_program_scope: Bool, mut locals_vec: Vec) {
+    for i in 0..scope.bindings.count {
+        ref b : TypeBinding = ptr_add(scope.bindings.val_data, i.mul(scope.bindings.val_size))
+        if b.is_param.and(b.is_own.not()) { continue }
+        if is_null(b.struct_def).not() { continue }
+        if is_null(b.func_def).not() { continue }
+
+        mut decl_idx := -1.to_i32()
+        for j in 0..body.child_count() {
+            ref s : Expr = body.child(j)
+            if is_variant(s.data, ExprData.Decl) {
+                ref dd : Declaration = get_payload(s.data)
+                if dd.name.eq(b.name) {
+                    decl_idx = j.to_i64().to_i32()
+                    break
+                }
+            }
+        }
+        if decl_idx.eq(-1.to_i32()) {
+            for j in 0..body.child_count() {
+                if expr_contains_decl(body.child(j), b.name) {
+                    decl_idx = j.to_i64().to_i32()
+                    break
+                }
+            }
+        }
+
+        mut last_use := -1.to_i32()
+        mut own_transfer := -1.to_i32()
+        mut scan_from : USize = 0
+        if decl_idx.gte(0) {
+            scan_from = decl_idx.add(1).to_i64().to_usize()
+        }
+        for j in scan_from..body.child_count() {
+            ref stmt : Expr = body.child(j)
+            if expr_uses_var(stmt, b.name) {
+                last_use = j.to_i64().to_i32()
+            }
+            if own_transfer.eq(-1.to_i32()) {
+                if expr_transfers_own(stmt, b.name, scope) {
+                    own_transfer = j.to_i64().to_i32()
+                }
+            }
+        }
+
+        mut skip_scope_delete := is_program_scope.and(decl_idx.gte(0))
+        if skip_scope_delete.not() {
+            for j in scan_from..body.child_count() {
+                if expr_used_in_nested_func(body.child(j), b.name) {
+                    skip_scope_delete = true
+                    break
+                }
+            }
+        }
+        if b.is_ref { skip_scope_delete = true }
+
+        mut li := LocalInfo()
+        li.name = b.name
+        li.type = b.type
+        li.struct_name = b.struct_name
+        li.decl_index = decl_idx
+        li.last_use = last_use
+        li.own_transfer = own_transfer
+        li.skip_scope_delete = skip_scope_delete
+        locals_vec.push(own li)
+    }
+}
+
 narrow_dynamic := proc(mut expr: Expr, target: TilType, target_struct_name: Str) {
     if is_variant(expr.til_type, TilType.Dynamic).not() { return }
     if is_variant(target, TilType.Dynamic) { return }
