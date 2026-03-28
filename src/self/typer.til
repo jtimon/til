@@ -471,6 +471,56 @@ build_kwargs_dynmap_set := func(fcall: Expr, scope: TypeScope, kw_name: Str, nam
     return set_call
 }
 
+build_variadic_array_decl := func(fcall: Expr, scope: TypeScope, elem_type: Str, va_name: Str, shallow vc: U32) returns Expr {
+    mut new_call := make_ns_call("Array", "new", TilType.Struct, "Array", fcall)
+
+    mut et := Expr.new(ExprData.LiteralStr(elem_type.clone()), fcall.line, fcall.col, fcall.path)
+    et.til_type = TilType.Struct
+    et.struct_name = "Str"
+    new_call.add_child(own et)
+
+    mut sz := make_ns_call(elem_type, "size", usize_type(scope), "", fcall)
+    new_call.add_child(own sz)
+
+    cap_str := vc.to_i64().to_str()
+    mut cap := Expr.new(ExprData.LiteralNum(cap_str.clone()), fcall.line, fcall.col, fcall.path)
+    cap.til_type = usize_type(scope)
+    new_call.add_child(own cap)
+
+    mut va_decl := Expr.new(ExprData.Decl(Declaration()), fcall.line, fcall.col, fcall.path)
+    ref mut dd : Declaration = get_payload(va_decl.data)
+    dd.name = va_name.clone()
+    va_decl.til_type = TilType.Struct
+    va_decl.add_child(own new_call)
+    return va_decl
+}
+
+build_variadic_array_set := func(fcall: Expr, scope: TypeScope, va_name: Str, shallow vi: I32, shallow j: U32) returns Expr {
+    mut set_call := make_ns_call("Array", "set", TilType.None, "", fcall)
+
+    mut self_id := Expr.new(ExprData.Ident(va_name.clone()), fcall.line, fcall.col, fcall.path)
+    self_id.til_type = TilType.Struct
+    self_id.struct_name = "Array"
+    set_call.add_child(own self_id)
+
+    idx_str := j.to_i64().to_str()
+    mut idx := Expr.new(ExprData.LiteralNum(idx_str.clone()), fcall.line, fcall.col, fcall.path)
+    idx.til_type = usize_type(scope)
+    set_call.add_child(own idx)
+
+    ref val_in : Expr = fcall.child(vi.add(j.to_i64().to_i32()).to_i64().to_usize())
+    mut val := val_in.clone()
+    if is_variant(val_in.data, ExprData.Ident).or(is_variant(val_in.data, ExprData.FieldAccess)) {
+        tname := type_to_name(val_in.til_type, val_in.struct_name)
+        if tname.len().gt(0) {
+            val = make_clone_call(tname, val_in.til_type, val_in, val_in)
+        }
+    }
+    val.is_own_arg = true
+    set_call.add_child(own val)
+    return set_call
+}
+
 rewrite_kwargs_fcall_args := proc(mut fcall: Expr, kw_name: Str) {
     ref mut fcd : FCallData = get_payload(fcall.data)
     ki := fcd.kwargs_index

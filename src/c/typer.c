@@ -1321,62 +1321,6 @@ static Bool desugar_pure_splat_variadic_call(Expr *fcall, Vec *new_ch, Expr *stm
     return 1;
 }
 
-static Expr *build_variadic_array_decl(Expr *fcall, TypeScope *scope, Str *elem_type, Str *va_name, U32 vc) {
-    I32 line = fcall->line, col = fcall->col;
-    Str *path = &fcall->path;
-    Expr *new_call = make_ns_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"new", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_Struct},
-                                   &(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, fcall);
-    Expr *et = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralStr}, line, col, path);
-    et->data.data.LiteralStr = *Str_clone(elem_type);
-    et->til_type = (TilType){TilType_TAG_Struct};
-    et->struct_name = (Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT};
-    Expr_add_child(new_call, et);
-    Expr *sz = make_ns_call(elem_type, &(Str){.c_str = (U8*)"size", .count = 4, .cap = CAP_LIT}, *usize_type(scope),
-                             &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-    Expr_add_child(new_call, sz);
-    Expr *cap = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
-    char cap_buf[16];
-    snprintf(cap_buf, sizeof(cap_buf), "%d", vc);
-    cap->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(cap_buf), .count = (U64)strlen((const char*)(cap_buf)), .cap = CAP_VIEW});
-    cap->til_type = *usize_type(scope);
-    Expr_add_child(new_call, cap);
-
-    Expr *va_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-    va_decl->data.data.Decl.name = *va_name;
-    va_decl->til_type = (TilType){TilType_TAG_Struct};
-    Expr_add_child(va_decl, new_call);
-    return va_decl;
-}
-
-static Expr *build_variadic_array_set(Expr *fcall, TypeScope *scope, Str *va_name, I32 vi, U32 j) {
-    I32 line = fcall->line, col = fcall->col;
-    Str *path = &fcall->path;
-    Expr *set_call = make_ns_call(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT}, &(Str){.c_str = (U8*)"set", .count = 3, .cap = CAP_LIT}, (TilType){TilType_TAG_None},
-                                   &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT}, fcall);
-    Expr *self_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    self_id->data.data.Ident = *va_name;
-    self_id->til_type = (TilType){TilType_TAG_Struct};
-    self_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-    Expr_add_child(set_call, self_id);
-    Expr *idx = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralNum}, line, col, path);
-    char idx_buf[16];
-    snprintf(idx_buf, sizeof(idx_buf), "%d", j);
-    idx->data.data.LiteralNum = *Str_clone(&(Str){.c_str = (U8*)(idx_buf), .count = (U64)strlen((const char*)(idx_buf)), .cap = CAP_VIEW});
-    idx->til_type = *usize_type(scope);
-    Expr_add_child(set_call, idx);
-    Expr *val = Expr_child(fcall, &(USize){(USize)(vi + j)});
-    if (val->data.tag == ExprData_TAG_Ident || val->data.tag == ExprData_TAG_FieldAccess) {
-        Str *tname = type_to_name(&val->til_type, &val->struct_name);
-        if (tname->count > 0) val = make_clone_call(tname, val->til_type, val, val);
-        else val = Expr_clone(val);
-    } else {
-        val = Expr_clone(val);
-    }
-    val->is_own_arg = true;
-    Expr_add_child(set_call, val);
-    return set_call;
-}
-
 static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
     I32 vi = fcall->data.data.FCall.variadic_index;
     U32 vc = fcall->data.data.FCall.variadic_count;
