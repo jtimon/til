@@ -883,6 +883,18 @@ hoist_expr := proc(mut expr: Expr, mut hoisted: Vec, mut scope: TypeScope) {
     }
 }
 
+hoist_decl_rhs := proc(stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+    hoist_expr(stmt.child(0), hoisted, scope)
+}
+
+hoist_if_cond := proc(mut stmt: Expr, mut hoisted: Vec, mut scope: TypeScope) {
+    hoist_expr(stmt.child(0), hoisted, scope)
+    ref cond : Expr = stmt.child(0)
+    if is_variant(cond.data, ExprData.FCall) {
+        stmt.children.set(0, own hoist_to_temp(cond, hoisted, scope))
+    }
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {

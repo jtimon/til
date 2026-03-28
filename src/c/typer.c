@@ -1168,10 +1168,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // Check if a function call returns ref
 
-static void hoist_decl_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
-}
-
 static Expr *hoist_stmt_fcall(Expr *stmt, Vec *hoisted, TypeScope *scope) {
     hoist_expr(stmt, hoisted, scope);
     if (stmt->til_type.tag != TilType_TAG_None) {
@@ -1223,13 +1219,6 @@ static void hoist_field_assign_rhs(Expr *stmt, Vec *hoisted, TypeScope *scope) {
         Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralStr ||
         Expr_child(stmt, &(USize){(USize)(1)})->data.tag == ExprData_TAG_LiteralBool)) {
         *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(1)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(1)})), hoisted, scope);
-    }
-}
-
-static void hoist_if_cond(Expr *stmt, Vec *hoisted, TypeScope *scope) {
-    hoist_expr(Expr_child(stmt, &(USize){(USize)(0)}), hoisted, scope);
-    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FCall) {
-        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *hoist_to_temp(Expr_clone(Expr_child(stmt, &(USize){(USize)(0)})), hoisted, scope);
     }
 }
 
