@@ -253,7 +253,7 @@ main := proc(args: ..Str) {
     }
 
     // Resolve core imports
-    core_import_decls := Vec.new("", Expr.size())
+    core_import_decls := Vec.new("Expr", Expr.size())
     core_imports := extract_imports(core_ast)
     if core_imports.len().gt(0).and(skip_core.not()) {
         core_dir := bin_dir.concat("/src/core")
