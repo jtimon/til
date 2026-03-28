@@ -380,6 +380,25 @@ make_delete_call := func(var_name: Str, shallow type: TilType, struct_name: Str,
     return call
 }
 
+make_clone_call := func(type_name: Str, shallow type: TilType, arg: Expr, src: Expr) returns Expr {
+    mut call := Expr.new(ExprData.FCall(FCallData()), src.line, src.col, src.path)
+    call.til_type = type
+    if type.eq(TilType.Struct).or(type.eq(TilType.Enum)) {
+        call.struct_name = type_name.clone()
+    }
+
+    mut type_id := Expr.new(ExprData.Ident(type_name.clone()), src.line, src.col, src.path)
+    type_id.struct_name = type_name.clone()
+
+    mut fa := Expr.new(ExprData.FieldAccess("clone"), src.line, src.col, src.path)
+    fa.is_ns_field = true
+    fa.add_child(own type_id)
+    call.add_child(own fa)
+
+    call.add_child(own arg.clone())
+    return call
+}
+
 check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str) returns shallow Bool {
     ref fd : FunctionDef = get_payload(fdef.data)
     if fd.params.len().eq(0) { return false }

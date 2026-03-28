@@ -36,7 +36,6 @@ static void type_error(Expr *e, const char *msg) {
 
 static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
-static Expr *make_clone_call(Str *type_name, TilType type, Expr *arg, Expr *src);
 static Expr *make_ns_call(Str *sname, Str *method,
                            TilType ret_type, Str *ret_sname, Expr *src);
 
@@ -1980,30 +1979,6 @@ static void insert_field_deletes(Expr *body) {
         Vec_delete(&new_ch, &(Bool){0});
     }
 }
-
-static Expr *make_clone_call(Str *type_name, TilType type, Expr *arg, Expr *src) {
-    I32 line = src->line, col = src->col;
-    Str *path = &src->path;
-
-    Expr *call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, line, col, path);
-    call->til_type = type;
-    if (type.tag == TilType_TAG_Struct || type.tag == TilType_TAG_Enum) call->struct_name = *Str_clone(type_name);
-
-    Expr *type_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-    type_id->data.data.Ident = *Str_clone(type_name);
-    type_id->struct_name = *Str_clone(type_name);
-
-    Expr *fa = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, line, col, path);
-    fa->data.data.FieldAccess = (Str){.c_str = (U8*)"clone", .count = 5, .cap = CAP_LIT};
-    fa->is_ns_field = true;
-    Expr_add_child(fa, type_id);
-    Expr_add_child(call, fa);
-
-    Expr_add_child(call, Expr_clone(arg));
-    return call;
-}
-
-
 
 // Insert deletes for live parent-scope locals before early exits in body.
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
