@@ -14,30 +14,21 @@
   for heterogeneous kwarg values. Once ~#120~ made empty explicit types
   illegal, this became the last remaining blocker.
 
-  What remains to decide:
-  - represent kwarg payloads as ~Value~
-  - or introduce another explicit non-empty raw/bytestore spelling for
-    this heterogeneous case
+  Planned direction:
+  - use ~Map.new("Str", Str.size(), "Tuple", Tuple.size())~
+  - store each kwarg value as a one-element ~Tuple~
+  - that keeps the payload heterogeneous without depending on the old
+    empty-~val_type~ raw-storage escape hatch
+  - later, if kwargs need multi-value packing, the same representation
+    still scales naturally
 
   For now:
   - ~src/test/kwargs.til~ is temporarily disabled with ~TODO(#121)~
     markers
+  - the ~src/tests.til~ harness entry is also temporarily disabled with
+    the same ~TODO(#121)~ note
   - everything else under ~#120~ should stay strict about rejecting
     empty explicit container types
-
-** OPEN #120 Container constructors should reject empty explicit types
-  Once the remaining explicit typing work is done, typed container
-  constructors should stop accepting ~""~ silently:
-  - ~Vec.new("", ...)~
-  - ~Map.new(..., "", ...)~
-  - and any equivalent empty-type construction path
-
-  For real typed construction, empty type names should panic early and
-  loudly. The only remaining exception should be whichever explicit raw
-  spelling we settle on for pointer/ref storage.
-
-  This needs to wait until the raw-pointer path is explicit, so we do
-  not break old scratch containers before they are migrated.
 
 ** OPEN #119 Struct literals should apply field ownership semantics
   Struct literals currently behave like raw aggregate construction, so
@@ -251,6 +242,29 @@
   Additional source: ~panic()~ calls ~exit(1)~, skipping all
   ASAP deletion (independent of #50 -- fix by only checking
   leaks on exit code 0).
+
+  Current clue after fixing ~#120~:
+  - ASAN got worse instead of better:
+    - old baseline: ~108758 byte(s) leaked in 35508 allocation(s)~
+    - after ~#120~: ~281948 byte(s) leaked in 49543 allocation(s)~
+  - one strong lead from the generated ~til.c~ diff is raw ~Vec~
+    struct-literal construction now cloning empty strings into
+    owned ~elem_type~ fields:
+    - generated pattern: ~kept.elem_type = *Str_clone(Str_lit("", 0))~
+  - that is suspicious because ~Vec.delete~ skips deleting
+    ~elem_type~ when it is empty, so an owned cloned empty string may
+    leak repeatedly
+  - this points back at ~#119~ too: struct-literal ownership/default
+    handling may be forcing unnecessary clones even in raw-storage cases
+
+  Next investigation direction:
+  - compare the generated raw-~Vec~ struct literals against the old
+    empty-type constructor path
+  - confirm whether owned cloned empty strings are being skipped by
+    cleanup
+  - then either:
+    - stop cloning empty defaults in those raw-storage literals
+    - or make cleanup free owned-empty strings too
 
 ** OPEN #102 Auto-generate eq and to_str for structs
   Structs only auto-generate ~clone~, ~delete~, ~size~. Enums get
