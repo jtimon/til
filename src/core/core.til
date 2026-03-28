@@ -2,6 +2,7 @@ mode lib
 
 import("array.til")
 import("map.til")
+import("dyn_map.til")
 import("set.til")
 import("str.til")
 import("vec.til")

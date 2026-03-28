@@ -1,0 +1,58 @@
+mode test
+
+test_dyn_map_i64 := test() {
+    dm := DynMap.new()
+    dm.set(own "answer", "I64", I64.size(), own 42)
+    dm.set(own "count", "I64", I64.size(), own 7)
+
+    assert_eq(__LOC__, dm.len().to_i64(), 2)
+    assert(__LOC__, dm.has("answer"))
+    assert(__LOC__, dm.has("count"))
+    assert(__LOC__, dm.has("missing").not())
+
+    ref v0 : I64 = dm.get("answer")
+    ref v1 : I64 = dm.get("count")
+    assert_eq(__LOC__, v0, 42)
+    assert_eq(__LOC__, v1, 7)
+
+    ref t0 : Str = dm.type_at("answer")
+    ref s0 : USize = dm.size_at("answer")
+    assert_eq_str(__LOC__, t0, "I64")
+    assert_eq(__LOC__, s0.to_i64(), 8)
+}
+
+test_dyn_map_mixed := test() {
+    dm := DynMap.new()
+    dm.set(own "name", "Str", Str.size(), own "til")
+    dm.set(own "enabled", "Bool", Bool.size(), own true)
+    dm.set(own "size", "I64", I64.size(), own 64)
+
+    ref name : Str = dm.get("name")
+    ref enabled : Bool = dm.get("enabled")
+    ref size : I64 = dm.get("size")
+
+    assert_eq_str(__LOC__, name, "til")
+    assert(__LOC__, enabled)
+    assert_eq(__LOC__, size, 64)
+
+    ref tn : Str = dm.type_at("name")
+    ref tb : Str = dm.type_at("enabled")
+    ref ts : Str = dm.type_at("size")
+    assert_eq_str(__LOC__, tn, "Str")
+    assert_eq_str(__LOC__, tb, "Bool")
+    assert_eq_str(__LOC__, ts, "I64")
+}
+
+test_dyn_map_overwrite := test() {
+    dm := DynMap.new()
+    dm.set(own "v", "I64", I64.size(), own 1)
+    dm.set(own "v", "Str", Str.size(), own "two")
+
+    assert_eq(__LOC__, dm.len().to_i64(), 1)
+    ref v : Str = dm.get("v")
+    ref t : Str = dm.type_at("v")
+    ref s : USize = dm.size_at("v")
+    assert_eq_str(__LOC__, v, "two")
+    assert_eq_str(__LOC__, t, "Str")
+    assert_eq(__LOC__, s.to_i64(), 16)
+}

@@ -1,0 +1,39 @@
+mode lib
+
+DynMap := struct {
+    mut items := Map.new("Str", Str.size(), "Tuple", Tuple.size())
+
+namespace:
+    new := func() returns DynMap {
+        return DynMap()
+    }
+
+    len := func(self: DynMap) returns USize {
+        return self.items.len()
+    }
+
+    has := func(self: DynMap, key: Str) returns shallow Bool {
+        return self.items.has(key)
+    }
+
+    set := func(mut self: DynMap, own key: Str, elem_type: Str, elem_size: USize, own val: Dynamic) {
+        mut tup := Tuple.new()
+        tup.push(elem_type, elem_size, own val)
+        self.items.set(own key, own tup)
+    }
+
+    get := func(self: DynMap, key: Str) returns ref Dynamic {
+        ref tup : Tuple = self.items.get(key)
+        return tup.get(0)
+    }
+
+    type_at := func(self: DynMap, key: Str) returns ref Str {
+        ref tup : Tuple = self.items.get(key)
+        return tup.type_at(0)
+    }
+
+    size_at := func(self: DynMap, key: Str) returns ref USize {
+        ref tup : Tuple = self.items.get(key)
+        return tup.size_at(0)
+    }
+}

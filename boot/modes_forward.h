@@ -3,6 +3,7 @@
 
 typedef struct Array Array;
 typedef struct Map Map;
+typedef struct DynMap DynMap;
 typedef struct Set Set;
 typedef struct Str Str;
 typedef struct Vec Vec;
@@ -464,6 +465,11 @@ typedef struct Map {
 } Map;
 
 
+typedef struct DynMap {
+    Map items;
+} DynMap;
+
+
 typedef struct Set {
     U8 *data;
     U32 count;
@@ -559,6 +565,16 @@ void Map_set(Map * self, void * key, void * val);
 void Map_delete(Map * self, Bool * call_free);
 Map * Map_clone(Map * self);
 U32 * Map_size(void);
+DynMap * DynMap_new(void);
+U32 * DynMap_len(DynMap * self);
+Bool DynMap_has(DynMap * self, Str * key);
+void DynMap_set(DynMap * self, Str * key, Str * elem_type, U32 * elem_size, void * val);
+void * DynMap_get(DynMap * self, Str * key);
+Str * DynMap_type_at(DynMap * self, Str * key);
+U32 * DynMap_size_at(DynMap * self, Str * key);
+DynMap * DynMap_clone(DynMap * self);
+void DynMap_delete(DynMap * self, Bool * call_free);
+U32 * DynMap_size(void);
 Set * Set_new(Str * elem_type, U32 * elem_size);
 U32 * Set_len(Set * self);
 Bool Set_has(Set * self, void * val);

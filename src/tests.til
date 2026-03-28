@@ -357,6 +357,7 @@ main := proc(args: ..Str) {
     add_mode(tests, "src/test/macros.til", flags)
     add_mode(tests, "src/test/enums.til", flags)
     add_mode(tests, "src/test/vecs.til", flags)
+    add_mode(tests, "src/test/dyn_maps.til", flags)
     add_mode(tests, "src/test/tuples.til", flags)
     add_mode(tests, "src/test/arrays.til", flags)
     add_mode(tests, "src/test/sets.til", flags)
