@@ -51,6 +51,10 @@ void infer_decl_untyped_value(Expr *stmt);
 void finalize_decl_binding(TypeScope *scope, Expr *stmt, I32 in_type_body);
 void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref);
 static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in_func);
+static void init_switch_enum_coverage(TypeScope *scope, Expr *sw_expr, Expr **switch_enum_def, Bool **covered_variants, U32 *n_variants);
+static void mark_switch_case_covered_variant(Expr *switch_enum_def, Bool *covered_variants, U32 n_variants, Expr *sw_expr, Expr *match_expr);
+static Expr *make_switch_case_condition(TypeScope *scope, Expr *case_body, Expr *match_expr, Str *sw_name, I32 sw_line, I32 sw_col, Str *sw_path);
+static void replace_switch_stmt_with_block(Expr *body, U32 stmt_idx, Expr *block);
 
 static void infer_func_sig_expr(TypeScope *scope, Expr *e) {
     if (e->data.data.FuncDef.return_type.count > 0)
@@ -986,6 +990,196 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 // --- Delete call insertion ---
 
+static void init_switch_enum_coverage(TypeScope *scope, Expr *sw_expr, Expr **switch_enum_def, Bool **covered_variants, U32 *n_variants) {
+    *switch_enum_def = NULL;
+    *covered_variants = NULL;
+    *n_variants = 0;
+    if (sw_expr->til_type.tag != TilType_TAG_Enum || sw_expr->struct_name.count == 0) return;
+    *switch_enum_def = TypeScope_get_struct(scope, &sw_expr->struct_name);
+    if (!*switch_enum_def || (*switch_enum_def)->data.tag != ExprData_TAG_EnumDef) {
+        *switch_enum_def = NULL;
+        return;
+    }
+    Expr *enum_body = Expr_child(*switch_enum_def, &(USize){0});
+    for (U32 vi = 0; vi < enum_body->children.count; vi++) {
+        Expr *variant = Expr_child(enum_body, &(USize){vi});
+        if (variant->data.tag == ExprData_TAG_Decl && !variant->data.data.Decl.is_namespace)
+            (*n_variants)++;
+    }
+    if (*n_variants > 0) *covered_variants = calloc(*n_variants, sizeof(Bool));
+}
+
+static void mark_switch_case_covered_variant(Expr *switch_enum_def, Bool *covered_variants, U32 n_variants, Expr *sw_expr, Expr *match_expr) {
+    if (!switch_enum_def || !covered_variants) return;
+    Str *covered_variant_name = NULL;
+    if (match_expr->data.tag == ExprData_TAG_FieldAccess &&
+        match_expr->children.count > 0 &&
+        Expr_child(match_expr, &(USize){0})->data.tag == ExprData_TAG_Ident &&
+        Str_eq(&Expr_child(match_expr, &(USize){0})->data.data.Ident, &sw_expr->struct_name)) {
+        covered_variant_name = &match_expr->data.data.FieldAccess;
+    }
+    if (!covered_variant_name &&
+        match_expr->data.tag == ExprData_TAG_FCall &&
+        match_expr->children.count == 2 &&
+        Expr_child(match_expr, &(USize){0})->data.tag == ExprData_TAG_FieldAccess &&
+        Expr_child(Expr_child(match_expr, &(USize){0}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
+        Expr_child(match_expr, &(USize){1})->data.tag == ExprData_TAG_Ident &&
+        Str_eq(&Expr_child(Expr_child(match_expr, &(USize){0}), &(USize){0})->data.data.Ident, &sw_expr->struct_name)) {
+        covered_variant_name = &Expr_child(match_expr, &(USize){0})->data.data.FieldAccess;
+    }
+    if (!covered_variant_name) return;
+    I32 covered_tag = *enum_variant_tag(switch_enum_def, covered_variant_name);
+    if (covered_tag >= 0 && (U32)covered_tag < n_variants) {
+        covered_variants[covered_tag] = 1;
+    }
+}
+
+static Expr *make_switch_case_condition(TypeScope *scope, Expr *case_body, Expr *match_expr, Str *sw_name, I32 sw_line, I32 sw_col, Str *sw_path) {
+    Expr *condition = NULL;
+    if (match_expr->data.tag == ExprData_TAG_FCall &&
+        match_expr->children.count == 3 &&
+        Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+        (Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident.count == 3 && memcmp(Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident.c_str, "new", 3) == 0) &&
+        Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
+        (Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.count == 5 && memcmp(Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.c_str, "Range", 5) == 0)) {
+        Expr *start_expr = Expr_child(match_expr, &(USize){(USize)(1)});
+        Expr *end_expr = Expr_child(match_expr, &(USize){(USize)(2)});
+
+        Expr *sw1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+        sw1->data.data.Ident = *sw_name;
+        Expr *gte_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+        gte_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"gte", .count = 3, .cap = CAP_LIT};
+        Expr_add_child(gte_acc, sw1);
+        Expr *gte_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
+        Expr_add_child(gte_call, gte_acc);
+        Expr_add_child(gte_call, Expr_clone(start_expr));
+
+        Expr *sw2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+        sw2->data.data.Ident = *sw_name;
+        Expr *lte_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+        lte_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"lte", .count = 3, .cap = CAP_LIT};
+        Expr_add_child(lte_acc, sw2);
+        Expr *lte_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
+        Expr_add_child(lte_call, lte_acc);
+        Expr_add_child(lte_call, Expr_clone(end_expr));
+
+        Expr *and_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+        and_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"and", .count = 3, .cap = CAP_LIT};
+        Expr_add_child(and_acc, gte_call);
+        condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
+        Expr_add_child(condition, and_acc);
+        Expr_add_child(condition, lte_call);
+    }
+
+    if (!condition &&
+        match_expr->data.tag == ExprData_TAG_FCall &&
+        match_expr->children.count == 2 &&
+        Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
+        Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
+        Expr_child(match_expr, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
+        Expr *callee = Expr_child(match_expr, &(USize){(USize)(0)});
+        Str *type_name = &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident;
+        Str *variant_name = &callee->data.data.Ident;
+        Str *binding_name = &Expr_child(match_expr, &(USize){(USize)(1)})->data.data.Ident;
+        Expr *enum_def = TypeScope_get_struct(scope, type_name);
+        if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
+            I32 tag = *enum_variant_tag(enum_def, variant_name);
+            Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
+            if (payload_type && payload_type->count > 0) {
+                Expr *iv_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                iv_id->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
+                Expr *sw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                sw_id->data.data.Ident = *sw_name;
+                Expr *vtype_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                vtype_id->data.data.Ident = *type_name;
+                Expr *vref = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+                vref->data.data.FieldAccess = *variant_name;
+                Expr_add_child(vref, vtype_id);
+                condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
+                Expr_add_child(condition, iv_id);
+                Expr_add_child(condition, sw_id);
+                Expr_add_child(condition, vref);
+
+                Expr *gp_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                gp_ident->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
+                Expr *sw_id2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                sw_id2->data.data.Ident = *sw_name;
+                Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
+                Expr_add_child(get_call, gp_ident);
+                Expr_add_child(get_call, sw_id2);
+
+                Expr *bind_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, sw_line, sw_col, sw_path);
+                bind_decl->data.data.Decl.name = *binding_name;
+                bind_decl->data.data.Decl.explicit_type = *payload_type;
+                bind_decl->data.data.Decl.is_mut = false;
+                bind_decl->data.data.Decl.is_namespace = false;
+                bind_decl->data.data.Decl.is_ref = true;
+                bind_decl->data.data.Decl.is_own = false;
+                Expr_add_child(bind_decl, get_call);
+
+                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+                Vec_push(&new_ch, bind_decl);
+                for (U32 bi = 0; bi < case_body->children.count; bi++) {
+                    Expr *ch = Expr_child(case_body, &(USize){(USize)(bi)});
+                    Vec_push(&new_ch, Expr_clone(ch));
+                }
+                Vec_delete(&case_body->children, &(Bool){0});
+                case_body->children = new_ch;
+            }
+        }
+    }
+
+    if (!condition &&
+        match_expr->data.tag == ExprData_TAG_FieldAccess &&
+        match_expr->children.count > 0 &&
+        Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
+        Str *type_name = &Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident;
+        Str *variant_name = &match_expr->data.data.FieldAccess;
+        Expr *enum_def = TypeScope_get_struct(scope, type_name);
+        if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
+            I32 tag = *enum_variant_tag(enum_def, variant_name);
+            Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
+            if (payload_type && payload_type->count > 0) {
+                Expr *iv_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                iv_id->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
+                Expr *sw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                sw_id->data.data.Ident = *sw_name;
+                Expr *vtype_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+                vtype_id->data.data.Ident = *type_name;
+                Expr *vref = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+                vref->data.data.FieldAccess = *variant_name;
+                Expr_add_child(vref, vtype_id);
+                condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
+                Expr_add_child(condition, iv_id);
+                Expr_add_child(condition, sw_id);
+                Expr_add_child(condition, vref);
+            }
+        }
+    }
+
+    if (!condition) {
+        Expr *sw_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
+        sw_ident->data.data.Ident = *sw_name;
+        Expr *eq_access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
+        eq_access->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
+        Expr_add_child(eq_access, sw_ident);
+        condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
+        Expr_add_child(condition, eq_access);
+        Expr_add_child(condition, Expr_clone(match_expr));
+    }
+    return condition;
+}
+
+static void replace_switch_stmt_with_block(Expr *body, U32 stmt_idx, Expr *block) {
+    Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(stmt_idx)});
+    *slot = *block;
+    U64 sz = block->children.count * block->children.elem_size;
+    slot->children.data = malloc(sz ? sz : 1);
+    memcpy(slot->children.data, block->children.data, sz);
+    slot->children.cap = block->children.count ? block->children.count : 1;
+    block->children = (Vec){0};
+}
+
 static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in_func) {
     Expr *stmt = Expr_child(body, &(USize){(USize)(stmt_idx)});
     // Desugar: switch expr { case v1: B1  case v2: B2  case: B3 }
@@ -998,21 +1192,7 @@ static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in
     Bool *covered_variants = NULL;
     U32 n_variants = 0;
     Bool has_default_case = 0;
-
-    if (sw_expr->til_type.tag == TilType_TAG_Enum && sw_expr->struct_name.count > 0) {
-        switch_enum_def = TypeScope_get_struct(scope, &sw_expr->struct_name);
-        if (switch_enum_def && switch_enum_def->data.tag == ExprData_TAG_EnumDef) {
-            Expr *enum_body = Expr_child(switch_enum_def, &(USize){0});
-            for (U32 vi = 0; vi < enum_body->children.count; vi++) {
-                Expr *variant = Expr_child(enum_body, &(USize){vi});
-                if (variant->data.tag == ExprData_TAG_Decl && !variant->data.data.Decl.is_namespace)
-                    n_variants++;
-            }
-            if (n_variants > 0) covered_variants = calloc(n_variants, sizeof(Bool));
-        } else {
-            switch_enum_def = NULL;
-        }
-    }
+    init_switch_enum_coverage(scope, sw_expr, &switch_enum_def, &covered_variants, &n_variants);
 
     char sw_buf[128];
     Str *tp = type_prefix(&sw_expr->til_type, &sw_expr->struct_name);
@@ -1044,167 +1224,8 @@ static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in
         }
         Expr *match_expr = Expr_child(case_node, &(USize){(USize)(0)});
         Expr *case_body = Expr_child(case_node, &(USize){(USize)(1)});
-        Expr *condition = NULL;
-
-        if (switch_enum_def && covered_variants) {
-            Str *covered_variant_name = NULL;
-
-            if (match_expr->data.tag == ExprData_TAG_FieldAccess &&
-                match_expr->children.count > 0 &&
-                Expr_child(match_expr, &(USize){0})->data.tag == ExprData_TAG_Ident &&
-                Str_eq(&Expr_child(match_expr, &(USize){0})->data.data.Ident, &sw_expr->struct_name)) {
-                covered_variant_name = &match_expr->data.data.FieldAccess;
-            }
-
-            if (!covered_variant_name &&
-                match_expr->data.tag == ExprData_TAG_FCall &&
-                match_expr->children.count == 2 &&
-                Expr_child(match_expr, &(USize){0})->data.tag == ExprData_TAG_FieldAccess &&
-                Expr_child(Expr_child(match_expr, &(USize){0}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
-                Expr_child(match_expr, &(USize){1})->data.tag == ExprData_TAG_Ident &&
-                Str_eq(&Expr_child(Expr_child(match_expr, &(USize){0}), &(USize){0})->data.data.Ident, &sw_expr->struct_name)) {
-                covered_variant_name = &Expr_child(match_expr, &(USize){0})->data.data.FieldAccess;
-            }
-
-            if (covered_variant_name) {
-                I32 covered_tag = *enum_variant_tag(switch_enum_def, covered_variant_name);
-                if (covered_tag >= 0 && (U32)covered_tag < n_variants) {
-                    covered_variants[covered_tag] = 1;
-                }
-            }
-        }
-
-        if (match_expr->data.tag == ExprData_TAG_FCall &&
-            match_expr->children.count == 3 &&
-            Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-            (Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident.count == 3 && memcmp(Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident.c_str, "new", 3) == 0) &&
-            Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
-            (Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.count == 5 && memcmp(Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.data.Ident.c_str, "Range", 5) == 0)) {
-            Expr *start_expr = Expr_child(match_expr, &(USize){(USize)(1)});
-            Expr *end_expr = Expr_child(match_expr, &(USize){(USize)(2)});
-
-            Expr *sw1 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-            sw1->data.data.Ident = *sw_name;
-            Expr *gte_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-            gte_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"gte", .count = 3, .cap = CAP_LIT};
-            Expr_add_child(gte_acc, sw1);
-            Expr *gte_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-            Expr_add_child(gte_call, gte_acc);
-            Expr_add_child(gte_call, Expr_clone(start_expr));
-
-            Expr *sw2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-            sw2->data.data.Ident = *sw_name;
-            Expr *lte_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-            lte_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"lte", .count = 3, .cap = CAP_LIT};
-            Expr_add_child(lte_acc, sw2);
-            Expr *lte_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-            Expr_add_child(lte_call, lte_acc);
-            Expr_add_child(lte_call, Expr_clone(end_expr));
-
-            Expr *and_acc = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-            and_acc->data.data.FieldAccess = (Str){.c_str = (U8*)"and", .count = 3, .cap = CAP_LIT};
-            Expr_add_child(and_acc, gte_call);
-            condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-            Expr_add_child(condition, and_acc);
-            Expr_add_child(condition, lte_call);
-        }
-
-        if (!condition &&
-            match_expr->data.tag == ExprData_TAG_FCall &&
-            match_expr->children.count == 2 &&
-            Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess &&
-            Expr_child(Expr_child(match_expr, &(USize){(USize)(0)}), &(USize){0})->data.tag == ExprData_TAG_Ident &&
-            Expr_child(match_expr, &(USize){(USize)(1)})->data.tag == ExprData_TAG_Ident) {
-            Expr *callee = Expr_child(match_expr, &(USize){(USize)(0)});
-            Str *type_name = &Expr_child(callee, &(USize){(USize)(0)})->data.data.Ident;
-            Str *variant_name = &callee->data.data.Ident;
-            Str *binding_name = &Expr_child(match_expr, &(USize){(USize)(1)})->data.data.Ident;
-            Expr *enum_def = TypeScope_get_struct(scope, type_name);
-            if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
-                I32 tag = *enum_variant_tag(enum_def, variant_name);
-                Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
-                if (payload_type && payload_type->count > 0) {
-                    Expr *iv_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    iv_id->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
-                    Expr *sw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    sw_id->data.data.Ident = *sw_name;
-                    Expr *vtype_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    vtype_id->data.data.Ident = *type_name;
-                    Expr *vref = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-                    vref->data.data.FieldAccess = *variant_name;
-                    Expr_add_child(vref, vtype_id);
-                    condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-                    Expr_add_child(condition, iv_id);
-                    Expr_add_child(condition, sw_id);
-                    Expr_add_child(condition, vref);
-
-                    Expr *gp_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    gp_ident->data.data.Ident = (Str){.c_str = (U8*)"get_payload", .count = 11, .cap = CAP_LIT};
-                    Expr *sw_id2 = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    sw_id2->data.data.Ident = *sw_name;
-                    Expr *get_call = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-                    Expr_add_child(get_call, gp_ident);
-                    Expr_add_child(get_call, sw_id2);
-
-                    Expr *bind_decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, sw_line, sw_col, sw_path);
-                    bind_decl->data.data.Decl.name = *binding_name;
-                    bind_decl->data.data.Decl.explicit_type = *payload_type;
-                    bind_decl->data.data.Decl.is_mut = false;
-                    bind_decl->data.data.Decl.is_namespace = false;
-                    bind_decl->data.data.Decl.is_ref = true;
-                    bind_decl->data.data.Decl.is_own = false;
-                    Expr_add_child(bind_decl, get_call);
-
-                    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-                    Vec_push(&new_ch, bind_decl);
-                    for (U32 bi = 0; bi < case_body->children.count; bi++) {
-                        Expr *ch = Expr_child(case_body, &(USize){(USize)(bi)});
-                        Vec_push(&new_ch, Expr_clone(ch));
-                    }
-                    Vec_delete(&case_body->children, &(Bool){0});
-                    case_body->children = new_ch;
-                }
-            }
-        }
-
-        if (!condition &&
-            match_expr->data.tag == ExprData_TAG_FieldAccess &&
-            match_expr->children.count > 0 &&
-            Expr_child(match_expr, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-            Str *type_name = &Expr_child(match_expr, &(USize){(USize)(0)})->data.data.Ident;
-            Str *variant_name = &match_expr->data.data.FieldAccess;
-            Expr *enum_def = TypeScope_get_struct(scope, type_name);
-            if (enum_def && enum_def->data.tag == ExprData_TAG_EnumDef) {
-                I32 tag = *enum_variant_tag(enum_def, variant_name);
-                Str *payload_type = (tag >= 0) ? enum_variant_type(enum_def, tag) : NULL;
-                if (payload_type && payload_type->count > 0) {
-                    Expr *iv_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    iv_id->data.data.Ident = (Str){.c_str = (U8*)"is_variant", .count = 10, .cap = CAP_LIT};
-                    Expr *sw_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    sw_id->data.data.Ident = *sw_name;
-                    Expr *vtype_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-                    vtype_id->data.data.Ident = *type_name;
-                    Expr *vref = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-                    vref->data.data.FieldAccess = *variant_name;
-                    Expr_add_child(vref, vtype_id);
-                    condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-                    Expr_add_child(condition, iv_id);
-                    Expr_add_child(condition, sw_id);
-                    Expr_add_child(condition, vref);
-                }
-            }
-        }
-
-        if (!condition) {
-            Expr *sw_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, sw_line, sw_col, sw_path);
-            sw_ident->data.data.Ident = *sw_name;
-            Expr *eq_access = Expr_new(&(ExprData){.tag = ExprData_TAG_FieldAccess}, sw_line, sw_col, sw_path);
-            eq_access->data.data.FieldAccess = (Str){.c_str = (U8*)"eq", .count = 2, .cap = CAP_LIT};
-            Expr_add_child(eq_access, sw_ident);
-            condition = Expr_new(&(ExprData){.tag = ExprData_TAG_FCall}, sw_line, sw_col, sw_path);
-            Expr_add_child(condition, eq_access);
-            Expr_add_child(condition, Expr_clone(match_expr));
-        }
+        mark_switch_case_covered_variant(switch_enum_def, covered_variants, n_variants, sw_expr, match_expr);
+        Expr *condition = make_switch_case_condition(scope, case_body, match_expr, sw_name, sw_line, sw_col, sw_path);
 
         Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, case_node->line, case_node->col, sw_path);
         Expr_add_child(if_node, condition);
@@ -1252,16 +1273,7 @@ static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in
     free(covered_variants);
 
     if (first_if) Expr_add_child(block, first_if);
-
-    {
-        Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(stmt_idx)});
-        *slot = *block;
-        U64 sz = block->children.count * block->children.elem_size;
-        slot->children.data = malloc(sz ? sz : 1);
-        memcpy(slot->children.data, block->children.data, sz);
-        slot->children.cap = block->children.count ? block->children.count : 1;
-        block->children = (Vec){0};
-    }
+    replace_switch_stmt_with_block(body, stmt_idx, block);
 }
 
 void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
