@@ -375,7 +375,7 @@ Important: Bool ~and~ / ~or~ do *not* short-circuit today.
 For mechanical C translation, do not rewrite ~&&~ / ~||~ blindly to
 ~.and(...)~ / ~.or(...)~ when the RHS may dereference null, call a proc,
 or otherwise depend on C evaluation order. Use nested ~if~ statements
-instead.
+instead. See issue ~#117~.
 
 Bitwise ~and~, ~or~ and boolean ~and~, ~or~ still use the same method
 names on different types (I64 vs Bool).
