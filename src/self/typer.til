@@ -30,7 +30,6 @@ type_error := proc(e: Expr, msg: Str) {
 }
 
 infer_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
-infer_body := ext_func(scope: TypeScope, body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {}
 
 infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
     type := scope.get_type(get_payload(expr.data))
@@ -898,6 +897,319 @@ infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U3
 
     if is_null(first_if).not() { block.add_child(own first_if.clone()) }
     replace_switch_stmt_with_block(body, stmt_idx, block)
+}
+
+replace_body_stmt_with_block := proc(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
+    body.children.set(stmt_idx, own block.clone())
+}
+
+make_field_access_call0 := func(base: Expr, field: Str, shallow line: U32, shallow col: U32, path: Str) returns Expr {
+    mut fa := Expr.new(ExprData.FieldAccess(field.clone()), line, col, path)
+    fa.add_child(own base.clone())
+    mut fc := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+    fc.add_child(own fa)
+    return fc
+}
+
+make_field_access_call1 := func(base: Expr, field: Str, arg: Expr, shallow line: U32, shallow col: U32, path: Str) returns Expr {
+    mut fa := Expr.new(ExprData.FieldAccess(field.clone()), line, col, path)
+    fa.add_child(own base.clone())
+    mut fc := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+    fc.add_child(own fa)
+    fc.add_child(own arg.clone())
+    return fc
+}
+
+make_for_in_range_while_body := func(var_name: Str, cur_name: Str, step: Str, for_body: Expr, shallow line: U32, shallow col: U32, path: Str, elem_type: Str) returns Expr {
+    mut wb := Expr.new(ExprData.Body, line, col, path)
+
+    mut vd := Expr.new(ExprData.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone())), line, col, path)
+    mut cur_ident := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
+    vd.add_child(own cur_ident)
+    wb.add_child(own vd)
+
+    mut step_ident := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
+    wb.add_child(own make_field_access_call0(step_ident, step, line, col, path))
+
+    for bi in 0..for_body.child_count() {
+        wb.add_child(own for_body.child(bi).clone())
+    }
+    return wb
+}
+
+desugar_for_in_range_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32) returns shallow Bool {
+    ref mut stmt : Expr = body.child(stmt_idx)
+    ref mut iter : Expr = stmt.child(0)
+    if is_variant(iter.data, ExprData.FCall).not() { return false }
+    if iter.child_count().neq(3) { return false }
+    ref callee : Expr = iter.child(0)
+    if is_variant(callee.data, ExprData.FieldAccess).not() { return false }
+    ref callee_field : Str = get_payload(callee.data)
+    if callee_field.eq("new").not() { return false }
+    if callee.child_count().eq(0) { return false }
+    ref callee_base : Expr = callee.child(0)
+    if is_variant(callee_base.data, ExprData.Ident).not() { return false }
+    ref callee_name : Str = get_payload(callee_base.data)
+    if callee_name.eq("Range").not() { return false }
+
+    ref mut start_expr : Expr = iter.child(1)
+    ref mut end_expr : Expr = iter.child(2)
+    infer_expr(scope, start_expr, in_func)
+    infer_expr(scope, end_expr, in_func)
+
+    mut elem_type := stmt.struct_name.clone()
+    if elem_type.len().eq(0) {
+        ref mut type_src : Expr = start_expr
+        if is_variant(start_expr.data, ExprData.LiteralNum).and(is_variant(end_expr.data, ExprData.LiteralNum).not()) {
+            type_src = end_expr
+        } else if is_variant(end_expr.data, ExprData.LiteralNum).and(is_variant(start_expr.data, ExprData.LiteralNum).not()) {
+            type_src = start_expr
+        }
+        if is_variant(type_src.til_type, TilType.Struct).or(is_variant(type_src.til_type, TilType.Enum)) {
+            if type_src.struct_name.len().gt(0) {
+                elem_type = type_src.struct_name.clone()
+            } else {
+                elem_type = type_to_name(type_src.til_type, "")
+            }
+        } else {
+            elem_type = type_to_name(type_src.til_type, "")
+        }
+    }
+
+    ref var_name : Str = get_payload(stmt.data)
+    ref for_body : Expr = stmt.child(1)
+    line := stmt.line
+    col := stmt.col
+    path := stmt.path
+    counter := hoist_counter
+    hoist_counter.inc()
+
+    end_name := "_re_".concat(elem_type).concat("_").concat(counter.to_str())
+    cur_name := "_rc_".concat(elem_type).concat("_").concat(counter.to_str())
+
+    mut block := Expr.new(ExprData.Body, line, col, path)
+
+    mut end_decl := Expr.new(ExprData.Decl(Declaration(name = end_name.clone(), explicit_type = elem_type.clone())), line, col, path)
+    end_decl.add_child(own end_expr.clone())
+    block.add_child(own end_decl)
+
+    mut cur_decl := Expr.new(ExprData.Decl(Declaration(name = cur_name.clone(), explicit_type = elem_type.clone(), is_mut = true)), line, col, path)
+    cur_decl.add_child(own start_expr.clone())
+    block.add_child(own cur_decl)
+
+    mut cur_ident_lt := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
+    mut end_ident_lt := Expr.new(ExprData.Ident(end_name.clone()), line, col, path)
+    mut asc_while := Expr.new(ExprData.While, line, col, path)
+    asc_while.add_child(own make_field_access_call1(cur_ident_lt, "lt", end_ident_lt, line, col, path))
+    asc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "inc", for_body, line, col, path, elem_type))
+
+    mut cur_ident_gt := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
+    mut end_ident_gt := Expr.new(ExprData.Ident(end_name.clone()), line, col, path)
+    mut desc_while := Expr.new(ExprData.While, line, col, path)
+    desc_while.add_child(own make_field_access_call1(cur_ident_gt, "gt", end_ident_gt, line, col, path))
+    desc_while.add_child(own make_for_in_range_while_body(var_name, cur_name, "dec", for_body, line, col, path, elem_type))
+
+    mut if_node := Expr.new(ExprData.If, line, col, path)
+    mut cur_ident_lte := Expr.new(ExprData.Ident(cur_name.clone()), line, col, path)
+    mut end_ident_lte := Expr.new(ExprData.Ident(end_name.clone()), line, col, path)
+    if_node.add_child(own make_field_access_call1(cur_ident_lte, "lte", end_ident_lte, line, col, path))
+
+    mut then_body := Expr.new(ExprData.Body, line, col, path)
+    then_body.add_child(own asc_while)
+    if_node.add_child(own then_body)
+
+    mut else_body := Expr.new(ExprData.Body, line, col, path)
+    else_body.add_child(own desc_while)
+    if_node.add_child(own else_body)
+    block.add_child(own if_node)
+
+    replace_body_stmt_with_block(body, stmt_idx, block)
+    return true
+}
+
+desugar_for_in_collection_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32) returns shallow Bool {
+    ref mut stmt : Expr = body.child(stmt_idx)
+    ref mut iter : Expr = stmt.child(0)
+
+    infer_expr(scope, iter, in_func)
+
+    mut type_name := ""
+    if is_variant(iter.til_type, TilType.Struct).or(is_variant(iter.til_type, TilType.Enum)) {
+        if iter.struct_name.len().gt(0) {
+            type_name = iter.struct_name.clone()
+        }
+    }
+    if type_name.len().eq(0) {
+        type_error(stmt, "for-in requires a collection type with get() and len() methods")
+        return false
+    }
+
+    ref sdef : Expr = scope.get_struct(type_name)
+    if is_null(sdef) {
+        type_error(stmt, "for-in requires a collection type with get() and len() methods")
+        return false
+    }
+
+    ref sbody : Expr = sdef.child(0)
+    ref mut len_func : Expr = NULL
+    ref mut get_func : Expr = NULL
+    for fi in 0..sbody.child_count() {
+        ref field : Expr = sbody.child(fi)
+        if is_variant(field.data, ExprData.Decl).not() { continue }
+        ref fd : Declaration = get_payload(field.data)
+        if fd.is_namespace.not() { continue }
+        if is_variant(field.child(0).data, ExprData.FuncDef).not() { continue }
+        if fd.name.eq("len") { len_func = field.child(0) }
+        if fd.name.eq("get") { get_func = field.child(0) }
+    }
+
+    if is_null(len_func) {
+        type_error(stmt, "type '".concat(type_name).concat("' has no 'len' method (required for for-in)"))
+        return false
+    }
+    ref len_def : FunctionDef = get_payload(len_func.data)
+    if len_def.nparam.neq(1).or(len_def.return_type.len().eq(0)) {
+        type_error(stmt, "type '".concat(type_name).concat("' len() must take 1 param and return a scalar for for-in"))
+        return false
+    }
+    idx_type := len_def.return_type.clone()
+
+    if is_null(get_func) {
+        type_error(stmt, "type '".concat(type_name).concat("' has no 'get' method (required for for-in)"))
+        return false
+    }
+    ref get_def : FunctionDef = get_payload(get_func.data)
+    if get_def.nparam.neq(2) {
+        type_error(stmt, "type '".concat(type_name).concat("' get() second param must match len() return type for for-in"))
+        return false
+    }
+    ref get_idx_param : Param = get_def.params.get(1.to_usize())
+    if get_idx_param.ptype.len().eq(0).or(get_idx_param.ptype.eq(idx_type).not()) {
+        type_error(stmt, "type '".concat(type_name).concat("' get() second param must match len() return type for for-in"))
+        return false
+    }
+
+    mut elem_type := stmt.struct_name.clone()
+    if elem_type.len().eq(0) {
+        if get_def.return_type.len().eq(0).or(get_def.return_type.eq("Dynamic")) {
+            type_error(stmt, "cannot infer element type for '".concat(type_name).concat("', use explicit type: for x : Type in ..."))
+            return false
+        }
+        elem_type = get_def.return_type.clone()
+    }
+
+    ref var_name : Str = get_payload(stmt.data)
+    ref for_body : Expr = stmt.child(1)
+    line := stmt.line
+    col := stmt.col
+    path := stmt.path
+
+    counter := hoist_counter
+    hoist_counter.inc()
+    col_name := "_fc_".concat(type_name).concat("_").concat(counter.to_str())
+    idx_name := "_fi_USize_".concat(counter.to_str())
+
+    mut block := Expr.new(ExprData.Body, line, col, path)
+
+    mut col_decl := Expr.new(ExprData.Decl(Declaration(name = col_name.clone())), line, col, path)
+    col_decl.add_child(own iter.clone())
+    block.add_child(own col_decl)
+
+    mut idx_decl := Expr.new(ExprData.Decl(Declaration(name = idx_name.clone(), explicit_type = idx_type.clone(), is_mut = true)), line, col, path)
+    mut zero := Expr.new(ExprData.LiteralNum("0"), line, col, path)
+    idx_decl.add_child(own zero)
+    block.add_child(own idx_decl)
+
+    mut while_node := Expr.new(ExprData.While, line, col, path)
+
+    mut idx_ident_cond := Expr.new(ExprData.Ident(idx_name.clone()), line, col, path)
+    mut col_ident_len := Expr.new(ExprData.Ident(col_name.clone()), line, col, path)
+    len_call := make_field_access_call0(col_ident_len, "len", line, col, path)
+    while_node.add_child(own make_field_access_call1(idx_ident_cond, "lt", len_call, line, col, path))
+
+    mut wbody := Expr.new(ExprData.Body, line, col, path)
+
+    mut elem_decl := Expr.new(ExprData.Decl(Declaration(name = var_name.clone(), explicit_type = elem_type.clone(), is_ref = get_def.return_is_ref)), line, col, path)
+    mut col_ident_get := Expr.new(ExprData.Ident(col_name.clone()), line, col, path)
+    mut idx_ident_get := Expr.new(ExprData.Ident(idx_name.clone()), line, col, path)
+    elem_decl.add_child(own make_field_access_call1(col_ident_get, "get", idx_ident_get, line, col, path))
+    wbody.add_child(own elem_decl)
+
+    mut idx_assign := Expr.new(ExprData.Assign(idx_name.clone()), line, col, path)
+    mut idx_ident_inc := Expr.new(ExprData.Ident(idx_name.clone()), line, col, path)
+    mut one := Expr.new(ExprData.LiteralNum("1"), line, col, path)
+    idx_assign.add_child(own make_field_access_call1(idx_ident_inc, "add", one, line, col, path))
+    wbody.add_child(own idx_assign)
+
+    for bi in 0..for_body.child_count() {
+        wbody.add_child(own for_body.child(bi).clone())
+    }
+
+    while_node.add_child(own wbody)
+    block.add_child(own while_node)
+    replace_body_stmt_with_block(body, stmt_idx, block)
+    return true
+}
+
+infer_body_stmt := proc(scope: TypeScope, mut body: Expr, mut i: U32, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {
+    ref mut stmt : Expr = body.child(i)
+    switch stmt.data {
+    case ExprData.Decl:
+        infer_decl_stmt(scope, stmt, in_func, in_type_body)
+    case ExprData.Assign:
+        infer_assign_stmt(scope, stmt, in_func)
+    case ExprData.FieldAssign:
+        infer_field_assign_stmt(scope, stmt, in_func)
+    case ExprData.FCall:
+        infer_expr(scope, stmt, in_func)
+    case ExprData.Return:
+        infer_return_stmt(scope, stmt, in_func, returns_ref)
+    case ExprData.Break:
+        if in_loop.eq(0) {
+            type_error(stmt, "break outside loop")
+        }
+        stmt.til_type = TilType.None
+    case ExprData.Continue:
+        if in_loop.eq(0) {
+            type_error(stmt, "continue outside loop")
+        }
+        stmt.til_type = TilType.None
+    case ExprData.If:
+        infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref)
+    case ExprData.Body:
+        block_scope := TypeScope.new(scope)
+        infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0)
+        TypeScope.delete(own block_scope)
+    case ExprData.While:
+        infer_while_stmt(scope, stmt, in_func, returns_ref)
+    case ExprData.Switch:
+        infer_switch_stmt(scope, body, i, in_func)
+        i = i.sub(1)
+    case ExprData.ForIn:
+        if desugar_for_in_range_stmt(scope, body, i, in_func) {
+            i = i.sub(1)
+        } else if desugar_for_in_collection_stmt(scope, body, i, in_func) {
+            i = i.sub(1)
+        }
+    case:
+        stmt.til_type = TilType.None
+    }
+}
+
+infer_body := proc(scope: TypeScope, mut body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {
+    body.til_type = TilType.None
+    mut i := 0.to_u32()
+    while i.lt(body.child_count().to_i64().to_u32()) {
+        infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body)
+        i.inc()
+    }
+    if owns_scope.neq(0) { desugar_set_literals(body, scope) }
+    if owns_scope.neq(0) { desugar_map_literals(body, scope) }
+    if owns_scope.neq(0) { desugar_variadic_calls(body, scope) }
+    if owns_scope.neq(0) { desugar_kwargs_calls(body, scope) }
+    if owns_scope.neq(0) { hoist_fcall_args(body, scope) }
+    insert_field_deletes(body)
+    insert_free_calls(body, scope, owns_scope)
 }
 
 infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32) {
