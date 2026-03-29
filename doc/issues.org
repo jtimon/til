@@ -607,12 +607,17 @@
   is done. This issue tracks the remaining bottom-up work:
   translating C functions to til, one module at a time.
 
-  Current milestone:
-  - ~src/c/initer.c~ is fully gone
-  - ~src/self/initer.til~ now owns the whole initer pipeline
-  - ~src/til.til~ no longer links ~src/c/initer.c~
-  - this was the first full module retirement using the current
-    split-first, translate-second workflow
+  Current milestone: typer.c translation in progress
+  - ~src/c/initer.c~ is fully gone (first module retirement)
+  - ~src/self/typer.til~ has 78 functions translated
+  - ~src/c/typer.c~ has 9 functions remaining:
+    infer_type_def_expr (16 lines), infer_field_access_expr (56),
+    infer_func_def_expr (97), infer_expr (796), infer_decl_stmt (204),
+    infer_while_stmt (62), infer_switch_stmt (277),
+    infer_body (407), type_check (6)
+  - plan: 3 C-only splits (goto elimination in infer_expr,
+    ForIn extraction from infer_body), then 12 translations,
+    then delete typer.c and remove link_c
 
 *** Current build flow
     ~bin/til_boot~ is built from last commit via gcc (always safe).
@@ -655,7 +660,7 @@
 
     | Module | Functions | Notes |
     |--------+-----------+-------|
-    | typer.c | ~40 | type_check, desugar_*, ASAP deletion |
+    | typer.c | 9 (was ~40) | 78 translated, 9 remaining (infer_expr, infer_body, etc.) |
     | precomp.c | ~10 | constant folding |
     | scavenger.c | ~7 | dead code elimination |
     | interpreter.c | ~20 | eval_expr, eval_call, clone/free_value |
