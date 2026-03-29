@@ -77,6 +77,25 @@ infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I3
     expr.struct_name = "Set".clone()
 }
 
+infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr) {
+    expr.til_type = TilType.None
+    if is_variant(expr.data, ExprData.EnumDef) {
+        ref body : Expr = expr.child(0)
+        for vi in 0..body.child_count() {
+            ref v : Expr = body.child(vi)
+            if is_variant(v.data, ExprData.Decl) {
+                ref dd : Declaration = get_payload(v.data)
+                if dd.is_namespace.not().and(dd.explicit_type.len().gt(0)).and(dd.is_ref) {
+                    type_error(v, "ref payloads in tagged enum variants are not supported")
+                }
+            }
+        }
+    }
+    inner := TypeScope.new(scope)
+    infer_body(inner, expr.child(0), 0, 0, 0, 0, 1)
+    TypeScope.delete(own inner)
+}
+
 infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32) {
     if stmt.child_count().gt(0) {
         infer_expr(scope, stmt.child(0), in_func)
