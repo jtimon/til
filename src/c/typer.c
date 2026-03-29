@@ -8,462 +8,165 @@
 
 // --- Type inference/checking pass ---
 
-void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
-        // Namespace method call or UFCS: Type.method(args) or instance.method(args)
-        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
-            Expr *fa = Expr_child(e, &(USize){(USize)(0)});
-            Expr *obj = Expr_child(fa, &(USize){(USize)(0)});
-            Str *method = &fa->data.data.FieldAccess;
-
-            // Type just the object first (not the full field access)
-            infer_expr(scope, obj, in_func);
-
-            // Check: is obj a type name (has struct_def) or an instance/value?
-            ScopeFind *_sf_tb = (obj->data.tag == ExprData_TAG_Ident)
-                ? TypeScope_find(scope, &obj->data.data.Ident) : NULL;
-            TypeBinding *tb = (_sf_tb && _sf_tb->tag == ScopeFind_TAG_Found) ? (TypeBinding*)get_payload(_sf_tb) : NULL;
-            Bool obj_is_type = (tb && tb->struct_def);
-
-            Bool ufcs_desugared = 0; // #88: true if UFCS rewrote instance.method → Type.method(instance)
-            if (!obj_is_type) {
-                // UFCS: instance.method(args) -> Type.method(instance, args)
-                Str *type_name = NULL;
-                if (obj->til_type.tag >= TilType_TAG_I64 && obj->til_type.tag <= TilType_TAG_Bool)
-                    type_name = til_type_name_c(&obj->til_type);
-                else if ((obj->til_type.tag == TilType_TAG_Struct || obj->til_type.tag == TilType_TAG_Enum) && obj->struct_name.count > 0)
-                    type_name = &obj->struct_name;
-
-                Expr *sdef = type_name ? TypeScope_get_struct(scope, type_name) : NULL;
-                Expr *ns_func = NULL;
-                if (sdef) {
-                    Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-                    for (U32 i = 0; i < body->children.count; i++) {
-                        Expr *field = Expr_child(body, &(USize){(USize)(i)});
-                        if (field->data.data.Decl.is_namespace &&
-                            Str_eq(&field->data.data.Decl.name, method) &&
-                            Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                            ns_func = Expr_child(field, &(USize){(USize)(0)});
-                            break;
-                        }
-                    }
-                }
-                if (!ns_func) {
-                    // UFCS fallback: check top-level for f(a: T, ...)
-                    ScopeFind *_sf_top = TypeScope_find(scope, method);
-                    TypeBinding *top = _sf_top->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_top) : NULL;
-                    Bool ufcs_match = 0;
-                    if (top && top->func_def &&
-                        top->func_def->data.data.FuncDef.nparam > 0 &&
-                        ((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype.count > 0) {
-                        Str *first_param = &((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype;
-                        if (type_name && Str_eq(first_param, type_name)) {
-                            ufcs_match = 1; // known type matches first param
-                        } else if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
-                            // Dynamic receiver: narrow to first param type
-                            TilType pt = *type_from_name(first_param, scope);
-                            narrow_dynamic(obj, &pt, first_param);
-                            ufcs_match = 1;
-                        }
-                    }
-                    if (ufcs_match) {
-                        // Rewrite: a.f(b) → f(a, b)
-                        Expr *fn_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, fa->line, fa->col, &fa->path);
-                        fn_ident->data.data.Ident = *method;
-                        *(Expr*)Vec_get(&e->children, &(USize){(USize)(0)}) = *fn_ident;
-                        // Insert instance as first arg
-                        Expr *instance = obj;
-                        Expr dummy = {0};
-                        { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
-                        {
-                            Expr *ch = (Expr *)e->children.data;
-                            memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
-                        }
-                        *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *Expr_clone(instance);
-                        goto regular_call;
-                    }
-                    // Fallback: check if method is a FuncSig-typed struct field
-                    // e.g. h.on_click(3, 5) where on_click is a BinaryOp field
-                    if (sdef && (obj->til_type.tag == TilType_TAG_Struct || obj->til_type.tag == TilType_TAG_Enum)) {
-                        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-                        for (U32 fi = 0; fi < body->children.count; fi++) {
-                            Expr *field = Expr_child(body, &(USize){(USize)(fi)});
-                            if (field->data.tag != ExprData_TAG_Decl || field->data.data.Decl.is_namespace) continue;
-                            if (!Str_eq(&field->data.data.Decl.name, method)) continue;
-                            if (field->data.data.Decl.explicit_type.count == 0) continue;
-                            ScopeFind *_sf_ftb = TypeScope_find(scope, &field->data.data.Decl.explicit_type);
-                            TypeBinding *ftb = _sf_ftb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ftb) : NULL;
-                            if (ftb && ftb->func_def && ftb->func_def->children.count == 0) {
-                                // Rewrite: h.on_click(3, 5) → indirect call through field access
-                                // The field access node becomes the callee, typed as FUNC_PTR
-                                fa->til_type = (TilType){TilType_TAG_FuncPtr};
-                                fa->fn_sig = ftb->func_def;
-                                // Type-check and resolve like a func ptr call
-                                Expr *sig = ftb->func_def;
-                                U32 nargs = e->children.count - 1;
-                                if (nargs != sig->data.data.FuncDef.nparam) {
-                                    char buf2[128];
-                                    snprintf(buf2, sizeof(buf2), "function pointer field '%s' expects %u args, got %u",
-                                             method->c_str, sig->data.data.FuncDef.nparam, nargs);
-                                    type_error(e, STR_VIEW(buf2));
-                                }
-                                for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
-                                    infer_expr(scope, Expr_child(e, &(USize){(USize)(ai + 1)}), in_func);
-                                }
-                                e->fn_sig = sig;
-                                e->data.data.FCall.fn_sig = sig;
-                                if (sig->data.data.FuncDef.return_type.count > 0) {
-                                    e->til_type = *type_from_name(&sig->data.data.FuncDef.return_type, scope);
-                                    if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum))
-                                        e->struct_name = *Str_clone(&sig->data.data.FuncDef.return_type);
-                                } else {
-                                    e->til_type = (TilType){TilType_TAG_None};
-                                }
-                                goto done_fcall;
-                            }
-                        }
-                    }
-                    char buf[256];
-                    if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
-                        snprintf(buf, sizeof(buf),
-                                 "cannot call method '%s' on Dynamic value; "
-                                 "use 'ref x : Type = ...' to declare with an explicit type first",
-                                 method->c_str);
-                    } else {
-                        snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
-                                 (const char *)method->c_str, type_name ? (const char *)type_name->c_str : "unknown");
-                    }
-                    type_error(e, STR_VIEW(buf));
-                    e->til_type = (TilType){TilType_TAG_Unknown};
-                    return;
-                }
-                // Desugar: rewrite AST to Type.method(instance, args)
-                ufcs_desugared = 1; // #88
-                Expr *instance = Expr_clone(obj); // clone before fa->children overwrite
-                Expr *type_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, obj->line, obj->col, &obj->path);
-                type_ident->data.data.Ident = *type_name;
-                *(Expr*)Vec_get(&fa->children, &(USize){(USize)(0)}) = *type_ident;
-                // Insert instance as first arg
-                Expr dummy = {0};
-                { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
-                {
-                    Expr *ch = (Expr *)e->children.data;
-                    memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
-                }
-                *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *instance;
-                // Fall through -- existing code below handles Type.method(instance, args)
-                // Re-fetch after e->children mutation (push may realloc)
-                fa = Expr_child(e, &(USize){(USize)(0)});
-                method = &fa->data.data.FieldAccess;
+static Expr *find_namespace_func(Expr *sdef, Str *method) {
+        if (!sdef) return NULL;
+        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
+        for (U32 i = 0; i < body->children.count; i++) {
+            Expr *field = Expr_child(body, &(USize){(USize)(i)});
+            if (field->data.data.Decl.is_namespace &&
+                Str_eq(&field->data.data.Decl.name, method) &&
+                Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
+                return Expr_child(field, &(USize){(USize)(0)});
             }
-
-            // Type the (possibly new) object and look up namespace func
-            obj = Expr_child(fa, &(USize){(USize)(0)});
-            if (obj->til_type.tag == TilType_TAG_Unknown) {
-                infer_expr(scope, obj, in_func);
-            }
-            Expr *sdef = (obj->struct_name).count > 0 ? TypeScope_get_struct(scope, &obj->struct_name) : NULL;
-            Expr *ns_func = NULL;
-            if (sdef) {
-                Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-                for (U32 i = 0; i < body->children.count; i++) {
-                    Expr *field = Expr_child(body, &(USize){(USize)(i)});
-                    if (field->data.data.Decl.is_namespace &&
-                        Str_eq(&field->data.data.Decl.name, method) &&
-                        Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                        ns_func = Expr_child(field, &(USize){(USize)(0)});
-                        break;
-                    }
-                }
-            }
-            if (!ns_func) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "no namespace function '%s'", method->c_str);
-                type_error(e, STR_VIEW(buf));
-                e->til_type = (TilType){TilType_TAG_Unknown};
-                return;
-            }
-            fa->is_ns_field = true;
-            // Desugar named/optional args for namespace methods
-            {
-                U32 np = ns_func->data.data.FuncDef.nparam;
-                Expr **new_args = calloc(np, sizeof(Expr *));
-                U32 pos_idx = 0;
-                Bool seen_named = 0;
-                for (U32 i = 1; i < e->children.count; i++) {
-                    Expr *arg = Expr_child(e, &(USize){(USize)(i)});
-                    if (arg->data.tag == ExprData_TAG_NamedArg) {
-                        seen_named = 1;
-                        Str *aname = &arg->data.data.Ident;
-                        I32 slot = -1;
-                        for (U32 j = 0; j < np; j++) {
-                            if (Str_eq(&((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
-                                slot = j;
-                                break;
-                            }
-                        }
-                        if (slot < 0) {
-                            char buf[128];
-                            snprintf(buf, sizeof(buf), "no parameter '%s'", aname->c_str);
-                            type_error(arg, STR_VIEW(buf));
-                        } else if (new_args[slot]) {
-                            char buf[128];
-                            snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
-                            type_error(arg, STR_VIEW(buf));
-                        } else {
-                            new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
-                        }
-                    } else {
-                        if (seen_named) {
-                            type_error(arg, STR_LIT("positional argument after named argument"));
-                        }
-                        if (pos_idx < np) {
-                            new_args[pos_idx] = Expr_clone(arg);
-                        }
-                        pos_idx++;
-                    }
-                }
-                // Fill defaults for missing args
-                for (U32 i = 0; i < np; i++) {
-                    if (!new_args[i]) {
-                        Str *_pn = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
-                        if (Map_has(&ns_func->data.data.FuncDef.param_defaults, _pn)) {
-                            new_args[i] = Expr_clone((Expr*)Map_get(&ns_func->data.data.FuncDef.param_defaults, _pn));
-                        } else {
-                            char buf[128];
-                            snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
-                                     _pn->c_str);
-                            type_error(e, STR_VIEW(buf));
-                        }
-                    }
-                }
-                if (pos_idx > np) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d", np, pos_idx);
-                    type_error(e, STR_VIEW(buf));
-                }
-                // Rebuild children: callee + desugared args
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-                Expr *callee = Expr_child(e, &(USize){(USize)(0)});
-                Vec_push(&new_ch, Expr_clone(callee));
-                for (U32 i = 0; i < np; i++) {
-                    Vec_push(&new_ch, new_args[i]);
-                }
-                Vec_delete(&e->children, &(Bool){0});
-                e->children = new_ch;
-                free(new_args);
-            }
-            // Infer arg types
-            for (U32 i = 1; i < e->children.count; i++) {
-                infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
-            }
-            // Narrow Dynamic args to parameter types
-            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
-                Str *ptype = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
-                if (ptype)
-                    narrow_dynamic(Expr_child(e, &(USize){(USize)(i)}), type_from_name(ptype, scope), ptype);
-            }
-            // Validate arg types against param types
-            for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
-                Str *ptype_name = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
-                if (!ptype_name) continue;
-                Expr *arg = Expr_child(e, &(USize){(USize)(i)});
-                if (arg->til_type.tag == TilType_TAG_Dynamic) continue;
-                TilType ptype = *type_from_name(ptype_name, scope);
-                if (ptype.tag == TilType_TAG_Dynamic) continue;
-                if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
-                    if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
-                        char buf[128];
-                        snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
-                                 arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
-                        type_error(arg, STR_VIEW(buf));
-                    }
-                    arg->til_type = ptype; continue;
-                }
-                if (can_implicit_widen(&arg->til_type, &ptype) ||
-                    can_implicit_usize_coerce(&arg->til_type, &ptype, ptype_name)) {
-                    arg->til_type = ptype; continue;
-                }
-                if (arg->til_type.tag != ptype.tag) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
-                             ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
-                    type_error(arg, STR_VIEW(buf));
-                } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
-                           (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
-                             ptype_name->c_str, arg->struct_name.c_str);
-                    type_error(arg, STR_VIEW(buf));
-                }
-            }
-            // #88: own p.delete() — propagate own from FieldAccess callee to UFCS-inserted first arg
-            if (ufcs_desugared && Expr_child(e, &(USize){(USize)(0)})->is_own_arg && e->children.count > 1) {
-                Expr_child(e, &(USize){(USize)(1)})->is_own_arg = 1;
-            }
-            // Validate 'own' markers on arguments
-            {
-                U32 np = ns_func->data.data.FuncDef.nparam;
-                if (ns_func->data.data.FuncDef.params.count > 0) {
-                    for (U32 i = 1; i < e->children.count && i - 1 < np; i++) {
-                        Param *_pp = (Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)});
-                        Bool pown = _pp->is_own;
-                        if (pown && !Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
-                            char buf[128];
-                            snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
-                                     _pp->name.c_str);
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_VIEW(buf));
-                        } else if (!pown && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
-                            char buf[128];
-                            snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
-                                     _pp->name.c_str);
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_VIEW(buf));
-                        }
-                        if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident) {
-                            ScopeFind *_sf_ab = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(i)})->data.data.Ident);
-                            TypeBinding *ab = _sf_ab->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab) : NULL;
-                            if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy"));
-                        }
-                        if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass null to 'own' parameter"));
-                        if (_pp->is_shallow && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
-                            type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass null to 'shallow' parameter"));
-                    }
-                }
-            }
-            // Set return type
-            TilType rt = (TilType){TilType_TAG_None};
-            if (ns_func->data.data.FuncDef.return_type.count > 0) {
-                rt = *type_from_name(&ns_func->data.data.FuncDef.return_type, scope);
-            }
-            e->til_type = rt;
-            if ((rt.tag == TilType_TAG_Struct || rt.tag == TilType_TAG_Enum) && (ns_func->data.data.FuncDef.return_type).count > 0) {
-                e->struct_name = *Str_clone(&ns_func->data.data.FuncDef.return_type);
-            }
-            return;
         }
-        regular_call:;
-        // Resolve callee
-        Str _name_val = Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
-        Str *name = &_name_val;
-        // Resolve type alias for struct constructors (Point2 → Point)
-        Str *resolved_name = resolve_type_alias(scope, name);
-        if (resolved_name != name) {
-            // Rewrite callee Ident to canonical name so builder emits correct constructor
-            Expr_child(e, &(USize){(USize)(0)})->data.data.Ident = *resolved_name;
-            _name_val = *resolved_name;
-        }
-        // Struct instantiation: Point() or Point(x=1, y=2)
-        Expr *sdef = TypeScope_get_struct(scope, name);
-        if (sdef) {
-            ScopeFind *_sf_sb = TypeScope_find(scope, name);
-            TypeBinding *sb = _sf_sb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_sb) : NULL;
-            if (sb && sb->is_builtin && !sb->is_ext) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "cannot instantiate builtin type '%s'", name->c_str);
-                type_error(e, STR_VIEW(buf));
-                e->til_type = (TilType){TilType_TAG_Unknown};
-                return;
-            }
-            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-            // Count instance fields (skip namespace)
-            U32 nfields = 0;
-            for (U32 i = 0; i < body->children.count; i++) {
-                if (!Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) nfields++;
-            }
-            // Desugar named args into positional (one per instance field)
-            Expr **field_vals = calloc(nfields, sizeof(Expr *));
-            // Map: field_idx[k] = index into body->children for k-th instance field
-            I32 *field_idx = malloc(nfields * sizeof(I32));
-            { I32 k = 0;
-              for (U32 i = 0; i < body->children.count; i++) {
-                  if (!Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) field_idx[k++] = i;
-              }
-            }
-            for (U32 i = 1; i < e->children.count; i++) {
-                Expr *arg = Expr_child(e, &(USize){(USize)(i)});
-                if (arg->data.tag != ExprData_TAG_NamedArg) {
-                    type_error(arg, STR_LIT("struct instantiation requires named arguments"));
-                    continue;
+        return NULL;
+}
+
+static Bool infer_func_ptr_field_call(TypeScope *scope, Expr *e, Expr *fa, Expr *obj, Expr *sdef, Str *method, I32 in_func) {
+        if (!sdef || (obj->til_type.tag != TilType_TAG_Struct && obj->til_type.tag != TilType_TAG_Enum)) return false;
+        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
+        for (U32 fi = 0; fi < body->children.count; fi++) {
+            Expr *field = Expr_child(body, &(USize){(USize)(fi)});
+            if (field->data.tag != ExprData_TAG_Decl || field->data.data.Decl.is_namespace) continue;
+            if (!Str_eq(&field->data.data.Decl.name, method)) continue;
+            if (field->data.data.Decl.explicit_type.count == 0) continue;
+            ScopeFind *_sf_ftb = TypeScope_find(scope, &field->data.data.Decl.explicit_type);
+            TypeBinding *ftb = _sf_ftb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ftb) : NULL;
+            if (ftb && ftb->func_def && ftb->func_def->children.count == 0) {
+                fa->til_type = (TilType){TilType_TAG_FuncPtr};
+                fa->fn_sig = ftb->func_def;
+                Expr *sig = ftb->func_def;
+                U32 nargs = e->children.count - 1;
+                if (nargs != sig->data.data.FuncDef.nparam) {
+                    char buf2[128];
+                    snprintf(buf2, sizeof(buf2), "function pointer field '%s' expects %u args, got %u",
+                             method->c_str, sig->data.data.FuncDef.nparam, nargs);
+                    type_error(e, STR_VIEW(buf2));
                 }
-                Str *aname = &arg->data.data.Ident;
-                I32 slot = -1;
-                for (U32 j = 0; j < nfields; j++) {
-                    if (Str_eq(&Expr_child(body, &(USize){(USize)(field_idx[j])})->data.data.Decl.name, aname)) {
-                        slot = j;
-                        break;
-                    }
+                for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
+                    infer_expr(scope, Expr_child(e, &(USize){(USize)(ai + 1)}), in_func);
                 }
-                if (slot < 0) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'", name->c_str, aname->c_str);
-                    type_error(arg, STR_VIEW(buf));
-                } else if (field_vals[slot]) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "duplicate argument for field '%s'", aname->c_str);
-                    type_error(arg, STR_VIEW(buf));
+                e->fn_sig = sig;
+                e->data.data.FCall.fn_sig = sig;
+                if (sig->data.data.FuncDef.return_type.count > 0) {
+                    e->til_type = *type_from_name(&sig->data.data.FuncDef.return_type, scope);
+                    if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum))
+                        e->struct_name = *Str_clone(&sig->data.data.FuncDef.return_type);
                 } else {
-                    field_vals[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
+                    e->til_type = (TilType){TilType_TAG_None};
                 }
+                return true;
             }
-            // Fill remaining from struct field defaults (clone to avoid shared ownership)
-            for (U32 i = 0; i < nfields; i++) {
-                if (!field_vals[i]) {
-                    field_vals[i] = Expr_clone(Expr_child(Expr_child(body, &(USize){(USize)(field_idx[i])}), &(USize){(USize)(0)}));
-                }
-            }
-            // Rebuild children: callee + instance field values
-            Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-            Expr *callee = Expr_child(e, &(USize){(USize)(0)});
-            Vec_push(&new_ch, Expr_clone(callee));
-            for (U32 i = 0; i < nfields; i++) {
-                Vec_push(&new_ch, field_vals[i]);
-            }
-            Vec_delete(&e->children, &(Bool){0});
-            e->children = new_ch;
-            free(field_vals);
-            free(field_idx);
-            // Type-check args (skip already-inferred defaults)
-            for (U32 i = 1; i < e->children.count; i++) {
-                if (Expr_child(e, &(USize){(USize)(i)})->til_type.tag == TilType_TAG_Unknown) {
-                    infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
-                }
-            }
-            // Struct literals consume all non-ref field args.
-            { U32 fi = 0;
-              for (U32 bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
-                Expr *fld = Expr_child(body, &(USize){(USize)(bi)});
-                if (fld->data.data.Decl.is_namespace) continue;
-                I32 ai = fi + 1; // arg index (children[0] is callee)
-                fi++;
-                if (fld->data.data.Decl.is_ref) {
-                    continue;
-                }
-                if (!fld->data.data.Decl.is_own && !type_ctor_consumes(&fld->til_type)) {
-                    continue;
-                }
-                Expr_child(e, &(USize){(USize)(ai)})->is_own_arg = 1;
-              }
-            }
-            e->til_type = (TilType){TilType_TAG_Struct};
-            e->struct_name = *Str_clone(resolve_type_alias(scope, name));
-            return;
         }
-        // Desugar named/optional args for user-defined functions (skip core builtins)
-        ScopeFind *_sf_cb = TypeScope_find(scope, name);
-        TypeBinding *callee_bind = _sf_cb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_cb) : NULL;
-        if (callee_bind && callee_bind->func_def &&
-            (!callee_bind->is_builtin || !callee_bind->func_def->is_core)) {
-            Expr *fdef = callee_bind->func_def;
-            U32 nparam = fdef->data.data.FuncDef.nparam;
-            I32 vi = fdef->data.data.FuncDef.variadic_index; // -1 if not variadic
-            I32 kwi = fdef->data.data.FuncDef.kwargs_index;  // -1 if no kwargs
-            U32 fixed_count = (vi >= 0) ? (U32)vi : nparam; // params before variadic
-            // Collect positional and named args
-            Vec va_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); va_args = *_vp; free(_vp); } // variadic args (only if vi >= 0)
-            Vec kw_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); kw_args = *_vp; free(_vp); } // kwargs args (ExprData_TAG_NamedArg nodes)
-            Expr **new_args = calloc(nparam, sizeof(Expr *));
+        return false;
+}
+
+static Bool try_ufcs_rewrite(TypeScope *scope, Expr *e, Expr *fa, Expr *obj, Str *method, Str *type_name) {
+        ScopeFind *_sf_top = TypeScope_find(scope, method);
+        TypeBinding *top = _sf_top->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_top) : NULL;
+        Bool ufcs_match = 0;
+        if (top && top->func_def &&
+            top->func_def->data.data.FuncDef.nparam > 0 &&
+            ((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype.count > 0) {
+            Str *first_param = &((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype;
+            if (type_name && Str_eq(first_param, type_name)) {
+                ufcs_match = 1;
+            } else if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
+                TilType pt = *type_from_name(first_param, scope);
+                narrow_dynamic(obj, &pt, first_param);
+                ufcs_match = 1;
+            }
+        }
+        if (!ufcs_match) return false;
+        Expr *fn_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, fa->line, fa->col, &fa->path);
+        fn_ident->data.data.Ident = *method;
+        *(Expr*)Vec_get(&e->children, &(USize){(USize)(0)}) = *fn_ident;
+        Expr *instance = obj;
+        Expr dummy = {0};
+        { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
+        {
+            Expr *ch = (Expr *)e->children.data;
+            memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
+        }
+        *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *Expr_clone(instance);
+        return true;
+}
+
+static Bool infer_field_access_fcall(TypeScope *scope, Expr *e, I32 in_func) {
+        Expr *fa = Expr_child(e, &(USize){(USize)(0)});
+        Expr *obj = Expr_child(fa, &(USize){(USize)(0)});
+        Str *method = &fa->data.data.FieldAccess;
+        infer_expr(scope, obj, in_func);
+
+        ScopeFind *_sf_tb = (obj->data.tag == ExprData_TAG_Ident)
+            ? TypeScope_find(scope, &obj->data.data.Ident) : NULL;
+        TypeBinding *tb = (_sf_tb && _sf_tb->tag == ScopeFind_TAG_Found) ? (TypeBinding*)get_payload(_sf_tb) : NULL;
+        Bool obj_is_type = (tb && tb->struct_def);
+
+        Bool ufcs_desugared = 0;
+        if (!obj_is_type) {
+            Str *type_name = NULL;
+            if (obj->til_type.tag >= TilType_TAG_I64 && obj->til_type.tag <= TilType_TAG_Bool)
+                type_name = til_type_name_c(&obj->til_type);
+            else if ((obj->til_type.tag == TilType_TAG_Struct || obj->til_type.tag == TilType_TAG_Enum) && obj->struct_name.count > 0)
+                type_name = &obj->struct_name;
+
+            Expr *sdef = type_name ? TypeScope_get_struct(scope, type_name) : NULL;
+            Expr *ns_func = find_namespace_func(sdef, method);
+            if (!ns_func) {
+                if (try_ufcs_rewrite(scope, e, fa, obj, method, type_name)) {
+                    return false;
+                }
+                if (infer_func_ptr_field_call(scope, e, fa, obj, sdef, method, in_func)) {
+                    return true;
+                }
+                char buf[256];
+                if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
+                    snprintf(buf, sizeof(buf),
+                             "cannot call method '%s' on Dynamic value; "
+                             "use 'ref x : Type = ...' to declare with an explicit type first",
+                             method->c_str);
+                } else {
+                    snprintf(buf, sizeof(buf), "no method '%s' for type '%s'",
+                             (const char *)method->c_str, type_name ? (const char *)type_name->c_str : "unknown");
+                }
+                type_error(e, STR_VIEW(buf));
+                e->til_type = (TilType){TilType_TAG_Unknown};
+                return true;
+            }
+            ufcs_desugared = 1;
+            Expr *instance = Expr_clone(obj);
+            Expr *type_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, obj->line, obj->col, &obj->path);
+            type_ident->data.data.Ident = *type_name;
+            *(Expr*)Vec_get(&fa->children, &(USize){(USize)(0)}) = *type_ident;
+            Expr dummy = {0};
+            { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
+            {
+                Expr *ch = (Expr *)e->children.data;
+                memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
+            }
+            *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *instance;
+            fa = Expr_child(e, &(USize){(USize)(0)});
+            method = &fa->data.data.FieldAccess;
+        }
+
+        obj = Expr_child(fa, &(USize){(USize)(0)});
+        if (obj->til_type.tag == TilType_TAG_Unknown) {
+            infer_expr(scope, obj, in_func);
+        }
+        Expr *sdef = (obj->struct_name).count > 0 ? TypeScope_get_struct(scope, &obj->struct_name) : NULL;
+        Expr *ns_func = find_namespace_func(sdef, method);
+        if (!ns_func) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "no namespace function '%s'", method->c_str);
+            type_error(e, STR_VIEW(buf));
+            e->til_type = (TilType){TilType_TAG_Unknown};
+            return true;
+        }
+        fa->is_ns_field = true;
+        {
+            U32 np = ns_func->data.data.FuncDef.nparam;
+            Expr **new_args = calloc(np, sizeof(Expr *));
             U32 pos_idx = 0;
             Bool seen_named = 0;
             for (U32 i = 1; i < e->children.count; i++) {
@@ -472,155 +175,431 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     seen_named = 1;
                     Str *aname = &arg->data.data.Ident;
                     I32 slot = -1;
-                    for (U32 j = 0; j < nparam; j++) {
-                        if ((I32)j == vi) continue; // can't name the variadic param
-                        if ((I32)j == kwi) continue; // can't name the kwargs param
-                        if (Str_eq(&((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
+                    for (U32 j = 0; j < np; j++) {
+                        if (Str_eq(&((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
                             slot = j;
                             break;
                         }
                     }
-                    if (slot < 0 && kwi >= 0) {
-                        // Unmatched named arg goes to kwargs
-                        { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&kw_args, _p); }
-                    } else if (slot < 0) {
+                    if (slot < 0) {
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "'%s' has no parameter '%s'", name->c_str, aname->c_str);
+                        snprintf(buf, sizeof(buf), "no parameter '%s'", aname->c_str);
                         type_error(arg, STR_VIEW(buf));
                     } else if (new_args[slot]) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
                         type_error(arg, STR_VIEW(buf));
                     } else {
-                        new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)})); // unwrap ExprData_TAG_NamedArg
+                        new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)}));
                     }
                 } else {
                     if (seen_named) {
                         type_error(arg, STR_LIT("positional argument after named argument"));
                     }
-                    if (vi >= 0 && pos_idx >= fixed_count) {
-                        // Variadic arg
-                        { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&va_args, _p); }
-                    } else if (pos_idx < nparam) {
+                    if (pos_idx < np) {
                         new_args[pos_idx] = Expr_clone(arg);
                     }
                     pos_idx++;
                 }
             }
-            // Fill defaults for missing non-variadic/non-kwargs params
-            for (U32 i = 0; i < nparam; i++) {
-                if ((I32)i == vi) continue; // variadic param handled separately
-                if ((I32)i == kwi) continue; // kwargs param handled separately
+            for (U32 i = 0; i < np; i++) {
                 if (!new_args[i]) {
-                    Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
-                    if (Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
-                        new_args[i] = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
+                    Str *_pn = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
+                    if (Map_has(&ns_func->data.data.FuncDef.param_defaults, _pn)) {
+                        new_args[i] = Expr_clone((Expr*)Map_get(&ns_func->data.data.FuncDef.param_defaults, _pn));
                     } else {
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "missing argument for parameter '%s'",
-                                 _pn->c_str);
+                        snprintf(buf, sizeof(buf), "missing argument for parameter '%s'", _pn->c_str);
                         type_error(e, STR_VIEW(buf));
                     }
                 }
             }
-            U32 max_pos = nparam - (kwi >= 0 ? 1 : 0);
-            if (vi < 0 && pos_idx > max_pos) {
+            if (pos_idx > np) {
                 char buf[128];
-                snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d",
-                         nparam, pos_idx);
+                snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d", np, pos_idx);
                 type_error(e, STR_VIEW(buf));
             }
-            // Rebuild children: callee + args_before_variadic + variadic_args + args_after_variadic
             Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
             Expr *callee = Expr_child(e, &(USize){(USize)(0)});
             Vec_push(&new_ch, Expr_clone(callee));
-            for (U32 i = 0; i < nparam; i++) {
-                if ((I32)i == vi) {
-                    e->data.data.FCall.variadic_index = new_ch.count; // children index of first variadic arg
-                    for (U32 j = 0; j < va_args.count; j++) {
-                        Expr *va = *(Expr **)Vec_get(&va_args, &(USize){(USize)(j)});
-                        Vec_push(&new_ch, Expr_clone(va));
-                    }
-                    e->data.data.FCall.variadic_count = va_args.count;
-                } else if ((I32)i == kwi) {
-                    e->data.data.FCall.kwargs_index = new_ch.count; // children index of first kwargs arg
-                    for (U32 j = 0; j < kw_args.count; j++) {
-                        Expr *kw = *(Expr **)Vec_get(&kw_args, &(USize){(USize)(j)});
-                        Vec_push(&new_ch, Expr_clone(kw));
-                    }
-                    e->data.data.FCall.kwargs_count = kw_args.count;
-                } else {
-                    Vec_push(&new_ch, new_args[i]);
-                }
+            for (U32 i = 0; i < np; i++) {
+                Vec_push(&new_ch, new_args[i]);
             }
             Vec_delete(&e->children, &(Bool){0});
             e->children = new_ch;
             free(new_args);
-            Vec_delete(&va_args, &(Bool){0});
-            Vec_delete(&kw_args, &(Bool){0});
         }
-        // Infer types of all arguments
         for (U32 i = 1; i < e->children.count; i++) {
             infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
         }
-        // Narrow Dynamic args to parameter types, then validate arg types
-        if (callee_bind && callee_bind->func_def) {
-            Expr *fdef = callee_bind->func_def;
-            I32 fvi = fdef->data.data.FuncDef.variadic_index;
-            I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
-            U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
-            U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
-            U32 ci = 1;
-            for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
-                if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
-                if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
-                Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
-                if (ptype)
-                    narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), type_from_name(ptype, scope), ptype);
-                ci++;
+        for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
+            Str *ptype = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
+            if (ptype)
+                narrow_dynamic(Expr_child(e, &(USize){(USize)(i)}), type_from_name(ptype, scope), ptype);
+        }
+        for (U32 i = 1; i < e->children.count && i - 1 < ns_func->data.data.FuncDef.nparam; i++) {
+            Str *ptype_name = &((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->ptype;
+            if (!ptype_name) continue;
+            Expr *arg = Expr_child(e, &(USize){(USize)(i)});
+            if (arg->til_type.tag == TilType_TAG_Dynamic) continue;
+            TilType ptype = *type_from_name(ptype_name, scope);
+            if (ptype.tag == TilType_TAG_Dynamic) continue;
+            if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
+                if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                             arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
+                    type_error(arg, STR_VIEW(buf));
+                }
+                arg->til_type = ptype;
+                continue;
             }
-            // Validate arg types against param types
-            ci = 1;
-            for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
-                if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
-                if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
-                Str *ptype_name = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
-                if (!ptype_name) { ci++; continue; }
-                Expr *arg = Expr_child(e, &(USize){(USize)(ci)});
-                if (arg->til_type.tag == TilType_TAG_Dynamic) { ci++; continue; }
-                TilType ptype = *type_from_name(ptype_name, scope);
-                if (ptype.tag == TilType_TAG_Dynamic) { ci++; continue; }
-                if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
-                    if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
-                        char buf[128];
-                        snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
-                                 arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
-                        type_error(arg, STR_VIEW(buf));
-                    }
-                    arg->til_type = ptype; ci++; continue;
-                }
-                if (can_implicit_widen(&arg->til_type, &ptype) ||
-                    can_implicit_usize_coerce(&arg->til_type, &ptype, ptype_name)) {
-                    arg->til_type = ptype; ci++; continue;
-                }
-                if (arg->til_type.tag != ptype.tag) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
-                             ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
-                    type_error(arg, STR_VIEW(buf));
-                } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
-                           (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                             ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
-                             ptype_name->c_str, arg->struct_name.c_str);
-                    type_error(arg, STR_VIEW(buf));
-                }
-                ci++;
+            if (can_implicit_widen(&arg->til_type, &ptype) ||
+                can_implicit_usize_coerce(&arg->til_type, &ptype, ptype_name)) {
+                arg->til_type = ptype;
+                continue;
+            }
+            if (arg->til_type.tag != ptype.tag) {
+                char buf[256];
+                snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                         ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
+                         ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
+                type_error(arg, STR_VIEW(buf));
+            } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
+                       (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
+                char buf[256];
+                snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                         ((Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)}))->name.c_str,
+                         ptype_name->c_str, arg->struct_name.c_str);
+                type_error(arg, STR_VIEW(buf));
             }
         }
-        // dyn_call variants: method (2nd arg) must be a string literal
+        if (ufcs_desugared && Expr_child(e, &(USize){(USize)(0)})->is_own_arg && e->children.count > 1) {
+            Expr_child(e, &(USize){(USize)(1)})->is_own_arg = 1;
+        }
+        {
+            U32 np = ns_func->data.data.FuncDef.nparam;
+            if (ns_func->data.data.FuncDef.params.count > 0) {
+                for (U32 i = 1; i < e->children.count && i - 1 < np; i++) {
+                    Param *_pp = (Param*)Vec_get(&ns_func->data.data.FuncDef.params, &(USize){(USize)(i - 1)});
+                    Bool pown = _pp->is_own;
+                    if (pown && !Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
+                                 _pp->name.c_str);
+                        type_error(Expr_child(e, &(USize){(USize)(i)}), STR_VIEW(buf));
+                    } else if (!pown && Expr_child(e, &(USize){(USize)(i)})->is_own_arg) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
+                                 _pp->name.c_str);
+                        type_error(Expr_child(e, &(USize){(USize)(i)}), STR_VIEW(buf));
+                    }
+                    if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_Ident) {
+                        ScopeFind *_sf_ab = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(i)})->data.data.Ident);
+                        TypeBinding *ab = _sf_ab->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab) : NULL;
+                        if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy"));
+                    }
+                    if (pown && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
+                        type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass null to 'own' parameter"));
+                    if (_pp->is_shallow && Expr_child(e, &(USize){(USize)(i)})->data.tag == ExprData_TAG_LiteralNull)
+                        type_error(Expr_child(e, &(USize){(USize)(i)}), STR_LIT("cannot pass null to 'shallow' parameter"));
+                }
+            }
+        }
+        TilType rt = (TilType){TilType_TAG_None};
+        if (ns_func->data.data.FuncDef.return_type.count > 0) {
+            rt = *type_from_name(&ns_func->data.data.FuncDef.return_type, scope);
+        }
+        e->til_type = rt;
+        if ((rt.tag == TilType_TAG_Struct || rt.tag == TilType_TAG_Enum) && (ns_func->data.data.FuncDef.return_type).count > 0) {
+            e->struct_name = *Str_clone(&ns_func->data.data.FuncDef.return_type);
+        }
+        return true;
+}
+
+static Bool infer_struct_constructor_fcall(TypeScope *scope, Expr *e, Str *name, I32 in_func) {
+        Expr *sdef = TypeScope_get_struct(scope, name);
+        if (!sdef) return false;
+        ScopeFind *_sf_sb = TypeScope_find(scope, name);
+        TypeBinding *sb = _sf_sb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_sb) : NULL;
+        if (sb && sb->is_builtin && !sb->is_ext) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "cannot instantiate builtin type '%s'", name->c_str);
+            type_error(e, STR_VIEW(buf));
+            e->til_type = (TilType){TilType_TAG_Unknown};
+            return true;
+        }
+        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
+        U32 nfields = 0;
+        for (U32 i = 0; i < body->children.count; i++) {
+            if (!Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) nfields++;
+        }
+        Expr **field_vals = calloc(nfields, sizeof(Expr *));
+        I32 *field_idx = malloc(nfields * sizeof(I32));
+        { I32 k = 0;
+          for (U32 i = 0; i < body->children.count; i++) {
+              if (!Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) field_idx[k++] = i;
+          }
+        }
+        for (U32 i = 1; i < e->children.count; i++) {
+            Expr *arg = Expr_child(e, &(USize){(USize)(i)});
+            if (arg->data.tag != ExprData_TAG_NamedArg) {
+                type_error(arg, STR_LIT("struct instantiation requires named arguments"));
+                continue;
+            }
+            Str *aname = &arg->data.data.Ident;
+            I32 slot = -1;
+            for (U32 j = 0; j < nfields; j++) {
+                if (Str_eq(&Expr_child(body, &(USize){(USize)(field_idx[j])})->data.data.Decl.name, aname)) {
+                    slot = j;
+                    break;
+                }
+            }
+            if (slot < 0) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'", name->c_str, aname->c_str);
+                type_error(arg, STR_VIEW(buf));
+            } else if (field_vals[slot]) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "duplicate argument for field '%s'", aname->c_str);
+                type_error(arg, STR_VIEW(buf));
+            } else {
+                field_vals[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)}));
+            }
+        }
+        for (U32 i = 0; i < nfields; i++) {
+            if (!field_vals[i]) {
+                field_vals[i] = Expr_clone(Expr_child(Expr_child(body, &(USize){(USize)(field_idx[i])}), &(USize){(USize)(0)}));
+            }
+        }
+        Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+        Expr *callee = Expr_child(e, &(USize){(USize)(0)});
+        Vec_push(&new_ch, Expr_clone(callee));
+        for (U32 i = 0; i < nfields; i++) {
+            Vec_push(&new_ch, field_vals[i]);
+        }
+        Vec_delete(&e->children, &(Bool){0});
+        e->children = new_ch;
+        free(field_vals);
+        free(field_idx);
+        for (U32 i = 1; i < e->children.count; i++) {
+            if (Expr_child(e, &(USize){(USize)(i)})->til_type.tag == TilType_TAG_Unknown) {
+                infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
+            }
+        }
+        { U32 fi = 0;
+          for (U32 bi = 0; bi < body->children.count && fi < e->children.count - 1; bi++) {
+            Expr *fld = Expr_child(body, &(USize){(USize)(bi)});
+            if (fld->data.data.Decl.is_namespace) continue;
+            I32 ai = fi + 1;
+            fi++;
+            if (fld->data.data.Decl.is_ref) continue;
+            if (!fld->data.data.Decl.is_own && !type_ctor_consumes(&fld->til_type)) continue;
+            Expr_child(e, &(USize){(USize)(ai)})->is_own_arg = 1;
+          }
+        }
+        e->til_type = (TilType){TilType_TAG_Struct};
+        e->struct_name = *Str_clone(resolve_type_alias(scope, name));
+        return true;
+}
+
+static void desugar_user_func_fcall_args(Expr *e, Str *name, TypeBinding *callee_bind) {
+        Expr *fdef = callee_bind->func_def;
+        U32 nparam = fdef->data.data.FuncDef.nparam;
+        I32 vi = fdef->data.data.FuncDef.variadic_index;
+        I32 kwi = fdef->data.data.FuncDef.kwargs_index;
+        U32 fixed_count = (vi >= 0) ? (U32)vi : nparam;
+        Vec va_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); va_args = *_vp; free(_vp); }
+        Vec kw_args; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); kw_args = *_vp; free(_vp); }
+        Expr **new_args = calloc(nparam, sizeof(Expr *));
+        U32 pos_idx = 0;
+        Bool seen_named = 0;
+        for (U32 i = 1; i < e->children.count; i++) {
+            Expr *arg = Expr_child(e, &(USize){(USize)(i)});
+            if (arg->data.tag == ExprData_TAG_NamedArg) {
+                seen_named = 1;
+                Str *aname = &arg->data.data.Ident;
+                I32 slot = -1;
+                for (U32 j = 0; j < nparam; j++) {
+                    if ((I32)j == vi) continue;
+                    if ((I32)j == kwi) continue;
+                    if (Str_eq(&((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(j)}))->name, aname)) {
+                        slot = j;
+                        break;
+                    }
+                }
+                if (slot < 0 && kwi >= 0) {
+                    { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&kw_args, _p); }
+                } else if (slot < 0) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "'%s' has no parameter '%s'", name->c_str, aname->c_str);
+                    type_error(arg, STR_VIEW(buf));
+                } else if (new_args[slot]) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "duplicate argument for parameter '%s'", aname->c_str);
+                    type_error(arg, STR_VIEW(buf));
+                } else {
+                    new_args[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)}));
+                }
+            } else {
+                if (seen_named) {
+                    type_error(arg, STR_LIT("positional argument after named argument"));
+                }
+                if (vi >= 0 && pos_idx >= fixed_count) {
+                    { Expr **_p = malloc(sizeof(Expr *)); *_p = arg; Vec_push(&va_args, _p); }
+                } else if (pos_idx < nparam) {
+                    new_args[pos_idx] = Expr_clone(arg);
+                }
+                pos_idx++;
+            }
+        }
+        for (U32 i = 0; i < nparam; i++) {
+            if ((I32)i == vi) continue;
+            if ((I32)i == kwi) continue;
+            if (!new_args[i]) {
+                Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
+                if (Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
+                    new_args[i] = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
+                } else {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "missing argument for parameter '%s'", _pn->c_str);
+                    type_error(e, STR_VIEW(buf));
+                }
+            }
+        }
+        U32 max_pos = nparam - (kwi >= 0 ? 1 : 0);
+        if (vi < 0 && pos_idx > max_pos) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "too many arguments: expected %d, got %d", nparam, pos_idx);
+            type_error(e, STR_VIEW(buf));
+        }
+        Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+        Expr *callee = Expr_child(e, &(USize){(USize)(0)});
+        Vec_push(&new_ch, Expr_clone(callee));
+        for (U32 i = 0; i < nparam; i++) {
+            if ((I32)i == vi) {
+                e->data.data.FCall.variadic_index = new_ch.count;
+                for (U32 j = 0; j < va_args.count; j++) {
+                    Expr *va = *(Expr **)Vec_get(&va_args, &(USize){(USize)(j)});
+                    Vec_push(&new_ch, Expr_clone(va));
+                }
+                e->data.data.FCall.variadic_count = va_args.count;
+            } else if ((I32)i == kwi) {
+                e->data.data.FCall.kwargs_index = new_ch.count;
+                for (U32 j = 0; j < kw_args.count; j++) {
+                    Expr *kw = *(Expr **)Vec_get(&kw_args, &(USize){(USize)(j)});
+                    Vec_push(&new_ch, Expr_clone(kw));
+                }
+                e->data.data.FCall.kwargs_count = kw_args.count;
+            } else {
+                Vec_push(&new_ch, new_args[i]);
+            }
+        }
+        Vec_delete(&e->children, &(Bool){0});
+        e->children = new_ch;
+        free(new_args);
+        Vec_delete(&va_args, &(Bool){0});
+        Vec_delete(&kw_args, &(Bool){0});
+}
+
+static void infer_and_validate_fcall_args(TypeScope *scope, Expr *e, TypeBinding *callee_bind, I32 in_func) {
+        for (U32 i = 1; i < e->children.count; i++) {
+            infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
+        }
+        if (!(callee_bind && callee_bind->func_def)) return;
+        Expr *fdef = callee_bind->func_def;
+        I32 fvi = fdef->data.data.FuncDef.variadic_index;
+        I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
+        U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
+        U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
+        U32 ci = 1;
+        for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
+            if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
+            if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
+            Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
+            if (ptype)
+                narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), type_from_name(ptype, scope), ptype);
+            ci++;
+        }
+        ci = 1;
+        for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
+            if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
+            if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
+            Str *ptype_name = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
+            if (!ptype_name) { ci++; continue; }
+            Expr *arg = Expr_child(e, &(USize){(USize)(ci)});
+            if (arg->til_type.tag == TilType_TAG_Dynamic) { ci++; continue; }
+            TilType ptype = *type_from_name(ptype_name, scope);
+            if (ptype.tag == TilType_TAG_Dynamic) { ci++; continue; }
+            if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
+                if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                             arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
+                    type_error(arg, STR_VIEW(buf));
+                }
+                arg->til_type = ptype; ci++; continue;
+            }
+            if (can_implicit_widen(&arg->til_type, &ptype) ||
+                can_implicit_usize_coerce(&arg->til_type, &ptype, ptype_name)) {
+                arg->til_type = ptype; ci++; continue;
+            }
+            if (arg->til_type.tag != ptype.tag) {
+                char buf[256];
+                snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                         ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
+                         ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
+                type_error(arg, STR_VIEW(buf));
+            } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
+                       (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
+                char buf[256];
+                snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
+                         ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
+                         ptype_name->c_str, arg->struct_name.c_str);
+                type_error(arg, STR_VIEW(buf));
+            }
+            ci++;
+        }
+}
+
+static void validate_fcall_own_args(TypeScope *scope, Expr *e, TypeBinding *callee_bind) {
+        if (!(callee_bind && callee_bind->func_def)) return;
+        Expr *fdef = callee_bind->func_def;
+        I32 fvi = fdef->data.data.FuncDef.variadic_index;
+        I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
+        U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
+        U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
+        U32 ci = 1;
+        for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
+            if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
+            if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
+            Param *_pp2 = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)});
+            Bool pown = _pp2->is_own;
+            if (pown && !Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
+                         _pp2->name.c_str);
+                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
+            } else if (!pown && Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
+                         _pp2->name.c_str);
+                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
+            }
+            if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_Ident) {
+                ScopeFind *_sf_ab2 = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(ci)})->data.data.Ident);
+                TypeBinding *ab = _sf_ab2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab2) : NULL;
+                if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy"));
+            }
+            if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
+                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'own' parameter"));
+            if (_pp2->is_shallow && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
+                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'shallow' parameter"));
+            ci++;
+        }
+}
+
+static void resolve_fcall_return_type(TypeScope *scope, Expr *e, Str *name, TypeBinding *callee_bind, I32 in_func) {
         if (((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0) || (name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0) ||
              (name->count == 14 && memcmp(name->c_str, "dyn_has_method", 14) == 0) || (name->count == 6 && memcmp(name->c_str, "dyn_fn", 6) == 0)) &&
             e->children.count >= 3) {
@@ -629,7 +608,6 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 type_error(method_arg, STR_LIT("dyn_call method argument must be a string literal"));
             }
         }
-        // array/vec builtins: type_name (1st arg) must be a string literal
         if (((name->count == 5 && memcmp(name->c_str, "array", 5) == 0) || (name->count == 3 && memcmp(name->c_str, "vec", 3) == 0)) &&
             e->children.count >= 2) {
             Expr *type_arg = Expr_child(e, &(USize){(USize)(1)});
@@ -637,60 +615,14 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 type_error(type_arg, STR_LIT("array/vec type_name argument must be a string literal"));
             }
         }
-        // Validate 'own' markers on arguments (variadic-aware)
-        if (callee_bind && callee_bind->func_def) {
-            Expr *fdef = callee_bind->func_def;
-            I32 fvi = fdef->data.data.FuncDef.variadic_index;
-            I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
-            U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
-            U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
-            U32 ci = 1; // children index
-            for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
-                if (fvi >= 0 && (I32)pi == fvi) {
-                    ci += fvc; // skip variadic args
-                    continue;
-                }
-                if (fkwi >= 0 && (I32)pi == fkwi) {
-                    ci += fkc; // skip kwargs args
-                    continue;
-                }
-                Param *_pp2 = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)});
-                Bool pown = _pp2->is_own;
-                if (pown && !Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
-                             _pp2->name.c_str);
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
-                } else if (!pown && Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
-                             _pp2->name.c_str);
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
-                }
-                if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_Ident) {
-                    ScopeFind *_sf_ab2 = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(ci)})->data.data.Ident);
-                    TypeBinding *ab = _sf_ab2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab2) : NULL;
-                    if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy"));
-                }
-                if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'own' parameter"));
-                if (_pp2->is_shallow && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                    type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'shallow' parameter"));
-                ci++;
-            }
-        }
-        // Resolve return type from scope (covers builtins and user-defined)
         TilType fn_type = *TypeScope_get_type(scope, name);
         if (fn_type.tag == TilType_TAG_Unknown) {
             char buf[128];
             snprintf(buf, sizeof(buf), "undefined function '%s'", name->c_str);
             type_error(e, STR_VIEW(buf));
         }
-        // Function pointer call: resolve return type from func_def if available
-        // Only for actual func ptr variables (is_proc == -1), not functions returning func ptrs
         if (fn_type.tag == TilType_TAG_FuncPtr && callee_bind && callee_bind->is_proc < 0) {
-            Expr_child(e, &(USize){(USize)(0)})->til_type = (TilType){TilType_TAG_FuncPtr}; // mark callee for builder
-            // Store signature on FCALL for builder to use
+            Expr_child(e, &(USize){(USize)(0)})->til_type = (TilType){TilType_TAG_FuncPtr};
             if (callee_bind && callee_bind->func_def) {
                 e->fn_sig = callee_bind->func_def;
                 e->data.data.FCall.fn_sig = callee_bind->func_def;
@@ -704,7 +636,6 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
             } else {
                 e->til_type = (TilType){TilType_TAG_Dynamic};
             }
-            // Type check: verify argument count and types against signature
             if (callee_bind && callee_bind->func_def) {
                 Expr *sig = callee_bind->func_def;
                 U32 nargs = e->children.count - 1;
@@ -732,12 +663,10 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
         } else {
             e->til_type = fn_type;
-            // Propagate struct_name for struct-returning functions
             if ((fn_type.tag == TilType_TAG_Struct || fn_type.tag == TilType_TAG_Enum) && callee_bind && callee_bind->func_def &&
                 (callee_bind->func_def->data.data.FuncDef.return_type).count > 0) {
                 e->struct_name = *Str_clone(&callee_bind->func_def->data.data.FuncDef.return_type);
             }
-            // Propagate FuncSig for functions returning func ptrs
             if (fn_type.tag == TilType_TAG_FuncPtr && callee_bind && callee_bind->func_def &&
                 (callee_bind->func_def->data.data.FuncDef.return_type).count > 0) {
                 ScopeFind *_sf_rsb = TypeScope_find(scope, &callee_bind->func_def->data.data.FuncDef.return_type);
@@ -748,8 +677,6 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 }
             }
         }
-        // Check: func cannot call proc (panic is exempt; print/println exempt in debug_prints modes)
-        // Skip for function pointer calls (callee proc-ness unknown at compile time)
         Bool debug_exempt = current_mode.debug_prints &&
             ((name->count == 5 && memcmp(name->c_str, "print", 5) == 0) || (name->count == 7 && memcmp(name->c_str, "println", 7) == 0));
         if (fn_type.tag != TilType_TAG_FuncPtr &&
@@ -758,13 +685,34 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
             snprintf(buf, sizeof(buf), "func cannot call proc '%s'", name->c_str);
             type_error(e, STR_VIEW(buf));
         }
-        // Check: test functions cannot be called by anyone
         if (TypeScope_is_proc(scope, name) == 2) {
             char buf[128];
             snprintf(buf, sizeof(buf), "test functions cannot be called ('%s')", name->c_str);
             type_error(e, STR_VIEW(buf));
         }
-        done_fcall:
+}
+
+void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
+        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
+            if (infer_field_access_fcall(scope, e, in_func)) return;
+        }
+        Str _name_val = Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
+        Str *name = &_name_val;
+        Str *resolved_name = resolve_type_alias(scope, name);
+        if (resolved_name != name) {
+            Expr_child(e, &(USize){(USize)(0)})->data.data.Ident = *resolved_name;
+            _name_val = *resolved_name;
+        }
+        if (infer_struct_constructor_fcall(scope, e, name, in_func)) return;
+        ScopeFind *_sf_cb = TypeScope_find(scope, name);
+        TypeBinding *callee_bind = _sf_cb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_cb) : NULL;
+        if (callee_bind && callee_bind->func_def &&
+            (!callee_bind->is_builtin || !callee_bind->func_def->is_core)) {
+            desugar_user_func_fcall_args(e, name, callee_bind);
+        }
+        infer_and_validate_fcall_args(scope, e, callee_bind, in_func);
+        validate_fcall_own_args(scope, e, callee_bind);
+        resolve_fcall_return_type(scope, e, name, callee_bind, in_func);
         return;
 }
 
