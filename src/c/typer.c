@@ -26,6 +26,7 @@ I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
 void narrow_dynamic(Expr *expr, TilType *target, Str *target_struct_name);
 Bool field_assign_needs_delete(Expr *stmt);
 void type_error(Expr *e, Str *msg);
+void infer_type_def_expr(TypeScope *scope, Expr *e);
 
 #define STR_LIT(s) (&(Str){.c_str=(U8 *)(s), .count=(U64)(sizeof(s) - 1), .cap=CAP_LIT})
 #define STR_VIEW(s) (&(Str){.c_str=(U8 *)(s), .count=(U64)strlen((const char *)(s)), .cap=CAP_VIEW})
@@ -37,7 +38,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
 static void infer_func_def_expr(TypeScope *scope, Expr *e);
-static void infer_type_def_expr(TypeScope *scope, Expr *e);
+
 static void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_type_body);
 static void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref);
@@ -139,23 +140,6 @@ static void infer_func_def_expr(TypeScope *scope, Expr *e) {
         }
         TypeScope_delete(func_scope, &(Bool){1});
     }
-}
-
-static void infer_type_def_expr(TypeScope *scope, Expr *e) {
-    e->til_type = (TilType){TilType_TAG_None};
-    if (e->data.tag == ExprData_TAG_EnumDef) {
-        Expr *body = Expr_child(e, &(USize){(USize)(0)});
-        for (U32 vi = 0; vi < body->children.count; vi++) {
-            Expr *v = Expr_child(body, &(USize){(USize)(vi)});
-            if (v->data.tag == ExprData_TAG_Decl && !v->data.data.Decl.is_namespace &&
-                (v->data.data.Decl.explicit_type).count > 0 && v->data.data.Decl.is_ref) {
-                type_error(v, STR_LIT("ref payloads in tagged enum variants are not supported"));
-            }
-        }
-    }
-TypeScope *inner = TypeScope_new(scope);
-infer_body(inner, Expr_child(e, &(USize){(USize)(0)}), 0, 0, 0, 0, 1);
-TypeScope_delete(inner, &(Bool){1});
 }
 
 static void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func) {

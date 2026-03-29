@@ -32,6 +32,29 @@ type_error := proc(e: Expr, msg: Str) {
 infer_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
 infer_body := ext_func(scope: TypeScope, body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {}
 
+infer_type_def_expr := proc(scope: TypeScope, mut e: Expr) {
+    e.til_type = TilType.None
+    if is_variant(e.data, ExprData.EnumDef) {
+        ref body : Expr = e.children.get(0)
+        for vi in 0..body.children.len() {
+            ref v : Expr = body.children.get(vi)
+            if is_variant(v.data, ExprData.Decl) {
+                ref vd : Declaration = get_payload(v.data)
+                if vd.is_namespace.not() {
+                    if vd.explicit_type.len().gt(0) {
+                        if vd.is_ref {
+                            type_error(v, "ref payloads in tagged enum variants are not supported")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    inner := TypeScope.new(scope)
+    infer_body(inner, e.child(0), 0, 0, 0, 0, 1)
+    own inner.delete(true)
+}
+
 infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
     type := scope.get_type(get_payload(expr.data))
     if is_variant(type, TilType.Unknown) {
