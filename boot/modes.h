@@ -846,6 +846,7 @@ Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * 
 Bool infer_func_ptr_field_call(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Expr * sdef, Str * method, I32 in_func);
 void validate_fcall_own_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind);
 Bool infer_struct_constructor_fcall(TypeScope * scope, Expr * e, Str * name, I32 in_func);
+void desugar_user_func_fcall_args(Expr * e, Str * name, TypeBinding * callee_bind);
 void infer_and_validate_fcall_args(TypeScope * scope, Expr * e, TypeBinding * callee_bind, I32 in_func);
 void resolve_fcall_return_type(TypeScope * scope, Expr * e, Str * name, TypeBinding * callee_bind, I32 in_func);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func);

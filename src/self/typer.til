@@ -307,6 +307,121 @@ infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str,
     return true
 }
 
+desugar_user_func_fcall_args := proc(mut e: Expr, name: Str, callee_bind: TypeBinding) {
+    ref fdef : Expr = callee_bind.func_def
+    ref fdef_data : FunctionDef = get_payload(fdef.data)
+    nparam := fdef_data.nparam
+    vi := fdef_data.variadic_index
+    kwi := fdef_data.kwargs_index
+    mut fixed_count : U32 = nparam
+    if vi.gte(0) {
+        fixed_count = vi.to_i64().to_u32()
+    }
+    mut va_args := Vec.new("Expr", Expr.size())
+    mut kw_args := Vec.new("Expr", Expr.size())
+    mut new_args := Vec.new("CtorArg", CtorArg.size())
+    for i in 0..nparam {
+        new_args.push(own CtorArg.Unfilled())
+    }
+    mut pos_idx : U32 = 0
+    mut seen_named := false
+    for i in 1..e.child_count() {
+        ref arg : Expr = e.child(i)
+        if is_variant(arg.data, ExprData.NamedArg) {
+            seen_named = true
+            ref aname : Str = get_payload(arg.data)
+            mut slot := -1.to_i32()
+            for j in 0..nparam {
+                if j.to_i64().to_i32().eq(vi) { continue }
+                if j.to_i64().to_i32().eq(kwi) { continue }
+                ref param : Param = fdef_data.params.get(j)
+                if param.name.eq(aname) {
+                    slot = j.to_i64().to_i32()
+                    break
+                }
+            }
+            if slot.lt(0) {
+                if kwi.gte(0) {
+                    kw_args.push(own arg.clone())
+                } else {
+                    type_error(arg, format("'", name, "' has no parameter '", aname, "'"))
+                }
+            } else {
+                ref slot_arg : CtorArg = new_args.get(slot.to_i64().to_u32())
+                if is_variant(slot_arg, CtorArg.Filled) {
+                    type_error(arg, format("duplicate argument for parameter '", aname, "'"))
+                } else {
+                    new_args.set(slot.to_i64().to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                }
+            }
+        } else {
+            if seen_named {
+                type_error(arg, "positional argument after named argument")
+            }
+            if vi.gte(0) {
+                if pos_idx.gte(fixed_count) {
+                    va_args.push(own arg.clone())
+                } else if pos_idx.lt(nparam) {
+                    new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
+                }
+            } else if pos_idx.lt(nparam) {
+                new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
+            }
+            pos_idx = pos_idx.add(1)
+        }
+    }
+    for i in 0..nparam {
+        if i.to_i64().to_i32().eq(vi) { continue }
+        if i.to_i64().to_i32().eq(kwi) { continue }
+        ref slot_arg : CtorArg = new_args.get(i)
+        if is_variant(slot_arg, CtorArg.Filled).not() {
+            ref param : Param = fdef_data.params.get(i)
+            if fdef_data.param_defaults.has(param.name) {
+                ref def_expr : Expr = fdef_data.param_defaults.get(param.name)
+                new_args.set(i, own CtorArg.Filled(def_expr.clone()))
+            } else {
+                type_error(e, format("missing argument for parameter '", param.name, "'"))
+            }
+        }
+    }
+    mut max_pos : U32 = nparam
+    if kwi.gte(0) {
+        max_pos = max_pos.sub(1)
+    }
+    if vi.lt(0) {
+        if pos_idx.gt(max_pos) {
+            type_error(e, format("too many arguments: expected ", nparam.to_i64().to_str(), ", got ", pos_idx.to_i64().to_str()))
+        }
+    }
+    mut new_ch := Vec.new("Expr", Expr.size())
+    ref callee : Expr = e.child(0)
+    new_ch.push(own callee.clone())
+    for i in 0..nparam {
+        if i.to_i64().to_i32().eq(vi) {
+            ref mut fcall_data : FCallData = get_payload(e.data)
+            fcall_data.variadic_index = new_ch.len().to_i64().to_i32()
+            for j in 0..va_args.len() {
+                ref va : Expr = va_args.get(j)
+                new_ch.push(own va.clone())
+            }
+            fcall_data.variadic_count = va_args.len().to_i64().to_u32()
+        } else if i.to_i64().to_i32().eq(kwi) {
+            ref mut fcall_data : FCallData = get_payload(e.data)
+            fcall_data.kwargs_index = new_ch.len().to_i64().to_i32()
+            for j in 0..kw_args.len() {
+                ref kw : Expr = kw_args.get(j)
+                new_ch.push(own kw.clone())
+            }
+            fcall_data.kwargs_count = kw_args.len().to_i64().to_u32()
+        } else {
+            ref slot_arg : CtorArg = new_args.get(i)
+            ref filled_arg : Expr = get_payload(slot_arg)
+            new_ch.push(own filled_arg.clone())
+        }
+    }
+    e.children = new_ch
+}
+
 infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32) {
     for i in 1..e.child_count() {
         infer_expr(scope, e.child(i), in_func)
