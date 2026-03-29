@@ -8,20 +8,6 @@
 
 // --- Type inference/checking pass ---
 
-static Expr *find_namespace_func(Expr *sdef, Str *method) {
-        if (!sdef) return NULL;
-        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-        for (U32 i = 0; i < body->children.count; i++) {
-            Expr *field = Expr_child(body, &(USize){(USize)(i)});
-            if (field->data.data.Decl.is_namespace &&
-                Str_eq(&field->data.data.Decl.name, method) &&
-                Expr_child(field, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
-                return Expr_child(field, &(USize){(USize)(0)});
-            }
-        }
-        return NULL;
-}
-
 static Bool infer_func_ptr_field_call(TypeScope *scope, Expr *e, Expr *fa, Expr *obj, Expr *sdef, Str *method, I32 in_func) {
         if (!sdef || (obj->til_type.tag != TilType_TAG_Struct && obj->til_type.tag != TilType_TAG_Enum)) return false;
         Expr *body = Expr_child(sdef, &(USize){(USize)(0)});

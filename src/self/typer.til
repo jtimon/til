@@ -29,6 +29,21 @@ type_error := proc(e: Expr, msg: Str) {
     errors.inc()
 }
 
+find_namespace_func := func(sdef: Expr, method: Str) returns ref Expr {
+    if is_null(sdef) { return NULL }
+    ref body : Expr = sdef.child(0)
+    for i in 0..body.child_count() {
+        ref field : Expr = body.child(i)
+        if is_variant(field.data, ExprData.Decl).not() { continue }
+        ref fd : Declaration = get_payload(field.data)
+        if fd.is_namespace.not() { continue }
+        if fd.name.eq(method).not() { continue }
+        if is_variant(field.child(0).data, ExprData.FuncDef).not() { continue }
+        return field.child(0)
+    }
+    return NULL
+}
+
 infer_fcall_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
