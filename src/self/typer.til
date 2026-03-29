@@ -81,6 +81,51 @@ try_ufcs_rewrite := proc(scope: TypeScope, mut e: Expr, fa: Expr, mut obj: Expr,
     return true
 }
 
+infer_func_ptr_field_call := proc(scope: TypeScope, mut e: Expr, mut fa: Expr, obj: Expr, sdef: Expr, method: Str, shallow in_func: I32) returns shallow Bool {
+    if is_null(sdef).or(is_variant(obj.til_type, TilType.Struct).not().and(is_variant(obj.til_type, TilType.Enum).not())) { return false }
+    ref body : Expr = sdef.child(0)
+    for fi in 0..body.child_count() {
+        ref field : Expr = body.child(fi)
+        if is_variant(field.data, ExprData.Decl).not() { continue }
+        ref fd : Declaration = get_payload(field.data)
+        if fd.is_namespace { continue }
+        if fd.name.eq(method).not() { continue }
+        if fd.explicit_type.len().eq(0) { continue }
+        sf_ftb := scope.find(fd.explicit_type)
+        if is_variant(sf_ftb, ScopeFind.Found).not() { continue }
+        ref ftb : TypeBinding = get_payload(sf_ftb)
+        if is_null(ftb.func_def).or(ftb.func_def.child_count().neq(0)) { continue }
+        fa.til_type = TilType.FuncPtr
+        fa.fn_sig = ftb.func_def
+        ref sig : Expr = ftb.func_def
+        mut nargs : U32 = e.child_count()
+        nargs = nargs.sub(1)
+        ref sig_fdef : FunctionDef = get_payload(sig.data)
+        if nargs.neq(sig_fdef.nparam) {
+            type_error(e, "function pointer field '".concat(method).concat("' expects ").concat(sig_fdef.nparam.to_i64().to_str()).concat(" args, got ").concat(nargs.to_i64().to_str()))
+        }
+        mut ai : U32 = 0
+        while ai.lt(nargs) {
+            if ai.gte(sig_fdef.nparam) { break }
+            infer_expr(scope, e.child(ai.add(1)), in_func)
+            ai = ai.add(1)
+        }
+        e.fn_sig = sig.clone()
+        ref mut fcall_data : FCallData = get_payload(e.data)
+        fcall_data.fn_sig = sig.clone()
+        if sig_fdef.return_type.len().gt(0) {
+            e.til_type = type_from_name(sig_fdef.return_type, scope)
+            if is_variant(e.til_type, TilType.Struct).or(is_variant(e.til_type, TilType.Enum)) {
+                e.struct_name = sig_fdef.return_type.clone()
+            }
+        } else {
+            e.til_type = TilType.None
+        }
+        return true
+    }
+    return false
+}
+
 infer_fcall_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {

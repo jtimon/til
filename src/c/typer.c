@@ -8,45 +8,6 @@
 
 // --- Type inference/checking pass ---
 
-static Bool infer_func_ptr_field_call(TypeScope *scope, Expr *e, Expr *fa, Expr *obj, Expr *sdef, Str *method, I32 in_func) {
-        if (!sdef || (obj->til_type.tag != TilType_TAG_Struct && obj->til_type.tag != TilType_TAG_Enum)) return false;
-        Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-        for (U32 fi = 0; fi < body->children.count; fi++) {
-            Expr *field = Expr_child(body, &(USize){(USize)(fi)});
-            if (field->data.tag != ExprData_TAG_Decl || field->data.data.Decl.is_namespace) continue;
-            if (!Str_eq(&field->data.data.Decl.name, method)) continue;
-            if (field->data.data.Decl.explicit_type.count == 0) continue;
-            ScopeFind *_sf_ftb = TypeScope_find(scope, &field->data.data.Decl.explicit_type);
-            TypeBinding *ftb = _sf_ftb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ftb) : NULL;
-            if (ftb && ftb->func_def && ftb->func_def->children.count == 0) {
-                fa->til_type = (TilType){TilType_TAG_FuncPtr};
-                fa->fn_sig = ftb->func_def;
-                Expr *sig = ftb->func_def;
-                U32 nargs = e->children.count - 1;
-                if (nargs != sig->data.data.FuncDef.nparam) {
-                    char buf2[128];
-                    snprintf(buf2, sizeof(buf2), "function pointer field '%s' expects %u args, got %u",
-                             method->c_str, sig->data.data.FuncDef.nparam, nargs);
-                    type_error(e, STR_VIEW(buf2));
-                }
-                for (U32 ai = 0; ai < nargs && ai < sig->data.data.FuncDef.nparam; ai++) {
-                    infer_expr(scope, Expr_child(e, &(USize){(USize)(ai + 1)}), in_func);
-                }
-                e->fn_sig = sig;
-                e->data.data.FCall.fn_sig = sig;
-                if (sig->data.data.FuncDef.return_type.count > 0) {
-                    e->til_type = *type_from_name(&sig->data.data.FuncDef.return_type, scope);
-                    if ((e->til_type.tag == TilType_TAG_Struct || e->til_type.tag == TilType_TAG_Enum))
-                        e->struct_name = *Str_clone(&sig->data.data.FuncDef.return_type);
-                } else {
-                    e->til_type = (TilType){TilType_TAG_None};
-                }
-                return true;
-            }
-        }
-        return false;
-}
-
 static Bool infer_field_access_fcall(TypeScope *scope, Expr *e, I32 in_func) {
         Expr *fa = Expr_child(e, &(USize){(USize)(0)});
         Expr *obj = Expr_child(fa, &(USize){(USize)(0)});
