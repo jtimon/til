@@ -47,37 +47,6 @@ static Bool infer_func_ptr_field_call(TypeScope *scope, Expr *e, Expr *fa, Expr 
         return false;
 }
 
-static Bool try_ufcs_rewrite(TypeScope *scope, Expr *e, Expr *fa, Expr *obj, Str *method, Str *type_name) {
-        ScopeFind *_sf_top = TypeScope_find(scope, method);
-        TypeBinding *top = _sf_top->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_top) : NULL;
-        Bool ufcs_match = 0;
-        if (top && top->func_def &&
-            top->func_def->data.data.FuncDef.nparam > 0 &&
-            ((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype.count > 0) {
-            Str *first_param = &((Param*)Vec_get(&top->func_def->data.data.FuncDef.params, &(USize){(USize)(0)}))->ptype;
-            if (type_name && Str_eq(first_param, type_name)) {
-                ufcs_match = 1;
-            } else if (!type_name && obj->til_type.tag == TilType_TAG_Dynamic) {
-                TilType pt = *type_from_name(first_param, scope);
-                narrow_dynamic(obj, &pt, first_param);
-                ufcs_match = 1;
-            }
-        }
-        if (!ufcs_match) return false;
-        Expr *fn_ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, fa->line, fa->col, &fa->path);
-        fn_ident->data.data.Ident = *method;
-        *(Expr*)Vec_get(&e->children, &(USize){(USize)(0)}) = *fn_ident;
-        Expr *instance = obj;
-        Expr dummy = {0};
-        { Expr *_p = malloc(sizeof(Expr)); *_p = dummy; Vec_push(&e->children, _p); }
-        {
-            Expr *ch = (Expr *)e->children.data;
-            memmove(&ch[2], &ch[1], (e->children.count - 2) * sizeof(Expr));
-        }
-        *(Expr*)Vec_get(&e->children, &(USize){(USize)(1)}) = *Expr_clone(instance);
-        return true;
-}
-
 static Bool infer_field_access_fcall(TypeScope *scope, Expr *e, I32 in_func) {
         Expr *fa = Expr_child(e, &(USize){(USize)(0)});
         Expr *obj = Expr_child(fa, &(USize){(USize)(0)});

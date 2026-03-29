@@ -820,6 +820,7 @@ void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);
 void type_error(Expr * e, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
+Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name);
 void infer_fcall_expr(TypeScope * scope, Expr * e, I32 in_func);
 void infer_expr(TypeScope * scope, Expr * expr, I32 in_func);
 void infer_ident_expr(TypeScope * scope, Expr * expr);
