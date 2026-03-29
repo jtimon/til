@@ -3,56 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Forward declarations for til-generated functions (typer.til)
-Bool is_numeric_type(TilType *t);
-Bool is_integral_numeric_type(TilType *t);
-Bool is_usize_name(Str *name);
-Bool can_implicit_usize_coerce(TilType *from, TilType *to, Str *to_name);
-Bool literal_in_range(Str *val_str, TilType *target);
-Bool can_implicit_widen(TilType *from, TilType *to);
-TilType *type_from_name(Str *name, TypeScope *scope);
-Str *resolve_type_alias(TypeScope *scope, Str *name);
-Str *usize_name(TypeScope *scope);
-TilType *usize_type(TypeScope *scope);
-Bool expr_contains_fcall(Expr *e);
-Bool expr_uses_var(Expr *e, Str *name);
-Bool expr_contains_decl(Expr *e, Str *name);
-Bool expr_used_in_nested_func(Expr *e, Str *name);
-Bool check_own_args(Expr *fdef, Expr *fcall, Str *var_name);
-Bool fcall_has_own_arg(Expr *fcall, Str *var_name, TypeScope *scope);
-Bool expr_transfers_own(Expr *e, Str *var_name, TypeScope *scope);
-Bool alias_used_in_expr(Expr *body, Str *name, Expr *expr);
-I32 fcall_returns_ref(Expr *fcall, TypeScope *scope);
-void narrow_dynamic(Expr *expr, TilType *target, Str *target_struct_name);
-Bool field_assign_needs_delete(Expr *stmt);
-void type_error(Expr *e, Str *msg);
-
 #define STR_LIT(s) (&(Str){.c_str=(U8 *)(s), .count=(U64)(sizeof(s) - 1), .cap=CAP_LIT})
 #define STR_VIEW(s) (&(Str){.c_str=(U8 *)(s), .count=(U64)strlen((const char *)(s)), .cap=CAP_VIEW})
 
 // --- Type inference/checking pass ---
-
-
-void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
-void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
-
-void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func);
-void infer_func_def_expr(TypeScope *scope, Expr *e);
-void infer_type_def_expr(TypeScope *scope, Expr *e);
-void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
-void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_type_body);
-Bool infer_decl_type_def(TypeScope *scope, Expr *stmt);
-Bool infer_decl_func_def(TypeScope *scope, Expr *stmt);
-Bool infer_decl_type_alias_passthrough(TypeScope *scope, Expr *stmt);
-void infer_decl_typed_value(TypeScope *scope, Expr *stmt);
-void infer_decl_untyped_value(Expr *stmt);
-void finalize_decl_binding(TypeScope *scope, Expr *stmt, I32 in_type_body);
-void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref);
-void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in_func);
-void init_switch_enum_coverage(TypeScope *scope, Expr *sw_expr, Expr **switch_enum_def, Array **covered_variants, U32 *n_variants);
-void mark_switch_case_covered_variant(Expr *switch_enum_def, Vec *covered_variants, I32 n_variants, Expr *sw_expr, Expr *match_expr);
-Expr *make_switch_case_condition(TypeScope *scope, Expr *case_body, Expr *match_expr, Str *sw_name, U32 sw_line, U32 sw_col, Str *sw_path);
-void replace_switch_stmt_with_block(Expr *body, U32 stmt_idx, Expr *block);
 
 void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Namespace method call or UFCS: Type.method(args) or instance.method(args)
@@ -843,4 +797,3 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
 // Check if a function call returns ref
 
 // --- Delete call insertion ---
-
