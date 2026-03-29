@@ -1,10 +1,52 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 124
+# NEXT_ISSUE: 125
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #124 Raw `Dynamic` ownership should not require explicit `free(...)` in til
+  Today, typed owned values and containers mostly get their cleanup inserted
+  automatically by typer, but raw ~Dynamic~ buffers do not. That leaks the
+  low-level memory model into ordinary til code.
+
+  Current symptom:
+  - code that takes ownership of raw memory from helpers like:
+    - ~malloc(...)~
+    - ~realloc(...)~
+    - ~Vec_take(...)~
+  - still needs explicit:
+    - ~free(own buf)~
+
+  That is inconsistent with the rest of til ownership:
+  - owned ~Str~, ~Expr~, ~Vec~, ~Map~, etc. are cleaned up by generated
+    delete/free insertion
+  - but owned raw ~Dynamic~ values are effectively second-class and require
+    handwritten cleanup in til source
+
+  Desired end state:
+  - if til code owns a ~Dynamic~, the ownership system should be able to
+    release it automatically without handwritten ~free(...)~
+  - or the language should grow a distinct raw-owned buffer type whose
+    destructor is unambiguously ~free~
+  - this should be the default behavior, not a ban on explicit manual
+    cleanup in edge cases like:
+    - custom/manual ~delete~ implementations
+    - foreign ownership
+    - custom allocators
+    - raw buffers that intentionally should not go through plain ~free~
+
+  This matters for self-hosting cleanup too:
+  - current translated code still contains explicit ~free(own locals)~ style
+    calls for buffers returned from helpers like ~Vec_take~
+  - that should ideally become unnecessary once raw owned memory has a proper
+    automatic cleanup story
+
+  Likely directions:
+  - teach typer/runtime that owned ~Dynamic~ defaults to ~free~
+  - or introduce a dedicated raw-buffer type separate from generic ~Dynamic~
+  - make the final rule explicit in ~qualifiers.org~ and ~c2til.org~
+
 ** OPEN #122 Mode-sensitive type checks should be per module
   Mode-sensitive typing rules are currently applied with one global
   ~current_mode~ for the whole compilation unit. That is wrong for
