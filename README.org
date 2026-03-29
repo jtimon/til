@@ -55,11 +55,6 @@ bin/til run program.til
 make test
 #+end_src
 
-Without GUI tests (no xvfb needed):
-#+begin_src sh
-make test_nogui
-#+end_src
-
 * Performance
 
 [[file:img/totals.svg]]
