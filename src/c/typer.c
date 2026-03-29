@@ -844,10 +844,3 @@ void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 // --- Delete call insertion ---
 
-
-I32 type_check(Expr *program, TypeScope *scope, Mode *mode) {
-    errors = 0;
-    current_mode = *mode;
-    infer_body(scope, program, 0, 1, 0, 0, 0);
-    return errors;
-}

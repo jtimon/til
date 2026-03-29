@@ -3225,4 +3225,9 @@ hoist_to_temp := func(val: Expr, mut hoisted: Vec, mut scope: TypeScope) returns
     return ident
 }
 
-type_check := ext_func(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {}
+type_check := proc(program: Expr, scope: TypeScope, m: Mode) returns shallow I32 {
+    errors = 0.to_i32()
+    current_mode = m
+    infer_body(scope, program, 0, 1, 0, 0, 0)
+    return errors
+}
