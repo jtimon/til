@@ -197,6 +197,141 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
     }
 }
 
+resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, shallow in_func: I32) {
+    if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
+        if e.child_count().gte(3) {
+            ref method_arg : Expr = e.child(2)
+            if is_variant(method_arg.data, ExprData.LiteralStr).not() {
+                type_error(method_arg, "dyn_call method argument must be a string literal")
+            }
+        }
+    }
+    if name.eq("array").or(name.eq("vec")) {
+        if e.child_count().gte(2) {
+            ref type_arg : Expr = e.child(1)
+            if is_variant(type_arg.data, ExprData.LiteralStr).not() {
+                type_error(type_arg, "array/vec type_name argument must be a string literal")
+            }
+        }
+    }
+    fn_type := scope.get_type(name)
+    if is_variant(fn_type, TilType.Unknown) {
+        type_error(e, "undefined function '".concat(name).concat("'"))
+    }
+    if is_variant(fn_type, TilType.FuncPtr) {
+        if is_null(callee_bind).not() {
+            if callee_bind.is_proc.lt(0) {
+                ref callee0 : Expr = e.child(0)
+                callee0.til_type = TilType.FuncPtr
+                if is_null(callee_bind.func_def).not() {
+                    e.fn_sig = callee_bind.func_def.clone()
+                    ref mut fcall_data0 : FCallData = get_payload(e.data)
+                    fcall_data0.fn_sig = callee_bind.func_def.clone()
+                }
+                if is_null(callee_bind.func_def).not() {
+                    ref cb_fdef : FunctionDef = get_payload(callee_bind.func_def.data)
+                    if cb_fdef.return_type.len().gt(0) {
+                        rt := type_from_name(cb_fdef.return_type, scope)
+                        e.til_type = rt
+                        if is_variant(rt, TilType.Struct).or(is_variant(rt, TilType.Enum)) {
+                            e.struct_name = cb_fdef.return_type.clone()
+                        }
+                    } else {
+                        e.til_type = TilType.Dynamic
+                    }
+                } else {
+                    e.til_type = TilType.Dynamic
+                }
+                if is_null(callee_bind.func_def).not() {
+                    ref sig : Expr = callee_bind.func_def
+                    ref sig_fdef : FunctionDef = get_payload(sig.data)
+                    mut nargs : U32 = e.child_count()
+                    nargs = nargs.sub(1)
+                    if nargs.neq(sig_fdef.nparam) {
+                        type_error(e, "function pointer '".concat(name).concat("' expects ").concat(sig_fdef.nparam.to_i64().to_str()).concat(" args, got ").concat(nargs.to_i64().to_str()))
+                    }
+                    mut ai : U32 = 0
+                    while ai.lt(nargs) {
+                        if ai.gte(sig_fdef.nparam) { break }
+                        ref arg : Expr = e.child(ai.add(1))
+                        ref expected_param : Param = sig_fdef.params.get(ai)
+                        ref expected_name : Str = expected_param.ptype
+                        if expected_name.len().eq(0) {
+                            ai = ai.add(1)
+                            continue
+                        }
+                        expected := type_from_name(expected_name, scope)
+                        if is_variant(expected, TilType.Unknown).or(is_variant(expected, TilType.Dynamic)) {
+                            ai = ai.add(1)
+                            continue
+                        }
+                        if is_variant(arg.til_type, TilType.Dynamic) {
+                            ai = ai.add(1)
+                            continue
+                        }
+                        if is_variant(arg.til_type, expected).not() {
+                            type_error(e, "function pointer '".concat(name).concat("' param ").concat(ai.add(1).to_i64().to_str()).concat(": expected ").concat(expected_name).concat(", got ").concat(type_to_name(arg.til_type, arg.struct_name)))
+                        }
+                        ai = ai.add(1)
+                    }
+                }
+                return
+            }
+        }
+    }
+    e.til_type = fn_type
+    if is_variant(fn_type, TilType.Struct).or(is_variant(fn_type, TilType.Enum)) {
+        if is_null(callee_bind).not() {
+            if is_null(callee_bind.func_def).not() {
+                ref cb_fdef2 : FunctionDef = get_payload(callee_bind.func_def.data)
+                if cb_fdef2.return_type.len().gt(0) {
+                    e.struct_name = cb_fdef2.return_type.clone()
+                }
+            }
+        }
+    }
+    if is_variant(fn_type, TilType.FuncPtr) {
+        if is_null(callee_bind).not() {
+            if is_null(callee_bind.func_def).not() {
+                ref cb_fdef3 : FunctionDef = get_payload(callee_bind.func_def.data)
+                if cb_fdef3.return_type.len().gt(0) {
+                    sf_rsb := scope.find(cb_fdef3.return_type)
+                    if is_variant(sf_rsb, ScopeFind.Found) {
+                        ref rsb : TypeBinding = get_payload(sf_rsb)
+                        if is_null(rsb.func_def).not() {
+                            if rsb.func_def.child_count().eq(0) {
+                                e.fn_sig = rsb.func_def.clone()
+                                ref mut fcall_data1 : FCallData = get_payload(e.data)
+                                fcall_data1.fn_sig = rsb.func_def.clone()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    mut debug_exempt := false
+    if current_mode.debug_prints {
+        if name.eq("print").or(name.eq("println")) {
+            debug_exempt = true
+        }
+    }
+    if is_variant(fn_type, TilType.FuncPtr).not() {
+        if in_func.neq(0) {
+            if scope.is_proc(name).eq(1) {
+                if name.eq("panic").not() {
+                    if debug_exempt.not() {
+                        type_error(e, "func cannot call proc '".concat(name).concat("'"))
+                    }
+                }
+            }
+        }
+    }
+    if scope.is_proc(name).eq(2) {
+        type_error(e, "test functions cannot be called ('".concat(name).concat("')"))
+    }
+}
+
 infer_fcall_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
