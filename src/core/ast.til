@@ -234,6 +234,14 @@ Expr := struct {
         }
         return out
     }
+    eq := func(self: Expr, other: Expr) returns shallow Bool {
+        TODO(__LOC__, "Expr.eq")
+        return false
+    }
+    to_str := func(self: Expr) returns Str {
+        TODO(__LOC__, "Expr.to_str")
+        return "Expr"
+    }
 }
 
 // --- node_name ---

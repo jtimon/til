@@ -5,7 +5,7 @@ panic := proc(loc_str: Str, parts: ..Str) {
     exit(1)
 }
 
-TODO := proc(loc_str: Str, parts: ..Str) {
+TODO := func(loc_str: Str, parts: ..Str) {
     panic(loc_str, "TODO: ", format(..parts))
 }
 

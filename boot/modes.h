@@ -155,6 +155,11 @@ typedef enum {
 typedef struct ScopeFind ScopeFind;
 typedef struct TypeScope TypeScope;
 typedef struct LocalInfo LocalInfo;
+typedef enum {
+    CtorArg_TAG_Unfilled,
+    CtorArg_TAG_Filled
+} CtorArg_tag;
+typedef struct CtorArg CtorArg;
 typedef struct StructInstance StructInstance;
 typedef struct EnumInstance EnumInstance;
 typedef enum {
@@ -544,6 +549,13 @@ typedef struct TypeScope {
 } TypeScope;
 
 
+struct CtorArg {
+    CtorArg_tag tag;
+    union {
+        Expr Filled;
+    } data;
+};
+
 typedef struct Scope {
     Map bindings;
     Scope *parent;
@@ -693,6 +705,8 @@ Expr * Expr_child(Expr * parent, U32 * i);
 U32 Expr_child_count(Expr * parent);
 Expr * Expr_new(ExprData * data, U32 line, U32 col, Str * path);
 Expr * Expr_clone(Expr * self);
+Bool Expr_eq(Expr * self, Expr * other);
+Str * Expr_to_str(Expr * self);
 void Expr_delete(Expr * self, Bool * call_free);
 U32 * Expr_size(void);
 Str * node_name(ExprData * data);
@@ -818,6 +832,14 @@ U32 * TypeScope_size(void);
 LocalInfo * LocalInfo_clone(LocalInfo * self);
 void LocalInfo_delete(LocalInfo * self, Bool * call_free);
 U32 * LocalInfo_size(void);
+CtorArg * CtorArg_Unfilled(void);
+CtorArg * CtorArg_Filled(Expr * val);
+Bool * CtorArg_is(CtorArg * self, CtorArg * other);
+Bool * CtorArg_eq(CtorArg * self, CtorArg * other);
+void CtorArg_delete(CtorArg * self, Bool * call_free);
+Str * CtorArg_to_str(CtorArg * self);
+CtorArg * CtorArg_clone(CtorArg * self);
+U32 * CtorArg_size(void);
 void type_error(Expr * e, Str * msg);
 Expr * find_namespace_func(Expr * sdef, Str * method);
 Bool try_ufcs_rewrite(TypeScope * scope, Expr * e, Expr * fa, Expr * obj, Str * method, Str * type_name);
@@ -1103,6 +1125,9 @@ TokenType *TokenType_Error();
 Bool * ScopeFind_eq(ScopeFind *, ScopeFind *);
 ScopeFind *ScopeFind_NotFound();
 ScopeFind *ScopeFind_Found(TypeBinding *);
+Bool * CtorArg_eq(CtorArg *, CtorArg *);
+CtorArg *CtorArg_Unfilled();
+CtorArg *CtorArg_Filled(Expr *);
 Bool * Value_eq(Value *, Value *);
 Value *Value_None();
 Value *Value_Int(I64 *);

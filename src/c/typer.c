@@ -250,7 +250,12 @@ static Bool infer_struct_constructor_fcall(TypeScope *scope, Expr *e, Str *name,
         for (U32 i = 0; i < body->children.count; i++) {
             if (!Expr_child(body, &(USize){(USize)(i)})->data.data.Decl.is_namespace) nfields++;
         }
-        Expr **field_vals = calloc(nfields, sizeof(Expr *));
+        Vec field_vals; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"CtorArg", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(CtorArg)}); field_vals = *_vp; free(_vp); }
+        for (U32 i = 0; i < nfields; i++) {
+            CtorArg *empty = malloc(sizeof(CtorArg));
+            *empty = (CtorArg){ .tag = CtorArg_TAG_Unfilled };
+            Vec_push(&field_vals, empty);
+        }
         I32 *field_idx = malloc(nfields * sizeof(I32));
         { I32 k = 0;
           for (U32 i = 0; i < body->children.count; i++) {
@@ -275,28 +280,33 @@ static Bool infer_struct_constructor_fcall(TypeScope *scope, Expr *e, Str *name,
                 char buf[128];
                 snprintf(buf, sizeof(buf), "struct '%s' has no field '%s'", name->c_str, aname->c_str);
                 type_error(arg, STR_VIEW(buf));
-            } else if (field_vals[slot]) {
+            } else if (((CtorArg*)Vec_get(&field_vals, &(USize){(USize)(slot)}))->tag == CtorArg_TAG_Filled) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "duplicate argument for field '%s'", aname->c_str);
                 type_error(arg, STR_VIEW(buf));
             } else {
-                field_vals[slot] = Expr_clone(Expr_child(arg, &(USize){(USize)(0)}));
+                CtorArg *slot_arg = (CtorArg*)Vec_get(&field_vals, &(USize){(USize)(slot)});
+                slot_arg->tag = CtorArg_TAG_Filled;
+                slot_arg->data.Filled = *Expr_clone(Expr_child(arg, &(USize){(USize)(0)}));
             }
         }
         for (U32 i = 0; i < nfields; i++) {
-            if (!field_vals[i]) {
-                field_vals[i] = Expr_clone(Expr_child(Expr_child(body, &(USize){(USize)(field_idx[i])}), &(USize){(USize)(0)}));
+            CtorArg *slot_arg = (CtorArg*)Vec_get(&field_vals, &(USize){(USize)(i)});
+            if (slot_arg->tag != CtorArg_TAG_Filled) {
+                slot_arg->tag = CtorArg_TAG_Filled;
+                slot_arg->data.Filled = *Expr_clone(Expr_child(Expr_child(body, &(USize){(USize)(field_idx[i])}), &(USize){(USize)(0)}));
             }
         }
         Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
         Expr *callee = Expr_child(e, &(USize){(USize)(0)});
         Vec_push(&new_ch, Expr_clone(callee));
         for (U32 i = 0; i < nfields; i++) {
-            Vec_push(&new_ch, field_vals[i]);
+            CtorArg *slot_arg = (CtorArg*)Vec_get(&field_vals, &(USize){(USize)(i)});
+            Vec_push(&new_ch, Expr_clone(&slot_arg->data.Filled));
         }
         Vec_delete(&e->children, &(Bool){0});
         e->children = new_ch;
-        free(field_vals);
+        Vec_delete(&field_vals, &(Bool){0});
         free(field_idx);
         for (U32 i = 1; i < e->children.count; i++) {
             if (Expr_child(e, &(USize){(USize)(i)})->til_type.tag == TilType_TAG_Unknown) {
