@@ -45,7 +45,7 @@ lib/libffi/.built:
 
 # --- Boot compiler (from last commit, always safe) ---
 
-bin/til_boot: $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
+bin/til_boot: clean $(RAYLIB_LIB) $(TINYFD_LIB) lib/libffi/.built
 	mkdir -p bin tmp/boot/boot tmp/boot/src/c
 	for f in $$(git ls-tree --name-only HEAD boot/ 2>/dev/null); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" 2>/dev/null || true; \
