@@ -202,6 +202,111 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
     }
 }
 
+infer_struct_constructor_fcall := proc(scope: TypeScope, mut e: Expr, name: Str, shallow in_func: I32) returns shallow Bool {
+    ref sdef : Expr = scope.get_struct(name)
+    if is_null(sdef) { return false }
+    sf_sb := scope.find(name)
+    if is_variant(sf_sb, ScopeFind.Found) {
+        ref sb : TypeBinding = get_payload(sf_sb)
+        if sb.is_builtin {
+            if sb.is_ext.not() {
+                type_error(e, "cannot instantiate builtin type '".concat(name).concat("'"))
+                e.til_type = TilType.Unknown
+                return true
+            }
+        }
+    }
+    ref body : Expr = sdef.child(0)
+    mut nfields : U32 = 0
+    for i in 0..body.child_count() {
+        ref fld_decl : Declaration = get_payload(body.child(i).data)
+        if fld_decl.is_namespace.not() {
+            nfields = nfields.add(1)
+        }
+    }
+    mut field_vals := Vec.new("CtorArg", CtorArg.size())
+    for i in 0..nfields {
+        field_vals.push(own CtorArg.Unfilled())
+    }
+    mut field_idx := Vec.new("U32", U32.size())
+    for i in 0..body.child_count() {
+        ref fld_decl : Declaration = get_payload(body.child(i).data)
+        if fld_decl.is_namespace.not() {
+            field_idx.push(own i)
+        }
+    }
+    for i in 1..e.child_count() {
+        ref arg : Expr = e.child(i)
+        if is_variant(arg.data, ExprData.NamedArg).not() {
+            type_error(arg, "struct instantiation requires named arguments")
+            continue
+        }
+        ref aname : Str = get_payload(arg.data)
+        mut slot := -1.to_i32()
+        for j in 0..nfields {
+            ref fld_idx : U32 = field_idx.get(j)
+            ref fld_decl : Declaration = get_payload(body.child(fld_idx).data)
+            if fld_decl.name.eq(aname) {
+                slot = j.to_i64().to_i32()
+                break
+            }
+        }
+        if slot.lt(0) {
+            msg := format("struct '", name, "' has no field '", aname, "'")
+            type_error(arg, msg)
+        }
+        if slot.gte(0) {
+            ref slot_arg : CtorArg = field_vals.get(slot.to_i64().to_u32())
+            if is_variant(slot_arg, CtorArg.Filled) {
+                msg := format("duplicate argument for field '", aname, "'")
+                type_error(arg, msg)
+            }
+            if is_variant(slot_arg, CtorArg.Filled).not() {
+                field_vals.set(slot.to_i64().to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+            }
+        }
+    }
+    for i in 0..nfields {
+        ref slot_arg : CtorArg = field_vals.get(i)
+        if is_variant(slot_arg, CtorArg.Filled).not() {
+            ref fld_idx : U32 = field_idx.get(i)
+            field_vals.set(i, own CtorArg.Filled(body.child(fld_idx).child(0).clone()))
+        }
+    }
+    mut new_ch := Vec.new("Expr", Expr.size())
+    ref callee : Expr = e.child(0)
+    new_ch.push(own callee.clone())
+    for i in 0..nfields {
+        ref slot_arg : CtorArg = field_vals.get(i)
+        ref filled_arg : Expr = get_payload(slot_arg)
+        new_ch.push(own filled_arg.clone())
+    }
+    e.children = new_ch
+    for i in 1..e.child_count() {
+        if is_variant(e.child(i).til_type, TilType.Unknown) {
+            infer_expr(scope, e.child(i), in_func)
+        }
+    }
+    mut fi : U32 = 0
+    for bi in 0..body.child_count() {
+        if fi.gte(e.child_count().sub(1)) { break }
+        ref fld : Expr = body.child(bi)
+        ref fld_decl : Declaration = get_payload(fld.data)
+        if fld_decl.is_namespace { continue }
+        ai := fi.add(1).to_i64().to_i32()
+        fi = fi.add(1)
+        if fld_decl.is_ref { continue }
+        if fld_decl.is_own.not() {
+            if type_ctor_consumes(fld.til_type).not() { continue }
+        }
+        ref mut arg2 : Expr = e.child(ai.to_i64().to_u32())
+        arg2.is_own_arg = true
+    }
+    e.til_type = TilType.Struct
+    e.struct_name = resolve_type_alias(scope, name).clone()
+    return true
+}
+
 infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32) {
     for i in 1..e.child_count() {
         infer_expr(scope, e.child(i), in_func)
