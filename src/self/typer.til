@@ -675,6 +675,283 @@ resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, call
     }
 }
 
+infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) returns shallow Bool {
+    ref mut fa : Expr = e.child(0)
+    ref mut obj : Expr = fa.child(0)
+    ref method0 : Str = get_payload(fa.data)
+    mut method := method0.clone()
+    infer_expr(scope, obj, in_func)
+
+    mut obj_is_type := false
+    if is_variant(obj.data, ExprData.Ident) {
+        sf_tb := scope.find(get_payload(obj.data))
+        if is_variant(sf_tb, ScopeFind.Found) {
+            ref tb : TypeBinding = get_payload(sf_tb)
+            if is_null(tb.struct_def).not() {
+                obj_is_type = true
+            }
+        }
+    }
+
+    mut ufcs_desugared := false
+    if obj_is_type.not() {
+        ref mut type_name : Str = NULL
+        if is_variant(obj.til_type, TilType.I64)
+            .or(is_variant(obj.til_type, TilType.U8))
+            .or(is_variant(obj.til_type, TilType.I16))
+            .or(is_variant(obj.til_type, TilType.I32))
+            .or(is_variant(obj.til_type, TilType.U32))
+            .or(is_variant(obj.til_type, TilType.U64))
+            .or(is_variant(obj.til_type, TilType.F32))
+            .or(is_variant(obj.til_type, TilType.Bool)) {
+            type_name = til_type_name_c(obj.til_type)
+        } else if is_variant(obj.til_type, TilType.Struct).or(is_variant(obj.til_type, TilType.Enum)) {
+            if obj.struct_name.len().gt(0) {
+                type_name = obj.struct_name
+            }
+        }
+
+        ref mut sdef1 : Expr = NULL
+        if is_null(type_name).not() {
+            sdef1 = scope.get_struct(type_name)
+        }
+        ref ns_func1 : Expr = find_namespace_func(sdef1, method)
+        if is_null(ns_func1) {
+            if try_ufcs_rewrite(scope, e, fa, obj, method, type_name) {
+                return false
+            }
+            if infer_func_ptr_field_call(scope, e, fa, obj, sdef1, method, in_func) {
+                return true
+            }
+            if is_null(type_name) {
+                if is_variant(obj.til_type, TilType.Dynamic) {
+                    type_error(e, format(
+                        "cannot call method '", method, "' on Dynamic value; ",
+                        "use 'ref x : Type = ...' to declare with an explicit type first",
+                    ))
+                } else {
+                    type_error(e, format("no method '", method, "' for type 'unknown'"))
+                }
+            } else {
+                type_error(e, format("no method '", method, "' for type '", type_name, "'"))
+            }
+            e.til_type = TilType.Unknown
+            return true
+        }
+        ufcs_desugared = true
+        mut instance := obj.clone()
+        mut type_ident := Expr.new(ExprData.Ident(type_name.clone()), obj.line, obj.col, obj.path)
+        fa.children.set(0, own type_ident)
+        mut new_children := Vec.new("Expr", Expr.size())
+        new_children.push(own e.child(0).clone())
+        new_children.push(own instance)
+        for i in 1..e.child_count() {
+            new_children.push(own e.child(i).clone())
+        }
+        e.children = new_children
+        ref mut fa2 : Expr = e.child(0)
+        ref method2 : Str = get_payload(fa2.data)
+        method = method2.clone()
+    }
+
+    ref mut fa3 : Expr = e.child(0)
+    ref mut obj3 : Expr = fa3.child(0)
+    if is_variant(obj3.til_type, TilType.Unknown) {
+        infer_expr(scope, obj3, in_func)
+    }
+    ref mut sdef2 : Expr = NULL
+    if obj3.struct_name.len().gt(0) {
+        sdef2 = scope.get_struct(obj3.struct_name)
+    }
+    ref ns_func2 : Expr = find_namespace_func(sdef2, method)
+    if is_null(ns_func2) {
+        type_error(e, format("no namespace function '", method, "'"))
+        e.til_type = TilType.Unknown
+        return true
+    }
+    fa3.is_ns_field = true
+    {
+        ref ns_fdef : FunctionDef = get_payload(ns_func2.data)
+        np := ns_fdef.nparam
+        mut new_args := Vec.new("CtorArg", CtorArg.size())
+        for i in 0..np {
+            new_args.push(own CtorArg.Unfilled())
+        }
+        mut pos_idx : U32 = 0
+        mut seen_named := false
+        for i in 1..e.child_count() {
+            ref arg : Expr = e.child(i)
+            if is_variant(arg.data, ExprData.NamedArg) {
+                seen_named = true
+                ref aname : Str = get_payload(arg.data)
+                mut slot := -1.to_i32()
+                for j in 0..np {
+                    ref param : Param = ns_fdef.params.get(j)
+                    if param.name.eq(aname) {
+                        slot = j.to_i64().to_i32()
+                        break
+                    }
+                }
+                if slot.lt(0) {
+                    type_error(arg, format("no parameter '", aname, "'"))
+                } else {
+                    ref slot_arg : CtorArg = new_args.get(slot.to_i64().to_u32())
+                    if is_variant(slot_arg, CtorArg.Filled) {
+                        type_error(arg, format("duplicate argument for parameter '", aname, "'"))
+                    } else {
+                        new_args.set(slot.to_i64().to_u32(), own CtorArg.Filled(arg.child(0).clone()))
+                    }
+                }
+            } else {
+                if seen_named {
+                    type_error(arg, "positional argument after named argument")
+                }
+                if pos_idx.lt(np) {
+                    new_args.set(pos_idx, own CtorArg.Filled(arg.clone()))
+                }
+                pos_idx = pos_idx.add(1)
+            }
+        }
+        for i in 0..np {
+            ref slot_arg : CtorArg = new_args.get(i)
+            if is_variant(slot_arg, CtorArg.Filled).not() {
+                ref param : Param = ns_fdef.params.get(i)
+                if ns_fdef.param_defaults.has(param.name) {
+                    ref def_expr : Expr = ns_fdef.param_defaults.get(param.name)
+                    new_args.set(i, own CtorArg.Filled(def_expr.clone()))
+                } else {
+                    type_error(e, format("missing argument for parameter '", param.name, "'"))
+                }
+            }
+        }
+        if pos_idx.gt(np) {
+            type_error(e, format("too many arguments: expected ", np.to_i64().to_str(), ", got ", pos_idx.to_i64().to_str()))
+        }
+        mut new_ch := Vec.new("Expr", Expr.size())
+        ref callee : Expr = e.child(0)
+        new_ch.push(own callee.clone())
+        for i in 0..np {
+            ref slot_arg : CtorArg = new_args.get(i)
+            ref filled_arg : Expr = get_payload(slot_arg)
+            new_ch.push(own filled_arg.clone())
+        }
+        e.children = new_ch
+    }
+    for i in 1..e.child_count() {
+        infer_expr(scope, e.child(i), in_func)
+    }
+    for i in 1..e.child_count() {
+        ref ns_fdef2 : FunctionDef = get_payload(ns_func2.data)
+        if i.sub(1).gte(ns_fdef2.nparam) { break }
+        ref param2 : Param = ns_fdef2.params.get(i.sub(1))
+        ref ptype : Str = param2.ptype
+        narrow_dynamic(e.child(i), type_from_name(ptype, scope), ptype)
+    }
+    for i in 1..e.child_count() {
+        ref ns_fdef3 : FunctionDef = get_payload(ns_func2.data)
+        if i.sub(1).gte(ns_fdef3.nparam) { break }
+        ref param3 : Param = ns_fdef3.params.get(i.sub(1))
+        ref ptype_name : Str = param3.ptype
+        ref arg : Expr = e.child(i)
+        if is_variant(arg.til_type, TilType.Dynamic) { continue }
+        ptype := type_from_name(ptype_name, scope)
+        if is_variant(ptype, TilType.Dynamic) { continue }
+        if is_variant(arg.data, ExprData.LiteralNum) {
+            if is_numeric_type(ptype) {
+                if literal_in_range(get_payload(arg.data), ptype).not() {
+                    type_error(arg, format(
+                        "integer literal ", get_payload(arg.data), " out of range for ", til_type_name_c(ptype),
+                    ))
+                }
+                arg.til_type = ptype
+                continue
+            }
+        }
+        if can_implicit_widen(arg.til_type, ptype)
+            .or(can_implicit_usize_coerce(arg.til_type, ptype, ptype_name)) {
+            arg.til_type = ptype
+            continue
+        }
+        if type_prefix(arg.til_type, arg.struct_name).eq(type_prefix(ptype, ptype_name)).not() {
+            ref param_name : Str = param3.name
+            type_error(arg, format(
+                "argument type mismatch for '", param_name,
+                "': expected ", ptype_name, ", got ", til_type_name_c(arg.til_type),
+            ))
+        } else if is_variant(ptype, TilType.Struct).or(is_variant(ptype, TilType.Enum)) {
+            if arg.struct_name.len().gt(0) {
+                if ptype_name.eq(arg.struct_name).not() {
+                    ref param_name : Str = param3.name
+                    type_error(arg, format(
+                        "argument type mismatch for '", param_name,
+                        "': expected ", ptype_name, ", got ", arg.struct_name,
+                    ))
+                }
+            }
+        }
+    }
+    if ufcs_desugared {
+        if e.child(0).is_own_arg {
+            if e.child_count().gt(1) {
+                ref mut arg2 : Expr = e.child(1)
+                arg2.is_own_arg = true
+            }
+        }
+    }
+    {
+        ref ns_fdef4 : FunctionDef = get_payload(ns_func2.data)
+        np := ns_fdef4.nparam
+        if ns_fdef4.params.len().gt(0) {
+            for i in 1..e.child_count() {
+                if i.sub(1).gte(np) { break }
+                ref pp : Param = ns_fdef4.params.get(i.sub(1))
+                pown := pp.is_own
+                ref arg : Expr = e.child(i)
+                if pown {
+                    if arg.is_own_arg.not() {
+                        type_error(arg, format("argument for 'own' parameter '", pp.name, "' must be marked 'own'"))
+                    }
+                } else if arg.is_own_arg {
+                    type_error(arg, format("'own' on argument but parameter '", pp.name, "' is not 'own'"))
+                }
+                if pown {
+                    if is_variant(arg.data, ExprData.Ident) {
+                        sf_ab := scope.find(get_payload(arg.data))
+                        if is_variant(sf_ab, ScopeFind.Found) {
+                            ref ab : TypeBinding = get_payload(sf_ab)
+                            if ab.is_ref {
+                                type_error(arg, "cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy")
+                            }
+                        }
+                    }
+                }
+                if pown {
+                    if is_variant(arg.data, ExprData.LiteralNull) {
+                        type_error(arg, "cannot pass null to 'own' parameter")
+                    }
+                }
+                if pp.is_shallow {
+                    if is_variant(arg.data, ExprData.LiteralNull) {
+                        type_error(arg, "cannot pass null to 'shallow' parameter")
+                    }
+                }
+            }
+        }
+    }
+    mut rt := TilType.None
+    ref ns_fdef5 : FunctionDef = get_payload(ns_func2.data)
+    if ns_fdef5.return_type.len().gt(0) {
+        rt = type_from_name(ns_fdef5.return_type, scope)
+    }
+    e.til_type = rt
+    if is_variant(rt, TilType.Struct).or(is_variant(rt, TilType.Enum)) {
+        if ns_fdef5.return_type.len().gt(0) {
+            e.struct_name = ns_fdef5.return_type.clone()
+        }
+    }
+    return true
+}
+
 infer_fcall_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
