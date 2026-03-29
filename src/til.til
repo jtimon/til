@@ -15,7 +15,6 @@ VERSION := get_version()
 import("self/modes.til")
 
 // Link C modules (not yet self-hosted)
-link_c("src/c/typer.c")
 link_c("src/c/interpreter.c")
 link_c("src/c/builder.c")
 link_c("src/c/precomp.c")
