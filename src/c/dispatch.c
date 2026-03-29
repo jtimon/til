@@ -15,18 +15,6 @@ I32 I32_from_i64(I64 v);
 F32 F32_from_i64(I64 v);
 U32 U32_from_i64(I64 v);
 U64 U64_from_i64(I64 v);
-static I64 value_to_i64(Value v) {
-    switch (v.tag) {
-        case Value_TAG_Int:  return v.data.Int;
-        case Value_TAG_Byte:   return v.data.Byte;
-        case Value_TAG_Short:  return v.data.Short;
-        case Value_TAG_Int32:  return v.data.Int32;
-        case Value_TAG_Uint32:  return v.data.Uint32;
-        case Value_TAG_Uint64:  return (I64)v.data.Uint64;
-        case Value_TAG_Boolean: return v.data.Boolean ? 1 : 0;
-        default:       return 0;
-    }
-}
 
 static U64 value_to_u64(Value v) {
     switch (v.tag) {
@@ -762,16 +750,22 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
                 continue;
             }
             if (arg_types[i] == &ffi_type_sint64) {
-                I64 tmp = (v.tag == Value_TAG_Ptr) ? *(I64 *)v.data.Ptr : value_to_i64(v);
+                I64 tmp;
+                if (v.tag == Value_TAG_Ptr) tmp = *(I64 *)v.data.Ptr;
+                else { I64 *_hp = value_to_i64(&v); tmp = *_hp; free(_hp); }
                 *(I64 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_uint8) {
                 U8 tmp = (v.tag == Value_TAG_Ptr) ? *(U8 *)v.data.Ptr : (U8)value_to_u64(v);
                 *(U8 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_sint16) {
-                I16 tmp = (v.tag == Value_TAG_Ptr) ? *(I16 *)v.data.Ptr : (I16)value_to_i64(v);
+                I16 tmp;
+                if (v.tag == Value_TAG_Ptr) tmp = *(I16 *)v.data.Ptr;
+                else { I64 *_hp = value_to_i64(&v); tmp = (I16)*_hp; free(_hp); }
                 *(I16 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_sint32) {
-                I32 tmp = (v.tag == Value_TAG_Ptr) ? *(I32 *)v.data.Ptr : (I32)value_to_i64(v);
+                I32 tmp;
+                if (v.tag == Value_TAG_Ptr) tmp = *(I32 *)v.data.Ptr;
+                else { I64 *_hp = value_to_i64(&v); tmp = (I32)*_hp; free(_hp); }
                 *(I32 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_uint32) {
                 U32 tmp = (v.tag == Value_TAG_Ptr) ? *(U32 *)v.data.Ptr : (U32)value_to_u64(v);
