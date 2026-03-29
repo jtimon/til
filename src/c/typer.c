@@ -36,7 +36,7 @@ void type_error(Expr *e, Str *msg);
 void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
-static void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func);
+void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func);
 void infer_func_def_expr(TypeScope *scope, Expr *e);
 void infer_type_def_expr(TypeScope *scope, Expr *e);
 void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
@@ -54,48 +54,7 @@ void mark_switch_case_covered_variant(Expr *switch_enum_def, Vec *covered_varian
 Expr *make_switch_case_condition(TypeScope *scope, Expr *case_body, Expr *match_expr, Str *sw_name, U32 sw_line, U32 sw_col, Str *sw_path);
 void replace_switch_stmt_with_block(Expr *body, U32 stmt_idx, Expr *block);
 
-void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
-    switch (e->data.tag) {
-    case ExprData_TAG_LiteralStr:
-    case ExprData_TAG_LiteralNum:
-    case ExprData_TAG_LiteralBool:
-    case ExprData_TAG_LiteralNull:
-        infer_literal_expr(e);
-        break;
-    case ExprData_TAG_Ident:
-        infer_ident_expr(scope, e);
-        break;
-    case ExprData_TAG_FuncDef:
-        infer_func_def_expr(scope, e);
-        break;
-    case ExprData_TAG_StructDef:
-    case ExprData_TAG_EnumDef: {
-        infer_type_def_expr(scope, e);
-        break;
-    }
-    case ExprData_TAG_FCall:
-        infer_fcall_expr(scope, e, in_func);
-        break;
-    case ExprData_TAG_FieldAccess: {
-        infer_field_access_expr(scope, e, in_func);
-        break;
-    }
-    case ExprData_TAG_MapLit:
-        infer_map_lit_expr(scope, e, in_func);
-        break;
-    case ExprData_TAG_SetLit:
-        infer_set_lit_expr(scope, e, in_func);
-        break;
-    case ExprData_TAG_NamedArg:
-        infer_named_arg_expr(scope, e, in_func);
-        break;
-    default:
-        e->til_type = (TilType){TilType_TAG_Unknown};
-        break;
-    }
-}
-
-static void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
+void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Namespace method call or UFCS: Type.method(args) or instance.method(args)
         if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
             Expr *fa = Expr_child(e, &(USize){(USize)(0)});

@@ -29,7 +29,34 @@ type_error := proc(e: Expr, msg: Str) {
     errors.inc()
 }
 
-infer_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
+infer_fcall_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
+
+infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+    if is_variant(expr.data, ExprData.LiteralStr)
+        .or(is_variant(expr.data, ExprData.LiteralNum))
+        .or(is_variant(expr.data, ExprData.LiteralBool))
+        .or(is_variant(expr.data, ExprData.LiteralNull)) {
+        infer_literal_expr(expr)
+    } else if is_variant(expr.data, ExprData.Ident) {
+        infer_ident_expr(scope, expr)
+    } else if is_variant(expr.data, ExprData.FuncDef) {
+        infer_func_def_expr(scope, expr)
+    } else if is_variant(expr.data, ExprData.StructDef).or(is_variant(expr.data, ExprData.EnumDef)) {
+        infer_type_def_expr(scope, expr)
+    } else if is_variant(expr.data, ExprData.FCall) {
+        infer_fcall_expr(scope, expr, in_func)
+    } else if is_variant(expr.data, ExprData.FieldAccess) {
+        infer_field_access_expr(scope, expr, in_func)
+    } else if is_variant(expr.data, ExprData.MapLit) {
+        infer_map_lit_expr(scope, expr, in_func)
+    } else if is_variant(expr.data, ExprData.SetLit) {
+        infer_set_lit_expr(scope, expr, in_func)
+    } else if is_variant(expr.data, ExprData.NamedArg) {
+        infer_named_arg_expr(scope, expr, in_func)
+    } else {
+        expr.til_type = TilType.Unknown
+    }
+}
 
 infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
     type := scope.get_type(get_payload(expr.data))
