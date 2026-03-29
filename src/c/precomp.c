@@ -81,20 +81,12 @@ static Bool is_known(Expr *e, Value *out) {
     return 0;
 }
 
-// Check if a ExprData_TAG_FCall is a macro call
-Bool is_macro_call(Expr *e) {
-    return e->data.tag == ExprData_TAG_FCall &&
-           e->children.count > 0 &&
-           Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-           Set_has(&macros, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
+Bool precomp_has_macro(Str *name) {
+    return Set_has(&macros, name);
 }
 
-// Check if a ExprData_TAG_FCall is a pure func call
-Bool is_func_call(Expr *e) {
-    return e->data.tag == ExprData_TAG_FCall &&
-           e->children.count > 0 &&
-           Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident &&
-           Set_has(&funcs, &Expr_child(e, &(USize){(USize)(0)})->data.data.Ident);
+Bool precomp_has_func(Str *name) {
+    return Set_has(&funcs, name);
 }
 
 // Check if a func body references identifiers not available at precomp time.

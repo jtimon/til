@@ -1,10 +1,26 @@
 mode lib
 
 // C helpers (precomp.c)
-is_macro_call := ext_func(e: Expr) returns shallow Bool {}
-is_func_call := ext_func(e: Expr) returns shallow Bool {}
+precomp_has_macro := ext_func(name: Str) returns shallow Bool {}
+precomp_has_func := ext_func(name: Str) returns shallow Bool {}
 try_eval_call := ext_func(scope: Scope, fcall: Expr, shallow require_known: Bool) returns ref Expr {}
 track_literal := ext_proc(scope: Scope, name: Str, rhs: Expr) {}
+
+is_macro_call := func(e: Expr) returns shallow Bool {
+    if is_variant(e.data, ExprData.FCall).not() { return false }
+    if e.child_count().eq(0) { return false }
+    ref callee : Expr = e.child(0)
+    if is_variant(callee.data, ExprData.Ident).not() { return false }
+    return precomp_has_macro(get_payload(callee.data))
+}
+
+is_func_call := func(e: Expr) returns shallow Bool {
+    if is_variant(e.data, ExprData.FCall).not() { return false }
+    if e.child_count().eq(0) { return false }
+    ref callee : Expr = e.child(0)
+    if is_variant(callee.data, ExprData.Ident).not() { return false }
+    return precomp_has_func(get_payload(callee.data))
+}
 
 process_body := proc(scope: Scope, body: Expr) {
     for i in 0..body.child_count() {
