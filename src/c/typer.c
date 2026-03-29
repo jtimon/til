@@ -39,6 +39,7 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
 static void infer_func_def_expr(TypeScope *scope, Expr *e);
 static void infer_type_def_expr(TypeScope *scope, Expr *e);
 static void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
+static void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref);
 
 static void infer_func_def_expr(TypeScope *scope, Expr *e) {
     if (e->children.count == 0) {
@@ -1044,6 +1045,69 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 // --- Delete call insertion ---
 
+static void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref) {
+    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+    if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Bool &&
+        Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "while condition must be Bool, got %s",
+                 til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
+        type_error(stmt, STR_VIEW(buf));
+    }
+    if (expr_contains_fcall(Expr_child(stmt, &(USize){(USize)(0)}))) {
+        Expr *cond = Expr_child(stmt, &(USize){(USize)(0)});
+        I32 line = cond->line;
+        I32 col = cond->col;
+        Str *path = &cond->path;
+        Expr *body = Expr_child(stmt, &(USize){(USize)(1)});
+        char name_buf[128];
+        snprintf(name_buf, sizeof(name_buf), "_wcond_Bool_%d", hoist_counter++);
+        Str *wname = Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
+        Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
+        decl->data.data.Decl.name = *wname;
+        decl->data.data.Decl.explicit_type = (Str){0};
+        decl->data.data.Decl.is_mut = false;
+        decl->data.data.Decl.is_namespace = false;
+        decl->til_type = (TilType){TilType_TAG_Bool};
+        Expr_add_child(decl, Expr_clone(cond));
+        Expr_child(decl, &(USize){0})->til_type = (TilType){TilType_TAG_Bool};
+        Expr *ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
+        ident->data.data.Ident = *wname;
+        ident->til_type = (TilType){TilType_TAG_Bool};
+        Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
+        if_node->til_type = (TilType){TilType_TAG_None};
+        Expr_add_child(if_node, ident);
+        Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+        then_body->til_type = (TilType){TilType_TAG_None};
+        Expr_add_child(if_node, then_body);
+        Expr *else_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
+        else_body->til_type = (TilType){TilType_TAG_None};
+        Expr *brk = Expr_new(&(ExprData){.tag = ExprData_TAG_Break}, line, col, path);
+        brk->til_type = (TilType){TilType_TAG_None};
+        Expr_add_child(else_body, brk);
+        Expr_add_child(if_node, else_body);
+        Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
+        Vec_push(&new_ch, decl);
+        Vec_push(&new_ch, if_node);
+        for (U32 j = 0; j < body->children.count; j++) {
+            Expr *ch = Expr_child(body, &(USize){(USize)(j)});
+            Vec_push(&new_ch, Expr_clone(ch));
+        }
+        Vec_delete(&body->children, &(Bool){0});
+        body->children = new_ch;
+        Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
+        true_lit->data.data.LiteralBool = 1;
+        true_lit->til_type = (TilType){TilType_TAG_Bool};
+        *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *true_lit;
+    }
+    {
+        TypeScope *while_scope = TypeScope_new(scope);
+        infer_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, 1, returns_ref, 0);
+        TypeScope_delete(while_scope, &(Bool){1});
+    }
+    stmt->til_type = (TilType){TilType_TAG_None};
+}
+
 void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
     body->til_type = (TilType){TilType_TAG_None};
     for (U32 i = 0; i < body->children.count; i++) {
@@ -1314,72 +1378,7 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
             break;
         }
         case ExprData_TAG_While:
-            infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func); // condition
-            if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Bool &&
-                Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "while condition must be Bool, got %s",
-                         til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-                type_error(stmt, STR_VIEW(buf));
-            }
-            // Transform: while COND { BODY } -> while true { _wcond := COND; if _wcond {} else { break }; BODY }
-            // This lets ASAP destruction free the condition result each iteration.
-            if (expr_contains_fcall(Expr_child(stmt, &(USize){(USize)(0)}))) {
-                Expr *cond = Expr_child(stmt, &(USize){(USize)(0)});
-                I32 line = cond->line;
-                I32 col = cond->col;
-                Str *path = &cond->path;
-                Expr *body = Expr_child(stmt, &(USize){(USize)(1)});
-                // _wcondN := COND
-                char name_buf[128];
-                snprintf(name_buf, sizeof(name_buf), "_wcond_Bool_%d", hoist_counter++);
-                Str *wname = Str_clone(&(Str){.c_str = (U8*)(name_buf), .count = (U64)strlen((const char*)(name_buf)), .cap = CAP_VIEW});
-                Expr *decl = Expr_new(&(ExprData){.tag = ExprData_TAG_Decl}, line, col, path);
-                decl->data.data.Decl.name = *wname;
-                decl->data.data.Decl.explicit_type = (Str){0};
-                decl->data.data.Decl.is_mut = false;
-                decl->data.data.Decl.is_namespace = false;
-                decl->til_type = (TilType){TilType_TAG_Bool};
-                Expr_add_child(decl, Expr_clone(cond));
-                Expr_child(decl, &(USize){0})->til_type = (TilType){TilType_TAG_Bool};
-                // if _wcondN {} else { break }
-                Expr *ident = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                ident->data.data.Ident = *wname;
-                ident->til_type = (TilType){TilType_TAG_Bool};
-                Expr *if_node = Expr_new(&(ExprData){.tag = ExprData_TAG_If}, line, col, path);
-                if_node->til_type = (TilType){TilType_TAG_None};
-                Expr_add_child(if_node, ident);
-                Expr *then_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-                then_body->til_type = (TilType){TilType_TAG_None};
-                Expr_add_child(if_node, then_body);
-                Expr *else_body = Expr_new(&(ExprData){.tag = ExprData_TAG_Body}, line, col, path);
-                else_body->til_type = (TilType){TilType_TAG_None};
-                Expr *brk = Expr_new(&(ExprData){.tag = ExprData_TAG_Break}, line, col, path);
-                brk->til_type = (TilType){TilType_TAG_None};
-                Expr_add_child(else_body, brk);
-                Expr_add_child(if_node, else_body);
-                // Prepend decl + if to body
-                Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-                Vec_push(&new_ch, decl);
-                Vec_push(&new_ch, if_node);
-                for (U32 j = 0; j < body->children.count; j++) {
-                    Expr *ch = Expr_child(body, &(USize){(USize)(j)});
-                    Vec_push(&new_ch, Expr_clone(ch));
-                }
-                Vec_delete(&body->children, &(Bool){0});
-                body->children = new_ch;
-                // Replace condition with true
-                Expr *true_lit = Expr_new(&(ExprData){.tag = ExprData_TAG_LiteralBool}, line, col, path);
-                true_lit->data.data.LiteralBool = 1;
-                true_lit->til_type = (TilType){TilType_TAG_Bool};
-                *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *true_lit;
-            }
-            {
-                TypeScope *while_scope = TypeScope_new(scope);
-                infer_body(while_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, 1, returns_ref, 0);
-                TypeScope_delete(while_scope, &(Bool){1});
-            }
-            stmt->til_type = (TilType){TilType_TAG_None};
+            infer_while_stmt(scope, stmt, in_func, returns_ref);
             break;
         case ExprData_TAG_Switch: {
             // Desugar: switch expr { case v1: B1  case v2: B2  case: B3 }
