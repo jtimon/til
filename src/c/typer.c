@@ -1125,25 +1125,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // --- Delete call insertion ---
 
-// Insert deletes for live parent-scope locals before early exits in body.
-// return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
-// since break/continue don't leave the parent scope).
-static void insert_post_stmt_deletes(Expr *stmt, LocalInfo *locals, U32 n_locals, U32 stmt_idx, Vec *new_ch) {
-    if (stmt->data.tag == ExprData_TAG_Return || stmt->data.tag == ExprData_TAG_Break || stmt->data.tag == ExprData_TAG_Continue) return;
-    for (U32 j = 0; j < n_locals; j++) {
-        if (locals[j].skip_scope_delete) continue;
-        if (locals[j].own_transfer >= 0) continue;
-        if (locals[j].last_use == (I32)stmt_idx) {
-            Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-            if (del) Vec_push(new_ch, del);
-        }
-        if (locals[j].last_use == -1 && locals[j].decl_index == (I32)stmt_idx) {
-            Expr *del = make_delete_call(locals[j].name, locals[j].type, locals[j].struct_name, false, false, stmt);
-            if (del) Vec_push(new_ch, del);
-        }
-    }
-}
-
 static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
     if (!scope_exit) return;
     Bool is_program_scope = !scope->parent;

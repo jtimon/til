@@ -1627,6 +1627,29 @@ insert_exit_deletes_into_stmt := proc(stmt: Expr, body: Expr, locals: Dynamic, s
     }
 }
 
+insert_post_stmt_deletes := proc(stmt: Expr, locals: Dynamic, shallow n_locals: U32, shallow stmt_idx: U32, mut new_ch: Vec) {
+    if is_variant(stmt.data, ExprData.Return).or(is_variant(stmt.data, ExprData.Break)).or(is_variant(stmt.data, ExprData.Continue)) {
+        return
+    }
+    for j in 0..n_locals {
+        ref local : LocalInfo = ptr_add(locals, j.mul(LocalInfo.size()))
+        if local.skip_scope_delete { continue }
+        if local.own_transfer.gte(0) { continue }
+        if local.last_use.eq(stmt_idx.to_i64().to_i32()) {
+            if type_to_name(local.type, local.struct_name).len().gt(0) {
+                del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+                new_ch.push(own del.clone())
+            }
+        }
+        if local.last_use.eq(-1.to_i32()).and(local.decl_index.eq(stmt_idx.to_i64().to_i32())) {
+            if type_to_name(local.type, local.struct_name).len().gt(0) {
+                del := make_delete_call(local.name, local.type, local.struct_name, false, false, stmt)
+                new_ch.push(own del.clone())
+            }
+        }
+    }
+}
+
 insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: U32, mut new_ch: Vec) {
     if is_variant(stmt.data, ExprData.Assign).not() { return }
     ref vname : Str = get_payload(stmt.data)
