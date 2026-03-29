@@ -95,6 +95,140 @@ infer_type_def_expr := proc(scope: TypeScope, mut expr: Expr) {
     TypeScope.delete(own inner)
 }
 
+infer_func_sig_expr := proc(scope: TypeScope, mut expr: Expr) {
+    ref mut fdef : FunctionDef = get_payload(expr.data)
+    if fdef.return_type.len().gt(0) {
+        return_type_name := fdef.return_type.clone()
+        ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
+        fdef.return_type = resolved_return_type
+    }
+    for i in 0..fdef.nparam {
+        ref mut param : Param = fdef.params.get(i)
+        ptype_name := param.ptype.clone()
+        ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
+        param.ptype = resolved_ptype
+    }
+    expr.til_type = TilType.FuncPtr
+}
+
+check_ref_function_returns := proc(func_scope: TypeScope, expr: Expr) {
+    ref fdef : FunctionDef = get_payload(expr.data)
+    if fdef.return_is_ref.not() { return }
+    ref body : Expr = expr.child(0)
+    for ri in 0..body.child_count() {
+        ref stmt : Expr = body.child(ri)
+        if is_variant(stmt.data, ExprData.Return).not() { continue }
+        if stmt.child_count().eq(0) { continue }
+        ref rv : Expr = stmt.child(0)
+        if expr_is_borrow_source(rv, func_scope).not() {
+            type_error(stmt, "ref function must return a parameter or ref variable")
+        }
+    }
+}
+
+infer_func_def_expr := proc(scope: TypeScope, mut expr: Expr) {
+    if expr.child_count().eq(0) {
+        infer_func_sig_expr(scope, expr)
+        return
+    }
+    expr.til_type = TilType.None
+    ref mut fdef : FunctionDef = get_payload(expr.data)
+    is_func := is_variant(fdef.func_type, FuncType.Func)
+    is_macro := is_variant(fdef.func_type, FuncType.Macro)
+    if is_variant(fdef.func_type, FuncType.Test) {
+        if is_null(scope.parent).not() {
+            type_error(expr, "test functions can only be declared in root scope")
+        }
+        if fdef.return_type.len().gt(0) {
+            type_error(expr, "test functions cannot have a return type")
+        }
+        if fdef.nparam.gt(0) {
+            type_error(expr, "test functions cannot have parameters")
+        }
+    }
+    if current_mode.is_pure {
+        if is_variant(fdef.func_type, FuncType.Proc) {
+            if expr.is_core.not() {
+                type_error(expr, "proc not allowed in pure mode")
+            }
+        }
+    }
+    mut func_scope := TypeScope.new(scope)
+    if fdef.return_type.len().gt(0) {
+        return_type_name := fdef.return_type.clone()
+        ref resolved_return_type : Str = resolve_type_alias(scope, return_type_name)
+        fdef.return_type = resolved_return_type
+    }
+    for i in 0..fdef.nparam {
+        ref mut param : Param = fdef.params.get(i)
+        ptype_name := param.ptype.clone()
+        ref resolved_ptype : Str = resolve_type_alias(scope, ptype_name)
+        param.ptype = resolved_ptype
+        ref ptn : Str = param.ptype
+        pt := type_from_name(ptn, scope)
+        if is_variant(pt, TilType.Unknown) {
+            type_error(expr, "undefined type '".concat(ptn).concat("'"))
+        }
+        pmut := param.is_mut
+        pown := param.is_own
+        pshallow := param.is_shallow
+        if pshallow {
+            is_scalar := is_variant(pt, TilType.I64)
+                .or(is_variant(pt, TilType.U8))
+                .or(is_variant(pt, TilType.I16))
+                .or(is_variant(pt, TilType.I32))
+                .or(is_variant(pt, TilType.U32))
+                .or(is_variant(pt, TilType.U64))
+                .or(is_variant(pt, TilType.F32))
+                .or(is_variant(pt, TilType.Bool))
+            if is_scalar.not().and(is_variant(pt, TilType.Struct).not()).and(is_variant(pt, TilType.StructDef).not()).and(is_variant(pt, TilType.Enum).not()) {
+                type_error(expr, "shallow parameter '".concat(param.name).concat("' must be a scalar or struct type"))
+            }
+            if pown {
+                type_error(expr, "parameter cannot be both 'shallow' and 'own'")
+            }
+        }
+        if i.to_i64().to_i32().eq(fdef.variadic_index) {
+            param.is_own = true
+            func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, true)
+            ref mut pb : TypeBinding = func_scope.get_binding(param.name)
+            pb.struct_name = "Array"
+        } else if i.to_i64().to_i32().eq(fdef.kwargs_index) {
+            param.is_own = true
+            func_scope.set(param.name, TilType.Struct, -1.to_i32(), false, expr.line, expr.col, true, true)
+            ref mut pb : TypeBinding = func_scope.get_binding(param.name)
+            pb.struct_name = "DynMap"
+        } else {
+            func_scope.set(param.name, pt, -1.to_i32(), pmut, expr.line, expr.col, true, pown)
+            ref mut pb : TypeBinding = func_scope.get_binding(param.name)
+            if is_variant(pt, TilType.Struct).or(is_variant(pt, TilType.Enum)) {
+                pb.struct_name = ptn.clone()
+            }
+            if is_variant(pt, TilType.FuncPtr) {
+                sf_fsb := scope.find(ptn)
+                if is_variant(sf_fsb, ScopeFind.Found) {
+                    ref fsb : TypeBinding = get_payload(sf_fsb)
+                    if is_null(fsb.func_def).not() {
+                        if fsb.func_def.child_count().eq(0) {
+                            pb.func_def = fsb.func_def
+                        }
+                    }
+                }
+            }
+        }
+    }
+    mut in_func_val := 0.to_i32()
+    if is_func { in_func_val = 1 }
+    mut returns_ref_val := 0.to_i32()
+    if fdef.return_is_ref { returns_ref_val = 1 }
+    infer_body(func_scope, expr.child(0), in_func_val, 1, 0, returns_ref_val, 0)
+    if is_macro.and(fdef.return_type.len().eq(0)) {
+        type_error(expr, "macro must declare a return type")
+    }
+    check_ref_function_returns(func_scope, expr)
+    TypeScope.delete(own func_scope)
+}
+
 infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32) {
     if stmt.child_count().gt(0) {
         infer_expr(scope, stmt.child(0), in_func)
