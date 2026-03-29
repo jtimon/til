@@ -828,6 +828,7 @@ void infer_set_lit_expr(TypeScope * scope, Expr * expr, I32 in_func);
 void infer_type_def_expr(TypeScope * scope, Expr * expr);
 void infer_return_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref);
 void infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32 returns_ref);
+void infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func);
 void infer_field_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func);
 Bool is_numeric_type(TilType * t);

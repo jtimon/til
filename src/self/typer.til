@@ -143,6 +143,70 @@ infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, sh
     stmt.til_type = TilType.None
 }
 
+infer_field_access_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+    infer_expr(scope, expr.child(0), in_func)
+    ref obj : Expr = expr.child(0)
+    if obj.struct_name.len().gt(0) {
+        ref sdef : Expr = scope.get_struct(obj.struct_name)
+        if is_null(sdef).not() {
+            ref body : Expr = sdef.child(0)
+            ref fname : Str = get_payload(expr.data)
+            mut found := false
+            for i in 0..body.child_count() {
+                ref field : Expr = body.child(i)
+                ref fld_decl : Declaration = get_payload(field.data)
+                if is_variant(sdef.data, ExprData.EnumDef).and(fld_decl.is_namespace.not()) {
+                    continue
+                }
+                if fld_decl.name.eq(fname) {
+                    expr.til_type = field.til_type
+                    expr.is_ns_field = fld_decl.is_namespace
+                    expr.is_own_field = fld_decl.is_own.or(fld_decl.is_ref)
+                    expr.is_ref_field = fld_decl.is_ref
+                    if is_variant(field.til_type, TilType.Struct).or(is_variant(field.til_type, TilType.Enum)) {
+                        ref child0 : Expr = field.child(0)
+                        if child0.struct_name.len().gt(0) {
+                            expr.struct_name = child0.struct_name.clone()
+                        }
+                    } else {
+                        if obj.struct_name.len().gt(0) {
+                            expr.struct_name = obj.struct_name.clone()
+                        }
+                    }
+                    if is_variant(sdef.data, ExprData.EnumDef).and(fld_decl.is_namespace).and(field.child_count().gt(0)) {
+                        ref fc : Expr = field.child(0)
+                        if is_variant(fc.data, ExprData.FuncDef).not() {
+                            expr.til_type = TilType.Enum
+                            if obj.struct_name.len().gt(0) {
+                                expr.struct_name = obj.struct_name.clone()
+                            }
+                        } else {
+                            ref fd : FunctionDef = get_payload(fc.data)
+                            if is_variant(fd.func_type, FuncType.ExtFunc).and(fd.return_type.len().gt(0)).and(fd.return_type.eq(obj.struct_name)) {
+                                expr.til_type = TilType.Enum
+                                if obj.struct_name.len().gt(0) {
+                                    expr.struct_name = obj.struct_name.clone()
+                                }
+                            }
+                        }
+                    }
+                    found = true
+                    break
+                }
+            }
+            if found.not() {
+                mut kind := "struct"
+                if is_variant(sdef.data, ExprData.EnumDef) { kind = "enum" }
+                type_error(expr, kind.concat(" '").concat(obj.struct_name).concat("' has no field '").concat(fname).concat("'"))
+                expr.til_type = TilType.Unknown
+            }
+        }
+    } else {
+        type_error(expr, "field access on non-struct value")
+        expr.til_type = TilType.Unknown
+    }
+}
+
 infer_field_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32) {
     infer_expr(scope, stmt.child(0), in_func)
     infer_expr(scope, stmt.child(1), in_func)
