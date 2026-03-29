@@ -883,6 +883,7 @@ void insert_nested_exit_deletes(Expr * stmt, void * locals, U32 n_locals, U32 st
 void insert_exit_deletes_into_stmt(Expr * stmt, Expr * body, void * locals, U32 n_locals, U32 stmt_idx, Vec * new_ch);
 void insert_post_stmt_deletes(Expr * stmt, void * locals, U32 n_locals, U32 stmt_idx, Vec * new_ch);
 void insert_assign_delete(Expr * stmt, void * locals, U32 n_locals, Vec * new_ch);
+void insert_free_calls(Expr * body, TypeScope * scope, I32 scope_exit);
 void infer_literal_expr(Expr * expr);
 void narrow_dynamic(Expr * expr, TilType * target, Str * target_struct_name);
 I32 fcall_returns_ref(Expr * fcall, TypeScope * scope);

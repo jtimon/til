@@ -1125,35 +1125,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // --- Delete call insertion ---
 
-static void insert_free_calls(Expr *body, TypeScope *scope, I32 scope_exit) {
-    if (!scope_exit) return;
-    Bool is_program_scope = !scope->parent;
-
-    Vec locals_vec; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"LocalInfo", .count = 9, .cap = CAP_LIT}, &(USize){sizeof(LocalInfo)}); locals_vec = *_vp; free(_vp); }
-    collect_scope_locals(body, scope, is_program_scope, &locals_vec);
-    if (locals_vec.count == 0) { Vec_delete(&locals_vec, &(Bool){0}); return; }
-    U32 n_locals = locals_vec.count;
-    LocalInfo *locals = Vec_take(&locals_vec);
-
-    extend_ref_local_lifetimes(body, locals, n_locals);
-    check_use_after_own_transfer(body, locals, n_locals);
-
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        insert_exit_deletes_into_stmt(stmt, body, locals, n_locals, i, &new_ch);
-        insert_nested_exit_deletes(stmt, locals, n_locals, i);
-        insert_assign_delete(stmt, locals, n_locals, &new_ch);
-        Vec_push(&new_ch, Expr_clone(stmt));
-        insert_post_stmt_deletes(stmt, locals, n_locals, i, &new_ch);
-    }
-
-    Vec_delete(&body->children, &(Bool){0});
-    body->children = new_ch;
-    free(locals);
-}
-
 static void infer_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
     infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
     stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;

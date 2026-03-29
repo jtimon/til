@@ -1676,6 +1676,33 @@ insert_assign_delete := proc(mut stmt: Expr, locals: Dynamic, shallow n_locals: 
     }
 }
 
+insert_free_calls := proc(mut body: Expr, mut scope: TypeScope, shallow scope_exit: I32) {
+    if scope_exit.eq(0) { return }
+    is_program_scope := is_null(scope.parent)
+
+    mut locals_vec := Vec.new("LocalInfo", LocalInfo.size())
+    collect_scope_locals(body, scope, is_program_scope, locals_vec)
+    if locals_vec.len().eq(0) { return }
+    n_locals := locals_vec.len().to_i64().to_u32()
+    locals : Dynamic = Vec_take(locals_vec)
+
+    extend_ref_local_lifetimes(body, locals, n_locals)
+    check_use_after_own_transfer(body, locals, n_locals)
+
+    mut new_ch := Vec.new("Expr", Expr.size())
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
+        insert_exit_deletes_into_stmt(stmt, body, locals, n_locals, i.to_i64().to_u32(), new_ch)
+        insert_nested_exit_deletes(stmt, locals, n_locals, i.to_i64().to_u32())
+        insert_assign_delete(stmt, locals, n_locals, new_ch)
+        new_ch.push(own stmt.clone())
+        insert_post_stmt_deletes(stmt, locals, n_locals, i.to_i64().to_u32(), new_ch)
+    }
+
+    body.children = new_ch
+    free(own locals)
+}
+
 infer_literal_expr := proc(mut expr: Expr) {
     switch expr.data {
     case ExprData.LiteralStr:
