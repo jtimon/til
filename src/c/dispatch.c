@@ -733,180 +733,184 @@ static void dispatch_init(void) {
 
 // === Main dispatch ===
 
-Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
-    if (!dispatch_inited) dispatch_init();
-
+static Bool ext_dispatch_builtin(Str *name, Scope *scope, Expr *e, Value *result) {
     if (Map_has(&dispatch_map, name)) {
         DispatchFn *fn = Map_get(&dispatch_map, name);
         return (*fn)(scope, e, result);
     }
+    return 0;
+}
 
-    // FFI dispatch via libffi
-    if (ffi_loaded) {
-        if (Map_has(&ffi_map, name)) {
-            FFIEntry *fe = Map_get(&ffi_map, name);
-            bool *param_shallows = (bool *)fe->param_shallows;
-            ffi_type **arg_types = (ffi_type **)fe->arg_types;
-            ffi_cif *cif = (ffi_cif *)fe->cif;
-            U32 nargs = e->children.count - 1;
-            void *args[nargs > 0 ? nargs : 1];
-            void *arg_ptrs[nargs > 0 ? nargs : 1];
-            for (U32 i = 0; i < nargs; i++) {
-                Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(i + 1)}));
-                if (param_shallows && i < (U32)fe->nparam && param_shallows[i]) {
-                    // Shallow: store dereferenced value directly for ffi
-                    if (v.tag == Value_TAG_Struct) {
-                        // Struct by value: point arg_ptrs directly at struct data
-                        arg_ptrs[i] = v.data.Struct.data;
-                        continue;
-                    }
-                    if (arg_types[i] == &ffi_type_sint64) {
-                        I64 tmp = (v.tag == Value_TAG_Ptr) ? *(I64 *)v.data.Ptr : value_to_i64(v);
-                        *(I64 *)&args[i] = tmp;
-                    } else if (arg_types[i] == &ffi_type_uint8) {
-                        U8 tmp = (v.tag == Value_TAG_Ptr) ? *(U8 *)v.data.Ptr : (U8)value_to_u64(v);
-                        *(U8 *)&args[i] = tmp;
-                    } else if (arg_types[i] == &ffi_type_sint16) {
-                        I16 tmp = (v.tag == Value_TAG_Ptr) ? *(I16 *)v.data.Ptr : (I16)value_to_i64(v);
-                        *(I16 *)&args[i] = tmp;
-                    } else if (arg_types[i] == &ffi_type_sint32) {
-                        I32 tmp = (v.tag == Value_TAG_Ptr) ? *(I32 *)v.data.Ptr : (I32)value_to_i64(v);
-                        *(I32 *)&args[i] = tmp;
-                    } else if (arg_types[i] == &ffi_type_uint32) {
-                        U32 tmp = (v.tag == Value_TAG_Ptr) ? *(U32 *)v.data.Ptr : (U32)value_to_u64(v);
-                        *(U32 *)&args[i] = tmp;
-                    } else if (arg_types[i] == &ffi_type_uint64) {
-                        U64 tmp = (v.tag == Value_TAG_Ptr) ? *(U64 *)v.data.Ptr : value_to_u64(v);
-                        *(U64 *)&args[i] = tmp;
-                    } else if (arg_types[i] == &ffi_type_float) {
-                        F32 tmp = (v.tag == Value_TAG_Ptr) ? *(F32 *)v.data.Ptr : value_to_f32(v);
-                        *(F32 *)&args[i] = tmp;
-                    } else {
-                        args[i] = v.data.Ptr;
-                    }
-                } else {
-                    // Deep: pass heap-allocated pointer (FFI callee may free it)
-                    switch (v.tag) {
-                        case Value_TAG_Int:    { I64 *p = malloc(sizeof(I64)); *p = v.data.Int; args[i] = p; break; }
-                        case Value_TAG_Byte:   { U8 *p = malloc(sizeof(U8)); *p = v.data.Byte; args[i] = p; break; }
-                        case Value_TAG_Short:  { I16 *p = malloc(sizeof(I16)); *p = v.data.Short; args[i] = p; break; }
-                        case Value_TAG_Int32:  { I32 *p = malloc(sizeof(I32)); *p = v.data.Int32; args[i] = p; break; }
-                        case Value_TAG_Uint32: { U32 *p = malloc(sizeof(U32)); *p = v.data.Uint32; args[i] = p; break; }
-                        case Value_TAG_Uint64: { U64 *p = malloc(sizeof(U64)); *p = v.data.Uint64; args[i] = p; break; }
-                        case Value_TAG_Float:  { F32 *p = malloc(sizeof(F32)); *p = v.data.Float; args[i] = p; break; }
-                        case Value_TAG_Boolean: { Bool *p = malloc(sizeof(Bool)); *p = v.data.Boolean; args[i] = p; break; }
-                        case Value_TAG_Ptr:    args[i] = v.data.Ptr; break;
-                        case Value_TAG_Struct: args[i] = v.data.Struct.data; break;
-                        case Value_TAG_Enum:  args[i] = v.data.Enum.data; break;
-                        default:         args[i] = NULL; break;
-                    }
-                }
-                arg_ptrs[i] = &args[i];
+static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
+    if (!ffi_loaded) return 0;
+    if (!Map_has(&ffi_map, name)) return 0;
+
+    FFIEntry *fe = Map_get(&ffi_map, name);
+    bool *param_shallows = (bool *)fe->param_shallows;
+    ffi_type **arg_types = (ffi_type **)fe->arg_types;
+    ffi_cif *cif = (ffi_cif *)fe->cif;
+    U32 nargs = e->children.count - 1;
+    void *args[nargs > 0 ? nargs : 1];
+    void *arg_ptrs[nargs > 0 ? nargs : 1];
+    for (U32 i = 0; i < nargs; i++) {
+        Value v = eval_expr(scope, Expr_child(e, &(USize){(USize)(i + 1)}));
+        if (param_shallows && i < (U32)fe->nparam && param_shallows[i]) {
+            // Shallow: store dereferenced value directly for ffi
+            if (v.tag == Value_TAG_Struct) {
+                // Struct by value: point arg_ptrs directly at struct data
+                arg_ptrs[i] = v.data.Struct.data;
+                continue;
             }
-            // Check if return is a shallow struct (needs larger buffer)
-            // Only treat as struct if the CIF return type is FFI_TYPE_STRUCT —
-            // scalar types like Bool are ext_structs in til but scalars in FFI.
-            Expr **ret_sdef = NULL;
-            if (fe->return_is_shallow && fe->return_type &&
-                cif->rtype->type == FFI_TYPE_STRUCT &&
-                Map_has(&ffi_struct_defs, fe->return_type))
-                ret_sdef = Map_get(&ffi_struct_defs, fe->return_type);
-            union {
-                void *ptr;
-                I64 i64;
-                U64 u64;
-                I32 i32;
-                U32 u32;
-                I16 i16;
-                U8 u8;
-                F32 f32;
-                Bool boolean;
-            } raw = {0};
-            void *ret_buf = NULL;
-            if (ret_sdef) {
-                // Struct return: allocate buffer of struct size
-                ret_buf = malloc((*ret_sdef)->data.data.StructDef.total_struct_size);
-                ffi_call(cif, FFI_FN(fe->fn), ret_buf, nargs > 0 ? arg_ptrs : NULL);
+            if (arg_types[i] == &ffi_type_sint64) {
+                I64 tmp = (v.tag == Value_TAG_Ptr) ? *(I64 *)v.data.Ptr : value_to_i64(v);
+                *(I64 *)&args[i] = tmp;
+            } else if (arg_types[i] == &ffi_type_uint8) {
+                U8 tmp = (v.tag == Value_TAG_Ptr) ? *(U8 *)v.data.Ptr : (U8)value_to_u64(v);
+                *(U8 *)&args[i] = tmp;
+            } else if (arg_types[i] == &ffi_type_sint16) {
+                I16 tmp = (v.tag == Value_TAG_Ptr) ? *(I16 *)v.data.Ptr : (I16)value_to_i64(v);
+                *(I16 *)&args[i] = tmp;
+            } else if (arg_types[i] == &ffi_type_sint32) {
+                I32 tmp = (v.tag == Value_TAG_Ptr) ? *(I32 *)v.data.Ptr : (I32)value_to_i64(v);
+                *(I32 *)&args[i] = tmp;
+            } else if (arg_types[i] == &ffi_type_uint32) {
+                U32 tmp = (v.tag == Value_TAG_Ptr) ? *(U32 *)v.data.Ptr : (U32)value_to_u64(v);
+                *(U32 *)&args[i] = tmp;
+            } else if (arg_types[i] == &ffi_type_uint64) {
+                U64 tmp = (v.tag == Value_TAG_Ptr) ? *(U64 *)v.data.Ptr : value_to_u64(v);
+                *(U64 *)&args[i] = tmp;
+            } else if (arg_types[i] == &ffi_type_float) {
+                F32 tmp = (v.tag == Value_TAG_Ptr) ? *(F32 *)v.data.Ptr : value_to_f32(v);
+                *(F32 *)&args[i] = tmp;
             } else {
-                ffi_call(cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
+                args[i] = v.data.Ptr;
             }
-            if (!fe->return_type) {
-                *result = val_none();
-            } else if (ret_sdef) {
-                // Shallow struct return: wrap buffer in StructInstance
-                StructInstance *inst = malloc(sizeof(StructInstance));
-                inst->struct_name = fe->return_type;
-                inst->struct_def = *ret_sdef;
-                inst->data = ret_buf;
-                inst->borrowed = 0;
-                result->tag = Value_TAG_Struct;
-                result->data.Struct = *inst; free(inst);
-            } else if (fe->return_is_shallow) {
-                // Shallow return: C function returned a primitive by value.
-                if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Int, .data.Int = raw.i64};
-                } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Byte, .data.Byte = raw.u8};
-                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Short, .data.Short = raw.i16};
-                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Int32, .data.Int32 = raw.i32};
-                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = raw.u32};
-                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Uint64, .data.Uint64 = raw.u64};
-                } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = raw.u32};
-                } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Float, .data.Float = raw.f32};
-                } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
-                    *result = (Value){.tag = Value_TAG_Boolean, .data.Boolean = raw.boolean};
-                } else {
-                    *result = val_none();
-                }
-            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "Str", 3) == 0)) {
-                ExtStr *sp = (ExtStr *)raw.ptr;
-                *result = make_str_value_own((char *)sp->data, sp->count);
-            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
-                *result = (Value){.tag = Value_TAG_Int, .data.Int = *(I64 *)raw.ptr};
-            } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
-                *result = (Value){.tag = Value_TAG_Byte, .data.Byte = *(U8 *)raw.ptr};
-            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
-                *result = (Value){.tag = Value_TAG_Short, .data.Short = *(I16 *)raw.ptr};
-            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
-                *result = (Value){.tag = Value_TAG_Int32, .data.Int32 = *(I32 *)raw.ptr};
-            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
-                *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)raw.ptr};
-            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
-                *result = (Value){.tag = Value_TAG_Uint64, .data.Uint64 = *(U64 *)raw.ptr};
-            } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
-                *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)raw.ptr};
-            } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
-                *result = (Value){.tag = Value_TAG_Float, .data.Float = *(F32 *)raw.ptr};
-            } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
-                *result = (Value){.tag = Value_TAG_Boolean, .data.Boolean = *(Bool *)raw.ptr};
-            } else if ((fe->return_type->count == 7 && memcmp(fe->return_type->c_str, "Dynamic", 7) == 0)) {
-                *result = (Value){.tag = Value_TAG_Ptr, .data.Ptr = raw.ptr};
-            } else {
-                // Struct return -- look up struct def by return type name
-                if (Map_has(&ffi_struct_defs, fe->return_type)) {
-                    Expr **sdef = Map_get(&ffi_struct_defs, fe->return_type);
-                    StructInstance *inst = malloc(sizeof(StructInstance));
-                    inst->struct_name = fe->return_type;
-                    inst->struct_def = *sdef;
-                    inst->borrowed = 0;
-                    inst->data = raw.ptr;
-                    result->tag = Value_TAG_Struct;
-                    result->data.Struct = *inst; free(inst);
-                } else {
-                    *result = val_none();
-                }
+        } else {
+            // Deep: pass heap-allocated pointer (FFI callee may free it)
+            switch (v.tag) {
+                case Value_TAG_Int:    { I64 *p = malloc(sizeof(I64)); *p = v.data.Int; args[i] = p; break; }
+                case Value_TAG_Byte:   { U8 *p = malloc(sizeof(U8)); *p = v.data.Byte; args[i] = p; break; }
+                case Value_TAG_Short:  { I16 *p = malloc(sizeof(I16)); *p = v.data.Short; args[i] = p; break; }
+                case Value_TAG_Int32:  { I32 *p = malloc(sizeof(I32)); *p = v.data.Int32; args[i] = p; break; }
+                case Value_TAG_Uint32: { U32 *p = malloc(sizeof(U32)); *p = v.data.Uint32; args[i] = p; break; }
+                case Value_TAG_Uint64: { U64 *p = malloc(sizeof(U64)); *p = v.data.Uint64; args[i] = p; break; }
+                case Value_TAG_Float:  { F32 *p = malloc(sizeof(F32)); *p = v.data.Float; args[i] = p; break; }
+                case Value_TAG_Boolean: { Bool *p = malloc(sizeof(Bool)); *p = v.data.Boolean; args[i] = p; break; }
+                case Value_TAG_Ptr:    args[i] = v.data.Ptr; break;
+                case Value_TAG_Struct: args[i] = v.data.Struct.data; break;
+                case Value_TAG_Enum:  args[i] = v.data.Enum.data; break;
+                default:         args[i] = NULL; break;
             }
-            return 1;
+        }
+        arg_ptrs[i] = &args[i];
+    }
+    // Check if return is a shallow struct (needs larger buffer)
+    // Only treat as struct if the CIF return type is FFI_TYPE_STRUCT —
+    // scalar types like Bool are ext_structs in til but scalars in FFI.
+    Expr **ret_sdef = NULL;
+    if (fe->return_is_shallow && fe->return_type &&
+        cif->rtype->type == FFI_TYPE_STRUCT &&
+        Map_has(&ffi_struct_defs, fe->return_type))
+        ret_sdef = Map_get(&ffi_struct_defs, fe->return_type);
+    union {
+        void *ptr;
+        I64 i64;
+        U64 u64;
+        I32 i32;
+        U32 u32;
+        I16 i16;
+        U8 u8;
+        F32 f32;
+        Bool boolean;
+    } raw = {0};
+    void *ret_buf = NULL;
+    if (ret_sdef) {
+        // Struct return: allocate buffer of struct size
+        ret_buf = malloc((*ret_sdef)->data.data.StructDef.total_struct_size);
+        ffi_call(cif, FFI_FN(fe->fn), ret_buf, nargs > 0 ? arg_ptrs : NULL);
+    } else {
+        ffi_call(cif, FFI_FN(fe->fn), &raw, nargs > 0 ? arg_ptrs : NULL);
+    }
+    if (!fe->return_type) {
+        *result = val_none();
+    } else if (ret_sdef) {
+        // Shallow struct return: wrap buffer in StructInstance
+        StructInstance *inst = malloc(sizeof(StructInstance));
+        inst->struct_name = fe->return_type;
+        inst->struct_def = *ret_sdef;
+        inst->data = ret_buf;
+        inst->borrowed = 0;
+        result->tag = Value_TAG_Struct;
+        result->data.Struct = *inst; free(inst);
+    } else if (fe->return_is_shallow) {
+        // Shallow return: C function returned a primitive by value.
+        if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
+            *result = (Value){.tag = Value_TAG_Int, .data.Int = raw.i64};
+        } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
+            *result = (Value){.tag = Value_TAG_Byte, .data.Byte = raw.u8};
+        } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
+            *result = (Value){.tag = Value_TAG_Short, .data.Short = raw.i16};
+        } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
+            *result = (Value){.tag = Value_TAG_Int32, .data.Int32 = raw.i32};
+        } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
+            *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = raw.u32};
+        } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
+            *result = (Value){.tag = Value_TAG_Uint64, .data.Uint64 = raw.u64};
+        } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
+            *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = raw.u32};
+        } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
+            *result = (Value){.tag = Value_TAG_Float, .data.Float = raw.f32};
+        } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
+            *result = (Value){.tag = Value_TAG_Boolean, .data.Boolean = raw.boolean};
+        } else {
+            *result = val_none();
+        }
+    } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "Str", 3) == 0)) {
+        ExtStr *sp = (ExtStr *)raw.ptr;
+        *result = make_str_value_own((char *)sp->data, sp->count);
+    } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I64", 3) == 0)) {
+        *result = (Value){.tag = Value_TAG_Int, .data.Int = *(I64 *)raw.ptr};
+    } else if ((fe->return_type->count == 2 && memcmp(fe->return_type->c_str, "U8", 2) == 0)) {
+        *result = (Value){.tag = Value_TAG_Byte, .data.Byte = *(U8 *)raw.ptr};
+    } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I16", 3) == 0)) {
+        *result = (Value){.tag = Value_TAG_Short, .data.Short = *(I16 *)raw.ptr};
+    } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "I32", 3) == 0)) {
+        *result = (Value){.tag = Value_TAG_Int32, .data.Int32 = *(I32 *)raw.ptr};
+    } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U32", 3) == 0)) {
+        *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)raw.ptr};
+    } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "U64", 3) == 0)) {
+        *result = (Value){.tag = Value_TAG_Uint64, .data.Uint64 = *(U64 *)raw.ptr};
+    } else if ((fe->return_type->count == 5 && memcmp(fe->return_type->c_str, "USize", 5) == 0)) {
+        *result = (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)raw.ptr};
+    } else if ((fe->return_type->count == 3 && memcmp(fe->return_type->c_str, "F32", 3) == 0)) {
+        *result = (Value){.tag = Value_TAG_Float, .data.Float = *(F32 *)raw.ptr};
+    } else if ((fe->return_type->count == 4 && memcmp(fe->return_type->c_str, "Bool", 4) == 0)) {
+        *result = (Value){.tag = Value_TAG_Boolean, .data.Boolean = *(Bool *)raw.ptr};
+    } else if ((fe->return_type->count == 7 && memcmp(fe->return_type->c_str, "Dynamic", 7) == 0)) {
+        *result = (Value){.tag = Value_TAG_Ptr, .data.Ptr = raw.ptr};
+    } else {
+        // Struct return -- look up struct def by return type name
+        if (Map_has(&ffi_struct_defs, fe->return_type)) {
+            Expr **sdef = Map_get(&ffi_struct_defs, fe->return_type);
+            StructInstance *inst = malloc(sizeof(StructInstance));
+            inst->struct_name = fe->return_type;
+            inst->struct_def = *sdef;
+            inst->borrowed = 0;
+            inst->data = raw.ptr;
+            result->tag = Value_TAG_Struct;
+            result->data.Struct = *inst; free(inst);
+        } else {
+            *result = val_none();
         }
     }
+    return 1;
+}
 
-    return 0;
+Bool ext_function_dispatch(Str *name, Scope *scope, Expr *e, Value *result) {
+    if (!dispatch_inited) dispatch_init();
+
+    if (ext_dispatch_builtin(name, scope, e, result)) return 1;
+    return ext_dispatch_ffi(name, scope, e, result);
 }
 
 Bool enum_method_dispatch(Str *method, Scope *scope, Expr *enum_def,
@@ -1006,64 +1010,63 @@ static void ffi_register(Str *name, void *fn, Expr *fdef) {
       Map_set(&ffi_map, _k, _v); }
 }
 
-I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
-    if (ffi_loaded) ffi_cleanup();  // re-init (e.g. precomp then interpret)
-    Str *so_path = NULL;
+static I32 ffi_init_user_so(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags, Str **so_path_out) {
+    *so_path_out = NULL;
+    if (!user_c_path) return 0;
 
-    // Compile user .c to shared library (if provided)
-    if (user_c_path) {
-        Str *ext_dir;
-        Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
-        {
-            I64 slash = Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
-            ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
-        }
-        char pid_buf[32];
-        snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
-        so_path = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
-        system("mkdir -p tmp");
-        // Generate per-PID forward.h so link_c file can see all types (race-safe)
-        char fwd_buf[64];
-        snprintf(fwd_buf, sizeof(fwd_buf), "tmp/ffi_%d_forward.h", (int)getpid());
-        Str *fwd_path = Str_clone(&(Str){.c_str = (U8*)(fwd_buf), .count = (U64)strlen((const char*)(fwd_buf)), .cap = CAP_VIEW});
-        build_forward_header(program, fwd_path);
-        Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
-        Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
-            &(Str){.c_str = (U8*)"cc -Wall -Wextra -shared -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
-            &(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}), fwd_path),
-            &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), so_path),
-            &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), user_c_path), lf);
-        int rc = system((const char *)cmd->c_str);
-        if (rc != 0) {
-            fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path->c_str);
-            return 1;
-        }
-        ffi_handle = dlopen((const char *)so_path->c_str, RTLD_NOW);
-        if (!ffi_handle) {
-            fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
-            return 1;
+    Str *ext_dir;
+    Str _dot_str = {.c_str = (U8*)".", .count = 1, .cap = CAP_LIT};
+    {
+        I64 slash = Str_rfind(ext_c_path, &(Str){.c_str = (U8*)"/", .count = 1, .cap = CAP_LIT});
+        ext_dir = slash >= 0 ? Str_substr(ext_c_path, &(USize){(USize)(0)}, &(USize){(USize)(slash)}) : &_dot_str;
+    }
+    char pid_buf[32];
+    snprintf(pid_buf, sizeof(pid_buf), "tmp/ffi_%d.so", (int)getpid());
+    *so_path_out = Str_clone(&(Str){.c_str = (U8*)(pid_buf), .count = (U64)strlen((const char*)(pid_buf)), .cap = CAP_VIEW});
+    system("mkdir -p tmp");
+    // Generate per-PID forward.h so link_c file can see all types (race-safe)
+    char fwd_buf[64];
+    snprintf(fwd_buf, sizeof(fwd_buf), "tmp/ffi_%d_forward.h", (int)getpid());
+    Str *fwd_path = Str_clone(&(Str){.c_str = (U8*)(fwd_buf), .count = (U64)strlen((const char*)(fwd_buf)), .cap = CAP_VIEW});
+    build_forward_header(program, fwd_path);
+    Str *lf = link_flags ? link_flags : &(Str){.c_str = (U8*)"", .count = 0, .cap = CAP_LIT};
+    Str *cmd = Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(Str_concat(
+        &(Str){.c_str = (U8*)"cc -Wall -Wextra -shared -fPIC -I", .count = 33, .cap = CAP_LIT}, ext_dir),
+        &(Str){.c_str = (U8*)" -include ", .count = 10, .cap = CAP_LIT}), fwd_path),
+        &(Str){.c_str = (U8*)" -o ", .count = 4, .cap = CAP_LIT}), *so_path_out),
+        &(Str){.c_str = (U8*)" ", .count = 1, .cap = CAP_LIT}), user_c_path), lf);
+    int rc = system((const char *)cmd->c_str);
+    if (rc != 0) {
+        fprintf(stderr, "error: failed to compile FFI library '%s'\n", user_c_path->c_str);
+        return 1;
+    }
+    ffi_handle = dlopen((const char *)(*so_path_out)->c_str, RTLD_NOW);
+    if (!ffi_handle) {
+        fprintf(stderr, "error: dlopen failed: %s\n", dlerror());
+        return 1;
+    }
+    return 0;
+}
+
+static void ffi_init_link_libs(Str *link_flags) {
+    if (!link_flags) return;
+    const char *p = (const char *)link_flags->c_str;
+    while ((p = strstr(p, "-l")) != NULL) {
+        p += 2;
+        char lib[256];
+        int i = 0;
+        while (*p && *p != ' ' && i < 255)
+            lib[i++] = *p++;
+        lib[i] = '\0';
+        if (i > 0) {
+            char soname[280];
+            snprintf(soname, sizeof(soname), "lib%s.so", lib);
+            dlopen(soname, RTLD_NOW | RTLD_GLOBAL);
         }
     }
+}
 
-    // dlopen linked libraries so their symbols are available via RTLD_DEFAULT
-    if (link_flags) {
-        const char *p = (const char *)link_flags->c_str;
-        while ((p = strstr(p, "-l")) != NULL) {
-            p += 2;
-            char lib[256];
-            int i = 0;
-            while (*p && *p != ' ' && i < 255)
-                lib[i++] = *p++;
-            lib[i] = '\0';
-            if (i > 0) {
-                char soname[280];
-                snprintf(soname, sizeof(soname), "lib%s.so", lib);
-                dlopen(soname, RTLD_NOW | RTLD_GLOBAL);
-            }
-        }
-    }
-
-    // Build struct def map for return type lookup
+static void ffi_init_struct_defs(Expr *program) {
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"Dynamic", .count = 7, .cap = CAP_LIT}, &(USize){sizeof(Expr *)}); ffi_struct_defs = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
@@ -1074,8 +1077,9 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
           Expr **_v = malloc(sizeof(Expr *)); *_v = sdef;
           Map_set(&ffi_struct_defs, _k, _v); }
     }
+}
 
-    // Scan program for ext_func/ext_proc, dlsym each
+static void ffi_init_scan_program(Expr *program) {
     { Map *_mp = Map_new(&(Str){.c_str = (U8*)"Str", .count = 3, .cap = CAP_LIT}, &(USize){sizeof(Str)}, &(Str){.c_str = (U8*)"FFIEntry", .count = 8, .cap = CAP_LIT}, &(USize){sizeof(FFIEntry)}); ffi_map = *_mp; free(_mp); }
     for (U32 i = 0; i < program->children.count; i++) {
         Expr *stmt = Expr_child(program, &(USize){(USize)(i)});
@@ -1128,6 +1132,18 @@ I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) 
             }
         }
     }
+}
+
+I32 ffi_init(Expr *program, Str *user_c_path, Str *ext_c_path, Str *link_flags) {
+    if (ffi_loaded) ffi_cleanup();  // re-init (e.g. precomp then interpret)
+    Str *so_path = NULL;
+
+    if (ffi_init_user_so(program, user_c_path, ext_c_path, link_flags, &so_path) != 0)
+        return 1;
+
+    ffi_init_link_libs(link_flags);
+    ffi_init_struct_defs(program);
+    ffi_init_scan_program(program);
 
     ffi_loaded = 1;
     if (so_path) unlink((const char *)so_path->c_str);
