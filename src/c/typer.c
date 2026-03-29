@@ -478,43 +478,6 @@ static void infer_and_validate_fcall_args(TypeScope *scope, Expr *e, TypeBinding
         }
 }
 
-static void validate_fcall_own_args(TypeScope *scope, Expr *e, TypeBinding *callee_bind) {
-        if (!(callee_bind && callee_bind->func_def)) return;
-        Expr *fdef = callee_bind->func_def;
-        I32 fvi = fdef->data.data.FuncDef.variadic_index;
-        I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
-        U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
-        U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
-        U32 ci = 1;
-        for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
-            if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
-            if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
-            Param *_pp2 = (Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)});
-            Bool pown = _pp2->is_own;
-            if (pown && !Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "argument for 'own' parameter '%s' must be marked 'own'",
-                         _pp2->name.c_str);
-                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
-            } else if (!pown && Expr_child(e, &(USize){(USize)(ci)})->is_own_arg) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "'own' on argument but parameter '%s' is not 'own'",
-                         _pp2->name.c_str);
-                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_VIEW(buf));
-            }
-            if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_Ident) {
-                ScopeFind *_sf_ab2 = TypeScope_find(scope, &Expr_child(e, &(USize){(USize)(ci)})->data.data.Ident);
-                TypeBinding *ab = _sf_ab2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ab2) : NULL;
-                if (ab && ab->is_ref) type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass ref variable to 'own' parameter; use .clone() to make an owned copy"));
-            }
-            if (pown && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'own' parameter"));
-            if (_pp2->is_shallow && Expr_child(e, &(USize){(USize)(ci)})->data.tag == ExprData_TAG_LiteralNull)
-                type_error(Expr_child(e, &(USize){(USize)(ci)}), STR_LIT("cannot pass null to 'shallow' parameter"));
-            ci++;
-        }
-}
-
 static void resolve_fcall_return_type(TypeScope *scope, Expr *e, Str *name, TypeBinding *callee_bind, I32 in_func) {
         if (((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0) || (name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0) ||
              (name->count == 14 && memcmp(name->c_str, "dyn_has_method", 14) == 0) || (name->count == 6 && memcmp(name->c_str, "dyn_fn", 6) == 0)) &&
