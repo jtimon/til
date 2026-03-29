@@ -952,7 +952,32 @@ infer_field_access_fcall := proc(scope: TypeScope, mut e: Expr, shallow in_func:
     return true
 }
 
-infer_fcall_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
+infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32) {
+    if is_variant(e.child(0).data, ExprData.FieldAccess) {
+        if infer_field_access_fcall(scope, e, in_func) { return }
+    }
+    ref mut callee : Expr = e.child(0)
+    ref name0 : Str = get_payload(callee.data)
+    mut name := name0.clone()
+    ref resolved_name : Str = resolve_type_alias(scope, name)
+    if resolved_name.eq(name).not() {
+        callee.data = ExprData.Ident(resolved_name.clone())
+        name = resolved_name.clone()
+    }
+    if infer_struct_constructor_fcall(scope, e, name, in_func) { return }
+    ref callee_bind : TypeBinding = scope.get_binding(name)
+    if is_null(callee_bind).not() {
+        if is_null(callee_bind.func_def).not() {
+            if callee_bind.is_builtin.not().or(callee_bind.func_def.is_core.not()) {
+                desugar_user_func_fcall_args(e, name, callee_bind)
+            }
+        }
+    }
+    infer_and_validate_fcall_args(scope, e, callee_bind, in_func)
+    validate_fcall_own_args(scope, e, callee_bind)
+    resolve_fcall_return_type(scope, e, name, callee_bind, in_func)
+    return
+}
 
 infer_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
     if is_variant(expr.data, ExprData.LiteralStr)

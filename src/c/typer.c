@@ -8,30 +8,6 @@
 
 // --- Type inference/checking pass ---
 
-void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
-        if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
-            if (infer_field_access_fcall(scope, e, in_func)) return;
-        }
-        Str _name_val = Expr_child(e, &(USize){(USize)(0)})->data.data.Ident;
-        Str *name = &_name_val;
-        Str *resolved_name = resolve_type_alias(scope, name);
-        if (resolved_name != name) {
-            Expr_child(e, &(USize){(USize)(0)})->data.data.Ident = *resolved_name;
-            _name_val = *resolved_name;
-        }
-        if (infer_struct_constructor_fcall(scope, e, name, in_func)) return;
-        ScopeFind *_sf_cb = TypeScope_find(scope, name);
-        TypeBinding *callee_bind = _sf_cb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_cb) : NULL;
-        if (callee_bind && callee_bind->func_def &&
-            (!callee_bind->is_builtin || !callee_bind->func_def->is_core)) {
-            desugar_user_func_fcall_args(e, name, callee_bind);
-        }
-        infer_and_validate_fcall_args(scope, e, callee_bind, in_func);
-        validate_fcall_own_args(scope, e, callee_bind);
-        resolve_fcall_return_type(scope, e, name, callee_bind, in_func);
-        return;
-}
-
 // --- Collection literal helpers ---
 
 // --- Set literal desugaring ---
