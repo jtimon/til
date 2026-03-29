@@ -1170,33 +1170,6 @@ static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
 
 // --- Delete call insertion ---
 
-// Insert delete calls before field reassignments (own and inline compound)
-static void insert_field_deletes(Expr *body) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-    Bool changed = 0;
-
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        if (stmt->data.tag == ExprData_TAG_FieldAssign) {
-            Bool is_own = stmt->is_own_field;
-            if (field_assign_needs_delete(stmt)) {
-                Expr *del = make_field_delete(stmt, is_own);
-                if (del) {
-                    Vec_push(&new_ch, del);
-                    changed = 1;
-                }
-            }
-        }
-        Vec_push(&new_ch, Expr_clone(stmt));
-    }
-    if (changed) {
-        Vec_delete(&body->children, &(Bool){0});
-        body->children = new_ch;
-    } else {
-        Vec_delete(&new_ch, &(Bool){0});
-    }
-}
-
 // Insert deletes for live parent-scope locals before early exits in body.
 // return_only=1: only before ExprData_TAG_Return (used when propagating into while bodies,
 // since break/continue don't leave the parent scope).
