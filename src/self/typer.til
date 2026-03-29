@@ -29,6 +29,9 @@ type_error := proc(e: Expr, msg: Str) {
     errors.inc()
 }
 
+infer_expr := ext_func(scope: TypeScope, e: Expr, shallow in_func: I32) {}
+infer_body := ext_func(scope: TypeScope, body: Expr, shallow in_func: I32, shallow owns_scope: I32, shallow in_loop: I32, shallow returns_ref: I32, shallow in_type_body: I32) {}
+
 infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
     type := scope.get_type(get_payload(expr.data))
     if is_variant(type, TilType.Unknown) {
@@ -47,6 +50,78 @@ infer_ident_expr := proc(scope: TypeScope, mut expr: Expr) {
             expr.struct_name = resolve_type_alias(scope, get_payload(expr.data)).clone()
         }
     }
+}
+
+infer_named_arg_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+    if expr.child_count().gt(0) {
+        infer_expr(scope, expr.child(0), in_func)
+        ref val : Expr = expr.child(0)
+        expr.til_type = val.til_type
+        if val.struct_name.len().gt(0) { expr.struct_name = val.struct_name.clone() }
+    }
+}
+
+infer_map_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+    for i in 0..expr.child_count() {
+        infer_expr(scope, expr.child(i), in_func)
+    }
+    expr.til_type = TilType.Struct
+    expr.struct_name = "Map".clone()
+}
+
+infer_set_lit_expr := proc(scope: TypeScope, mut expr: Expr, shallow in_func: I32) {
+    for i in 0..expr.child_count() {
+        infer_expr(scope, expr.child(i), in_func)
+    }
+    expr.til_type = TilType.Struct
+    expr.struct_name = "Set".clone()
+}
+
+infer_return_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow returns_ref: I32) {
+    if stmt.child_count().gt(0) {
+        infer_expr(scope, stmt.child(0), in_func)
+        stmt.til_type = stmt.child(0).til_type
+        if returns_ref.eq(0).and(is_variant(stmt.child(0).data, ExprData.Ident)) {
+            sf := scope.find(get_payload(stmt.child(0).data))
+            if is_variant(sf, ScopeFind.Found) {
+                ref b : TypeBinding = get_payload(sf)
+                if b.is_ref.and(b.is_alias.not()).and(b.is_param.not()) {
+                    type_error(stmt, "cannot return ref variable from non-ref function; use .clone() or 'returns ref'")
+                }
+            }
+        }
+        if returns_ref.eq(0).and(is_variant(stmt.child(0).data, ExprData.Ident)) {
+            sf := scope.find(get_payload(stmt.child(0).data))
+            if is_variant(sf, ScopeFind.Found) {
+                ref b : TypeBinding = get_payload(sf)
+                if b.is_ref.and(b.is_alias).or(b.is_param.and(b.is_own.not())) {
+                    tname := type_to_name(stmt.til_type, stmt.child(0).struct_name)
+                    if tname.len().gt(0) {
+                        mc := make_clone_call(tname, stmt.til_type, stmt.child(0), stmt)
+                        stmt.children.set(0, own mc)
+                    }
+                }
+            }
+        }
+    } else {
+        stmt.til_type = TilType.None
+    }
+}
+
+infer_if_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_loop: I32, shallow returns_ref: I32) {
+    infer_expr(scope, stmt.child(0), in_func)
+    if is_variant(stmt.child(0).til_type, TilType.Bool).not().and(is_variant(stmt.child(0).til_type, TilType.Unknown).not()) {
+        type_error(stmt, "if condition must be Bool")
+    }
+    then_scope := TypeScope.new(scope)
+    infer_body(then_scope, stmt.child(1), in_func, 1, in_loop, returns_ref, 0)
+    TypeScope.delete(own then_scope)
+    if stmt.child_count().gt(2) {
+        else_scope := TypeScope.new(scope)
+        infer_body(else_scope, stmt.child(2), in_func, 1, in_loop, returns_ref, 0)
+        TypeScope.delete(own else_scope)
+    }
+    stmt.til_type = TilType.None
 }
 
 is_numeric_type := func(t: TilType) returns shallow Bool {

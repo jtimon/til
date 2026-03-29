@@ -33,31 +33,8 @@ void type_error(Expr *e, Str *msg);
 // --- Type inference/checking pass ---
 
 
-static void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
-static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
-
-static void infer_named_arg_expr(TypeScope *scope, Expr *e, I32 in_func) {
-    if (e->children.count > 0) {
-        infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
-        Expr *val = Expr_child(e, &(USize){(USize)(0)});
-        e->til_type = val->til_type;
-        if (val->struct_name.count > 0) e->struct_name = *Str_clone(&val->struct_name);
-    }
-}
-
-static void infer_map_lit_expr(TypeScope *scope, Expr *e, I32 in_func) {
-    for (U32 i = 0; i < e->children.count; i++)
-        infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
-    e->til_type = (TilType){TilType_TAG_Struct};
-    e->struct_name = (Str){.c_str = (U8*)"Map", .count = 3, .cap = CAP_LIT};
-}
-
-static void infer_set_lit_expr(TypeScope *scope, Expr *e, I32 in_func) {
-    for (U32 i = 0; i < e->children.count; i++)
-        infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
-    e->til_type = (TilType){TilType_TAG_Struct};
-    e->struct_name = (Str){.c_str = (U8*)"Set", .count = 3, .cap = CAP_LIT};
-}
+void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
+void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
 
 
@@ -65,7 +42,7 @@ static void infer_set_lit_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 
 
-static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
+void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
     switch (e->data.tag) {
     case ExprData_TAG_LiteralStr:
     case ExprData_TAG_LiteralNum:
@@ -1198,58 +1175,7 @@ static void infer_field_assign_stmt(TypeScope *scope, Expr *stmt, I32 in_func) {
     }
 }
 
-static void infer_return_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref) {
-    if (stmt->children.count > 0) {
-        infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
-        stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
-        if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-            ScopeFind *_sf_ret1 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-            TypeBinding *b = _sf_ret1->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret1) : NULL;
-            if (b && b->is_ref && !b->is_alias && !b->is_param) {
-                type_error(stmt, STR_LIT("cannot return ref variable from non-ref function; use .clone() or 'returns ref'"));
-            }
-        }
-        if (!returns_ref && Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-            ScopeFind *_sf_ret2 = TypeScope_find(scope, &Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident);
-            TypeBinding *b = _sf_ret2->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ret2) : NULL;
-            if (b && ((b->is_ref && b->is_alias) || (b->is_param && !b->is_own))) {
-                Str *tname = type_to_name(&stmt->til_type, &Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-                if (tname->count > 0) {
-                    Expr *_mc = make_clone_call(tname, stmt->til_type,
-                        Expr_child(stmt, &(USize){(USize)(0)}), stmt);
-                    *(Expr*)Vec_get(&stmt->children, &(USize){(USize)(0)}) = *_mc;
-                    memset(_mc, 0, sizeof(Expr)); free(_mc);
-                }
-            }
-        }
-    } else {
-        stmt->til_type = (TilType){TilType_TAG_None};
-    }
-}
-
-static void infer_if_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_loop, I32 returns_ref) {
-    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
-    if (Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Bool &&
-        Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Unknown) {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "if condition must be Bool, got %s",
-                 til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-        type_error(stmt, STR_VIEW(buf));
-    }
-    {
-        TypeScope *then_scope = TypeScope_new(scope);
-        infer_body(then_scope, Expr_child(stmt, &(USize){(USize)(1)}), in_func, 1, in_loop, returns_ref, 0);
-        TypeScope_delete(then_scope, &(Bool){1});
-    }
-    if (stmt->children.count > 2) {
-        TypeScope *else_scope = TypeScope_new(scope);
-        infer_body(else_scope, Expr_child(stmt, &(USize){(USize)(2)}), in_func, 1, in_loop, returns_ref, 0);
-        TypeScope_delete(else_scope, &(Bool){1});
-    }
-    stmt->til_type = (TilType){TilType_TAG_None};
-}
-
-static void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
+void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
     body->til_type = (TilType){TilType_TAG_None};
     for (U32 i = 0; i < body->children.count; i++) {
         Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
