@@ -13,6 +13,9 @@ The self-hosted file structure mirrors the C one:
 The generated C output stays exactly the same — builder string emissions
 just become til string operations that emit the same text.
 
+Qualifier details are documented in ~doc/qualifiers.org~. This file only
+records the C-to-til translation patterns that matter most in practice.
+
 ** Types
 
 | C                        | til                          |
@@ -83,11 +86,12 @@ ref val : I64 = vec.get(0)
 
 *** NULL
 
-No null in til. Use sentinels:
-- Optional strings: ~""~ (empty string)
-- Optional indices: ~0.sub(1)~ (i.e. -1)
-- Optional struct pointers: not stored (use Vec/children length to
-  check presence, e.g. Return has 0 or 1 children)
+til does have ~NULL~, but only for reference-shaped values:
+- ~ref~ locals
+- ~ref~ fields
+- functions returning ~ref Type~
+
+That is the natural translation target for nullable C pointers:
 
 #+begin_src c
 Expr *def_val = NULL;
@@ -95,10 +99,14 @@ if (def_val != NULL) { ... }
 #+end_src
 
 #+begin_src til
-NONE := 0.sub(1)
-mut def_val := NONE
-if def_val.neq(NONE) { ... }
+ref def_val : Expr = NULL
+if is_null(def_val).not() { ... }
 #+end_src
+
+For value-typed optionals, keep using sentinels or structural absence:
+- Optional strings: often ~""~
+- Optional indices: often ~0.sub(1)~ (i.e. -1)
+- Optional children: 0 or 1 children rather than a nullable inline value
 
 *** Low-level memory
 
@@ -164,6 +172,8 @@ void increment(int *x) { (*x)++; }
 increment := proc(mut x: I64) { x = x.add(1) }
 #+end_src
 
+See ~doc/qualifiers.org~ for the exact ~mut/ref/own/shallow~ mapping.
+
 *** Ownership transfer
 
 #+begin_src c
@@ -209,6 +219,21 @@ Point p = {5, 10};
 #+begin_src til
 p := Point(x = 5, y = 10)
 // or with defaults: p := Point()
+#+end_src
+
+Struct-literal ownership is important:
+- ~ref~ fields stay borrowed
+- every other field is ownership-taking, like an ~own~ argument
+
+So:
+- fresh values and literals need no extra clone
+- identifiers are consumed
+- if the source must stay usable afterward, write ~.clone()~ explicitly
+
+#+begin_src til
+s := "hello"
+p := Person(name = s.clone())   // keep using s later
+q := Person(name = "world")     // fresh value, no clone needed
 #+end_src
 
 *** Nested structs
@@ -337,8 +362,8 @@ All C operators become method calls in til. No infix operators.
 | ~a <= b~       | ~a.lte(b)~      |
 | ~a > b~        | ~a.gt(b)~       |
 | ~a >= b~       | ~a.gte(b)~      |
-| ~a && b~       | ~a.and(b)~      |
-| ~a \vert\vert b~ | ~a.or(b)~     |
+| ~a && b~       | nested ~if~ preserving short-circuit |
+| ~a \vert\vert b~ | nested ~if~ preserving short-circuit |
 | ~!a~           | ~a.not()~       |
 | ~a & b~        | ~a.and(b)~      |
 | ~a \vert b~    | ~a.or(b)~       |
@@ -346,8 +371,14 @@ All C operators become method calls in til. No infix operators.
 | ~x++~          | ~x = x.add(1)~  |
 | ~x += n~       | ~x = x.add(n)~  |
 
-Note: bitwise ~and~, ~or~ and boolean ~and~, ~or~ use the same method
-names but operate on different types (I64 vs Bool).
+Important: Bool ~and~ / ~or~ do *not* short-circuit today.
+For mechanical C translation, do not rewrite ~&&~ / ~||~ blindly to
+~.and(...)~ / ~.or(...)~ when the RHS may dereference null, call a proc,
+or otherwise depend on C evaluation order. Use nested ~if~ statements
+instead.
+
+Bitwise ~and~, ~or~ and boolean ~and~, ~or~ still use the same method
+names on different types (I64 vs Bool).
 
 ** Control Flow
 
@@ -522,6 +553,19 @@ Without ~ref~, the compiler errors. To get an owned copy instead:
 elem := I64.clone(v.get(0))   // owned copy (UFCS doesn't work on Dynamic)
 #+end_src
 
+~Vec.pop()~ returns owned ~Dynamic~. Bind it to an explicit concrete type:
+
+#+begin_src til
+popped : I64 = v.pop()
+#+end_src
+
+Do not use ~ref popped : I64 = v.pop()~.
+
+When translating C code that overwrites a ~Vec<Expr>~ slot, prefer
+~vec.set(i, own val)~ / ~children.set(i, own val)~ rather than rebinding a
+~ref mut~ local obtained from ~get()~. If the intent is "replace the stored
+element", write that replacement explicitly on the container.
+
 *** Map (sorted key-value)
 
 #+begin_src c
@@ -587,9 +631,12 @@ import("lexer.til")
 File modes set at the top:
 - ~mode script~ — executable, top-level code runs
 - ~mode cli~ — requires ~main~ function
-- ~mode lib~ — importable library
+- ~mode gui~ — like cli, with auto-imported gui support
 - ~mode test~ — test file, test functions run automatically
-- ~mode pure~ — only funcs allowed (no procs)
+- ~mode lib~ — importable library
+- ~mode liba~ — library with debug prints enabled
+- ~mode pure~ — pure library mode
+- ~mode pura~ — pure library mode with debug prints enabled
 
 ** Casts & Conversions
 
@@ -602,21 +649,21 @@ File modes set at the top:
 | ~(const Type *)ptr~  | ~ref val : Type = vec.get(i)~         |
 | ~(Type *)ptr~        | ~ref mut val : Type = vec.get(i)~     |
 
-** Future Work: Str Growth
+** String Building
 
 Str does not auto-grow like Vec. ~push_str~ panics if capacity is exceeded.
-To build large strings incrementally, either:
-- Use ~Str.with_capacity(n)~ + ~push_str~ (must estimate max size)
-- Build pieces in a ~Vec~ of ~Str~ and ~Vec.join("")~ at the end
-- Use ~x = x.concat(y)~ inside a loop where ~x~ is declared in an outer scope
-  (avoids the ASAP delete-before-reassignment bug in the typer — see issues.org)
+For translated C code that already knows or can precompute the target size,
+the intended pattern is:
+- ~Str.with_capacity(n)~
+- then repeated ~push_str~
 
-Note: ~x = x.concat(y)~ in the *same* body where ~x~ is declared triggers
-a use-after-free: the typer inserts ~Type_delete(x)~ before the assignment,
-but ~concat~ still reads ~x~ on the RHS. This does not happen when ~x~ is
-from an outer scope (e.g. declared before a while loop, reassigned inside it)
-because the inner body's ASAP pass doesn't track outer-scope locals.
+This is now the normal optimized translation target for string builders like
+~format~, ~join~, and ~replace~.
 
-Parameters are ref by default. Use ~own~ for ownership transfer (callee frees),
-~shallow~ for primitives passed by value, ~mut~ for mutable references.
-See ~doc/qualifiers.org~ for the complete qualifier-to-C mapping.
+If the final size is not easy to know up front, either:
+- build pieces in a ~Vec~ / ~Array~ of ~Str~ and join them later
+- or fall back to ordinary ~concat~ construction when the simpler code is
+  acceptable
+
+For the complete qualifier rules and their C mapping, see
+~doc/qualifiers.org~.
