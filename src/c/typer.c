@@ -37,23 +37,94 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
 static void infer_func_def_expr(TypeScope *scope, Expr *e);
+static void infer_func_sig_expr(TypeScope *scope, Expr *e);
+static void infer_func_params(TypeScope *scope, TypeScope *func_scope, Expr *e);
+static void check_ref_function_returns(TypeScope *func_scope, Expr *e);
 void infer_type_def_expr(TypeScope *scope, Expr *e);
 void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_type_body);
 static void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref);
 static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in_func);
 
+static void infer_func_sig_expr(TypeScope *scope, Expr *e) {
+    if (e->data.data.FuncDef.return_type.count > 0)
+        e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
+    for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
+        Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
+        _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
+    }
+    e->til_type = (TilType){TilType_TAG_FuncPtr};
+}
+
+static void infer_func_params(TypeScope *scope, TypeScope *func_scope, Expr *e) {
+    if (e->data.data.FuncDef.return_type.count > 0)
+        e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
+    for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
+        Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
+        _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
+        Str *ptn = &_pi->ptype;
+        TilType pt = *type_from_name(ptn, scope);
+        if (pt.tag == TilType_TAG_Unknown) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "undefined type '%s'", ptn->c_str);
+            type_error(e, STR_VIEW(buf));
+        }
+        Bool pmut = _pi->is_mut;
+        Bool pown = _pi->is_own;
+        Bool pshallow = _pi->is_shallow;
+        if (pshallow) {
+            Bool is_scalar = (pt.tag == TilType_TAG_I64 || pt.tag == TilType_TAG_U8 || pt.tag == TilType_TAG_I16 ||
+                              pt.tag == TilType_TAG_I32 || pt.tag == TilType_TAG_U32 || pt.tag == TilType_TAG_U64 || pt.tag == TilType_TAG_F32 || pt.tag == TilType_TAG_Bool);
+            if (!is_scalar && pt.tag != TilType_TAG_Struct && pt.tag != TilType_TAG_StructDef && pt.tag != TilType_TAG_Enum) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
+                         _pi->name.c_str);
+                type_error(e, STR_VIEW(buf));
+            }
+            if (pown) type_error(e, STR_LIT("parameter cannot be both 'shallow' and 'own'"));
+        }
+        if ((I32)i == e->data.data.FuncDef.variadic_index) {
+            _pi->is_own = true;
+            TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
+            TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
+            pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
+        } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
+            _pi->is_own = true;
+            TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
+            TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
+            pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
+        } else {
+            TypeScope_set(func_scope, &_pi->name, &pt, -1, pmut, e->line, e->col, 1, pown);
+            TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
+            if (pt.tag == TilType_TAG_Struct || pt.tag == TilType_TAG_Enum) {
+                pb->struct_name = *Str_clone(ptn);
+            }
+            if (pt.tag == TilType_TAG_FuncPtr) {
+                ScopeFind *_sf_fsb = TypeScope_find(scope, ptn);
+                TypeBinding *fsb = _sf_fsb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_fsb) : NULL;
+                if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
+                    pb->func_def = fsb->func_def;
+                }
+            }
+        }
+    }
+}
+
+static void check_ref_function_returns(TypeScope *func_scope, Expr *e) {
+    if (!e->data.data.FuncDef.return_is_ref) return;
+    Expr *body = Expr_child(e, &(USize){(USize)(0)});
+    for (U32 ri = 0; ri < body->children.count; ri++) {
+        Expr *s = Expr_child(body, &(USize){(USize)(ri)});
+        if (s->data.tag != ExprData_TAG_Return || s->children.count == 0) continue;
+        Expr *rv = Expr_child(s, &(USize){(USize)(0)});
+        Bool ok = expr_is_borrow_source(rv, func_scope);
+        if (!ok) type_error(s, STR_LIT("ref function must return a parameter or ref variable"));
+    }
+}
+
 static void infer_func_def_expr(TypeScope *scope, Expr *e) {
     if (e->children.count == 0) {
-        // Bodyless = FuncSig type definition, no body to type
-        // Resolve aliases in return type and param types (#79)
-        if (e->data.data.FuncDef.return_type.count > 0)
-            e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
-        for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-            Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
-            _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
-        }
-        e->til_type = (TilType){TilType_TAG_FuncPtr};
+        infer_func_sig_expr(scope, e);
         return;
     }
     e->til_type = (TilType){TilType_TAG_None};
@@ -72,71 +143,12 @@ static void infer_func_def_expr(TypeScope *scope, Expr *e) {
         if (current_mode.is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
             type_error(e, STR_LIT("proc not allowed in pure mode"));
         TypeScope *func_scope = TypeScope_new(scope);
-        if (e->data.data.FuncDef.return_type.count > 0)
-            e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
-        for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-            Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
-            _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
-            Str *ptn = &_pi->ptype;
-            TilType pt = *type_from_name(ptn, scope);
-            if (pt.tag == TilType_TAG_Unknown) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "undefined type '%s'", ptn->c_str);
-                type_error(e, STR_VIEW(buf));
-            }
-            Bool pmut = _pi->is_mut;
-            Bool pown = _pi->is_own;
-            Bool pshallow = _pi->is_shallow;
-            if (pshallow) {
-                Bool is_scalar = (pt.tag == TilType_TAG_I64 || pt.tag == TilType_TAG_U8 || pt.tag == TilType_TAG_I16 ||
-                                  pt.tag == TilType_TAG_I32 || pt.tag == TilType_TAG_U32 || pt.tag == TilType_TAG_U64 || pt.tag == TilType_TAG_F32 || pt.tag == TilType_TAG_Bool);
-                if (!is_scalar && pt.tag != TilType_TAG_Struct && pt.tag != TilType_TAG_StructDef && pt.tag != TilType_TAG_Enum) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
-                             _pi->name.c_str);
-                    type_error(e, STR_VIEW(buf));
-                }
-                if (pown) type_error(e, STR_LIT("parameter cannot be both 'shallow' and 'own'"));
-            }
-            if ((I32)i == e->data.data.FuncDef.variadic_index) {
-                _pi->is_own = true;
-                TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
-                TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
-            } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
-                _pi->is_own = true;
-                TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
-                TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
-            } else {
-                TypeScope_set(func_scope, &_pi->name, &pt, -1, pmut, e->line, e->col, 1, pown);
-                TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                if (pt.tag == TilType_TAG_Struct || pt.tag == TilType_TAG_Enum) {
-                    pb->struct_name = *Str_clone(ptn);
-                }
-                if (pt.tag == TilType_TAG_FuncPtr) {
-                    ScopeFind *_sf_fsb = TypeScope_find(scope, ptn);
-                    TypeBinding *fsb = _sf_fsb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_fsb) : NULL;
-                    if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
-                        pb->func_def = fsb->func_def;
-                    }
-                }
-            }
-        }
+        infer_func_params(scope, func_scope, e);
         infer_body(func_scope, Expr_child(e, &(USize){(USize)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref, 0);
         if (is_macro && (e->data.data.FuncDef.return_type).count == 0) {
             type_error(e, STR_LIT("macro must declare a return type"));
         }
-        if (e->data.data.FuncDef.return_is_ref) {
-            Expr *body = Expr_child(e, &(USize){(USize)(0)});
-            for (U32 ri = 0; ri < body->children.count; ri++) {
-                Expr *s = Expr_child(body, &(USize){(USize)(ri)});
-                if (s->data.tag != ExprData_TAG_Return || s->children.count == 0) continue;
-                Expr *rv = Expr_child(s, &(USize){(USize)(0)});
-                Bool ok = expr_is_borrow_source(rv, func_scope);
-                if (!ok) type_error(s, STR_LIT("ref function must return a parameter or ref variable"));
-            }
-        }
+        check_ref_function_returns(func_scope, e);
         TypeScope_delete(func_scope, &(Bool){1});
     }
 }
