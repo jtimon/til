@@ -43,6 +43,12 @@ static void check_ref_function_returns(TypeScope *func_scope, Expr *e);
 void infer_type_def_expr(TypeScope *scope, Expr *e);
 void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_type_body);
+static Bool infer_decl_type_def(TypeScope *scope, Expr *stmt);
+static Bool infer_decl_func_def(TypeScope *scope, Expr *stmt);
+static Bool infer_decl_type_alias_passthrough(TypeScope *scope, Expr *stmt);
+static void infer_decl_typed_value(TypeScope *scope, Expr *stmt);
+static void infer_decl_untyped_value(Expr *stmt);
+static void finalize_decl_binding(TypeScope *scope, Expr *stmt, I32 in_type_body);
 void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref);
 static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in_func);
 
@@ -980,140 +986,150 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 // --- Delete call insertion ---
 
-static void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_type_body) {
-    if (stmt->children.count == 0) return;
-    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
-    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_StructDef ||
-        Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef) {
-        Bool is_enum = (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef);
-        if (stmt->data.data.Decl.explicit_type.count > 0) {
-            TilType declared = *type_from_name(&stmt->data.data.Decl.explicit_type, scope);
-            TilType expected = is_enum ? (TilType){TilType_TAG_EnumDef} : (TilType){TilType_TAG_StructDef};
-            if (declared.tag != expected.tag) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                         stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.explicit_type.c_str,
-                         is_enum ? "EnumDef" : "StructDef");
-                type_error(stmt, STR_VIEW(buf));
-            }
-        }
-        stmt->til_type = (TilType){TilType_TAG_None};
-        Str *sname = &stmt->data.data.Decl.name;
-        ScopeFind *_sf_ex = TypeScope_find(scope, sname);
-        TypeBinding *existing = _sf_ex->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ex) : NULL;
-        if (existing && existing->struct_def && existing->struct_def != Expr_child(stmt, &(USize){(USize)(0)})) {
-            char buf[256];
-            snprintf(buf, sizeof(buf), "%s '%s' already declared at %s:%u:%u",
-                     is_enum ? "enum" : "struct", sname->c_str,
-                     existing->struct_def->path.c_str, existing->line, existing->col);
-            type_error(stmt, STR_VIEW(buf));
-            return;
-        }
-        TilType builtin_type = is_enum ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
-        Bool is_builtin = 0;
-        if ((sname->count == 3 && memcmp(sname->c_str, "I64", 3) == 0))  { builtin_type = (TilType){TilType_TAG_I64};  is_builtin = 1; }
-        else if ((sname->count == 2 && memcmp(sname->c_str, "U8", 2) == 0))   { builtin_type = (TilType){TilType_TAG_U8};   is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "I16", 3) == 0))  { builtin_type = (TilType){TilType_TAG_I16};  is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "I32", 3) == 0))  { builtin_type = (TilType){TilType_TAG_I32};  is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "U32", 3) == 0))  { builtin_type = (TilType){TilType_TAG_U32};  is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "U64", 3) == 0))  { builtin_type = (TilType){TilType_TAG_U64};  is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "F32", 3) == 0))  { builtin_type = (TilType){TilType_TAG_F32};  is_builtin = 1; }
-        else if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))  { is_builtin = 0; }
-        else if ((sname->count == 4 && memcmp(sname->c_str, "Bool", 4) == 0)) { builtin_type = (TilType){TilType_TAG_Bool}; is_builtin = 1; }
-        else if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0))    { builtin_type = (TilType){TilType_TAG_StructDef}; is_builtin = 1; }
-        else if ((sname->count == 7 && memcmp(sname->c_str, "EnumDef", 7) == 0))      { builtin_type = (TilType){TilType_TAG_EnumDef};   is_builtin = 1; }
-        else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0))  { is_builtin = 0; }
-        else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))      { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
-        TypeScope_set(scope, sname, &builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *b = Map_get(&scope->bindings, sname);
-        b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
-        b->is_builtin = is_builtin;
-        b->is_ext = Expr_child(stmt, &(USize){(USize)(0)})->is_ext;
-        return;
+static Bool infer_decl_type_def(TypeScope *scope, Expr *stmt) {
+    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_StructDef &&
+        Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_EnumDef) {
+        return 0;
     }
-    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FuncDef) {
-        if (stmt->data.data.Decl.explicit_type.count > 0) {
-            if (!(stmt->data.data.Decl.explicit_type.count == 11 && memcmp(stmt->data.data.Decl.explicit_type.c_str, "FunctionDef", 11) == 0)) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "'%s' declared as %s but value is FunctionDef",
-                         stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.explicit_type.c_str);
-                type_error(stmt, STR_VIEW(buf));
-            }
-        }
-        FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
-        I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
-        TilType rt = (TilType){TilType_TAG_None};
-        if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
-            rt = *type_from_name(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
-        }
-        stmt->til_type = rt;
-        TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
-        TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
-        fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
-        if (ft.tag == FuncType_TAG_ExtFunc || ft.tag == FuncType_TAG_ExtProc)
-            fb->is_builtin = 1;
-        return;
-    }
-    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_Ident) {
-        ScopeFind *_sf_al = TypeScope_find(scope, &stmt->data.data.Decl.name);
-        TypeBinding *alias_b = _sf_al->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_al) : NULL;
-        if (alias_b && alias_b->is_type_alias) {
-            stmt->til_type = (TilType){TilType_TAG_None};
-            return;
-        }
-    }
+    Bool is_enum = (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_EnumDef);
     if (stmt->data.data.Decl.explicit_type.count > 0) {
-        Str *etn = &stmt->data.data.Decl.explicit_type;
-        TilType declared = *type_from_name(etn, scope);
-        if (declared.tag == TilType_TAG_Unknown) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
-            type_error(stmt, STR_VIEW(buf));
-        } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum &&
-                   (is_numeric_type(&declared) || declared.tag == TilType_TAG_Dynamic)) {
-            if (is_numeric_type(&declared) && !literal_in_range(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident, &declared)) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
-                         Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&declared)->c_str);
-                type_error(Expr_child(stmt, &(USize){(USize)(0)}), STR_VIEW(buf));
-            }
-            Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
-        } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
-            type_error(stmt, STR_LIT("null can only be assigned to 'ref' declarations"));
-        } else if (!can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn) &&
-                   Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
-                   Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Dynamic) {
+        TilType declared = *type_from_name(&stmt->data.data.Decl.explicit_type, scope);
+        TilType expected = is_enum ? (TilType){TilType_TAG_EnumDef} : (TilType){TilType_TAG_StructDef};
+        if (declared.tag != expected.tag) {
             char buf[128];
             snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                     stmt->data.data.Decl.name.c_str, til_type_name_c(&declared)->c_str,
-                     til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
-            type_error(stmt, STR_VIEW(buf));
-        } else if ((declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) &&
-                   (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0) &&
-                   !Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(USize){(USize)(0)})->struct_name)) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
-                     stmt->data.data.Decl.name.c_str, etn->c_str, Expr_child(stmt, &(USize){(USize)(0)})->struct_name.c_str);
-            type_error(stmt, STR_VIEW(buf));
-        }
-        stmt->til_type = declared;
-        if (can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn))
-            Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
-        narrow_dynamic(Expr_child(stmt, &(USize){(USize)(0)}), &declared, etn);
-        if (declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) {
-            Expr_child(stmt, &(USize){(USize)(0)})->struct_name = *Str_clone(resolve_type_alias(scope, etn));
-        }
-    } else {
-        stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
-        if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
-            stmt->struct_name = *Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
-        if (stmt->til_type.tag == TilType_TAG_Dynamic) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add a type annotation like '%s : Type = ...' to specify the concrete type",
-                     stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
+                     stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.explicit_type.c_str,
+                     is_enum ? "EnumDef" : "StructDef");
             type_error(stmt, STR_VIEW(buf));
         }
     }
+    stmt->til_type = (TilType){TilType_TAG_None};
+    Str *sname = &stmt->data.data.Decl.name;
+    ScopeFind *_sf_ex = TypeScope_find(scope, sname);
+    TypeBinding *existing = _sf_ex->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_ex) : NULL;
+    if (existing && existing->struct_def && existing->struct_def != Expr_child(stmt, &(USize){(USize)(0)})) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s '%s' already declared at %s:%u:%u",
+                 is_enum ? "enum" : "struct", sname->c_str,
+                 existing->struct_def->path.c_str, existing->line, existing->col);
+        type_error(stmt, STR_VIEW(buf));
+        return 1;
+    }
+    TilType builtin_type = is_enum ? (TilType){TilType_TAG_Enum} : (TilType){TilType_TAG_Struct};
+    Bool is_builtin = 0;
+    if ((sname->count == 3 && memcmp(sname->c_str, "I64", 3) == 0))  { builtin_type = (TilType){TilType_TAG_I64};  is_builtin = 1; }
+    else if ((sname->count == 2 && memcmp(sname->c_str, "U8", 2) == 0))   { builtin_type = (TilType){TilType_TAG_U8};   is_builtin = 1; }
+    else if ((sname->count == 3 && memcmp(sname->c_str, "I16", 3) == 0))  { builtin_type = (TilType){TilType_TAG_I16};  is_builtin = 1; }
+    else if ((sname->count == 3 && memcmp(sname->c_str, "I32", 3) == 0))  { builtin_type = (TilType){TilType_TAG_I32};  is_builtin = 1; }
+    else if ((sname->count == 3 && memcmp(sname->c_str, "U32", 3) == 0))  { builtin_type = (TilType){TilType_TAG_U32};  is_builtin = 1; }
+    else if ((sname->count == 3 && memcmp(sname->c_str, "U64", 3) == 0))  { builtin_type = (TilType){TilType_TAG_U64};  is_builtin = 1; }
+    else if ((sname->count == 3 && memcmp(sname->c_str, "F32", 3) == 0))  { builtin_type = (TilType){TilType_TAG_F32};  is_builtin = 1; }
+    else if ((sname->count == 3 && memcmp(sname->c_str, "Str", 3) == 0))  { is_builtin = 0; }
+    else if ((sname->count == 4 && memcmp(sname->c_str, "Bool", 4) == 0)) { builtin_type = (TilType){TilType_TAG_Bool}; is_builtin = 1; }
+    else if ((sname->count == 9 && memcmp(sname->c_str, "StructDef", 9) == 0))    { builtin_type = (TilType){TilType_TAG_StructDef}; is_builtin = 1; }
+    else if ((sname->count == 7 && memcmp(sname->c_str, "EnumDef", 7) == 0))      { builtin_type = (TilType){TilType_TAG_EnumDef};   is_builtin = 1; }
+    else if ((sname->count == 11 && memcmp(sname->c_str, "FunctionDef", 11) == 0))  { is_builtin = 0; }
+    else if ((sname->count == 7 && memcmp(sname->c_str, "Dynamic", 7) == 0))      { builtin_type = (TilType){TilType_TAG_Dynamic};    is_builtin = 1; }
+    TypeScope_set(scope, sname, &builtin_type, -1, 0, stmt->line, stmt->col, 0, 0);
+    TypeBinding *b = Map_get(&scope->bindings, sname);
+    b->struct_def = Expr_child(stmt, &(USize){(USize)(0)});
+    b->is_builtin = is_builtin;
+    b->is_ext = Expr_child(stmt, &(USize){(USize)(0)})->is_ext;
+    return 1;
+}
+
+static Bool infer_decl_func_def(TypeScope *scope, Expr *stmt) {
+    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_FuncDef) return 0;
+    if (stmt->data.data.Decl.explicit_type.count > 0) {
+        if (!(stmt->data.data.Decl.explicit_type.count == 11 && memcmp(stmt->data.data.Decl.explicit_type.c_str, "FunctionDef", 11) == 0)) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "'%s' declared as %s but value is FunctionDef",
+                     stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.explicit_type.c_str);
+            type_error(stmt, STR_VIEW(buf));
+        }
+    }
+    FuncType ft = Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.func_type;
+    I32 callee_is_proc = (ft.tag == FuncType_TAG_Test) ? 2 : (ft.tag == FuncType_TAG_Proc || ft.tag == FuncType_TAG_ExtProc) ? 1 : 0;
+    TilType rt = (TilType){TilType_TAG_None};
+    if ((Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type.count > 0)) {
+        rt = *type_from_name(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.FuncDef.return_type, scope);
+    }
+    stmt->til_type = rt;
+    TypeScope_set(scope, &stmt->data.data.Decl.name, &rt, callee_is_proc, 0, stmt->line, stmt->col, 0, 0);
+    TypeBinding *fb = Map_get(&scope->bindings, &stmt->data.data.Decl.name);
+    fb->func_def = Expr_child(stmt, &(USize){(USize)(0)});
+    if (ft.tag == FuncType_TAG_ExtFunc || ft.tag == FuncType_TAG_ExtProc)
+        fb->is_builtin = 1;
+    return 1;
+}
+
+static Bool infer_decl_type_alias_passthrough(TypeScope *scope, Expr *stmt) {
+    if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag != ExprData_TAG_Ident) return 0;
+    ScopeFind *_sf_al = TypeScope_find(scope, &stmt->data.data.Decl.name);
+    TypeBinding *alias_b = _sf_al->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_al) : NULL;
+    if (alias_b && alias_b->is_type_alias) {
+        stmt->til_type = (TilType){TilType_TAG_None};
+        return 1;
+    }
+    return 0;
+}
+
+static void infer_decl_typed_value(TypeScope *scope, Expr *stmt) {
+    Str *etn = &stmt->data.data.Decl.explicit_type;
+    TilType declared = *type_from_name(etn, scope);
+    if (declared.tag == TilType_TAG_Unknown) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "undefined type '%s'", etn->c_str);
+        type_error(stmt, STR_VIEW(buf));
+    } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNum &&
+               (is_numeric_type(&declared) || declared.tag == TilType_TAG_Dynamic)) {
+        if (is_numeric_type(&declared) && !literal_in_range(&Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident, &declared)) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
+                     Expr_child(stmt, &(USize){(USize)(0)})->data.data.Ident.c_str, til_type_name_c(&declared)->c_str);
+            type_error(Expr_child(stmt, &(USize){(USize)(0)}), STR_VIEW(buf));
+        }
+        Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
+    } else if (Expr_child(stmt, &(USize){(USize)(0)})->data.tag == ExprData_TAG_LiteralNull && !stmt->data.data.Decl.is_ref) {
+        type_error(stmt, STR_LIT("null can only be assigned to 'ref' declarations"));
+    } else if (!can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn) &&
+               Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != declared.tag &&
+               Expr_child(stmt, &(USize){(USize)(0)})->til_type.tag != TilType_TAG_Dynamic) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
+                 stmt->data.data.Decl.name.c_str, til_type_name_c(&declared)->c_str,
+                 til_type_name_c(&Expr_child(stmt, &(USize){(USize)(0)})->til_type)->c_str);
+        type_error(stmt, STR_VIEW(buf));
+    } else if ((declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) &&
+               (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0) &&
+               !Str_eq(resolve_type_alias(scope, etn), &Expr_child(stmt, &(USize){(USize)(0)})->struct_name)) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "'%s' declared as %s but value is %s",
+                 stmt->data.data.Decl.name.c_str, etn->c_str, Expr_child(stmt, &(USize){(USize)(0)})->struct_name.c_str);
+        type_error(stmt, STR_VIEW(buf));
+    }
+    stmt->til_type = declared;
+    if (can_implicit_usize_coerce(&Expr_child(stmt, &(USize){(USize)(0)})->til_type, &declared, etn))
+        Expr_child(stmt, &(USize){(USize)(0)})->til_type = declared;
+    narrow_dynamic(Expr_child(stmt, &(USize){(USize)(0)}), &declared, etn);
+    if (declared.tag == TilType_TAG_Struct || declared.tag == TilType_TAG_Enum) {
+        Expr_child(stmt, &(USize){(USize)(0)})->struct_name = *Str_clone(resolve_type_alias(scope, etn));
+    }
+}
+
+static void infer_decl_untyped_value(Expr *stmt) {
+    stmt->til_type = Expr_child(stmt, &(USize){(USize)(0)})->til_type;
+    if (Expr_child(stmt, &(USize){(USize)(0)})->struct_name.count > 0)
+        stmt->struct_name = *Str_clone(&Expr_child(stmt, &(USize){(USize)(0)})->struct_name);
+    if (stmt->til_type.tag == TilType_TAG_Dynamic) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "cannot store Dynamic in '%s'; add a type annotation like '%s : Type = ...' to specify the concrete type",
+                 stmt->data.data.Decl.name.c_str, stmt->data.data.Decl.name.c_str);
+        type_error(stmt, STR_VIEW(buf));
+    }
+}
+
+static void finalize_decl_binding(TypeScope *scope, Expr *stmt, I32 in_type_body) {
     if (!in_type_body && stmt->data.data.Decl.is_own) {
         char buf[256];
         if (stmt->data.data.Decl.is_mut) {
@@ -1183,6 +1199,17 @@ static void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_ty
             memset(_mc, 0, sizeof(Expr)); free(_mc);
         }
     }
+}
+
+static void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_type_body) {
+    if (stmt->children.count == 0) return;
+    infer_expr(scope, Expr_child(stmt, &(USize){(USize)(0)}), in_func);
+    if (infer_decl_type_def(scope, stmt)) return;
+    if (infer_decl_func_def(scope, stmt)) return;
+    if (infer_decl_type_alias_passthrough(scope, stmt)) return;
+    if (stmt->data.data.Decl.explicit_type.count > 0) infer_decl_typed_value(scope, stmt);
+    else infer_decl_untyped_value(stmt);
+    finalize_decl_binding(scope, stmt, in_type_body);
 }
 
 static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in_func) {
