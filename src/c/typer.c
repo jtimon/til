@@ -1045,51 +1045,6 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 
 // --- Collection literal helpers ---
 
-static void rewrite_variadic_fcall_args(Expr *fcall, Str *va_name) {
-    I32 vi = fcall->data.data.FCall.variadic_index;
-    U32 vc = fcall->data.data.FCall.variadic_count;
-    I32 line = fcall->line, col = fcall->col;
-    Str *path = &fcall->path;
-    Vec fcall_new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); fcall_new_ch = *_vp; free(_vp); }
-    Bool va_inserted = 0;
-    for (U32 j = 0; j < fcall->children.count; j++) {
-        if ((I32)j >= vi && (I32)j < vi + (I32)vc) {
-            if (!va_inserted) {
-                Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-                va_id->data.data.Ident = *va_name;
-                va_id->til_type = (TilType){TilType_TAG_Struct};
-                va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-                va_id->is_own_arg = true;
-                Vec_push(&fcall_new_ch, va_id);
-                va_inserted = 1;
-            }
-            continue;
-        }
-        if ((I32)j == vi && !va_inserted) {
-            Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-            va_id->data.data.Ident = *va_name;
-            va_id->til_type = (TilType){TilType_TAG_Struct};
-            va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-            va_id->is_own_arg = true;
-            Vec_push(&fcall_new_ch, va_id);
-            va_inserted = 1;
-        }
-        Vec_push(&fcall_new_ch, Expr_clone(Expr_child(fcall, &(USize){(USize)(j)})));
-    }
-    if (!va_inserted) {
-        Expr *va_id = Expr_new(&(ExprData){.tag = ExprData_TAG_Ident}, line, col, path);
-        va_id->data.data.Ident = *va_name;
-        va_id->til_type = (TilType){TilType_TAG_Struct};
-        va_id->struct_name = (Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT};
-        va_id->is_own_arg = true;
-        Vec_push(&fcall_new_ch, va_id);
-    }
-    Vec_delete(&fcall->children, &(Bool){0});
-    fcall->children = fcall_new_ch;
-    fcall->data.data.FCall.variadic_index = -1;
-    fcall->data.data.FCall.variadic_count = 0;
-}
-
 // --- Set literal desugaring ---
 // Transforms s := {v1, v2, v3} into:
 //   mut s := Set.new(elem_type, elem_size)

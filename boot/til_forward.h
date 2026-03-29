@@ -862,6 +862,7 @@ void hoist_field_assign_rhs(Expr * stmt, Vec * hoisted, TypeScope * scope);
 Expr * hoist_stmt_fcall(Expr * stmt, Vec * hoisted, TypeScope * scope);
 void hoist_fcall_args(Expr * body, TypeScope * scope);
 void insert_field_deletes(Expr * body);
+void rewrite_variadic_fcall_args(Expr * fcall, Str * va_name);
 Str * resolve_variadic_elem_type(Expr * fcall, TypeScope * scope);
 Bool desugar_pure_splat_variadic_call(Expr * fcall, Vec * new_ch, Expr * stmt);
 void desugar_kwargs_calls(Expr * body, TypeScope * scope);
