@@ -36,6 +36,181 @@ void type_error(Expr *e, Str *msg);
 void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
+static void infer_func_def_expr(TypeScope *scope, Expr *e);
+static void infer_type_def_expr(TypeScope *scope, Expr *e);
+static void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
+
+static void infer_func_def_expr(TypeScope *scope, Expr *e) {
+    if (e->children.count == 0) {
+        // Bodyless = FuncSig type definition, no body to type
+        // Resolve aliases in return type and param types (#79)
+        if (e->data.data.FuncDef.return_type.count > 0)
+            e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
+        for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
+            Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
+            _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
+        }
+        e->til_type = (TilType){TilType_TAG_FuncPtr};
+        return;
+    }
+    e->til_type = (TilType){TilType_TAG_None};
+    {
+        FuncType ftype = e->data.data.FuncDef.func_type;
+        Bool is_func = (ftype.tag == FuncType_TAG_Func);
+        Bool is_macro = (ftype.tag == FuncType_TAG_Macro);
+        if (ftype.tag == FuncType_TAG_Test) {
+            if (scope->parent != NULL)
+                type_error(e, STR_LIT("test functions can only be declared in root scope"));
+            if (e->data.data.FuncDef.return_type.count > 0)
+                type_error(e, STR_LIT("test functions cannot have a return type"));
+            if (e->data.data.FuncDef.nparam > 0)
+                type_error(e, STR_LIT("test functions cannot have parameters"));
+        }
+        if (current_mode.is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
+            type_error(e, STR_LIT("proc not allowed in pure mode"));
+        TypeScope *func_scope = TypeScope_new(scope);
+        if (e->data.data.FuncDef.return_type.count > 0)
+            e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
+        for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
+            Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
+            _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
+            Str *ptn = &_pi->ptype;
+            TilType pt = *type_from_name(ptn, scope);
+            if (pt.tag == TilType_TAG_Unknown) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "undefined type '%s'", ptn->c_str);
+                type_error(e, STR_VIEW(buf));
+            }
+            Bool pmut = _pi->is_mut;
+            Bool pown = _pi->is_own;
+            Bool pshallow = _pi->is_shallow;
+            if (pshallow) {
+                Bool is_scalar = (pt.tag == TilType_TAG_I64 || pt.tag == TilType_TAG_U8 || pt.tag == TilType_TAG_I16 ||
+                                  pt.tag == TilType_TAG_I32 || pt.tag == TilType_TAG_U32 || pt.tag == TilType_TAG_U64 || pt.tag == TilType_TAG_F32 || pt.tag == TilType_TAG_Bool);
+                if (!is_scalar && pt.tag != TilType_TAG_Struct && pt.tag != TilType_TAG_StructDef && pt.tag != TilType_TAG_Enum) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
+                             _pi->name.c_str);
+                    type_error(e, STR_VIEW(buf));
+                }
+                if (pown) type_error(e, STR_LIT("parameter cannot be both 'shallow' and 'own'"));
+            }
+            if ((I32)i == e->data.data.FuncDef.variadic_index) {
+                _pi->is_own = true;
+                TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
+                TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
+                pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
+            } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
+                _pi->is_own = true;
+                TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
+                TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
+                pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
+            } else {
+                TypeScope_set(func_scope, &_pi->name, &pt, -1, pmut, e->line, e->col, 1, pown);
+                TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
+                if (pt.tag == TilType_TAG_Struct || pt.tag == TilType_TAG_Enum) {
+                    pb->struct_name = *Str_clone(ptn);
+                }
+                if (pt.tag == TilType_TAG_FuncPtr) {
+                    ScopeFind *_sf_fsb = TypeScope_find(scope, ptn);
+                    TypeBinding *fsb = _sf_fsb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_fsb) : NULL;
+                    if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
+                        pb->func_def = fsb->func_def;
+                    }
+                }
+            }
+        }
+        infer_body(func_scope, Expr_child(e, &(USize){(USize)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref, 0);
+        if (is_macro && (e->data.data.FuncDef.return_type).count == 0) {
+            type_error(e, STR_LIT("macro must declare a return type"));
+        }
+        if (e->data.data.FuncDef.return_is_ref) {
+            Expr *body = Expr_child(e, &(USize){(USize)(0)});
+            for (U32 ri = 0; ri < body->children.count; ri++) {
+                Expr *s = Expr_child(body, &(USize){(USize)(ri)});
+                if (s->data.tag != ExprData_TAG_Return || s->children.count == 0) continue;
+                Expr *rv = Expr_child(s, &(USize){(USize)(0)});
+                Bool ok = expr_is_borrow_source(rv, func_scope);
+                if (!ok) type_error(s, STR_LIT("ref function must return a parameter or ref variable"));
+            }
+        }
+        TypeScope_delete(func_scope, &(Bool){1});
+    }
+}
+
+static void infer_type_def_expr(TypeScope *scope, Expr *e) {
+    e->til_type = (TilType){TilType_TAG_None};
+    if (e->data.tag == ExprData_TAG_EnumDef) {
+        Expr *body = Expr_child(e, &(USize){(USize)(0)});
+        for (U32 vi = 0; vi < body->children.count; vi++) {
+            Expr *v = Expr_child(body, &(USize){(USize)(vi)});
+            if (v->data.tag == ExprData_TAG_Decl && !v->data.data.Decl.is_namespace &&
+                (v->data.data.Decl.explicit_type).count > 0 && v->data.data.Decl.is_ref) {
+                type_error(v, STR_LIT("ref payloads in tagged enum variants are not supported"));
+            }
+        }
+    }
+TypeScope *inner = TypeScope_new(scope);
+infer_body(inner, Expr_child(e, &(USize){(USize)(0)}), 0, 0, 0, 0, 1);
+TypeScope_delete(inner, &(Bool){1});
+}
+
+static void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func) {
+    infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
+    Expr *obj = Expr_child(e, &(USize){(USize)(0)});
+    if (obj->struct_name.count > 0) {
+        Expr *sdef = TypeScope_get_struct(scope, &obj->struct_name);
+        if (sdef) {
+            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
+            Str *fname = &e->data.data.Ident;
+            Bool found = 0;
+            for (U32 i = 0; i < body->children.count; i++) {
+                Expr *field = Expr_child(body, &(USize){(USize)(i)});
+                if (sdef->data.tag == ExprData_TAG_EnumDef && !field->data.data.Decl.is_namespace)
+                    continue;
+                if (Str_eq(&field->data.data.Decl.name, fname)) {
+                    e->til_type = field->til_type;
+                    e->is_ns_field = field->data.data.Decl.is_namespace;
+                    e->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
+                    e->is_ref_field = field->data.data.Decl.is_ref;
+                    if (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) {
+                        Str *field_sname = &Expr_child(field, &(USize){(USize)(0)})->struct_name;
+                        if (field_sname->count > 0) e->struct_name = *Str_clone(field_sname);
+                    } else {
+                        if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
+                    }
+                    if (sdef->data.tag == ExprData_TAG_EnumDef &&
+                        field->data.data.Decl.is_namespace &&
+                        field->children.count > 0) {
+                        Expr *fc = Expr_child(field, &(USize){(USize)(0)});
+                        if (fc->data.tag != ExprData_TAG_FuncDef) {
+                            e->til_type = (TilType){TilType_TAG_Enum};
+                            if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
+                        } else if (fc->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
+                                   (fc->data.data.FuncDef.return_type).count > 0 &&
+                                   Str_eq(&fc->data.data.FuncDef.return_type, &obj->struct_name)) {
+                            e->til_type = (TilType){TilType_TAG_Enum};
+                            if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
+                        }
+                    }
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) {
+                char buf[128];
+                snprintf(buf, sizeof(buf), "%s '%s' has no field '%s'",
+                         sdef->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
+                         obj->struct_name.c_str, fname->c_str);
+                type_error(e, STR_VIEW(buf));
+                e->til_type = (TilType){TilType_TAG_Unknown};
+            }
+        }
+    } else {
+        type_error(e, STR_LIT("field access on non-struct value"));
+        e->til_type = (TilType){TilType_TAG_Unknown};
+    }
+}
 
 
 
@@ -54,132 +229,11 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         infer_ident_expr(scope, e);
         break;
     case ExprData_TAG_FuncDef:
-        if (e->children.count == 0) {
-            // Bodyless = FuncSig type definition, no body to type
-            // Resolve aliases in return type and param types (#79)
-            if (e->data.data.FuncDef.return_type.count > 0)
-                e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
-            for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-                Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
-                _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
-            }
-            e->til_type = (TilType){TilType_TAG_FuncPtr};
-            break;
-        }
-        e->til_type = (TilType){TilType_TAG_None};
-        // Type the body
-        {
-            FuncType ftype = e->data.data.FuncDef.func_type;
-            Bool is_func = (ftype.tag == FuncType_TAG_Func);
-            Bool is_macro = (ftype.tag == FuncType_TAG_Macro);
-            // Test function constraints
-            if (ftype.tag == FuncType_TAG_Test) {
-                if (scope->parent != NULL)
-                    type_error(e, STR_LIT("test functions can only be declared in root scope"));
-                if (e->data.data.FuncDef.return_type.count > 0)
-                    type_error(e, STR_LIT("test functions cannot have a return type"));
-                if (e->data.data.FuncDef.nparam > 0)
-                    type_error(e, STR_LIT("test functions cannot have parameters"));
-            }
-            // Pure mode: reject user-declared procs (allow core procs)
-            if (current_mode.is_pure && ftype.tag == FuncType_TAG_Proc && !e->is_core)
-                type_error(e, STR_LIT("proc not allowed in pure mode"));
-            TypeScope *func_scope = TypeScope_new(scope);
-            // Resolve return type alias
-            if (e->data.data.FuncDef.return_type.count > 0)
-                e->data.data.FuncDef.return_type = *resolve_type_alias(scope, &e->data.data.FuncDef.return_type);
-            // Bind parameters
-            for (U32 i = 0; i < e->data.data.FuncDef.nparam; i++) {
-                Param *_pi = (Param*)Vec_get(&e->data.data.FuncDef.params, &(USize){(USize)(i)});
-                _pi->ptype = *resolve_type_alias(scope, &_pi->ptype);
-                Str *ptn = &_pi->ptype;
-                TilType pt = *type_from_name(ptn, scope);
-                if (pt.tag == TilType_TAG_Unknown) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "undefined type '%s'", ptn->c_str);
-                    type_error(e, STR_VIEW(buf));
-                }
-                Bool pmut = _pi->is_mut;
-                Bool pown = _pi->is_own;
-                Bool pshallow = _pi->is_shallow;
-                if (pshallow) {
-                    Bool is_scalar = (pt.tag == TilType_TAG_I64 || pt.tag == TilType_TAG_U8 || pt.tag == TilType_TAG_I16 ||
-                                      pt.tag == TilType_TAG_I32 || pt.tag == TilType_TAG_U32 || pt.tag == TilType_TAG_U64 || pt.tag == TilType_TAG_F32 || pt.tag == TilType_TAG_Bool);
-                    if (!is_scalar && pt.tag != TilType_TAG_Struct && pt.tag != TilType_TAG_StructDef && pt.tag != TilType_TAG_Enum) {
-                        char buf[128];
-                        snprintf(buf, sizeof(buf), "shallow parameter '%s' must be a scalar or struct type",
-                                 _pi->name.c_str);
-                        type_error(e, STR_VIEW(buf));
-                    }
-                    if (pown) type_error(e, STR_LIT("parameter cannot be both 'shallow' and 'own'"));
-                }
-                // Variadic param: bind as Array (element type already validated above)
-                if ((I32)i == e->data.data.FuncDef.variadic_index) {
-                    _pi->is_own = true;
-                    TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
-                    TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                    pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
-                } else if ((I32)i == e->data.data.FuncDef.kwargs_index) {
-                    // Kwargs param: bind as DynMap
-                    _pi->is_own = true;
-                    TypeScope_set(func_scope, &_pi->name, &(TilType){TilType_TAG_Struct}, -1, 0, e->line, e->col, 1, 1);
-                    TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                    pb->struct_name = *Str_clone(&(Str){.c_str = (U8*)"DynMap", .count = 6, .cap = CAP_LIT});
-                } else {
-                    TypeScope_set(func_scope, &_pi->name, &pt, -1, pmut, e->line, e->col, 1, pown);
-                    // For struct/enum-typed params, store struct_name
-                    TypeBinding *pb = Map_get(&func_scope->bindings, &_pi->name);
-                    if (pt.tag == TilType_TAG_Struct || pt.tag == TilType_TAG_Enum) {
-                        pb->struct_name = *Str_clone(ptn);
-                    }
-                    // For Fn-typed params, resolve func_def by type name from scope
-                    if (pt.tag == TilType_TAG_FuncPtr) {
-                        ScopeFind *_sf_fsb = TypeScope_find(scope, ptn);
-                        TypeBinding *fsb = _sf_fsb->tag == ScopeFind_TAG_Found ? (TypeBinding*)get_payload(_sf_fsb) : NULL;
-                        if (fsb && fsb->func_def && fsb->func_def->children.count == 0) {
-                            pb->func_def = fsb->func_def;
-                        }
-                    }
-                }
-            }
-            infer_body(func_scope, Expr_child(e, &(USize){(USize)(0)}), is_func, 1, 0, e->data.data.FuncDef.return_is_ref, 0);
-            // Check: macro must have a return type (funcs allowed without)
-            if (is_macro && (e->data.data.FuncDef.return_type).count == 0) {
-                type_error(e, STR_LIT("macro must declare a return type"));
-            }
-            // Validate ref returns: every return value must be a param or ref variable
-            if (e->data.data.FuncDef.return_is_ref) {
-                Expr *body = Expr_child(e, &(USize){(USize)(0)});
-                for (U32 ri = 0; ri < body->children.count; ri++) {
-                    Expr *s = Expr_child(body, &(USize){(USize)(ri)});
-                    if (s->data.tag != ExprData_TAG_Return || s->children.count == 0) continue;
-                    Expr *rv = Expr_child(s, &(USize){(USize)(0)});
-                    Bool ok = expr_is_borrow_source(rv, func_scope);
-                    if (!ok) type_error(s, STR_LIT("ref function must return a parameter or ref variable"));
-                }
-            }
-            TypeScope_delete(func_scope, &(Bool){1});
-        }
+        infer_func_def_expr(scope, e);
         break;
     case ExprData_TAG_StructDef:
     case ExprData_TAG_EnumDef: {
-        e->til_type = (TilType){TilType_TAG_None};
-        // Reject ref payloads in tagged enum variants
-        if (e->data.tag == ExprData_TAG_EnumDef) {
-            Expr *body = Expr_child(e, &(USize){(USize)(0)});
-            for (U32 vi = 0; vi < body->children.count; vi++) {
-                Expr *v = Expr_child(body, &(USize){(USize)(vi)});
-                if (v->data.tag == ExprData_TAG_Decl && !v->data.data.Decl.is_namespace &&
-                    (v->data.data.Decl.explicit_type).count > 0 && v->data.data.Decl.is_ref) {
-                    type_error(v, STR_LIT("ref payloads in tagged enum variants are not supported"));
-                }
-            }
-        }
-        // Type-check field declarations in a child scope so fields
-        // don't leak into outer scope's locals for free-call insertion
-        TypeScope *inner = TypeScope_new(scope);
-        infer_body(inner, Expr_child(e, &(USize){(USize)(0)}), 0, 0, 0, 0, 1);
-        TypeScope_delete(inner, &(Bool){1});
+        infer_type_def_expr(scope, e);
         break;
     }
     case ExprData_TAG_FCall: {
@@ -942,67 +996,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         break;
     }
     case ExprData_TAG_FieldAccess: {
-        infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
-        Expr *obj = Expr_child(e, &(USize){(USize)(0)});
-        if (obj->struct_name.count > 0) {
-            Expr *sdef = TypeScope_get_struct(scope, &obj->struct_name);
-            if (sdef) {
-                Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-                Str *fname = &e->data.data.Ident;
-                Bool found = 0;
-                for (U32 i = 0; i < body->children.count; i++) {
-                    Expr *field = Expr_child(body, &(USize){(USize)(i)});
-                    // Skip variant registry entries (non-namespace) in enum bodies
-                    if (sdef->data.tag == ExprData_TAG_EnumDef && !field->data.data.Decl.is_namespace)
-                        continue;
-                    if (Str_eq(&field->data.data.Decl.name, fname)) {
-                        e->til_type = field->til_type;
-                        e->is_ns_field = field->data.data.Decl.is_namespace;
-                        e->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
-                        e->is_ref_field = field->data.data.Decl.is_ref;
-                        if (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) {
-                            Str *field_sname = &Expr_child(field, &(USize){(USize)(0)})->struct_name;
-                            if (field_sname->count > 0) e->struct_name = *Str_clone(field_sname);
-                        } else {
-                            if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
-                        }
-                        // Enum variant access: override type to enum for:
-                        // 1. I64 literal variants (simple enums)
-                        // 2. Zero-arg ext_func constructors (no-payload in payload enums)
-                        // 3. Payload variant constructors used bare (Shape.Dot without args)
-                        if (sdef->data.tag == ExprData_TAG_EnumDef &&
-                            field->data.data.Decl.is_namespace &&
-                            field->children.count > 0) {
-                            Expr *fc = Expr_child(field, &(USize){(USize)(0)});
-                            if (fc->data.tag != ExprData_TAG_FuncDef) {
-                                // I64 literal variant
-                                e->til_type = (TilType){TilType_TAG_Enum};
-                                if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
-                            } else if (fc->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
-                                       (fc->data.data.FuncDef.return_type).count > 0 &&
-                                       Str_eq(&fc->data.data.FuncDef.return_type, &obj->struct_name)) {
-                                // Variant constructor (zero-arg or payload) -- bare reference
-                                e->til_type = (TilType){TilType_TAG_Enum};
-                                if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
-                            }
-                        }
-                        found = 1;
-                        break;
-                    }
-                }
-                if (!found) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "%s '%s' has no field '%s'",
-                             sdef->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
-                             obj->struct_name.c_str, fname->c_str);
-                    type_error(e, STR_VIEW(buf));
-                    e->til_type = (TilType){TilType_TAG_Unknown};
-                }
-            }
-        } else {
-            type_error(e, STR_LIT("field access on non-struct value"));
-            e->til_type = (TilType){TilType_TAG_Unknown};
-        }
+        infer_field_access_expr(scope, e, in_func);
         break;
     }
     case ExprData_TAG_MapLit:
