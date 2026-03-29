@@ -197,6 +197,124 @@ validate_fcall_own_args := proc(scope: TypeScope, e: Expr, callee_bind: TypeBind
     }
 }
 
+infer_and_validate_fcall_args := proc(scope: TypeScope, mut e: Expr, callee_bind: TypeBinding, shallow in_func: I32) {
+    for i in 1..e.child_count() {
+        infer_expr(scope, e.child(i), in_func)
+    }
+    if is_null(callee_bind) { return }
+    if is_null(callee_bind.func_def) { return }
+    ref fdef : Expr = callee_bind.func_def
+    ref fdef_data : FunctionDef = get_payload(fdef.data)
+    fvi := fdef_data.variadic_index
+    fkwi := fdef_data.kwargs_index
+    mut fvc : U32 = 0
+    if fvi.gte(0) {
+        ref fcall_data0 : FCallData = get_payload(e.data)
+        fvc = fcall_data0.variadic_count
+    }
+    mut fkc : U32 = 0
+    if fkwi.gte(0) {
+        ref fcall_data1 : FCallData = get_payload(e.data)
+        fkc = fcall_data1.kwargs_count
+    }
+    mut ci : U32 = 1
+    mut pi : U32 = 0
+    while pi.lt(fdef_data.nparam) {
+        if ci.gte(e.child_count()) { break }
+        if fvi.gte(0) {
+            if pi.to_i64().to_i32().eq(fvi) {
+                ci = ci.add(fvc)
+                pi = pi.add(1)
+                continue
+            }
+        }
+        if fkwi.gte(0) {
+            if pi.to_i64().to_i32().eq(fkwi) {
+                ci = ci.add(fkc)
+                pi = pi.add(1)
+                continue
+            }
+        }
+        ref param1 : Param = fdef_data.params.get(pi)
+        ref ptype : Str = param1.ptype
+        narrow_dynamic(e.child(ci), type_from_name(ptype, scope), ptype)
+        ci = ci.add(1)
+        pi = pi.add(1)
+    }
+    ci = 1
+    pi = 0
+    while pi.lt(fdef_data.nparam) {
+        if ci.gte(e.child_count()) { break }
+        if fvi.gte(0) {
+            if pi.to_i64().to_i32().eq(fvi) {
+                ci = ci.add(fvc)
+                pi = pi.add(1)
+                continue
+            }
+        }
+        if fkwi.gte(0) {
+            if pi.to_i64().to_i32().eq(fkwi) {
+                ci = ci.add(fkc)
+                pi = pi.add(1)
+                continue
+            }
+        }
+        ref param2 : Param = fdef_data.params.get(pi)
+        ref ptype_name : Str = param2.ptype
+        if ptype_name.len().eq(0) {
+            ci = ci.add(1)
+            pi = pi.add(1)
+            continue
+        }
+        ref arg : Expr = e.child(ci)
+        if is_variant(arg.til_type, TilType.Dynamic) {
+            ci = ci.add(1)
+            pi = pi.add(1)
+            continue
+        }
+        ptype := type_from_name(ptype_name, scope)
+        if is_variant(ptype, TilType.Dynamic) {
+            ci = ci.add(1)
+            pi = pi.add(1)
+            continue
+        }
+        if is_variant(arg.data, ExprData.LiteralNum) {
+            if is_numeric_type(ptype) {
+                if literal_in_range(get_payload(arg.data), ptype).not() {
+                    type_error(arg, "integer literal ".concat(get_payload(arg.data)).concat(" out of range for ").concat(type_to_name(ptype, "")))
+                }
+                arg.til_type = ptype
+                ci = ci.add(1)
+                pi = pi.add(1)
+                continue
+            }
+        }
+        if can_implicit_widen(arg.til_type, ptype) {
+            arg.til_type = ptype
+            ci = ci.add(1)
+            pi = pi.add(1)
+            continue
+        }
+        if can_implicit_usize_coerce(arg.til_type, ptype, ptype_name) {
+            arg.til_type = ptype
+            ci = ci.add(1)
+            pi = pi.add(1)
+            continue
+        }
+        if is_variant(arg.til_type, ptype).not() {
+            type_error(arg, "argument type mismatch for '".concat(param2.name).concat("': expected ").concat(ptype_name).concat(", got ").concat(type_to_name(arg.til_type, arg.struct_name)))
+        } else if is_variant(ptype, TilType.Struct).or(is_variant(ptype, TilType.Enum)) {
+            if arg.struct_name.len().gt(0) {
+                if ptype_name.eq(arg.struct_name).not() {
+                    type_error(arg, "argument type mismatch for '".concat(param2.name).concat("': expected ").concat(ptype_name).concat(", got ").concat(arg.struct_name))
+                }
+            }
+        }
+        ci = ci.add(1)
+        pi = pi.add(1)
+    }
+}
+
 resolve_fcall_return_type := proc(scope: TypeScope, mut e: Expr, name: Str, callee_bind: TypeBinding, shallow in_func: I32) {
     if name.eq("dyn_call").or(name.eq("dyn_call_ret")).or(name.eq("dyn_has_method")).or(name.eq("dyn_fn")) {
         if e.child_count().gte(3) {

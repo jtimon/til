@@ -418,66 +418,6 @@ static void desugar_user_func_fcall_args(Expr *e, Str *name, TypeBinding *callee
         Vec_delete(&kw_args, &(Bool){0});
 }
 
-static void infer_and_validate_fcall_args(TypeScope *scope, Expr *e, TypeBinding *callee_bind, I32 in_func) {
-        for (U32 i = 1; i < e->children.count; i++) {
-            infer_expr(scope, Expr_child(e, &(USize){(USize)(i)}), in_func);
-        }
-        if (!(callee_bind && callee_bind->func_def)) return;
-        Expr *fdef = callee_bind->func_def;
-        I32 fvi = fdef->data.data.FuncDef.variadic_index;
-        I32 fkwi = fdef->data.data.FuncDef.kwargs_index;
-        U32 fvc = (fvi >= 0) ? e->data.data.FCall.variadic_count : 0;
-        U32 fkc = (fkwi >= 0) ? e->data.data.FCall.kwargs_count : 0;
-        U32 ci = 1;
-        for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
-            if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
-            if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
-            Str *ptype = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
-            if (ptype)
-                narrow_dynamic(Expr_child(e, &(USize){(USize)(ci)}), type_from_name(ptype, scope), ptype);
-            ci++;
-        }
-        ci = 1;
-        for (U32 pi = 0; pi < fdef->data.data.FuncDef.nparam && ci < e->children.count; pi++) {
-            if (fvi >= 0 && (I32)pi == fvi) { ci += fvc; continue; }
-            if (fkwi >= 0 && (I32)pi == fkwi) { ci += fkc; continue; }
-            Str *ptype_name = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->ptype;
-            if (!ptype_name) { ci++; continue; }
-            Expr *arg = Expr_child(e, &(USize){(USize)(ci)});
-            if (arg->til_type.tag == TilType_TAG_Dynamic) { ci++; continue; }
-            TilType ptype = *type_from_name(ptype_name, scope);
-            if (ptype.tag == TilType_TAG_Dynamic) { ci++; continue; }
-            if (arg->data.tag == ExprData_TAG_LiteralNum && is_numeric_type(&ptype)) {
-                if (!literal_in_range(&arg->data.data.Ident, &ptype)) {
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "integer literal %s out of range for %s",
-                             arg->data.data.Ident.c_str, til_type_name_c(&ptype)->c_str);
-                    type_error(arg, STR_VIEW(buf));
-                }
-                arg->til_type = ptype; ci++; continue;
-            }
-            if (can_implicit_widen(&arg->til_type, &ptype) ||
-                can_implicit_usize_coerce(&arg->til_type, &ptype, ptype_name)) {
-                arg->til_type = ptype; ci++; continue;
-            }
-            if (arg->til_type.tag != ptype.tag) {
-                char buf[256];
-                snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                         ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
-                         ptype_name->c_str, til_type_name_c(&arg->til_type)->c_str);
-                type_error(arg, STR_VIEW(buf));
-            } else if ((ptype.tag == TilType_TAG_Struct || ptype.tag == TilType_TAG_Enum) &&
-                       (arg->struct_name).count > 0 && !Str_eq(ptype_name, &arg->struct_name)) {
-                char buf[256];
-                snprintf(buf, sizeof(buf), "argument type mismatch for '%s': expected %s, got %s",
-                         ((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(pi)}))->name.c_str,
-                         ptype_name->c_str, arg->struct_name.c_str);
-                type_error(arg, STR_VIEW(buf));
-            }
-            ci++;
-        }
-}
-
 void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
         if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
             if (infer_field_access_fcall(scope, e, in_func)) return;
