@@ -328,6 +328,238 @@ infer_while_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32,
     stmt.til_type = TilType.None
 }
 
+infer_decl_type_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
+    if is_variant(stmt.child(0).data, ExprData.StructDef).not().and(is_variant(stmt.child(0).data, ExprData.EnumDef).not()) {
+        return false
+    }
+    is_enum := is_variant(stmt.child(0).data, ExprData.EnumDef)
+    ref mut sdecl : Declaration = get_payload(stmt.data)
+    if sdecl.explicit_type.len().gt(0) {
+        declared := type_from_name(sdecl.explicit_type, scope)
+        mut expected := TilType.StructDef
+        if is_enum { expected = TilType.EnumDef }
+        if is_variant(declared, expected).not() {
+            mut value_type := "StructDef"
+            if is_enum { value_type = "EnumDef" }
+            type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is ").concat(value_type))
+        }
+    }
+    stmt.til_type = TilType.None
+    ref sname : Str = sdecl.name
+    ref existing : TypeBinding = scope.get_binding(sname)
+    if is_null(existing).not() {
+        if is_null(existing.struct_def).not() {
+            if existing.struct_def.line.neq(stmt.child(0).line).or(
+                existing.struct_def.col.neq(stmt.child(0).col).or(
+                    existing.struct_def.path.eq(stmt.child(0).path).not()
+                )
+            ) {
+                mut kind := "struct"
+                if is_enum { kind = "enum" }
+                type_error(stmt, kind.concat(" '").concat(sname).concat("' already declared at ")
+                    .concat(existing.struct_def.path).concat(":").concat(existing.line.to_str()).concat(":").concat(existing.col.to_str()))
+                return true
+            }
+        }
+    }
+    mut builtin_type := TilType.Struct
+    mut is_builtin := false
+    if is_enum { builtin_type = TilType.Enum }
+    if sname.eq("I64") { builtin_type = TilType.I64; is_builtin = true }
+    else if sname.eq("U8") { builtin_type = TilType.U8; is_builtin = true }
+    else if sname.eq("I16") { builtin_type = TilType.I16; is_builtin = true }
+    else if sname.eq("I32") { builtin_type = TilType.I32; is_builtin = true }
+    else if sname.eq("U32") { builtin_type = TilType.U32; is_builtin = true }
+    else if sname.eq("U64") { builtin_type = TilType.U64; is_builtin = true }
+    else if sname.eq("F32") { builtin_type = TilType.F32; is_builtin = true }
+    else if sname.eq("Str") { is_builtin = false }
+    else if sname.eq("Bool") { builtin_type = TilType.Bool; is_builtin = true }
+    else if sname.eq("StructDef") { builtin_type = TilType.StructDef; is_builtin = true }
+    else if sname.eq("EnumDef") { builtin_type = TilType.EnumDef; is_builtin = true }
+    else if sname.eq("FunctionDef") { is_builtin = false }
+    else if sname.eq("Dynamic") { builtin_type = TilType.Dynamic; is_builtin = true }
+    scope.set(sname, builtin_type, -1.to_i32(), false, stmt.line, stmt.col, false, false)
+    ref mut b : TypeBinding = scope.get_binding(sname)
+    b.struct_def = stmt.child(0)
+    b.is_builtin = is_builtin
+    b.is_ext = stmt.child(0).is_ext
+    return true
+}
+
+infer_decl_func_def := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
+    if is_variant(stmt.child(0).data, ExprData.FuncDef).not() { return false }
+    ref mut sdecl : Declaration = get_payload(stmt.data)
+    if sdecl.explicit_type.len().gt(0).and(sdecl.explicit_type.eq("FunctionDef").not()) {
+        type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type).concat(" but value is FunctionDef"))
+    }
+    ref fdef : FunctionDef = get_payload(stmt.child(0).data)
+    mut callee_is_proc : I32 = 0
+    if is_variant(fdef.func_type, FuncType.Test) {
+        callee_is_proc = 2
+    } else if is_variant(fdef.func_type, FuncType.Proc).or(is_variant(fdef.func_type, FuncType.ExtProc)) {
+        callee_is_proc = 1
+    }
+    mut rt := TilType.None
+    if fdef.return_type.len().gt(0) {
+        rt = type_from_name(fdef.return_type, scope)
+    }
+    stmt.til_type = rt
+    scope.set(sdecl.name, rt, callee_is_proc, false, stmt.line, stmt.col, false, false)
+    ref mut fb : TypeBinding = scope.get_binding(sdecl.name)
+    fb.func_def = stmt.child(0)
+    if is_variant(fdef.func_type, FuncType.ExtFunc).or(is_variant(fdef.func_type, FuncType.ExtProc)) {
+        fb.is_builtin = true
+    }
+    return true
+}
+
+infer_decl_type_alias_passthrough := proc(scope: TypeScope, mut stmt: Expr) returns shallow Bool {
+    if is_variant(stmt.child(0).data, ExprData.Ident).not() { return false }
+    ref mut sdecl : Declaration = get_payload(stmt.data)
+    ref alias_b : TypeBinding = scope.get_binding(sdecl.name)
+    if is_null(alias_b).not() {
+        if alias_b.is_type_alias {
+            stmt.til_type = TilType.None
+            return true
+        }
+    }
+    return false
+}
+
+infer_decl_typed_value := proc(scope: TypeScope, mut stmt: Expr) {
+    ref mut sdecl : Declaration = get_payload(stmt.data)
+    declared := type_from_name(sdecl.explicit_type, scope)
+    ref mut val : Expr = stmt.child(0)
+    if is_variant(declared, TilType.Unknown) {
+        type_error(stmt, "undefined type '".concat(sdecl.explicit_type).concat("'"))
+    } else if is_variant(val.data, ExprData.LiteralNum).and(is_numeric_type(declared).or(is_variant(declared, TilType.Dynamic))) {
+        if is_numeric_type(declared).and(literal_in_range(get_payload(val.data), declared).not()) {
+            type_error(val, "integer literal ".concat(get_payload(val.data)).concat(" out of range for ").concat(type_to_name(declared, "")))
+        }
+        val.til_type = declared
+    } else if is_variant(val.data, ExprData.LiteralNull).and(sdecl.is_ref.not()) {
+        type_error(stmt, "null can only be assigned to 'ref' declarations")
+    } else if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type).not()
+        .and(is_variant(val.til_type, declared).not())
+        .and(is_variant(val.til_type, TilType.Dynamic).not()) {
+        type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(type_to_name(declared, ""))
+            .concat(" but value is ").concat(type_to_name(val.til_type, "")))
+    } else if is_variant(declared, TilType.Struct).or(is_variant(declared, TilType.Enum)) {
+        if val.struct_name.len().gt(0).and(resolve_type_alias(scope, sdecl.explicit_type).eq(val.struct_name).not()) {
+            type_error(stmt, "'".concat(sdecl.name).concat("' declared as ").concat(sdecl.explicit_type)
+                .concat(" but value is ").concat(val.struct_name))
+        }
+    }
+    stmt.til_type = declared
+    if can_implicit_usize_coerce(val.til_type, declared, sdecl.explicit_type) {
+        val.til_type = declared
+    }
+    narrow_dynamic(val, declared, sdecl.explicit_type)
+    if is_variant(declared, TilType.Struct).or(is_variant(declared, TilType.Enum)) {
+        val.struct_name = resolve_type_alias(scope, sdecl.explicit_type).clone()
+    }
+}
+
+infer_decl_untyped_value := proc(mut stmt: Expr) {
+    stmt.til_type = stmt.child(0).til_type
+    if stmt.child(0).struct_name.len().gt(0) {
+        stmt.struct_name = stmt.child(0).struct_name.clone()
+    }
+    if is_variant(stmt.til_type, TilType.Dynamic) {
+        ref sdecl : Declaration = get_payload(stmt.data)
+        type_error(stmt, "cannot store Dynamic in '".concat(sdecl.name)
+            .concat("'; add a type annotation like '").concat(sdecl.name).concat(" : Type = ...' to specify the concrete type"))
+    }
+}
+
+finalize_decl_binding := proc(scope: TypeScope, mut stmt: Expr, shallow in_type_body: I32) {
+    ref mut sdecl : Declaration = get_payload(stmt.data)
+    ref mut rhs : Expr = stmt.child(0)
+    if in_type_body.eq(0).and(sdecl.is_own) {
+        if sdecl.is_mut {
+            type_error(stmt, "no need for 'own' on mutable local '".concat(sdecl.name).concat("'; write 'mut ").concat(sdecl.name).concat(" := ...'"))
+        } else {
+            type_error(stmt, "no need for 'own' on local '".concat(sdecl.name).concat("'; locals are owned by default"))
+        }
+    }
+    scope.set(sdecl.name, stmt.til_type, -1.to_i32(), sdecl.is_mut, stmt.line, stmt.col, false, false)
+    ref mut decl_b : TypeBinding = scope.get_binding(sdecl.name)
+    if is_variant(stmt.til_type, TilType.Struct).or(is_variant(stmt.til_type, TilType.Enum)) {
+        if rhs.struct_name.len().gt(0) { decl_b.struct_name = rhs.struct_name.clone() }
+    }
+    if is_variant(stmt.til_type, TilType.FuncPtr) {
+        if is_null(sdecl.fn_sig).not() {
+            decl_b.func_def = sdecl.fn_sig
+        } else if is_variant(rhs.data, ExprData.Ident) {
+            ref src : TypeBinding = scope.get_binding(get_payload(rhs.data))
+            if is_null(src).not() {
+                if is_null(src.func_def).not() { decl_b.func_def = src.func_def }
+            }
+        } else if is_null(rhs.fn_sig).not() {
+            decl_b.func_def = rhs.fn_sig
+        }
+        if is_null(decl_b.func_def) {
+            if sdecl.explicit_type.len().gt(0) {
+                ref fsb : TypeBinding = scope.get_binding(sdecl.explicit_type)
+                if is_null(fsb).not() {
+                    if is_null(fsb.func_def).not() {
+                        if fsb.func_def.child_count().eq(0) {
+                            decl_b.func_def = fsb.func_def
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if sdecl.is_ref {
+        decl_b.is_ref = true
+        if expr_is_ref_decl_source(rhs, scope).not() {
+            type_error(stmt, "'ref' declaration requires null, a ref-returning function, or ref/param variable")
+        }
+    }
+    if sdecl.is_ref.not().and(is_variant(rhs.data, ExprData.FCall)).and(fcall_returns_ref(rhs, scope).neq(0)) {
+        type_error(stmt, "cannot own result of ref-returning function; use 'ref' or Type.clone()")
+    }
+    if sdecl.is_ref.not().and(sdecl.is_mut.not()).and(is_variant(stmt.til_type, TilType.FuncPtr).not()).and(is_variant(rhs.data, ExprData.Ident)) {
+        ref rb : TypeBinding = scope.get_binding(get_payload(rhs.data))
+        if is_null(rb).not() {
+            if rb.is_mut.not().and(rb.is_own.not()).and(rb.is_ref.not().or(rb.is_alias)).and(rb.is_param.not()) {
+                sdecl.is_ref = true
+                decl_b.is_ref = true
+                decl_b.is_alias = true
+            }
+        }
+    }
+    if is_variant(rhs.data, ExprData.Ident).or(
+        is_variant(rhs.data, ExprData.FieldAccess).and(
+            is_variant(rhs.til_type, TilType.Struct).or(is_variant(rhs.til_type, TilType.Enum))
+        )
+    ) {
+        if sdecl.is_ref.not() {
+            tname := type_to_name(stmt.til_type, rhs.struct_name)
+            if tname.len().gt(0) {
+                mc := make_clone_call(tname, stmt.til_type, rhs, stmt)
+                stmt.children.set(0, own mc)
+            }
+        }
+    }
+}
+
+infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, shallow in_type_body: I32) {
+    if stmt.child_count().eq(0) { return }
+    infer_expr(scope, stmt.child(0), in_func)
+    if infer_decl_type_def(scope, stmt) { return }
+    if infer_decl_func_def(scope, stmt) { return }
+    if infer_decl_type_alias_passthrough(scope, stmt) { return }
+    ref sdecl : Declaration = get_payload(stmt.data)
+    if sdecl.explicit_type.len().gt(0) {
+        infer_decl_typed_value(scope, stmt)
+    } else {
+        infer_decl_untyped_value(stmt)
+    }
+    finalize_decl_binding(scope, stmt, in_type_body)
+}
+
 infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32) {
     infer_expr(scope, stmt.child(0), in_func)
     ref mut rhs : Expr = stmt.child(0)

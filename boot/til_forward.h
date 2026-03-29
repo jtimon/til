@@ -831,6 +831,13 @@ void infer_if_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_loop, I32
 void infer_field_access_expr(TypeScope * scope, Expr * expr, I32 in_func);
 void infer_field_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func);
 void infer_while_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 returns_ref);
+Bool infer_decl_type_def(TypeScope * scope, Expr * stmt);
+Bool infer_decl_func_def(TypeScope * scope, Expr * stmt);
+Bool infer_decl_type_alias_passthrough(TypeScope * scope, Expr * stmt);
+void infer_decl_typed_value(TypeScope * scope, Expr * stmt);
+void infer_decl_untyped_value(Expr * stmt);
+void finalize_decl_binding(TypeScope * scope, Expr * stmt, I32 in_type_body);
+void infer_decl_stmt(TypeScope * scope, Expr * stmt, I32 in_func, I32 in_type_body);
 void infer_assign_stmt(TypeScope * scope, Expr * stmt, I32 in_func);
 Bool is_numeric_type(TilType * t);
 Bool is_integral_numeric_type(TilType * t);
