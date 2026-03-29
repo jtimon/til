@@ -36,6 +36,7 @@ void type_error(Expr *e, Str *msg);
 void infer_expr(TypeScope *scope, Expr *e, I32 in_func);
 void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
 
+static void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_func_def_expr(TypeScope *scope, Expr *e);
 static void infer_func_sig_expr(TypeScope *scope, Expr *e);
 static void infer_func_params(TypeScope *scope, TypeScope *func_scope, Expr *e);
@@ -55,6 +56,10 @@ void init_switch_enum_coverage(TypeScope *scope, Expr *sw_expr, Expr **switch_en
 void mark_switch_case_covered_variant(Expr *switch_enum_def, Vec *covered_variants, I32 n_variants, Expr *sw_expr, Expr *match_expr);
 Expr *make_switch_case_condition(TypeScope *scope, Expr *case_body, Expr *match_expr, Str *sw_name, U32 sw_line, U32 sw_col, Str *sw_path);
 void replace_switch_stmt_with_block(Expr *body, U32 stmt_idx, Expr *block);
+static void infer_body_stmt(TypeScope *scope, Expr *body, U32 *i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body);
+static Bool desugar_for_in_range_stmt(TypeScope *scope, Expr *body, U32 i, I32 in_func);
+static Bool desugar_for_in_collection_stmt(TypeScope *scope, Expr *body, U32 i, I32 in_func);
+static void replace_body_stmt_with_block(Expr *body, U32 i, Expr *block);
 
 static void infer_func_sig_expr(TypeScope *scope, Expr *e) {
     if (e->data.data.FuncDef.return_type.count > 0)
@@ -182,7 +187,29 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
         infer_type_def_expr(scope, e);
         break;
     }
-    case ExprData_TAG_FCall: {
+    case ExprData_TAG_FCall:
+        infer_fcall_expr(scope, e, in_func);
+        break;
+    case ExprData_TAG_FieldAccess: {
+        infer_field_access_expr(scope, e, in_func);
+        break;
+    }
+    case ExprData_TAG_MapLit:
+        infer_map_lit_expr(scope, e, in_func);
+        break;
+    case ExprData_TAG_SetLit:
+        infer_set_lit_expr(scope, e, in_func);
+        break;
+    case ExprData_TAG_NamedArg:
+        infer_named_arg_expr(scope, e, in_func);
+        break;
+    default:
+        e->til_type = (TilType){TilType_TAG_Unknown};
+        break;
+    }
+}
+
+static void infer_fcall_expr(TypeScope *scope, Expr *e, I32 in_func) {
         // Namespace method call or UFCS: Type.method(args) or instance.method(args)
         if (Expr_child(e, &(USize){(USize)(0)})->data.tag == ExprData_TAG_FieldAccess) {
             Expr *fa = Expr_child(e, &(USize){(USize)(0)});
@@ -308,7 +335,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                     }
                     type_error(e, STR_VIEW(buf));
                     e->til_type = (TilType){TilType_TAG_Unknown};
-                    break;
+                    return;
                 }
                 // Desugar: rewrite AST to Type.method(instance, args)
                 ufcs_desugared = 1; // #88
@@ -354,7 +381,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 snprintf(buf, sizeof(buf), "no namespace function '%s'", method->c_str);
                 type_error(e, STR_VIEW(buf));
                 e->til_type = (TilType){TilType_TAG_Unknown};
-                break;
+                return;
             }
             fa->is_ns_field = true;
             // Desugar named/optional args for namespace methods
@@ -515,7 +542,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             if ((rt.tag == TilType_TAG_Struct || rt.tag == TilType_TAG_Enum) && (ns_func->data.data.FuncDef.return_type).count > 0) {
                 e->struct_name = *Str_clone(&ns_func->data.data.FuncDef.return_type);
             }
-            break;
+            return;
         }
         regular_call:;
         // Resolve callee
@@ -538,7 +565,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
                 snprintf(buf, sizeof(buf), "cannot instantiate builtin type '%s'", name->c_str);
                 type_error(e, STR_VIEW(buf));
                 e->til_type = (TilType){TilType_TAG_Unknown};
-                break;
+                return;
             }
             Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
             // Count instance fields (skip namespace)
@@ -622,7 +649,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             }
             e->til_type = (TilType){TilType_TAG_Struct};
             e->struct_name = *Str_clone(resolve_type_alias(scope, name));
-            break;
+            return;
         }
         // Desugar named/optional args for user-defined functions (skip core builtins)
         ScopeFind *_sf_cb = TypeScope_find(scope, name);
@@ -939,25 +966,7 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
             type_error(e, STR_VIEW(buf));
         }
         done_fcall:
-        break;
-    }
-    case ExprData_TAG_FieldAccess: {
-        infer_field_access_expr(scope, e, in_func);
-        break;
-    }
-    case ExprData_TAG_MapLit:
-        infer_map_lit_expr(scope, e, in_func);
-        break;
-    case ExprData_TAG_SetLit:
-        infer_set_lit_expr(scope, e, in_func);
-        break;
-    case ExprData_TAG_NamedArg:
-        infer_named_arg_expr(scope, e, in_func);
-        break;
-    default:
-        e->til_type = (TilType){TilType_TAG_Unknown};
-        break;
-    }
+        return;
 }
 
 // --- Collection literal helpers ---
@@ -991,56 +1000,18 @@ void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 // --- Delete call insertion ---
 
 
-void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
-    body->til_type = (TilType){TilType_TAG_None};
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        switch (stmt->data.tag) {
-        case ExprData_TAG_Decl:
-            infer_decl_stmt(scope, stmt, in_func, in_type_body);
-            break;
-        case ExprData_TAG_Assign:
-            infer_assign_stmt(scope, stmt, in_func);
-            break;
-        case ExprData_TAG_FieldAssign:
-            infer_field_assign_stmt(scope, stmt, in_func);
-            break;
-        case ExprData_TAG_FCall:
-            infer_expr(scope, stmt, in_func);
-            break;
-        case ExprData_TAG_Return:
-            infer_return_stmt(scope, stmt, in_func, returns_ref);
-            break;
-        case ExprData_TAG_Break:
-            if (!in_loop) {
-                type_error(stmt, STR_LIT("break outside loop"));
-            }
-            stmt->til_type = (TilType){TilType_TAG_None};
-            break;
-        case ExprData_TAG_Continue:
-            if (!in_loop) {
-                type_error(stmt, STR_LIT("continue outside loop"));
-            }
-            stmt->til_type = (TilType){TilType_TAG_None};
-            break;
-        case ExprData_TAG_If:
-            infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref);
-            break;
-        case ExprData_TAG_Body: {
-            TypeScope *block_scope = TypeScope_new(scope);
-            infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0);
-            TypeScope_delete(block_scope, &(Bool){1});
-            break;
-        }
-        case ExprData_TAG_While:
-            infer_while_stmt(scope, stmt, in_func, returns_ref);
-            break;
-        case ExprData_TAG_Switch:
-            infer_switch_stmt(scope, body, i, in_func);
-            i--; // re-visit to type-check
-            break;
-        case ExprData_TAG_ForIn: {
-            // Validate iterable and desugar to while loop in anonymous scope
+static void replace_body_stmt_with_block(Expr *body, U32 i, Expr *block) {
+    Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(i)});
+    *slot = *block;
+    U64 sz = block->children.count * block->children.elem_size;
+    slot->children.data = malloc(sz ? sz : 1);
+    memcpy(slot->children.data, block->children.data, sz);
+    slot->children.cap = block->children.count ? block->children.count : 1;
+    block->children = (Vec){0};
+}
+
+static Bool desugar_for_in_range_stmt(TypeScope *scope, Expr *body, U32 i, I32 in_func) {
+            Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
             Expr *iter = Expr_child(stmt, &(USize){(USize)(0)});
 
             // #100: Detect Range.new(start, end) from parser's .. desugaring
@@ -1165,18 +1136,15 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
                 #undef RCALL0
 
                 // Replace ForIn with desugared block
-                {
-                    Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(i)});
-                    *slot = *block;
-                    U64 sz = block->children.count * block->children.elem_size;
-                    slot->children.data = malloc(sz ? sz : 1);
-                    memcpy(slot->children.data, block->children.data, sz);
-                    slot->children.cap = block->children.count ? block->children.count : 1;
-                    block->children = (Vec){0};
-                }
-                i--; // re-visit to type-check
-                break;
+                replace_body_stmt_with_block(body, i, block);
+                return 1;
             }
+            return 0;
+}
+
+static Bool desugar_for_in_collection_stmt(TypeScope *scope, Expr *body, U32 i, I32 in_func) {
+            Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
+            Expr *iter = Expr_child(stmt, &(USize){(USize)(0)});
 
             infer_expr(scope, iter, in_func);
 
@@ -1186,13 +1154,13 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
                 type_name = &iter->struct_name;
             if (!type_name) {
                 type_error(stmt, STR_LIT("for-in requires a collection type with get() and len() methods"));
-                break;
+                return 0;
             }
 
             Expr *sdef = TypeScope_get_struct(scope, type_name);
             if (!sdef) {
                 type_error(stmt, STR_LIT("for-in requires a collection type with get() and len() methods"));
-                break;
+                return 0;
             }
 
             // Find len() and get() in namespace, validate signatures
@@ -1210,27 +1178,27 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' has no 'len' method (required for for-in)", type_name->c_str);
                 type_error(stmt, STR_VIEW(buf));
-                break;
+                return 0;
             }
             if (len_func->data.data.FuncDef.nparam != 1 || (len_func->data.data.FuncDef.return_type).count == 0) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' len() must take 1 param and return a scalar for for-in", type_name->c_str);
                 type_error(stmt, STR_VIEW(buf));
-                break;
+                return 0;
             }
             Str *idx_type = &len_func->data.data.FuncDef.return_type;
             if (!get_func) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' has no 'get' method (required for for-in)", type_name->c_str);
                 type_error(stmt, STR_VIEW(buf));
-                break;
+                return 0;
             }
             if (get_func->data.data.FuncDef.nparam != 2 || ((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype.count == 0 ||
                 !Str_eq(&((Param*)Vec_get(&get_func->data.data.FuncDef.params, &(USize){(USize)(1)}))->ptype, idx_type)) {
                 char buf[128];
                 snprintf(buf, sizeof(buf), "type '%s' get() second param must match len() return type for for-in", type_name->c_str);
                 type_error(stmt, STR_VIEW(buf));
-                break;
+                return 0;
             }
 
             // Determine element type
@@ -1244,7 +1212,7 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
                         "cannot infer element type for '%s', use explicit type: for x : Type in ...",
                         type_name->c_str);
                     type_error(stmt, STR_VIEW(buf));
-                    break;
+                    return 0;
                 }
                 elem_type = ret;
             }
@@ -1373,22 +1341,76 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
             Expr_add_child(block, while_node);
 
             // Replace FOR_IN with the desugared block in parent body
-            {
-                Expr *slot = (Expr*)Vec_get(&body->children, &(USize){(USize)(i)});
-                *slot = *block;
-                U64 sz = block->children.count * block->children.elem_size;
-                slot->children.data = malloc(sz ? sz : 1);
-                memcpy(slot->children.data, block->children.data, sz);
-                slot->children.cap = block->children.count ? block->children.count : 1;
-                block->children = (Vec){0};
+            replace_body_stmt_with_block(body, i, block);
+            return 1;
+}
+
+static void infer_body_stmt(TypeScope *scope, Expr *body, U32 *i, I32 in_func, I32 in_loop, I32 returns_ref, I32 in_type_body) {
+        Expr *stmt = Expr_child(body, &(USize){(USize)(*i)});
+        switch (stmt->data.tag) {
+        case ExprData_TAG_Decl:
+            infer_decl_stmt(scope, stmt, in_func, in_type_body);
+            break;
+        case ExprData_TAG_Assign:
+            infer_assign_stmt(scope, stmt, in_func);
+            break;
+        case ExprData_TAG_FieldAssign:
+            infer_field_assign_stmt(scope, stmt, in_func);
+            break;
+        case ExprData_TAG_FCall:
+            infer_expr(scope, stmt, in_func);
+            break;
+        case ExprData_TAG_Return:
+            infer_return_stmt(scope, stmt, in_func, returns_ref);
+            break;
+        case ExprData_TAG_Break:
+            if (!in_loop) {
+                type_error(stmt, STR_LIT("break outside loop"));
             }
-            i--; // re-visit to type-check the replacement
+            stmt->til_type = (TilType){TilType_TAG_None};
+            break;
+        case ExprData_TAG_Continue:
+            if (!in_loop) {
+                type_error(stmt, STR_LIT("continue outside loop"));
+            }
+            stmt->til_type = (TilType){TilType_TAG_None};
+            break;
+        case ExprData_TAG_If:
+            infer_if_stmt(scope, stmt, in_func, in_loop, returns_ref);
+            break;
+        case ExprData_TAG_Body: {
+            TypeScope *block_scope = TypeScope_new(scope);
+            infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0);
+            TypeScope_delete(block_scope, &(Bool){1});
             break;
         }
+        case ExprData_TAG_While:
+            infer_while_stmt(scope, stmt, in_func, returns_ref);
+            break;
+        case ExprData_TAG_Switch:
+            infer_switch_stmt(scope, body, *i, in_func);
+            (*i)--; // re-visit to type-check
+            break;
+        case ExprData_TAG_ForIn:
+            if (desugar_for_in_range_stmt(scope, body, *i, in_func)) {
+                (*i)--;
+                break;
+            }
+            if (desugar_for_in_collection_stmt(scope, body, *i, in_func)) {
+                (*i)--;
+                break;
+            }
+            break;
         default:
             stmt->til_type = (TilType){TilType_TAG_None};
             break;
         }
+}
+
+void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body) {
+    body->til_type = (TilType){TilType_TAG_None};
+    for (U32 i = 0; i < body->children.count; i++) {
+        infer_body_stmt(scope, body, &i, in_func, in_loop, returns_ref, in_type_body);
     }
     if (owns_scope) desugar_set_literals(body, scope);
     if (owns_scope) desugar_map_literals(body, scope);
