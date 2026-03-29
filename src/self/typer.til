@@ -560,6 +560,346 @@ infer_decl_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32, 
     finalize_decl_binding(scope, stmt, in_type_body)
 }
 
+mark_switch_case_covered_variant := proc(switch_enum_def: Expr, mut covered_variants: Vec, shallow n_variants: I32, sw_expr: Expr, match_expr: Expr) {
+    if is_null(switch_enum_def).or(covered_variants.len().eq(0)) { return }
+    mut covered_variant_name := ""
+    if is_variant(match_expr.data, ExprData.FieldAccess) {
+        if match_expr.child_count().gt(0) {
+            if is_variant(match_expr.child(0).data, ExprData.Ident) {
+                ref base_name : Str = get_payload(match_expr.child(0).data)
+                if base_name.eq(sw_expr.struct_name) {
+                    ref field_name : Str = get_payload(match_expr.data)
+                    covered_variant_name = field_name.clone()
+                }
+            }
+        }
+    }
+    if covered_variant_name.len().eq(0) {
+        if is_variant(match_expr.data, ExprData.FCall) {
+            if match_expr.child_count().eq(2) {
+                if is_variant(match_expr.child(0).data, ExprData.FieldAccess) {
+                    if match_expr.child(0).child_count().gt(0) {
+                        if is_variant(match_expr.child(0).child(0).data, ExprData.Ident) {
+                            if is_variant(match_expr.child(1).data, ExprData.Ident) {
+                                ref type_name : Str = get_payload(match_expr.child(0).child(0).data)
+                                if type_name.eq(sw_expr.struct_name) {
+                                    ref field_name : Str = get_payload(match_expr.child(0).data)
+                                    covered_variant_name = field_name.clone()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if covered_variant_name.len().eq(0) { return }
+    mut covered_tag : I32 = -1.to_i32()
+    mut variant_idx : I32 = 0
+    ref enum_body : Expr = switch_enum_def.child(0)
+    for vi in 0..enum_body.child_count() {
+        ref variant : Expr = enum_body.child(vi)
+        if is_variant(variant.data, ExprData.Decl) {
+            ref vd : Declaration = get_payload(variant.data)
+            if vd.is_namespace { continue }
+            if vd.name.eq(covered_variant_name) {
+                covered_tag = variant_idx
+                break
+            }
+            variant_idx.inc()
+        }
+    }
+    if covered_tag.gte(0.to_i32()).and(covered_tag.lt(n_variants)) {
+        ref mut covered : Bool = covered_variants.get(covered_tag.to_i64().to_u32())
+        covered = true
+    }
+}
+
+make_switch_case_condition := func(scope: TypeScope, mut case_body: Expr, match_expr: Expr, sw_name: Str, shallow sw_line: U32, shallow sw_col: U32, sw_path: Str) returns Expr {
+    mut condition := Expr.new(ExprData.Body, sw_line, sw_col, sw_path)
+    mut has_condition := false
+    if is_variant(match_expr.data, ExprData.FCall) {
+        if match_expr.child_count().eq(3) {
+            if is_variant(match_expr.child(0).data, ExprData.FieldAccess) {
+                ref method_name : Str = get_payload(match_expr.child(0).data)
+                if method_name.eq("new") {
+                    if match_expr.child(0).child_count().gt(0) {
+                        if is_variant(match_expr.child(0).child(0).data, ExprData.Ident) {
+                            ref range_name : Str = get_payload(match_expr.child(0).child(0).data)
+                            if range_name.eq("Range") {
+                ref start_expr : Expr = match_expr.child(1)
+                ref end_expr : Expr = match_expr.child(2)
+
+                mut sw1 := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                mut gte_acc := Expr.new(ExprData.FieldAccess("gte"), sw_line, sw_col, sw_path)
+                gte_acc.add_child(own sw1)
+                mut gte_call := Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                gte_call.add_child(own gte_acc)
+                gte_call.add_child(own start_expr.clone())
+
+                mut sw2 := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                mut lte_acc := Expr.new(ExprData.FieldAccess("lte"), sw_line, sw_col, sw_path)
+                lte_acc.add_child(own sw2)
+                mut lte_call := Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                lte_call.add_child(own lte_acc)
+                lte_call.add_child(own end_expr.clone())
+
+                mut and_acc := Expr.new(ExprData.FieldAccess("and"), sw_line, sw_col, sw_path)
+                and_acc.add_child(own gte_call)
+                condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                condition.add_child(own and_acc)
+                condition.add_child(own lte_call)
+                has_condition = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if has_condition.not() {
+        if is_variant(match_expr.data, ExprData.FCall) {
+            if match_expr.child_count().eq(2) {
+                if is_variant(match_expr.child(0).data, ExprData.FieldAccess) {
+                    if match_expr.child(0).child_count().gt(0) {
+                        if is_variant(match_expr.child(0).child(0).data, ExprData.Ident) {
+                            if is_variant(match_expr.child(1).data, ExprData.Ident) {
+                                ref callee : Expr = match_expr.child(0)
+                                ref type_name : Str = get_payload(callee.child(0).data)
+                                ref variant_name : Str = get_payload(callee.data)
+                                ref binding_name : Str = get_payload(match_expr.child(1).data)
+                                ref enum_def : Expr = scope.get_struct(type_name)
+                                if is_null(enum_def).not().and(is_variant(enum_def.data, ExprData.EnumDef)) {
+                                    mut payload_type := ""
+                                    ref enum_body : Expr = enum_def.child(0)
+                                    for vi in 0..enum_body.child_count() {
+                                        ref variant : Expr = enum_body.child(vi)
+                                        if is_variant(variant.data, ExprData.Decl) {
+                                            ref vd : Declaration = get_payload(variant.data)
+                                            if vd.is_namespace.not().and(vd.name.eq(variant_name)) {
+                                                payload_type = vd.explicit_type.clone()
+                                                break
+                                            }
+                                        }
+                                    }
+                                    if payload_type.len().gt(0) {
+                    mut iv_id := Expr.new(ExprData.Ident("is_variant"), sw_line, sw_col, sw_path)
+                    mut sw_id := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                    mut vtype_id := Expr.new(ExprData.Ident(type_name.clone()), sw_line, sw_col, sw_path)
+                    mut vref := Expr.new(ExprData.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
+                    vref.add_child(own vtype_id)
+                    condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                    condition.add_child(own iv_id)
+                    condition.add_child(own sw_id)
+                    condition.add_child(own vref)
+
+                    mut gp_ident := Expr.new(ExprData.Ident("get_payload"), sw_line, sw_col, sw_path)
+                    mut sw_id2 := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                    mut get_call := Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                    get_call.add_child(own gp_ident)
+                    get_call.add_child(own sw_id2)
+
+                    mut bind_decl := Expr.new(ExprData.Decl(Declaration(name = binding_name.clone(), explicit_type = payload_type.clone(), is_ref = true)), sw_line, sw_col, sw_path)
+                    bind_decl.add_child(own get_call)
+
+                    mut new_ch := Vec.new("Expr", Expr.size())
+                    new_ch.push(own bind_decl)
+                    for bi in 0..case_body.child_count() {
+                        new_ch.push(own case_body.child(bi).clone())
+                    }
+                    case_body.children = new_ch
+                    has_condition = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if has_condition.not() {
+        if is_variant(match_expr.data, ExprData.FieldAccess) {
+            if match_expr.child_count().gt(0) {
+                if is_variant(match_expr.child(0).data, ExprData.Ident) {
+                    ref type_name : Str = get_payload(match_expr.child(0).data)
+                    ref variant_name : Str = get_payload(match_expr.data)
+                    ref enum_def : Expr = scope.get_struct(type_name)
+                    if is_null(enum_def).not().and(is_variant(enum_def.data, ExprData.EnumDef)) {
+                        mut payload_type := ""
+                        ref enum_body : Expr = enum_def.child(0)
+                        for vi in 0..enum_body.child_count() {
+                            ref variant : Expr = enum_body.child(vi)
+                            if is_variant(variant.data, ExprData.Decl) {
+                                ref vd : Declaration = get_payload(variant.data)
+                                if vd.is_namespace.not().and(vd.name.eq(variant_name)) {
+                                    payload_type = vd.explicit_type.clone()
+                                    break
+                                }
+                            }
+                        }
+                        if payload_type.len().gt(0) {
+                            mut iv_id := Expr.new(ExprData.Ident("is_variant"), sw_line, sw_col, sw_path)
+                            mut sw_id := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+                            mut vtype_id := Expr.new(ExprData.Ident(type_name.clone()), sw_line, sw_col, sw_path)
+                            mut vref := Expr.new(ExprData.FieldAccess(variant_name.clone()), sw_line, sw_col, sw_path)
+                            vref.add_child(own vtype_id)
+                            condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+                            condition.add_child(own iv_id)
+                            condition.add_child(own sw_id)
+                            condition.add_child(own vref)
+                            has_condition = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if has_condition.not() {
+        mut sw_ident := Expr.new(ExprData.Ident(sw_name.clone()), sw_line, sw_col, sw_path)
+        mut eq_access := Expr.new(ExprData.FieldAccess("eq"), sw_line, sw_col, sw_path)
+        eq_access.add_child(own sw_ident)
+        condition = Expr.new(ExprData.FCall(FCallData()), sw_line, sw_col, sw_path)
+        condition.add_child(own eq_access)
+        condition.add_child(own match_expr.clone())
+    }
+    return condition
+}
+
+replace_switch_stmt_with_block := proc(mut body: Expr, shallow stmt_idx: U32, mut block: Expr) {
+    body.children.set(stmt_idx, own block.clone())
+}
+
+append_switch_else_if := proc(mut root_if: Expr, if_node: Expr) {
+    if root_if.child_count().gt(2) {
+        ref mut else_body : Expr = root_if.child(2)
+        if else_body.child_count().gt(0) {
+            if is_variant(else_body.child(0).data, ExprData.If) {
+                append_switch_else_if(else_body.child(0), if_node)
+                return
+            }
+        }
+    }
+    mut else_body := Expr.new(ExprData.Body, if_node.line, if_node.col, if_node.path)
+    else_body.add_child(own if_node.clone())
+    root_if.add_child(own else_body)
+}
+
+attach_switch_default_body := proc(mut root_if: Expr, default_body: Expr) {
+    if root_if.child_count().gt(2) {
+        ref mut else_body : Expr = root_if.child(2)
+        if else_body.child_count().gt(0) {
+            if is_variant(else_body.child(0).data, ExprData.If) {
+                attach_switch_default_body(else_body.child(0), default_body)
+                return
+            }
+        }
+    }
+    root_if.add_child(own default_body.clone())
+}
+
+infer_switch_stmt := proc(scope: TypeScope, mut body: Expr, shallow stmt_idx: U32, shallow in_func: I32) {
+    ref mut stmt : Expr = body.child(stmt_idx)
+    ref mut sw_expr : Expr = stmt.child(0)
+    sw_line := stmt.line
+    sw_col := stmt.col
+    sw_path := stmt.path
+    infer_expr(scope, sw_expr, in_func)
+    mut covered_variants := Vec.new("Bool", Bool.size())
+    mut n_variants : I32 = 0
+    mut has_default_case := false
+    mut has_switch_enum_def := false
+    if is_variant(sw_expr.til_type, TilType.Enum).and(sw_expr.struct_name.len().gt(0)) {
+        ref switch_enum_def : Expr = scope.get_struct(sw_expr.struct_name)
+        if is_null(switch_enum_def).not().and(is_variant(switch_enum_def.data, ExprData.EnumDef)) {
+            has_switch_enum_def = true
+            ref enum_body : Expr = switch_enum_def.child(0)
+            for vi in 0..enum_body.child_count() {
+                ref variant : Expr = enum_body.child(vi)
+                if is_variant(variant.data, ExprData.Decl) {
+                    ref vd : Declaration = get_payload(variant.data)
+                    if vd.is_namespace.not() {
+                        n_variants.inc()
+                        covered_variants.push(own false)
+                    }
+                }
+            }
+        }
+    }
+
+    tp := type_prefix(sw_expr.til_type, sw_expr.struct_name)
+    sw_name := "_sw_".concat(tp).concat("_").concat(hoist_counter.to_str())
+    hoist_counter.inc()
+
+    mut block := Expr.new(ExprData.Body, stmt.line, stmt.col, sw_path)
+    mut decl := Expr.new(ExprData.Decl(Declaration(name = sw_name.clone())), stmt.line, stmt.col, sw_path)
+    decl.add_child(own sw_expr.clone())
+    block.add_child(own decl)
+
+    ref mut first_if : Expr = NULL
+    ref mut default_body : Expr = NULL
+
+    for ci in 1..stmt.child_count() {
+        ref case_node : Expr = stmt.child(ci)
+        if case_node.child_count().eq(1) {
+            default_body = case_node.child(0)
+            has_default_case = true
+            continue
+        }
+        ref mut match_expr : Expr = case_node.child(0)
+        ref mut case_body : Expr = case_node.child(1)
+        if has_switch_enum_def {
+            ref switch_enum_def : Expr = scope.get_struct(sw_expr.struct_name)
+            mark_switch_case_covered_variant(switch_enum_def, covered_variants, n_variants, sw_expr, match_expr)
+        }
+        condition := make_switch_case_condition(scope, case_body, match_expr, sw_name, sw_line, sw_col, sw_path)
+
+        mut if_node := Expr.new(ExprData.If, case_node.line, case_node.col, sw_path)
+        if_node.add_child(own condition)
+        if_node.add_child(own case_body.clone())
+
+        if is_null(first_if) {
+            first_if = if_node
+        } else {
+            append_switch_else_if(first_if, if_node)
+        }
+    }
+
+    if is_null(default_body).not().and(is_null(first_if).not()) {
+        attach_switch_default_body(first_if, default_body)
+    } else if is_null(default_body).not().and(is_null(first_if)) {
+        first_if = default_body
+    }
+
+    if has_switch_enum_def.and(covered_variants.len().gt(0)).and(has_default_case.not()) {
+        ref switch_enum_def : Expr = scope.get_struct(sw_expr.struct_name)
+        ref enum_body : Expr = switch_enum_def.child(0)
+        mut msg := "non-exhaustive switch on enum '".concat(sw_expr.struct_name).concat("'; missing cases:")
+        mut variant_idx : U32 = 0
+        mut missing := false
+        for vi in 0..enum_body.child_count() {
+            ref variant : Expr = enum_body.child(vi)
+            if is_variant(variant.data, ExprData.Decl).not() { continue }
+            ref vd : Declaration = get_payload(variant.data)
+            if vd.is_namespace { continue }
+            ref covered : Bool = covered_variants.get(variant_idx)
+            if covered.not() {
+                missing = true
+                if msg.ends_with(":").not() { msg = msg.concat(",") }
+                msg = msg.concat(" ").concat(vd.name)
+            }
+            variant_idx.inc()
+        }
+        if missing { type_error(stmt, msg) }
+    }
+
+    if is_null(first_if).not() { block.add_child(own first_if.clone()) }
+    replace_switch_stmt_with_block(body, stmt_idx, block)
+}
+
 infer_assign_stmt := proc(scope: TypeScope, mut stmt: Expr, shallow in_func: I32) {
     infer_expr(scope, stmt.child(0), in_func)
     ref mut rhs : Expr = stmt.child(0)
