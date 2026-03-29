@@ -39,7 +39,7 @@ void infer_body(TypeScope *scope, Expr *body, I32 in_func, I32 owns_scope, I32 i
 
 static void infer_func_def_expr(TypeScope *scope, Expr *e);
 
-static void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
+void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func);
 static void infer_decl_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 in_type_body);
 static void infer_while_stmt(TypeScope *scope, Expr *stmt, I32 in_func, I32 returns_ref);
 static void infer_switch_stmt(TypeScope *scope, Expr *body, U32 stmt_idx, I32 in_func);
@@ -141,65 +141,6 @@ static void infer_func_def_expr(TypeScope *scope, Expr *e) {
         TypeScope_delete(func_scope, &(Bool){1});
     }
 }
-
-static void infer_field_access_expr(TypeScope *scope, Expr *e, I32 in_func) {
-    infer_expr(scope, Expr_child(e, &(USize){(USize)(0)}), in_func);
-    Expr *obj = Expr_child(e, &(USize){(USize)(0)});
-    if (obj->struct_name.count > 0) {
-        Expr *sdef = TypeScope_get_struct(scope, &obj->struct_name);
-        if (sdef) {
-            Expr *body = Expr_child(sdef, &(USize){(USize)(0)});
-            Str *fname = &e->data.data.Ident;
-            Bool found = 0;
-            for (U32 i = 0; i < body->children.count; i++) {
-                Expr *field = Expr_child(body, &(USize){(USize)(i)});
-                if (sdef->data.tag == ExprData_TAG_EnumDef && !field->data.data.Decl.is_namespace)
-                    continue;
-                if (Str_eq(&field->data.data.Decl.name, fname)) {
-                    e->til_type = field->til_type;
-                    e->is_ns_field = field->data.data.Decl.is_namespace;
-                    e->is_own_field = field->data.data.Decl.is_own || field->data.data.Decl.is_ref;
-                    e->is_ref_field = field->data.data.Decl.is_ref;
-                    if (field->til_type.tag == TilType_TAG_Struct || field->til_type.tag == TilType_TAG_Enum) {
-                        Str *field_sname = &Expr_child(field, &(USize){(USize)(0)})->struct_name;
-                        if (field_sname->count > 0) e->struct_name = *Str_clone(field_sname);
-                    } else {
-                        if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
-                    }
-                    if (sdef->data.tag == ExprData_TAG_EnumDef &&
-                        field->data.data.Decl.is_namespace &&
-                        field->children.count > 0) {
-                        Expr *fc = Expr_child(field, &(USize){(USize)(0)});
-                        if (fc->data.tag != ExprData_TAG_FuncDef) {
-                            e->til_type = (TilType){TilType_TAG_Enum};
-                            if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
-                        } else if (fc->data.data.FuncDef.func_type.tag == FuncType_TAG_ExtFunc &&
-                                   (fc->data.data.FuncDef.return_type).count > 0 &&
-                                   Str_eq(&fc->data.data.FuncDef.return_type, &obj->struct_name)) {
-                            e->til_type = (TilType){TilType_TAG_Enum};
-                            if (obj->struct_name.count > 0) e->struct_name = *Str_clone(&obj->struct_name);
-                        }
-                    }
-                    found = 1;
-                    break;
-                }
-            }
-            if (!found) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "%s '%s' has no field '%s'",
-                         sdef->data.tag == ExprData_TAG_EnumDef ? "enum" : "struct",
-                         obj->struct_name.c_str, fname->c_str);
-                type_error(e, STR_VIEW(buf));
-                e->til_type = (TilType){TilType_TAG_Unknown};
-            }
-        }
-    } else {
-        type_error(e, STR_LIT("field access on non-struct value"));
-        e->til_type = (TilType){TilType_TAG_Unknown};
-    }
-}
-
-
 
 
 

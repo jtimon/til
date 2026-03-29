@@ -821,6 +821,7 @@ U32 * LocalInfo_size(void);
 void type_error(Expr * e, Str * msg);
 void infer_expr(TypeScope * scope, Expr * e, I32 in_func);
 void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_scope, I32 in_loop, I32 returns_ref, I32 in_type_body);
+void infer_type_def_expr(TypeScope * scope, Expr * e);
 void infer_ident_expr(TypeScope * scope, Expr * expr);
 void infer_named_arg_expr(TypeScope * scope, Expr * expr, I32 in_func);
 void infer_map_lit_expr(TypeScope * scope, Expr * expr, I32 in_func);
