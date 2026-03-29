@@ -1063,58 +1063,6 @@ static void infer_expr(TypeScope *scope, Expr *e, I32 in_func) {
 // Must run before hoisting so that synthetic Array calls get hoisted too.
 
 // Create a namespace method call: StructName.method(args...)
-static void desugar_variadic_calls(Expr *body, TypeScope *scope) {
-    Vec new_ch; { Vec *_vp = Vec_new(&(Str){.c_str = (U8*)"Expr", .count = 4, .cap = CAP_LIT}, &(USize){sizeof(Expr)}); new_ch = *_vp; free(_vp); }
-    Bool changed = 0;
-
-    for (U32 i = 0; i < body->children.count; i++) {
-        Expr *stmt = Expr_child(body, &(USize){(USize)(i)});
-        Expr *fcall = find_variadic_fcall(stmt);
-        if (!fcall) {
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-        changed = 1;
-        I32 vi = fcall->data.data.FCall.variadic_index;
-        U32 vc = fcall->data.data.FCall.variadic_count;
-        I32 line = fcall->line, col = fcall->col;
-
-        Str *elem_type = resolve_variadic_elem_type(fcall, scope);
-        if (!elem_type) {
-            Vec_push(&new_ch, Expr_clone(stmt));
-            continue;
-        }
-
-        if (desugar_pure_splat_variadic_call(fcall, &new_ch, stmt))
-            continue;
-
-        char buf[128];
-        snprintf(buf, sizeof(buf), "_va_Array_%d", _va_counter++);
-        Str *va_name = Str_clone(&(Str){.c_str = (U8*)(buf), .count = (U64)strlen((const char*)(buf)), .cap = CAP_VIEW});
-        Expr *va_decl = build_variadic_array_decl(fcall, scope, elem_type, va_name, vc);
-
-        TypeScope_set(scope, va_name, &(TilType){TilType_TAG_Struct}, -1, 0, line, col, 0, 0);
-        TypeBinding *vab = Map_get(&scope->bindings, va_name);
-        vab->struct_name = *Str_clone(&(Str){.c_str = (U8*)"Array", .count = 5, .cap = CAP_LIT});
-
-        Vec_push(&new_ch, va_decl);
-
-        for (U32 j = 0; j < vc; j++) {
-            Vec_push(&new_ch, build_variadic_array_set(fcall, scope, va_name, vi, j));
-        }
-
-        rewrite_variadic_fcall_args(fcall, va_name);
-        Vec_push(&new_ch, Expr_clone(stmt));
-    }
-
-    if (changed) {
-        Vec_delete(&body->children, &(Bool){0});
-        body->children = new_ch;
-    } else {
-        Vec_delete(&new_ch, &(Bool){0});
-    }
-}
-
 // --- Kwargs call desugaring ---
 // Transforms kwargs function calls into Map.new + Map.set + normal call.
 

@@ -1065,6 +1065,57 @@ rewrite_variadic_fcall_args := proc(mut fcall: Expr, va_name: Str) {
     fcall_data.variadic_count = 0.to_u32()
 }
 
+desugar_variadic_calls := proc(mut body: Expr, mut scope: TypeScope) {
+    mut new_ch := Vec.new("Expr", Expr.size())
+    mut changed := false
+
+    for i in 0..body.child_count() {
+        ref stmt : Expr = body.child(i)
+        ref fcall : Expr = find_variadic_fcall(stmt)
+        if is_null(fcall) {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+        changed = true
+        ref fcall_data : FCallData = get_payload(fcall.data)
+        vi := fcall_data.variadic_index
+        vc := fcall_data.variadic_count
+        line := fcall.line
+        col := fcall.col
+
+        ref elem_type : Str = resolve_variadic_elem_type(fcall, scope)
+        if is_null(elem_type) {
+            new_ch.push(own stmt.clone())
+            continue
+        }
+
+        if desugar_pure_splat_variadic_call(fcall, new_ch, stmt) {
+            continue
+        }
+
+        va_name := "_va_Array_".concat(_va_counter.to_i64().to_str())
+        _va_counter.inc()
+        mut va_decl := build_variadic_array_decl(fcall, scope, elem_type, va_name, vc)
+
+        scope.set(va_name, TilType.Struct, -1.to_i32(), false, line, col, false, false)
+        ref vab : TypeBinding = scope.get_binding(va_name)
+        vab.struct_name = "Array"
+
+        new_ch.push(own va_decl)
+
+        for j in 0..vc {
+            new_ch.push(own build_variadic_array_set(fcall, scope, va_name, vi, j))
+        }
+
+        rewrite_variadic_fcall_args(fcall, va_name)
+        new_ch.push(own stmt.clone())
+    }
+
+    if changed {
+        body.children = new_ch
+    }
+}
+
 resolve_variadic_elem_type := func(fcall: Expr, scope: TypeScope) returns ref Str {
     ref callee : Expr = fcall.child(0)
     if is_variant(callee.data, ExprData.Ident) {
