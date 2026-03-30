@@ -168,10 +168,6 @@ static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
     *r = val_bool(Bool_not(v.data.Boolean)); return 1;
 }
 
-static Bool h_U8_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_u8(U8_from_i64(v.data.Int)); return 1;
-}
 static Bool h_I16_from_i64(Scope *s, Expr *e, Value *r) {
     Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     *r = val_i16(I16_from_i64(v.data.Int)); return 1;
