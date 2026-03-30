@@ -39,7 +39,7 @@ $(TINYFD_LIB):
 	ar rcs $@ lib/tinyfiledialogs/tinyfiledialogs.o
 
 lib/libffi/.built:
-	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --quiet
+	cd $(LIBFFI_DIR) && ./configure --disable-shared --enable-static --disable-docs --quiet
 	$(MAKE) -C $(LIBFFI_DIR)
 	touch $@
 
