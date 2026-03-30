@@ -1,10 +1,35 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 128
+# NEXT_ISSUE: 129
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #129 Runtime ~Value~ instance payload fields still use ~ref~ where they should own
+  Part of the remaining ~#109~ leak pressure is that the runtime wrappers
+  used by ~Value.Struct~ / ~Value.Enum~ still model some payload storage as
+  borrowed refs instead of owned buffers.
+
+  Current verified pressure points:
+  - ~StructInstance~ / ~EnumInstance~ are the runtime headers for user
+    struct/enum values
+  - ~StructInstance.data~ already moved to owned storage, but the surrounding
+    lifecycle code still behaves as if these payload buffers were borrowed
+  - ~EnumInstance.data~ is still declared as ~ref mut data : U8 = NULL~
+  - those choices force manual ~free(...)~ workarounds in interpreter and
+    dispatch code instead of letting instance ownership be explicit
+
+  Consequences:
+  - runtime ownership is encoded in ad hoc C paths instead of the type shape
+  - translated til code keeps tripping over borrowed-vs-owned mismatches
+    around struct/enum payload buffers
+  - cleanup of ~Value.Struct~ / ~Value.Enum~ remains harder than it should be
+
+  Desired direction:
+  - make the runtime instance wrappers own the payload buffers they are
+    responsible for
+  - then simplify clone/delete/free paths around those wrappers accordingly
+
 ** OPEN #128 Enum lifecycle is too shallow for managed payloads
   Separate from ~#126~'s generated-enum-~delete~ bug, the runtime enum
   lifecycle in the ~Value~ path is also too shallow for managed payloads.
@@ -433,6 +458,8 @@
       and does not recurse into payload-owned data
   - additional concrete runtime leak bucket in the ~Value~ path:
     - ~#128~ enum lifecycle is too shallow for managed payloads
+    - ~#129~ runtime ~Value~ instance payload fields still use ~ref~ where
+      they should own
 
   Next investigation direction:
   - compare the generated raw-~Vec~ struct literals against the old
