@@ -1050,6 +1050,7 @@ FFIEntry * FFIEntry_clone(FFIEntry * self);
 void FFIEntry_delete(FFIEntry * self, Bool * call_free);
 U32 * FFIEntry_size(void);
 I64 * value_to_i64(Value * v);
+U64 * value_to_u64(Value * v);
 Bool ext_function_dispatch(Str * name, Scope * scope, Expr * e, Value * result);
 Bool enum_method_dispatch(Str * method, Scope * scope, Expr * enum_def, Str * enum_name, Expr * e, Value * result);
 I32 ffi_init(Expr * program, Str * user_c_path, Str * ext_c_path, Str * link_flags);

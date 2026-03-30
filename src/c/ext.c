@@ -209,6 +209,7 @@ I64 U32_cmp(U32 a, U32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 
 // U32 conversions
 I64 U32_to_i64(U32 a) { return (I64)a; }
+U64 U32_to_u64(U32 a) { return (U64)a; }
 U32 U32_from_i64(I64 v) { return (U32)v; }
 U32 U32_from_i64_ext(I64 *a) { return (U32)*a; }
 

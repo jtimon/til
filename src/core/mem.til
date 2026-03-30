@@ -9,30 +9,11 @@ memmove := ext_func(dest: Dynamic, src: Dynamic, shallow len: U64) {}
 memset := ext_func(dest: Dynamic, shallow val: I32, shallow len: U64) {}
 
 swap := func(a: Dynamic, b: Dynamic, shallow size: U64) {
-    if U8.distance(a, b).eq(0) { return }
-
-    mut offset : U64 = 0
-    while offset.add(U64.size()).lte(size) {
-        ref aw : U64 = ptr_add(a, offset)
-        ref bw : U64 = ptr_add(b, offset)
-        tmp := aw.xor(bw)
-        new_b := tmp.xor(bw)
-        new_a := tmp.xor(new_b)
-        memcpy(ptr_add(a, offset), new_a, U64.size())
-        memcpy(ptr_add(b, offset), new_b, U64.size())
-        offset = offset.add(U64.size())
-    }
-
-    while offset.lt(size) {
-        ref ab : U8 = ptr_add(a, offset)
-        ref bb : U8 = ptr_add(b, offset)
-        tmp := ab.xor(bb)
-        new_b := tmp.xor(bb)
-        new_a := tmp.xor(new_b)
-        memcpy(ptr_add(a, offset), new_a, 1)
-        memcpy(ptr_add(b, offset), new_b, 1)
-        offset = offset.add(1)
-    }
+    tmp : Dynamic = malloc(size)
+    memcpy(tmp, a, size)
+    memcpy(a, b, size)
+    memcpy(b, tmp, size)
+    free(own tmp)
 }
 
 move := func(dest: Dynamic, src: Dynamic, shallow size: U64) {

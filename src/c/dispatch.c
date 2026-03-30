@@ -16,19 +16,6 @@ F32 F32_from_i64(I64 v);
 U32 U32_from_i64(I64 v);
 U64 U64_from_i64(I64 v);
 
-static U64 value_to_u64(Value v) {
-    switch (v.tag) {
-        case Value_TAG_Int:  return (U64)v.data.Int;
-        case Value_TAG_Byte:   return v.data.Byte;
-        case Value_TAG_Short:  return (U64)v.data.Short;
-        case Value_TAG_Int32:  return (U64)v.data.Int32;
-        case Value_TAG_Uint32:  return v.data.Uint32;
-        case Value_TAG_Uint64:  return v.data.Uint64;
-        case Value_TAG_Boolean: return v.data.Boolean ? 1 : 0;
-        default:       return 0;
-    }
-}
-
 static F32 value_to_f32(Value v) {
     switch (v.tag) {
         case Value_TAG_Int:  return (F32)v.data.Int;
@@ -409,7 +396,7 @@ static I32 get_elem_size(Scope *s, Str *type_name, Expr *src) {
     Value result = eval_call(s, &fake_call);
     Vec_delete(&fake_call.children, &(Bool){0});
     Vec_delete(&field_access.children, &(Bool){0});
-    return (I32)value_to_u64(result);
+    { U64 *_hp = value_to_u64(&result); I32 out = (I32)*_hp; free(_hp); return out; }
 }
 
 // array("I64", 1, 2, 3)
@@ -549,7 +536,7 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
     void *base = val_raw_ptr(&buf);
-    *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)base + value_to_u64(offset)};
+    { U64 *_hp = value_to_u64(&offset); *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)base + *_hp}; free(_hp); }
     return 1;
 }
 
@@ -755,7 +742,9 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
                 else { I64 *_hp = value_to_i64(&v); tmp = *_hp; free(_hp); }
                 *(I64 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_uint8) {
-                U8 tmp = (v.tag == Value_TAG_Ptr) ? *(U8 *)v.data.Ptr : (U8)value_to_u64(v);
+                U8 tmp;
+                if (v.tag == Value_TAG_Ptr) tmp = *(U8 *)v.data.Ptr;
+                else { U64 *_hp = value_to_u64(&v); tmp = (U8)*_hp; free(_hp); }
                 *(U8 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_sint16) {
                 I16 tmp;
@@ -768,10 +757,14 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
                 else { I64 *_hp = value_to_i64(&v); tmp = (I32)*_hp; free(_hp); }
                 *(I32 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_uint32) {
-                U32 tmp = (v.tag == Value_TAG_Ptr) ? *(U32 *)v.data.Ptr : (U32)value_to_u64(v);
+                U32 tmp;
+                if (v.tag == Value_TAG_Ptr) tmp = *(U32 *)v.data.Ptr;
+                else { U64 *_hp = value_to_u64(&v); tmp = (U32)*_hp; free(_hp); }
                 *(U32 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_uint64) {
-                U64 tmp = (v.tag == Value_TAG_Ptr) ? *(U64 *)v.data.Ptr : value_to_u64(v);
+                U64 tmp;
+                if (v.tag == Value_TAG_Ptr) tmp = *(U64 *)v.data.Ptr;
+                else { U64 *_hp = value_to_u64(&v); tmp = *_hp; free(_hp); }
                 *(U64 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_float) {
                 F32 tmp = (v.tag == Value_TAG_Ptr) ? *(F32 *)v.data.Ptr : value_to_f32(v);

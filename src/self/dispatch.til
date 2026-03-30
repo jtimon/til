@@ -49,6 +49,39 @@ value_to_i64 := func(v: Value) returns I64 {
     return 0
 }
 
+value_to_u64 := func(v: Value) returns U64 {
+    if is_variant(v, Value.Int) {
+        ref x : I64 = get_payload(v)
+        return x.to_u64()
+    }
+    if is_variant(v, Value.Byte) {
+        ref x : U8 = get_payload(v)
+        return x.to_u64()
+    }
+    if is_variant(v, Value.Short) {
+        ref x : I16 = get_payload(v)
+        return x.to_i64().to_u64()
+    }
+    if is_variant(v, Value.Int32) {
+        ref x : I32 = get_payload(v)
+        return x.to_i64().to_u64()
+    }
+    if is_variant(v, Value.Uint32) {
+        ref x : U32 = get_payload(v)
+        return x.to_u64()
+    }
+    if is_variant(v, Value.Uint64) {
+        ref x : U64 = get_payload(v)
+        return x.clone()
+    }
+    if is_variant(v, Value.Boolean) {
+        ref x : Bool = get_payload(v)
+        if x { return 1 }
+        return 0
+    }
+    return 0
+}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}

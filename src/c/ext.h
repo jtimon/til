@@ -169,6 +169,7 @@ I64 U32_cmp(U32 a, U32 b);
 
 // U32 conversions
 I64 U32_to_i64(U32 a);
+U64 U32_to_u64(U32 a);
 U32 U32_from_i64_ext(I64 *a);
 
 // U32 clone
