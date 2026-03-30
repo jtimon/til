@@ -277,6 +277,31 @@ val_to_ptr := func(v: Value) returns ref Dynamic {
     }
 }
 
+h_dyn_has_method := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1))
+    method_val := eval_expr(s, e.child(2))
+    type_name := str_view(type_name_val)
+    method := str_view(method_val)
+    r = val_bool(is_null(ns_get(type_name, method)).not())
+    return true
+}
+
+h_dyn_fn := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    type_name_val := eval_expr(s, e.child(1))
+    method_val := eval_expr(s, e.child(2))
+    type_name := str_view(type_name_val)
+    method := str_view(method_val)
+    ref nsv : Value = ns_get(type_name, method)
+    if is_null(nsv) {
+        panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
+    }
+    if is_variant(nsv, Value.Func).not() {
+        panic(__LOC__, "dyn_fn: unknown ", type_name, ".", method)
+    }
+    r = nsv.clone()
+    return true
+}
+
 h_check_cmd_status := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     pidv := eval_expr(s, e.child(1))
     ref pid : I64 = get_payload(pidv)

@@ -404,7 +404,7 @@ Value make_str_value_own(void *data, U64 len) {
 Str str_view(Value v) {
     char *data = *(char **)v.data.Struct.data;
     USize len = *(USize *)((char *)v.data.Struct.data + sizeof(U8 *));
-    return (Str){.c_str = (U8 *)data, .count = len};
+    return (Str){.c_str = (U8 *)data, .count = len, .cap = CAP_VIEW};
 }
 
 // Deep-clone a Value (for payload enum operations and general use)

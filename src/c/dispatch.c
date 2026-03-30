@@ -129,7 +129,7 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
 
 // === Misc handlers ===
 
-static Bool h_free(Scope *s, Expr *e, Value *r) {
+Bool h_free(Scope *s, Expr *e, Value *r) {
     if (Expr_child(e, &(USize){(USize)(1)})->data.tag != ExprData_TAG_Ident) {
         Value val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
         void *ptr = val.tag == Value_TAG_Ptr ? val.data.Ptr : val_to_ptr(&val);
@@ -208,36 +208,6 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
 
     Vec_delete(&fake_call.children, &(Bool){0});
     Vec_delete(&field_access.children, &(Bool){0});
-    return 1;
-}
-
-// dyn_has_method(type_name, "method") → Bool
-static Bool h_dyn_has_method(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value method_val = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    Str _tn = str_view(type_name_val);
-    Str *type_name = &_tn;
-    Str _mn = str_view(method_val);
-    Str *method = &_mn;
-    Value *nsv = ns_get(type_name, method);
-    *r = val_bool(nsv != NULL);
-    return 1;
-}
-
-// dyn_fn(type_name, "method") → function pointer
-static Bool h_dyn_fn(Scope *s, Expr *e, Value *r) {
-    Value type_name_val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value method_val = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    Str _tn = str_view(type_name_val);
-    Str *type_name = &_tn;
-    Str _mn = str_view(method_val);
-    Str *method = &_mn;
-    Value *nsv = ns_get(type_name, method);
-    if (!nsv || nsv->tag != Value_TAG_Func) {
-        fprintf(stderr, "dyn_fn: unknown %s.%s\n", (char*)type_name->c_str, (char*)method->c_str);
-        exit(1);
-    }
-    *r = *nsv;
     return 1;
 }
 
