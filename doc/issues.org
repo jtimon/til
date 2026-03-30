@@ -1,10 +1,37 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 125
+# NEXT_ISSUE: 126
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #126 Auto-generated enum delete does not delete payload-owned data
+  Auto-generated enum ~delete~ currently only does:
+  - ~if call_free { free(own self) }~
+
+  It does not:
+  - inspect the active variant
+  - call ~delete~ on payloads
+  - free payload-owned memory for variants whose payload is itself owning
+
+  That makes generated enum deletion too weak for enums like runtime
+  ~Value~, whose payload variants can carry owned data indirectly via:
+  - structs
+  - enums
+  - raw dynamic pointers
+
+  Consequences:
+  - runtime code is forced to keep manual side cleanup helpers instead of
+    relying on generated delete
+  - hand-written empty ~delete~ methods can end up suppressing generation
+    without replacing it with correct behavior
+
+  Desired end state:
+  - generated enum ~delete~ should recursively delete payloads when the
+    payload type is owning
+  - tag-only / borrowed payload variants should remain cheap and non-freeing
+  - manual enum ~delete~ should only be needed for truly custom behavior
+
 ** OPEN #125 Enum payload method generation should not assume ~eq~/~to_str~
   Related to ~#102~, but separate: even if structs later auto-generate
   ~eq~ and ~to_str~, enum auto-generation still needs a clear rule for
@@ -314,6 +341,9 @@
     leak repeatedly
   - this points back at ~#119~ too: struct-literal ownership/default
     handling may be forcing unnecessary clones even in raw-storage cases
+  - separate but plausibly leak-relevant runtime cleanup bug:
+    - ~#126~ auto-generated enum ~delete~ currently frees only ~self~
+      and does not recurse into payload-owned data
 
   Next investigation direction:
   - compare the generated raw-~Vec~ struct literals against the old
