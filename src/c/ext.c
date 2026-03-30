@@ -257,12 +257,9 @@ U64 U64_clone(U64 *v) { return *v; }
 
 // Bool ops (shallow params, shallow return)
 Bool Bool_eq(Bool a, Bool b) { return a == b; }
-Bool Bool_and(Bool a, Bool b) { return a && b; }
-Bool Bool_or(Bool a, Bool b) { return a || b; }
-Bool Bool_not(Bool a) { return !a; }
-Bool and(Bool a, Bool b) { return Bool_and(a, b); }
-Bool or(Bool a, Bool b) { return Bool_or(a, b); }
-Bool not(Bool a) { return Bool_not(a); }
+Bool and(Bool a, Bool b) { return a && b; }
+Bool or(Bool a, Bool b) { return a || b; }
+Bool not(Bool a) { return !a; }
 
 
 // Bool clone
