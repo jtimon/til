@@ -149,6 +149,37 @@ h_U32_from_i64 := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+h_check_cmd_status := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    pidv := eval_expr(s, e.child(1))
+    ref pid : I64 = get_payload(pidv)
+    r = val_i64(check_cmd_status(pid))
+    return true
+}
+
+h_sleep := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    msv := eval_expr(s, e.child(1))
+    ref ms : I64 = get_payload(msv)
+    sleep_ms(ms)
+    r = val_none()
+    return true
+}
+
+h_file_mtime := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    path := eval_expr(s, e.child(1))
+    r = val_i64(file_mtime(str_view(path)))
+    return true
+}
+
+h_clock_ms := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    r = val_i64(clock_ms())
+    return true
+}
+
+h_get_thread_count := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    r = val_i64(get_thread_count())
+    return true
+}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}

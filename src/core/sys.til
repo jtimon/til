@@ -1,7 +1,7 @@
 // System primitives
 spawn_cmd := ext_proc(cmd: Str) returns I64 {}
 check_cmd_status := ext_func(shallow pid: I64) returns shallow I64 {}
-sleep := ext_proc(shallow ms: I64) {}
+sleep_ms := ext_proc(shallow ms: I64) {}
 file_mtime := ext_func(path: Str) returns shallow I64 {}
 clock_ms := ext_func() returns shallow I64 {}
 get_thread_count := ext_func() returns shallow I64 {}
@@ -11,7 +11,7 @@ wait_cmd := proc(pid: I64) returns I64 {
     while true {
         status := check_cmd_status(pid)
         if status.neq(-1) { return status }
-        sleep(50)
+        sleep_ms(50)
     }
 }
 

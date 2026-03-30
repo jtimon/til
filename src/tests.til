@@ -301,7 +301,7 @@ run_all_parallel := proc(tests: Vec, j: USize, mut fail: I64) {
             i = i.add(1)
         }
         if active.gt(0) {
-            sleep(10)
+            sleep_ms(10)
         }
     }
 }

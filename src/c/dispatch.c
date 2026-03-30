@@ -567,50 +567,6 @@ static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
     return 1;
 }
 
-static Bool h_check_cmd_status(Scope *s, Expr *e, Value *r) {
-    Value pidv = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    int status;
-    pid_t result = waitpid((pid_t)pidv.data.Int, &status, WNOHANG);
-    if (result == 0) { *r = val_i64(-1); return 1; }
-    if (WIFEXITED(status)) { *r = val_i64(WEXITSTATUS(status)); return 1; }
-    *r = val_i64(-1);
-    return 1;
-}
-
-static Bool h_sleep(Scope *s, Expr *e, Value *r) {
-    Value ms = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    usleep((useconds_t)(ms.data.Int * 1000));
-    *r = val_none();
-    return 1;
-}
-
-static Bool h_file_mtime(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Str sv = str_view(path);
-    char *p = strndup((const char *)sv.c_str, sv.count);
-    struct stat st;
-    int rc = stat(p, &st);
-    free(p);
-    if (rc != 0) { *r = val_i64(-1); return 1; }
-    *r = val_i64((I64)st.st_mtime);
-    return 1;
-}
-
-static Bool h_clock_ms(Scope *s, Expr *e, Value *r) {
-    (void)s; (void)e;
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    *r = val_i64((I64)ts.tv_sec * 1000 + (I64)ts.tv_nsec / 1000000);
-    return 1;
-}
-
-static Bool h_get_thread_count(Scope *s, Expr *e, Value *r) {
-    (void)s; (void)e;
-    long count = sysconf(_SC_NPROCESSORS_ONLN);
-    *r = val_i64(count > 0 ? (I64)count : 1);
-    return 1;
-}
-
 // === Dispatch init ===
 
 static void dispatch_init(void) {
