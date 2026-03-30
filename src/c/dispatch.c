@@ -121,52 +121,9 @@ static ffi_type *build_struct_ffi_type(Expr *struct_def) {
     return st;
 }
 
-// === Eval helper for Dynamic narrowing ===
-// When the typer narrows a Dynamic arg to a concrete type, the expression's
-// til_type is the target. If the runtime value is Value_TAG_Ptr (from ptr_add/malloc),
-// reinterpret it as the narrowed type so dispatch handlers see the right union field.
-static Value eval_arg(Scope *s, Expr *e) {
-    Value v = eval_expr(s, e);
-    if (v.tag == Value_TAG_Ptr && e->til_type.tag != TilType_TAG_Dynamic) {
-        switch (e->til_type.tag) {
-            case TilType_TAG_I64:    return (Value){.tag = Value_TAG_Int, .data.Int = *(I64 *)v.data.Ptr};
-            case TilType_TAG_U8:    return (Value){.tag = Value_TAG_Byte, .data.Byte = *(U8 *)v.data.Ptr};
-            case TilType_TAG_I16:   return (Value){.tag = Value_TAG_Short, .data.Short = *(I16 *)v.data.Ptr};
-            case TilType_TAG_I32:   return (Value){.tag = Value_TAG_Int32, .data.Int32 = *(I32 *)v.data.Ptr};
-            case TilType_TAG_U32:   return (Value){.tag = Value_TAG_Uint32, .data.Uint32 = *(U32 *)v.data.Ptr};
-            case TilType_TAG_U64:   return (Value){.tag = Value_TAG_Uint64, .data.Uint64 = *(U64 *)v.data.Ptr};
-            case TilType_TAG_F32:   return (Value){.tag = Value_TAG_Float, .data.Float = *(F32 *)v.data.Ptr};
-            case TilType_TAG_Bool:  return (Value){.tag = Value_TAG_Boolean, .data.Boolean = *(Bool *)v.data.Ptr};
-            case TilType_TAG_Struct:
-                if ((e->struct_name).count > 0 && (e->struct_name.count == 3 && memcmp(e->struct_name.c_str, "Str", 3) == 0)) {
-                    ExtStr *sp = (ExtStr *)v.data.Ptr;
-                    return make_str_value_own((char *)sp->data, sp->count);
-                }
-                { Value r; r.tag = Value_TAG_Struct; r.data.Struct = *(StructInstance *)v.data.Ptr; return r; }
-            default: break;
-        }
-    }
-    return v;
-}
-
 // === Handler macros ===
 
 // === Remaining handlers (name mismatch or local ext_func — can't use auto-FFI) ===
-
-static Bool h_Bool_and(Scope *s, Expr *e, Value *r) {
-    Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = val_bool(and(a.data.Boolean, b.data.Boolean)); return 1;
-}
-static Bool h_Bool_or(Scope *s, Expr *e, Value *r) {
-    Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = val_bool(or(a.data.Boolean, b.data.Boolean)); return 1;
-}
-static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
-    Value v = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_bool(not(v.data.Boolean)); return 1;
-}
 
 // === Print handlers ===
 

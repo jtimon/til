@@ -114,6 +114,74 @@ value_to_f32 := func(v: Value) returns F32 {
     }
 }
 
+eval_arg := func(s: Scope, e: Expr) returns Value {
+    v := eval_expr(s, e)
+    if is_variant(v, Value.Ptr).not().or(e.til_type.eq(TilType.Dynamic)) {
+        return v
+    }
+    ref p : Dynamic = get_payload(v)
+    switch e.til_type {
+    case TilType.I64:
+        ref x : I64 = p
+        return val_i64(x)
+    case TilType.U8:
+        ref x : U8 = p
+        return val_u8(x.to_i64())
+    case TilType.I16:
+        ref x : I16 = p
+        return val_i16(x.to_i64())
+    case TilType.I32:
+        ref x : I32 = p
+        return val_i32(x)
+    case TilType.U32:
+        ref x : U32 = p
+        return val_u32(x.to_i64())
+    case TilType.U64:
+        ref x : U64 = p
+        return val_u64(x)
+    case TilType.F32:
+        ref x : F32 = p
+        return val_f32(x)
+    case TilType.Bool:
+        ref x : Bool = p
+        return val_bool(x)
+    case TilType.Struct:
+        if e.struct_name.eq("Str") {
+            ref sp : ExtStr = p
+            return make_str_value_own(sp.data, sp.count)
+        }
+        ref si : StructInstance = p
+        return Value.Struct(si)
+    case:
+        return v
+    }
+}
+
+h_Bool_and := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    a := eval_arg(s, e.child(1))
+    b := eval_arg(s, e.child(2))
+    ref av : Bool = get_payload(a)
+    ref bv : Bool = get_payload(b)
+    r = val_bool(and(av, bv))
+    return true
+}
+
+h_Bool_or := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    a := eval_arg(s, e.child(1))
+    b := eval_arg(s, e.child(2))
+    ref av : Bool = get_payload(a)
+    ref bv : Bool = get_payload(b)
+    r = val_bool(or(av, bv))
+    return true
+}
+
+h_Bool_not := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    v := eval_arg(s, e.child(1))
+    ref bv : Bool = get_payload(v)
+    r = val_bool(not(bv))
+    return true
+}
+
 h_U8_from_i64 := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     v := eval_expr(s, e.child(1))
     ref i : I64 = get_payload(v)
