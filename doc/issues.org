@@ -1,10 +1,67 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 126
+# NEXT_ISSUE: 127
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #127 Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
+  The interpreter runtime currently overloads one mechanism for several
+  different ownership cases:
+  - scoped values live in ~Cell.val~
+  - ~Scope~ bindings own some ~Cell*~ values via ~cell_is_local~
+  - ~scope_free~ frees owned ~Cell*~, but does not delete the runtime
+    ~Value~ stored inside them
+  - one runtime variant, current ~Value.Ptr~, is used for both:
+    - borrowed/ref-like storage views
+    - owning opaque heap pointers
+
+  That causes two classes of problems:
+  - real owner cleanup is missing at scope teardown / overwrite boundaries
+  - dispatcher/runtime code grows manual ~free(...)~ workarounds because the
+    runtime value model does not distinguish borrowed pointer views from
+    owned dynamic pointers cleanly
+
+  Current verified pressure points:
+  - ~scope_free~ frees local cells but not their values
+  - ~scope_set_owned~ overwrites owned bindings without deleting the old
+    value first
+  - current ~Value.Ptr~ is produced by:
+    - ~null~
+    - ref field reads
+    - own field reads exposing owned storage
+    - ~ptr_add(...)~
+    - FFI ~Dynamic~ returns
+    - container data fields like ~Array.data~ / ~Vec.data~
+  - current consumers then guess whether that pointer is borrowed or owned
+
+  Cleanup direction:
+  - give runtime pointer-like values distinct meanings
+  - stop overloading one variant for both ref-like and owning semantics
+  - make the real owner delete runtime values at scope teardown and on
+    overwrite
+  - then simplify dispatcher helpers like ~val_to_ptr~ so they are only
+    borrowed pointer-view helpers instead of ownership escape hatches
+
+  Current candidate shape:
+  - split current ~Value.Ptr~ into:
+    - ~Value.Ref~ for borrowed/nullable pointer views
+    - ~Value.Dynamic~ for owning opaque pointers
+  - keep ~val_to_ptr := func(v: Value) returns ref Dynamic~
+  - repair runtime binding cleanup before relying on translated dispatcher
+    helpers as proof of correctness
+
+  Important constraints discovered during analysis:
+  - simple removal of ~Cell~ is not obviously safe yet, because current
+    borrowed bindings are used for:
+    - ref declarations from identifiers
+    - borrowed function argument binding paths
+  - own field reads cannot simply be classified globally as borrowed or
+    owning without checking the typed/lowered move/clone behavior
+
+  This should be tackled as a focused runtime ownership cleanup, not mixed
+  into unrelated dispatcher translations.
+
 ** OPEN #126 Auto-generated enum delete does not delete payload-owned data
   Auto-generated enum ~delete~ currently only does:
   - ~if call_free { free(own self) }~
