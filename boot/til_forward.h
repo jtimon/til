@@ -1063,6 +1063,7 @@ Bool h_exit(Scope * s, Expr * e, Value * r);
 Bool h_readfile(Scope * s, Expr * e, Value * r);
 Bool h_writefile(Scope * s, Expr * e, Value * r);
 Bool h_spawn_cmd(Scope * s, Expr * e, Value * r);
+void * val_to_ptr(Value * v);
 Bool h_check_cmd_status(Scope * s, Expr * e, Value * r);
 Bool h_sleep(Scope * s, Expr * e, Value * r);
 Bool h_file_mtime(Scope * s, Expr * e, Value * r);

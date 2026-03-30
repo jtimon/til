@@ -191,6 +191,24 @@ h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+val_to_ptr := func(v: Value) returns ref Dynamic {
+    switch v {
+    case Value.Ptr:     return get_payload(v)
+    case Value.Int:     return get_payload(v)
+    case Value.Byte:    return get_payload(v)
+    case Value.Short:   return get_payload(v)
+    case Value.Int32:   return get_payload(v)
+    case Value.Uint32:  return get_payload(v)
+    case Value.Float:   return get_payload(v)
+    case Value.Boolean: return get_payload(v)
+    case Value.Struct:
+        ref x : StructInstance = get_payload(v)
+        return x.data
+    case:
+        return NULL
+    }
+}
+
 h_check_cmd_status := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     pidv := eval_expr(s, e.child(1))
     ref pid : I64 = get_payload(pidv)

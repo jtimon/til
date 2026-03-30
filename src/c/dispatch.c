@@ -168,8 +168,6 @@ static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
     *r = val_bool(not(v.data.Boolean)); return 1;
 }
 
-static void *val_to_ptr(Value *v);
-
 // === Print handlers ===
 
 // === Misc handlers ===
@@ -177,7 +175,7 @@ static void *val_to_ptr(Value *v);
 static Bool h_free(Scope *s, Expr *e, Value *r) {
     if (Expr_child(e, &(USize){(USize)(1)})->data.tag != ExprData_TAG_Ident) {
         Value val = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-        void *ptr = val_to_ptr(&val);
+        void *ptr = val.tag == Value_TAG_Ptr ? val.data.Ptr : val_to_ptr(&val);
         if (ptr) free(ptr);
         *r = val_none();
         return 1;
@@ -345,7 +343,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
-        void *src = val_to_ptr(&elem);
+        void *src = elem.tag == Value_TAG_Ptr ? elem.data.Ptr : val_to_ptr(&elem);
         if (src) {
             if (elem.tag == Value_TAG_Struct && (elem.data.Struct.struct_name->count == 3 && memcmp(elem.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
                 // Deep-copy Str: copy flat bytes then strndup the data pointer
@@ -402,7 +400,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
-        void *src = val_to_ptr(&elem);
+        void *src = elem.tag == Value_TAG_Ptr ? elem.data.Ptr : val_to_ptr(&elem);
         if (src) {
             if (elem.tag == Value_TAG_Struct && (elem.data.Struct.struct_name->count == 3 && memcmp(elem.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
                 memcpy((char *)data + i * elem_size, src, elem_size);
@@ -446,27 +444,10 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
 
 // === Pointer primitive handlers ===
 
-// Extract raw void* from any Value type
-static void *val_to_ptr(Value *v) {
-    switch (v->tag) {
-        case Value_TAG_Ptr:    return v->data.Ptr;
-        case Value_TAG_Int:    return &v->data.Int;
-        case Value_TAG_Byte:     return &v->data.Byte;
-        case Value_TAG_Short:    return &v->data.Short;
-        case Value_TAG_Int32:    return &v->data.Int32;
-        case Value_TAG_Uint32:    return &v->data.Uint32;
-        case Value_TAG_Float:    return &v->data.Float;
-        case Value_TAG_Boolean:   return &v->data.Boolean;
-        case Value_TAG_Struct: return v->data.Struct.data;
-        default:         return NULL;
-    }
-}
-
-
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    void *base = val_to_ptr(&buf);
+    void *base = buf.tag == Value_TAG_Ptr ? buf.data.Ptr : val_to_ptr(&buf);
     { U64 *_hp = value_to_u64(&offset); *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)base + *_hp}; free(_hp); }
     return 1;
 }
