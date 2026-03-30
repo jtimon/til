@@ -667,14 +667,12 @@ parse_statement_ident := proc(mut p: Parser, shallow is_mut: Bool, shallow is_ow
             expect_token(p, TokenType.LParen)
             if is_variant(sig.data, ExprData.FuncDef) {
                 ref mut sfd : FunctionDef = get_payload(sig.data)
-                mut new_names := Vec.new("Str", Str.size())
                 for pi in 0..sfd.params.len() {
                     if pi.gt(0) { expect_token(p, TokenType.Comma) }
                     pn := expect_text(p, TokenType.Ident)
                     ref pp : Param = sfd.params.get(pi)
                     pp.name = pn
                 }
-                sig.data = ExprData.FuncDef(sfd)
             }
             if check(p, TokenType.Comma) { advance(p) } // trailing comma
             expect_token(p, TokenType.RParen)

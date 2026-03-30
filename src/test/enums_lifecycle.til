@@ -1,0 +1,51 @@
+mode test
+
+Token := enum { Num: I64, Name: Str, Eof }
+
+WordBag := struct {
+    mut items := Vec.new("Str", Str.size())
+    namespace:
+    eq := func(a: WordBag, b: WordBag) returns Bool {
+        if a.items.len().neq(b.items.len()) { return false }
+        for i in 0..a.items.len() {
+            ref av : Str = a.items.get(i)
+            ref bv : Str = b.items.get(i)
+            if av.eq(bv).not() { return false }
+        }
+        return true
+    }
+    to_str := func(self: WordBag) returns Str {
+        return self.items.len().to_str()
+    }
+}
+
+PayloadBox := enum { Bag: WordBag, Tok: Token, Empty }
+
+test_nested_enum_payload_clone := test() {
+    mut b := PayloadBox.Tok(Token.Name("hello"))
+    b2 := b.clone()
+
+    b = PayloadBox.Tok(Token.Name("bye"))
+
+    assert_eq_str(__LOC__, b.to_str(), "Tok(Name(bye))")
+    assert_eq_str(__LOC__, b2.to_str(), "Tok(Name(hello))")
+}
+
+test_vec_payload_clone := test() {
+    bag := WordBag()
+    bag.items.push(own "a")
+    bag.items.push(own "b")
+
+    b := PayloadBox.Bag(bag)
+    b2 := b.clone()
+
+    ref bag1 : WordBag = get_payload(b)
+    bag1.items.set(0, own "x")
+
+    ref bag2 : WordBag = get_payload(b2)
+    ref s1 : Str = bag1.items.get(0)
+    ref s2 : Str = bag2.items.get(0)
+    assert_eq_str(__LOC__, s1, "x")
+    assert_eq_str(__LOC__, s2, "a")
+    assert_eq(__LOC__, bag2.items.len().to_i64(), 2)
+}

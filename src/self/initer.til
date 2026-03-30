@@ -451,8 +451,57 @@ generate_enum_eq_method := proc(body: Expr, ename: Str, shallow line: U32, shall
     body.add_child(own decl)
 }
 
-generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str) {
+generate_enum_delete_method := proc(body: Expr, ename: Str, shallow line: U32, shallow col: U32, path: Str, variant_names: Vec, variant_types: Vec, shallow has_payloads: Bool, scope: TypeScope) {
     mut proc_body := Expr.new(ExprData.Body, line, col, path)
+    if has_payloads {
+        for j in 0..variant_names.len() {
+            ref vn : Str = variant_names.get(j)
+            ref vtype : Str = variant_types.get(j)
+            if vtype.len().eq(0) { continue }
+            if vtype.eq("Dynamic") { continue }
+            if type_from_name_init(vtype, scope).eq(TilType.FuncPtr) { continue }
+
+            mut tiv := Expr.new(ExprData.Ident("is_variant"), line, col, path)
+            mut self_id := Expr.new(ExprData.Ident("self"), line, col, path)
+            mut tet := Expr.new(ExprData.Ident(ename.clone()), line, col, path)
+            mut tvr := Expr.new(ExprData.FieldAccess(vn.clone()), line, col, path)
+            tvr.add_child(own tet)
+            mut is_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            is_call.add_child(own tiv)
+            is_call.add_child(own self_id)
+            is_call.add_child(own tvr)
+
+            mut then_body := Expr.new(ExprData.Body, line, col, path)
+
+            mut type_id := Expr.new(ExprData.Ident(vtype.clone()), line, col, path)
+            type_id.struct_name = vtype.clone()
+            mut del_acc := Expr.new(ExprData.FieldAccess("delete"), line, col, path)
+            del_acc.is_ns_field = true
+            del_acc.add_child(own type_id)
+            mut del_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            del_call.add_child(own del_acc)
+
+            mut gp := Expr.new(ExprData.Ident("get_payload"), line, col, path)
+            mut self2 := Expr.new(ExprData.Ident("self"), line, col, path)
+            mut gc := Expr.new(ExprData.FCall(FCallData()), line, col, path)
+            gc.add_child(own gp)
+            gc.add_child(own self2)
+            gc.til_type = type_from_name_init(vtype, scope)
+            gc.struct_name = vtype.clone()
+            gc.is_own_arg = true
+            del_call.add_child(own gc)
+
+            mut false_lit := Expr.new(ExprData.LiteralBool(false), line, col, path)
+            del_call.add_child(own false_lit)
+            then_body.add_child(own del_call)
+
+            mut if_node2 := Expr.new(ExprData.If, line, col, path)
+            if_node2.add_child(own is_call)
+            if_node2.add_child(own then_body)
+            proc_body.add_child(own if_node2)
+        }
+    }
+
     mut cond := Expr.new(ExprData.Ident("call_free"), line, col, path)
     mut then_body := Expr.new(ExprData.Body, line, col, path)
     mut free_call := Expr.new(ExprData.FCall(FCallData()), line, col, path)
@@ -613,7 +662,7 @@ generate_enum_clone_method := proc(mut body: Expr, ename: Str, shallow line: I32
         ref mut pd : Expr = NULL
         ref vtype : Str = variant_types.get(j)
         if vtype.len().gt(0) {
-            pn := format("_p_", vtype, "_", j.to_str())
+            pn := format("_clone_payload_", vname, "_", j.to_str())
 
             mut gp := Expr.new(ExprData.Ident("get_payload"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
             mut self_g := Expr.new(ExprData.Ident("self"), line.to_i64().to_u32(), col.to_i64().to_u32(), path)
@@ -749,7 +798,7 @@ register_enums_and_generate_nonclone_methods := proc(program: Expr, scope: TypeS
             generate_enum_eq_method(body, ename, line, col, path, variant_names, variant_types, scope)
         }
         if has_delete.not() {
-            generate_enum_delete_method(body, ename, line, col, path)
+            generate_enum_delete_method(body, ename, line, col, path, variant_names, variant_types, has_payloads, scope)
         }
         if has_to_str.not() {
             generate_enum_to_str_method(body, ename, line, col, path, variant_names, variant_types, has_payloads, scope)

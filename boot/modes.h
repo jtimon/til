@@ -789,7 +789,7 @@ void collect_enum_variants(Expr * body, Vec * variant_names, Vec * variant_types
 void generate_enum_variant_constructors(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads);
 void generate_enum_is_method(Expr * body, Str * ename, U32 line, U32 col, Str * path);
 void generate_enum_eq_method(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, TypeScope * scope);
-void generate_enum_delete_method(Expr * body, Str * ename, U32 line, U32 col, Str * path);
+void generate_enum_delete_method(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
 void generate_enum_to_str_method(Expr * body, Str * ename, U32 line, U32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads, TypeScope * scope);
 void generate_enum_clone_method(Expr * body, Str * ename, I32 line, I32 col, Str * path, Vec * variant_names, Vec * variant_types, Bool has_payloads);
 I32 register_enums_and_generate_nonclone_methods(Expr * program, TypeScope * scope);
@@ -1068,7 +1068,6 @@ Bool h_readfile(Scope * s, Expr * e, Value * r);
 Bool h_writefile(Scope * s, Expr * e, Value * r);
 Bool h_spawn_cmd(Scope * s, Expr * e, Value * r);
 void * val_to_ptr(Value * v);
-Bool h_free(Scope * s, Expr * e, Value * r);
 Bool h_dyn_has_method(Scope * s, Expr * e, Value * r);
 Bool h_dyn_fn(Scope * s, Expr * e, Value * r);
 Bool h_check_cmd_status(Scope * s, Expr * e, Value * r);
