@@ -1,10 +1,40 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 127
+# NEXT_ISSUE: 128
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #128 Enum lifecycle is too shallow for managed payloads
+  Separate from ~#126~'s generated-enum-~delete~ bug, the runtime enum
+  lifecycle in the ~Value~ path is also too shallow for managed payloads.
+
+  Current verified problems:
+  - generated enum ~delete~ only frees ~self~ and does not recurse into
+    payload-owned data (~#126~)
+  - runtime ~Value.Enum~ clone in ~interpreter.c~ allocates a new flat
+    payload buffer and ~memcpy~s it
+  - runtime ~Value.Enum~ delete/free only frees that outer payload buffer
+
+  That is wrong for payload enums carrying managed values like:
+  - ~Str~
+  - structs with owned internals
+  - containers such as ~Vec~
+
+  Verified examples already allowed by the language/tests:
+  - ~Token.Name: Str~
+  - ~Shape.Dot: Point~
+  - ~Shape.Line: Str~
+
+  Consequences:
+  - enum payload clones can alias inner owned data instead of deep-cloning it
+  - enum payload deletes can leak inner owned data
+  - the interpreter/runtime ~Value~ path keeps papering over enum ownership
+    instead of relying on correct clone/delete semantics
+
+  For ~#109~, this is a concrete leak bucket in the runtime ~Value~ code,
+  not just a translator concern.
+
 ** OPEN #127 Runtime ~Value~/binding ownership cleanup and ~Ptr~ split
   The interpreter runtime currently overloads one mechanism for several
   different ownership cases:
@@ -401,6 +431,8 @@
   - separate but plausibly leak-relevant runtime cleanup bug:
     - ~#126~ auto-generated enum ~delete~ currently frees only ~self~
       and does not recurse into payload-owned data
+  - additional concrete runtime leak bucket in the ~Value~ path:
+    - ~#128~ enum lifecycle is too shallow for managed payloads
 
   Next investigation direction:
   - compare the generated raw-~Vec~ struct literals against the old
