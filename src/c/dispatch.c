@@ -168,19 +168,6 @@ static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
     *r = val_bool(Bool_not(v.data.Boolean)); return 1;
 }
 
-static Bool h_I32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_i32(I32_from_i64(v.data.Int)); return 1;
-}
-static Bool h_F32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_f32(F32_from_i64(v.data.Int)); return 1;
-}
-static Bool h_U32_from_i64(Scope *s, Expr *e, Value *r) {
-    Value v = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_u32(U32_from_i64(v.data.Int)); return 1;
-}
-
 static void *val_to_ptr(Value *v);
 
 // === Print handlers ===
