@@ -203,6 +203,9 @@ Bool Bool_eq(Bool a, Bool b);
 Bool Bool_and(Bool a, Bool b);
 Bool Bool_or(Bool a, Bool b);
 Bool Bool_not(Bool a);
+Bool and(Bool a, Bool b);
+Bool or(Bool a, Bool b);
+Bool not(Bool a);
 
 // Bool clone
 Bool Bool_clone(Bool *v);

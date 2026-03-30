@@ -156,16 +156,16 @@ static Value eval_arg(Scope *s, Expr *e) {
 static Bool h_Bool_and(Scope *s, Expr *e, Value *r) {
     Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
     Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = val_bool(Bool_and(a.data.Boolean, b.data.Boolean)); return 1;
+    *r = val_bool(and(a.data.Boolean, b.data.Boolean)); return 1;
 }
 static Bool h_Bool_or(Scope *s, Expr *e, Value *r) {
     Value a = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
     Value b = eval_arg(s, Expr_child(e, &(USize){(USize)(2)}));
-    *r = val_bool(Bool_or(a.data.Boolean, b.data.Boolean)); return 1;
+    *r = val_bool(or(a.data.Boolean, b.data.Boolean)); return 1;
 }
 static Bool h_Bool_not(Scope *s, Expr *e, Value *r) {
     Value v = eval_arg(s, Expr_child(e, &(USize){(USize)(1)}));
-    *r = val_bool(Bool_not(v.data.Boolean)); return 1;
+    *r = val_bool(not(v.data.Boolean)); return 1;
 }
 
 static void *val_to_ptr(Value *v);
@@ -581,7 +581,7 @@ static void dispatch_init(void) {
     REG("print_single", h_print_single);
     REG("print_flush", h_print_flush);
 
-    // Bool standalone (name mismatch: "and" → Bool_and in C)
+    // Bool standalone
     REG("and", h_Bool_and); REG("or", h_Bool_or);
     REG("not", h_Bool_not);
 

@@ -402,9 +402,6 @@ static Bool callee_param_is_own(Str *callee_name, U32 arg_index) {
 
 // Map til function names to C symbol names (handles stdlib collisions)
 static const char *func_to_c(Str *name) {
-    if ((name->count == 3 && memcmp(name->c_str, "and", 3) == 0)) return "Bool_and";
-    if ((name->count == 2 && memcmp(name->c_str, "or", 2) == 0)) return "Bool_or";
-    if ((name->count == 3 && memcmp(name->c_str, "not", 3) == 0)) return "Bool_not";
     // C keyword collision
     if ((name->count == 6 && memcmp(name->c_str, "double", 6) == 0)) return "double_";
     return (const char *)name->c_str;
