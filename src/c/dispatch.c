@@ -288,22 +288,6 @@ static Bool h_dyn_fn(Scope *s, Expr *e, Value *r) {
 
 // === Collection builtin handlers ===
 
-// Get raw pointer from a Value (for memcpy into Array/Vec data buffer)
-static void *val_raw_ptr(Value *v) {
-    switch (v->tag) {
-        case Value_TAG_Int:    return &v->data.Int;
-        case Value_TAG_Byte:     return &v->data.Byte;
-        case Value_TAG_Short:    return &v->data.Short;
-        case Value_TAG_Int32:    return &v->data.Int32;
-        case Value_TAG_Uint32:    return &v->data.Uint32;
-        case Value_TAG_Float:    return &v->data.Float;
-        case Value_TAG_Boolean:   return &v->data.Boolean;
-        case Value_TAG_Struct: return v->data.Struct.data;
-        case Value_TAG_Ptr:    return v->data.Ptr;
-        default:         return NULL;
-    }
-}
-
 // Get element size via dyn_call to Type.size()
 // Workaround: the scavenger may remove Type.size() if not directly referenced
 // in user code (see issue #15). Users must reference Type.size() explicitly.
@@ -361,7 +345,7 @@ static Bool h_array(Scope *s, Expr *e, Value *r) {
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
-        void *src = val_raw_ptr(&elem);
+        void *src = val_to_ptr(&elem);
         if (src) {
             if (elem.tag == Value_TAG_Struct && (elem.data.Struct.struct_name->count == 3 && memcmp(elem.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
                 // Deep-copy Str: copy flat bytes then strndup the data pointer
@@ -418,7 +402,7 @@ static Bool h_vec(Scope *s, Expr *e, Value *r) {
     // Evaluate each element and copy into data buffer
     for (U32 i = 0; i < count; i++) {
         Value elem = eval_expr(s, Expr_child(e, &(USize){(USize)(i + 2)}));
-        void *src = val_raw_ptr(&elem);
+        void *src = val_to_ptr(&elem);
         if (src) {
             if (elem.tag == Value_TAG_Struct && (elem.data.Struct.struct_name->count == 3 && memcmp(elem.data.Struct.struct_name->c_str, "Str", 3) == 0)) {
                 memcpy((char *)data + i * elem_size, src, elem_size);
@@ -482,7 +466,7 @@ static void *val_to_ptr(Value *v) {
 static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
     Value buf = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
     Value offset = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    void *base = val_raw_ptr(&buf);
+    void *base = val_to_ptr(&buf);
     { U64 *_hp = value_to_u64(&offset); *r = (Value){.tag = Value_TAG_Ptr, .data.Ptr = (char *)base + *_hp}; free(_hp); }
     return 1;
 }
