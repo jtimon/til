@@ -1,0 +1,128 @@
+mode gui
+
+push_line := proc(lines: Vec, text: Str) {
+    lines.push(own text.clone())
+}
+
+push_output := proc(lines: Vec, output: Str) {
+    if output.len().eq(0) {
+        push_line(lines, "")
+        return
+    }
+    parts := output.split("\n")
+    mut i : USize = 0
+    while i.lt(parts.len()) {
+        ref p : Str = parts.get(i)
+        push_line(lines, p)
+        i = i.add(1)
+    }
+}
+
+run_shell_command := proc(lines: Vec, cmd: Str) {
+    push_line(lines, "$ ".concat(cmd))
+
+    if cmd.eq("help") {
+        push_line(lines, "help: run any shell command")
+        push_line(lines, "clear: clear the terminal")
+        return
+    }
+
+    mut out := ""
+    ec := run_cmd(mut out, "sh", "-lc", cmd)
+
+    push_output(lines, out)
+    push_line(lines, "[exit ".concat(ec.to_str()).concat("]"))
+}
+
+main := proc(args: ..Str) {
+    w := 960
+    h := 640
+    line_h := 18
+    pad_x := 10
+    pad_y := 10
+    input_h := 36
+
+    mut lines := Vec.new("Str", Str.size())
+    push_line(lines, "tilminal")
+    push_line(lines, "type a shell command and press Enter")
+    push_line(lines, "builtins: clear, help")
+    push_line(lines, "")
+
+    // Optional startup command: tilminal.til "<command>"
+    if args.len().gt(0) {
+        ref startup_cmd : Str = args.get(0)
+        if startup_cmd.len().gt(0) {
+            run_shell_command(lines, startup_cmd)
+        }
+    }
+
+    mut input := ""
+
+    init_window(w, h, "tilminal")
+    set_target_fps(60)
+
+    while window_should_close().not() {
+        // Enter: run command
+        if is_key_pressed(257) {
+            if input.len().gt(0) {
+                cmd := input.clone()
+                if cmd.eq("clear") {
+                    mut fresh := Vec.new("Str", Str.size())
+                    lines = fresh
+                } else {
+                    run_shell_command(lines, cmd)
+                }
+                input = ""
+            }
+        }
+
+        // Backspace
+        if is_key_pressed(259) {
+            if input.len().gt(0) {
+                input = input.substr(0, input.len().sub(1))
+            }
+        }
+
+        // Character input (printable ASCII)
+        mut ch := get_char_pressed()
+        while ch.gt(0) {
+            if ch.gte(32).and(ch.lt(127)) {
+                input = input.concat(Str.from_byte(ch.to_u8()))
+            }
+            ch = get_char_pressed()
+        }
+
+        begin_drawing()
+        clear_background(10, 12, 16, 255)
+
+        // Output region
+        out_h := h.sub(input_h).sub(pad_y.mul(2))
+        max_lines := out_h.div(line_h)
+        total_lines := lines.len().to_i64()
+        mut start := 0
+        if total_lines.gt(max_lines) {
+            start = total_lines.sub(max_lines)
+        }
+
+        draw_rectangle(0, h.sub(input_h), w, input_h, 25, 28, 36, 255)
+
+        mut row := 0
+        mut i : USize = start.to_u32()
+        while i.lt(lines.len()) {
+            if row.gte(max_lines) { break }
+            ref line : Str = lines.get(i)
+            draw_text(line, pad_x, pad_y.add(row.mul(line_h)), 16, 220, 220, 220, 255)
+            row = row.add(1)
+            i = i.add(1)
+        }
+
+        prompt := "$ ".concat(input)
+        draw_text(prompt, pad_x, h.sub(input_h).add(10), 18, 120, 255, 120, 255)
+        draw_text("Enter=run  Esc=quit", w.sub(190), h.sub(input_h).add(12), 14, 130, 130, 150, 255)
+
+        end_drawing()
+    }
+
+    close_window()
+}
+
