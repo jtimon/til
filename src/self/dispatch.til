@@ -121,6 +121,13 @@ h_U8_from_i64 := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+h_I16_from_i64 := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    v := eval_expr(s, e.child(1))
+    ref i : I64 = get_payload(v)
+    r = val_i16(i)
+    return true
+}
+
 ext_function_dispatch := ext_func(name: Str, scope: Scope, e: Expr, result: Value) returns shallow Bool {}
 enum_method_dispatch := ext_func(method: Str, scope: Scope, enum_def: Expr, enum_name: Str, e: Expr, result: Value) returns shallow Bool {}
 ffi_init := ext_func(program: Expr, user_c_path: Str, ext_c_path: Str, link_flags: Str) returns shallow I32 {}
