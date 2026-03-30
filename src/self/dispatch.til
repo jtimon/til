@@ -149,6 +149,48 @@ h_U32_from_i64 := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     return true
 }
 
+h_print_single := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    arg := eval_expr(s, e.child(1))
+    print_single(str_view(arg))
+    r = val_none()
+    return true
+}
+
+h_print_flush := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    print_flush()
+    r = val_none()
+    return true
+}
+
+h_exit := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    a := eval_expr(s, e.child(1))
+    ref code : I64 = get_payload(a)
+    exit(code)
+    r = val_none()
+    return true
+}
+
+h_readfile := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    path := eval_expr(s, e.child(1))
+    content := readfile(str_view(path))
+    r = make_str_value(content.c_str, content.count)
+    return true
+}
+
+h_writefile := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    path := eval_expr(s, e.child(1))
+    content := eval_expr(s, e.child(2))
+    writefile(str_view(path), str_view(content))
+    r = val_none()
+    return true
+}
+
+h_spawn_cmd := proc(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
+    cmd := eval_expr(s, e.child(1))
+    r = val_i64(spawn_cmd(str_view(cmd)))
+    return true
+}
+
 h_check_cmd_status := func(s: Scope, e: Expr, mut r: Value) returns shallow Bool {
     pidv := eval_expr(s, e.child(1))
     ref pid : I64 = get_payload(pidv)

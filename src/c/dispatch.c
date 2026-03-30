@@ -172,26 +172,7 @@ static void *val_to_ptr(Value *v);
 
 // === Print handlers ===
 
-static Bool h_print_single(Scope *s, Expr *e, Value *r) {
-    Value arg = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Str sv = str_view(arg);
-    fwrite(sv.c_str, 1, sv.count, stdout);
-    *r = val_none(); return 1;
-}
-
-static Bool h_print_flush(Scope *s, Expr *e, Value *r) {
-    (void)s; (void)e;
-    putchar('\n');
-    *r = val_none(); return 1;
-}
-
 // === Misc handlers ===
-
-static Bool h_exit(Scope *s, Expr *e, Value *r) {
-    Value a = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    exit((int)a.data.Int);
-    *r = val_none(); return 1;
-}
 
 static Bool h_free(Scope *s, Expr *e, Value *r) {
     if (Expr_child(e, &(USize){(USize)(1)})->data.tag != ExprData_TAG_Ident) {
@@ -508,64 +489,6 @@ static Bool h_ptr_add(Scope *s, Expr *e, Value *r) {
 
 
 // === System primitive handlers ===
-
-static Bool h_readfile(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Str sv = str_view(path);
-    char *p = strndup((const char *)sv.c_str, sv.count);
-    FILE *f = fopen(p, "rb");
-    if (!f) {
-        fprintf(stderr, "readfile: could not open '%s'\n", p);
-        free(p);
-        exit(1);
-    }
-    free(p);
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *buf = malloc(len);
-    fread(buf, 1, len, f);
-    fclose(f);
-    *r = make_str_value_own(buf, (U64)len);
-    return 1;
-}
-
-static Bool h_writefile(Scope *s, Expr *e, Value *r) {
-    Value path = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Value content = eval_expr(s, Expr_child(e, &(USize){(USize)(2)}));
-    Str pv = str_view(path);
-    Str cv = str_view(content);
-    char *p = strndup((const char *)pv.c_str, pv.count);
-    FILE *f = fopen(p, "wb");
-    if (!f) {
-        fprintf(stderr, "writefile: could not open '%s'\n", p);
-        free(p);
-        exit(1);
-    }
-    free(p);
-    fwrite(cv.c_str, 1, cv.count, f);
-    fclose(f);
-    *r = val_none();
-    return 1;
-}
-
-static Bool h_spawn_cmd(Scope *s, Expr *e, Value *r) {
-    Value cmd = eval_expr(s, Expr_child(e, &(USize){(USize)(1)}));
-    Str sv = str_view(cmd);
-    char *c = strndup((const char *)sv.c_str, sv.count);
-    pid_t pid = fork();
-    if (pid == 0) {
-        execl("/bin/sh", "sh", "-c", c, NULL);
-        _exit(127);
-    }
-    free(c);
-    if (pid < 0) {
-        fprintf(stderr, "spawn_cmd: fork failed\n");
-        exit(1);
-    }
-    *r = val_i64((I64)pid);
-    return 1;
-}
 
 // === Dispatch init ===
 
