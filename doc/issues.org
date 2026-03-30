@@ -1,10 +1,35 @@
 # Issue tracker for til.
 # New issues go at the top of their section, numbered from NEXT_ISSUE.
-# NEXT_ISSUE: 129
+# NEXT_ISSUE: 130
 # Fixed issues are moved to fixed.org, cancelled to cancelled.org.
 #+TODO: OPEN WIP | FIXED CANCELLED
 
 * [0/12] Pre
+** OPEN #130 AST / ~Expr~ representation cleanup
+  The current AST shape is confusing and duplicates state in ways that make
+  parser and ownership bugs harder to reason about.
+
+  Current pressure points:
+  - ~ExprData~ is still acting as a giant catch-all payload enum
+  - node-kind-specific data is split between ~Expr~, ~ExprData~, and
+    sometimes child lists
+  - that makes ownership/lifetime of payload pointers much harder to see
+  - parser code is forced into fragile payload-rebuild patterns around
+    ~ExprData.FuncDef~, ~Decl~, and related nodes
+
+  Intended direction:
+  - move toward a clearer node model where node-kind payload data lives in
+    the node-kind payload itself
+  - keep structural subexpressions in children, instead of duplicating
+    state between children and payload structs
+  - reduce the amount of duplicated / mirrored metadata spread across
+    ~Expr~ and embedded payload structs
+
+  Expected payoff:
+  - simpler parser code
+  - fewer use-after-free / stale-payload bugs during AST rewrites
+  - easier future cleanup of clone/delete semantics around AST nodes
+
 ** OPEN #129 Runtime ~Value~ instance payload fields still use ~ref~ where they should own
   This is the runtime ~Value~ / interpreter-side ownership issue, separate
   from ~#128~'s auto-generated enum methods in ~initer.til~.
