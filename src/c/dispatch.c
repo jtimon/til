@@ -16,19 +16,6 @@ F32 F32_from_i64(I64 v);
 U32 U32_from_i64(I64 v);
 U64 U64_from_i64(I64 v);
 
-static F32 value_to_f32(Value v) {
-    switch (v.tag) {
-        case Value_TAG_Int:  return (F32)v.data.Int;
-        case Value_TAG_Byte:   return (F32)v.data.Byte;
-        case Value_TAG_Short:  return (F32)v.data.Short;
-        case Value_TAG_Int32:  return (F32)v.data.Int32;
-        case Value_TAG_Uint32:  return (F32)v.data.Uint32;
-        case Value_TAG_Uint64:  return (F32)v.data.Uint64;
-        case Value_TAG_Float:  return v.data.Float;
-        case Value_TAG_Boolean: return v.data.Boolean ? 1.0f : 0.0f;
-        default:       return 0.0f;
-    }
-}
 #include <stdlib.h>
 #include <string.h>
 #include <dlfcn.h>
@@ -767,7 +754,9 @@ static Bool ext_dispatch_ffi(Str *name, Scope *scope, Expr *e, Value *result) {
                 else { U64 *_hp = value_to_u64(&v); tmp = *_hp; free(_hp); }
                 *(U64 *)&args[i] = tmp;
             } else if (arg_types[i] == &ffi_type_float) {
-                F32 tmp = (v.tag == Value_TAG_Ptr) ? *(F32 *)v.data.Ptr : value_to_f32(v);
+                F32 tmp;
+                if (v.tag == Value_TAG_Ptr) tmp = *(F32 *)v.data.Ptr;
+                else { F32 *_hp = value_to_f32(&v); tmp = *_hp; free(_hp); }
                 *(F32 *)&args[i] = tmp;
             } else {
                 args[i] = v.data.Ptr;
