@@ -1,0 +1,248 @@
+mode cli
+
+import("../core/io.til")
+import("../core/ast.til")
+import("../self/lexer.til")
+import("../self/parser.til")
+
+NL := Str.from_byte(10)
+
+file_label := func(path: Str) returns Str {
+    parts := path.split("/")
+    if parts.len().eq(0) { return path.clone() }
+    ref last : Str = parts.get(parts.len().sub(1))
+    return last.strip_suffix(".til")
+}
+
+ordered_paths := proc() returns Vec {
+    mut paths := Vec.new("Str", Str.size())
+    paths.push(own "src/self/lexer.til".clone())
+    paths.push(own "src/core/ast.til".clone())
+    paths.push(own "src/self/parser.til".clone())
+    paths.push(own "src/self/initer.til".clone())
+    paths.push(own "src/self/typer.til".clone())
+    paths.push(own "src/self/precomp.til".clone())
+    paths.push(own "src/self/scavenger.til".clone())
+    paths.push(own "src/self/builder.til".clone())
+    paths.push(own "src/self/dispatch.til".clone())
+    paths.push(own "src/self/interpreter.til".clone())
+    paths.push(own "src/self/modes.til".clone())
+    return paths
+}
+
+trim_ws := func(s: Str) returns Str {
+    mut start : USize = 0
+    while start.lt(s.len()) {
+        ref c : U8 = s.get(start)
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
+            start = start.add(1)
+        } else {
+            break
+        }
+    }
+    mut end := s.len()
+    while end.gt(start) {
+        ref c : U8 = s.get(end.sub(1))
+        if c.eq(' ').or(c.eq('\t')).or(c.eq('\r')) {
+            end = end.sub(1)
+        } else {
+            break
+        }
+    }
+    return s.substr(start, end.sub(start)).clone()
+}
+
+count_char := func(s: Str, ch: U8) returns I64 {
+    mut n := 0
+    mut i : USize = 0
+    while i.lt(s.len()) {
+        ref c : U8 = s.get(i)
+        if c.eq(ch) { n = n.add(1) }
+        i = i.add(1)
+    }
+    return n
+}
+
+extract_body_lines := proc(lines: Vec, shallow start_line: U32) returns Vec {
+    mut out := Vec.new("Str", Str.size())
+    mut started := false
+    mut stop_collect := false
+    mut depth := 0
+    mut i := start_line.to_i64().sub(1).to_usize()
+
+    while i.lt(lines.len()) {
+        ref raw : Str = lines.get(i)
+
+        if started.not() {
+            brace_pos := raw.find("{")
+            if brace_pos.eq(-1) {
+                i = i.add(1)
+                continue
+            }
+            started = true
+            depth = 1
+            trailing := raw.substr(brace_pos.to_usize().add(1), raw.len().sub(brace_pos.to_usize().add(1))).clone()
+            trimmed_trailing := trim_ws(trailing)
+            if trimmed_trailing.len().gt(0).and(trimmed_trailing.eq("}").not()) {
+                if trimmed_trailing.starts_with("namespace:") {
+                    stop_collect = true
+                } else {
+                    out.push(own trimmed_trailing)
+                }
+            }
+            depth = depth.add(count_char(trailing, '{')).sub(count_char(trailing, '}'))
+            if depth.lte(0) { break }
+            i = i.add(1)
+            continue
+        }
+
+        trimmed := trim_ws(raw)
+        if stop_collect.not() {
+            if trimmed.starts_with("namespace:") {
+                stop_collect = true
+            } else if trimmed.len().gt(0).and(trimmed.starts_with("//").not()).and(trimmed.eq("}").not()) {
+                out.push(own trimmed)
+            }
+        }
+
+        depth = depth.add(count_char(raw, '{')).sub(count_char(raw, '}'))
+        if depth.lte(0) { break }
+        i = i.add(1)
+    }
+
+    return out
+}
+
+join_lines := func(lines: Vec) returns Str {
+    mut out := ""
+    mut i : USize = 0
+    while i.lt(lines.len()) {
+        ref line : Str = lines.get(i)
+        if i.gt(0) {
+            out = out.concat(" ")
+        }
+        out = out.concat(line)
+        i = i.add(1)
+    }
+    return out
+}
+
+append_token_text := func(mut out: Str, tok: Token) returns Str {
+    if tok.type.eq(TokenType.Eof) { return out }
+    if out.len().gt(0) {
+        out = out.concat(" ")
+    }
+    return out.concat(tok.text)
+}
+
+trim_trailing_comma := func(s: Str) returns Str {
+    trimmed := trim_ws(s)
+    if trimmed.ends_with(",") {
+        return trim_ws(trimmed.strip_suffix(","))
+    }
+    return trimmed
+}
+
+split_enum_variants := proc(lines: Vec) returns Vec {
+    mut out := Vec.new("Str", Str.size())
+    body := join_lines(lines)
+    tokens := tokenize(body, "uml_enum_body")
+    mut current := ""
+    mut paren_depth := 0
+    mut i : USize = 0
+
+    while i.lt(tokens.len()) {
+        ref tok : Token = tokens.get(i)
+        if tok.type.eq(TokenType.Eof) { break }
+
+        if tok.type.eq(TokenType.LParen) {
+            paren_depth = paren_depth.add(1)
+            current = append_token_text(current, tok)
+        } else if tok.type.eq(TokenType.RParen) {
+            paren_depth = paren_depth.sub(1)
+            current = append_token_text(current, tok)
+        } else if tok.type.eq(TokenType.Comma).and(paren_depth.eq(0)) {
+            variant := trim_trailing_comma(current)
+            if variant.len().gt(0) {
+                out.push(own variant)
+            }
+            current = ""
+        } else {
+            current = append_token_text(current, tok)
+        }
+
+        i = i.add(1)
+    }
+
+    last := trim_trailing_comma(current)
+    if last.len().gt(0) {
+        out.push(own last)
+    }
+
+    return out
+}
+
+parse_file := proc(path: Str) returns Expr {
+    source := readfile(path)
+    tokens := tokenize(source, path)
+    mut mode_str := ""
+    return parse(tokens, path.clone(), mode_str)
+}
+
+emit_file := proc(mut out: Str, path: Str) returns Str {
+    source := readfile(path)
+    lines := source.split(NL)
+    ast := parse_file(path)
+
+    out = out.concat("* ").concat(file_label(path)).concat(NL)
+
+    mut i : USize = 0
+    while i.lt(ast.child_count()) {
+        ref stmt : Expr = ast.child(i)
+        if is_variant(stmt.data, ExprData.Decl).and(stmt.child_count().gt(0)) {
+            ref dd : Declaration = get_payload(stmt.data)
+            ref rhs : Expr = stmt.child(0)
+
+            if is_variant(rhs.data, ExprData.StructDef).or(is_variant(rhs.data, ExprData.EnumDef)) {
+                out = out.concat("** ").concat(dd.name).concat(NL)
+                body_lines := extract_body_lines(lines, rhs.line)
+                mut rendered_lines := body_lines
+                if is_variant(rhs.data, ExprData.EnumDef) {
+                    rendered_lines = split_enum_variants(body_lines)
+                }
+                mut j : USize = 0
+                while j.lt(rendered_lines.len()) {
+                    ref line : Str = rendered_lines.get(j)
+                    out = out.concat("*** ").concat(line).concat(NL)
+                    j = j.add(1)
+                }
+            }
+        }
+        i = i.add(1)
+    }
+
+    out = out.concat(NL)
+    return out
+}
+
+generate_org := proc(paths: Vec) returns Str {
+    mut out := ""
+    mut i : USize = 0
+    while i.lt(paths.len()) {
+        ref path : Str = paths.get(i)
+        out = emit_file(out, path)
+        i = i.add(1)
+    }
+    return out
+}
+
+main := proc(args: ..Str) {
+    mut out_path := "doc/uml.org"
+    if args.len().gt(0) {
+        ref arg0 : Str = args.get(0)
+        out_path = arg0.clone()
+    }
+    paths := ordered_paths()
+    writefile(out_path, generate_org(paths))
+    println("Generated: ", out_path)
+}

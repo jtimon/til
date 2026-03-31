@@ -68,6 +68,7 @@ bin/til: bin/til_boot $(CORE) $(SELF) src/til.til
 	bin/til translate src/til.til
 	cp gen/til/til*.c gen/til/til*.h boot/ 2>/dev/null || true
 	bin/til build -o bin/til src/til.til
+	bin/til run src/examples/uml.til
 
 # --- ASAN build (for memory debugging) ---
 
