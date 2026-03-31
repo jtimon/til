@@ -8,10 +8,13 @@ import("../self/parser.til")
 NL := Str.from_byte(10)
 
 file_label := func(path: Str) returns Str {
-    parts := path.split("/")
-    if parts.len().eq(0) { return path.clone() }
-    ref last : Str = parts.get(parts.len().sub(1))
-    return last.strip_suffix(".til")
+    mut label := path.clone()
+    if label.starts_with("src/self/") {
+        label = label.strip_prefix("src/self/")
+    } else if label.starts_with("src/core/") {
+        label = label.strip_prefix("src/core/")
+    }
+    return label.strip_suffix(".til")
 }
 
 ordered_paths := proc() returns Vec {
@@ -221,7 +224,6 @@ emit_file := proc(mut out: Str, path: Str) returns Str {
         i = i.add(1)
     }
 
-    out = out.concat(NL)
     return out
 }
 
