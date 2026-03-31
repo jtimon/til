@@ -966,9 +966,7 @@ infer_fcall_expr := proc(scope: TypeScope, mut e: Expr, shallow in_func: I32, ct
     ref callee_bind : TypeBinding = scope.get_binding(name)
     if is_null(callee_bind).not() {
         if is_null(callee_bind.func_def).not() {
-            if callee_bind.is_builtin.not().or(callee_bind.func_def.is_core.not()) {
-                desugar_user_func_fcall_args(e, name, callee_bind)
-            }
+            desugar_user_func_fcall_args(e, name, callee_bind)
         }
     }
     infer_and_validate_fcall_args(scope, e, callee_bind, in_func, ctx)

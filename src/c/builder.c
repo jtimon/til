@@ -525,13 +525,14 @@ static void emit_expr(FILE *f, Expr *e, I32 depth) {
         if ((name->count == 8 && memcmp(name->c_str, "dyn_call", 8) == 0) || (name->count == 12 && memcmp(name->c_str, "dyn_call_ret", 12) == 0)) {
             // dyn_call(type_name, "method", arity, val, ...) → dyn_call_method(type_name, val, ...)
             Str *method = &Expr_child(e, &(USize){(USize)(2)})->data.data.Ident;
+            I32 nargs = (I32)atol((char *)Expr_child(e, &(USize){(USize)(3)})->data.data.Ident.c_str);
             fprintf(f, "dyn_call_%s(", method->c_str);
             // Emit type_name as first arg
             emit_as_ptr(f, Expr_child(e, &(USize){(USize)(1)}), depth);
-            // Emit remaining args (skip arity at child 3, emit from child 4)
-            for (U32 i = 4; i < e->children.count; i++) {
+            // Emit exactly the declared dyn-call arity worth of args from child 4 onward.
+            for (I32 ai = 0; ai < nargs; ai++) {
                 fprintf(f, ", ");
-                emit_as_ptr(f, Expr_child(e, &(USize){(USize)(i)}), depth);
+                emit_as_ptr(f, Expr_child(e, &(USize){(USize)(ai + 4)}), depth);
             }
             fprintf(f, ")");
         } else if (name->count == 6 && memcmp(name->c_str, "dyn_fn", 6) == 0) {

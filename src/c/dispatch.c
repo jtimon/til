@@ -187,24 +187,11 @@ static Bool h_dyn_call(Scope *s, Expr *e, Value *r) {
     fake_call.col = e->col;
     fake_call.children = (Vec){.data = malloc(sizeof(Expr)), .cap = 1, .elem_size = sizeof(Expr)};
     { Expr *_p = malloc(sizeof(Expr)); *_p = field_access; Vec_push(&fake_call.children, _p); }
-    // Skip child 3 (arity literal), actual args start at child 4
-    for (U32 i = 4; i < e->children.count; i++) {
-        Expr *arg = Expr_child(e, &(USize){(USize)(i)});
+    I32 nargs = (I32)atol((char *)Expr_child(e, &(USize){(USize)(3)})->data.data.Ident.c_str);
+    // Skip child 3 (arity literal), actual args start at child 4.
+    for (I32 ai = 0; ai < nargs; ai++) {
+        Expr *arg = Expr_child(e, &(USize){(USize)(ai + 4)});
         Vec_push(&fake_call.children, Expr_clone(arg));
-    }
-
-    Value fn_val = eval_expr(s, &field_access);
-    if (fn_val.tag == Value_TAG_Func && ((Expr*)fn_val.data.Func)->data.tag == NodeType_TAG_FuncDef) {
-        Expr *fdef = (Expr*)fn_val.data.Func;
-        U32 nparam = fdef->data.data.FuncDef.nparam;
-        U32 nargs = fake_call.children.count - 1;
-        for (U32 i = nargs; i < nparam; i++) {
-            Str *_pn = &((Param*)Vec_get(&fdef->data.data.FuncDef.params, &(USize){(USize)(i)}))->name;
-            if (Map_has(&fdef->data.data.FuncDef.param_defaults, _pn)) {
-                Expr *def_arg = Expr_clone((Expr*)Map_get(&fdef->data.data.FuncDef.param_defaults, _pn));
-                Vec_push(&fake_call.children, def_arg);
-            }
-        }
     }
 
     *r = eval_call(s, &fake_call);
