@@ -57,6 +57,28 @@ namespace:
         return out
     }
 
+    take_prefix := func(mut self: Vec, n: USize) returns Vec {
+        if n.gt(self.count) {
+            panic(__LOC__, "Vec.take_prefix: count ", n.to_str(), " out of bounds (len ", self.count.to_str(), ")")
+        }
+        mut prefix_cap : USize = 1
+        if n.gt(0) {
+            prefix_cap = n
+        }
+        prefix_data : Dynamic = malloc(prefix_cap.mul(self.elem_size))
+        if n.gt(0) {
+            memcpy(prefix_data, self.data, n.mul(self.elem_size))
+        }
+        tail_count := self.count.sub(n)
+        if tail_count.gt(0) {
+            memmove(self.data, ptr_add(self.data, n.mul(self.elem_size)), tail_count.mul(self.elem_size))
+        }
+        self.count = tail_count
+        return Vec(data = prefix_data, count = n, cap = prefix_cap,
+                   elem_size = self.elem_size, elem_type = self.elem_type.clone(),
+                   elem_clone = self.elem_clone, elem_delete = self.elem_delete)
+    }
+
     set := proc(mut self: Vec, i: USize, own val: Dynamic) {
         if i.gte(self.count) {
             panic(__LOC__, "Vec.set: index ", i.to_str(), " out of bounds (len ", self.count.to_str(), ")")

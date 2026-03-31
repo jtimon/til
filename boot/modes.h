@@ -644,6 +644,7 @@ U32 Vec_len(Vec * self);
 void Vec_push(Vec * self, void * val);
 void * Vec_get(Vec * self, U32 * i);
 void * Vec_pop(Vec * self);
+Vec * Vec_take_prefix(Vec * self, U32 * n);
 void Vec_set(Vec * self, U32 * i, void * val);
 void Vec_delete(Vec * self, Bool * call_free);
 Vec * Vec_clone(Vec * self);
