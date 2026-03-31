@@ -337,7 +337,8 @@ xml_escape := func(s: Str) returns Str {
 }
 
 max_line_chars := func(t: UmlType) returns I64 {
-    mut max := t.name.len().add(2).add(t.kind.len()).to_i64()
+    header := t.name.concat(": ").concat(t.kind)
+    mut max := header.len().to_i64()
     mut i : USize = 0
     while i.lt(t.lines.len()) {
         ref line : Str = t.lines.get(i)
