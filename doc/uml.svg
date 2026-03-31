@@ -345,7 +345,7 @@
   <text x="4254" y="126" class="title">Mode: StructDef</text>
   <text x="4254" y="144" class="line">mut name := &quot;&quot;</text>
   <text x="4254" y="162" class="line">mut needs_main := false</text>
-  <text x="4254" y="180" class="line">mut decls_only := false</text>
+  <text x="4254" y="180" class="line">mut decls_only := true</text>
   <text x="4254" y="198" class="line">mut auto_import := &quot;&quot;</text>
   <text x="4254" y="216" class="line">mut is_library := false</text>
   <text x="4254" y="234" class="line">mut is_pure := false</text>
