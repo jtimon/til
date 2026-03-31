@@ -1,0 +1,397 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="6200" height="1900" viewBox="0 0 6200 1900">
+  <defs>
+    <style>
+      .bg { fill: #f7f5ef; }
+      .title { font: 700 30px Georgia, serif; fill: #1f2937; }
+      .subtitle { font: 16px 'Courier New', monospace; fill: #475569; }
+      .panel { fill: none; stroke: #c8c2b7; stroke-width: 2; stroke-dasharray: 10 7; rx: 14; ry: 14; }
+      .panel-label { font: 700 19px Georgia, serif; fill: #6b7280; }
+      .box { fill: #fffdf8; stroke: #334155; stroke-width: 2; rx: 10; ry: 10; }
+      .ast { fill: #fff9ef; }
+      .lex { fill: #f2f8ee; }
+      .parse { fill: #eef8f7; }
+      .type { fill: #f3f3ff; }
+      .runtime { fill: #eef4ff; }
+      .dispatch { fill: #eef8ff; }
+      .mode { fill: #f9f1ff; }
+      .enum { fill: #fff3e8; }
+      .stereo { font: italic 14px Georgia, serif; fill: #6b7280; }
+      .box-title { font: 700 18px 'Courier New', monospace; fill: #111827; }
+      .field { font: 13px 'Courier New', monospace; fill: #1f2937; }
+      .note { font: 13px 'Courier New', monospace; fill: #475569; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="6200" height="1900"/>
+  <text class="title" x="36" y="46">UML-ish class diagram for <tspan font-family="'Courier New', monospace">src/self</tspan> and <tspan font-family="'Courier New', monospace">src/core/ast.til</tspan></text>
+  <text class="subtitle" x="36" y="76">Long horizontal layout by file. Fields are shown close to the original declarations, without default values. No arrows on purpose.</text>
+
+  <rect class="panel" x="24" y="104" width="320" height="300"/>
+  <text class="panel-label" x="42" y="128">src/self/modes.til</text>
+  <rect class="box mode" x="44" y="156" width="280" height="192"/>
+  <text class="box-title" x="58" y="184">Mode</text>
+  <text class="field" x="58" y="211">mut name</text>
+  <text class="field" x="58" y="231">mut needs_main</text>
+  <text class="field" x="58" y="251">mut decls_only</text>
+  <text class="field" x="58" y="271">mut auto_import</text>
+  <text class="field" x="58" y="291">mut is_library</text>
+  <text class="field" x="58" y="311">mut is_pure</text>
+  <text class="field" x="58" y="331">mut debug_prints</text>
+
+  <rect class="panel" x="384" y="104" width="390" height="1520"/>
+  <text class="panel-label" x="402" y="128">src/self/lexer.til</text>
+  <rect class="box enum lex" x="404" y="156" width="350" height="1420"/>
+  <text class="stereo" x="418" y="178">&lt;&lt;enum&gt;&gt;</text>
+  <text class="box-title" x="418" y="201">TokenType</text>
+  <text class="field" x="418" y="228">Eof</text>
+  <text class="field" x="418" y="248">LParen</text>
+  <text class="field" x="418" y="268">RParen</text>
+  <text class="field" x="418" y="288">LBrace</text>
+  <text class="field" x="418" y="308">RBrace</text>
+  <text class="field" x="418" y="328">LBracket</text>
+  <text class="field" x="418" y="348">RBracket</text>
+  <text class="field" x="418" y="368">Comma</text>
+  <text class="field" x="418" y="388">Colon</text>
+  <text class="field" x="418" y="408">Question</text>
+  <text class="field" x="418" y="428">Bang</text>
+  <text class="field" x="418" y="448">Minus</text>
+  <text class="field" x="418" y="468">Plus</text>
+  <text class="field" x="418" y="488">Star</text>
+  <text class="field" x="418" y="508">Slash</text>
+  <text class="field" x="418" y="528">Dot</text>
+  <text class="field" x="418" y="548">DotDot</text>
+  <text class="field" x="418" y="568">DotDotDot</text>
+  <text class="field" x="418" y="588">Eq</text>
+  <text class="field" x="418" y="608">EqEq</text>
+  <text class="field" x="418" y="628">Neq</text>
+  <text class="field" x="418" y="648">Lt</text>
+  <text class="field" x="418" y="668">LtEq</text>
+  <text class="field" x="418" y="688">Gt</text>
+  <text class="field" x="418" y="708">GtEq</text>
+  <text class="field" x="418" y="728">ColonEq</text>
+  <text class="field" x="418" y="748">Ident</text>
+  <text class="field" x="418" y="768">StringTok</text>
+  <text class="field" x="418" y="788">Number</text>
+  <text class="field" x="418" y="808">Char</text>
+  <text class="field" x="418" y="828">KwMode</text>
+  <text class="field" x="418" y="848">KwMut</text>
+  <text class="field" x="418" y="868">KwOwn</text>
+  <text class="field" x="418" y="888">KwRef</text>
+  <text class="field" x="418" y="908">KwShallow</text>
+  <text class="field" x="418" y="928">KwStruct</text>
+  <text class="field" x="418" y="948">KwExtStruct</text>
+  <text class="field" x="418" y="968">KwEnum</text>
+  <text class="field" x="418" y="988">KwNamespace</text>
+  <text class="field" x="418" y="1008">KwFunc</text>
+  <text class="field" x="418" y="1028">KwProc</text>
+  <text class="field" x="418" y="1048">KwTest</text>
+  <text class="field" x="418" y="1068">KwMacro</text>
+  <text class="field" x="418" y="1088">KwExtFunc</text>
+  <text class="field" x="418" y="1108">KwExtProc</text>
+  <text class="field" x="418" y="1128">KwReturns</text>
+  <text class="field" x="418" y="1148">KwThrows</text>
+  <text class="field" x="418" y="1168">KwIf</text>
+  <text class="field" x="418" y="1188">KwElse</text>
+  <text class="field" x="418" y="1208">KwWhile</text>
+  <text class="field" x="418" y="1228">KwFor</text>
+  <text class="field" x="418" y="1248">KwIn</text>
+  <text class="field" x="418" y="1268">KwSwitch</text>
+  <text class="field" x="418" y="1288">KwMatch</text>
+  <text class="field" x="418" y="1308">KwCase</text>
+  <text class="field" x="418" y="1328">KwDefault</text>
+  <text class="field" x="418" y="1348">KwReturn</text>
+  <text class="field" x="418" y="1368">KwThrow</text>
+  <text class="field" x="418" y="1388">KwCatch</text>
+  <text class="field" x="418" y="1408">KwBreak</text>
+  <text class="field" x="418" y="1428">KwContinue</text>
+  <text class="field" x="418" y="1448">KwDefer</text>
+  <text class="field" x="418" y="1468">KwTrue</text>
+  <text class="field" x="418" y="1488">KwFalse</text>
+  <text class="field" x="418" y="1508">KwNull</text>
+  <text class="field" x="418" y="1528">Error</text>
+  <rect class="box lex" x="404" y="1592" width="190" height="132"/>
+  <text class="box-title" x="418" y="1620">Token</text>
+  <text class="field" x="418" y="1647">type : TokenType</text>
+  <text class="field" x="418" y="1667">text</text>
+  <text class="field" x="418" y="1687">line : U32</text>
+  <text class="field" x="418" y="1707">col : U32</text>
+
+  <rect class="panel" x="814" y="104" width="960" height="1520"/>
+  <text class="panel-label" x="832" y="128">src/core/ast.til</text>
+  <rect class="box enum ast" x="834" y="156" width="250" height="410"/>
+  <text class="stereo" x="848" y="178">&lt;&lt;enum&gt;&gt;</text>
+  <text class="box-title" x="848" y="201">TilType</text>
+  <text class="field" x="848" y="228">Unknown</text>
+  <text class="field" x="848" y="248">None</text>
+  <text class="field" x="848" y="268">I64</text>
+  <text class="field" x="848" y="288">U8</text>
+  <text class="field" x="848" y="308">I16</text>
+  <text class="field" x="848" y="328">I32</text>
+  <text class="field" x="848" y="348">U32</text>
+  <text class="field" x="848" y="368">U64</text>
+  <text class="field" x="848" y="388">F32</text>
+  <text class="field" x="848" y="408">Bool</text>
+  <text class="field" x="848" y="428">Struct</text>
+  <text class="field" x="848" y="448">StructDef</text>
+  <text class="field" x="848" y="468">Enum</text>
+  <text class="field" x="848" y="488">EnumDef</text>
+  <text class="field" x="848" y="508">FuncDef</text>
+  <text class="field" x="848" y="528">FuncPtr</text>
+  <text class="field" x="848" y="548">Dynamic</text>
+
+  <rect class="box ast" x="1110" y="156" width="360" height="258"/>
+  <text class="box-title" x="1124" y="184">Declaration</text>
+  <text class="field" x="1124" y="211">mut name</text>
+  <text class="field" x="1124" y="231">mut explicit_type</text>
+  <text class="field" x="1124" y="251">mut is_mut</text>
+  <text class="field" x="1124" y="271">mut is_namespace</text>
+  <text class="field" x="1124" y="291">mut is_ref</text>
+  <text class="field" x="1124" y="311">mut is_own</text>
+  <text class="field" x="1124" y="331">mut field_offset : I32</text>
+  <text class="field" x="1124" y="351">mut field_size : I32</text>
+  <text class="field" x="1124" y="371">ref mut field_struct_def : Expr</text>
+  <text class="field" x="1124" y="391">ref mut fn_sig : Expr</text>
+
+  <rect class="box enum ast" x="1496" y="156" width="230" height="190"/>
+  <text class="stereo" x="1510" y="178">&lt;&lt;enum&gt;&gt;</text>
+  <text class="box-title" x="1510" y="201">FuncType</text>
+  <text class="field" x="1510" y="228">Func</text>
+  <text class="field" x="1510" y="248">Proc</text>
+  <text class="field" x="1510" y="268">Test</text>
+  <text class="field" x="1510" y="288">Macro</text>
+  <text class="field" x="1510" y="308">ExtFunc</text>
+  <text class="field" x="1510" y="328">ExtProc</text>
+
+  <rect class="box ast" x="834" y="592" width="260" height="132"/>
+  <text class="box-title" x="848" y="620">Param</text>
+  <text class="field" x="848" y="647">mut name</text>
+  <text class="field" x="848" y="667">mut ptype</text>
+  <text class="field" x="848" y="687">mut is_mut</text>
+  <text class="field" x="848" y="707">mut is_own</text>
+  <text class="field" x="848" y="727">mut is_shallow</text>
+
+  <rect class="box ast" x="1120" y="592" width="614" height="226"/>
+  <text class="box-title" x="1134" y="620">FunctionDef</text>
+  <text class="field" x="1134" y="647">mut func_type : FuncType</text>
+  <text class="field" x="1134" y="667">mut params : Vec&lt;Param&gt;</text>
+  <text class="field" x="1134" y="687">mut nparam : USize</text>
+  <text class="field" x="1134" y="707">mut param_defaults : Map&lt;Str, Expr&gt;</text>
+  <text class="field" x="1134" y="727">mut return_type</text>
+  <text class="field" x="1134" y="747">mut variadic_index : I32</text>
+  <text class="field" x="1134" y="767">mut kwargs_index : I32</text>
+  <text class="field" x="1134" y="787">mut return_is_ref</text>
+  <text class="field" x="1134" y="807">mut return_is_shallow</text>
+
+  <rect class="box ast" x="834" y="844" width="360" height="166"/>
+  <text class="box-title" x="848" y="872">FCallData</text>
+  <text class="field" x="848" y="899">mut is_proc</text>
+  <text class="field" x="848" y="919">mut variadic_index : I32</text>
+  <text class="field" x="848" y="939">mut variadic_count : USize</text>
+  <text class="field" x="848" y="959">mut kwargs_index : I32</text>
+  <text class="field" x="848" y="979">mut kwargs_count : USize</text>
+  <text class="field" x="848" y="999">ref mut fn_sig : Expr</text>
+
+  <rect class="box ast" x="1220" y="844" width="220" height="110"/>
+  <text class="box-title" x="1234" y="872">FieldDef</text>
+  <text class="field" x="1234" y="899">mut decl : Declaration</text>
+  <text class="field" x="1234" y="919">ref mut default_value : Expr</text>
+
+  <rect class="box ast" x="1466" y="844" width="268" height="110"/>
+  <text class="box-title" x="1480" y="872">StructDefData</text>
+  <text class="field" x="1480" y="899">mut total_struct_size : I32</text>
+  <text class="field" x="1480" y="919">mut fields : Vec&lt;FieldDef&gt;</text>
+
+  <rect class="box enum ast" x="834" y="1038" width="520" height="570"/>
+  <text class="stereo" x="848" y="1060">&lt;&lt;enum&gt;&gt;</text>
+  <text class="box-title" x="848" y="1083">ExprData</text>
+  <text class="field" x="848" y="1110">Body</text>
+  <text class="field" x="848" y="1130">LiteralStr: Str</text>
+  <text class="field" x="848" y="1150">LiteralNum: Str</text>
+  <text class="field" x="848" y="1170">LiteralBool: Bool</text>
+  <text class="field" x="848" y="1190">LiteralNull</text>
+  <text class="field" x="848" y="1210">Ident: Str</text>
+  <text class="field" x="848" y="1230">Decl: Declaration</text>
+  <text class="field" x="848" y="1250">Assign: Str</text>
+  <text class="field" x="848" y="1270">FCall: FCallData</text>
+  <text class="field" x="848" y="1290">FuncDef: FunctionDef</text>
+  <text class="field" x="848" y="1310">StructDef: StructDefData</text>
+  <text class="field" x="848" y="1330">EnumDef</text>
+  <text class="field" x="848" y="1350">FieldAccess: Str</text>
+  <text class="field" x="848" y="1370">FieldAssign: Str</text>
+  <text class="field" x="848" y="1390">Return</text>
+  <text class="field" x="848" y="1410">If</text>
+  <text class="field" x="848" y="1430">While</text>
+  <text class="field" x="848" y="1450">ForIn: Str</text>
+  <text class="field" x="848" y="1470">NamedArg: Str</text>
+  <text class="field" x="848" y="1490">Break</text>
+  <text class="field" x="848" y="1510">Continue</text>
+  <text class="field" x="848" y="1530">MapLit</text>
+  <text class="field" x="848" y="1550">SetLit</text>
+  <text class="field" x="848" y="1570">Switch</text>
+  <text class="field" x="848" y="1590">Case</text>
+
+  <rect class="box ast" x="1380" y="1038" width="354" height="446"/>
+  <text class="box-title" x="1394" y="1066">Expr</text>
+  <text class="field" x="1394" y="1093">mut data : ExprData</text>
+  <text class="field" x="1394" y="1113">mut til_type : TilType</text>
+  <text class="field" x="1394" y="1133">mut struct_name</text>
+  <text class="field" x="1394" y="1153">mut is_own_arg</text>
+  <text class="field" x="1394" y="1173">mut is_splat</text>
+  <text class="field" x="1394" y="1193">mut is_own_field</text>
+  <text class="field" x="1394" y="1213">mut is_ref_field</text>
+  <text class="field" x="1394" y="1233">mut is_ns_field</text>
+  <text class="field" x="1394" y="1253">mut is_ext</text>
+  <text class="field" x="1394" y="1273">mut is_core</text>
+  <text class="field" x="1394" y="1293">mut save_old_delete</text>
+  <text class="field" x="1394" y="1313">mut variadic_index : I32</text>
+  <text class="field" x="1394" y="1333">mut variadic_count : USize</text>
+  <text class="field" x="1394" y="1353">mut kwargs_index : I32</text>
+  <text class="field" x="1394" y="1373">mut kwargs_count : USize</text>
+  <text class="field" x="1394" y="1393">ref mut fn_sig : Expr</text>
+  <text class="field" x="1394" y="1413">mut children : Vec&lt;Expr&gt;</text>
+  <text class="field" x="1394" y="1433">mut line : U32</text>
+  <text class="field" x="1394" y="1453">mut col : U32</text>
+  <text class="field" x="1394" y="1473">mut path</text>
+
+  <rect class="panel" x="1814" y="104" width="420" height="300"/>
+  <text class="panel-label" x="1832" y="128">src/self/parser.til</text>
+  <rect class="box parse" x="1834" y="156" width="380" height="132"/>
+  <text class="box-title" x="1848" y="184">Parser</text>
+  <text class="field" x="1848" y="211">mut tokens : Vec&lt;Token&gt;</text>
+  <text class="field" x="1848" y="231">mut pos : USize</text>
+  <text class="field" x="1848" y="251">mut path</text>
+  <text class="field" x="1848" y="271">mut fn_sig_decls : Vec&lt;Expr&gt;</text>
+
+  <rect class="panel" x="2274" y="104" width="660" height="640"/>
+  <text class="panel-label" x="2292" y="128">src/self/initer.til</text>
+  <rect class="box type" x="2294" y="156" width="620" height="332"/>
+  <text class="box-title" x="2308" y="184">TypeBinding</text>
+  <text class="field" x="2308" y="211">ref mut name : Str</text>
+  <text class="field" x="2308" y="231">mut type : TilType</text>
+  <text class="field" x="2308" y="251">mut is_proc : I32</text>
+  <text class="field" x="2308" y="271">mut is_mut</text>
+  <text class="field" x="2308" y="291">mut line : U32</text>
+  <text class="field" x="2308" y="311">mut col : U32</text>
+  <text class="field" x="2308" y="331">mut is_param</text>
+  <text class="field" x="2308" y="351">mut is_own</text>
+  <text class="field" x="2308" y="371">mut is_ref</text>
+  <text class="field" x="2308" y="391">mut is_alias</text>
+  <text class="field" x="2308" y="411">mut is_type_alias</text>
+  <text class="field" x="2308" y="431">ref mut alias_target : Str</text>
+  <text class="field" x="2308" y="451">ref mut struct_def : Expr</text>
+  <text class="field" x="2308" y="471">ref mut func_def : Expr</text>
+  <rect class="box enum type" x="2294" y="516" width="250" height="92"/>
+  <text class="stereo" x="2308" y="538">&lt;&lt;enum&gt;&gt;</text>
+  <text class="box-title" x="2308" y="561">ScopeFind</text>
+  <text class="field" x="2308" y="588">NotFound</text>
+  <text class="field" x="2308" y="608">Found: TypeBinding</text>
+  <rect class="box type" x="2570" y="516" width="344" height="92"/>
+  <text class="box-title" x="2584" y="544">TypeScope</text>
+  <text class="field" x="2584" y="571">mut bindings : Map&lt;Str, TypeBinding&gt;</text>
+  <text class="field" x="2584" y="591">ref mut parent : TypeScope</text>
+
+  <rect class="panel" x="2974" y="104" width="420" height="340"/>
+  <text class="panel-label" x="2992" y="128">src/self/typer.til</text>
+  <rect class="box type" x="2994" y="156" width="270" height="192"/>
+  <text class="box-title" x="3008" y="184">LocalInfo</text>
+  <text class="field" x="3008" y="211">ref mut name : Str</text>
+  <text class="field" x="3008" y="231">mut type : TilType</text>
+  <text class="field" x="3008" y="251">ref mut struct_name : Str</text>
+  <text class="field" x="3008" y="271">mut decl_index : I32</text>
+  <text class="field" x="3008" y="291">mut last_use : I32</text>
+  <text class="field" x="3008" y="311">mut own_transfer : I32</text>
+  <text class="field" x="3008" y="331">mut skip_scope_delete</text>
+  <rect class="box enum type" x="3280" y="156" width="94" height="96"/>
+  <text class="stereo" x="3294" y="178">&lt;&lt;enum&gt;&gt;</text>
+  <text class="box-title" x="3294" y="201">CtorArg</text>
+  <text class="field" x="3294" y="228">Unfilled</text>
+  <text class="field" x="3294" y="248">Filled: Expr</text>
+
+  <rect class="panel" x="3434" y="104" width="280" height="220"/>
+  <text class="panel-label" x="3452" y="128">src/self/precomp.til</text>
+  <rect class="box parse" x="3454" y="156" width="240" height="92"/>
+  <text class="box-title" x="3468" y="184">No Types</text>
+  <text class="field" x="3468" y="211">only funcs/ext_funcs</text>
+  <text class="field" x="3468" y="231">no struct/enum declarations</text>
+
+  <rect class="panel" x="3754" y="104" width="280" height="220"/>
+  <text class="panel-label" x="3772" y="128">src/self/scavenger.til</text>
+  <rect class="box parse" x="3774" y="156" width="240" height="92"/>
+  <text class="box-title" x="3788" y="184">No Types</text>
+  <text class="field" x="3788" y="211">only funcs/ext_procs</text>
+  <text class="field" x="3788" y="231">no struct/enum declarations</text>
+
+  <rect class="panel" x="4074" y="104" width="340" height="260"/>
+  <text class="panel-label" x="4092" y="128">src/self/builder.til</text>
+  <rect class="box dispatch" x="4094" y="156" width="300" height="92"/>
+  <text class="box-title" x="4108" y="184">CollectionInfo</text>
+  <text class="field" x="4108" y="211">ref mut type_name : Str</text>
+  <text class="field" x="4108" y="231">mut is_vec : I32</text>
+  <rect class="box dispatch" x="4094" y="264" width="280" height="112"/>
+  <text class="box-title" x="4108" y="292">DynCallInfo</text>
+  <text class="field" x="4108" y="319">ref mut method : Str</text>
+  <text class="field" x="4108" y="339">mut nargs : I32</text>
+  <text class="field" x="4108" y="359">mut has_return</text>
+
+  <rect class="panel" x="4454" y="104" width="520" height="460"/>
+  <text class="panel-label" x="4472" y="128">src/self/dispatch.til</text>
+  <rect class="box dispatch" x="4474" y="156" width="260" height="112"/>
+  <text class="box-title" x="4488" y="184">ExtStr</text>
+  <text class="field" x="4488" y="211">ref mut data : U8</text>
+  <text class="field" x="4488" y="231">mut count : U64</text>
+  <text class="field" x="4488" y="251">mut cap : U64</text>
+  <rect class="box dispatch" x="4474" y="294" width="470" height="202"/>
+  <text class="box-title" x="4488" y="322">FFIEntry</text>
+  <text class="field" x="4488" y="349">ref mut fn : U8</text>
+  <text class="field" x="4488" y="369">ref mut return_type : Str</text>
+  <text class="field" x="4488" y="389">mut nparam : I32</text>
+  <text class="field" x="4488" y="409">ref mut param_shallows : U8</text>
+  <text class="field" x="4488" y="429">mut return_is_shallow</text>
+  <text class="field" x="4488" y="449">ref mut cif : U8</text>
+  <text class="field" x="4488" y="469">ref mut arg_types : U8</text>
+
+  <rect class="panel" x="5014" y="104" width="700" height="1800"/>
+  <text class="panel-label" x="5032" y="128">src/self/interpreter.til</text>
+  <rect class="box runtime" x="5034" y="156" width="300" height="152"/>
+  <text class="box-title" x="5048" y="184">StructInstance</text>
+  <text class="field" x="5048" y="211">ref mut struct_name : Str</text>
+  <text class="field" x="5048" y="231">ref mut struct_def : Expr</text>
+  <text class="field" x="5048" y="251">own mut data : U8</text>
+  <text class="field" x="5048" y="271">mut borrowed</text>
+  <rect class="box runtime" x="5360" y="156" width="300" height="152"/>
+  <text class="box-title" x="5374" y="184">EnumInstance</text>
+  <text class="field" x="5374" y="211">ref mut enum_name : Str</text>
+  <text class="field" x="5374" y="231">ref mut enum_def : Expr</text>
+  <text class="field" x="5374" y="251">ref mut data : U8</text>
+  <text class="field" x="5374" y="271">mut data_size : I32</text>
+  <rect class="box enum runtime" x="5034" y="336" width="626" height="254"/>
+  <text class="stereo" x="5048" y="358">&lt;&lt;enum&gt;&gt;</text>
+  <text class="box-title" x="5048" y="381">Value</text>
+  <text class="field" x="5048" y="408">None</text>
+  <text class="field" x="5048" y="428">Int: I64</text>
+  <text class="field" x="5048" y="448">Byte: U8</text>
+  <text class="field" x="5048" y="468">Short: I16</text>
+  <text class="field" x="5048" y="488">Int32: I32</text>
+  <text class="field" x="5048" y="508">Uint32: U32</text>
+  <text class="field" x="5048" y="528">Uint64: U64</text>
+  <text class="field" x="5048" y="548">Float: F32</text>
+  <text class="field" x="5310" y="408">Boolean: Bool</text>
+  <text class="field" x="5310" y="428">Func: Dynamic</text>
+  <text class="field" x="5310" y="448">Struct: StructInstance</text>
+  <text class="field" x="5310" y="468">Enum: EnumInstance</text>
+  <text class="field" x="5310" y="488">Ptr: Dynamic</text>
+  <rect class="box runtime" x="5034" y="616" width="180" height="70"/>
+  <text class="box-title" x="5048" y="644">Cell</text>
+  <text class="field" x="5048" y="671">mut val : Value</text>
+  <rect class="box runtime" x="5240" y="616" width="420" height="112"/>
+  <text class="box-title" x="5254" y="644">Binding</text>
+  <text class="field" x="5254" y="671">ref mut name : Str</text>
+  <text class="field" x="5254" y="691">ref mut cell : Cell</text>
+  <text class="field" x="5254" y="711">mut cell_is_local</text>
+  <rect class="box runtime" x="5034" y="754" width="626" height="92"/>
+  <text class="box-title" x="5048" y="782">Scope</text>
+  <text class="field" x="5048" y="809">mut bindings : Map&lt;Str, Binding&gt;</text>
+  <text class="field" x="5048" y="829">ref mut parent : Scope</text>
+
+  <text class="note" x="36" y="1860">Notes: panels are one file each, in the requested order: modes, lexer, ast, parser, initer, typer, precomp, scavenger, builder, dispatch, interpreter. Methods are omitted. No arrows on purpose.</text>
+</svg>
