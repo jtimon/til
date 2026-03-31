@@ -89,7 +89,6 @@ Value := enum {
     clone := func(self: Value) returns Value {
         return clone_value(self)
     }
-    delete := func(own self: Value, call_free: Bool = true) {}
 }
 
 Cell := struct {
